@@ -1,9 +1,9 @@
 from typing import List, Optional, Tuple, Union
 import numpy as np
 
-from analysis.decision_pattern_analyzer import DecisionPatternAnalyzer
-from analysis.resource_impact_analyzer import ResourceImpactAnalyzer
-from analysis.temporal_pattern_analyzer import TemporalPatternAnalyzer
+from database.analyzers.decision_pattern_analyzer import DecisionPatternAnalyzer
+from database.analyzers.resource_impact_analyzer import ResourceImpactAnalyzer
+from database.analyzers.temporal_pattern_analyzer import TemporalPatternAnalyzer
 from database.data_types import ActionMetrics
 from database.enums import AnalysisScope
 from database.repositories.action_repository import ActionRepository
