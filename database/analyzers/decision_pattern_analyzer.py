@@ -3,6 +3,13 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
+from database.analyzers.analysis_utils import (
+    calculate_consistency,
+    calculate_periodicity,
+    calculate_rolling_mean,
+    calculate_trend,
+    get_recent_trend,
+)
 from database.data_types import DecisionPatterns, DecisionPatternStats, DecisionSummary
 from database.enums import AnalysisScope
 from database.repositories.action_repository import ActionRepository
@@ -381,83 +388,22 @@ class DecisionPatternAnalyzer:
             step_counts = np.bincount(steps_array - min(steps_array))
             frequencies = step_counts / total_steps
 
-            # Calculate rolling statistics
-            rolling_freq = self._calculate_rolling_mean(frequencies, window_size)
-            rolling_rewards = self._calculate_rolling_mean(rewards_array, window_size)
+            # Calculate rolling statistics using utility functions
+            rolling_freq = calculate_rolling_mean(frequencies, window_size)
+            rolling_rewards = calculate_rolling_mean(rewards_array, window_size)
 
-            # Calculate trends
-            freq_trend = self._calculate_trend(frequencies)
-            reward_trend = self._calculate_trend(rewards_array)
+            # Calculate trends using utility functions
+            freq_trend = calculate_trend(frequencies)
+            reward_trend = calculate_trend(rewards_array)
 
             trends[action_type] = {
                 "frequency_trend": float(freq_trend),
                 "reward_trend": float(reward_trend),
                 "rolling_frequencies": rolling_freq.tolist(),
                 "rolling_rewards": rolling_rewards.tolist(),
-                "consistency": float(self._calculate_consistency(frequencies)),
-                "periodicity": float(self._calculate_periodicity(frequencies)),
-                "recent_trend": self._get_recent_trend(frequencies, window_size),
+                "consistency": float(calculate_consistency(frequencies)),
+                "periodicity": float(calculate_periodicity(frequencies)),
+                "recent_trend": get_recent_trend(frequencies, window_size),
             }
 
         return trends
-
-    def _calculate_rolling_mean(self, data: np.ndarray, window: int) -> np.ndarray:
-        """Calculate rolling mean with the specified window size."""
-        return np.convolve(data, np.ones(window) / window, mode="valid")
-
-    def _calculate_trend(self, data: np.ndarray) -> float:
-        """Calculate the overall trend using linear regression."""
-        if len(data) < 2:
-            return 0.0
-        x = np.arange(len(data))
-        slope = np.polyfit(x, data, 1)[0]
-        return slope
-
-    def _calculate_consistency(self, frequencies: np.ndarray) -> float:
-        """Calculate the consistency of action frequency."""
-        if len(frequencies) < 2:
-            return 1.0
-        return 1.0 - np.std(frequencies) / (np.mean(frequencies) + 1e-10)
-
-    def _calculate_periodicity(self, frequencies: np.ndarray) -> float:
-        """Calculate the periodicity of action frequency using autocorrelation."""
-        if len(frequencies) < 2:
-            return 0.0
-
-        # Calculate autocorrelation
-        mean = np.mean(frequencies)
-        var = np.var(frequencies)
-        normalized = frequencies - mean
-        correlation = np.correlate(normalized, normalized, mode="full")
-        correlation = correlation[len(correlation) // 2 :]
-
-        # Find peaks in autocorrelation
-        if var == 0:
-            return 0.0
-
-        correlation = correlation / (var * len(frequencies))
-        peaks = self._find_peaks(correlation)
-
-        return float(np.mean(peaks)) if peaks else 0.0
-
-    def _find_peaks(self, data: np.ndarray, threshold: float = 0.3) -> np.ndarray:
-        """Find peaks in the data above the threshold."""
-        peaks = []
-        for i in range(1, len(data) - 1):
-            if data[i] > threshold and data[i] > data[i - 1] and data[i] > data[i + 1]:
-                peaks.append(data[i])
-        return np.array(peaks)
-
-    def _get_recent_trend(self, data: np.ndarray, window: int) -> str:
-        """Determine the trend direction in the recent window."""
-        if len(data) < window:
-            return "stable"
-
-        recent_data = data[-window:]
-        trend = self._calculate_trend(recent_data)
-
-        if trend > 0.1:
-            return "increasing"
-        elif trend < -0.1:
-            return "decreasing"
-        return "stable"

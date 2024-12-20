@@ -1,16 +1,17 @@
-from typing import Dict, Optional, List, Tuple, Any
+from typing import Any, Dict, List, Optional, Tuple
 
+from database.analyzers.analysis_utils import _calculate_correlation, _normalize_dict
 from database.data_types import (
     AdversarialInteractionAnalysis,
     BasicAgentInfo,
     CollaborativeInteractionAnalysis,
     ConflictAnalysis,
     CounterfactualAnalysis,
+    EnvironmentalImpactAnalysis,
     ExplorationExploitation,
     LearningCurveAnalysis,
     ResilienceAnalysis,
     RiskRewardAnalysis,
-    EnvironmentalImpactAnalysis,
 )
 from database.repositories.agent_repository import AgentRepository
 
@@ -377,8 +378,8 @@ class AgentAnalysis:
                     )
 
         return ConflictAnalysis(
-            conflict_trigger_actions=self._normalize_dict(conflict_triggers),
-            conflict_resolution_actions=self._normalize_dict(conflict_resolutions),
+            conflict_trigger_actions=_normalize_dict(conflict_triggers),
+            conflict_resolution_actions=_normalize_dict(conflict_resolutions),
             conflict_outcome_metrics={
                 action: sum(outcomes) / len(outcomes) if outcomes else 0
                 for action, outcomes in conflict_outcomes.items()
@@ -616,7 +617,7 @@ class AgentAnalysis:
         environmental_state_impact = {}
         for action, rewards in resource_impacts.items():
             if rewards:
-                environmental_state_impact[action] = self._calculate_correlation(
+                environmental_state_impact[action] = _calculate_correlation(
                     [r[0] for r in rewards], [r[1] for r in rewards]
                 )
 
@@ -734,61 +735,9 @@ class AgentAnalysis:
                     location_actions[pos] = []
                 location_actions[pos].append((action, state))
 
-        return {
-            "position_effects": self._analyze_position_effects(location_actions),
-            "clustering": self._analyze_clustering(location_actions),
-            "movement_patterns": self._analyze_movement_patterns(results),
-        }
-
-    def _calculate_correlation(self, x: List[float], y: List[float]) -> float:
-        """Calculate correlation coefficient between two lists of values."""
-        if not x or not y or len(x) != len(y):
-            return 0.0
-
-        n = len(x)
-        mean_x = sum(x) / n
-        mean_y = sum(y) / n
-
-        covariance = sum((x[i] - mean_x) * (y[i] - mean_y) for i in range(n))
-        std_x = (sum((val - mean_x) ** 2 for val in x)) ** 0.5
-        std_y = (sum((val - mean_y) ** 2 for val in y)) ** 0.5
-
-        if std_x == 0 or std_y == 0:
-            return 0.0
-
-        return covariance / (std_x * std_y)
-
-    def _normalize_dict(self, d: Dict[str, int]) -> Dict[str, float]:
-        """Normalize dictionary values to proportions."""
-        total = sum(d.values())
-        return {k: v / total if total > 0 else 0 for k, v in d.items()}
-
-    def _analyze_spatial_patterns(
-        self, results: List[Tuple[Any, Any]]
-    ) -> Dict[str, Any]:
-        """Analyze spatial patterns in agent behavior.
-
-        Args:
-            results: List of action-state pairs to analyze
-
-        Returns:
-            Dict[str, Any]: Spatial analysis results including:
-                - position_effects: Impact of location on outcomes
-                - clustering: Patterns of agent grouping
-                - movement_patterns: Common movement strategies
-        """
-        # Group actions by location
-        location_actions = {}
-        for action, state in results:
-            if hasattr(state, "position"):
-                pos = state.position
-                if pos not in location_actions:
-                    location_actions[pos] = []
-                location_actions[pos].append((action, state))
-
         # Analyze position effects
         position_effects = {
-            pos: self._calculate_correlation(
+            pos: _calculate_correlation(
                 [
                     state.resource_level
                     for _, state in actions

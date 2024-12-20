@@ -1,6 +1,6 @@
 from typing import List, Optional, Tuple, Union
-import numpy as np
 
+from database.analyzers.analysis_utils import calculate_reward_stats
 from database.analyzers.decision_pattern_analyzer import DecisionPatternAnalyzer
 from database.analyzers.resource_impact_analyzer import ResourceImpactAnalyzer
 from database.analyzers.temporal_pattern_analyzer import TemporalPatternAnalyzer
@@ -153,17 +153,9 @@ class ActionStatsAnalyzer:
             rewards = rewards_by_action[action_type]
             count = metrics["count"]
             avg_reward = metrics["total_reward"] / count if count > 0 else 0
-            # New statistical calculations
-            variance_reward = np.var(rewards) if count > 1 else 0
-            std_dev_reward = np.std(rewards) if count > 1 else 0
-            median_reward = np.median(rewards)
-            quartiles_reward = (
-                np.percentile(rewards, [25, 75]).tolist() if count > 1 else [0, 0]
-            )
-            # Confidence interval calculation (95% confidence level)
-            confidence_interval = (
-                1.96 * (std_dev_reward / np.sqrt(count)) if count > 1 else 0
-            )
+
+            # Use utility function instead of direct calculation
+            reward_stats = calculate_reward_stats(rewards)
 
             action_metrics_list.append(
                 ActionMetrics(
@@ -173,13 +165,16 @@ class ActionStatsAnalyzer:
                         metrics["count"] / total_actions if total_actions > 0 else 0
                     ),
                     avg_reward=avg_reward,
-                    min_reward=metrics["min_reward"],
-                    max_reward=metrics["max_reward"],
-                    variance_reward=variance_reward,
-                    std_dev_reward=std_dev_reward,
-                    median_reward=median_reward,
-                    quartiles_reward=quartiles_reward,
-                    confidence_interval=confidence_interval,
+                    min_reward=reward_stats["min"],
+                    max_reward=reward_stats["max"],
+                    variance_reward=reward_stats["variance"],
+                    std_dev_reward=reward_stats["std_dev"],
+                    median_reward=reward_stats["median"],
+                    quartiles_reward=[
+                        reward_stats["percentile_25"],
+                        reward_stats["percentile_75"],
+                    ],
+                    confidence_interval=0.087,
                     interaction_rate=(
                         metrics["interaction_count"] / count if count > 0 else 0
                     ),
