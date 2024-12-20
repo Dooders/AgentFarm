@@ -18,14 +18,14 @@ from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from .models import (
-    Agent,
-    AgentAction,
-    AgentState,
+from farm.database.models import (
+    ActionModel,
+    AgentModel,
+    AgentStateModel,
     HealthIncident,
-    LearningExperience,
-    ResourceState,
-    SimulationStep,
+    LearningExperienceModel,
+    ResourceModel,
+    SimulationStepModel,
 )
 
 logger = logging.getLogger(__name__)
@@ -169,7 +169,7 @@ class DataLogger:
         try:
 
             def _insert(session):
-                session.bulk_insert_mappings(AgentAction, buffer_copy)
+                session.bulk_insert_mappings(ActionModel, buffer_copy)
 
             self.db._execute_in_transaction(_insert)
             self._action_buffer.clear()
@@ -186,7 +186,7 @@ class DataLogger:
         try:
 
             def _insert(session):
-                session.bulk_insert_mappings(LearningExperience, buffer_copy)
+                session.bulk_insert_mappings(LearningExperienceModel, buffer_copy)
 
             self.db._execute_in_transaction(_insert)
             self._learning_exp_buffer.clear()
@@ -287,7 +287,7 @@ class DataLogger:
                     }
                     for data in agent_data_list
                 ]
-                session.bulk_insert_mappings(Agent, mappings)
+                session.bulk_insert_mappings(AgentModel, mappings)
 
             self.db._execute_in_transaction(_batch_insert)
 
@@ -425,12 +425,14 @@ class DataLogger:
                     unique_states = {}
                     for mapping in agent_state_mappings:
                         state_id = f"{mapping['agent_id']}-{mapping['step_number']}"
-                        mapping['id'] = state_id
+                        mapping["id"] = state_id
                         # Keep only the latest state if there are duplicates
                         unique_states[state_id] = mapping
 
                     # Use the filtered mappings for bulk insert
-                    session.bulk_insert_mappings(AgentState, unique_states.values())
+                    session.bulk_insert_mappings(
+                        AgentStateModel, unique_states.values()
+                    )
 
                 # Bulk insert resource states
                 if resource_states:
@@ -444,10 +446,12 @@ class DataLogger:
                         }
                         for state in resource_states
                     ]
-                    session.bulk_insert_mappings(ResourceState, resource_state_mappings)
+                    session.bulk_insert_mappings(ResourceModel, resource_state_mappings)
 
                 # Insert metrics
-                simulation_step = SimulationStep(step_number=step_number, **metrics)
+                simulation_step = SimulationStepModel(
+                    step_number=step_number, **metrics
+                )
                 session.add(simulation_step)
 
             self.db._execute_in_transaction(_insert)
@@ -493,7 +497,7 @@ class DataLogger:
             }
 
             def _insert(session):
-                session.add(ResourceState(**resource_data))
+                session.add(ResourceModel(**resource_data))
 
             self.db._execute_in_transaction(_insert)
 

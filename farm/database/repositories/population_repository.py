@@ -3,16 +3,16 @@ from typing import List, Optional, Tuple
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from database.data_types import (
+from farm.database.data_types import (
     AgentDistribution,
     AgentEvolutionMetrics,
     AgentStates,
     Population,
 )
-from database.models import AgentModel, AgentState, AgentStateModel, SimulationStep
-from database.repositories.base_repository import BaseRepository
-from database.scope_utils import filter_scope
-from database.session_manager import SessionManager
+from farm.database.models import AgentModel, AgentState, AgentStateModel, SimulationStep
+from farm.database.repositories.base_repository import BaseRepository
+from farm.database.scope_utils import filter_scope
+from farm.database.session_manager import SessionManager
 
 
 class PopulationRepository(BaseRepository[SimulationStep, AgentState]):

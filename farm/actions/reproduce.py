@@ -16,10 +16,10 @@ from typing import TYPE_CHECKING, Tuple
 import numpy as np
 import torch
 
-from actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork
+from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork
 
 if TYPE_CHECKING:
-    from agents.base_agent import BaseAgent
+    from farm.agents.base_agent import BaseAgent
 
 logger = logging.getLogger(__name__)
 

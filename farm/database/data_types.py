@@ -53,9 +53,9 @@ AgentLifespanResults
     Combined agent lifespan statistics and survival rates.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, NamedTuple, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel
 
@@ -571,35 +571,10 @@ class DecisionPatternStats:
     action_type: str
     count: int
     frequency: float
-    reward_stats: dict = {
-        "average": float,
-        "median": float,
-        "min": float,
-        "max": float,
-        "variance": float,
-        "std_dev": float,
-        "percentile_25": float,
-        "percentile_50": float,
-        "percentile_75": float,
-    }
-    contribution_metrics: dict = {
-        "action_share": float,
-        "reward_share": float,
-        "reward_efficiency": float,
-    }
-    temporal_stats: dict = {
-        "frequency_trend": float,  # Overall trend in frequency
-        "reward_trend": float,  # Overall trend in rewards
-        "rolling_frequencies": List[float],  # Rolling average of frequencies
-        "rolling_rewards": List[float],  # Rolling average of rewards
-        "consistency": float,  # Measure of frequency consistency
-        "periodicity": float,  # Measure of periodic patterns
-        "recent_trend": str,  # Recent trend direction
-    }
-    first_occurrence: dict = {
-        "step": int,  # First step this action was taken
-        "reward": float,  # Reward from first occurrence
-    }
+    reward_stats: dict = field(default_factory=dict)
+    contribution_metrics: dict = field(default_factory=dict)
+    temporal_stats: dict = field(default_factory=dict)
+    first_occurrence: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -2181,7 +2156,7 @@ class AgentActionData:
     state_before_id: Optional[str] = None
     state_after_id: Optional[str] = None
     reward: Optional[float] = None
-    details: Optional[Dict[str, Any]] = None
+    details: Optional[Dict[str, Any]] = field(default_factory=dict)
 
 
 @dataclass
@@ -2191,25 +2166,10 @@ class DecisionPatternStats:
     action_type: str
     count: int
     frequency: float
-    reward_stats: dict
-    contribution_metrics: dict = {
-        "action_share": float,
-        "reward_share": float,
-        "reward_efficiency": float,
-    }
-    temporal_stats: dict = {
-        "frequency_trend": float,  # Overall trend in frequency
-        "reward_trend": float,  # Overall trend in rewards
-        "rolling_frequencies": List[float],  # Rolling average of frequencies
-        "rolling_rewards": List[float],  # Rolling average of rewards
-        "consistency": float,  # Measure of frequency consistency
-        "periodicity": float,  # Measure of periodic patterns
-        "recent_trend": str,  # Recent trend direction
-    }
-    first_occurrence: dict = {
-        "step": int,  # First step this action was taken
-        "reward": float,  # Reward from first occurrence
-    }
+    reward_stats: dict = field(default_factory=dict)
+    contribution_metrics: dict = field(default_factory=dict)
+    temporal_stats: dict = field(default_factory=dict)
+    first_occurrence: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -2221,10 +2181,8 @@ class DecisionSummary:
     most_frequent: Optional[str]
     most_rewarding: Optional[str]
     action_diversity: float
-    normalized_diversity: float  # Added normalized diversity
-    co_occurrence_patterns: Dict[
-        str, Dict[str, Dict[str, float]]
-    ]  # Added co-occurrence patterns
+    normalized_diversity: float
+    co_occurrence_patterns: Dict[str, Dict[str, Dict[str, float]]] = field(default_factory=dict)
 
 
 class GenomeId(BaseModel):

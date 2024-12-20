@@ -1,17 +1,14 @@
-from typing import TYPE_CHECKING, Optional
-
-import numpy as np
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from core.environment import Environment
 
-from core.action import Action
-from actions.attack import attack_action
-from actions.gather import gather_action
-from actions.move import move_action
-from actions.share import share_action
-
-from .base_agent import BaseAgent
+from farm.actions.attack import attack_action
+from farm.actions.gather import gather_action
+from farm.actions.move import move_action
+from farm.actions.share import share_action
+from farm.agents.base_agent import BaseAgent
+from farm.core.action import Action
 
 
 class SystemAgent(BaseAgent):
@@ -25,7 +22,7 @@ class SystemAgent(BaseAgent):
         environment: "Environment",
         generation: int = 0,
         skip_logging: bool = False,
-        action_set: list[Action] = None
+        action_set: list[Action] = None,
     ):
         """Initialize a SystemAgent.
 
@@ -66,10 +63,16 @@ class SystemAgent(BaseAgent):
             environment=environment,
             action_set=action_set,
             generation=generation,
-            skip_logging=skip_logging
+            skip_logging=skip_logging,
         )
 
         # Configure gather module for more sustainable resource collection
-        self.gather_module.config.gather_efficiency_multiplier = 0.4  # Lower efficiency reward
-        self.gather_module.config.gather_cost_multiplier = 0.4  # Higher movement penalty
-        self.gather_module.config.min_resource_threshold = 0.2  # Higher threshold for gathering
+        self.gather_module.config.gather_efficiency_multiplier = (
+            0.4  # Lower efficiency reward
+        )
+        self.gather_module.config.gather_cost_multiplier = (
+            0.4  # Higher movement penalty
+        )
+        self.gather_module.config.min_resource_threshold = (
+            0.2  # Higher threshold for gathering
+        )

@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional, Tuple, Union
 
-from database.data_types import (
+from farm.database.data_types import (
     AgentDistribution,
     BasicPopulationStatistics,
     Population,
@@ -8,8 +8,8 @@ from database.data_types import (
     PopulationStatistics,
     PopulationVariance,
 )
-from database.enums import AnalysisScope
-from database.repositories.population_repository import PopulationRepository
+from farm.database.enums import AnalysisScope
+from farm.database.repositories.population_repository import PopulationRepository
 
 
 class PopulationAnalyzer:

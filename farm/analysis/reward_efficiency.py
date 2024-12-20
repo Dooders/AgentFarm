@@ -1,10 +1,8 @@
-import sqlite3
-
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from database.database import SimulationDatabase
-from database.data_retrieval import DataRetriever
+from farm.database.data_retrieval import DataRetriever
+from farm.database.database import SimulationDatabase
 
 
 def fetch_reward_efficiency_data(db: SimulationDatabase) -> pd.DataFrame:
@@ -14,24 +12,28 @@ def fetch_reward_efficiency_data(db: SimulationDatabase) -> pd.DataFrame:
     :return: DataFrame with reward efficiency by action type and agent group
     """
     retriever = DataRetriever(db)
-    
+
     # Get action data for all steps
     data = retriever.get_simulation_data(step_number=None)
-    
+
     # Process action data
-    actions_df = pd.DataFrame(data['agent_actions'])
-    
+    actions_df = pd.DataFrame(data["agent_actions"])
+
     # Calculate efficiency metrics
-    efficiency_data = (actions_df.groupby(['action_type', 'agent_type'])
-                      .agg({
-                          'action_id': 'count',
-                          'reward': ['sum', 'mean']
-                      })
-                      .reset_index())
-    
-    efficiency_data.columns = ['action_type', 'agent_type', 'frequency', 
-                             'total_reward', 'reward_efficiency']
-    
+    efficiency_data = (
+        actions_df.groupby(["action_type", "agent_type"])
+        .agg({"action_id": "count", "reward": ["sum", "mean"]})
+        .reset_index()
+    )
+
+    efficiency_data.columns = [
+        "action_type",
+        "agent_type",
+        "frequency",
+        "total_reward",
+        "reward_efficiency",
+    ]
+
     return efficiency_data
 
 

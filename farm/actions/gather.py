@@ -18,12 +18,12 @@ from typing import TYPE_CHECKING, Optional, Tuple
 import numpy as np
 import torch
 
-from actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork
+from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork
+from farm.core.resources import Resource
 
 if TYPE_CHECKING:
-    from resource import Resource
 
-    from agents.base_agent import BaseAgent
+    from farm.agents.base_agent import BaseAgent
 
 logger = logging.getLogger(__name__)
 
@@ -183,8 +183,7 @@ class GatherModule(BaseDQNModule):
 
         # Calculate resource density using KD-tree
         resources_in_range = agent.environment.get_nearby_resources(
-            agent.position,
-            agent.config.gathering_range
+            agent.position, agent.config.gathering_range
         )
         resource_density = len(resources_in_range) / (
             np.pi * agent.config.gathering_range**2
@@ -192,7 +191,12 @@ class GatherModule(BaseDQNModule):
 
         state = torch.tensor(
             [
-                np.sqrt(((np.array(closest_resource.position) - np.array(agent.position)) ** 2).sum()),
+                np.sqrt(
+                    (
+                        (np.array(closest_resource.position) - np.array(agent.position))
+                        ** 2
+                    ).sum()
+                ),
                 closest_resource.amount,
                 agent.resource_level,
                 resource_density,
@@ -209,13 +213,13 @@ class GatherModule(BaseDQNModule):
         """Find the most promising resource to gather from."""
         # Get resources within gathering range using KD-tree
         resources_in_range = agent.environment.get_nearby_resources(
-            agent.position, 
-            agent.config.gathering_range
+            agent.position, agent.config.gathering_range
         )
-        
+
         # Filter depleted resources
         resources_in_range = [
-            r for r in resources_in_range
+            r
+            for r in resources_in_range
             if r.amount >= self.config.min_resource_threshold
         ]
 
@@ -293,7 +297,7 @@ def gather_action(agent: "BaseAgent") -> None:
                         if not should_gather
                         else "no_target_resource"
                     ),
-                }
+                },
             )
         return
 
@@ -332,5 +336,5 @@ def gather_action(agent: "BaseAgent") -> None:
                     "distance_to_resource": np.linalg.norm(
                         np.array(target_resource.position) - np.array(agent.position)
                     ),
-                }
+                },
             )

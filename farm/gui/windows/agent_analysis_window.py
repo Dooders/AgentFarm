@@ -10,9 +10,9 @@ import pandas as pd
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from sqlalchemy import func
 
-from database.database import Agent, AgentAction, AgentState, SimulationDatabase
-from gui.components.tooltips import ToolTip
-from database.data_retrieval import DataRetriever
+from farm.database.database import AgentModel, ActionModel, AgentStateModel, SimulationDatabase
+from farm.gui.components.tooltips import ToolTip
+from farm.database.data_retrieval import DataRetriever
 
 
 class AgentAnalysisWindow(ttk.Frame):
@@ -332,8 +332,8 @@ class AgentAnalysisWindow(ttk.Frame):
             def _query(session):
                 # Use SQLAlchemy ORM query
                 agents = (
-                    session.query(Agent.agent_id, Agent.agent_type, Agent.birth_time)
-                    .order_by(Agent.birth_time.desc())
+                    session.query(AgentModel.agent_id, AgentModel.agent_type, AgentModel.birth_time)
+                    .order_by(AgentModel.birth_time.desc())
                     .all()
                 )
 
@@ -399,7 +399,7 @@ class AgentAnalysisWindow(ttk.Frame):
         """Load basic agent information from database."""
 
         def _query(session):
-            agent = session.query(Agent).filter(Agent.agent_id == agent_id).first()
+            agent = session.query(AgentModel).filter(AgentModel.agent_id == agent_id).first()
 
             if agent:
                 return {
@@ -424,9 +424,9 @@ class AgentAnalysisWindow(ttk.Frame):
             from sqlalchemy import func
 
             latest_state = (
-                session.query(AgentState)
-                .filter(AgentState.agent_id == agent_id)
-                .order_by(AgentState.step_number.desc())
+                session.query(AgentStateModel)
+                .filter(AgentStateModel.agent_id == agent_id)
+                .order_by(AgentStateModel.step_number.desc())
                 .first()
             )
 
@@ -460,21 +460,21 @@ class AgentAnalysisWindow(ttk.Frame):
             metrics = (
                 session.query(
                     (
-                        func.max(AgentState.step_number)
-                        - func.min(AgentState.step_number)
+                        func.max(AgentStateModel.step_number)
+                        - func.min(AgentStateModel.step_number)
                     ).label("survival_time"),
-                    func.max(AgentState.current_health).label("peak_health"),
-                    func.max(AgentState.resource_level).label("peak_resources"),
-                    func.count(AgentAction.action_id).label("total_actions"),
+                    func.max(AgentStateModel.current_health).label("peak_health"),
+                    func.max(AgentStateModel.resource_level).label("peak_resources"),
+                    func.count(ActionModel.action_id).label("total_actions"),
                 )
-                .select_from(AgentState)
+                .select_from(AgentStateModel)
                 .outerjoin(
-                    AgentAction,
-                    (AgentAction.agent_id == AgentState.agent_id)
-                    & (AgentAction.step_number == AgentState.step_number),
+                    ActionModel,
+                    (ActionModel.agent_id == AgentStateModel.agent_id)
+                    & (ActionModel.step_number == AgentStateModel.step_number),
                 )
-                .filter(AgentState.agent_id == agent_id)
-                .group_by(AgentState.agent_id)
+                .filter(AgentStateModel.agent_id == agent_id)
+                .group_by(AgentStateModel.agent_id)
                 .first()
             )
 
@@ -501,14 +501,14 @@ class AgentAnalysisWindow(ttk.Frame):
         def _query(session):
             states = (
                 session.query(
-                    AgentState.step_number,
-                    AgentState.current_health,
-                    AgentState.resource_level,
-                    AgentState.total_reward,
-                    AgentState.is_defending,
+                    AgentStateModel.step_number,
+                    AgentStateModel.current_health,
+                    AgentStateModel.resource_level,
+                    AgentStateModel.total_reward,
+                    AgentStateModel.is_defending,
                 )
-                .filter(AgentState.agent_id == agent_id)
-                .order_by(AgentState.step_number)
+                .filter(AgentStateModel.agent_id == agent_id)
+                .order_by(AgentStateModel.step_number)
                 .all()
             )
 
@@ -833,22 +833,22 @@ class AgentAnalysisWindow(ttk.Frame):
             def _query(session):
                 actions = (
                     session.query(
-                        AgentAction.step_number,
-                        AgentAction.action_type,
-                        AgentAction.reward,
-                        AgentAction.action_id,
-                        AgentAction.action_target_id,
-                        AgentAction.resources_before,
-                        AgentAction.resources_after,
-                        AgentAction.details,
-                        AgentAction.agent_id,
+                        ActionModel.step_number,
+                        ActionModel.action_type,
+                        ActionModel.reward,
+                        ActionModel.action_id,
+                        ActionModel.action_target_id,
+                        ActionModel.resources_before,
+                        ActionModel.resources_after,
+                        ActionModel.details,
+                        ActionModel.agent_id,
                     )
                     .filter(
-                        AgentAction.agent_id == agent_id,
-                        AgentAction.step_number >= start_step,
-                        AgentAction.step_number <= end_step,
+                        ActionModel.agent_id == agent_id,
+                        ActionModel.step_number >= start_step,
+                        ActionModel.step_number <= end_step,
                     )
-                    .order_by(AgentAction.step_number)
+                    .order_by(ActionModel.step_number)
                     .all()
                 )
 
@@ -1229,16 +1229,16 @@ Reward: {action_details['reward']:.2f}
 
                 children = (
                     session.query(
-                        Agent.agent_id.label("child_id"),
-                        Agent.birth_time,
+                        AgentModel.agent_id.label("child_id"),
+                        AgentModel.birth_time,
                         case(
-                            (Agent.death_time.is_(None), func.max(AgentState.age)),
-                            else_=Agent.death_time - Agent.birth_time,
+                            (AgentModel.death_time.is_(None), func.max(AgentStateModel.age)),
+                            else_=AgentModel.death_time - AgentModel.birth_time,
                         ).label("age"),
                     )
-                    .outerjoin(AgentState)
-                    .group_by(Agent.agent_id)
-                    .order_by(Agent.birth_time.desc())
+                    .outerjoin(AgentStateModel)
+                    .group_by(AgentModel.agent_id)
+                    .order_by(AgentModel.birth_time.desc())
                     .all()
                 )
 

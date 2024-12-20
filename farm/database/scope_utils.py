@@ -3,8 +3,8 @@ from typing import Optional, Tuple, Union
 from sqlalchemy import func
 from sqlalchemy.orm import Query
 
-from database.enums import AnalysisScope
-from database.models import AgentAction
+from farm.database.enums import AnalysisScope
+from farm.database.models import AgentModel
 
 
 def filter_scope(
@@ -76,7 +76,7 @@ def filter_scope(
     if scope == AnalysisScope.AGENT and agent_id is None:
         # Get a random agent_id from the database
         random_agent = (
-            query.session.query(AgentAction.agent_id).order_by(func.random()).first()
+            query.session.query(AgentModel.agent_id).order_by(func.random()).first()
         )
         if random_agent is None:
             raise ValueError("No agents found in database")
@@ -90,14 +90,14 @@ def filter_scope(
 
     # Apply filters based on scope
     if scope == AnalysisScope.AGENT:
-        query = query.filter(AgentAction.agent_id == agent_id)
+        query = query.filter(AgentModel.agent_id == agent_id)
     elif scope == AnalysisScope.STEP:
-        query = query.filter(AgentAction.step_number == step)
+        query = query.filter(AgentModel.step_number == step)
     elif scope == AnalysisScope.STEP_RANGE:
         start_step, end_step = step_range
         query = query.filter(
-            AgentAction.step_number >= start_step,
-            AgentAction.step_number <= end_step,
+            AgentModel.step_number >= start_step,
+            AgentModel.step_number <= end_step,
         )
     # SIMULATION scope requires no filters
 

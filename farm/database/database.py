@@ -53,18 +53,18 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload, scoped_session, sessionmaker
 
-from database.data_retrieval import DataRetriever
+from farm.database.data_retrieval import DataRetriever
 
 from .data_logging import DataLogger
 from .models import (
-    Agent,
-    AgentAction,
-    AgentState,
+    AgentModel,
+    ActionModel,
+    AgentStateModel,
     Base,
     HealthIncident,
-    ResourceState,
+    ResourceModel,
     SimulationConfig,
-    SimulationStep,
+    SimulationStepModel,
 )
 from .utilities import (
     create_database_schema,
@@ -286,16 +286,16 @@ class SimulationDatabase:
             # Build step number filter
             step_filter = []
             if start_step is not None:
-                step_filter.append(SimulationStep.step_number >= start_step)
+                step_filter.append(SimulationStepModel.step_number >= start_step)
             if end_step is not None:
-                step_filter.append(SimulationStep.step_number <= end_step)
+                step_filter.append(SimulationStepModel.step_number <= end_step)
 
             # Default to all data types if none specified
             export_types = data_types or ["metrics", "agents", "resources", "actions"]
 
             # Collect requested data
             if "metrics" in export_types:
-                metrics_query = session.query(SimulationStep)
+                metrics_query = session.query(SimulationStepModel)
                 if step_filter:
                     metrics_query = metrics_query.filter(*step_filter)
                 data["metrics"] = pd.read_sql(
@@ -304,22 +304,22 @@ class SimulationDatabase:
 
             if "agents" in export_types:
                 agents_query = (
-                    session.query(AgentState)
-                    .join(Agent)
-                    .options(joinedload(AgentState.agent))
+                    session.query(AgentStateModel)
+                    .join(AgentModel)
+                    .options(joinedload(AgentStateModel.agent))
                 )
                 if step_filter:
                     agents_query = agents_query.filter(*step_filter)
                 data["agents"] = pd.read_sql(agents_query.statement, session.bind)
 
             if "resources" in export_types:
-                resources_query = session.query(ResourceState)
+                resources_query = session.query(ResourceModel)
                 if step_filter:
                     resources_query = resources_query.filter(*step_filter)
                 data["resources"] = pd.read_sql(resources_query.statement, session.bind)
 
             if "actions" in export_types:
-                actions_query = session.query(AgentAction)
+                actions_query = session.query(ActionModel)
                 if step_filter:
                     actions_query = actions_query.filter(*step_filter)
                 data["actions"] = pd.read_sql(actions_query.statement, session.bind)
@@ -399,7 +399,7 @@ class SimulationDatabase:
 
         def _update(session):
             # Update agent record with death time
-            agent = session.query(Agent).filter(Agent.agent_id == agent_id).first()
+            agent = session.query(AgentModel).filter(AgentModel.agent_id == agent_id).first()
 
             if agent:
                 agent.death_time = death_time
@@ -424,17 +424,17 @@ class SimulationDatabase:
             # Get latest state for the agent using lowercase table names
             latest_state = (
                 session.query(
-                    AgentState.current_health,
-                    AgentState.resource_level,
-                    AgentState.total_reward,
-                    AgentState.age,
-                    AgentState.is_defending,
-                    AgentState.position_x,
-                    AgentState.position_y,
-                    AgentState.step_number,
+                    AgentStateModel.current_health,
+                    AgentStateModel.resource_level,
+                    AgentStateModel.total_reward,
+                    AgentStateModel.age,
+                    AgentStateModel.is_defending,
+                    AgentStateModel.position_x,
+                    AgentStateModel.position_y,
+                    AgentStateModel.step_number,
                 )
-                .filter(AgentState.agent_id == agent_id)
-                .order_by(AgentState.step_number.desc())
+                .filter(AgentStateModel.agent_id == agent_id)
+                .order_by(AgentStateModel.step_number.desc())
                 .first()
             )
 
@@ -482,13 +482,13 @@ class SimulationDatabase:
 
         def _update(session):
             # Get the agent to access its properties
-            agent = session.query(Agent).filter(Agent.agent_id == agent_id).first()
+            agent = session.query(AgentModel).filter(AgentModel.agent_id == agent_id).first()
             if not agent:
                 logger.error(f"Agent {agent_id} not found")
                 return
 
             formatted_state = format_agent_state(agent_id, step_number, state_data)
-            agent_state = AgentState(**formatted_state)
+            agent_state = AgentStateModel(**formatted_state)
             session.add(agent_state)
 
         self._execute_in_transaction(_update)

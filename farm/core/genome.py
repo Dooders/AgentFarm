@@ -2,11 +2,11 @@ import json
 import random
 from typing import TYPE_CHECKING, Union
 
-from core.action import Action
+from farm.core.action import Action
 
 if TYPE_CHECKING:
-    from agents.base_agent import BaseAgent
-    from core.environment import Environment
+    from farm.agents.base_agent import BaseAgent
+    from farm.core.environment import Environment
 
 
 class Genome:

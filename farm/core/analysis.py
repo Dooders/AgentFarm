@@ -1,11 +1,8 @@
-import pandas as pd
-import numpy as np
-from scipy import stats
 import matplotlib.pyplot as plt
-from typing import Dict, List, Tuple
-from sqlalchemy import func, case, text
+import pandas as pd
+from sqlalchemy import case, func
 
-from database.database import SimulationDatabase, SimulationStep, AgentState, Agent
+from farm.database.database import Agent, AgentState, SimulationDatabase, SimulationStep
 
 
 class SimulationAnalyzer:
@@ -14,45 +11,50 @@ class SimulationAnalyzer:
 
     def calculate_survival_rates(self) -> pd.DataFrame:
         """Calculate survival rates for different agent types over time."""
+
         def _query(session):
             query = (
                 session.query(
                     SimulationStep.step_number,
-                    func.count(case([(Agent.agent_type == 'SystemAgent', 1)])).label('system_alive'),
-                    func.count(case([(Agent.agent_type == 'IndependentAgent', 1)])).label('independent_alive')
+                    func.count(case([(Agent.agent_type == "SystemAgent", 1)])).label(
+                        "system_alive"
+                    ),
+                    func.count(
+                        case([(Agent.agent_type == "IndependentAgent", 1)])
+                    ).label("independent_alive"),
                 )
                 .join(AgentState, SimulationStep.step_number == AgentState.step_number)
                 .join(Agent, AgentState.agent_id == Agent.agent_id)
                 .group_by(SimulationStep.step_number)
                 .order_by(SimulationStep.step_number)
             )
-            
+
             results = query.all()
             return pd.DataFrame(
-                results, 
-                columns=["step", "system_alive", "independent_alive"]
+                results, columns=["step", "system_alive", "independent_alive"]
             )
-            
+
         return self.db._execute_in_transaction(_query)
 
     def analyze_resource_distribution(self) -> pd.DataFrame:
         """Analyze resource accumulation and distribution patterns."""
+
         def _query(session):
             query = (
                 session.query(
                     SimulationStep.step_number,
                     Agent.agent_type,
-                    func.avg(AgentState.resource_level).label('avg_resources'),
-                    func.min(AgentState.resource_level).label('min_resources'),
-                    func.max(AgentState.resource_level).label('max_resources'),
-                    func.count().label('agent_count')
+                    func.avg(AgentState.resource_level).label("avg_resources"),
+                    func.min(AgentState.resource_level).label("min_resources"),
+                    func.max(AgentState.resource_level).label("max_resources"),
+                    func.count().label("agent_count"),
                 )
                 .join(AgentState, SimulationStep.step_number == AgentState.step_number)
                 .join(Agent, AgentState.agent_id == Agent.agent_id)
                 .group_by(SimulationStep.step_number, Agent.agent_type)
                 .order_by(SimulationStep.step_number)
             )
-            
+
             results = query.all()
             return pd.DataFrame(
                 results,
@@ -63,47 +65,37 @@ class SimulationAnalyzer:
                     "min_resources",
                     "max_resources",
                     "agent_count",
-                ]
+                ],
             )
-            
+
         return self.db._execute_in_transaction(_query)
 
     def analyze_competitive_interactions(self) -> pd.DataFrame:
         """Analyze patterns in competitive interactions."""
+
         def _query(session):
-            query = (
-                session.query(
-                    SimulationStep.step_number,
-                    SimulationStep.combat_encounters.label('competitive_interactions')
-                )
-                .order_by(SimulationStep.step_number)
-            )
-            
+            query = session.query(
+                SimulationStep.step_number,
+                SimulationStep.combat_encounters.label("competitive_interactions"),
+            ).order_by(SimulationStep.step_number)
+
             results = query.all()
-            return pd.DataFrame(
-                results, 
-                columns=["step", "competitive_interactions"]
-            )
-            
+            return pd.DataFrame(results, columns=["step", "competitive_interactions"])
+
         return self.db._execute_in_transaction(_query)
 
     def analyze_resource_efficiency(self) -> pd.DataFrame:
         """Analyze resource utilization efficiency over time."""
+
         def _query(session):
-            query = (
-                session.query(
-                    SimulationStep.step_number,
-                    SimulationStep.resource_efficiency.label('efficiency')
-                )
-                .order_by(SimulationStep.step_number)
-            )
-            
+            query = session.query(
+                SimulationStep.step_number,
+                SimulationStep.resource_efficiency.label("efficiency"),
+            ).order_by(SimulationStep.step_number)
+
             results = query.all()
-            return pd.DataFrame(
-                results,
-                columns=["step", "efficiency"]
-            )
-            
+            return pd.DataFrame(results, columns=["step", "efficiency"])
+
         return self.db._execute_in_transaction(_query)
 
     def generate_report(self, output_file: str = "simulation_report.html"):
@@ -143,20 +135,21 @@ class SimulationAnalyzer:
         with open(output_file, "w") as f:
             f.write(html)
 
+
 def analyze_simulation(simulation_data):
     """
     Analyze simulation data and return metrics.
-    
+
     Args:
         simulation_data: Data from the simulation to analyze
-        
+
     Returns:
         dict: Analysis results and metrics
     """
     # Add your analysis logic here
     results = {
-        'metrics': {},
-        'statistics': {},
+        "metrics": {},
+        "statistics": {},
         # Add other analysis results
     }
     return results

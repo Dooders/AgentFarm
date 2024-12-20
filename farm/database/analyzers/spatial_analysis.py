@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Tuple
 
-from database.analyzers.location_analysis import LocationAnalyzer
-from database.analyzers.movement_analysis import MovementAnalyzer
+from farm.database.analyzers.location_analysis import LocationAnalyzer
+from farm.database.analyzers.movement_analysis import MovementAnalyzer
 
 
 class SpatialAnalyzer:

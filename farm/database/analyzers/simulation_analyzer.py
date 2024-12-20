@@ -1,6 +1,7 @@
 import pandas as pd
-from database.data_retrieval import DataRetriever
-from database.database import SimulationDatabase
+
+from farm.database.data_retrieval import DataRetriever
+from farm.database.database import SimulationDatabase
 
 
 class SimulationAnalyzer:

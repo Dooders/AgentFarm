@@ -4,8 +4,8 @@ Script to run simulation experiments with different configurations.
 
 import logging
 
-from core.config import SimulationConfig
-from core.experiment_runner import ExperimentRunner
+from farm.core.config import SimulationConfig
+from farm.core.experiment_runner import ExperimentRunner
 
 # Setup basic logging
 logging.basicConfig(level=logging.INFO)

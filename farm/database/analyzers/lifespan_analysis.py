@@ -1,13 +1,13 @@
 import pandas as pd
 from sqlalchemy import case, func
 
-from database.data_types import (
+from farm.database.data_types import (
     AgentLifespanResults,
     LifespanStatistics,
     SurvivalRatesByGeneration,
 )
-from database.models import AgentModel
-from database.utilities import execute_query
+from farm.database.models import AgentModel
+from farm.database.utilities import execute_query
 
 
 class AgentLifespanAnalysis:

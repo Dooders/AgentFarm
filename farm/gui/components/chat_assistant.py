@@ -1,18 +1,21 @@
-import tkinter as tk
-from tkinter import ttk, messagebox
-import openai
 import json
 import os
-from datetime import datetime
-from typing import Dict, Optional, List, Any, Tuple
-from database.database import SimulationDatabase
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import pandas as pd
-import numpy as np
-import networkx as nx
-from matplotlib.patches import Patch
 import re
+import tkinter as tk
+from datetime import datetime
+from tkinter import messagebox, ttk
+from typing import Any, Dict, List, Optional, Tuple
+
+import matplotlib.pyplot as plt
+import networkx as nx
+import numpy as np
+import openai
+import pandas as pd
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.patches import Patch
+
+from farm.database.database import SimulationDatabase
+
 
 class ChatAssistant(ttk.Frame):
     """Interactive chat interface for analyzing simulation data with OpenAI."""

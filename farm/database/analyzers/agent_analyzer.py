@@ -1,7 +1,11 @@
 from typing import Any, Dict, List, Optional, Tuple
 
-from database.analyzers.analysis_utils import _calculate_correlation, _normalize_dict
-from database.data_types import (
+from farm.database.analyzers.analysis_utils import (
+    _calculate_correlation,
+    _normalize_dict,
+)
+from farm.database.analyzers.spatial_analysis import SpatialAnalyzer
+from farm.database.data_types import (
     AdversarialInteractionAnalysis,
     BasicAgentInfo,
     CollaborativeInteractionAnalysis,
@@ -13,8 +17,7 @@ from database.data_types import (
     ResilienceAnalysis,
     RiskRewardAnalysis,
 )
-from database.repositories.agent_repository import AgentRepository
-from database.analyzers.spatial_analysis import SpatialAnalyzer
+from farm.database.repositories.agent_repository import AgentRepository
 
 
 class AgentAnalysis:

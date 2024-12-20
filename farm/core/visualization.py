@@ -8,7 +8,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 
-from database.database import SimulationDatabase
+from farm.database.database import SimulationDatabase
 
 
 class SimulationVisualizer:

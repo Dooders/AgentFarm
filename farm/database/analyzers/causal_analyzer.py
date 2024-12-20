@@ -1,9 +1,9 @@
 import json
 from typing import List, Optional, Tuple, Union
 
-from database.data_types import CausalAnalysis
-from database.enums import AnalysisScope
-from database.repositories.action_repository import ActionRepository
+from farm.database.data_types import CausalAnalysis
+from farm.database.enums import AnalysisScope
+from farm.database.repositories.action_repository import ActionRepository
 
 
 class CausalAnalyzer:

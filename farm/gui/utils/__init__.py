@@ -1,4 +1,4 @@
-from gui.utils.styles import (
+from farm.gui.utils.styles import (
     CARD_COLORS,
     AGENT_COLORS,
     VISUALIZATION_CONSTANTS,

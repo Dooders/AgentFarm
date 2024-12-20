@@ -2,15 +2,15 @@ from typing import Dict, List, Optional, Union
 
 import pandas as pd
 
-from database.data_types import (
+from farm.database.data_types import (
     AgentLearningStats,
     LearningEfficiencyMetrics,
     LearningProgress,
     LearningStatistics,
     ModulePerformance,
 )
-from database.enums import AnalysisScope
-from database.repositories.learning_repository import LearningRepository
+from farm.database.enums import AnalysisScope
+from farm.database.repositories.learning_repository import LearningRepository
 
 
 class LearningAnalyzer:

@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from agents import IndependentAgent, SystemAgent
+from farm.agents import IndependentAgent, SystemAgent
 
 
 class DataCollector:

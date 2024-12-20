@@ -42,14 +42,11 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from sqlalchemy import and_, exists, func, not_
 from sqlalchemy.orm import aliased
 
-from database.analyzers.lifespan_analysis import AgentLifespanAnalysis
-from database.analyzers.agent_analyzer import AgentAnalysis
-from database.analyzers.action_stats_analyzer import ActionStatsAnalyzer
-from database.learning import LearningRetriever
-from database.population import PopulationStatisticsRetriever
-from database.resource import ResourceRetriever
-from database.simulation import SimulationStateRetriever
-from database.utilities import execute_query
+from farm.database.analyzers.action_stats_analyzer import ActionStatsAnalyzer
+from farm.database.analyzers.agent_analyzer import AgentAnalysis
+from farm.database.analyzers.lifespan_analysis import AgentLifespanAnalysis
+from farm.database.simulation import SimulationStateRetriever
+from farm.database.utilities import execute_query
 
 from .data_types import (
     ActionMetrics,
@@ -74,7 +71,7 @@ from .data_types import (
     SurvivalMetrics,
     TimePattern,
 )
-from .models import Agent, AgentAction
+from .models import AgentModel, ActionModel
 
 logger = logging.getLogger(__name__)
 
@@ -94,9 +91,9 @@ class DataRetriever:
         self._retrievers = {
             "simulation": SimulationStateRetriever(database),
             "agent_lifespan": AgentLifespanAnalysis(database),
-            "population": PopulationStatisticsRetriever(database),
-            "resource": ResourceRetriever(database),
-            "learning": LearningRetriever(database),
+            # "population": PopulationStatisticsRetriever(database),
+            # "resource": ResourceRetriever(database),
+            # "learning": LearningRetriever(database),
             "actions": ActionStatsAnalyzer(database),
             "agent": AgentAnalysis(database),
         }
@@ -314,65 +311,65 @@ class DataRetriever:
 
         def _query(session):
             # Build base query with time window
-            base_query = session.query(AgentAction)
+            base_query = session.query(ActionModel)
             if start_step is not None:
-                base_query = base_query.filter(AgentAction.step_number >= start_step)
+                base_query = base_query.filter(ActionModel.step_number >= start_step)
             if end_step is not None:
-                base_query = base_query.filter(AgentAction.step_number <= end_step)
+                base_query = base_query.filter(ActionModel.step_number <= end_step)
 
             # Get temporal behavior patterns
             temporal_patterns = (
                 base_query.with_entities(
-                    AgentAction.step_number,
-                    AgentAction.action_type,
+                    ActionModel.step_number,
+                    ActionModel.action_type,
                     func.count().label("action_count"),
-                    func.avg(AgentAction.reward).label("avg_reward"),
+                    func.avg(ActionModel.reward).label("avg_reward"),
                 )
-                .group_by(AgentAction.step_number, AgentAction.action_type)
-                .order_by(AgentAction.step_number)
+                .group_by(ActionModel.step_number, ActionModel.action_type)
+                .order_by(ActionModel.step_number)
                 .all()
             )
 
             # Get behavior patterns by agent type
             type_patterns = (
-                base_query.join(Agent)
+                base_query.join(AgentModel)
                 .with_entities(
-                    Agent.agent_type,
-                    AgentAction.action_type,
+                    AgentModel.agent_type,
+                    ActionModel.action_type,
                     func.count().label("action_count"),
-                    func.avg(AgentAction.reward).label("avg_reward"),
-                    func.stddev(AgentAction.reward).label("reward_stddev"),
+                    func.avg(ActionModel.reward).label("avg_reward"),
+                    func.stddev(ActionModel.reward).label("reward_stddev"),
                 )
-                .group_by(Agent.agent_type, AgentAction.action_type)
+                .group_by(AgentModel.agent_type, ActionModel.action_type)
                 .all()
             )
 
             # Get interaction patterns
             interaction_patterns = (
-                base_query.filter(AgentAction.action_target_id.isnot(None))
+                base_query.filter(ActionModel.action_target_id.isnot(None))
                 .with_entities(
-                    AgentAction.action_type,
+                    ActionModel.action_type,
                     func.count().label("interaction_count"),
-                    func.avg(AgentAction.reward).label("avg_interaction_reward"),
+                    func.avg(ActionModel.reward).label("avg_interaction_reward"),
                 )
-                .group_by(AgentAction.action_type)
+                .group_by(ActionModel.action_type)
                 .all()
             )
 
             # Get resource-related behaviors
             resource_behaviors = (
                 base_query.filter(
-                    AgentAction.resources_before.isnot(None),
-                    AgentAction.resources_after.isnot(None),
+                    ActionModel.resources_before.isnot(None),
+                    ActionModel.resources_after.isnot(None),
                 )
                 .with_entities(
-                    AgentAction.action_type,
+                    ActionModel.action_type,
                     func.avg(
-                        AgentAction.resources_after - AgentAction.resources_before
+                        ActionModel.resources_after - ActionModel.resources_before
                     ).label("avg_resource_change"),
                     func.count().label("resource_action_count"),
                 )
-                .group_by(AgentAction.action_type)
+                .group_by(ActionModel.action_type)
                 .all()
             )
 
@@ -735,14 +732,14 @@ class DataRetriever:
         """
         return (
             base_query.with_entities(
-                AgentAction.action_type,
-                AgentAction.action_target_id.isnot(None).label("is_interaction"),
+                ActionModel.action_type,
+                ActionModel.action_target_id.isnot(None).label("is_interaction"),
                 func.count().label("count"),
-                func.avg(AgentAction.reward).label("avg_reward"),
+                func.avg(ActionModel.reward).label("avg_reward"),
             )
             .group_by(
-                AgentAction.action_type,
-                AgentAction.action_target_id.isnot(None),
+                ActionModel.action_type,
+                ActionModel.action_target_id.isnot(None),
             )
             .all()
         )
@@ -766,13 +763,13 @@ class DataRetriever:
         """
         return (
             base_query.with_entities(
-                AgentAction.action_type,
+                ActionModel.action_type,
                 func.count().label("count"),
-                func.avg(AgentAction.reward).label("avg_reward"),
+                func.avg(ActionModel.reward).label("avg_reward"),
             )
             .group_by(
-                AgentAction.action_type,
-                func.round(AgentAction.step_number / 100),  # Group by time periods
+                ActionModel.action_type,
+                func.round(ActionModel.step_number / 100),  # Group by time periods
             )
             .all()
         )
@@ -796,18 +793,18 @@ class DataRetriever:
         """
         return (
             base_query.with_entities(
-                AgentAction.action_type,
-                func.avg(AgentAction.resources_before).label("avg_resources_before"),
+                ActionModel.action_type,
+                func.avg(ActionModel.resources_before).label("avg_resources_before"),
                 func.avg(
-                    AgentAction.resources_after - AgentAction.resources_before
+                    ActionModel.resources_after - ActionModel.resources_before
                 ).label("avg_resource_change"),
                 func.count().label("count"),
             )
             .filter(
-                AgentAction.resources_before.isnot(None),
-                AgentAction.resources_after.isnot(None),
+                ActionModel.resources_before.isnot(None),
+                ActionModel.resources_after.isnot(None),
             )
-            .group_by(AgentAction.action_type)
+            .group_by(ActionModel.action_type)
             .all()
         )
 
@@ -827,10 +824,10 @@ class DataRetriever:
         # First, get the actions with their next actions using a subquery
         subq = (
             base_query.add_columns(
-                AgentAction.step_number,
-                AgentAction.action_type,
+                ActionModel.step_number,
+                ActionModel.action_type,
             )
-            .order_by(AgentAction.step_number)
+            .order_by(ActionModel.step_number)
             .subquery()
         )
 
@@ -851,9 +848,9 @@ class DataRetriever:
                     not_(
                         exists().where(
                             and_(
-                                AgentAction.step_number > subq.c.step_number,
-                                AgentAction.step_number < next_action.c.step_number,
-                                AgentAction.agent_id
+                                ActionModel.step_number > subq.c.step_number,
+                                ActionModel.step_number < next_action.c.step_number,
+                                ActionModel.agent_id
                                 == base_query.whereclause.right.value,
                             )
                         )
@@ -921,13 +918,13 @@ class DataRetriever:
 
         def _query(session):
             # Base query for additional analysis
-            base_query = session.query(AgentAction)
+            base_query = session.query(ActionModel)
             if agent_id is not None:
-                base_query = base_query.filter(AgentAction.agent_id == agent_id)
+                base_query = base_query.filter(ActionModel.agent_id == agent_id)
             if start_step is not None:
-                base_query = base_query.filter(AgentAction.step_number >= start_step)
+                base_query = base_query.filter(ActionModel.step_number >= start_step)
             if end_step is not None:
-                base_query = base_query.filter(AgentAction.step_number <= end_step)
+                base_query = base_query.filter(ActionModel.step_number <= end_step)
 
             # Get basic action metrics
             action_metrics: List[ActionMetrics] = self.action_metrics(

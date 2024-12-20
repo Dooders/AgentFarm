@@ -16,14 +16,14 @@ SimulationStateRetriever
 
 from typing import List, Optional
 
-from database.data_types import (
+from farm.database.data_types import (
     AgentStates,
     ResourceStates,
     SimulationResults,
     SimulationState,
 )
-from database.models import AgentModel, AgentState, ResourceState, SimulationStep
-from database.utilities import execute_query
+from farm.database.models import AgentModel, AgentStateModel, ResourceModel, SimulationStepModel
+from farm.database.utilities import execute_query
 
 
 class SimulationStateRetriever:
@@ -106,20 +106,20 @@ class SimulationStateRetriever:
         - agent_id only when retrieving a single step
         """
         query = session.query(
-            AgentState.step_number,
-            AgentState.agent_id,
+            AgentStateModel.step_number,
+            AgentStateModel.agent_id,
             AgentModel.agent_type,
-            AgentState.position_x,
-            AgentState.position_y,
-            AgentState.resource_level,
-            AgentState.current_health,
-            AgentState.is_defending,
+            AgentStateModel.position_x,
+            AgentStateModel.position_y,
+            AgentStateModel.resource_level,
+            AgentStateModel.current_health,
+            AgentStateModel.is_defending,
         ).join(AgentModel)
 
         if step_number is not None:
-            query = query.filter(AgentState.step_number == step_number)
+            query = query.filter(AgentStateModel.step_number == step_number)
         else:
-            query = query.order_by(AgentState.step_number, AgentState.agent_id)
+            query = query.order_by(AgentStateModel.step_number, AgentStateModel.agent_id)
 
         results = query.all()
 
@@ -170,11 +170,11 @@ class SimulationStateRetriever:
         Positions are in simulation grid coordinates.
         """
         query = session.query(
-            ResourceState.resource_id,
-            ResourceState.amount,
-            ResourceState.position_x,
-            ResourceState.position_y,
-        ).filter(ResourceState.step_number == step_number)
+            ResourceModel.resource_id,
+            ResourceModel.amount,
+            ResourceModel.position_x,
+            ResourceModel.position_y,
+        ).filter(ResourceModel.step_number == step_number)
 
         results = query.all()
 
@@ -222,8 +222,8 @@ class SimulationStateRetriever:
 
         Returns None if the step number is not found in the database.
         """
-        query = session.query(SimulationStep).filter(
-            SimulationStep.step_number == step_number
+        query = session.query(SimulationStepModel).filter(
+            SimulationStepModel.step_number == step_number
         )
 
         result = query.first()

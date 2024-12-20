@@ -2,8 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from database.database import SimulationDatabase
-from database.data_retrieval import DataRetriever
+from farm.database.data_retrieval import DataRetriever
+from farm.database.database import SimulationDatabase
 
 #! Table not populating currently
 
@@ -23,18 +23,25 @@ def analyze_learning_experiences(db_path: str):
     try:
         # Get learning statistics using DataRetriever
         learning_stats = retriever.get_learning_statistics()
-        
+
         # Convert to DataFrame for analysis
-        learning_data = pd.DataFrame({
-            'step': list(learning_stats['learning_progress']['average_reward'].keys()),
-            'reward': list(learning_stats['learning_progress']['average_reward'].values()),
-            'loss': list(learning_stats['learning_progress']['average_loss'].values())
-        })
+        learning_data = pd.DataFrame(
+            {
+                "step": list(
+                    learning_stats["learning_progress"]["average_reward"].keys()
+                ),
+                "reward": list(
+                    learning_stats["learning_progress"]["average_reward"].values()
+                ),
+                "loss": list(
+                    learning_stats["learning_progress"]["average_loss"].values()
+                ),
+            }
+        )
 
         # Module performance analysis
         module_performance = pd.DataFrame.from_dict(
-            learning_stats['module_performance'], 
-            orient='index'
+            learning_stats["module_performance"], orient="index"
         )
 
         # Create visualizations
@@ -75,13 +82,13 @@ def plot_learning_metrics(rl_data: pd.DataFrame):
             [delta[0] for delta in state_deltas],  # Position X Delta
             rl_data["reward"],
             alpha=0.6,
-            label="Position X Delta"
+            label="Position X Delta",
         )
         plt.scatter(
             [delta[1] for delta in state_deltas],  # Position Y Delta
             rl_data["reward"],
             alpha=0.6,
-            label="Position Y Delta"
+            label="Position Y Delta",
         )
         plt.title("State Change vs. Reward")
         plt.xlabel("State Change")

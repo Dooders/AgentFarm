@@ -1,15 +1,16 @@
 import argparse
+import json
 import logging
 import os
-from datetime import datetime
-import json
-
 import tkinter as tk
-from agents import main as run_simulation
-from core.analysis import SimulationAnalyzer
-from core.experiment_runner import ExperimentRunner
-from core.visualization import SimulationVisualizer
-from core.config import SimulationConfig
+from datetime import datetime
+
+from farm.agents import main as run_simulation
+from farm.core.analysis import SimulationAnalyzer
+from farm.core.config import SimulationConfig
+from farm.core.experiment_runner import ExperimentRunner
+from farm.core.visualization import SimulationVisualizer
+
 
 def setup_logging(log_dir='logs'):
     """Setup logging configuration."""

@@ -5,9 +5,9 @@ import torch
 from pydantic import BaseModel, Field, validator
 
 if TYPE_CHECKING:
-    from actions.move import MoveModule
-    from agents.system_agent import SystemAgent
-    from core.environment import Environment
+    from farm.actions.move import MoveModule
+    from farm.agents.system_agent import SystemAgent
+    from farm.core.environment import Environment
 
 
 class BaseState(BaseModel):

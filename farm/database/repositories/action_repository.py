@@ -2,11 +2,11 @@ from typing import List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
-from database.data_types import AgentActionData
-from database.models import ActionModel
-from database.repositories.base_repository import BaseRepository
-from database.scope_utils import filter_scope
-from database.session_manager import SessionManager
+from farm.database.data_types import AgentActionData
+from farm.database.models import ActionModel
+from farm.database.repositories.base_repository import BaseRepository
+from farm.database.scope_utils import filter_scope
+from farm.database.session_manager import SessionManager
 
 
 class ActionRepository(BaseRepository[ActionModel]):

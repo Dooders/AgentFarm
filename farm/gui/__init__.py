@@ -1,12 +1,12 @@
-from gui.windows import SimulationGUI, AgentAnalysisWindow, BaseWindow
-from gui.components import (
+from farm.gui.windows import SimulationGUI, AgentAnalysisWindow, BaseWindow
+from farm.gui.components import (
     SimulationChart,
     ControlPanel,
     EnvironmentView,
     StatsPanel,
     ToolTip
 )
-from gui.utils import (
+from farm.gui.utils import (
     CARD_COLORS,
     AGENT_COLORS,
     VISUALIZATION_CONSTANTS,

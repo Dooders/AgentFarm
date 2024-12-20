@@ -4,7 +4,7 @@ from typing import Dict, List, Tuple
 
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 
-from gui.utils.styles import AGENT_COLORS, VISUALIZATION_CONSTANTS as VC
+from farm.gui.utils.styles import AGENT_COLORS, VISUALIZATION_CONSTANTS as VC
 
 
 class EnvironmentView(ttk.Frame):

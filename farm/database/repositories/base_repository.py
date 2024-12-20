@@ -3,7 +3,7 @@ from typing import Any, Generic, List, Optional, Type, TypeVar
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from database.session_manager import SessionManager
+from farm.database.session_manager import SessionManager
 
 T = TypeVar("T")
 

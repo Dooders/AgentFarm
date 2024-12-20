@@ -1,13 +1,15 @@
 from typing import Dict, List, Optional, Tuple, Union
 
-from database.analyzers.action_stats_analyzer import ActionStatsAnalyzer
-from database.analyzers.behavior_clustering_analyzer import BehaviorClusteringAnalyzer
-from database.analyzers.causal_analyzer import CausalAnalyzer
-from database.analyzers.decision_pattern_analyzer import DecisionPatternAnalyzer
-from database.analyzers.resource_impact_analyzer import ResourceImpactAnalyzer
-from database.analyzers.sequence_pattern_analyzer import SequencePatternAnalyzer
-from database.analyzers.temporal_pattern_analyzer import TemporalPatternAnalyzer
-from database.data_types import (
+from farm.database.analyzers.action_stats_analyzer import ActionStatsAnalyzer
+from farm.database.analyzers.behavior_clustering_analyzer import (
+    BehaviorClusteringAnalyzer,
+)
+from farm.database.analyzers.causal_analyzer import CausalAnalyzer
+from farm.database.analyzers.decision_pattern_analyzer import DecisionPatternAnalyzer
+from farm.database.analyzers.resource_impact_analyzer import ResourceImpactAnalyzer
+from farm.database.analyzers.sequence_pattern_analyzer import SequencePatternAnalyzer
+from farm.database.analyzers.temporal_pattern_analyzer import TemporalPatternAnalyzer
+from farm.database.data_types import (
     ActionMetrics,
     BehaviorClustering,
     CausalAnalysis,
@@ -16,8 +18,8 @@ from database.data_types import (
     SequencePattern,
     TimePattern,
 )
-from database.enums import AnalysisScope
-from database.repositories.action_repository import ActionRepository
+from farm.database.enums import AnalysisScope
+from farm.database.repositories.action_repository import ActionRepository
 
 
 class ActionsService:

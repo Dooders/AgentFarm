@@ -19,12 +19,9 @@ between related tables.
 """
 
 import logging
-from datetime import datetime
-from json import dumps, loads
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict
 
 from sqlalchemy import (
-    ARRAY,
     JSON,
     Boolean,
     Column,

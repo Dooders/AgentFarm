@@ -1,14 +1,14 @@
 from typing import List, Optional, Tuple, Union
 
-from database.data_types import (
+from farm.database.data_types import (
     ConsumptionStats,
     ResourceAnalysis,
     ResourceDistributionStep,
     ResourceEfficiencyMetrics,
     ResourceHotspot,
 )
-from database.enums import AnalysisScope
-from database.repositories.resource_repository import ResourceRepository
+from farm.database.enums import AnalysisScope
+from farm.database.repositories.resource_repository import ResourceRepository
 
 
 class ResourceAnalyzer:

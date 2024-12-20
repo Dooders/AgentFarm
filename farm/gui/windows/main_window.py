@@ -7,18 +7,18 @@ from dataclasses import replace
 from tkinter import filedialog, messagebox, ttk
 from typing import Dict
 
-from core.config import SimulationConfig
-from core.simulation import run_simulation
-from database.database import SimulationDatabase
-from gui.components.charts import SimulationChart
-from gui.components.chat_assistant import ChatAssistant
-from gui.components.controls import ControlPanel
-from gui.components.environment import EnvironmentView
-from gui.components.notes import NotesPanel
-from gui.components.stats import StatsPanel
-from gui.components.tooltips import ToolTip
-from gui.utils.styles import configure_ttk_styles
-from gui.windows.agent_analysis_window import AgentAnalysisWindow
+from farm.core.config import SimulationConfig
+from farm.core.simulation import run_simulation
+from farm.database.database import SimulationDatabase
+from farm.gui.components.charts import SimulationChart
+from farm.gui.components.chat_assistant import ChatAssistant
+from farm.gui.components.controls import ControlPanel
+from farm.gui.components.environment import EnvironmentView
+from farm.gui.components.notes import NotesPanel
+from farm.gui.components.stats import StatsPanel
+from farm.gui.components.tooltips import ToolTip
+from farm.gui.utils.styles import configure_ttk_styles
+from farm.gui.windows.agent_analysis_window import AgentAnalysisWindow
 
 logger = logging.getLogger(__name__)
 

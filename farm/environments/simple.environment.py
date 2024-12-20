@@ -2,11 +2,10 @@ import logging
 import os
 import random
 
-from base_environment import BaseEnvironment
-
-from agents import IndependentAgent
-from database.database import SimulationDatabase
-from core.resources import Resource
+from farm.agents import IndependentAgent
+from farm.core.resources import Resource
+from farm.database.database import SimulationDatabase
+from farm.environments.base_environment import BaseEnvironment
 
 logger = logging.getLogger(__name__)
 

@@ -3,10 +3,10 @@ from typing import Any, List, Optional, Tuple
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from database.data_types import HealthIncidentData
-from database.models import ActionModel, AgentModel, AgentStateModel, HealthIncident
-from database.repositories.base_repository import BaseRepository
-from database.session_manager import SessionManager
+from farm.database.data_types import HealthIncidentData
+from farm.database.models import ActionModel, AgentModel, AgentStateModel, HealthIncident
+from farm.database.repositories.base_repository import BaseRepository
+from farm.database.session_manager import SessionManager
 
 
 class AgentRepository(BaseRepository[AgentModel]):

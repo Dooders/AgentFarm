@@ -50,15 +50,14 @@ from typing import TYPE_CHECKING, Any, Optional, Tuple
 import numpy as np
 import torch
 
-from actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork
-from database.database import SimulationDatabase
+from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork
+from farm.database.database import SimulationDatabase
 
 if TYPE_CHECKING:
-    from resource import Resource
-
-    from agents.base_agent import BaseAgent
-    from core.environment import Environment
-    from core.state import ModelState
+    from farm.agents.base_agent import BaseAgent
+    from farm.core.environment import Environment
+    from farm.core.resources import Resource
+    from farm.core.state import ModelState
 
 logger = logging.getLogger(__name__)
 

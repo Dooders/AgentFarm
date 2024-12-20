@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 if TYPE_CHECKING:
-    from database.database import SimulationDatabase
+    from farm.database.database import SimulationDatabase
 
 
 class BaseDQNConfig:

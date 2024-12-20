@@ -1,10 +1,10 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from database.analyzers.action_stats_analyzer import ActionStatsAnalyzer
-from database.data_types import Action
-from database.enums import AnalysisScope
-from database.repositories.action_repository import ActionRepository
+from farm.database.analyzers.action_stats_analyzer import ActionStatsAnalyzer
+from farm.database.data_types import Action
+from farm.database.enums import AnalysisScope
+from farm.database.repositories.action_repository import ActionRepository
 
 
 class TestActionStatsAnalyzer(unittest.TestCase):

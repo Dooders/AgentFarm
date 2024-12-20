@@ -2,8 +2,8 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Dict
 
-from gui.components.tooltips import ToolTip
-from gui.utils.styles import CARD_COLORS
+from farm.gui.components.tooltips import ToolTip
+from farm.gui.utils.styles import CARD_COLORS
 
 
 class StatsPanel(ttk.Frame):

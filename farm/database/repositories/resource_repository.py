@@ -2,17 +2,17 @@ from typing import List
 
 from sqlalchemy import func
 
-from database.data_types import (
+from farm.database.data_types import (
     ConsumptionStats,
     ResourceAnalysis,
     ResourceDistributionStep,
     ResourceEfficiencyMetrics,
     ResourceHotspot,
 )
-from database.models import ResourceModel, SimulationStep
-from database.repositories.base_repository import BaseRepository
-from database.session_manager import SessionManager
-from database.utilities import execute_query
+from farm.database.models import ResourceModel, SimulationStep
+from farm.database.repositories.base_repository import BaseRepository
+from farm.database.session_manager import SessionManager
+from farm.database.utilities import execute_query
 
 
 class ResourceRepository(BaseRepository[ResourceModel]):

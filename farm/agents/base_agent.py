@@ -4,20 +4,20 @@ from typing import TYPE_CHECKING
 import numpy as np
 import torch
 
-from actions.attack import AttackActionSpace, AttackModule, attack_action
-from actions.gather import GatherModule, gather_action
-from actions.move import MoveModule, move_action
-from actions.reproduce import ReproduceModule, reproduce_action
-from actions.select import SelectConfig, SelectModule, create_selection_state
-from actions.share import ShareModule, share_action
-from core.action import *
-from core.genome import Genome
-from core.perception import PerceptionData
-from core.state import AgentState
-from database.data_types import GenomeId
+from farm.actions.attack import AttackActionSpace, AttackModule, attack_action
+from farm.actions.gather import GatherModule, gather_action
+from farm.actions.move import MoveModule, move_action
+from farm.actions.reproduce import ReproduceModule, reproduce_action
+from farm.actions.select import SelectConfig, SelectModule, create_selection_state
+from farm.actions.share import ShareModule, share_action
+from farm.core.action import *
+from farm.core.genome import Genome
+from farm.core.perception import PerceptionData
+from farm.core.state import AgentState
+from farm.database.data_types import GenomeId
 
 if TYPE_CHECKING:
-    from core.environment import Environment
+    from farm.core.environment import Environment
 
 logger = logging.getLogger(__name__)
 

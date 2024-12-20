@@ -22,16 +22,12 @@ Typical usage:
 import csv
 import json
 import logging
+import os
 import sqlite3
 import uuid
 from datetime import datetime, timezone
-import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-import seaborn as sns
 from jinja2 import Environment, FileSystemLoader
 
 # Add logging configuration at the module level
@@ -100,7 +96,7 @@ class ExperimentTracker:
         """Load or create experiment metadata."""
         try:
             if os.path.exists(self.metadata_file):
-                with open(self.metadata_file, 'r', encoding="utf-8") as f:
+                with open(self.metadata_file, "r", encoding="utf-8") as f:
                     self.metadata = json.load(f)
                     logging.debug("Metadata loaded successfully")
             else:
@@ -121,7 +117,7 @@ class ExperimentTracker:
                 logging.debug("Created metadata backup")
 
             # Write new metadata
-            with open(self.metadata_file, 'w', encoding="utf-8") as f:
+            with open(self.metadata_file, "w", encoding="utf-8") as f:
                 json.dump(self.metadata, f, indent=2)
                 logging.debug("Metadata saved successfully")
 
@@ -136,7 +132,9 @@ class ExperimentTracker:
                 logging.info("Restored metadata from backup")
             raise
 
-    def register_experiment(self, name: str, config: Dict[str, Any], db_path: str) -> str:
+    def register_experiment(
+        self, name: str, config: Dict[str, Any], db_path: str
+    ) -> str:
         """Register a new experiment run."""
         if not name or not name.strip():
             raise ValueError("Experiment name cannot be empty")
@@ -172,8 +170,9 @@ class ExperimentTracker:
 
         try:
             db_path = self.metadata["experiments"][experiment_id]["db_path"]
-            with sqlite3.connect(db_path) as conn, \
-                 open(output_path, "w", encoding="utf-8", newline="") as csv_file:
+            with sqlite3.connect(db_path) as conn, open(
+                output_path, "w", encoding="utf-8", newline=""
+            ) as csv_file:
 
                 writer = csv.writer(csv_file)
                 cursor = conn.cursor()
@@ -188,7 +187,7 @@ class ExperimentTracker:
                 for offset in range(0, self._get_row_count(cursor), chunk_size):
                     cursor.execute(
                         "SELECT * FROM SimulationMetrics LIMIT ? OFFSET ?",
-                        (chunk_size, offset)
+                        (chunk_size, offset),
                     )
                     writer.writerows(cursor.fetchall())
 

@@ -3,9 +3,9 @@ import os
 import shutil
 import numpy as np
 
-from core.config import SimulationConfig
-from agents import Environment, SystemAgent, IndependentAgent, Resource
-from database.database import SimulationDatabase
+from farm.core.config import SimulationConfig
+from farm.agents import Environment, SystemAgent, IndependentAgent, Resource
+from farm.database.database import SimulationDatabase
 
 class TestSimulation(unittest.TestCase):
     def setUp(self):

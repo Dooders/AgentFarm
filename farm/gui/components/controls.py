@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Callable, Optional
 
-from gui.components.tooltips import ToolTip
+from farm.gui.components.tooltips import ToolTip
 
 
 class ControlPanel(ttk.Frame):

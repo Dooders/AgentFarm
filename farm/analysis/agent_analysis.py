@@ -8,7 +8,7 @@ import pandas as pd
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from sqlalchemy import func
 
-from database.database import Agent, AgentAction, AgentState
+from farm.database.database import Agent, AgentAction, AgentState
 
 
 class AgentAnalysis:

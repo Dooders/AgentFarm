@@ -3,11 +3,11 @@ from typing import Dict, List, Optional, Tuple
 from sqlalchemy import distinct, func
 from sqlalchemy.orm import Session
 
-from database.data_types import AgentLearningStats, LearningProgress, ModulePerformance
-from database.models import LearningExperienceModel
-from database.repositories.base_repository import BaseRepository
-from database.scope_utils import filter_scope
-from database.session_manager import SessionManager
+from farm.database.data_types import AgentLearningStats, LearningProgress, ModulePerformance
+from farm.database.models import LearningExperienceModel
+from farm.database.repositories.base_repository import BaseRepository
+from farm.database.scope_utils import filter_scope
+from farm.database.session_manager import SessionManager
 
 
 class LearningRepository(BaseRepository[LearningExperienceModel]):

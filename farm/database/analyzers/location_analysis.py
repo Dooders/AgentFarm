@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Tuple
-from database.analyzers.analysis_utils import _calculate_correlation
+
+from farm.database.analyzers.analysis_utils import _calculate_correlation
 
 
 class LocationAnalyzer:

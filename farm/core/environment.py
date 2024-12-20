@@ -7,11 +7,11 @@ from typing import Dict
 import numpy as np
 from scipy.spatial import cKDTree
 
-from agents import ControlAgent, IndependentAgent, SystemAgent
-from database.database import SimulationDatabase
-from core.resources import Resource
-from core.state import EnvironmentState
-from utils.short_id import ShortUUID
+from farm.agents import ControlAgent, IndependentAgent, SystemAgent
+from farm.database.database import SimulationDatabase
+from farm.core.resources import Resource
+from farm.core.state import EnvironmentState
+from farm.utils.short_id import ShortUUID
 
 logger = logging.getLogger(__name__)
 
