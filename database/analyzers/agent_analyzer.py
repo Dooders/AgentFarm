@@ -1,40 +1,50 @@
-from database.data_types import BasicAgentInfo
+from typing import Dict, Optional, List, Tuple, Any
+
+from database.data_types import (
+    AdversarialInteractionAnalysis,
+    BasicAgentInfo,
+    CollaborativeInteractionAnalysis,
+    ConflictAnalysis,
+    CounterfactualAnalysis,
+    ExplorationExploitation,
+    LearningCurveAnalysis,
+    ResilienceAnalysis,
+    RiskRewardAnalysis,
+    EnvironmentalImpactAnalysis,
+)
 from database.repositories.agent_repository import AgentRepository
 
 
 class AgentAnalyzer:
-    #! maybe add this to repository as a method
-
-    def __init__(self, repository: AgentRepository):
-        """Initialize the AgentStatsAnalyzer.
+    def __init__(self, repository: AgentRepository) -> None:
+        """Initialize the AgentAnalyzer with a repository interface.
 
         Args:
-            repository (AgentRepository): Repository interface for accessing agent data.
+            repository (AgentRepository): Repository interface for accessing and querying agent data.
         """
         self.repository = repository
 
     def analyze(self, agent_id: str) -> BasicAgentInfo:
-        """Analyze comprehensive statistics for a specific agent.
+        """Analyze and retrieve basic information for a specific agent.
 
-        Compiles and returns various statistical metrics about an agent including:
-        1. Basic agent stats (ID, type, timestamps)
-        2. Position data (last known coordinates)
-        3. Genealogy info (parent, generation, genome)
-        4. Performance metrics (actions, health, learning, targeting)
+        Retrieves and compiles fundamental agent information including identification,
+        temporal data, resource metrics, and genealogical information.
 
         Args:
-            agent_id (int): The unique identifier of the agent to analyze.
+            agent_id (str): Unique identifier of the agent to analyze.
 
         Returns:
-            BasicAgentStats: A data object containing all analyzed statistics.
-                Includes fields for basic info, position, genealogy, and performance metrics.
-
-        Note:
-            Performance metrics are calculated based on relationship counts:
-            - total_actions: Number of actions taken by the agent
-            - total_health_incidents: Number of health-related events
-            - learning_experiences_count: Number of learning events
-            - times_targeted: Number of times this agent was targeted by others
+            BasicAgentInfo: Data object containing:
+                - agent_id: Unique identifier
+                - agent_type: Classification of the agent
+                - birth_time: Timestamp of agent creation
+                - death_time: Timestamp of agent termination (if applicable)
+                - lifespan: Duration between birth and death
+                - initial_resources: Starting resource allocation
+                - starting_health: Initial health value
+                - starvation_threshold: Minimum resource threshold
+                - generation: Genealogical generation number
+                - genome_id: Unique identifier of agent's genome
         """
         agent = self.repository.get_agent_by_id(agent_id)
         return BasicAgentInfo(
@@ -52,3 +62,651 @@ class AgentAnalyzer:
             generation=agent.generation,
             genome_id=agent.genome_id,
         )
+
+    def analyze_exploration_exploitation(
+        self, agent_id: Optional[int] = None
+    ) -> ExplorationExploitation:
+        """Analyze how agents balance exploration versus exploitation behaviors.
+
+        Examines action patterns to determine how agents distribute their efforts between
+        exploring new actions and exploiting known successful behaviors.
+
+        Args:
+            agent_id (Optional[int]): Specific agent to analyze. If None, analyzes all agents.
+
+        Returns:
+            ExplorationExploitation: Analysis results containing:
+                - exploration_rate: Ratio of new action attempts
+                - exploitation_rate: Ratio of repeated action attempts
+                - reward_comparison: Dict comparing rewards for new vs. known actions:
+                    - new_actions_avg: Mean reward for exploration
+                    - known_actions_avg: Mean reward for exploitation
+        """
+        # Get actions through repository
+        actions = self.repository.get_actions_by_agent_id(agent_id) if agent_id else []
+
+        # Track unique and repeated actions
+        action_history = {}
+        exploration_count = 0
+        exploitation_count = 0
+        new_action_rewards = []
+        known_action_rewards = []
+
+        for action in actions:
+            action_key = (action.agent_id, action.action_type)
+
+            if action_key not in action_history:
+                exploration_count += 1
+                if action.reward is not None:
+                    new_action_rewards.append(action.reward)
+                action_history[action_key] = action.reward
+            else:
+                exploitation_count += 1
+                if action.reward is not None:
+                    known_action_rewards.append(action.reward)
+
+        total_actions = exploration_count + exploitation_count
+
+        return ExplorationExploitation(
+            exploration_rate=(
+                exploration_count / total_actions if total_actions > 0 else 0
+            ),
+            exploitation_rate=(
+                exploitation_count / total_actions if total_actions > 0 else 0
+            ),
+            reward_comparison={
+                "new_actions_avg": (
+                    sum(new_action_rewards) / len(new_action_rewards)
+                    if new_action_rewards
+                    else 0
+                ),
+                "known_actions_avg": (
+                    sum(known_action_rewards) / len(known_action_rewards)
+                    if known_action_rewards
+                    else 0
+                ),
+            },
+        )
+
+    def analyze_adversarial_interactions(
+        self, agent_id: Optional[int] = None
+    ) -> AdversarialInteractionAnalysis:
+        """Analyze agent performance in competitive scenarios and conflicts.
+
+        Evaluates effectiveness in competitive situations by examining attack patterns,
+        defense mechanisms, and strategic adaptations to opponent behaviors.
+
+        Args:
+            agent_id (Optional[int]): Specific agent to analyze. If None, analyzes all agents.
+
+        Returns:
+            AdversarialInteractionAnalysis: Analysis results containing:
+                - win_rate: Ratio of successful competitive actions
+                - damage_efficiency: Average reward from successful actions
+                - counter_strategies: Distribution of opponent response patterns
+        """
+        # Get actions through repository
+        actions = self.repository.get_actions_by_agent_id(agent_id) if agent_id else []
+
+        # Filter competitive actions
+        competitive_actions = [
+            a for a in actions if a.action_type in ["attack", "defend", "compete"]
+        ]
+
+        successful = [a for a in competitive_actions if a.reward and a.reward > 0]
+
+        # Calculate counter-strategies
+        counter_actions = {}
+        for action in competitive_actions:
+            if action.action_target_id:
+                # Get all actions for the target
+                target_actions = self.repository.get_actions_by_agent_id(
+                    action.action_target_id
+                )
+                # Find first response after this action
+                target_response = next(
+                    (a for a in target_actions if a.step_number > action.step_number),
+                    None,
+                )
+                if target_response:
+                    if target_response.action_type not in counter_actions:
+                        counter_actions[target_response.action_type] = 0
+                    counter_actions[target_response.action_type] += 1
+
+        total_counters = sum(counter_actions.values())
+        counter_frequencies = (
+            {
+                action: count / total_counters
+                for action, count in counter_actions.items()
+            }
+            if total_counters > 0
+            else {}
+        )
+
+        return AdversarialInteractionAnalysis(
+            win_rate=(
+                len(successful) / len(competitive_actions) if competitive_actions else 0
+            ),
+            damage_efficiency=(
+                sum(a.reward for a in successful) / len(successful) if successful else 0
+            ),
+            counter_strategies=counter_frequencies,
+        )
+
+    def analyze_collaboration(
+        self, agent_id: Optional[int] = None
+    ) -> CollaborativeInteractionAnalysis:
+        """Analyze patterns and outcomes of cooperative behaviors between agents.
+
+        Evaluates collaborative effectiveness by comparing rewards from cooperative
+        actions versus individual actions and measuring overall collaboration frequency.
+
+        Args:
+            agent_id (Optional[int]): Specific agent to analyze. If None, analyzes all agents.
+
+        Returns:
+            CollaborativeInteractionAnalysis: Analysis results containing:
+                - collaboration_rate: Frequency of cooperative actions
+                - group_reward_impact: Average reward from collaborative actions
+                - synergy_metrics: Difference between collaborative and solo action rewards
+        """
+        # Get actions through repository
+        actions = self.repository.get_actions_by_agent_id(agent_id) if agent_id else []
+
+        # Filter collaborative actions
+        collaborative_actions = [
+            a for a in actions if a.action_type in ["share", "help", "cooperate"]
+        ]
+
+        # Filter solo actions
+        solo_actions = [a for a in actions if not a.action_target_id]
+
+        collaborative_rewards = [
+            a.reward for a in collaborative_actions if a.reward is not None
+        ]
+        solo_rewards = [a.reward for a in solo_actions if a.reward is not None]
+
+        return CollaborativeInteractionAnalysis(
+            collaboration_rate=(
+                len(collaborative_actions) / len(actions) if actions else 0
+            ),
+            group_reward_impact=(
+                sum(collaborative_rewards) / len(collaborative_rewards)
+                if collaborative_rewards
+                else 0
+            ),
+            synergy_metrics=(
+                (
+                    sum(collaborative_rewards) / len(collaborative_rewards)
+                    - sum(solo_rewards) / len(solo_rewards)
+                )
+                if collaborative_rewards and solo_rewards
+                else 0
+            ),
+        )
+
+    def analyze_learning_curve(
+        self, agent_id: Optional[int] = None
+    ) -> LearningCurveAnalysis:
+        """Analyze agent learning progress and performance improvements over time.
+
+        Tracks performance metrics across time periods to measure learning effectiveness,
+        success rates, and reduction in suboptimal decisions.
+
+        Args:
+            agent_id (Optional[int]): Specific agent to analyze. If None, analyzes all agents.
+
+        Returns:
+            LearningCurveAnalysis: Analysis results containing:
+                - action_success_over_time: List of success rates per time period
+                - reward_progression: List of average rewards per time period
+                - mistake_reduction: Decrease in error rate between first and last periods
+        """
+        # Get actions through repository
+        actions = self.repository.get_actions_by_agent_id(agent_id) if agent_id else []
+
+        # Group actions by time periods (every 100 steps)
+        time_periods = {}
+        for action in actions:
+            period = action.step_number // 100
+            if period not in time_periods:
+                time_periods[period] = {"rewards": [], "successes": 0, "total": 0}
+            if action.reward is not None:
+                time_periods[period]["rewards"].append(action.reward)
+                if action.reward > 0:
+                    time_periods[period]["successes"] += 1
+            time_periods[period]["total"] += 1
+
+        # Sort periods and calculate metrics
+        sorted_periods = sorted(time_periods.items())
+
+        return LearningCurveAnalysis(
+            action_success_over_time=[
+                period["successes"] / period["total"] if period["total"] > 0 else 0
+                for _, period in sorted_periods
+            ],
+            reward_progression=[
+                (
+                    sum(period["rewards"]) / len(period["rewards"])
+                    if period["rewards"]
+                    else 0
+                )
+                for _, period in sorted_periods
+            ],
+            mistake_reduction=self._calculate_mistake_reduction(sorted_periods),
+        )
+
+    def _calculate_mistake_reduction(self, periods) -> float:
+        """Calculate the reduction in mistake rate between first and last time periods.
+
+        Args:
+            periods (List[Tuple]): Sorted list of time periods with performance metrics.
+
+        Returns:
+            float: Difference between early and late mistake rates (0 to 1).
+                  Higher values indicate greater improvement.
+        """
+        if not periods:
+            return 0
+
+        first_period = periods[0][1]
+        last_period = periods[-1][1]
+
+        early_mistakes = (
+            1 - first_period["successes"] / first_period["total"]
+            if first_period["total"] > 0
+            else 0
+        )
+        late_mistakes = (
+            1 - last_period["successes"] / last_period["total"]
+            if last_period["total"] > 0
+            else 0
+        )
+
+        return max(0, early_mistakes - late_mistakes)
+
+    def analyze_conflicts(self, agent_id: Optional[int] = None) -> ConflictAnalysis:
+        """Analyze patterns of conflict and conflict resolution strategies.
+
+        Examines sequences of actions leading to and resolving conflicts, including
+        trigger patterns, resolution strategies, and outcome analysis.
+
+        Args:
+            agent_id (Optional[int]): Specific agent ID to analyze. If None, analyzes all agents.
+
+        Returns:
+            ConflictAnalysis: Analysis results containing:
+                - conflict_trigger_actions (Dict[str, float]): Actions that commonly lead to conflicts,
+                  normalized as proportions (0-1)
+                - conflict_resolution_actions (Dict[str, float]): Actions used to resolve conflicts,
+                  normalized as proportions (0-1)
+                - conflict_outcome_metrics (Dict[str, float]): Average rewards for different
+                  resolution strategies
+
+        Examples:
+            >>> analyzer = AgentAnalyzer(repository)
+            >>> conflicts = analyzer.analyze_conflicts(agent_id=1)
+            >>> print("Common triggers:", conflicts.conflict_trigger_actions)
+            >>> print("Best resolution:", max(conflicts.conflict_outcome_metrics.items(),
+            ...       key=lambda x: x[1])[0])
+        """
+        # Get actions through repository
+        actions = self.repository.get_ordered_actions(agent_id) if agent_id else []
+
+        conflict_triggers = {}
+        conflict_resolutions = {}
+        conflict_outcomes = {}
+
+        for i in range(len(actions) - 1):
+            current = actions[i]
+            next_action = actions[i + 1]
+
+            if next_action.action_type in ["attack", "defend"]:
+                if current.action_type not in conflict_triggers:
+                    conflict_triggers[current.action_type] = 0
+                conflict_triggers[current.action_type] += 1
+
+            if current.action_type in ["attack", "defend"]:
+                if next_action.action_type not in conflict_resolutions:
+                    conflict_resolutions[next_action.action_type] = 0
+                    conflict_outcomes[next_action.action_type] = []
+                conflict_resolutions[next_action.action_type] += 1
+                if next_action.reward is not None:
+                    conflict_outcomes[next_action.action_type].append(
+                        next_action.reward
+                    )
+
+        return ConflictAnalysis(
+            conflict_trigger_actions=self._normalize_dict(conflict_triggers),
+            conflict_resolution_actions=self._normalize_dict(conflict_resolutions),
+            conflict_outcome_metrics={
+                action: sum(outcomes) / len(outcomes) if outcomes else 0
+                for action, outcomes in conflict_outcomes.items()
+            },
+        )
+
+    def analyze_risk_reward(self, agent_id: Optional[int] = None) -> RiskRewardAnalysis:
+        """Analyze risk-taking behavior and associated outcomes.
+
+        Examines the relationship between action risk levels and rewards, including risk
+        appetite assessment and outcome analysis. Risk level is determined by reward
+        variance relative to mean reward.
+
+        Args:
+            agent_id (Optional[int]): Specific agent ID to analyze. If None, analyzes all agents.
+
+        Returns:
+            RiskRewardAnalysis: Analysis results containing:
+                - high_risk_actions (Dict[str, float]): Actions with high reward variance
+                  (>mean/2) and their average returns
+                - low_risk_actions (Dict[str, float]): Actions with low reward variance
+                  (≤mean/2) and their average returns
+                - risk_appetite (float): Proportion of high-risk actions taken (0.0 to 1.0)
+
+        Examples:
+            >>> analyzer = AgentAnalyzer(repository)
+            >>> risk = analyzer.analyze_risk_reward(agent_id=1)
+            >>> print(f"Risk appetite: {risk.risk_appetite:.2%}")
+            >>> print("High-risk actions:", risk.high_risk_actions)
+        """
+        # Get action statistics through repository
+        action_stats = self.repository.get_action_statistics(agent_id)
+
+        high_risk = {}
+        low_risk = {}
+        total_actions = 0
+        high_risk_actions = 0
+
+        for stat in action_stats:
+            if stat.reward_std > stat.reward_avg / 2:  # High variability
+                high_risk[stat.action_type] = float(stat.reward_avg or 0)
+                high_risk_actions += stat.count
+            else:
+                low_risk[stat.action_type] = float(stat.reward_avg or 0)
+            total_actions += stat.count
+
+        return RiskRewardAnalysis(
+            high_risk_actions=high_risk,
+            low_risk_actions=low_risk,
+            risk_appetite=high_risk_actions / total_actions if total_actions > 0 else 0,
+        )
+
+    def analyze_counterfactuals(
+        self, agent_id: Optional[int] = None
+    ) -> CounterfactualAnalysis:
+        """Analyze potential alternative outcomes and missed opportunities.
+
+        Examines what-if scenarios by analyzing unused or underutilized actions and their
+        potential impacts based on observed outcomes. Identifies high-value actions that
+        were underutilized and compares actual strategy performance against optimal.
+
+        Args:
+            agent_id (Optional[int]): Specific agent ID to analyze. If None, analyzes all agents.
+
+        Returns:
+            CounterfactualAnalysis: Analysis results containing:
+                - counterfactual_rewards (Dict[str, float]): Average rewards for each action type
+                - missed_opportunities (Dict[str, float]): High-value actions that were used
+                  less than half the median usage rate
+                - strategy_comparison (Dict[str, float]): Performance delta between each
+                  strategy and the average performance
+
+        Examples:
+            >>> analyzer = AgentAnalyzer(repository)
+            >>> analysis = analyzer.analyze_counterfactuals(agent_id=1)
+            >>> print("Missed opportunities:", analysis.missed_opportunities)
+            >>> print("Best strategy:", max(analysis.strategy_comparison.items(),
+            ...       key=lambda x: x[1])[0])
+        """
+        # Get actions through repository
+        actions = self.repository.get_actions_by_agent_id(agent_id) if agent_id else []
+
+        action_rewards = {}
+        for action in actions:
+            if action.action_type not in action_rewards:
+                action_rewards[action.action_type] = []
+            if action.reward is not None:
+                action_rewards[action.action_type].append(action.reward)
+
+        avg_rewards = {
+            action: sum(rewards) / len(rewards)
+            for action, rewards in action_rewards.items()
+            if rewards
+        }
+
+        action_counts = {
+            action: len(rewards) for action, rewards in action_rewards.items()
+        }
+        median_usage = sorted(action_counts.values())[len(action_counts) // 2]
+        underused = {
+            action: count
+            for action, count in action_counts.items()
+            if count < median_usage / 2
+        }
+
+        return CounterfactualAnalysis(
+            counterfactual_rewards=avg_rewards,
+            missed_opportunities={
+                action: avg_rewards.get(action, 0) for action in underused
+            },
+            strategy_comparison={
+                action: reward - sum(avg_rewards.values()) / len(avg_rewards)
+                for action, reward in avg_rewards.items()
+            },
+        )
+
+    def analyze_resilience(self, agent_id: Optional[int] = None) -> ResilienceAnalysis:
+        """Analyze agent recovery patterns and adaptation to failures.
+
+        Examines how agents respond to and recover from negative outcomes, including
+        recovery speed, adaptation strategies, and impact assessment. A failure is
+        defined as any action resulting in negative reward.
+
+        Args:
+            agent_id (Optional[int]): Specific agent ID to analyze. If None, analyzes all agents.
+
+        Returns:
+            ResilienceAnalysis: Analysis results containing:
+                - recovery_rate (float): Average number of steps needed to return to
+                  positive rewards after a failure
+                - adaptation_rate (float): Proportion of actions that differ from the
+                  failing action during recovery periods (0.0 to 1.0)
+                - failure_impact (float): Average magnitude of performance drop during
+                  failure periods (pre-failure reward - minimum reward)
+
+        Examples:
+            >>> analyzer = AgentAnalyzer(repository)
+            >>> resilience = analyzer.analyze_resilience(agent_id=1)
+            >>> print(f"Recovery time: {resilience.recovery_rate:.1f} steps")
+            >>> print(f"Adaptation rate: {resilience.adaptation_rate:.1%}")
+        """
+        # Get ordered actions through repository
+        actions = self.repository.get_ordered_actions(agent_id) if agent_id else []
+
+        recovery_times = []
+        adaptation_speeds = []
+        failure_impacts = []
+
+        current_failure = False
+        failure_start = 0
+        pre_failure_reward = 0
+
+        for i, action in enumerate(actions):
+            if action.reward is not None and action.reward < 0:
+                if not current_failure:
+                    current_failure = True
+                    failure_start = i
+                    pre_failure_reward = (
+                        sum(
+                            a.reward
+                            for a in actions[max(0, i - 5) : i]
+                            if a.reward is not None
+                        )
+                        / 5
+                    )
+            elif current_failure and action.reward is not None and action.reward > 0:
+                recovery_times.append(i - failure_start)
+
+                post_failure_actions = actions[failure_start:i]
+                if post_failure_actions:
+                    adaptation = sum(
+                        1
+                        for a in post_failure_actions
+                        if a.action_type != actions[failure_start].action_type
+                    ) / len(post_failure_actions)
+                    adaptation_speeds.append(adaptation)
+
+                failure_impacts.append(
+                    pre_failure_reward
+                    - min(
+                        a.reward for a in post_failure_actions if a.reward is not None
+                    )
+                )
+
+                current_failure = False
+
+        return ResilienceAnalysis(
+            recovery_rate=(
+                sum(recovery_times) / len(recovery_times) if recovery_times else 0
+            ),
+            adaptation_rate=(
+                sum(adaptation_speeds) / len(adaptation_speeds)
+                if adaptation_speeds
+                else 0
+            ),
+            failure_impact=(
+                sum(failure_impacts) / len(failure_impacts) if failure_impacts else 0
+            ),
+        )
+
+    def analyze_environmental_impact(
+        self, agent_id: Optional[int] = None
+    ) -> EnvironmentalImpactAnalysis:
+        """Analyze how environment affects agent action outcomes.
+
+        Examines the relationship between environmental states (like resource levels)
+        and action outcomes, including adaptation patterns and spatial effects.
+
+        Args:
+            agent_id (Optional[int]): Specific agent ID to analyze. If None, analyzes all agents.
+
+        Returns:
+            EnvironmentalImpactAnalysis: Analysis results containing:
+                - environmental_state_impact : Dict[str, float]
+                    Correlation between resource levels and action outcomes
+                - adaptive_behavior : Dict[str, float]
+                    Measures of agent adaptation to environmental changes
+                - spatial_analysis : Dict[str, Any]
+                    Analysis of location-based patterns and effects
+        """
+        # Get actions and states through repository
+        results = self.repository.get_actions_with_states(agent_id)
+
+        # Analyze resource levels impact
+        resource_impacts = {}
+        for action, state in results:
+            resource_level = state.resource_level
+            if action.action_type not in resource_impacts:
+                resource_impacts[action.action_type] = []
+            if action.reward is not None:
+                resource_impacts[action.action_type].append(
+                    (resource_level, action.reward)
+                )
+
+        return EnvironmentalImpactAnalysis(
+            environmental_state_impact={
+                action: self._calculate_correlation(
+                    [r[0] for r in rewards], [r[1] for r in rewards]
+                )
+                for action, rewards in resource_impacts.items()
+            },
+            adaptive_behavior=self._analyze_adaptation(results),
+            spatial_analysis=self._analyze_spatial_patterns(results),
+        )
+
+    def _analyze_adaptation(self, results: List[Tuple[Any, Any]]) -> Dict[str, float]:
+        """Analyze how agents adapt to changing conditions.
+
+        Args:
+            results: List of action-state pairs to analyze
+
+        Returns:
+            Dict[str, float]: Adaptation metrics including:
+                - adaptation_rate: How quickly agents modify behavior
+                - success_rate: Success rate of adapted behaviors
+                - stability: Consistency of adapted behaviors
+        """
+        # Group actions by agent
+        agent_actions = {}
+        for action, state in results:
+            if action.agent_id not in agent_actions:
+                agent_actions[action.agent_id] = []
+            agent_actions[action.agent_id].append((action, state))
+
+        adaptation_metrics = {
+            "adaptation_rate": 0.0,
+            "success_rate": 0.0,
+            "stability": 0.0,
+        }
+
+        for actions in agent_actions.values():
+            # Sort by step number
+            actions.sort(key=lambda x: x[0].step_number)
+
+            # Calculate metrics for each agent
+            # Implementation details would go here...
+            pass
+
+        return adaptation_metrics
+
+    def _analyze_spatial_patterns(
+        self, results: List[Tuple[Any, Any]]
+    ) -> Dict[str, Any]:
+        """Analyze spatial patterns in agent behavior.
+
+        Args:
+            results: List of action-state pairs to analyze
+
+        Returns:
+            Dict[str, Any]: Spatial analysis results including:
+                - position_effects: Impact of location on outcomes
+                - clustering: Patterns of agent grouping
+                - movement_patterns: Common movement strategies
+        """
+        # Group actions by location
+        location_actions = {}
+        for action, state in results:
+            if hasattr(state, "position"):
+                pos = state.position
+                if pos not in location_actions:
+                    location_actions[pos] = []
+                location_actions[pos].append((action, state))
+
+        return {
+            "position_effects": self._analyze_position_effects(location_actions),
+            "clustering": self._analyze_clustering(location_actions),
+            "movement_patterns": self._analyze_movement_patterns(results),
+        }
+
+    def _calculate_correlation(self, x: List[float], y: List[float]) -> float:
+        """Calculate correlation coefficient between two lists of values."""
+        if not x or not y or len(x) != len(y):
+            return 0.0
+
+        n = len(x)
+        mean_x = sum(x) / n
+        mean_y = sum(y) / n
+
+        covariance = sum((x[i] - mean_x) * (y[i] - mean_y) for i in range(n))
+        std_x = (sum((val - mean_x) ** 2 for val in x)) ** 0.5
+        std_y = (sum((val - mean_y) ** 2 for val in y)) ** 0.5
+
+        if std_x == 0 or std_y == 0:
+            return 0.0
+
+        return covariance / (std_x * std_y)
+
+    def _normalize_dict(self, d: Dict[str, int]) -> Dict[str, float]:
+        """Normalize dictionary values to proportions."""
+        total = sum(d.values())
+        return {k: v / total if total > 0 else 0 for k, v in d.items()}

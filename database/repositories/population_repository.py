@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from database.data_types import (
     AgentDistribution,
+    AgentEvolutionMetrics,
     AgentStates,
     Population,
 )
@@ -207,3 +208,67 @@ class PopulationRepository(BaseRepository[SimulationStep, AgentState]):
             ]
 
         return self.session_manager.execute_with_retry(query_states)
+
+    def evolution(
+        self,
+        session,
+        scope: str,
+        agent_id: Optional[int] = None,
+        step: Optional[int] = None,
+        step_range: Optional[Tuple[int, int]] = None,
+        generation: Optional[int] = None,
+    ) -> AgentEvolutionMetrics:
+        """Get evolution metrics for agents.
+
+        Parameters
+        ----------
+        scope : str
+            The scope to filter data by (e.g., 'episode', 'experiment')
+        agent_id : Optional[int], optional
+            Specific agent ID to filter by. Defaults to None.
+        step : Optional[int], optional
+            Specific step number to filter by. Defaults to None.
+        step_range : Optional[Tuple[int, int]], optional
+            Range of step numbers to filter by. Defaults to None.
+        generation : Optional[int], optional
+            Specific generation to analyze. If None, analyzes all generations.
+
+        Returns
+        -------
+        AgentEvolutionMetrics
+            Evolution metrics including:
+            - total_agents: int
+                Number of agents in the generation
+            - unique_genomes: int
+                Number of distinct genetic configurations
+            - average_lifespan: timedelta
+                Mean survival duration
+            - generation: Optional[int]
+                Generation number (None if analyzing all generations)
+        """
+        query = session.query(AgentModel)
+
+        # Apply scope filtering
+        query = filter_scope(query, scope, agent_id, step, step_range)
+
+        if generation is not None:
+            query = query.filter(AgentModel.generation == generation)
+
+        results = query.all()
+
+        # Calculate metrics
+        total_agents = len(results)
+        unique_genomes = len(set(a.genome_id for a in results if a.genome_id))
+        avg_lifespan = (
+            sum((a.death_time - a.birth_time) if a.death_time else 0 for a in results)
+            / total_agents
+            if total_agents > 0
+            else 0
+        )
+
+        return AgentEvolutionMetrics(
+            total_agents=total_agents,
+            unique_genomes=unique_genomes,
+            average_lifespan=avg_lifespan,
+            generation=generation,
+        )

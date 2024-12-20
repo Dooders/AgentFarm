@@ -1,11 +1,12 @@
-from typing import List, Optional
+from typing import Any, List, Optional, Tuple
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from database.data_types import HealthIncidentData
 from database.models import ActionModel, AgentModel, AgentStateModel, HealthIncident
 from database.repositories.base_repository import BaseRepository
 from database.session_manager import SessionManager
-from database.data_types import HealthIncidentData
 
 
 class AgentRepository(BaseRepository[AgentModel]):
@@ -145,7 +146,9 @@ class AgentRepository(BaseRepository[AgentModel]):
 
         return self.session_manager.execute_with_retry(query_states)
 
-    def get_health_incidents_by_agent_id(self, agent_id: str) -> List[HealthIncidentData]:
+    def get_health_incidents_by_agent_id(
+        self, agent_id: str
+    ) -> List[HealthIncidentData]:
         """Retrieve health incident history for a specific agent.
 
         Parameters
@@ -163,6 +166,7 @@ class AgentRepository(BaseRepository[AgentModel]):
             - cause: Reason for health change
             - details: Additional incident-specific information
         """
+
         def query_incidents(session: Session) -> List[HealthIncidentData]:
             incidents = (
                 session.query(HealthIncident)
@@ -183,3 +187,87 @@ class AgentRepository(BaseRepository[AgentModel]):
             ]
 
         return self.session_manager.execute_with_retry(query_incidents)
+
+    def get_ordered_actions(self, agent_id: Optional[int] = None) -> List[ActionModel]:
+        """Get actions ordered by agent_id and step_number.
+
+        Retrieves a chronologically ordered list of actions, optionally filtered by agent.
+
+        Args:
+            agent_id (Optional[int]): If provided, only returns actions for this agent.
+
+        Returns:
+            List[ActionModel]: Ordered list of actions containing:
+                - action_id: Unique identifier
+                - step_number: Simulation step when action occurred
+                - agent_id: ID of agent performing action
+                - action_type: Type of action performed
+                - action_target_id: ID of target agent (if any)
+                - reward: Reward received for action
+                - details: Additional action-specific information
+
+        Examples:
+            >>> actions = repository.get_ordered_actions(agent_id=1)
+            >>> print(f"First action: {actions[0].action_type}")
+            >>> print(f"Total actions: {len(actions)}")
+        """
+        query = self.session.query(ActionModel).order_by(
+            ActionModel.agent_id, ActionModel.step_number
+        )
+        if agent_id:
+            query = query.filter(ActionModel.agent_id == agent_id)
+        return query.all()
+
+    def get_action_statistics(self, agent_id: Optional[int] = None) -> List[Any]:
+        """Get statistical aggregates for actions.
+
+        Calculates summary statistics for each action type, including reward variance
+        and averages. Results are grouped by action type.
+
+        Args:
+            agent_id (Optional[int]): If provided, only analyzes actions for this agent.
+
+        Returns:
+            List[Any]: List of statistics per action type, each containing:
+                - action_type: Type of action
+                - reward_std: Standard deviation of rewards
+                - reward_avg: Average reward
+                - count: Number of times action was performed
+
+        Examples:
+            >>> stats = repository.get_action_statistics(agent_id=1)
+            >>> for stat in stats:
+            ...     print(f"{stat.action_type}: avg={stat.reward_avg:.2f}, "
+            ...           f"std={stat.reward_std:.2f}, n={stat.count}")
+        """
+        query = self.session.query(
+            ActionModel.action_type,
+            func.stddev(ActionModel.reward).label("reward_std"),
+            func.avg(ActionModel.reward).label("reward_avg"),
+            func.count().label("count"),
+        ).group_by(ActionModel.action_type)
+
+        if agent_id:
+            query = query.filter(ActionModel.agent_id == agent_id)
+
+        return query.all()
+
+    def get_actions_with_states(
+        self, agent_id: Optional[int] = None
+    ) -> List[Tuple[Any, Any]]:
+        """Get actions with their corresponding states.
+
+        Args:
+            agent_id: Optional agent ID to filter by
+
+        Returns:
+            List of tuples containing (action, state) pairs
+        """
+        query = self.session.query(ActionModel, AgentStateModel).join(
+            AgentStateModel, ActionModel.state_before_id == AgentStateModel.id
+        )
+
+        if agent_id:
+            query = query.filter(ActionModel.agent_id == agent_id)
+
+        return query.all()
