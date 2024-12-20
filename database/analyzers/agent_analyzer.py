@@ -14,6 +14,7 @@ from database.data_types import (
     RiskRewardAnalysis,
 )
 from database.repositories.agent_repository import AgentRepository
+from database.analyzers.spatial_analysis import SpatialAnalyzer
 
 
 class AgentAnalysis:
@@ -624,8 +625,8 @@ class AgentAnalysis:
         # Adaptive behavior
         adaptive_behavior = self._analyze_adaptation(results)
 
-        # Spatial analysis
-        spatial_analysis = self._analyze_spatial_patterns(results)
+        # Spatial analysis using the new SpatialAnalyzer
+        spatial_analysis = SpatialAnalyzer.analyze_spatial_patterns(results)
 
         return EnvironmentalImpactAnalysis(
             environmental_state_impact=environmental_state_impact,
@@ -710,121 +711,4 @@ class AgentAnalysis:
             "adaptation_rate": adaptation_rate,
             "success_rate": success_rate,
             "stability": stability,
-        }
-
-    def _analyze_spatial_patterns(
-        self, results: List[Tuple[Any, Any]]
-    ) -> Dict[str, Any]:
-        """Analyze spatial patterns in agent behavior.
-
-        Args:
-            results: List of action-state pairs to analyze
-
-        Returns:
-            Dict[str, Any]: Spatial analysis results including:
-                - position_effects: Impact of location on outcomes
-                - clustering: Patterns of agent grouping
-                - movement_patterns: Common movement strategies
-        """
-        # Group actions by location
-        location_actions = {}
-        for action, state in results:
-            if hasattr(state, "position"):
-                pos = state.position
-                if pos not in location_actions:
-                    location_actions[pos] = []
-                location_actions[pos].append((action, state))
-
-        # Analyze position effects
-        position_effects = {
-            pos: _calculate_correlation(
-                [
-                    state.resource_level
-                    for _, state in actions
-                    if hasattr(state, "resource_level")
-                ],
-                [action.reward for action, _ in actions if action.reward is not None],
-            )
-            for pos, actions in location_actions.items()
-        }
-
-        # Analyze clustering patterns
-        clustering = self._analyze_clustering(location_actions)
-
-        # Analyze movement patterns
-        movement_patterns = self._analyze_movement_patterns(results)
-
-        return {
-            "position_effects": position_effects,
-            "clustering": clustering,
-            "movement_patterns": movement_patterns,
-        }
-
-    def _analyze_clustering(
-        self, location_actions: Dict[Any, List[Tuple[Any, Any]]]
-    ) -> Dict[str, float]:
-        """Analyze clustering of agents based on location.
-
-        Args:
-            location_actions: Actions grouped by location
-
-        Returns:
-            Dict[str, float]: Clustering metrics including density and grouping frequency.
-        """
-        cluster_density = {}
-        for location, actions in location_actions.items():
-            cluster_density[location] = len(actions)
-
-        total_actions = sum(cluster_density.values())
-        return {
-            "average_density": (
-                sum(cluster_density.values()) / len(cluster_density)
-                if cluster_density
-                else 0.0
-            ),
-            "location_frequencies": {
-                location: count / total_actions if total_actions > 0 else 0.0
-                for location, count in cluster_density.items()
-            },
-        }
-
-    def _analyze_movement_patterns(
-        self, results: List[Tuple[Any, Any]]
-    ) -> Dict[str, Any]:
-        """Analyze movement patterns of agents.
-
-        Args:
-            results: List of action-state pairs
-
-        Returns:
-            Dict[str, Any]: Movement patterns including:
-                - common_paths: Most frequently traversed paths
-                - average_distance: Average movement distance per step
-        """
-        movements = {}
-        distances = []
-
-        for i in range(1, len(results)):
-            prev_action, prev_state = results[i - 1]
-            curr_action, curr_state = results[i]
-
-            if hasattr(prev_state, "position") and hasattr(curr_state, "position"):
-                prev_pos = prev_state.position
-                curr_pos = curr_state.position
-
-                path = (prev_pos, curr_pos)
-                if path not in movements:
-                    movements[path] = 0
-                movements[path] += 1
-
-                # Calculate Euclidean distance
-                distance = sum((a - b) ** 2 for a, b in zip(prev_pos, curr_pos)) ** 0.5
-                distances.append(distance)
-
-        common_paths = sorted(movements.items(), key=lambda x: x[1], reverse=True)
-        average_distance = sum(distances) / len(distances) if distances else 0.0
-
-        return {
-            "common_paths": common_paths,
-            "average_distance": average_distance,
         }
