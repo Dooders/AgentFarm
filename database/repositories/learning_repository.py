@@ -1,91 +1,79 @@
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
-import pandas as pd
 from sqlalchemy import distinct, func
+from sqlalchemy.orm import Session
 
-from database.data_types import (
-    AgentLearningStats,
-    LearningEfficiencyMetrics,
-    LearningProgress,
-    LearningStatistics,
-    ModulePerformance,
-)
+from database.data_types import AgentLearningStats, LearningProgress, ModulePerformance
 from database.models import LearningExperienceModel
 from database.repositories.base_repository import BaseRepository
+from database.scope_utils import filter_scope
 from database.session_manager import SessionManager
-from database.utilities import execute_query
 
 
 class LearningRepository(BaseRepository[LearningExperienceModel]):
-    """Handles learning-related data retrieval and analysis.
+    """
+    Repository for managing and querying learning experience data.
 
-    This class provides methods for analyzing learning experiences, module performance,
-    and adaptation patterns throughout the simulation. It interfaces with the database
-    to retrieve and aggregate learning metrics.
+    This class provides methods to access and aggregate learning-related data including
+    progress metrics, module performance, and agent learning statistics. It handles the
+    persistence and retrieval of learning experiences from the database.
 
-    Methods
-    -------
-    learning_progress() -> LearningProgress
-        Retrieves time-series data of learning progress
-    module_performance() -> Dict[str, ModulePerformance]
-        Calculates performance metrics per learning module
-    agent_learning_stats(agent_id: Optional[int]) -> Dict[str, AgentLearningStats]
-        Analyzes learning statistics for specific or all agents
-    learning_efficiency() -> LearningEfficiencyMetrics
-        Computes efficiency metrics across learning experiences
-    execute() -> LearningStatistics
-        Generates comprehensive learning statistics report
+    Attributes:
+        session_manager (SessionManager): Manager for database sessions and transactions
+
+    Examples:
+        >>> repo = LearningRepository(session_manager)
+        >>> progress = repo.get_learning_progress(session, scope="episode")
     """
 
     def __init__(self, session_manager: SessionManager):
-        """Initialize with database connection.
-
-        Parameters
-        ----------
-        db : SimulationDatabase
-            Database instance to use for queries
-        """
+        """Initialize repository with session manager."""
         super().__init__(session_manager, LearningExperienceModel)
 
-    @execute_query
-    def learning_progress(self, session) -> List[LearningProgress]:
-        """Calculate aggregated learning progress metrics over time.
-
-        Retrieves and aggregates learning metrics for each simulation step, including
-        rewards earned and action patterns. Each step's data is returned as a separate
-        LearningProgress object.
-
-        Parameters
-        ----------
-        session : Session
-            SQLAlchemy session object (automatically injected by execute_query decorator)
-
-        Returns
-        -------
-        List[LearningProgress]
-            List of learning progress metrics per step, where each object contains:
-            - step : int
-                Step number in the simulation
-            - reward : float
-                Average reward achieved in this step
-            - action_count : int
-                Total number of actions taken in this step
-            - unique_actions : int
-                Number of distinct actions used in this step
+    def get_learning_progress(
+        self,
+        session: Session,
+        scope: str,
+        agent_id: Optional[int] = None,
+        step: Optional[int] = None,
+        step_range: Optional[Tuple[int, int]] = None,
+    ) -> List[LearningProgress]:
         """
-        progress_data = (
-            session.query(
-                LearningExperienceModel.step_number,
-                func.avg(LearningExperienceModel.reward).label("avg_reward"),
-                func.count(LearningExperienceModel.action_taken).label("action_count"),
-                func.count(distinct(LearningExperienceModel.action_taken_mapped)).label(
-                    "unique_actions"
-                ),
-            )
-            .group_by(LearningExperienceModel.step_number)
-            .order_by(LearningExperienceModel.step_number)
-            .all()
-        )
+        Retrieve learning progress metrics aggregated over time steps.
+
+        Calculates average rewards, action counts, and unique action usage for each step
+        in the learning process. Results can be filtered by agent, specific steps, or
+        step ranges.
+
+        Args:
+            session (Session): Active database session for executing queries
+            scope (str): Analysis scope identifier ('simulation', 'episode', etc.)
+            agent_id (Optional[int]): ID of specific agent to analyze. If None, includes all agents
+            step (Optional[int]): Specific step number to analyze. If None, includes all steps
+            step_range (Optional[Tuple[int, int]]): Start and end step numbers to analyze
+
+        Returns:
+            List[LearningProgress]: Ordered list of progress metrics per step, containing:
+                - step: Step number
+                - reward: Average reward for the step
+                - action_count: Total number of actions taken
+                - unique_actions: Number of distinct actions used
+
+        Examples:
+            >>> progress = repo.get_learning_progress(session, "episode", agent_id=1)
+            >>> print(f"Step {progress[0].step}: Reward={progress[0].reward}")
+        """
+        query = session.query(
+            LearningExperienceModel.step_number,
+            func.avg(LearningExperienceModel.reward).label("avg_reward"),
+            func.count(LearningExperienceModel.action_taken).label("action_count"),
+            func.count(distinct(LearningExperienceModel.action_taken_mapped)).label(
+                "unique_actions"
+            ),
+        ).group_by(LearningExperienceModel.step_number)
+
+        query = filter_scope(query, scope, agent_id, step, step_range)
+        results = query.order_by(LearningExperienceModel.step_number).all()
 
         return [
             LearningProgress(
@@ -94,52 +82,59 @@ class LearningRepository(BaseRepository[LearningExperienceModel]):
                 action_count=int(count or 0),
                 unique_actions=int(unique or 0),
             )
-            for step, reward, count, unique in progress_data
+            for step, reward, count, unique in results
         ]
 
-    @execute_query
-    def module_performance(self, session) -> Dict[str, ModulePerformance]:
-        """Calculate performance metrics for each learning module type.
-
-        Aggregates and analyzes performance data for each unique learning module,
-        including rewards, action counts, and action diversity metrics.
-
-        Parameters
-        ----------
-        session : Session
-            SQLAlchemy session object (automatically injected by execute_query decorator)
-
-        Returns
-        -------
-        Dict[str, ModulePerformance]
-            Dictionary mapping module identifiers to their performance metrics, where each
-            ModulePerformance contains:
-            - module_type : str
-                Type of learning module
-            - module_id : str
-                Unique identifier for the module
-            - avg_reward : float
-                Average reward achieved by the module
-            - total_actions : int
-                Total number of actions taken by the module
-            - unique_actions : int
-                Number of distinct actions used by the module
+    def get_module_performance(
+        self,
+        session: Session,
+        scope: str,
+        agent_id: Optional[int] = None,
+        step: Optional[int] = None,
+        step_range: Optional[Tuple[int, int]] = None,
+    ) -> Dict[str, ModulePerformance]:
         """
-        module_stats = (
-            session.query(
-                LearningExperienceModel.module_type,
-                LearningExperienceModel.module_id,
-                func.avg(LearningExperienceModel.reward).label("avg_reward"),
-                func.count(LearningExperienceModel.action_taken).label("total_actions"),
-                func.count(distinct(LearningExperienceModel.action_taken_mapped)).label(
-                    "unique_actions"
-                ),
-            )
-            .group_by(
-                LearningExperienceModel.module_type, LearningExperienceModel.module_id
-            )
-            .all()
+        Calculate aggregate performance metrics for each learning module.
+
+        Computes module-specific statistics including average rewards and action usage patterns.
+        Results are grouped by module type and ID to allow comparison across different
+        modules.
+
+        Args:
+            session (Session): Active database session for executing queries
+            scope (str): Analysis scope identifier ('simulation', 'episode', etc.)
+            agent_id (Optional[int]): Filter results for specific agent
+            step (Optional[int]): Filter results for specific step
+            step_range (Optional[Tuple[int, int]]): Filter results for step range
+
+        Returns:
+            Dict[str, ModulePerformance]: Dictionary mapping module types to their performance metrics:
+                - module_type: Type identifier of the module
+                - module_id: Unique identifier of the module instance
+                - avg_reward: Mean reward achieved by the module
+                - total_actions: Total number of actions taken
+                - unique_actions: Number of distinct actions used
+
+        Examples:
+            >>> perf = repo.get_module_performance(session, "simulation")
+            >>> for module, stats in perf.items():
+            ...     print(f"{module}: avg_reward={stats.avg_reward:.2f}")
+        """
+        query = session.query(
+            LearningExperienceModel.module_type,
+            LearningExperienceModel.module_id,
+            func.avg(LearningExperienceModel.reward).label("avg_reward"),
+            func.count(LearningExperienceModel.action_taken).label("total_actions"),
+            func.count(distinct(LearningExperienceModel.action_taken_mapped)).label(
+                "unique_actions"
+            ),
+        ).group_by(
+            LearningExperienceModel.module_type,
+            LearningExperienceModel.module_id,
         )
+
+        query = filter_scope(query, scope, agent_id, step, step_range)
+        results = query.all()
 
         return {
             f"{module_type}": ModulePerformance(
@@ -149,30 +144,41 @@ class LearningRepository(BaseRepository[LearningExperienceModel]):
                 total_actions=int(total_actions or 0),
                 unique_actions=int(unique_actions or 0),
             )
-            for module_type, module_id, avg_reward, total_actions, unique_actions in module_stats
+            for module_type, module_id, avg_reward, total_actions, unique_actions in results
         }
 
-    @execute_query
-    def agent_learning_stats(
-        self, session, agent_id: Optional[int] = None
+    def get_agent_learning_stats(
+        self,
+        session: Session,
+        agent_id: Optional[int] = None,
+        scope: str = "simulation",
+        step: Optional[int] = None,
+        step_range: Optional[Tuple[int, int]] = None,
     ) -> Dict[str, AgentLearningStats]:
-        """Get learning statistics for specific agent or all agents.
+        """
+        Get comprehensive learning statistics for individual agents.
 
-        Retrieves and analyzes learning performance metrics either for a specific
-        agent or aggregated across all agents.
+        Aggregates performance metrics and action usage patterns per agent and module type.
+        Useful for analyzing agent behavior and learning effectiveness over time.
 
-        Parameters
-        ----------
-        agent_id : Optional[int]
-            If provided, limits analysis to specific agent. If None, includes all agents.
+        Args:
+            session (Session): Active database session for executing queries
+            agent_id (Optional[int]): Filter results for specific agent. If None, includes all agents
+            scope (str): Analysis scope, defaults to "simulation"
+            step (Optional[int]): Filter results for specific step
+            step_range (Optional[Tuple[int, int]]): Filter results for step range
 
-        Returns
-        -------
-        Dict[str, AgentLearningStats]
-            Dictionary mapping agent/module combinations to their statistics:
-            - reward_mean: Average reward achieved
-            - total_actions: Total number of actions taken
-            - actions_used: List of unique actions performed
+        Returns:
+            Dict[str, AgentLearningStats]: Dictionary mapping module types to agent statistics:
+                - agent_id: Identifier of the agent
+                - reward_mean: Average reward achieved
+                - total_actions: Total number of actions taken
+                - actions_used: List of unique action identifiers used
+
+        Examples:
+            >>> stats = repo.get_agent_learning_stats(session, agent_id=1)
+            >>> for module, agent_stats in stats.items():
+            ...     print(f"{module}: {len(agent_stats.actions_used)} unique actions")
         """
         query = session.query(
             LearningExperienceModel.agent_id,
@@ -182,14 +188,13 @@ class LearningRepository(BaseRepository[LearningExperienceModel]):
             func.group_concat(
                 distinct(LearningExperienceModel.action_taken_mapped)
             ).label("actions_used"),
+        ).group_by(
+            LearningExperienceModel.agent_id,
+            LearningExperienceModel.module_type,
         )
 
-        if agent_id is not None:
-            query = query.filter(LearningExperienceModel.agent_id == agent_id)
-
-        results = query.group_by(
-            LearningExperienceModel.agent_id, LearningExperienceModel.module_type
-        ).all()
+        query = filter_scope(query, scope, agent_id, step, step_range)
+        results = query.all()
 
         return {
             f"{module_type}": AgentLearningStats(
@@ -201,86 +206,27 @@ class LearningRepository(BaseRepository[LearningExperienceModel]):
             for agent_id, module_type, reward_mean, total_actions, actions_used in results
         }
 
-    @execute_query
-    def learning_efficiency(self, session) -> LearningEfficiencyMetrics:
-        """Calculate learning efficiency metrics.
-
-        Computes various efficiency metrics to evaluate the overall learning
-        performance and stability of the system.
-
-        Parameters
-        ----------
-        session : Session
-            SQLAlchemy session object (automatically injected by execute_query decorator)
-
-        Returns
-        -------
-        LearningEfficiencyMetrics
-            Object containing efficiency metrics:
-            - reward_efficiency : float
-                Average reward across all experiences (0.0 to 1.0)
-            - action_diversity : float
-                Ratio of unique actions to total actions (0.0 to 1.0)
-            - learning_stability : float
-                Measure of consistency in learning performance (0.0 to 1.0)
+    def get_learning_experiences(
+        self,
+        session: Session,
+        scope: str,
+        agent_id: Optional[int] = None,
+        step: Optional[int] = None,
+        step_range: Optional[Tuple[int, int]] = None,
+    ) -> List[LearningExperienceModel]:
         """
-        experiences = pd.read_sql(
-            session.query(
-                LearningExperienceModel.step_number,
-                LearningExperienceModel.module_type,
-                LearningExperienceModel.reward,
-                LearningExperienceModel.action_taken_mapped,
-            )
-            .order_by(LearningExperienceModel.step_number)
-            .statement,
-            session.bind,
-        )
+        Retrieve learning experiences with filtering.
 
-        if experiences.empty:
-            return LearningEfficiencyMetrics(
-                reward_efficiency=0.0,
-                action_diversity=0.0,
-                learning_stability=0.0,
-            )
+        Args:
+            session: Database session
+            scope: Analysis scope
+            agent_id: Filter for specific agent
+            step: Filter for specific step
+            step_range: Filter for step range
 
-        # Calculate metrics
-        reward_efficiency = experiences["reward"].mean()
-
-        # Calculate action diversity (unique actions / total actions)
-        total_actions = len(experiences)
-        unique_actions = experiences["action_taken_mapped"].nunique()
-        action_diversity = unique_actions / total_actions if total_actions > 0 else 0
-
-        # Calculate learning stability (inverse of reward variance)
-        reward_variance = experiences.groupby("module_type")["reward"].var().mean()
-        learning_stability = 1 / (1 + reward_variance) if reward_variance > 0 else 1.0
-
-        return LearningEfficiencyMetrics(
-            reward_efficiency=float(reward_efficiency or 0),
-            action_diversity=float(action_diversity or 0),
-            learning_stability=float(learning_stability or 0),
-        )
-
-    @execute_query
-    def execute(self, session) -> LearningStatistics:
-        """Generate a comprehensive learning statistics report.
-
-        Combines multiple analysis methods to create a complete picture of
-        learning performance, including progress over time, module-specific
-        metrics, and efficiency measures.
-
-        Returns
-        -------
-        LearningStatistics
-            Complete learning statistics including:
-            - learning_progress: Time series of rewards and losses
-            - module_performance: Per-module performance metrics
-            - agent_learning_stats: Per-agent learning statistics
-            - learning_efficiency: Overall efficiency metrics
+        Returns:
+            List[LearningExperienceModel]: Filtered learning experiences
         """
-        return LearningStatistics(
-            learning_progress=self.learning_progress(),
-            module_performance=self.module_performance(),
-            agent_learning_stats=self.agent_learning_stats(),
-            learning_efficiency=self.learning_efficiency(),
-        )
+        query = session.query(LearningExperienceModel)
+        query = filter_scope(query, scope, agent_id, step, step_range)
+        return query.all()

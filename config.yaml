@@ -13,6 +13,7 @@ max_starvation_time: 15
 offspring_cost: 6
 min_reproduction_resources: 10
 offspring_initial_resources: 5
+perception_radius: 2
 
 # Resource settings
 initial_resources: 20

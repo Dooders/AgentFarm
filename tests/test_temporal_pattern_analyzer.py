@@ -1,5 +1,5 @@
 import unittest
-from analysis.temporal_pattern_analyzer import TemporalPatternAnalyzer
+from database.analyzers.temporal_pattern_analyzer import TemporalPatternAnalyzer
 from database.repositories.action_repository import ActionRepository
 
 class TestTemporalPatternAnalyzer(unittest.TestCase):

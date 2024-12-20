@@ -10,7 +10,7 @@ from database.models import AgentModel
 from database.utilities import execute_query
 
 
-class AgentLifespanRetriever:
+class AgentLifespanAnalysis:
     """Handles retrieval and analysis of agent lifespan statistics.
 
     This class provides methods to analyze and compute various statistics related to agent

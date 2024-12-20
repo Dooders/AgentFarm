@@ -57,6 +57,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple, Union
 
+from pydantic import BaseModel
+
 
 @dataclass
 class SimulationState:
@@ -2223,3 +2225,33 @@ class DecisionSummary:
     co_occurrence_patterns: Dict[
         str, Dict[str, Dict[str, float]]
     ]  # Added co-occurrence patterns
+
+
+class GenomeId(BaseModel):
+    """Structured representation of a genome identifier.
+
+    Format: 'AgentType:generation:parents:time'
+    where parents is either 'none' or parent IDs joined by '_'
+    """
+
+    agent_type: str
+    generation: int
+    parent_ids: list[str]
+    creation_time: int
+
+    @classmethod
+    def from_string(cls, genome_id: str) -> "GenomeId":
+        """Parse a genome ID string into a structured object."""
+        agent_type, generation, parents, time = genome_id.split(":")
+        parent_ids = [] if parents == "none" else parents.split("_")
+        return cls(
+            agent_type=agent_type,
+            generation=int(generation),
+            parent_ids=parent_ids,
+            creation_time=int(time),
+        )
+
+    def to_string(self) -> str:
+        """Convert the genome ID object back to string format."""
+        parent_str = "_".join(self.parent_ids) if self.parent_ids else "none"
+        return f"{self.agent_type}:{self.generation}:{parent_str}:{self.creation_time}"

@@ -1,13 +1,13 @@
 import unittest
 from unittest.mock import MagicMock
-from services.actions_service import ActionsService
-from analysis.action_stats_analyzer import ActionStatsAnalyzer
-from analysis.behavior_clustering_analyzer import BehaviorClusteringAnalyzer
-from analysis.causal_analyzer import CausalAnalyzer
-from analysis.decision_pattern_analyzer import DecisionPatternAnalyzer
-from analysis.resource_impact_analyzer import ResourceImpactAnalyzer
-from analysis.sequence_pattern_analyzer import SequencePatternAnalyzer
-from analysis.temporal_pattern_analyzer import TemporalPatternAnalyzer
+from database.services.actions_service import ActionsService
+from database.analyzers.action_stats_analyzer import ActionStatsAnalyzer
+from database.analyzers.behavior_clustering_analyzer import BehaviorClusteringAnalyzer
+from database.analyzers.causal_analyzer import CausalAnalyzer
+from database.analyzers.decision_pattern_analyzer import DecisionPatternAnalyzer
+from database.analyzers.resource_impact_analyzer import ResourceImpactAnalyzer
+from database.analyzers.sequence_pattern_analyzer import SequencePatternAnalyzer
+from database.analyzers.temporal_pattern_analyzer import TemporalPatternAnalyzer
 from database.repositories.action_repository import ActionRepository
 
 class TestActionsService(unittest.TestCase):

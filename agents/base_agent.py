@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
-from pydantic import BaseModel
 
 from actions.attack import AttackActionSpace, AttackModule, attack_action
 from actions.gather import GatherModule, gather_action
@@ -13,8 +12,9 @@ from actions.select import SelectConfig, SelectModule, create_selection_state
 from actions.share import ShareModule, share_action
 from core.action import *
 from core.genome import Genome
-from core.state import AgentState
 from core.perception import PerceptionData
+from core.state import AgentState
+from database.data_types import GenomeId
 
 if TYPE_CHECKING:
     from core.environment import Environment
@@ -30,37 +30,6 @@ BASE_ACTION_SET = [
     Action("attack", 0.1, attack_action),
     Action("reproduce", 0.15, reproduce_action),
 ]
-
-
-class GenomeId(BaseModel):
-    #! move this to data types
-    """Structured representation of a genome identifier.
-
-    Format: 'AgentType:generation:parents:time'
-    where parents is either 'none' or parent IDs joined by '_'
-    """
-
-    agent_type: str
-    generation: int
-    parent_ids: list[str]
-    creation_time: int
-
-    @classmethod
-    def from_string(cls, genome_id: str) -> "GenomeId":
-        """Parse a genome ID string into a structured object."""
-        agent_type, generation, parents, time = genome_id.split(":")
-        parent_ids = [] if parents == "none" else parents.split("_")
-        return cls(
-            agent_type=agent_type,
-            generation=int(generation),
-            parent_ids=parent_ids,
-            creation_time=int(time),
-        )
-
-    def to_string(self) -> str:
-        """Convert the genome ID object back to string format."""
-        parent_str = "_".join(self.parent_ids) if self.parent_ids else "none"
-        return f"{self.agent_type}:{self.generation}:{parent_str}:{self.creation_time}"
 
 
 class BaseAgent:
@@ -173,7 +142,6 @@ class BaseAgent:
                 (2 * perception_radius + 1) x (2 * perception_radius + 1)
         """
         # Get perception radius from config
-        #! need to add this to the config
         radius = self.config.perception_radius
 
         # Create perception grid centered on agent

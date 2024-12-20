@@ -2,6 +2,7 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 
+from database.analyzers.analysis_utils import calculate_rolling_mean
 from database.data_types import EventSegment, TimePattern
 from database.enums import AnalysisScope
 from database.repositories.action_repository import ActionRepository
@@ -131,17 +132,11 @@ class TemporalPatternAnalyzer:
             # Extend counts and rewards to match max_time_period
             counts += [0] * (max_time_period + 1 - len(counts))
             rewards += [0] * (max_time_period + 1 - len(rewards))
-            # Use numpy for rolling average calculation
+            # Use utility functions for rolling average calculation
             rewards_array = np.array(rewards)
             counts_array = np.array(counts)
-            rolling_rewards = (
-                np.convolve(rewards_array, np.ones(rolling_window_size), "valid")
-                / rolling_window_size
-            )
-            rolling_counts = (
-                np.convolve(counts_array, np.ones(rolling_window_size), "valid")
-                / rolling_window_size
-            )
+            rolling_rewards = calculate_rolling_mean(rewards_array, rolling_window_size)
+            rolling_counts = calculate_rolling_mean(counts_array, rolling_window_size)
             data["rolling_average_rewards"] = rolling_rewards.tolist()
             data["rolling_average_counts"] = rolling_counts.tolist()
 
