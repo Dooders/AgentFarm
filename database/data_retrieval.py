@@ -35,18 +35,16 @@ All database operations are executed within transactions to ensure data consiste
 Query optimization is implemented for handling large datasets efficiently.
 """
 
-import json
 import logging
 import math
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import pandas as pd
-from sqlalchemy import and_, case, exists, func, not_
+from sqlalchemy import and_, exists, func, not_
 from sqlalchemy.orm import aliased
 
-from database.actions import ActionsRetriever
-from database.agent import AgentRetriever
-from database.agent_lifespan import AgentLifespanRetriever
+from database.analyzers.lifespan_analysis import AgentLifespanAnalysis
+from database.analyzers.agent_analyzer import AgentAnalysis
+from database.analyzers.action_stats_analyzer import ActionStatsAnalyzer
 from database.learning import LearningRetriever
 from database.population import PopulationStatisticsRetriever
 from database.resource import ResourceRetriever
@@ -59,12 +57,9 @@ from .data_types import (
     AgentBehaviorMetrics,
     AgentDistribution,
     AgentLifespanStats,
-    AgentStateData,
     DecisionPatterns,
     DecisionPatternStats,
     DecisionSummary,
-    HistoricalMetrics,
-    InteractionMetrics,
     InteractionPattern,
     InteractionStats,
     LearningStatistics,
@@ -79,7 +74,7 @@ from .data_types import (
     SurvivalMetrics,
     TimePattern,
 )
-from .models import Agent, AgentAction, AgentState, HealthIncident, SimulationStep
+from .models import Agent, AgentAction
 
 logger = logging.getLogger(__name__)
 
@@ -98,12 +93,12 @@ class DataRetriever:
         self.db = database
         self._retrievers = {
             "simulation": SimulationStateRetriever(database),
-            "agent_lifespan": AgentLifespanRetriever(database),
+            "agent_lifespan": AgentLifespanAnalysis(database),
             "population": PopulationStatisticsRetriever(database),
             "resource": ResourceRetriever(database),
             "learning": LearningRetriever(database),
-            "actions": ActionsRetriever(database),
-            "agent": AgentRetriever(database),
+            "actions": ActionStatsAnalyzer(database),
+            "agent": AgentAnalysis(database),
         }
 
     def __getattr__(self, name):

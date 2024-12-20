@@ -15,9 +15,9 @@ from database.data_types import (
 from database.repositories.agent_repository import AgentRepository
 
 
-class AgentAnalyzer:
+class AgentAnalysis:
     def __init__(self, repository: AgentRepository) -> None:
-        """Initialize the AgentAnalyzer with a repository interface.
+        """Initialize the AgentAnalysis with a repository interface.
 
         Args:
             repository (AgentRepository): Repository interface for accessing and querying agent data.
@@ -344,7 +344,7 @@ class AgentAnalyzer:
                   resolution strategies
 
         Examples:
-            >>> analyzer = AgentAnalyzer(repository)
+            >>> analyzer = AgentAnalysis(repository)
             >>> conflicts = analyzer.analyze_conflicts(agent_id=1)
             >>> print("Common triggers:", conflicts.conflict_trigger_actions)
             >>> print("Best resolution:", max(conflicts.conflict_outcome_metrics.items(),
@@ -404,7 +404,7 @@ class AgentAnalyzer:
                 - risk_appetite (float): Proportion of high-risk actions taken (0.0 to 1.0)
 
         Examples:
-            >>> analyzer = AgentAnalyzer(repository)
+            >>> analyzer = AgentAnalysis(repository)
             >>> risk = analyzer.analyze_risk_reward(agent_id=1)
             >>> print(f"Risk appetite: {risk.risk_appetite:.2%}")
             >>> print("High-risk actions:", risk.high_risk_actions)
@@ -452,7 +452,7 @@ class AgentAnalyzer:
                   strategy and the average performance
 
         Examples:
-            >>> analyzer = AgentAnalyzer(repository)
+            >>> analyzer = AgentAnalysis(repository)
             >>> analysis = analyzer.analyze_counterfactuals(agent_id=1)
             >>> print("Missed opportunities:", analysis.missed_opportunities)
             >>> print("Best strategy:", max(analysis.strategy_comparison.items(),
@@ -515,7 +515,7 @@ class AgentAnalyzer:
                   failure periods (pre-failure reward - minimum reward)
 
         Examples:
-            >>> analyzer = AgentAnalyzer(repository)
+            >>> analyzer = AgentAnalysis(repository)
             >>> resilience = analyzer.analyze_resilience(agent_id=1)
             >>> print(f"Recovery time: {resilience.recovery_rate:.1f} steps")
             >>> print(f"Adaptation rate: {resilience.adaptation_rate:.1%}")
@@ -613,15 +613,23 @@ class AgentAnalyzer:
                     (resource_level, action.reward)
                 )
 
-        return EnvironmentalImpactAnalysis(
-            environmental_state_impact={
-                action: self._calculate_correlation(
+        environmental_state_impact = {}
+        for action, rewards in resource_impacts.items():
+            if rewards:
+                environmental_state_impact[action] = self._calculate_correlation(
                     [r[0] for r in rewards], [r[1] for r in rewards]
                 )
-                for action, rewards in resource_impacts.items()
-            },
-            adaptive_behavior=self._analyze_adaptation(results),
-            spatial_analysis=self._analyze_spatial_patterns(results),
+
+        # Adaptive behavior
+        adaptive_behavior = self._analyze_adaptation(results)
+
+        # Spatial analysis
+        spatial_analysis = self._analyze_spatial_patterns(results)
+
+        return EnvironmentalImpactAnalysis(
+            environmental_state_impact=environmental_state_impact,
+            adaptive_behavior=adaptive_behavior,
+            spatial_analysis=spatial_analysis,
         )
 
     def _analyze_adaptation(self, results: List[Tuple[Any, Any]]) -> Dict[str, float]:
@@ -636,28 +644,72 @@ class AgentAnalyzer:
                 - success_rate: Success rate of adapted behaviors
                 - stability: Consistency of adapted behaviors
         """
-        # Group actions by agent
         agent_actions = {}
         for action, state in results:
             if action.agent_id not in agent_actions:
                 agent_actions[action.agent_id] = []
             agent_actions[action.agent_id].append((action, state))
 
-        adaptation_metrics = {
-            "adaptation_rate": 0.0,
-            "success_rate": 0.0,
-            "stability": 0.0,
-        }
+        total_adaptations = 0
+        successful_adaptations = 0
+        total_behavior_changes = 0
+        consistent_behavior_count = 0
+        total_behavior_count = 0
 
         for actions in agent_actions.values():
-            # Sort by step number
             actions.sort(key=lambda x: x[0].step_number)
 
-            # Calculate metrics for each agent
-            # Implementation details would go here...
-            pass
+            last_action_type = None
+            last_reward = None
+            consecutive_same_behavior = 0
 
-        return adaptation_metrics
+            for action, state in actions:
+                if last_action_type is not None:
+                    # Check if the agent adapted (changed action type)
+                    if action.action_type != last_action_type:
+                        total_behavior_changes += 1
+                        # Consider it an adaptation if the new action's reward is higher
+                        if (
+                            action.reward
+                            and last_reward
+                            and action.reward > last_reward
+                        ):
+                            total_adaptations += 1
+                            successful_adaptations += 1
+
+                    # Count consistent behaviors
+                    if action.action_type == last_action_type:
+                        consecutive_same_behavior += 1
+                    else:
+                        consecutive_same_behavior = 1
+
+                    total_behavior_count += 1
+
+                last_action_type = action.action_type
+                last_reward = action.reward
+
+            # Add stability metric
+            consistent_behavior_count += consecutive_same_behavior
+
+        adaptation_rate = (
+            total_adaptations / total_behavior_changes
+            if total_behavior_changes > 0
+            else 0.0
+        )
+        success_rate = (
+            successful_adaptations / total_adaptations if total_adaptations > 0 else 0.0
+        )
+        stability = (
+            consistent_behavior_count / total_behavior_count
+            if total_behavior_count > 0
+            else 0.0
+        )
+
+        return {
+            "adaptation_rate": adaptation_rate,
+            "success_rate": success_rate,
+            "stability": stability,
+        }
 
     def _analyze_spatial_patterns(
         self, results: List[Tuple[Any, Any]]
@@ -710,3 +762,120 @@ class AgentAnalyzer:
         """Normalize dictionary values to proportions."""
         total = sum(d.values())
         return {k: v / total if total > 0 else 0 for k, v in d.items()}
+
+    def _analyze_spatial_patterns(
+        self, results: List[Tuple[Any, Any]]
+    ) -> Dict[str, Any]:
+        """Analyze spatial patterns in agent behavior.
+
+        Args:
+            results: List of action-state pairs to analyze
+
+        Returns:
+            Dict[str, Any]: Spatial analysis results including:
+                - position_effects: Impact of location on outcomes
+                - clustering: Patterns of agent grouping
+                - movement_patterns: Common movement strategies
+        """
+        # Group actions by location
+        location_actions = {}
+        for action, state in results:
+            if hasattr(state, "position"):
+                pos = state.position
+                if pos not in location_actions:
+                    location_actions[pos] = []
+                location_actions[pos].append((action, state))
+
+        # Analyze position effects
+        position_effects = {
+            pos: self._calculate_correlation(
+                [
+                    state.resource_level
+                    for _, state in actions
+                    if hasattr(state, "resource_level")
+                ],
+                [action.reward for action, _ in actions if action.reward is not None],
+            )
+            for pos, actions in location_actions.items()
+        }
+
+        # Analyze clustering patterns
+        clustering = self._analyze_clustering(location_actions)
+
+        # Analyze movement patterns
+        movement_patterns = self._analyze_movement_patterns(results)
+
+        return {
+            "position_effects": position_effects,
+            "clustering": clustering,
+            "movement_patterns": movement_patterns,
+        }
+
+    def _analyze_clustering(
+        self, location_actions: Dict[Any, List[Tuple[Any, Any]]]
+    ) -> Dict[str, float]:
+        """Analyze clustering of agents based on location.
+
+        Args:
+            location_actions: Actions grouped by location
+
+        Returns:
+            Dict[str, float]: Clustering metrics including density and grouping frequency.
+        """
+        cluster_density = {}
+        for location, actions in location_actions.items():
+            cluster_density[location] = len(actions)
+
+        total_actions = sum(cluster_density.values())
+        return {
+            "average_density": (
+                sum(cluster_density.values()) / len(cluster_density)
+                if cluster_density
+                else 0.0
+            ),
+            "location_frequencies": {
+                location: count / total_actions if total_actions > 0 else 0.0
+                for location, count in cluster_density.items()
+            },
+        }
+
+    def _analyze_movement_patterns(
+        self, results: List[Tuple[Any, Any]]
+    ) -> Dict[str, Any]:
+        """Analyze movement patterns of agents.
+
+        Args:
+            results: List of action-state pairs
+
+        Returns:
+            Dict[str, Any]: Movement patterns including:
+                - common_paths: Most frequently traversed paths
+                - average_distance: Average movement distance per step
+        """
+        movements = {}
+        distances = []
+
+        for i in range(1, len(results)):
+            prev_action, prev_state = results[i - 1]
+            curr_action, curr_state = results[i]
+
+            if hasattr(prev_state, "position") and hasattr(curr_state, "position"):
+                prev_pos = prev_state.position
+                curr_pos = curr_state.position
+
+                path = (prev_pos, curr_pos)
+                if path not in movements:
+                    movements[path] = 0
+                movements[path] += 1
+
+                # Calculate Euclidean distance
+                distance = sum((a - b) ** 2 for a, b in zip(prev_pos, curr_pos)) ** 0.5
+                distances.append(distance)
+
+        common_paths = sorted(movements.items(), key=lambda x: x[1], reverse=True)
+        average_distance = sum(distances) / len(distances) if distances else 0.0
+
+        return {
+            "common_paths": common_paths,
+            "average_distance": average_distance,
+        }
