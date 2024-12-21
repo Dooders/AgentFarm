@@ -344,7 +344,6 @@ class BaseAgent:
             resource_level=self.config.offspring_initial_resources,
             environment=self.environment,
             generation=generation,
-            skip_logging=True,  # Skip individual logging since we'll batch it
         )
 
         # Set additional attributes

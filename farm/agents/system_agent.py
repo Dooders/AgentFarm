@@ -21,7 +21,6 @@ class SystemAgent(BaseAgent):
         resource_level: int,
         environment: "Environment",
         generation: int = 0,
-        skip_logging: bool = False,
         action_set: list[Action] = None,
     ):
         """Initialize a SystemAgent.
@@ -38,8 +37,6 @@ class SystemAgent(BaseAgent):
             Reference to simulation environment
         generation : int
             Generation number in evolutionary lineage
-        skip_logging : bool
-            If True, skip database logging during initialization
         action_set : list[Action], optional
             Custom action set for this agent
         """
@@ -63,7 +60,6 @@ class SystemAgent(BaseAgent):
             environment=environment,
             action_set=action_set,
             generation=generation,
-            skip_logging=skip_logging,
         )
 
         # Configure gather module for more sustainable resource collection

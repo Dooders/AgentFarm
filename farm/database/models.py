@@ -107,19 +107,19 @@ class AgentModel(Base):
     generation = Column(Integer)
 
     # Relationships
-    states = relationship("AgentState", back_populates="agent")
+    states = relationship("AgentStateModel", back_populates="agent")
     actions = relationship(
-        "AgentAction",
+        "ActionModel",
         back_populates="agent",
-        foreign_keys="[AgentAction.agent_id]",
-        primaryjoin="Agent.agent_id==AgentAction.agent_id",
+        foreign_keys="[ActionModel.agent_id]",
+        primaryjoin="AgentModel.agent_id==ActionModel.agent_id",
     )
     health_incidents = relationship("HealthIncident", back_populates="agent")
-    learning_experiences = relationship("LearningExperience", back_populates="agent")
+    learning_experiences = relationship("LearningExperienceModel", back_populates="agent")
     targeted_actions = relationship(
-        "AgentAction",
-        foreign_keys="[AgentAction.action_target_id]",
-        primaryjoin="Agent.agent_id==AgentAction.action_target_id",
+        "ActionModel",
+        foreign_keys="[ActionModel.action_target_id]",
+        primaryjoin="AgentModel.agent_id==ActionModel.action_target_id",
         backref="target",
         overlaps="targeted_by",
     )
@@ -191,7 +191,7 @@ class AgentStateModel(Base):
     total_reward = Column(Float)
     age = Column(Integer)
 
-    agent = relationship("Agent", back_populates="states")
+    agent = relationship("AgentModel", back_populates="states")
 
     def __init__(self, **kwargs):
         # Ensure id is generated before calling super().__init__
@@ -433,9 +433,9 @@ class ActionModel(Base):
     reward = Column(Float(precision=6), nullable=True)
     details = Column(String(1024), nullable=True)
 
-    agent = relationship("Agent", back_populates="actions", foreign_keys=[agent_id])
-    state_before = relationship("AgentState", foreign_keys=[state_before_id])
-    state_after = relationship("AgentState", foreign_keys=[state_after_id])
+    agent = relationship("AgentModel", back_populates="actions", foreign_keys=[agent_id])
+    state_before = relationship("AgentStateModel", foreign_keys=[state_before_id])
+    state_after = relationship("AgentStateModel", foreign_keys=[state_after_id])
 
 
 class LearningExperienceModel(Base):
@@ -457,7 +457,7 @@ class LearningExperienceModel(Base):
     action_taken_mapped = Column(String(20))
     reward = Column(Float(precision=6))
 
-    agent = relationship("Agent", back_populates="learning_experiences")
+    agent = relationship("AgentModel", back_populates="learning_experiences")
 
 
 class HealthIncident(Base):
@@ -477,7 +477,7 @@ class HealthIncident(Base):
     cause = Column(String(50), nullable=False)
     details = Column(String(512))
 
-    agent = relationship("Agent", back_populates="health_incidents")
+    agent = relationship("AgentModel", back_populates="health_incidents")
 
 
 class SimulationConfig(Base):

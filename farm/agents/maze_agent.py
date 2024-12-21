@@ -20,7 +20,6 @@ class MazeAgent(BaseAgent):
         resource_level: int,
         environment: "Environment",
         generation: int = 0,
-        skip_logging: bool = False,
         action_set: list[Action] = None,
     ):
         # Create maze-specific action set if none provided
@@ -40,7 +39,6 @@ class MazeAgent(BaseAgent):
             environment=environment,
             action_set=action_set,
             generation=generation,
-            skip_logging=skip_logging,
         )
 
         # Configure maze-specific parameters

@@ -469,35 +469,19 @@ class DataLogger:
     def log_resource(
         self, resource_id: int, initial_amount: float, position: Tuple[float, float]
     ) -> None:
-        """Log a new resource in the simulation.
-
-        Parameters
-        ----------
-        resource_id : int
-            Unique identifier for the resource
-        initial_amount : float
-            Starting amount of the resource
-        position : Tuple[float, float]
-            (x, y) coordinates of the resource location
-
-        Raises
-        ------
-        ValueError
-            If input parameters are invalid
-        SQLAlchemyError
-            If database operation fails
-        """
+        """Log a new resource in the simulation."""
         try:
-            resource_data = {
+            resource_data = [{  # Changed to list for bulk_insert_mappings
                 "step_number": 0,  # Initial state
                 "resource_id": resource_id,
                 "amount": initial_amount,
                 "position_x": position[0],
                 "position_y": position[1],
-            }
+            }]
 
             def _insert(session):
-                session.add(ResourceModel(**resource_data))
+                # Changed to bulk_insert_mappings for consistency
+                session.bulk_insert_mappings(ResourceModel, resource_data)
 
             self.db._execute_in_transaction(_insert)
 
