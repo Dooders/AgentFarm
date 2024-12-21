@@ -115,7 +115,9 @@ class AgentModel(Base):
         primaryjoin="AgentModel.agent_id==ActionModel.agent_id",
     )
     health_incidents = relationship("HealthIncident", back_populates="agent")
-    learning_experiences = relationship("LearningExperienceModel", back_populates="agent")
+    learning_experiences = relationship(
+        "LearningExperienceModel", back_populates="agent"
+    )
     targeted_actions = relationship(
         "ActionModel",
         foreign_keys="[ActionModel.action_target_id]",
@@ -194,10 +196,19 @@ class AgentStateModel(Base):
     agent = relationship("AgentModel", back_populates="states")
 
     def __init__(self, **kwargs):
-        # Ensure id is generated before calling super().__init__
+        # Generate id before initializing other attributes
         if "agent_id" in kwargs and "step_number" in kwargs:
             kwargs["id"] = f"{kwargs['agent_id']}-{kwargs['step_number']}"
+        elif not "id" in kwargs:
+            raise ValueError(
+                "Both agent_id and step_number are required to create AgentStateModel"
+            )
         super().__init__(**kwargs)
+
+    @staticmethod
+    def generate_id(agent_id: str, step_number: int) -> str:
+        """Generate a unique ID for an agent state."""
+        return f"{agent_id}-{step_number}"
 
     def as_dict(self) -> Dict[str, Any]:
         """Convert agent state to dictionary."""
@@ -211,7 +222,7 @@ class AgentStateModel(Base):
             "current_health": self.current_health,
             "is_defending": self.is_defending,
             "total_reward": self.total_reward,
-            "age": self.age
+            "age": self.age,
         }
 
 
@@ -433,7 +444,9 @@ class ActionModel(Base):
     reward = Column(Float(precision=6), nullable=True)
     details = Column(String(1024), nullable=True)
 
-    agent = relationship("AgentModel", back_populates="actions", foreign_keys=[agent_id])
+    agent = relationship(
+        "AgentModel", back_populates="actions", foreign_keys=[agent_id]
+    )
     state_before = relationship("AgentStateModel", foreign_keys=[state_before_id])
     state_after = relationship("AgentStateModel", foreign_keys=[state_after_id])
 

@@ -58,7 +58,6 @@ class BaseQNetwork(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass through the network."""
-        print(f"This is the input shape of the network: {x.shape}")
         if x.dim() == 1:
             x = x.unsqueeze(0)
             result = self.network(x)

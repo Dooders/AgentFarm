@@ -101,7 +101,8 @@ class MoveModule(BaseDQNModule):
         device: torch.device = DEVICE,
         db: Optional["SimulationDatabase"] = None,
     ) -> None:
-        super().__init__(input_dim=4, output_dim=4, config=config, device=device, db=db)
+        #! need to make input_dim dynamic to input size
+        super().__init__(input_dim=8, output_dim=4, config=config, device=device, db=db)
         self._setup_action_space()
 
     def _setup_action_space(self) -> None:
@@ -199,7 +200,7 @@ def move_action(agent: "BaseAgent") -> None:
     """Execute movement using optimized Deep Q-Learning based policy."""
     # Get state and ensure it's a tensor
     state = _ensure_tensor(agent.get_state(), agent.move_module.device)
-
+    
     # Get movement and update position
     initial_position = agent.position
     new_position = agent.move_module.get_movement(agent, state)
