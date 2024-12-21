@@ -45,7 +45,7 @@ class BehaviorClusteringAnalyzer:
     def analyze(
         self,
         scope: str,
-        agent_id: int = None,
+        agent_id: str = None,
         step: int = None,
         step_range: tuple = None,
     ) -> BehaviorClustering:
@@ -57,7 +57,7 @@ class BehaviorClusteringAnalyzer:
 
         Args:
             scope (str): The scope of analysis (e.g., 'episode', 'training')
-            agent_id (int, optional): Specific agent ID to analyze. Defaults to None.
+            agent_id (str, optional): Specific agent ID to analyze. Defaults to None.
             step (int, optional): Specific step to analyze. Defaults to None.
             step_range (tuple, optional): Range of steps to analyze (start, end). Defaults to None.
 
@@ -151,7 +151,7 @@ class BehaviorClusteringAnalyzer:
     def _create_visualization_data(
         self,
         reduced_features: np.ndarray,
-        agent_ids: List[int],
+        agent_ids: List[str],
         clusters: Dict[str, List[int]],
     ) -> Dict[str, Dict]:
         """
@@ -164,9 +164,9 @@ class BehaviorClusteringAnalyzer:
         Args:
             reduced_features (np.ndarray): Reduced dimensional feature matrix of shape
                 (n_samples, n_components)
-            agent_ids (List[int]): List of agent identifiers corresponding to each row
+            agent_ids (List[str]): List of agent identifiers corresponding to each row
                 in reduced_features
-            clusters (Dict[str, List[int]]): Mapping of cluster names to lists of agent IDs
+            clusters (Dict[str, List[str]]): Mapping of cluster names to lists of agent IDs
 
         Returns:
             Dict[str, Dict]: Visualization data structure containing:
@@ -307,8 +307,8 @@ class BehaviorClusteringAnalyzer:
         return features, agent_ids
 
     def _perform_hierarchical_clustering(
-        self, X: np.ndarray, agent_ids: List[int]
-    ) -> Dict[str, List[int]]:
+        self, X: np.ndarray, agent_ids: List[str]
+    ) -> Dict[str, List[str]]:
         """
         Perform hierarchical clustering to identify nested behavioral patterns among agents.
 
@@ -318,10 +318,10 @@ class BehaviorClusteringAnalyzer:
 
         Args:
             X (np.ndarray): Standardized feature matrix of shape (n_samples, n_features)
-                agent_ids (List[int]): List of agent identifiers corresponding to each row in X
+                agent_ids (List[str]): List of agent identifiers corresponding to each row in X
 
         Returns:
-            Dict[str, List[int]]: Hierarchical cluster assignments where:
+            Dict[str, List[str]]: Hierarchical cluster assignments where:
                 - Keys are cluster names (e.g., 'cooperative_high_success')
                 - Values are lists of agent IDs belonging to each cluster
                 - Includes both top-level clusters and meaningful subclusters

@@ -17,7 +17,7 @@ class ControlAgent(BaseAgent):
 
     def __init__(
         self,
-        agent_id: int,
+        agent_id: str,
         position: tuple[int, int],
         resource_level: int,
         environment: "Environment",
@@ -28,7 +28,7 @@ class ControlAgent(BaseAgent):
 
         Parameters
         ----------
-        agent_id : int
+        agent_id : str
             Unique identifier for this agent
         position : tuple[int, int]
             Initial (x,y) coordinates

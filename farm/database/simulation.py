@@ -84,7 +84,7 @@ class SimulationStateRetriever:
             List of agent states, where each AgentStates object contains:
             - step_number: int
                 Simulation step number
-            - agent_id: int
+            - agent_id: str
                 Agent's unique identifier
             - agent_type: str
                 Agent's category

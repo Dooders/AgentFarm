@@ -10,7 +10,7 @@ from farm.database.models import AgentModel
 def filter_scope(
     query: Query,
     scope: Union[str, AnalysisScope],
-    agent_id: Optional[int] = None,
+    agent_id: Optional[str] = None,
     step: Optional[int] = None,
     step_range: Optional[Tuple[int, int]] = None,
 ) -> Query:
@@ -27,7 +27,7 @@ def filter_scope(
         - "step_range": Analyze a range of steps
         - "agent": Analyze a specific agent
         Can be provided as string or AnalysisScope enum.
-    agent_id : Optional[int], default=None
+    agent_id : Optional[str], default=None
         ID of agent to analyze. Required when scope is "agent".
         Must be a valid agent ID in the database.
     step : Optional[int], default=None

@@ -383,13 +383,13 @@ class SimulationDatabase:
         self._execute_in_transaction(_query)
 
     def update_agent_death(
-        self, agent_id: int, death_time: int, cause: str = "starvation"
+        self, agent_id: str, death_time: int, cause: str = "starvation"
     ):
         """Update agent record with death information.
 
         Parameters
         ----------
-        agent_id : int
+        agent_id : str
             ID of the agent that died
         death_time : int
             Time step when death occurred
@@ -460,12 +460,12 @@ class SimulationDatabase:
 
         return self._execute_in_transaction(_query)
 
-    def update_agent_state(self, agent_id: int, step_number: int, state_data: Dict):
+    def update_agent_state(self, agent_id: str, step_number: int, state_data: Dict):
         """Update agent state in the database.
 
         Parameters
         ----------
-        agent_id : int
+        agent_id : str
             ID of the agent to update
         step_number : int
             Current simulation step

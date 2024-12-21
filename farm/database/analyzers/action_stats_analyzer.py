@@ -34,7 +34,7 @@ class ActionStatsAnalyzer:
     def analyze(
         self,
         scope: Union[str, AnalysisScope] = AnalysisScope.SIMULATION,
-        agent_id: Optional[int] = None,
+        agent_id: Optional[str] = None,
         step: Optional[int] = None,
         step_range: Optional[Tuple[int, int]] = None,
     ) -> List[ActionMetrics]:
@@ -49,7 +49,7 @@ class ActionStatsAnalyzer:
 
         Args:
             scope (Union[str, AnalysisScope], optional): Scope of analysis. Defaults to AnalysisScope.SIMULATION.
-            agent_id (Optional[int], optional): Specific agent to analyze. Defaults to None.
+            agent_id (Optional[str], optional): Specific agent to analyze. Defaults to None.
             step (Optional[int], optional): Specific step to analyze. Defaults to None.
             step_range (Optional[Tuple[int, int]], optional): Range of steps to analyze. Defaults to None.
 

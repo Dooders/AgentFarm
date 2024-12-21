@@ -205,7 +205,7 @@ def create_selection_state(agent: "BaseAgent") -> torch.Tensor:
     max_resources = agent.config.min_reproduction_resources * 3
     resource_ratio = agent.resource_level / max_resources
     health_ratio = agent.current_health / agent.starting_health
-    starvation_ratio = agent.starvation_threshold / agent.starting_starvation
+    starvation_ratio = agent.starvation_threshold / agent.max_starvation
 
     # Get nearby entities
     nearby_resources = len(

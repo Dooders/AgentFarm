@@ -889,7 +889,7 @@ class DataRetriever:
 
     def agent_decision_patterns(
         self,
-        agent_id: Optional[int] = None,
+        agent_id: Optional[str] = None,
         start_step: Optional[int] = None,
         end_step: Optional[int] = None,
     ) -> DecisionPatterns:
@@ -897,7 +897,7 @@ class DataRetriever:
 
         Parameters
         ----------
-        agent_id : Optional[int]
+        agent_id : Optional[str]
             Specific agent ID to analyze. If None, analyzes all agents.
         start_step : Optional[int]
             Starting step for analysis window

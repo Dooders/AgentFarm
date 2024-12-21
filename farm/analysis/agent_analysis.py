@@ -201,11 +201,11 @@ class AgentAnalysis:
         agent_id = int(self.agent_var.get().split()[1])
         self._load_agent_data(agent_id)
 
-    def _load_agent_data(self, agent_id: int):
+    def _load_agent_data(self, agent_id: str):
         """Load and display all data for selected agent.
 
         Args:
-            agent_id (int): The ID of the agent to load data for.
+            agent_id (str): The ID of the agent to load data for.
 
         Loads basic info, statistics, performance metrics and updates all charts
         and labels with the agent's data from the database.

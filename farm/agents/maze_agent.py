@@ -15,7 +15,7 @@ class MazeAgent(BaseAgent):
 
     def __init__(
         self,
-        agent_id: int,
+        agent_id: str,
         position: tuple[int, int],
         resource_level: int,
         environment: "Environment",

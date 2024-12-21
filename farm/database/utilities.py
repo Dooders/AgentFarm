@@ -143,13 +143,13 @@ def validate_export_format(format: str) -> bool:
 
 
 def format_agent_state(
-    agent_id: int, step: int, state_data: Dict[str, Any]
+    agent_id: str, step: int, state_data: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Format agent state data for database storage.
 
     Parameters
     ----------
-    agent_id : int
+    agent_id : str
         ID of the agent
     step : int
         Current simulation step

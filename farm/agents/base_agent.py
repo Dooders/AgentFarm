@@ -41,7 +41,7 @@ class BaseAgent:
 
     Attributes:
         actions (list[Action]): Available actions the agent can take
-        agent_id (int): Unique identifier for this agent
+        agent_id (str): Unique identifier for this agent
         position (tuple[int, int]): Current (x,y) coordinates
         resource_level (int): Current amount of resources held
         alive (bool): Whether the agent is currently alive
@@ -202,17 +202,17 @@ class BaseAgent:
         Returns:
             AgentState: A structured object containing all current state information
         """
-        return AgentState.from_raw_values(
+        return AgentState(
             agent_id=self.agent_id,
             step_number=self.environment.time,
             position_x=self.position[0],
             position_y=self.position[1],
-            position_z=self.position[2],
+            position_z=self.position[2] if len(self.position) > 2 else 0,
             resource_level=self.resource_level,
             current_health=self.current_health,
             is_defending=self.is_defending,
             total_reward=self.total_reward,
-            age=self.age,
+            age=self.environment.time - self.birth_time,
         )
 
     def choose_action(self):
@@ -333,6 +333,7 @@ class BaseAgent:
         agent_class = type(self)
 
         # Generate unique ID and genome info first
+        #! need to update this since we are using strings now
         new_id = self.environment.get_next_agent_id()
         generation = self.generation + 1
         genome_id = f"{agent_class.__name__}_{new_id}_{self.environment.time}"
@@ -600,7 +601,7 @@ class BaseAgent:
     def from_genome(
         cls,
         genome: "Genome",
-        agent_id: int,
+        agent_id: str,
         position: tuple[int, int],
         environment: "Environment",
     ) -> "BaseAgent":
@@ -613,7 +614,7 @@ class BaseAgent:
 
         Args:
             genome (Genome): Genetic encoding of agent parameters
-            agent_id (int): Unique identifier for new agent
+            agent_id (str): Unique identifier for new agent
             position (tuple[int, int]): Starting coordinates
             environment (Environment): Simulation environment reference
 

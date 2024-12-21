@@ -23,7 +23,6 @@ class BaseState(BaseModel):
     Methods:
         to_tensor: Convert state to tensor format for neural network input
         to_dict: Convert state to dictionary representation
-        validate_normalized: Ensure values are properly normalized
     """
 
     class Config:
@@ -38,23 +37,6 @@ class BaseState(BaseModel):
         validate_assignment = True
         frozen = True
         arbitrary_types_allowed = True
-
-    @validator("*")
-    def validate_normalized(cls, v: float) -> float:
-        """Validate that all state values are normalized between 0 and 1.
-
-        Args:
-            v (float): Value to validate
-
-        Returns:
-            float: The validated value
-
-        Raises:
-            ValueError: If value is not between 0 and 1
-        """
-        if not 0 <= v <= 1:
-            raise ValueError(f"Value {v} must be normalized between 0 and 1")
-        return v
 
     def to_tensor(self, device: torch.device) -> torch.Tensor:
         """Convert state to tensor format for neural network input.

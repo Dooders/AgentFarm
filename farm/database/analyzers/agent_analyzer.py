@@ -69,7 +69,7 @@ class AgentAnalysis:
         )
 
     def analyze_exploration_exploitation(
-        self, agent_id: Optional[int] = None
+        self, agent_id: Optional[str] = None
     ) -> ExplorationExploitation:
         """Analyze how agents balance exploration versus exploitation behaviors.
 
@@ -77,7 +77,7 @@ class AgentAnalysis:
         exploring new actions and exploiting known successful behaviors.
 
         Args:
-            agent_id (Optional[int]): Specific agent to analyze. If None, analyzes all agents.
+            agent_id (Optional[str]): Specific agent to analyze. If None, analyzes all agents.
 
         Returns:
             ExplorationExploitation: Analysis results containing:
@@ -134,7 +134,7 @@ class AgentAnalysis:
         )
 
     def analyze_adversarial_interactions(
-        self, agent_id: Optional[int] = None
+        self, agent_id: Optional[str] = None
     ) -> AdversarialInteractionAnalysis:
         """Analyze agent performance in competitive scenarios and conflicts.
 
@@ -142,7 +142,7 @@ class AgentAnalysis:
         defense mechanisms, and strategic adaptations to opponent behaviors.
 
         Args:
-            agent_id (Optional[int]): Specific agent to analyze. If None, analyzes all agents.
+            agent_id (Optional[str]): Specific agent to analyze. If None, analyzes all agents.
 
         Returns:
             AdversarialInteractionAnalysis: Analysis results containing:
@@ -199,7 +199,7 @@ class AgentAnalysis:
         )
 
     def analyze_collaboration(
-        self, agent_id: Optional[int] = None
+        self, agent_id: Optional[str] = None
     ) -> CollaborativeInteractionAnalysis:
         """Analyze patterns and outcomes of cooperative behaviors between agents.
 
@@ -207,7 +207,7 @@ class AgentAnalysis:
         actions versus individual actions and measuring overall collaboration frequency.
 
         Args:
-            agent_id (Optional[int]): Specific agent to analyze. If None, analyzes all agents.
+            agent_id (Optional[str]): Specific agent to analyze. If None, analyzes all agents.
 
         Returns:
             CollaborativeInteractionAnalysis: Analysis results containing:
@@ -251,7 +251,7 @@ class AgentAnalysis:
         )
 
     def analyze_learning_curve(
-        self, agent_id: Optional[int] = None
+        self, agent_id: Optional[str] = None
     ) -> LearningCurveAnalysis:
         """Analyze agent learning progress and performance improvements over time.
 
@@ -259,7 +259,7 @@ class AgentAnalysis:
         success rates, and reduction in suboptimal decisions.
 
         Args:
-            agent_id (Optional[int]): Specific agent to analyze. If None, analyzes all agents.
+            agent_id (Optional[str]): Specific agent to analyze. If None, analyzes all agents.
 
         Returns:
             LearningCurveAnalysis: Analysis results containing:
@@ -330,14 +330,14 @@ class AgentAnalysis:
 
         return max(0, early_mistakes - late_mistakes)
 
-    def analyze_conflicts(self, agent_id: Optional[int] = None) -> ConflictAnalysis:
+    def analyze_conflicts(self, agent_id: Optional[str] = None) -> ConflictAnalysis:
         """Analyze patterns of conflict and conflict resolution strategies.
 
         Examines sequences of actions leading to and resolving conflicts, including
         trigger patterns, resolution strategies, and outcome analysis.
 
         Args:
-            agent_id (Optional[int]): Specific agent ID to analyze. If None, analyzes all agents.
+            agent_id (Optional[str]): Specific agent ID to analyze. If None, analyzes all agents.
 
         Returns:
             ConflictAnalysis: Analysis results containing:
@@ -390,7 +390,7 @@ class AgentAnalysis:
             },
         )
 
-    def analyze_risk_reward(self, agent_id: Optional[int] = None) -> RiskRewardAnalysis:
+    def analyze_risk_reward(self, agent_id: Optional[str] = None) -> RiskRewardAnalysis:
         """Analyze risk-taking behavior and associated outcomes.
 
         Examines the relationship between action risk levels and rewards, including risk
@@ -398,7 +398,7 @@ class AgentAnalysis:
         variance relative to mean reward.
 
         Args:
-            agent_id (Optional[int]): Specific agent ID to analyze. If None, analyzes all agents.
+            agent_id (Optional[str]): Specific agent ID to analyze. If None, analyzes all agents.
 
         Returns:
             RiskRewardAnalysis: Analysis results containing:
@@ -437,7 +437,7 @@ class AgentAnalysis:
         )
 
     def analyze_counterfactuals(
-        self, agent_id: Optional[int] = None
+        self, agent_id: Optional[str] = None
     ) -> CounterfactualAnalysis:
         """Analyze potential alternative outcomes and missed opportunities.
 
@@ -446,7 +446,7 @@ class AgentAnalysis:
         were underutilized and compares actual strategy performance against optimal.
 
         Args:
-            agent_id (Optional[int]): Specific agent ID to analyze. If None, analyzes all agents.
+            agent_id (Optional[str]): Specific agent ID to analyze. If None, analyzes all agents.
 
         Returns:
             CounterfactualAnalysis: Analysis results containing:
@@ -500,7 +500,7 @@ class AgentAnalysis:
             },
         )
 
-    def analyze_resilience(self, agent_id: Optional[int] = None) -> ResilienceAnalysis:
+    def analyze_resilience(self, agent_id: Optional[str] = None) -> ResilienceAnalysis:
         """Analyze agent recovery patterns and adaptation to failures.
 
         Examines how agents respond to and recover from negative outcomes, including
@@ -508,7 +508,7 @@ class AgentAnalysis:
         defined as any action resulting in negative reward.
 
         Args:
-            agent_id (Optional[int]): Specific agent ID to analyze. If None, analyzes all agents.
+            agent_id (Optional[str]): Specific agent ID to analyze. If None, analyzes all agents.
 
         Returns:
             ResilienceAnalysis: Analysis results containing:
@@ -585,7 +585,7 @@ class AgentAnalysis:
         )
 
     def analyze_environmental_impact(
-        self, agent_id: Optional[int] = None
+        self, agent_id: Optional[str] = None
     ) -> EnvironmentalImpactAnalysis:
         """Analyze how environment affects agent action outcomes.
 
@@ -593,7 +593,7 @@ class AgentAnalysis:
         and action outcomes, including adaptation patterns and spatial effects.
 
         Args:
-            agent_id (Optional[int]): Specific agent ID to analyze. If None, analyzes all agents.
+            agent_id (Optional[str]): Specific agent ID to analyze. If None, analyzes all agents.
 
         Returns:
             EnvironmentalImpactAnalysis: Analysis results containing:

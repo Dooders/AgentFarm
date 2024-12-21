@@ -100,7 +100,7 @@ def main(dataframe):
     try:
 
         # Call each function to analyze and visualize
-        agent_id = 1  # Specify an agent ID to analyze
+        agent_id = '1'  # Specify an agent ID to analyze
 
         print("Plotting action type distribution...")
         plot_action_type_distribution(dataframe)

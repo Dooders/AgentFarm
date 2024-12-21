@@ -65,7 +65,7 @@ class Genome:
     @staticmethod
     def to_agent(
         genome: dict,
-        agent_id: int,
+        agent_id: str,
         position: tuple[int, int],
         environment: "Environment",
     ) -> "BaseAgent":
@@ -82,7 +82,7 @@ class Genome:
                 - agent_type: String name of agent class
                 - resource_level: Resource level value
                 - current_health: Health value
-            agent_id (int): Unique identifier for the new agent
+            agent_id (str): Unique identifier for the new agent
             position (tuple[int, int]): Starting (x, y) coordinates for the agent
             environment (Environment): Reference to the environment instance the
                                     agent will operate in

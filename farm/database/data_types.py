@@ -734,7 +734,7 @@ class AgentStatesData:
     agent_states : List[Tuple]
         List of tuples containing:
         - step_number: int
-        - agent_id: int
+        - agent_id: str
         - agent_type: str
         - position_x: float
         - position_y: float
@@ -743,7 +743,7 @@ class AgentStatesData:
         - is_defending: bool
     """
 
-    agent_states: List[Tuple[int, int, str, float, float, float, float, bool]]
+    agent_states: List[Tuple[int, str, str, float, float, float, float, bool]]
 
 
 @dataclass
@@ -1187,7 +1187,7 @@ class AgentStates:
     ----------
     step_number : int
         Simulation step number when this state was recorded
-    agent_id : int
+    agent_id : str
         Unique identifier for the agent
     agent_type : str
         Type of the agent (system, independent, or control)
@@ -1204,7 +1204,7 @@ class AgentStates:
     """
 
     step_number: int
-    agent_id: int
+    agent_id: str
     agent_type: str
     position_x: float
     position_y: float
@@ -1444,7 +1444,7 @@ class AgentLearningStats:
 
     Attributes
     ----------
-    agent_id : int
+    agent_id : str
         Identifier of the agent
     reward_mean : float
         Average reward achieved by the agent
@@ -1454,7 +1454,7 @@ class AgentLearningStats:
         List of unique actions performed by the agent
     """
 
-    agent_id: int
+    agent_id: str
     reward_mean: float
     total_actions: int
     actions_used: List[str]
@@ -1485,7 +1485,7 @@ class BasicAgentInfo:
 
     Attributes
     ----------
-    agent_id : int
+    agent_id : str
         Unique identifier for the agent
     agent_type : str
         Type of agent (system, independent, control)
@@ -1517,7 +1517,7 @@ class BasicAgentInfo:
         Number of times this agent was targeted by others
     """
 
-    agent_id: int
+    agent_id: str
     agent_type: str
     birth_time: datetime
     death_time: Optional[datetime]
@@ -1592,7 +1592,7 @@ class AgentInfo:
 
     Attributes
     ----------
-    agent_id : int
+    agent_id : str
         The unique identifier of the agent
     agent_type : str
         The type of agent
@@ -1610,7 +1610,7 @@ class AgentInfo:
         Resource level below which agent starts starving
     """
 
-    agent_id: int
+    agent_id: str
     agent_type: str
     birth_time: datetime
     death_time: Optional[datetime]
@@ -2129,7 +2129,7 @@ class AgentActionData:
 
     Attributes
     ----------
-    agent_id : int
+    agent_id : str
         ID of the acting agent
     action_type : str
         Type of action performed
@@ -2147,10 +2147,10 @@ class AgentActionData:
         Additional action-specific details
     """
 
-    agent_id: int
+    agent_id: str
     action_type: str
     step_number: int
-    action_target_id: Optional[int] = None
+    action_target_id: Optional[str] = None
     resources_before: Optional[float] = None
     resources_after: Optional[float] = None
     state_before_id: Optional[str] = None

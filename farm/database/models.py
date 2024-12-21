@@ -50,7 +50,7 @@ class AgentModel(Base):
 
     Attributes
     ----------
-    agent_id : int
+    agent_id : str
         Unique identifier for the agent
     birth_time : int
         Step number when the agent was created
@@ -203,15 +203,15 @@ class AgentStateModel(Base):
         """Convert agent state to dictionary."""
         return {
             "agent_id": self.agent_id,
-            "agent_type": self.agent.agent_type,
-            "position": (self.position_x, self.position_y, self.position_z),
+            "step_number": self.step_number,
+            "position_x": self.position_x,
+            "position_y": self.position_y,
+            "position_z": self.position_z,
             "resource_level": self.resource_level,
             "current_health": self.current_health,
-            "starting_health": self.starting_health,
-            "starvation_threshold": self.starvation_threshold,
             "is_defending": self.is_defending,
             "total_reward": self.total_reward,
-            "age": self.age,
+            "age": self.age
         }
 
 

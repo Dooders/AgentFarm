@@ -58,6 +58,7 @@ class BaseQNetwork(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass through the network."""
+        print(f"This is the input shape of the network: {x.shape}")
         if x.dim() == 1:
             x = x.unsqueeze(0)
             result = self.network(x)
@@ -119,7 +120,7 @@ class BaseDQNModule:
     def _log_experience(
         self,
         step_number: int,
-        agent_id: int,
+        agent_id: str,
         module_type: str,
         action_taken: int,
         action_taken_mapped: str,
@@ -131,7 +132,7 @@ class BaseDQNModule:
         ----------
         step_number : int
             Current simulation step
-        agent_id : int
+        agent_id : str
             ID of the agent
         module_type : str
             Type of DQN module (e.g., 'movement', 'combat')
@@ -160,7 +161,7 @@ class BaseDQNModule:
         next_state: torch.Tensor,
         done: bool,
         step_number: Optional[int] = None,
-        agent_id: Optional[int] = None,
+        agent_id: Optional[str] = None,
         module_type: Optional[str] = None,
         module_id: Optional[int] = None,
         action_taken_mapped: Optional[int] = None,
@@ -183,7 +184,7 @@ class BaseDQNModule:
         self,
         batch: list,
         step_number: Optional[int] = None,
-        agent_id: Optional[int] = None,
+        agent_id: Optional[str] = None,
         module_type: Optional[str] = None,
     ) -> Optional[float]:
         """Train the network using a batch of experiences and optionally log to database.
@@ -194,7 +195,7 @@ class BaseDQNModule:
             Batch of experiences for training
         step_number : Optional[int]
             Current simulation step for logging
-        agent_id : Optional[int]
+        agent_id : Optional[str]
             ID of the agent for logging
         module_type : Optional[str]
             Type of DQN module for logging
