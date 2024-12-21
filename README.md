@@ -1,76 +1,47 @@
-# Experiments
-Repository for all specific experiments and tests
+AgentFarm is a digital research platform experimenting with simulations of complex systems. It is designed as a workbench to explore and compare simulation outcomes and includes a fully integrated AI assistant. This assistant will manage complex tasks and analyses, such as interpreting simulation results, generating visualizations, and assisting in documentation.
 
-## Refactored Directory Structure
+Key features include:
 
-The `ActionsRetriever` module has been refactored into smaller, more manageable components. The new directory structure is as follows:
+1. Agent-Based Modeling: The platform focuses on creating and analyzing agent-based simulations, where agents can interact, adapt, and evolve.
 
-```
-database/
-    models.py
-    session_manager.py
-    scope_utils.py
-    repositories/
-        agent_action_repository.py
-analysis/
-    __init__.py
-    action_stats_analyzer.py
-    temporal_pattern_analyzer.py
-    resource_impact_analyzer.py
-    decision_pattern_analyzer.py
-    sequence_pattern_analyzer.py
-    causal_analyzer.py
-    behavior_clustering_analyzer.py
-data_types.py
-enums.py
-actions_retriever.py
-```
 
-## ActionsRetriever Usage Example
+2. Dynamic Analysis: Users can explore how agent interactions and environmental factors affect the system over time, revealing emergent behaviors.
 
-The `ActionsRetriever` class has been refactored to use the new structure. Here is an example of how to use it:
 
-```python
-from database.actions import ActionsRetriever
-from database.session_manager import SessionManager
+3. Customizable Simulations: AgentFarm allows users to define parameters, rules, and environments, supporting a wide variety of experiments.
 
-# Initialize the session manager
-session_manager = SessionManager()
 
-# Create a new session
-session = session_manager.create_session()
+4. AI Integration: The AI assistant helps with:
 
-# Initialize the ActionsRetriever
-retriever = ActionsRetriever(session)
+Interpreting simulation data.
 
-# Get action statistics
-stats = retriever.action_stats()
-for metric in stats:
-    print(f"{metric.action_type}: {metric.avg_reward:.2f}")
+Creating visual and textual summaries.
 
-# Analyze temporal patterns
-patterns = retriever.temporal_patterns()
-for pattern in patterns:
-    print(f"{pattern.action_type} trend:")
-    print(pattern.time_distribution)
+Automating routine tasks, such as parameter sweeps or optimization.
 
-# Cluster agent behaviors
-clusters = retriever.behavior_clustering()
-for strategy, agents in clusters.clusters.items():
-    print(f"{strategy}: {len(agents)} agents")
-```
 
-## Summary of Changes
 
-- The `ActionsRetriever` module has been refactored into smaller, more manageable components.
-- A dedicated data access layer (`AgentActionRepository`) has been introduced for database interactions.
-- Analysis logic has been separated into distinct analyzers under the `analysis/` directory.
-- Scope filtering logic has been moved to a new `database/scope_utils.py` file.
-- Data transfer objects and enums have been standardized and moved to `data_types.py` and `enums.py`.
+5. Data-Driven Design: Built on a comprehensive data schema to store and track:
 
-## Benefits
+Agent behaviors and interactions.
 
-- Improved maintainability and readability by separating concerns (data retrieval, analysis, data models).
-- Easier testing with clearer boundaries and dependencies.
-- Enhanced extensibility for adding new analysis methods and data structures.
-- Standardized scope filtering and data queries.
+Resource states and availability.
+
+Simulation metrics and trends over time.
+
+Agent learning experiences and decision-making.
+
+
+
+6. User-Centric Features:
+
+A results dashboard for visualization and analysis.
+
+Support for comparative studies of simulation outcomes.
+
+Tools to document findings and generate reports.
+
+
+
+
+AgentFarm will be a hub for research, experimentation, and exploration, empowering users to model and understand the dynamics of complex systems in a controlled, flexible, and insightful way.
