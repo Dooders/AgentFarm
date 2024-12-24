@@ -1,7 +1,7 @@
 import tkinter as tk
-from gui import SimulationGUI
+from farm.gui import SimulationGUI
 
-save_path = "results/simulation_results.db"
+save_path = "farm/results/simulation_results.db"
 
 def main():
     """
