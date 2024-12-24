@@ -1,76 +1,38 @@
-# Experiments
-Repository for all specific experiments and tests
+# AgentFarm
 
-## Refactored Directory Structure
+**AgentFarm** is a cutting-edge digital research platform for experimenting with simulations of complex systems. Designed as a comprehensive workbench, AgentFarm empowers users to explore, analyze, and compare simulation outcomes with ease. The platform includes a fully integrated AI assistant to handle complex tasks such as interpreting results, generating visualizations, and assisting in documentation, making it an indispensable tool for researchers and innovators.
 
-The `ActionsRetriever` module has been refactored into smaller, more manageable components. The new directory structure is as follows:
+## Key Features
 
-```
-database/
-    models.py
-    session_manager.py
-    scope_utils.py
-    repositories/
-        agent_action_repository.py
-analysis/
-    __init__.py
-    action_stats_analyzer.py
-    temporal_pattern_analyzer.py
-    resource_impact_analyzer.py
-    decision_pattern_analyzer.py
-    sequence_pattern_analyzer.py
-    causal_analyzer.py
-    behavior_clustering_analyzer.py
-data_types.py
-enums.py
-actions_retriever.py
-```
+### 1. **Agent-Based Modeling**
+   - Focused on agent-based simulations where agents interact, adapt, and evolve within defined environments.
+   - Ideal for studying emergent behaviors and complex system dynamics.
 
-## ActionsRetriever Usage Example
+### 2. **Dynamic Analysis**
+   - Explore how interactions between agents and environmental factors influence system behavior over time.
+   - Gain insights into emergent phenomena and systemic trends.
 
-The `ActionsRetriever` class has been refactored to use the new structure. Here is an example of how to use it:
+### 3. **Customizable Simulations**
+   - Define custom parameters, rules, and environments tailored to your research needs.
+   - Conduct a wide variety of experiments with unparalleled flexibility.
 
-```python
-from database.actions import ActionsRetriever
-from database.session_manager import SessionManager
+### 4. **AI Integration**
+   - **Interpretation:** Analyze simulation data and uncover actionable insights.
+   - **Visualization:** Generate clear, engaging visual summaries of your results.
+   - **Automation:** Simplify tasks like parameter sweeps, optimizations, and documentation.
 
-# Initialize the session manager
-session_manager = SessionManager()
+### 5. **Data-Driven Design**
+   - Built on a robust data schema designed to capture every detail, including:
+     - Agent behaviors, interactions, and genealogies.
+     - Resource states and availability.
+     - Simulation-wide metrics, trends, and dynamics over time.
+     - Agent learning experiences and decision-making processes.
 
-# Create a new session
-session = session_manager.create_session()
+### 6. **User-Centric Tools**
+   - **Results Dashboard:** Interactive visualizations and analytics at your fingertips.
+   - **Comparative Analysis:** Tools for side-by-side comparison of simulation outcomes.
+   - **Reporting:** Streamlined documentation and automated report generation.
 
-# Initialize the ActionsRetriever
-retriever = ActionsRetriever(session)
+## Why Choose AgentFarm?
 
-# Get action statistics
-stats = retriever.action_stats()
-for metric in stats:
-    print(f"{metric.action_type}: {metric.avg_reward:.2f}")
-
-# Analyze temporal patterns
-patterns = retriever.temporal_patterns()
-for pattern in patterns:
-    print(f"{pattern.action_type} trend:")
-    print(pattern.time_distribution)
-
-# Cluster agent behaviors
-clusters = retriever.behavior_clustering()
-for strategy, agents in clusters.clusters.items():
-    print(f"{strategy}: {len(agents)} agents")
-```
-
-## Summary of Changes
-
-- The `ActionsRetriever` module has been refactored into smaller, more manageable components.
-- A dedicated data access layer (`AgentActionRepository`) has been introduced for database interactions.
-- Analysis logic has been separated into distinct analyzers under the `analysis/` directory.
-- Scope filtering logic has been moved to a new `database/scope_utils.py` file.
-- Data transfer objects and enums have been standardized and moved to `data_types.py` and `enums.py`.
-
-## Benefits
-
-- Improved maintainability and readability by separating concerns (data retrieval, analysis, data models).
-- Easier testing with clearer boundaries and dependencies.
-- Enhanced extensibility for adding new analysis methods and data structures.
-- Standardized scope filtering and data queries.
+AgentFarm is more than just a simulation tool; it’s a **hub for innovation, discovery, and exploration**. Whether you're modeling ecosystems, social dynamics, or evolutionary processes, AgentFarm provides the control, flexibility, and insights you need to understand and harness the dynamics of complex systems. With its intuitive interface and powerful AI assistant, AgentFarm ensures that you spend less time on routine tasks and more time uncovering breakthroughs.
