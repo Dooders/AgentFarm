@@ -49,6 +49,6 @@ Usage Example:
     )
 """
 
-from services.actions_service import ActionsService
+from farm.database.services.actions_service import ActionsService
 
 __all__ = ['ActionsService']

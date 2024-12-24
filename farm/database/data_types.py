@@ -1065,21 +1065,21 @@ class SequencePattern:
 
 @dataclass
 class TimePattern:
-    """Temporal patterns of an action.
+    """Temporal patterns of action occurrences and rewards over time.
 
-    Attributes
-    ----------
-    action_type : str
-        Type of action being analyzed
-    time_distribution : List[int]
-        Distribution of action counts over time periods
-    reward_progression : List[float]
-        Progression of rewards over time periods
+    Attributes:
+        action_type: The type of action analyzed.
+        time_distribution: A list of action counts per time period.
+        reward_progression: A list of average rewards per time period.
+        rolling_average_rewards: A list of rolling average rewards.
+        rolling_average_counts: A list of rolling average action counts.
     """
 
     action_type: str
     time_distribution: List[int]
     reward_progression: List[float]
+    rolling_average_rewards: List[float]  # Add this field
+    rolling_average_counts: List[float]  # Add this field
 
 
 @dataclass
@@ -2182,7 +2182,9 @@ class DecisionSummary:
     most_rewarding: Optional[str]
     action_diversity: float
     normalized_diversity: float
-    co_occurrence_patterns: Dict[str, Dict[str, Dict[str, float]]] = field(default_factory=dict)
+    co_occurrence_patterns: Dict[str, Dict[str, Dict[str, float]]] = field(
+        default_factory=dict
+    )
 
 
 class GenomeId(BaseModel):

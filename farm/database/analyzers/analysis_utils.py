@@ -205,18 +205,24 @@ def calculate_periodicity(data: np.ndarray) -> float:
     if len(data) < 2:
         return 0.0
 
-    # Calculate autocorrelation
+    # Calculate mean and variance
     mean = np.mean(data)
     var = np.var(data)
-    normalized = data - mean
-    correlation = np.correlate(normalized, normalized, mode="full")
-    correlation = correlation[len(correlation) // 2 :]
 
-    # Find peaks in autocorrelation
+    # Handle zero variance case
     if var == 0:
         return 0.0
 
-    correlation = correlation / (var * len(data))
+    # Normalize the data
+    normalized = data - mean
+
+    # Calculate autocorrelation
+    correlation = np.correlate(normalized, normalized, mode="full")
+    correlation = correlation[len(correlation) // 2 :]  # Take only the positive lags
+    correlation = correlation / (var * len(data))  # Normalize
+
+    # Find peaks in autocorrelation
     peaks = find_peaks(correlation)
 
-    return float(np.mean(peaks)) if peaks else 0.0
+    # Return mean of peaks if any found, otherwise 0
+    return float(np.mean(peaks)) if len(peaks) > 0 else 0.0

@@ -110,6 +110,9 @@ class BaseAgent:
             num_actions=len(self.actions), config=SelectConfig(), device=self.device
         )
 
+        # Add to environment using batch operation
+        self.environment.batch_add_agents([self])
+
     def _generate_genome_id(self, parent_ids: list[str]) -> str:
         """Generate a unique genome ID for this agent.
 
@@ -336,7 +339,6 @@ class BaseAgent:
         #! need to update this since we are using strings now
         new_id = self.environment.get_next_agent_id()
         generation = self.generation + 1
-        genome_id = f"{agent_class.__name__}_{new_id}_{self.environment.time}"
 
         # Create new agent with all info
         new_agent = agent_class(
@@ -346,12 +348,6 @@ class BaseAgent:
             environment=self.environment,
             generation=generation,
         )
-
-        # Set additional attributes
-        new_agent.genome_id = genome_id
-
-        # Add to environment using batch operation
-        self.environment.batch_add_agents([new_agent])
 
         # Log creation
         logger.info(

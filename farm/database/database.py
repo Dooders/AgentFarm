@@ -57,8 +57,8 @@ from farm.database.data_retrieval import DataRetriever
 
 from .data_logging import DataLogger
 from .models import (
-    AgentModel,
     ActionModel,
+    AgentModel,
     AgentStateModel,
     Base,
     HealthIncident,
@@ -399,7 +399,11 @@ class SimulationDatabase:
 
         def _update(session):
             # Update agent record with death time
-            agent = session.query(AgentModel).filter(AgentModel.agent_id == agent_id).first()
+            agent = (
+                session.query(AgentModel)
+                .filter(AgentModel.agent_id == agent_id)
+                .first()
+            )
 
             if agent:
                 agent.death_time = death_time
@@ -482,7 +486,11 @@ class SimulationDatabase:
 
         def _update(session):
             # Get the agent to access its properties
-            agent = session.query(AgentModel).filter(AgentModel.agent_id == agent_id).first()
+            agent = (
+                session.query(AgentModel)
+                .filter(AgentModel.agent_id == agent_id)
+                .first()
+            )
             if not agent:
                 logger.error(f"Agent {agent_id} not found")
                 return
