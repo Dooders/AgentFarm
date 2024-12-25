@@ -53,10 +53,7 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload, scoped_session, sessionmaker
 
-from farm.database.data_retrieval import DataRetriever
-
-from .data_logging import DataLogger
-from .models import (
+from farm.database.models import (
     ActionModel,
     AgentModel,
     AgentStateModel,
@@ -66,7 +63,7 @@ from .models import (
     SimulationConfig,
     SimulationStepModel,
 )
-from .utilities import (
+from farm.database.utilities import (
     create_database_schema,
     execute_with_retry,
     format_agent_state,
@@ -76,6 +73,19 @@ from .utilities import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class DatabaseManager:
+    def __init__(self, db_path: str):
+        self.engine = create_engine(f"sqlite:///{db_path}")
+        self.Session = sessionmaker(bind=self.engine)
+
+    def add_agents(self, agents: List[Dict]):
+        with self.Session() as session:
+            session.bulk_insert_mappings(AgentModel, agents)
+            session.commit()
+
+    # Add other CRUD operations here
 
 
 class SimulationDatabase:

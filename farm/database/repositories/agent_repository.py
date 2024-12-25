@@ -30,7 +30,6 @@ class AgentRepository(BaseRepository[AgentModel]):
         self.session_manager = session_manager
 
     def get_agent_by_id(self, agent_id: str) -> Optional[AgentModel]:
-        #! make this the agent info return???
         """Retrieve an agent by their unique identifier.
 
         Parameters
@@ -211,12 +210,15 @@ class AgentRepository(BaseRepository[AgentModel]):
             >>> print(f"First action: {actions[0].action_type}")
             >>> print(f"Total actions: {len(actions)}")
         """
-        query = self.session.query(ActionModel).order_by(
-            ActionModel.agent_id, ActionModel.step_number
-        )
-        if agent_id:
-            query = query.filter(ActionModel.agent_id == agent_id)
-        return query.all()
+        def query_ordered_actions(session: Session) -> List[ActionModel]:
+            query = session.query(ActionModel).order_by(
+                ActionModel.agent_id, ActionModel.step_number
+            )
+            if agent_id:
+                query = query.filter(ActionModel.agent_id == agent_id)
+            return query.all()
+
+        return self.session_manager.execute_with_retry(query_ordered_actions)
 
     def get_action_statistics(self, agent_id: Optional[int] = None) -> List[Any]:
         """Get statistical aggregates for actions.
@@ -240,17 +242,20 @@ class AgentRepository(BaseRepository[AgentModel]):
             ...     print(f"{stat.action_type}: avg={stat.reward_avg:.2f}, "
             ...           f"std={stat.reward_std:.2f}, n={stat.count}")
         """
-        query = self.session.query(
-            ActionModel.action_type,
-            func.stddev(ActionModel.reward).label("reward_std"),
-            func.avg(ActionModel.reward).label("reward_avg"),
-            func.count().label("count"),
-        ).group_by(ActionModel.action_type)
+        def query_action_statistics(session: Session) -> List[Any]:
+            query = session.query(
+                ActionModel.action_type,
+                func.stddev(ActionModel.reward).label("reward_std"),
+                func.avg(ActionModel.reward).label("reward_avg"),
+                func.count().label("count"),
+            ).group_by(ActionModel.action_type)
 
-        if agent_id:
-            query = query.filter(ActionModel.agent_id == agent_id)
+            if agent_id:
+                query = query.filter(ActionModel.agent_id == agent_id)
 
-        return query.all()
+            return query.all()
+
+        return self.session_manager.execute_with_retry(query_action_statistics)
 
     def get_actions_with_states(
         self, agent_id: Optional[int] = None
@@ -263,11 +268,14 @@ class AgentRepository(BaseRepository[AgentModel]):
         Returns:
             List of tuples containing (action, state) pairs
         """
-        query = self.session.query(ActionModel, AgentStateModel).join(
-            AgentStateModel, ActionModel.state_before_id == AgentStateModel.id
-        )
+        def query_actions_with_states(session: Session) -> List[Tuple[Any, Any]]:
+            query = session.query(ActionModel, AgentStateModel).join(
+                AgentStateModel, ActionModel.state_before_id == AgentStateModel.id
+            )
 
-        if agent_id:
-            query = query.filter(ActionModel.agent_id == agent_id)
+            if agent_id:
+                query = query.filter(ActionModel.agent_id == agent_id)
 
-        return query.all()
+            return query.all()
+
+        return self.session_manager.execute_with_retry(query_actions_with_states)
