@@ -96,7 +96,7 @@ class EnvironmentView(ttk.Frame):
             
             # If click is within radius of agent
             if distance <= click_radius:
-                self.selected_agent_id = agent_id
+                self.selected_agent_id = str(agent_id)  # Convert to string if not already
                 if self.on_agent_selected:
                     self.on_agent_selected(agent_id)
                 self.update()
@@ -267,7 +267,7 @@ class EnvironmentView(ttk.Frame):
         self.last_transform_params = params
 
         for agent in agent_states:
-            agent_id = agent[0]
+            agent_id = str(agent[0])  # Convert ID to string when storing
             x, y = self._transform_coords(agent[2], agent[3], params)
             color = AGENT_COLORS.get(agent[1], "white")
             
@@ -277,7 +277,7 @@ class EnvironmentView(ttk.Frame):
             radius = max(1, int(VC["AGENT_RADIUS_SCALE"] * params["scale"]))
             
             # Draw selection glow if this agent is selected
-            if agent_id == self.selected_agent_id:
+            if agent_id == self.selected_agent_id:  # Compare string IDs
                 # Draw outer glow
                 glow_radius = radius + 3
                 glow_color = (255, 255, 255, 128)  # Semi-transparent white
