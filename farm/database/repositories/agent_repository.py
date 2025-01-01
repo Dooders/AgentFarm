@@ -1,9 +1,10 @@
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from sqlalchemy.orm import joinedload
 
-from farm.database.data_types import HealthIncidentData
+from farm.database.data_types import AgentInfo, HealthIncidentData
 from farm.database.models import ActionModel, AgentModel, AgentStateModel, HealthIncident
 from farm.database.repositories.base_repository import BaseRepository
 from farm.database.session_manager import SessionManager
@@ -30,7 +31,6 @@ class AgentRepository(BaseRepository[AgentModel]):
         self.session_manager = session_manager
 
     def get_agent_by_id(self, agent_id: str) -> Optional[AgentModel]:
-        #! make this the agent info return???
         """Retrieve an agent by their unique identifier.
 
         Parameters
@@ -62,9 +62,18 @@ class AgentRepository(BaseRepository[AgentModel]):
             - learning_experiences: List[LearningExperience]
             - targeted_actions: List[ActionModel]
         """
-
         def query_agent(session: Session) -> Optional[AgentModel]:
-            return session.query(AgentModel).get(agent_id)
+            # Get agent with all relationships loaded
+            agent = (
+                session.query(AgentModel)
+                .options(
+                    joinedload(AgentModel.states),
+                    joinedload(AgentModel.actions),
+                    joinedload(AgentModel.health_incidents)
+                )
+                .get(agent_id)
+            )
+            return agent
 
         return self.session_manager.execute_with_retry(query_agent)
 
@@ -271,3 +280,60 @@ class AgentRepository(BaseRepository[AgentModel]):
             query = query.filter(ActionModel.agent_id == agent_id)
 
         return query.all()
+
+    def get_agent_info(self, agent_id: str) -> Optional[AgentInfo]:
+        """Get comprehensive information about an agent.
+
+        Args:
+            agent_id: The unique identifier of the agent
+
+        Returns:
+            AgentInfo object containing agent details, or None if agent not found
+        """
+        def query_agent(session: Session) -> Optional[AgentInfo]:
+            agent = session.query(AgentModel).get(agent_id)
+            if not agent:
+                return None
+
+            # Get latest state
+            latest_state = (
+                session.query(AgentStateModel)
+                .filter(AgentStateModel.agent_id == agent_id)
+                .order_by(AgentStateModel.step_number.desc())
+                .first()
+            )
+
+            # Get action statistics
+            action_stats = (
+                session.query(
+                    ActionModel.action_type,
+                    func.count().label('count'),
+                    func.avg(ActionModel.reward).label('avg_reward')
+                )
+                .filter(ActionModel.agent_id == agent_id)
+                .group_by(ActionModel.action_type)
+                .all()
+            )
+
+            return AgentInfo(
+                agent_id=agent.agent_id,
+                agent_type=agent.agent_type,
+                birth_time=agent.birth_time,
+                death_time=agent.death_time,
+                generation=agent.generation,
+                genome_id=agent.genome_id,
+                current_health=latest_state.current_health if latest_state else None,
+                current_resources=latest_state.resource_level if latest_state else None,
+                position=(
+                    latest_state.position_x,
+                    latest_state.position_y
+                ) if latest_state else None,
+                action_stats={
+                    stat.action_type: {
+                        'count': stat.count,
+                        'avg_reward': stat.avg_reward
+                    } for stat in action_stats
+                }
+            )
+
+        return self.session_manager.execute_with_retry(query_agent)

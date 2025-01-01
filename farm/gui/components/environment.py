@@ -91,16 +91,16 @@ class EnvironmentView(ttk.Frame):
             # Convert simulation coordinates to screen coordinates
             screen_x, screen_y = self._transform_coords(x, y, self.last_transform_params)
             
-            # Calculate distance
-            distance = ((screen_x - click_x) ** 2 + (screen_y - click_y) ** 2) ** 0.5
-            
-            # If click is within radius of agent
-            if distance <= click_radius:
-                self.selected_agent_id = str(agent_id)  # Convert to string if not already
+            # Check if click is within radius of agent
+            dx = click_x - screen_x
+            dy = click_y - screen_y
+            if (dx * dx + dy * dy) <= click_radius * click_radius:
+                # Select this agent
+                self.selected_agent_id = agent_id
                 if self.on_agent_selected:
                     self.on_agent_selected(agent_id)
-                self.update()
-                return
+                self.update()  # Redraw with selection
+                break
 
         # If no agent was clicked, deselect
         self.selected_agent_id = None

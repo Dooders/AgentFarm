@@ -668,23 +668,22 @@ class AgentAnalysisWindow(ttk.Frame):
             print(f"Error updating children table: {e}")
             traceback.print_exc()
 
-    def _update_agent_info(self, agent_id: int):
+    def _update_agent_info(self, agent_id: str):
         """Update agent information display."""
         try:
-            # Get agent data using DataRetriever
-            data = self.retriever.get_simulation_data(self.current_step)
-            agent_states = [s for s in data["agent_states"] if s[0] == agent_id]
-
-            if agent_states:
-                state = agent_states[0]
-                self._update_info_labels(
-                    {
-                        "Agent ID": state[0],
-                        "Type": state[1],
-                        "Position": f"({state[2]:.1f}, {state[3]:.1f})",
-                        "Resources": f"{state[4]:.1f}",
-                        "Health": f"{state[5]:.1f}",
-                    }
-                )
+            agent_info = self.data.agent_repository.get_agent_info(agent_id)
+            if agent_info:
+                # Access attributes directly from AgentInfo dataclass
+                info_dict = {
+                    "Agent ID": agent_info.agent_id,
+                    "Type": agent_info.agent_type,
+                    "Position": f"({agent_info.position[0]:.1f}, {agent_info.position[1]:.1f})" if agent_info.position else "N/A",
+                    "Resources": f"{agent_info.current_resources:.1f}" if agent_info.current_resources is not None else "N/A",
+                    "Health": f"{agent_info.current_health:.1f}" if agent_info.current_health is not None else "N/A",
+                    "Generation": agent_info.generation,
+                    "Birth Time": agent_info.birth_time,
+                    "Status": "Alive" if agent_info.death_time is None else "Dead"
+                }
+                self._update_info_labels(info_dict)
         except Exception as e:
             self.show_error("Error", f"Failed to update agent info: {str(e)}")
