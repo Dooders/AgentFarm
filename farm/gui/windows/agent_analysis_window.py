@@ -394,7 +394,11 @@ class AgentAnalysisWindow(ttk.Frame):
         try:
             # Get historical data using repositories
             states = self.data.agent_repository.get_agent_state_history(agent_id)
-            actions = self.data.action_repository.get_agent_actions(agent_id)
+            # Use get_actions_by_scope instead of get_agent_actions
+            actions = self.data.action_repository.get_actions_by_scope(
+                scope="agent",  # Specify the scope as "agent"
+                agent_id=agent_id,  # Pass the agent_id parameter
+            )
 
             # Convert to DataFrame for plotting
             self.df = pd.DataFrame(
@@ -432,7 +436,7 @@ class AgentAnalysisWindow(ttk.Frame):
             "initial_resources": getattr(info, "initial_resources", "-"),
             "starting_health": getattr(info, "starting_health", "-"),
             "starvation_threshold": getattr(info, "starvation_threshold", "-"),
-            "genome_id": getattr(info, "genome_id", "-")
+            "genome_id": getattr(info, "genome_id", "-"),
         }
 
         # Update labels with the dictionary values
@@ -690,12 +694,24 @@ class AgentAnalysisWindow(ttk.Frame):
                 info_dict = {
                     "Agent ID": agent_info.agent_id,
                     "Type": agent_info.agent_type,
-                    "Position": f"({agent_info.position[0]:.1f}, {agent_info.position[1]:.1f})" if agent_info.position else "N/A",
-                    "Resources": f"{agent_info.current_resources:.1f}" if agent_info.current_resources is not None else "N/A",
-                    "Health": f"{agent_info.current_health:.1f}" if agent_info.current_health is not None else "N/A",
+                    "Position": (
+                        f"({agent_info.position[0]:.1f}, {agent_info.position[1]:.1f})"
+                        if agent_info.position
+                        else "N/A"
+                    ),
+                    "Resources": (
+                        f"{agent_info.current_resources:.1f}"
+                        if agent_info.current_resources is not None
+                        else "N/A"
+                    ),
+                    "Health": (
+                        f"{agent_info.current_health:.1f}"
+                        if agent_info.current_health is not None
+                        else "N/A"
+                    ),
                     "Generation": agent_info.generation,
                     "Birth Time": agent_info.birth_time,
-                    "Status": "Alive" if agent_info.death_time is None else "Dead"
+                    "Status": "Alive" if agent_info.death_time is None else "Dead",
                 }
                 self._update_info_labels(info_dict)
         except Exception as e:

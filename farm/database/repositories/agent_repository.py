@@ -1,11 +1,15 @@
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import func
-from sqlalchemy.orm import Session
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import Session, joinedload
 
 from farm.database.data_types import AgentInfo, HealthIncidentData
-from farm.database.models import ActionModel, AgentModel, AgentStateModel, HealthIncident
+from farm.database.models import (
+    ActionModel,
+    AgentModel,
+    AgentStateModel,
+    HealthIncident,
+)
 from farm.database.repositories.base_repository import BaseRepository
 from farm.database.session_manager import SessionManager
 
@@ -62,6 +66,7 @@ class AgentRepository(BaseRepository[AgentModel]):
             - learning_experiences: List[LearningExperience]
             - targeted_actions: List[ActionModel]
         """
+
         def query_agent(session: Session) -> Optional[AgentModel]:
             # Get agent with all relationships loaded
             agent = (
@@ -69,7 +74,7 @@ class AgentRepository(BaseRepository[AgentModel]):
                 .options(
                     joinedload(AgentModel.states),
                     joinedload(AgentModel.actions),
-                    joinedload(AgentModel.health_incidents)
+                    joinedload(AgentModel.health_incidents),
                 )
                 .get(agent_id)
             )
@@ -290,6 +295,7 @@ class AgentRepository(BaseRepository[AgentModel]):
         Returns:
             AgentInfo object containing agent details, or None if agent not found
         """
+
         def query_agent(session: Session) -> Optional[AgentInfo]:
             agent = session.query(AgentModel).get(agent_id)
             if not agent:
@@ -307,8 +313,8 @@ class AgentRepository(BaseRepository[AgentModel]):
             action_stats = (
                 session.query(
                     ActionModel.action_type,
-                    func.count().label('count'),
-                    func.avg(ActionModel.reward).label('avg_reward')
+                    func.count().label("count"),
+                    func.avg(ActionModel.reward).label("avg_reward"),
                 )
                 .filter(ActionModel.agent_id == agent_id)
                 .group_by(ActionModel.action_type)
@@ -325,15 +331,243 @@ class AgentRepository(BaseRepository[AgentModel]):
                 current_health=latest_state.current_health if latest_state else None,
                 current_resources=latest_state.resource_level if latest_state else None,
                 position=(
-                    latest_state.position_x,
-                    latest_state.position_y
-                ) if latest_state else None,
+                    (latest_state.position_x, latest_state.position_y)
+                    if latest_state
+                    else None
+                ),
                 action_stats={
                     stat.action_type: {
-                        'count': stat.count,
-                        'avg_reward': stat.avg_reward
-                    } for stat in action_stats
-                }
+                        "count": stat.count,
+                        "avg_reward": stat.avg_reward,
+                    }
+                    for stat in action_stats
+                },
             )
 
         return self.session_manager.execute_with_retry(query_agent)
+
+    def get_agent_current_stats(self, agent_id: str) -> Dict[str, Any]:
+        """Get current statistics for an agent.
+
+        Parameters
+        ----------
+        agent_id : str
+            The unique identifier of the agent
+
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing current agent statistics:
+            - health: Current health value
+            - resources: Current resource level
+            - total_reward: Total accumulated reward
+            - age: Current age
+            - is_defending: Current defense status
+            - current_position: Tuple of (x, y) coordinates
+        """
+
+        def query_stats(session: Session) -> Dict[str, Any]:
+            # Get the latest state for the agent
+            latest_state = (
+                session.query(AgentStateModel)
+                .filter(AgentStateModel.agent_id == agent_id)
+                .order_by(AgentStateModel.step_number.desc())
+                .first()
+            )
+
+            if not latest_state:
+                return {
+                    "health": 0,
+                    "resources": 0,
+                    "total_reward": 0,
+                    "age": 0,
+                    "is_defending": False,
+                    "current_position": (0, 0),
+                }
+
+            return {
+                "health": latest_state.current_health,
+                "resources": latest_state.resource_level,
+                "total_reward": latest_state.total_reward,
+                "age": latest_state.age,
+                "is_defending": latest_state.is_defending,
+                "current_position": (latest_state.position_x, latest_state.position_y),
+            }
+
+        return self.session_manager.execute_with_retry(query_stats)
+
+    def get_agent_performance_metrics(self, agent_id: str) -> Dict[str, Any]:
+        """Get performance metrics for an agent.
+
+        Parameters
+        ----------
+        agent_id : str
+            The unique identifier of the agent
+
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing performance metrics:
+            - survival_time: Total time agent has survived
+            - peak_health: Highest health value achieved
+            - peak_resources: Maximum resources accumulated
+            - total_actions: Number of actions taken
+        """
+
+        def query_metrics(session: Session) -> Dict[str, Any]:
+            # Get agent birth and death time
+            agent = session.query(AgentModel).get(agent_id)
+            if not agent:
+                return {
+                    "survival_time": 0,
+                    "peak_health": 0,
+                    "peak_resources": 0,
+                    "total_actions": 0,
+                }
+
+            # Calculate survival time
+            survival_time = (agent.death_time or float("inf")) - agent.birth_time
+
+            # Get peak health and resources from states
+            states_metrics = (
+                session.query(
+                    func.max(AgentStateModel.current_health).label("peak_health"),
+                    func.max(AgentStateModel.resource_level).label("peak_resources"),
+                )
+                .filter(AgentStateModel.agent_id == agent_id)
+                .first()
+            )
+
+            # Get total number of actions
+            total_actions = (
+                session.query(func.count(ActionModel.action_id))
+                .filter(ActionModel.agent_id == agent_id)
+                .scalar()
+            )
+
+            return {
+                "survival_time": (
+                    survival_time if survival_time != float("inf") else None
+                ),
+                "peak_health": states_metrics.peak_health if states_metrics else 0,
+                "peak_resources": (
+                    states_metrics.peak_resources if states_metrics else 0
+                ),
+                "total_actions": total_actions or 0,
+            }
+
+        return self.session_manager.execute_with_retry(query_metrics)
+
+    def get_agent_state_history(self, agent_id: str) -> List[AgentStateModel]:
+        """Get the complete state history for an agent.
+
+        Parameters
+        ----------
+        agent_id : str
+            The unique identifier of the agent
+
+        Returns
+        -------
+        List[AgentStateModel]
+            List of agent states ordered by step number, containing:
+            - step_number: Simulation step
+            - current_health: Health value at that step
+            - resource_level: Resource amount at that step
+            - total_reward: Accumulated reward at that step
+            - age: Agent age at that step
+            - position_x, position_y: Position coordinates
+            - is_defending: Defense status
+        """
+
+        def query_history(session: Session) -> List[AgentStateModel]:
+            return (
+                session.query(AgentStateModel)
+                .filter(AgentStateModel.agent_id == agent_id)
+                .order_by(AgentStateModel.step_number)
+                .all()
+            )
+
+        return self.session_manager.execute_with_retry(query_history)
+
+    def get_agent_children(self, agent_id: str) -> List[AgentInfo]:
+        """Get information about an agent's children.
+
+        Parameters
+        ----------
+        agent_id : str
+            The unique identifier of the parent agent
+
+        Returns
+        -------
+        List[AgentInfo]
+            List of AgentInfo objects for each child agent, containing:
+            - agent_id: Child's unique identifier
+            - birth_time: Child's birth time
+            - age: Current age or age at death
+            - death_time: Time of death (if applicable)
+            - other AgentInfo fields will be populated if available
+        """
+
+        def query_children(session: Session) -> List[AgentInfo]:
+            # Query children agents
+            children = (
+                session.query(AgentModel)
+                .filter(AgentModel.parent_id == agent_id)
+                .order_by(AgentModel.birth_time)
+                .all()
+            )
+
+            child_info_list = []
+            for child in children:
+                # Get latest state for each child
+                latest_state = (
+                    session.query(AgentStateModel)
+                    .filter(AgentStateModel.agent_id == child.agent_id)
+                    .order_by(AgentStateModel.step_number.desc())
+                    .first()
+                )
+
+                # Get action statistics for the child
+                action_stats = (
+                    session.query(
+                        ActionModel.action_type,
+                        func.count().label("count"),
+                        func.avg(ActionModel.reward).label("avg_reward"),
+                    )
+                    .filter(ActionModel.agent_id == child.agent_id)
+                    .group_by(ActionModel.action_type)
+                    .all()
+                )
+
+                child_info_list.append(
+                    AgentInfo(
+                        agent_id=child.agent_id,
+                        agent_type=child.agent_type,
+                        birth_time=child.birth_time,
+                        death_time=child.death_time,
+                        generation=child.generation,
+                        genome_id=child.genome_id,
+                        current_health=(
+                            latest_state.current_health if latest_state else None
+                        ),
+                        current_resources=(
+                            latest_state.resource_level if latest_state else None
+                        ),
+                        position=(
+                            (latest_state.position_x, latest_state.position_y)
+                            if latest_state
+                            else None
+                        ),
+                        action_stats={
+                            stat.action_type: {
+                                "count": stat.count,
+                                "avg_reward": stat.avg_reward,
+                            }
+                            for stat in action_stats
+                        },
+                    )
+                )
+
+            return child_info_list
+
+        return self.session_manager.execute_with_retry(query_children)

@@ -988,32 +988,3 @@ class SimulationGUI:
         except Exception as e:
             logger.error(f"Error stepping forward: {e}")
             raise
-
-    def _load_simulation(self):
-        """Load an existing simulation database."""
-        try:
-            # Start from the results directory instead of current directory
-            initial_dir = os.path.abspath("farm/results")
-            
-            # Create directory if it doesn't exist
-            os.makedirs(initial_dir, exist_ok=True)
-            
-            filename = filedialog.askopenfilename(
-                title="Load Simulation",
-                initialdir=initial_dir,
-                filetypes=[("SQLite Database", "*.db"), ("All Files", "*.*")]
-            )
-            
-            if filename:
-                self.current_db_path = filename
-                self._setup_simulation_view()
-                self._start_visualization()
-                
-                # Set simulation ID for notes
-                if "notes" in self.components:
-                    self.components["notes"].set_simulation(
-                        os.path.basename(self.current_db_path)
-                    )
-                
-        except Exception as e:
-            self.show_error("Load Error", f"Failed to load simulation: {str(e)}")
