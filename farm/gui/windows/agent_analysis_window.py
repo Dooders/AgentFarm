@@ -421,10 +421,23 @@ class AgentAnalysisWindow(ttk.Frame):
         except Exception as e:
             self.show_error("Error", f"Failed to update charts: {str(e)}")
 
-    def _update_info_labels(self, info: Dict):
+    def _update_info_labels(self, info):
         """Update the basic information labels."""
+        # Convert AgentInfo object attributes to dictionary format
+        info_dict = {
+            "type": getattr(info, "agent_type", "-"),
+            "birth_time": getattr(info, "birth_time", "-"),
+            "death_time": getattr(info, "death_time", "-"),
+            "generation": getattr(info, "generation", "-"),
+            "initial_resources": getattr(info, "initial_resources", "-"),
+            "starting_health": getattr(info, "starting_health", "-"),
+            "starvation_threshold": getattr(info, "starvation_threshold", "-"),
+            "genome_id": getattr(info, "genome_id", "-")
+        }
+
+        # Update labels with the dictionary values
         for key, label in self.info_labels.items():
-            value = info.get(key.lower().replace(" ", "_"), "-")
+            value = info_dict.get(key.lower().replace(" ", "_"), "-")
             label.config(text=str(value))
 
     def _update_stat_labels(self, stats: Dict):
