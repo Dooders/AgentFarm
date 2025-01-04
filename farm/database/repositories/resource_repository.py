@@ -9,7 +9,7 @@ from farm.database.data_types import (
     ResourceEfficiencyMetrics,
     ResourceHotspot,
 )
-from farm.database.models import ResourceModel, SimulationStep
+from farm.database.models import ResourceModel, SimulationStepModel
 from farm.database.repositories.base_repository import BaseRepository
 from farm.database.session_manager import SessionManager
 from farm.database.utilities import execute_query
@@ -64,12 +64,12 @@ class ResourceRepository(BaseRepository[ResourceModel]):
         """
         distribution_data = (
             session.query(
-                SimulationStep.step_number,
-                SimulationStep.total_resources,
-                SimulationStep.average_agent_resources,
-                SimulationStep.resource_distribution_entropy,
+                SimulationStepModel.step_number,
+                SimulationStepModel.total_resources,
+                SimulationStepModel.average_agent_resources,
+                SimulationStepModel.resource_distribution_entropy,
             )
-            .order_by(SimulationStep.step_number)
+            .order_by(SimulationStepModel.step_number)
             .all()
         )
 
@@ -101,17 +101,17 @@ class ResourceRepository(BaseRepository[ResourceModel]):
         """
         # First get basic stats
         basic_stats = session.query(
-            func.sum(SimulationStep.resources_consumed).label("total"),
-            func.avg(SimulationStep.resources_consumed).label("average"),
-            func.max(SimulationStep.resources_consumed).label("peak"),
+            func.sum(SimulationStepModel.resources_consumed).label("total"),
+            func.avg(SimulationStepModel.resources_consumed).label("average"),
+            func.max(SimulationStepModel.resources_consumed).label("peak"),
         ).first()
 
         # Calculate variance manually: VAR = E[(X - μ)²]
         avg_consumption = basic_stats[1] or 0
         variance_calc = session.query(
             func.avg(
-                (SimulationStep.resources_consumed - avg_consumption)
-                * (SimulationStep.resources_consumed - avg_consumption)
+                (SimulationStepModel.resources_consumed - avg_consumption)
+                * (SimulationStepModel.resources_consumed - avg_consumption)
             ).label("variance")
         ).first()
 
@@ -176,10 +176,10 @@ class ResourceRepository(BaseRepository[ResourceModel]):
             - regeneration_rate: Resource replenishment speed
         """
         metrics = session.query(
-            func.avg(SimulationStep.resource_efficiency).label("utilization"),
-            func.avg(SimulationStep.distribution_efficiency).label("distribution"),
-            func.avg(SimulationStep.consumption_efficiency).label("consumption"),
-            func.avg(SimulationStep.regeneration_rate).label("regeneration"),
+            func.avg(SimulationStepModel.resource_efficiency).label("utilization"),
+            func.avg(SimulationStepModel.distribution_efficiency).label("distribution"),
+            func.avg(SimulationStepModel.consumption_efficiency).label("consumption"),
+            func.avg(SimulationStepModel.regeneration_rate).label("regeneration"),
         ).first()
 
         return ResourceEfficiencyMetrics(

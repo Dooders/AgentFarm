@@ -15,7 +15,7 @@ from farm.database.models import (
 from farm.database.repositories.base_repository import BaseRepository
 
 
-class SimulationRepository(BaseRepository[SimulationStepModel, AgentStateModel]):
+class SimulationRepository(BaseRepository[SimulationStepModel]):
     """Handles retrieval of simulation state data from the database."""
 
     def __init__(self, db):

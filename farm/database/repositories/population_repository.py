@@ -9,13 +9,13 @@ from farm.database.data_types import (
     AgentStates,
     Population,
 )
-from farm.database.models import AgentModel, AgentState, AgentStateModel, SimulationStep
+from farm.database.models import AgentModel, AgentStateModel, SimulationStepModel
 from farm.database.repositories.base_repository import BaseRepository
 from farm.database.scope_utils import filter_scope
 from farm.database.session_manager import SessionManager
 
 
-class PopulationRepository(BaseRepository[SimulationStep, AgentState]):
+class PopulationRepository(BaseRepository[SimulationStepModel]):
     """Handles retrieval and analysis of population statistics.
 
     This class encapsulates methods for analyzing population dynamics, resource utilization,
@@ -44,7 +44,7 @@ class PopulationRepository(BaseRepository[SimulationStep, AgentState]):
         database : SimulationDatabase
             Database instance to use for queries
         """
-        super().__init__(session_manager, SimulationStep)
+        super().__init__(session_manager, SimulationStepModel)
 
     def get_population_data(
         self,
@@ -74,14 +74,14 @@ class PopulationRepository(BaseRepository[SimulationStep, AgentState]):
         """
         query = (
             session.query(
-                SimulationStep.step_number,
-                SimulationStep.total_agents,
-                SimulationStep.total_resources,
-                func.sum(AgentState.resource_level).label("resources_consumed"),
+                SimulationStepModel.step_number,
+                SimulationStepModel.total_agents,
+                SimulationStepModel.total_resources,
+                func.sum(AgentStateModel.resource_level).label("resources_consumed"),
             )
-            .outerjoin(AgentState, AgentState.step_number == SimulationStep.step_number)
-            .filter(SimulationStep.total_agents > 0)
-            .group_by(SimulationStep.step_number)
+            .outerjoin(AgentStateModel, AgentStateModel.step_number == SimulationStepModel.step_number)
+            .filter(SimulationStepModel.total_agents > 0)
+            .group_by(SimulationStepModel.step_number)
         )
 
         # Apply scope filtering
@@ -132,9 +132,9 @@ class PopulationRepository(BaseRepository[SimulationStep, AgentState]):
                 Average number of control group agents
         """
         query = session.query(
-            func.avg(SimulationStep.system_agents).label("avg_system"),
-            func.avg(SimulationStep.independent_agents).label("avg_independent"),
-            func.avg(SimulationStep.control_agents).label("avg_control"),
+            func.avg(SimulationStepModel.system_agents).label("avg_system"),
+            func.avg(SimulationStepModel.independent_agents).label("avg_independent"),
+            func.avg(SimulationStepModel.control_agents).label("avg_control"),
         )
 
         # Apply scope filtering
@@ -272,3 +272,20 @@ class PopulationRepository(BaseRepository[SimulationStep, AgentState]):
             average_lifespan=avg_lifespan,
             generation=generation,
         )
+
+    def get_all_agents(self) -> List[AgentModel]:
+        """Retrieve all agents from the database.
+
+        Returns
+        -------
+        List[AgentModel]
+            List of all agents with their basic information.
+        """
+        def query_agents(session: Session) -> List[AgentModel]:
+            return (
+                session.query(AgentModel)
+                .order_by(AgentModel.birth_time.desc())
+                .all()
+            )
+
+        return self.session_manager.execute_with_retry(query_agents)

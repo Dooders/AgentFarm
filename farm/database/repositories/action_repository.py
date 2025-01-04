@@ -3,7 +3,7 @@ from typing import List, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from farm.database.data_types import AgentActionData
-from farm.database.models import ActionModel
+from farm.database.models import ActionModel, AgentModel
 from farm.database.repositories.base_repository import BaseRepository
 from farm.database.scope_utils import filter_scope
 from farm.database.session_manager import SessionManager
@@ -57,8 +57,10 @@ class ActionRepository(BaseRepository[ActionModel]):
         """
 
         def query_actions(session: Session) -> List[AgentActionData]:
-            query = session.query(ActionModel).order_by(
-                ActionModel.step_number, ActionModel.agent_id
+            query = (
+                session.query(ActionModel)
+                .join(AgentModel, ActionModel.agent_id == AgentModel.agent_id)
+                .order_by(ActionModel.step_number, ActionModel.agent_id)
             )
 
             query = filter_scope(query, scope, agent_id, step, step_range)
