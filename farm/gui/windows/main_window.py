@@ -9,7 +9,9 @@ from typing import Dict
 
 from farm.core.config import SimulationConfig
 from farm.core.simulation import run_simulation
-from farm.database.database import SimulationDatabase
+from farm.database.data_retrieval import DataRetriever
+from farm.database.repositories.gui_repository import GUIRepository
+from farm.database.session_manager import SessionManager
 from farm.gui.components.charts import SimulationChart
 from farm.gui.components.chat_assistant import ChatAssistant
 from farm.gui.components.controls import ControlPanel
@@ -26,9 +28,13 @@ logger = logging.getLogger(__name__)
 class SimulationGUI:
     """Main GUI application for running and visualizing agent-based simulations."""
 
-    def __init__(self, root: tk.Tk, save_path: str) -> None:
+    def __init__(
+        self, root: tk.Tk, save_path: str, session_manager: SessionManager
+    ) -> None:
         self.root = root
         self.save_path = save_path
+        self.session_manager = session_manager
+        self.data = DataRetriever(self.session_manager)
         self.root.title("Agent-Based Simulation")
 
         # Maximize the window
@@ -52,8 +58,7 @@ class SimulationGUI:
         self._show_welcome_screen()
 
         # Initialize database components
-        self.db = None
-        self.logger = None
+        self.repository = GUIRepository(self.session_manager)
 
     def _configure_styles(self):
         """Configure custom styles for the application."""
@@ -362,8 +367,8 @@ class SimulationGUI:
         self.notebook.add(chat_tab, text="AI Assistant")
 
         # Add chat assistant
-        self.components["chat"] = ChatAssistant(chat_tab)
-        self.components["chat"].pack(fill="both", expand=True)
+        # self.components["chat"] = ChatAssistant(chat_tab)
+        # self.components["chat"].pack(fill="both", expand=True)
 
         # After adding tabs, configure their colors using tag_configure
         self.notebook.configure(style="Custom.TNotebook")
@@ -405,9 +410,7 @@ class SimulationGUI:
         self.components["controls"].pack(fill="x", expand=True)
 
         # Setup agent analysis in agent_tab
-        self.components["agent_analysis"] = AgentAnalysisWindow(
-            agent_tab, self.current_db_path
-        )
+        self.components["agent_analysis"] = AgentAnalysisWindow(agent_tab, self.data)
         self.components["agent_analysis"].pack(fill="both", expand=True)
 
         # Configure component frames
@@ -428,21 +431,19 @@ class SimulationGUI:
                 for i, value in enumerate(
                     self.components["agent_analysis"].agent_combobox["values"]
                 ):
-                    if f"Agent {agent_id}" in value:
+                    if (
+                        f"Agent {str(agent_id)}" in value
+                    ):  # Convert ID to string for comparison
                         self.components["agent_analysis"].agent_combobox.current(i)
                         self.components["agent_analysis"]._on_agent_selected(None)
                         break
 
         self.components["environment"].set_agent_selected_callback(on_agent_selected)
 
-        # Initialize database and loggers
-        self.db = SimulationDatabase(self.current_db_path)
-        self.logger = self.db.logger
-
-        # Update components to use logger
-        self.components["environment"].set_logger(self.logger)
-        self.components["stats"].set_logger(self.logger)
-        self.components["chart"].set_logger(self.logger)
+        # Update components to use repository instead of logger
+        self.components["environment"].set_logger(self.repository)
+        self.components["stats"].set_logger(self.repository)
+        self.components["chart"].set_logger(self.repository)
 
     def _on_tab_changed(self, event):
         """Handle tab change events."""
@@ -648,14 +649,12 @@ class SimulationGUI:
             return
 
         try:
-            # Initialize database connection
-            db = SimulationDatabase(self.current_db_path)
 
             # Get historical data for the chart
-            historical_data = db.get_historical_data()
+            historical_data = self.repository.get_historical_data()
 
             # Get configuration from database
-            config = db.get_configuration()
+            config = {}
 
             # Store the full data in the chart but don't display it yet
             if historical_data and "metrics" in historical_data:
@@ -681,7 +680,7 @@ class SimulationGUI:
                 )
 
             # Reset to initial state (step 0)
-            initial_data = db.query.get_simulation_data(0)
+            initial_data = self.repository.get_simulation_data(0)
             self.current_step = 0
 
             # Set up timeline interaction callbacks
@@ -704,12 +703,13 @@ class SimulationGUI:
                     self.components[name].update(initial_data)
 
             # Update chat assistant with simulation data
+            #! REFACTOR
             if "chat" in self.components:
                 simulation_data = {
                     "config": config if config else {},
                     "metrics": historical_data.get("metrics", {}),
                 }
-                self.components["chat"].set_simulation_data(simulation_data)
+                # self.components["chat"].set_simulation_data(simulation_data)
 
         except Exception as e:
             logging.error(f"Error starting visualization: {str(e)}", exc_info=True)
@@ -787,7 +787,7 @@ class SimulationGUI:
 
     def _export_data(self) -> None:
         """Export simulation data."""
-        if not self.db:
+        if not self.current_db_path:
             messagebox.showwarning("No Data", "Please run or open a simulation first.")
             return
 
@@ -799,11 +799,11 @@ class SimulationGUI:
 
         if filepath:
             try:
-                # Use data retriever to get data
-                data = self.db.query.get_simulation_data(self.current_step)
+                # Get data using repository
+                data = self.repository.get_simulation_data(self.current_step)
 
-                # Export using database
-                self.db.export_data(filepath)
+                # Export using repository
+                self.repository.export_data(filepath)
                 messagebox.showinfo("Success", "Data exported successfully!")
             except Exception as e:
                 self.show_error("Export Error", f"Failed to export data: {str(e)}")
@@ -859,12 +859,12 @@ class SimulationGUI:
                     except Exception as e:
                         logger.error(f"Error cleaning up component: {e}")
 
-            # Clean up database connection
-            if hasattr(self, "db"):
+            # Clean up session manager (it will handle closing sessions)
+            if hasattr(self, "session_manager"):
                 try:
-                    self.db.close()
+                    self.session_manager.remove_session()
                 except Exception as e:
-                    logger.error(f"Error closing database: {e}")
+                    logger.error(f"Error closing session manager: {e}")
 
             # Destroy root window
             if self.root.winfo_exists():
@@ -887,8 +887,7 @@ class SimulationGUI:
     def update_notes(self, notes_data: Dict):
         """Update simulation notes with error handling."""
         try:
-            if hasattr(self, "db"):
-                self.db.update_notes(notes_data)
+            self.repository.update_notes(notes_data)
         except Exception as e:
             logger.error(f"Error updating notes: {e}")
             # Don't show error dialog - could cause recursive errors
@@ -905,8 +904,6 @@ class SimulationGUI:
             return
 
         try:
-            db = SimulationDatabase(self.current_db_path)
-
             # Ensure step is within valid range
             if step < 0:
                 step = 0
@@ -916,7 +913,8 @@ class SimulationGUI:
             if step > max_step:
                 step = max_step
 
-            data = db.query.get_simulation_data(step)
+            # Get data using repository
+            data = self.repository.get_simulation_data(step)
 
             if not isinstance(data, dict):
                 raise ValueError(
@@ -929,9 +927,8 @@ class SimulationGUI:
             # Reset chart history to current step
             self.components["chart"].reset_history_to_step(step)
 
-            # Update only visualization components that have an update method
-            updatable_components = ["stats", "environment", "chart"]
-            for name in updatable_components:
+            # Update components with the data
+            for name in ["stats", "environment", "chart"]:
                 if name in self.components and hasattr(self.components[name], "update"):
                     self.components[name].update(data)
 
@@ -943,10 +940,6 @@ class SimulationGUI:
     def _simulation_complete(self) -> None:
         """Handle simulation completion."""
         try:
-            # Close any existing database connections
-            if hasattr(self, "db") and self.db:
-                self.db.close()
-
             # Clear the progress screen first
             self._clear_progress_screen()
 
@@ -975,7 +968,7 @@ class SimulationGUI:
         """Move simulation one step forward."""
         try:
             # Get data for next step
-            data = self.db.query.get_simulation_data(self.current_step + 1)
+            data = self.repository.get_simulation_data(self.current_step + 1)
 
             # Check if we've reached the end
             if not data or not data.get("metrics"):

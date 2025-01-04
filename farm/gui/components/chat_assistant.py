@@ -446,8 +446,8 @@ class ChatAssistant(ttk.Frame):
             db = SimulationDatabase(self.db_path)
             
             # Get agent data
-            agent_data = db.get_agent_data(agent_id)
-            agent_actions = db.get_agent_actions(agent_id)
+            # agent_data = db.get_agent_data(agent_id)
+            # agent_actions = db.get_agent_actions(agent_id)
             
             # Prepare analysis prompt
             analysis_prompt = f"""Analyze this agent's behavior and performance:
@@ -898,4 +898,25 @@ class ChatAssistant(ttk.Frame):
         
         # Call the widget's update method without arguments
         ttk.Frame.update(self)
+        
+    def _update_agent_info(self, agent_id: str):
+        """Update agent information display."""
+        try:
+            # Get agent data using DataRetriever
+            data = self.retriever.get_simulation_data(self.current_step)
+            agent_states = [s for s in data["agent_states"] if str(s[0]) == agent_id]  # Convert to string for comparison
+
+            if agent_states:
+                state = agent_states[0]
+                self._update_info_labels(
+                    {
+                        "Agent ID": str(state[0]),  # Ensure ID is string
+                        "Type": state[1],
+                        "Position": f"({state[2]:.1f}, {state[3]:.1f})",
+                        "Resources": f"{state[4]:.1f}",
+                        "Health": f"{state[5]:.1f}",
+                    }
+                )
+        except Exception as e:
+            self.show_error("Error", f"Failed to update agent info: {str(e)}")
         

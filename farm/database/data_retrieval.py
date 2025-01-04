@@ -42,11 +42,16 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from sqlalchemy import and_, exists, func, not_
 from sqlalchemy.orm import aliased
 
-from farm.database.analyzers.action_stats_analyzer import ActionStatsAnalyzer
-from farm.database.analyzers.agent_analyzer import AgentAnalysis
-from farm.database.analyzers.lifespan_analysis import AgentLifespanAnalysis
-from farm.database.simulation import SimulationStateRetriever
-from farm.database.utilities import execute_query
+from farm.database.repositories import (
+    ActionRepository,
+    AgentRepository,
+    GUIRepository,
+    LearningRepository,
+    PopulationRepository,
+    ResourceRepository,
+    SimulationRepository,
+)
+from farm.database.session_manager import SessionManager
 
 from .data_types import (
     ActionMetrics,
@@ -71,7 +76,7 @@ from .data_types import (
     SurvivalMetrics,
     TimePattern,
 )
-from .models import AgentModel, ActionModel
+from .models import ActionModel, AgentModel
 
 logger = logging.getLogger(__name__)
 
@@ -79,24 +84,24 @@ logger = logging.getLogger(__name__)
 class DataRetriever:
     """Handles data retrieval operations for the simulation database."""
 
-    def __init__(self, database):
+    def __init__(self, session_manager: SessionManager):
         """Initialize data retriever with database connection.
 
         Parameters
         ----------
-        database : SimulationDatabase
-            Database instance to use for queries
+        session_manager : SessionManager
+            SessionManager instance to use for queries
         """
-        self.db = database
-        self._retrievers = {
-            "simulation": SimulationStateRetriever(database),
-            "agent_lifespan": AgentLifespanAnalysis(database),
-            # "population": PopulationStatisticsRetriever(database),
-            # "resource": ResourceRetriever(database),
-            # "learning": LearningRetriever(database),
-            "actions": ActionStatsAnalyzer(database),
-            "agent": AgentAnalysis(database),
-        }
+        self.session_manager = session_manager
+
+        # Initialize repositories
+        self.action_repository = ActionRepository(self.session_manager)
+        self.agent_repository = AgentRepository(self.session_manager)
+        self.gui_repository = GUIRepository(self.session_manager)
+        self.learning_repository = LearningRepository(self.session_manager)
+        self.population_repository = PopulationRepository(self.session_manager)
+        self.resource_repository = ResourceRepository(self.session_manager)
+        self.simulation_repository = SimulationRepository(self.session_manager)
 
     def __getattr__(self, name):
         """Dynamically search for methods in sub-retrievers.
@@ -128,139 +133,40 @@ class DataRetriever:
         )
 
     def simulation_results(self, step_number: int) -> SimulationResults:
-        """Retrieve complete simulation state for a specific step.
-
-        Gets the full simulation state including agent states, resource states,
-        and overall simulation metrics for the specified step number.
-
-        Parameters
-        ----------
-        step_number : int
-            The simulation step number to retrieve data for
-
-        Returns
-        -------
-        SimulationResults
-            Dictionary containing:
-            - agent_states: List[AgentStates]
-                States of all agents at this step
-            - resource_states: List[ResourceStates]
-                States of all resources at this step
-            - simulation_state: SimulationState
-                Overall simulation metrics and configuration
-
-        Notes
-        -----
-        This is a convenience method that combines the results of agent_states(),
-        resource_states(), and simulation_state() into a single response.
-        Returns None for any components that are not found for the given step.
-        """
-        return self._retrievers["simulation"].execute(step_number)
+        """Retrieve complete simulation state for a specific step."""
+        return self.simulation_repository.execute(step_number)
 
     def agent_lifespan_statistics(self) -> AgentLifespanStats:
-        """Calculate comprehensive statistics about agent lifespans.
-
-        Returns
-        -------
-        AgentLifespanStats
-            Data containing:
-            - average_lifespan: float, mean lifespan across all agents
-            - lifespan_by_type: Dict[str, float], mean lifespan per agent type
-            - lifespan_by_generation: Dict[int, float], mean lifespan per generation
-            - survival_rates: Dict[int, float], survival rate per generation
-
-        Notes
-        -----
-        This method encapsulates the logic for calculating and returning
-        comprehensive agent lifespan statistics.
-        """
+        """Calculate comprehensive statistics about agent lifespans."""
         return self._retrievers["agent_lifespan"].execute()
 
     def population_statistics(self) -> PopulationStatistics:
-        """Calculate comprehensive population statistics for the simulation.
+        """Calculate comprehensive population statistics."""
+        return self.population_repository.get_population_data(
+            self.session_manager.get_session(), scope="simulation"
+        )
 
-        Returns
-        -------
-        PopulationStatistics
-            Dictionary containing:
-            - basic_stats: Dict[str, float]
-                - average_population: Mean population across all steps
-                - peak_population: Maximum population reached
-                - death_step: Final simulation step
-                - total_steps: Total number of simulation steps
-            - resource_metrics: Dict[str, float]
-                - resource_utilization: Resource usage efficiency
-                - resources_consumed: Total resources consumed
-                - resources_available: Total resources available
-                - utilization_per_agent: Average resource usage per agent
-            - population_variance: Dict[str, float]
-                - variance: Population variance
-                - standard_deviation: Population standard deviation
-                - coefficient_variation: Coefficient of variation
-            - agent_distribution: Dict[str, float]
-                - system_agents: Average number of system agents
-                - independent_agents: Average number of independent agents
-                - control_agents: Average number of control agents
-            - survival_metrics: Dict[str, float]
-                - survival_rate: Population survival rate
-                - average_lifespan: Mean agent lifespan
+    def resource_statistics(self) -> Dict[str, Any]:
+        """Get statistics about resource distribution and consumption."""
+        return self.resource_repository.execute()
 
-        Notes
-        -----
-        This method aggregates data from the PopulationStatisticsRetriever to provide
-        a comprehensive view of population dynamics throughout the simulation.
-        """
-        return self._retrievers["population"].execute()
-
-    @execute_query
-    def resource_statistics(self, session) -> Dict[str, Any]:
-        """Get statistics about resource distribution and consumption.
-
-        Returns
-        -------
-        Dict[str, Any]
-            Dictionary containing:
-            - resource_distribution: Dict[str, List[float]]
-                Time series data of resource distribution
-            - efficiency_metrics: Dict[str, float]
-                Resource efficiency and utilization metrics
-            - consumption_patterns: Dict[str, float]
-                Resource consumption statistics
-            - hotspots: List[Tuple[float, float, float]]
-                Resource concentration points
-        """
-        return self._retrievers["resource"].execute()
-
-    @execute_query
-    def learning_statistics(self, session) -> LearningStatistics:
-        """Get statistics about agent learning and adaptation.
-
-        Returns
-        -------
-        LearningStatistics
-            Data containing:
-            - learning_progress: Dict[str, float]
-                Time series data of learning progress
-            - module_performance: Dict[str, Dict[str, float]]
-                Performance metrics for each learning module
-        """
-        return self._retrievers["learning"].execute()
+    def learning_statistics(self) -> LearningStatistics:
+        """Get statistics about agent learning and adaptation."""
+        session = self.session_manager.get_session()
+        return {
+            "learning_progress": self.learning_repository.get_learning_progress(
+                session, scope="simulation"
+            ),
+            "module_performance": self.learning_repository.get_module_performance(
+                session, scope="simulation"
+            ),
+        }
 
     def step_actions(self, step_number: int) -> StepActionData:
-        """Get all actions performed during a specific simulation step.
-
-        Parameters
-        ----------
-        step_number : int
-            The simulation step number to query
-
-        Returns
-        -------
-        StepActionData
-            Data containing step action information. See ActionsRetriever.step_actions
-            for full documentation of return fields.
-        """
-        return self._retrievers["actions"].step_actions(step_number)
+        """Get all actions performed during a specific simulation step."""
+        return self.action_repository.get_actions_by_scope(
+            scope="simulation", step=step_number
+        )
 
     def get_agent_behaviors(
         self, start_step: Optional[int] = None, end_step: Optional[int] = None

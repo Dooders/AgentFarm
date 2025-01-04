@@ -1588,36 +1588,17 @@ class AgentEvolutionMetrics:
 
 @dataclass
 class AgentInfo:
-    """Basic information about an agent.
-
-    Attributes
-    ----------
-    agent_id : str
-        The unique identifier of the agent
-    agent_type : str
-        The type of agent
-    birth_time : datetime
-        When the agent was created
-    death_time : Optional[datetime]
-        When the agent died (None if still alive)
-    lifespan : Optional[timedelta]
-        How long the agent lived (None if still alive)
-    initial_resources : float
-        Starting resource amount
-    starting_health : float
-        Maximum possible health value
-    starvation_threshold : float
-        Resource level below which agent starts starving
-    """
-
+    """Comprehensive agent information."""
     agent_id: str
     agent_type: str
-    birth_time: datetime
-    death_time: Optional[datetime]
-    lifespan: Optional[timedelta]
-    initial_resources: float
-    starting_health: float
-    starvation_threshold: float
+    birth_time: int
+    death_time: Optional[int]
+    generation: int
+    genome_id: str
+    current_health: Optional[float]
+    current_resources: Optional[float]
+    position: Optional[Tuple[float, float]]
+    action_stats: Dict[str, Dict[str, float]]
 
 
 @dataclass
