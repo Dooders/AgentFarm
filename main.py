@@ -8,10 +8,10 @@ from farm.gui import SimulationGUI
 
 # Configure logging with more detail
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
 
 def main():
     """
@@ -19,20 +19,20 @@ def main():
     """
     try:
         # Get the directory where the script is located
-        if getattr(sys, 'frozen', False):
+        if getattr(sys, "frozen", False):
             # If running as compiled executable
             app_dir = os.path.dirname(sys.executable)
         else:
             # If running as script
             app_dir = os.path.dirname(os.path.abspath(__file__))
-            
+
         logger.info(f"Application directory: {app_dir}")
-        
+
         # Create simulations directory relative to app directory
         sim_dir = os.path.join(app_dir, "simulations")
         os.makedirs(sim_dir, exist_ok=True)
         logger.info(f"Using simulations directory: {sim_dir}")
-        
+
         # Set up database path
         save_path = os.path.join(sim_dir, "simulation_results.db")
         db_url = f"sqlite:///{save_path}"
@@ -57,6 +57,7 @@ def main():
         raise
     finally:
         session_manager.cleanup()
+
 
 if __name__ == "__main__":
     main()
