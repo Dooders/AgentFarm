@@ -489,85 +489,36 @@ class AgentRepository(BaseRepository[AgentModel]):
 
         return self.session_manager.execute_with_retry(query_history)
 
-    def get_agent_children(self, agent_id: str) -> List[AgentInfo]:
-        """Get information about an agent's children.
+    def get_agent_children(self, agent_id: str) -> List[AgentModel]:
+        """Get all children of an agent using genome information.
 
-        Parameters
-        ----------
-        agent_id : str
-            The unique identifier of the parent agent
+        Args:
+            agent_id: ID of the parent agent
 
-        Returns
-        -------
-        List[AgentInfo]
-            List of AgentInfo objects for each child agent, containing:
-            - agent_id: Child's unique identifier
-            - birth_time: Child's birth time
-            - age: Current age or age at death
-            - death_time: Time of death (if applicable)
-            - other AgentInfo fields will be populated if available
+        Returns:
+            List of child agents
         """
 
-        def query_children(session: Session) -> List[AgentInfo]:
-            # Query children agents
+        def query_children(session: Session) -> List[AgentModel]:
+            # Get the parent agent's genome ID
+            parent = (
+                session.query(AgentModel)
+                .filter(AgentModel.agent_id == agent_id)
+                .first()
+            )
+            if not parent:
+                return []
+
+            # Find children by checking genome parent IDs
             children = (
                 session.query(AgentModel)
-                .filter(AgentModel.parent_id == agent_id)
+                .filter(
+                    AgentModel.genome_id.like(f"%{agent_id}%")
+                )  # Check if parent ID is in genome
                 .order_by(AgentModel.birth_time)
                 .all()
             )
 
-            child_info_list = []
-            for child in children:
-                # Get latest state for each child
-                latest_state = (
-                    session.query(AgentStateModel)
-                    .filter(AgentStateModel.agent_id == child.agent_id)
-                    .order_by(AgentStateModel.step_number.desc())
-                    .first()
-                )
-
-                # Get action statistics for the child
-                action_stats = (
-                    session.query(
-                        ActionModel.action_type,
-                        func.count().label("count"),
-                        func.avg(ActionModel.reward).label("avg_reward"),
-                    )
-                    .filter(ActionModel.agent_id == child.agent_id)
-                    .group_by(ActionModel.action_type)
-                    .all()
-                )
-
-                child_info_list.append(
-                    AgentInfo(
-                        agent_id=child.agent_id,
-                        agent_type=child.agent_type,
-                        birth_time=child.birth_time,
-                        death_time=child.death_time,
-                        generation=child.generation,
-                        genome_id=child.genome_id,
-                        current_health=(
-                            latest_state.current_health if latest_state else None
-                        ),
-                        current_resources=(
-                            latest_state.resource_level if latest_state else None
-                        ),
-                        position=(
-                            (latest_state.position_x, latest_state.position_y)
-                            if latest_state
-                            else None
-                        ),
-                        action_stats={
-                            stat.action_type: {
-                                "count": stat.count,
-                                "avg_reward": stat.avg_reward,
-                            }
-                            for stat in action_stats
-                        },
-                    )
-                )
-
-            return child_info_list
+            return children
 
         return self.session_manager.execute_with_retry(query_children)
