@@ -1,5 +1,7 @@
 # AgentFarm
 
+![Project Status](https://img.shields.io/badge/status-in%20development-orange)
+
 **AgentFarm** is a cutting-edge digital research platform for experimenting with simulations of complex systems. Designed as a comprehensive workbench, AgentFarm empowers users to explore, analyze, and compare simulation outcomes with ease. The platform includes a fully integrated AI assistant to handle complex tasks such as interpreting results, generating visualizations, and assisting in documentation, making it an indispensable tool for researchers and innovators.
 
 ## Key Features
