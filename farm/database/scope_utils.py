@@ -99,6 +99,10 @@ def filter_scope(
             AgentModel.step_number >= start_step,
             AgentModel.step_number <= end_step,
         )
+    elif scope == AnalysisScope.EPISODE:
+        # For episode scope, we don't apply additional filters
+        # as it represents a complete episode of actions
+        pass
     # SIMULATION scope requires no filters
 
     return query
