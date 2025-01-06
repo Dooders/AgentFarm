@@ -1016,6 +1016,7 @@ class ActionMetrics:
     temporal_patterns: List[Any]
     resource_impacts: List[Any]
     decision_patterns: List[Any]
+    rewards: List[float] = field(default_factory=list)
 
 
 @dataclass
@@ -1078,8 +1079,8 @@ class TimePattern:
     action_type: str
     time_distribution: List[int]
     reward_progression: List[float]
-    rolling_average_rewards: List[float]  # Add this field
-    rolling_average_counts: List[float]  # Add this field
+    rolling_average_rewards: List[float]
+    rolling_average_counts: List[float]
 
 
 @dataclass

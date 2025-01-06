@@ -824,15 +824,27 @@ class SimulationGUI:
             return
 
         try:
+            # Check if window still exists
+            if not self.root.winfo_exists():
+                self.playing = False
+                return
+
             # Get delay before any potential errors
-            delay = self.components["controls"].get_delay()
+            if (
+                "controls" in self.components
+                and self.components["controls"].winfo_exists()
+            ):
+                delay = self.components["controls"].get_delay()
+            else:
+                self.playing = False
+                return
 
             # Update simulation state
             self._step_forward()
 
             # Schedule next update if still playing and window exists
             if self.playing and self.root.winfo_exists():
-                self.root.after(delay, self._play_simulation)
+                self.playback_timer = self.root.after(delay, self._play_simulation)
 
         except tk.TclError as e:
             # Window was destroyed, stop playback silently
@@ -904,6 +916,10 @@ class SimulationGUI:
             return
 
         try:
+            # First check if root window still exists
+            if not self.root.winfo_exists():
+                return
+
             # Ensure step is within valid range
             if step < 0:
                 step = 0
@@ -924,14 +940,31 @@ class SimulationGUI:
             # Update current step
             self.current_step = step
 
+            # Check window existence before updating components
+            if not self.root.winfo_exists():
+                return
+
             # Reset chart history to current step
-            self.components["chart"].reset_history_to_step(step)
+            if "chart" in self.components and self.components["chart"].winfo_exists():
+                self.components["chart"].reset_history_to_step(step)
 
             # Update components with the data
             for name in ["stats", "environment", "chart"]:
-                if name in self.components and hasattr(self.components[name], "update"):
+                if (
+                    name in self.components
+                    and hasattr(self.components[name], "update")
+                    and hasattr(self.components[name], "winfo_exists")
+                    and self.components[name].winfo_exists()
+                ):
                     self.components[name].update(data)
 
+        except tk.TclError as e:
+            # Specific handling for Tkinter errors
+            if "application has been destroyed" in str(e):
+                return  # Silently ignore if window is destroyed
+            self.show_error(
+                "Navigation Error", f"Tkinter error during navigation: {str(e)}"
+            )
         except Exception as e:
             self.show_error(
                 "Navigation Error", f"Failed to move to step {step}: {str(e)}"

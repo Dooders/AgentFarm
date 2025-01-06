@@ -8,12 +8,14 @@ class AnalysisScope(str, Enum):
     STEP: Single step
     STEP_RANGE: Range of steps
     AGENT: Single agent
+    EPISODE: Episode level analysis
     """
 
     SIMULATION = "simulation"
     STEP = "step"
     STEP_RANGE = "step_range"
     AGENT = "agent"
+    EPISODE = "episode"
 
     @classmethod
     def from_string(cls, scope_str: str) -> "AnalysisScope":
