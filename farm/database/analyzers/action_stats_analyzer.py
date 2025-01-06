@@ -109,6 +109,8 @@ class ActionStatsAnalyzer:
         total_actions = len(actions)
 
         action_metrics = {}
+        rewards_by_action = {}
+
         for action in actions:
             if action.action_type not in action_metrics:
                 action_metrics[action.action_type] = {
@@ -120,6 +122,8 @@ class ActionStatsAnalyzer:
                     "interaction_reward": 0,
                     "solo_reward": 0,
                 }
+                rewards_by_action[action.action_type] = []
+
             metrics = action_metrics[action.action_type]
             metrics["count"] += 1
             metrics["total_reward"] += action.reward or 0
@@ -131,6 +135,8 @@ class ActionStatsAnalyzer:
             else:
                 metrics["solo_reward"] += action.reward or 0
 
+            rewards_by_action[action.action_type].append(action.reward or 0)
+
         temporal_patterns = TemporalPatternAnalyzer(self.repository).analyze(
             scope, agent_id, step, step_range
         )
@@ -141,20 +147,12 @@ class ActionStatsAnalyzer:
             scope, agent_id, step, step_range
         )
 
-        # Collect rewards for each action type
-        rewards_by_action = {}
-        for action in actions:
-            if action.action_type not in rewards_by_action:
-                rewards_by_action[action.action_type] = []
-            rewards_by_action[action.action_type].append(action.reward or 0)
-
         action_metrics_list = []
         for action_type, metrics in action_metrics.items():
             rewards = rewards_by_action[action_type]
             count = metrics["count"]
             avg_reward = metrics["total_reward"] / count if count > 0 else 0
 
-            # Use utility function instead of direct calculation
             reward_stats = calculate_reward_stats(rewards)
 
             action_metrics_list.append(
@@ -199,6 +197,7 @@ class ActionStatsAnalyzer:
                         for d in decision_patterns.decision_patterns
                         if d.action_type == action_type
                     ],
+                    rewards=rewards
                 )
             )
 
