@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Tuple
 
 import numpy as np
 import torch
@@ -618,3 +618,45 @@ class BaseAgent:
             BaseAgent: New agent instance with genome's characteristics
         """
         return Genome.to_agent(genome, agent_id, position, environment)
+
+    def take_damage(self, damage: float) -> bool:
+        """Apply damage to the agent.
+        
+        Args:
+            damage: Amount of damage to apply
+            
+        Returns:
+            bool: True if damage was successfully applied
+        """
+        if damage <= 0:
+            return False
+        
+        self.current_health -= damage
+        if self.current_health < 0:
+            self.current_health = 0
+        return True
+
+    def calculate_attack_position(self, action: int) -> Tuple[float, float]:
+        """Calculate the target position for an attack based on action.
+        
+        Args:
+            action: Attack action index
+            
+        Returns:
+            Tuple[float, float]: Target position coordinates
+        """
+        dx, dy = self.attack_module.action_space[action]
+        return (
+            self.position[0] + dx * self.config.attack_range,
+            self.position[1] + dy * self.config.attack_range
+        )
+
+    @property
+    def attack_strength(self) -> float:
+        """Calculate the agent's current attack strength."""
+        return self.config.base_attack_strength * (self.current_health / self.starting_health)
+
+    @property
+    def defense_strength(self) -> float:
+        """Calculate the agent's current defense strength."""
+        return self.config.base_defense_strength if self.is_defending else 0.0
