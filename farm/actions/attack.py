@@ -22,6 +22,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork
+from farm.loggers.attack_logger import AttackLogger
 
 if TYPE_CHECKING:
     from farm.agents.base_agent import BaseAgent
@@ -107,6 +108,9 @@ def attack_action(agent: "BaseAgent") -> None:
     health_ratio = agent.current_health / agent.starting_health
     initial_resources = agent.resource_level
 
+    # Initialize attack logger
+    attack_logger = AttackLogger(agent.environment.db)
+
     # Select attack action
     action = agent.attack_module.select_action(
         state.to_tensor(agent.attack_module.device), health_ratio
@@ -115,22 +119,12 @@ def attack_action(agent: "BaseAgent") -> None:
     # Handle defense action
     if action == AttackActionSpace.DEFEND:
         agent.is_defending = True
-
-        # Log defense action
-        if agent.environment.db is not None:
-            agent.environment.db.logger.log_agent_action(
-                step_number=agent.environment.time,
-                agent_id=agent.agent_id,
-                action_type="defend",
-                position_before=agent.position,
-                position_after=agent.position,
-                resources_before=initial_resources,
-                resources_after=initial_resources,
-                reward=0,
-                details={"is_defending": True}
-            )
-
-        logger.debug(f"Agent {id(agent)} took defensive stance")
+        attack_logger.log_defense(
+            step_number=agent.environment.time,
+            agent=agent,
+            resources_before=initial_resources,
+            resources_after=initial_resources,
+        )
         return
 
     # Calculate attack target position
@@ -140,19 +134,66 @@ def attack_action(agent: "BaseAgent") -> None:
     targets = agent.environment.get_nearby_agents(target_pos, agent.config.attack_range)
 
     if not targets:
-        # Log failed attack
-        if agent.environment.db is not None:
-            agent.environment.db.logger.log_agent_action(
-                step_number=agent.environment.time,
-                agent_id=agent.agent_id,
-                action_type="attack",
-                position_before=agent.position,
-                position_after=agent.position,
-                resources_before=initial_resources,
-                resources_after=initial_resources,
-                reward=0,
-                details={"success": False, "reason": "no_targets"}
-            )
+        attack_logger.log_attack_attempt(
+            step_number=agent.environment.time,
+            agent=agent,
+            target_position=target_pos,
+            resources_before=initial_resources,
+            resources_after=initial_resources,
+            success=False,
+            targets_found=0,
+            reason="no_targets",
+        )
         return
 
-    # Execute attack logic...
+    # Calculate attack cost and apply it
+    attack_cost = agent.config.attack_base_cost * agent.resource_level
+    agent.resource_level += attack_cost
+
+    # Initialize attack statistics
+    total_damage_dealt = 0.0
+    successful_hits = 0
+
+    # Process each target in range
+    for target in targets:
+        # Skip self-targeting
+        if target.agent_id == agent.agent_id:
+            continue
+
+        # Calculate base damage
+        base_damage = agent.attack_strength * (
+            agent.resource_level / agent.starting_resources
+        )
+
+        # Apply defensive reduction if target is defending
+        if target.is_defending:
+            base_damage *= 1 - target.defense_strength
+
+        # Apply damage and track statistics
+        if target.take_damage(base_damage):
+            total_damage_dealt += base_damage
+            successful_hits += 1
+
+    # Log attack outcome
+    attack_logger.log_attack_attempt(
+        step_number=agent.environment.time,
+        agent=agent,
+        target_position=target_pos,
+        resources_before=initial_resources,
+        resources_after=agent.resource_level,
+        success=successful_hits > 0,
+        targets_found=len(targets),
+        damage_dealt=total_damage_dealt,
+        reason="hit" if successful_hits > 0 else "missed",
+    )
+
+    # Update agent's learning state if attack was successful
+    if successful_hits > 0:
+        reward = agent.config.attack_success_reward * (
+            total_damage_dealt / agent.attack_strength
+        )
+        agent.attack_module.update_q_values(state, action, reward)
+    else:
+        agent.attack_module.update_q_values(
+            state, action, agent.config.attack_failure_penalty
+        )
