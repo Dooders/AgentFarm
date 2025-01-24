@@ -57,6 +57,8 @@ class SimulationConfig:
     min_reproduction_resources: int = 10
     offspring_initial_resources: int = 5
     perception_radius: int = 2
+    base_attack_strength: int = 2
+    base_defense_strength: int = 2
     # Agent type ratios
     agent_type_ratios: Dict[str, float] = field(
         default_factory=lambda: {
