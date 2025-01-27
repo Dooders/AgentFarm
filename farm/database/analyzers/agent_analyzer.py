@@ -52,6 +52,7 @@ class AgentAnalysis:
                 - genome_id: Unique identifier of agent's genome
         """
         agent = self.repository.get_agent_by_id(agent_id)
+        #! add final metrics like reward, health, reproduced, consumed, etc.
         return BasicAgentInfo(
             agent_id=agent.agent_id,
             agent_type=agent.agent_type,
