@@ -162,7 +162,7 @@ def attack_action(agent: "BaseAgent") -> None:
 
         # Calculate base damage
         base_damage = agent.attack_strength * (
-            agent.resource_level / agent.starting_resources
+            agent.resource_level / agent.starting_health
         )
 
         # Apply defensive reduction if target is defending
@@ -188,12 +188,12 @@ def attack_action(agent: "BaseAgent") -> None:
     )
 
     # Update agent's learning state if attack was successful
-    if successful_hits > 0:
-        reward = agent.config.attack_success_reward * (
-            total_damage_dealt / agent.attack_strength
-        )
-        agent.attack_module.update_q_values(state, action, reward)
-    else:
-        agent.attack_module.update_q_values(
-            state, action, agent.config.attack_failure_penalty
-        )
+    # if successful_hits > 0:
+    #     reward = agent.config.attack_success_reward * (
+    #         total_damage_dealt / agent.attack_strength
+    #     )
+    #     agent.attack_module.update_q_values(state, action, reward)
+    # else:
+    #     agent.attack_module.update_q_values(
+    #         state, action, agent.config.attack_failure_penalty
+    #     )

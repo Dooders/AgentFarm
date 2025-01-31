@@ -14,6 +14,8 @@ offspring_cost: 6
 min_reproduction_resources: 10
 offspring_initial_resources: 5
 perception_radius: 2
+base_attack_strength: 2
+base_defense_strength: 2
 
 # Resource settings
 initial_resources: 20

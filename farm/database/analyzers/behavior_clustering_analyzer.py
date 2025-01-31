@@ -74,6 +74,7 @@ class BehaviorClusteringAnalyzer:
             >>> print(results.clusters.keys())
             dict_keys(['aggressive', 'cooperative', 'efficient'])
         """
+        #! agent based should not apply
         actions = self.repository.get_actions_by_scope(
             scope, agent_id, step, step_range
         )

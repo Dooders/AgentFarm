@@ -196,8 +196,7 @@ class ActionStatsAnalyzer:
                         d
                         for d in decision_patterns.decision_patterns
                         if d.action_type == action_type
-                    ],
-                    rewards=rewards
+                    ]
                 )
             )
 

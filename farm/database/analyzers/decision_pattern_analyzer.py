@@ -389,8 +389,8 @@ class DecisionPatternAnalyzer:
             frequencies = step_counts / total_steps
 
             # Calculate rolling statistics using utility functions
-            rolling_freq = calculate_rolling_mean(frequencies, window_size)
-            rolling_rewards = calculate_rolling_mean(rewards_array, window_size)
+            # rolling_freq = calculate_rolling_mean(frequencies, window_size)
+            # rolling_rewards = calculate_rolling_mean(rewards_array, window_size)
 
             # Calculate trends using utility functions
             freq_trend = calculate_trend(frequencies)
@@ -399,8 +399,8 @@ class DecisionPatternAnalyzer:
             trends[action_type] = {
                 "frequency_trend": float(freq_trend),
                 "reward_trend": float(reward_trend),
-                "rolling_frequencies": rolling_freq.tolist(),
-                "rolling_rewards": rolling_rewards.tolist(),
+                # "rolling_frequencies": rolling_freq.tolist(),
+                # "rolling_rewards": rolling_rewards.tolist(),
                 "consistency": float(calculate_consistency(frequencies)),
                 "periodicity": float(calculate_periodicity(frequencies)),
                 "recent_trend": get_recent_trend(frequencies, window_size),

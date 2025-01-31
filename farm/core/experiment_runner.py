@@ -15,9 +15,11 @@ from typing import Dict, List, Optional
 
 import pandas as pd
 
-from farm.core.analysis import SimulationAnalyzer
 from farm.core.config import SimulationConfig
 from farm.core.simulation import run_simulation
+
+
+DEFAULT_NUM_STEPS = 1000
 
 
 class ExperimentRunner:
@@ -84,7 +86,7 @@ class ExperimentRunner:
             try:
                 # Run simulation
                 env = run_simulation(
-                    num_steps=iteration_config.num_steps,
+                    num_steps=DEFAULT_NUM_STEPS,
                     config=iteration_config,
                     db_path=db_path,
                 )
@@ -108,7 +110,7 @@ class ExperimentRunner:
                 continue
 
     def _create_iteration_config(
-        self, iteration: int, variations: Optional[List[Dict]]
+        self, iteration: int, variations: Optional[List[Dict]] = None
     ) -> SimulationConfig:
         """Create configuration for specific iteration."""
         config = self.base_config.copy()
@@ -120,65 +122,65 @@ class ExperimentRunner:
 
         return config
 
-    def _analyze_iteration(self, db_path: str) -> Dict:
-        """
-        Extract relevant statistics from simulation database.
+    # def _analyze_iteration(self, db_path: str) -> Dict:
+    #     """
+    #     Extract relevant statistics from simulation database.
 
-        Parameters
-        ----------
-        db_path : str
-            Path to simulation database
+    #     Parameters
+    #     ----------
+    #     db_path : str
+    #         Path to simulation database
 
-        Returns
-        -------
-        Dict
-            Dictionary containing extracted metrics
-        """
-        analyzer = SimulationAnalyzer(db_path)
+    #     Returns
+    #     -------
+    #     Dict
+    #         Dictionary containing extracted metrics
+    #     """
+    #     analyzer = SimulationAnalyzer(db_path)
 
-        # Get survival rates
-        survival_data = analyzer.calculate_survival_rates()
-        final_survival = survival_data.iloc[-1]
+    #     # Get survival rates
+    #     survival_data = analyzer.calculate_survival_rates()
+    #     final_survival = survival_data.iloc[-1]
 
-        # Get resource distribution
-        resource_data = analyzer.analyze_resource_distribution()
-        final_resources = resource_data.groupby("agent_type").last()
+    #     # Get resource distribution
+    #     resource_data = analyzer.analyze_resource_distribution()
+    #     final_resources = resource_data.groupby("agent_type").last()
 
-        # Compile results
-        results = {
-            "final_system_agents": final_survival["system_alive"],
-            "final_independent_agents": final_survival["independent_alive"],
-            "timestamp": datetime.now().isoformat(),
-        }
+    #     # Compile results
+    #     results = {
+    #         "final_system_agents": final_survival["system_alive"],
+    #         "final_independent_agents": final_survival["independent_alive"],
+    #         "timestamp": datetime.now().isoformat(),
+    #     }
 
-        # Add resource metrics
-        for agent_type in final_resources.index:
-            results[f"{agent_type.lower()}_avg_resources"] = final_resources.loc[
-                agent_type, "avg_resources"
-            ]
+    #     # Add resource metrics
+    #     for agent_type in final_resources.index:
+    #         results[f"{agent_type.lower()}_avg_resources"] = final_resources.loc[
+    #             agent_type, "avg_resources"
+    #         ]
 
-        return results
+    #     return results
 
-    def generate_report(self) -> None:
-        """Generate summary report of experiment results."""
-        if not self.results:
-            self.logger.warning("No results to generate report from")
-            return
+    # def generate_report(self) -> None:
+    #     """Generate summary report of experiment results."""
+    #     if not self.results:
+    #         self.logger.warning("No results to generate report from")
+    #         return
 
-        # Convert results to DataFrame
-        df = pd.DataFrame(self.results)
+    #     # Convert results to DataFrame
+    #     df = pd.DataFrame(self.results)
 
-        # Save detailed results
-        results_file = os.path.join(
-            self.results_dir, f"{self.experiment_name}_results.csv"
-        )
-        df.to_csv(results_file, index=False)
+    #     # Save detailed results
+    #     results_file = os.path.join(
+    #         self.results_dir, f"{self.experiment_name}_results.csv"
+    #     )
+    #     df.to_csv(results_file, index=False)
 
-        # Generate summary statistics
-        summary = df.describe()
-        summary_file = os.path.join(
-            self.results_dir, f"{self.experiment_name}_summary.csv"
-        )
-        summary.to_csv(summary_file)
+    #     # Generate summary statistics
+    #     summary = df.describe()
+    #     summary_file = os.path.join(
+    #         self.results_dir, f"{self.experiment_name}_summary.csv"
+    #     )
+    #     summary.to_csv(summary_file)
 
-        self.logger.info(f"Report generated: {results_file}")
+    #     self.logger.info(f"Report generated: {results_file}")

@@ -225,46 +225,80 @@ class AgentRepository(BaseRepository[AgentModel]):
             >>> print(f"First action: {actions[0].action_type}")
             >>> print(f"Total actions: {len(actions)}")
         """
-        query = self.session.query(ActionModel).order_by(
-            ActionModel.agent_id, ActionModel.step_number
-        )
-        if agent_id:
-            query = query.filter(ActionModel.agent_id == agent_id)
-        return query.all()
+
+        def query_ordered_actions(session: Session) -> List[ActionModel]:
+            query = session.query(ActionModel).order_by(
+                ActionModel.agent_id, ActionModel.step_number
+            )
+            if agent_id:
+                query = query.filter(ActionModel.agent_id == agent_id)
+            return query.all()
+
+        return self.session_manager.execute_with_retry(query_ordered_actions)
 
     def get_action_statistics(self, agent_id: Optional[int] = None) -> List[Any]:
         """Get statistical aggregates for actions.
-
-        Calculates summary statistics for each action type, including reward variance
-        and averages. Results are grouped by action type.
 
         Args:
             agent_id (Optional[int]): If provided, only analyzes actions for this agent.
 
         Returns:
-            List[Any]: List of statistics per action type, each containing:
+            List[Any]: List of statistics per action type containing:
                 - action_type: Type of action
                 - reward_std: Standard deviation of rewards
                 - reward_avg: Average reward
                 - count: Number of times action was performed
-
-        Examples:
-            >>> stats = repository.get_action_statistics(agent_id=1)
-            >>> for stat in stats:
-            ...     print(f"{stat.action_type}: avg={stat.reward_avg:.2f}, "
-            ...           f"std={stat.reward_std:.2f}, n={stat.count}")
         """
-        query = self.session.query(
-            ActionModel.action_type,
-            func.stddev(ActionModel.reward).label("reward_std"),
-            func.avg(ActionModel.reward).label("reward_avg"),
-            func.count().label("count"),
-        ).group_by(ActionModel.action_type)
 
-        if agent_id:
-            query = query.filter(ActionModel.agent_id == agent_id)
+        def query_action_stats(session: Session) -> List[Any]:
+            # First get all actions with rewards
+            query = session.query(
+                ActionModel.action_type,
+                func.avg(ActionModel.reward).label("reward_avg"),
+                func.count().label("count"),
+                func.group_concat(ActionModel.reward).label("rewards"),
+            ).group_by(ActionModel.action_type)
 
-        return query.all()
+            if agent_id:
+                query = query.filter(ActionModel.agent_id == agent_id)
+
+            results = query.all()
+
+            # Calculate standard deviation manually
+            final_stats = []
+            for result in results:
+                if result.rewards:
+                    # Convert string of rewards back to list of floats
+                    rewards = [float(r) for r in result.rewards.split(",") if r]
+                    # Calculate standard deviation
+                    if len(rewards) > 1:
+                        mean = sum(rewards) / len(rewards)
+                        variance = sum((x - mean) ** 2 for x in rewards) / (
+                            len(rewards) - 1
+                        )
+                        std_dev = variance**0.5
+                    else:
+                        std_dev = 0.0
+                else:
+                    std_dev = 0.0
+
+                # Create a new result object with std dev
+                final_stats.append(
+                    type(
+                        "ActionStat",
+                        (),
+                        {
+                            "action_type": result.action_type,
+                            "reward_std": std_dev,
+                            "reward_avg": result.reward_avg,
+                            "count": result.count,
+                        },
+                    )
+                )
+
+            return final_stats
+
+        return self.session_manager.execute_with_retry(query_action_stats)
 
     def get_actions_with_states(
         self, agent_id: Optional[int] = None
@@ -277,14 +311,16 @@ class AgentRepository(BaseRepository[AgentModel]):
         Returns:
             List of tuples containing (action, state) pairs
         """
-        query = self.session.query(ActionModel, AgentStateModel).join(
-            AgentStateModel, ActionModel.state_before_id == AgentStateModel.id
-        )
 
-        if agent_id:
-            query = query.filter(ActionModel.agent_id == agent_id)
+        def query_actions_states(session: Session) -> List[Tuple[Any, Any]]:
+            q = session.query(ActionModel, AgentStateModel).join(
+                AgentStateModel, ActionModel.state_before_id == AgentStateModel.id
+            )
+            if agent_id:
+                q = q.filter(ActionModel.agent_id == agent_id)
+            return q.all()
 
-        return query.all()
+        return self.session_manager.execute_with_retry(query_actions_states)
 
     def get_agent_info(self, agent_id: str) -> Optional[AgentInfo]:
         """Get comprehensive information about an agent.
@@ -522,3 +558,21 @@ class AgentRepository(BaseRepository[AgentModel]):
             return children
 
         return self.session_manager.execute_with_retry(query_children)
+
+    def get_random_agent_id(self) -> Optional[str]:
+        """Get a random agent ID from the database.
+
+        Returns
+        -------
+        Optional[str]
+            A random agent ID if agents exist, None otherwise
+        """
+
+        def query_random_agent(session: Session) -> Optional[str]:
+            # Use func.random() for database-agnostic random selection
+            random_agent = (
+                session.query(AgentModel.agent_id).order_by(func.random()).first()
+            )
+            return random_agent[0] if random_agent else None
+
+        return self.session_manager.execute_with_retry(query_random_agent)
