@@ -1,14 +1,18 @@
-import os
 import glob
-import pandas as pd
-from typing import List, Dict, Any
-from sqlalchemy import create_engine, func
-import matplotlib.pyplot as plt
-import seaborn as sns
-from pathlib import Path
+import os
+from typing import Any, Dict, List
 
-from farm.database.models import Simulation, SimulationStepModel
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+from sqlalchemy import func
+import tkinter as tk
+from tkinter import ttk
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
 from farm.database.database import SimulationDatabase
+from farm.database.models import Simulation, SimulationStepModel
 
 
 def find_simulation_databases(base_path: str) -> List[str]:
@@ -115,6 +119,11 @@ def gather_simulation_metadata(db_path: str) -> Dict[str, Any]:
         # 6) Extract config parameters
         config = sim.parameters if sim and sim.parameters else {}
 
+        # Add average age calculation
+        avg_age_result = session.query(
+            func.avg(SimulationStepModel.average_agent_age)
+        ).scalar()
+
         # 7) Build complete metadata dictionary
         return {
             "simulation_name": sim_name,
@@ -136,6 +145,7 @@ def gather_simulation_metadata(db_path: str) -> Dict[str, Any]:
             "avg_total_resources": float(avg_metrics[3]) if avg_metrics[3] else 0,
             "avg_health": float(avg_metrics[4]) if avg_metrics[4] else 0,
             "avg_reward": float(avg_metrics[5]) if avg_metrics[5] else 0,
+            "avg_agent_age": float(avg_age_result) if avg_age_result else 0,
             **final_snapshot,
         }
     finally:
@@ -198,21 +208,73 @@ def plot_comparative_metrics(
     plt.savefig(os.path.join(output_dir, "health_reward_distribution.png"))
     plt.close()
 
+    # Add new chart comparing cycles vs max population
+    plt.figure(figsize=(12, 6))
+    plt.scatter(df['avg_total_agents'], df['duration_steps'],
+               alpha=0.6, c='blue', s=100)
+    
+    # Add labels and title
+    plt.title('Average Population vs Simulation Duration')
+    plt.xlabel('Average Population')
+    plt.ylabel('Number of Cycles (Steps)')
+    
+    # Add a trend line
+    z = np.polyfit(df['avg_total_agents'], df['duration_steps'], 1)
+    p = np.poly1d(z)
+    plt.plot(df['avg_total_agents'], p(df['avg_total_agents']), "r--", alpha=0.8,
+            label=f'Trend line (slope: {z[0]:.2f})')
+    
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.savefig(os.path.join(output_dir, 'population_vs_cycles.png'))
+    plt.close()
+
+    # Population vs Age plot
+    plt.figure(figsize=(12, 6))
+    
+    # Create scatter plot with color gradient based on birth rate
+    scatter = plt.scatter(
+        df["avg_total_agents"], 
+        df["avg_agent_age"], 
+        c=df["avg_births"],  # Color based on birth rate
+        s=100,
+        alpha=0.6,
+        cmap='viridis'  # Use viridis colormap (or try 'RdYlBu', 'plasma', etc)
+    )
+    
+    # Add colorbar
+    cbar = plt.colorbar(scatter)
+    cbar.set_label('Average Birth Rate', rotation=270, labelpad=15)
+    
+    # Calculate correlation coefficient
+    correlation = df["avg_total_agents"].corr(df["avg_agent_age"])
+    
+    # Add labels and title with correlation
+    plt.title(f"Average Population vs Average Agent Age (r = {correlation:.2f})")
+    plt.xlabel("Average Population")
+    plt.ylabel("Average Agent Age")
+    
+    # Compute the trend line
+    z = np.polyfit(df["avg_total_agents"], df["avg_agent_age"], 1)
+    p = np.poly1d(z)
+    plt.plot(
+        df["avg_total_agents"],
+        p(df["avg_total_agents"]),
+        "r--",
+        alpha=0.8,
+        label=f"Trend line (slope: {z[0]:.2f})",
+    )
+    
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    
+    # Save the plot
+    plt.savefig(os.path.join(output_dir, "population_vs_age.png"))
+    plt.close()
+
 
 def compare_simulations(db_paths: List[str]) -> pd.DataFrame:
-    """
-    Compare N simulations by collecting key metadata and stats into a pandas DataFrame.
-
-    Parameters
-    ----------
-    db_paths : List[str]
-        List of paths to simulation database files
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame containing comparative metrics
-    """
+    """Compare N simulations by collecting key metadata and stats into a pandas DataFrame."""
     records = []
     for path in db_paths:
         meta = gather_simulation_metadata(path)
@@ -233,6 +295,9 @@ def compare_simulations(db_paths: List[str]) -> pd.DataFrame:
 
     # Generate plots
     plot_comparative_metrics(df)
+    
+    # Launch interactive analysis window
+    create_interactive_analysis_window(df)
 
     return df
 
@@ -376,6 +441,101 @@ def create_dashboard_summary(
     plt.close()
 
 
+def create_interactive_analysis_window(df: pd.DataFrame):
+    """Create an interactive window for population vs age analysis."""
+    import tkinter as tk
+    from tkinter import ttk
+    from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+    # Create the main window
+    root = tk.Tk()
+    root.title("Interactive Population Analysis")
+    root.geometry("1000x800")
+
+    # Create frame for controls
+    control_frame = ttk.Frame(root, padding="5")
+    control_frame.pack(fill=tk.X)
+
+    # Create frame for the plot
+    plot_frame = ttk.Frame(root, padding="5")
+    plot_frame.pack(fill=tk.BOTH, expand=True)
+
+    # Variables for plot customization
+    color_var = tk.StringVar(value="avg_births")
+    available_metrics = [
+        "avg_births", "avg_deaths", "avg_health", "avg_reward",
+        "avg_total_resources", "median_population", "mode_population"
+    ]
+
+    # Create the figure and canvas
+    fig, ax = plt.subplots(figsize=(10, 6))
+    canvas = FigureCanvasTkAgg(fig, master=plot_frame)
+    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+
+    def update_plot():
+        """Update the plot based on current settings."""
+        # Clear the entire figure instead of just the axis
+        fig.clear()
+        ax = fig.add_subplot(111)
+        
+        # Create scatter plot with selected color metric
+        scatter = ax.scatter(
+            df["avg_total_agents"], 
+            df["avg_agent_age"],
+            c=df[color_var.get()],
+            s=100,
+            alpha=0.6,
+            cmap='viridis'
+        )
+        
+        # Add new colorbar
+        fig.colorbar(scatter, ax=ax, label=color_var.get())
+        
+        # Calculate correlation
+        correlation = df["avg_total_agents"].corr(df["avg_agent_age"])
+        
+        # Add trend line
+        z = np.polyfit(df["avg_total_agents"], df["avg_agent_age"], 1)
+        p = np.poly1d(z)
+        ax.plot(
+            df["avg_total_agents"],
+            p(df["avg_total_agents"]),
+            "r--",
+            alpha=0.8,
+            label=f"Trend line (slope: {z[0]:.2f})"
+        )
+        
+        # Set labels and title
+        ax.set_title(f"Average Population vs Average Agent Age (r = {correlation:.2f})")
+        ax.set_xlabel("Average Population")
+        ax.set_ylabel("Average Agent Age")
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+        
+        # Refresh canvas
+        fig.tight_layout()
+        canvas.draw()
+
+    # Create controls
+    ttk.Label(control_frame, text="Color by:").pack(side=tk.LEFT, padx=5)
+    color_menu = ttk.Combobox(
+        control_frame, 
+        textvariable=color_var,
+        values=available_metrics,
+        width=20
+    )
+    color_menu.pack(side=tk.LEFT, padx=5)
+
+    # Bind events
+    color_menu.bind('<<ComboboxSelected>>', lambda e: update_plot())
+
+    # Initial plot
+    update_plot()
+
+    # Start the GUI event loop
+    root.mainloop()
+
+
 def main(path: str):
     # Find all simulation databases
     db_paths = find_simulation_databases(path)
@@ -399,6 +559,9 @@ def main(path: str):
 
     # Create dashboard summary
     create_dashboard_summary(results_df)
+
+    # Create interactive analysis window
+    create_interactive_analysis_window(results_df)
 
 
 if __name__ == "__main__":
