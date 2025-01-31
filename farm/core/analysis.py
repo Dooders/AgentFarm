@@ -2,7 +2,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from sqlalchemy import case, func
 
-from farm.database.database import Agent, AgentState, SimulationDatabase, SimulationStep
+from farm.database.database import SimulationDatabase
+from farm.database.models import Agent, AgentState, SimulationStep
 
 
 class SimulationAnalyzer:
