@@ -462,9 +462,13 @@ def create_interactive_analysis_window(df: pd.DataFrame):
 
     # Variables for plot customization
     color_var = tk.StringVar(value="avg_births")
+    x_var = tk.StringVar(value="avg_total_agents")
+    y_var = tk.StringVar(value="avg_agent_age")
+    
     available_metrics = [
         "avg_births", "avg_deaths", "avg_health", "avg_reward",
-        "avg_total_resources", "median_population", "mode_population"
+        "avg_total_resources", "median_population", "mode_population",
+        "avg_total_agents", "avg_agent_age", "duration_steps"
     ]
 
     # Create the figure and canvas
@@ -474,41 +478,41 @@ def create_interactive_analysis_window(df: pd.DataFrame):
 
     def update_plot():
         """Update the plot based on current settings."""
-        # Clear the entire figure instead of just the axis
+        # Clear the entire figure
         fig.clear()
         ax = fig.add_subplot(111)
         
-        # Create scatter plot with selected color metric
+        # Create scatter plot with selected metrics
         scatter = ax.scatter(
-            df["avg_total_agents"], 
-            df["avg_agent_age"],
+            df[x_var.get()], 
+            df[y_var.get()],
             c=df[color_var.get()],
             s=100,
             alpha=0.6,
             cmap='viridis'
         )
         
-        # Add new colorbar
+        # Add colorbar
         fig.colorbar(scatter, ax=ax, label=color_var.get())
         
         # Calculate correlation
-        correlation = df["avg_total_agents"].corr(df["avg_agent_age"])
+        correlation = df[x_var.get()].corr(df[y_var.get()])
         
         # Add trend line
-        z = np.polyfit(df["avg_total_agents"], df["avg_agent_age"], 1)
+        z = np.polyfit(df[x_var.get()], df[y_var.get()], 1)
         p = np.poly1d(z)
         ax.plot(
-            df["avg_total_agents"],
-            p(df["avg_total_agents"]),
+            df[x_var.get()],
+            p(df[x_var.get()]),
             "r--",
             alpha=0.8,
             label=f"Trend line (slope: {z[0]:.2f})"
         )
         
         # Set labels and title
-        ax.set_title(f"Average Population vs Average Agent Age (r = {correlation:.2f})")
-        ax.set_xlabel("Average Population")
-        ax.set_ylabel("Average Agent Age")
+        ax.set_title(f"{x_var.get()} vs {y_var.get()} (r = {correlation:.2f})")
+        ax.set_xlabel(x_var.get().replace('_', ' ').title())
+        ax.set_ylabel(y_var.get().replace('_', ' ').title())
         ax.grid(True, alpha=0.3)
         ax.legend()
         
@@ -517,6 +521,24 @@ def create_interactive_analysis_window(df: pd.DataFrame):
         canvas.draw()
 
     # Create controls
+    ttk.Label(control_frame, text="X Axis:").pack(side=tk.LEFT, padx=5)
+    x_menu = ttk.Combobox(
+        control_frame, 
+        textvariable=x_var,
+        values=available_metrics,
+        width=20
+    )
+    x_menu.pack(side=tk.LEFT, padx=5)
+
+    ttk.Label(control_frame, text="Y Axis:").pack(side=tk.LEFT, padx=5)
+    y_menu = ttk.Combobox(
+        control_frame, 
+        textvariable=y_var,
+        values=available_metrics,
+        width=20
+    )
+    y_menu.pack(side=tk.LEFT, padx=5)
+
     ttk.Label(control_frame, text="Color by:").pack(side=tk.LEFT, padx=5)
     color_menu = ttk.Combobox(
         control_frame, 
@@ -527,6 +549,8 @@ def create_interactive_analysis_window(df: pd.DataFrame):
     color_menu.pack(side=tk.LEFT, padx=5)
 
     # Bind events
+    x_menu.bind('<<ComboboxSelected>>', lambda e: update_plot())
+    y_menu.bind('<<ComboboxSelected>>', lambda e: update_plot())
     color_menu.bind('<<ComboboxSelected>>', lambda e: update_plot())
 
     # Initial plot
