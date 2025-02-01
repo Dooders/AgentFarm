@@ -37,33 +37,69 @@ def plot_resource_changes(dataframe):
     plt.show()
 
 def plot_action_frequency_over_time(dataframe):
-    """Plot the frequency of actions over time."""
-    action_counts = dataframe.groupby('step_number').size()
-    plt.figure(figsize=(10, 6))
-    plt.plot(action_counts.index, action_counts.values, marker='o', label='Action Frequency')
-    plt.title('Action Frequency Over Time')
+    """Plot the frequency of actions over time as a stacked area chart."""
+    # Group by both step number and action type to get counts
+    action_counts = dataframe.groupby(['step_number', 'action_type']).size().unstack(fill_value=0)
+    
+    plt.figure(figsize=(12, 6))
+    plt.stackplot(action_counts.index, 
+                 action_counts.T.values,
+                 labels=action_counts.columns,
+                 alpha=0.8)
+    
+    plt.title('Action Frequency Over Time by Action Type')
     plt.xlabel('Step Number')
     plt.ylabel('Number of Actions')
-    plt.legend()
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()  # Adjust layout to prevent legend cutoff
     plt.show()
 
 def plot_position_changes(dataframe, agent_id):
     """Plot the position changes for a specific agent."""
-    agent_data = dataframe[dataframe['agent_id'] == agent_id]
-    positions_before = agent_data['position_before'].apply(eval)  # Convert string to tuple
-    positions_after = agent_data['position_after'].apply(eval)    # Convert string to tuple
-    x_before, y_before = zip(*positions_before)
-    x_after, y_after = zip(*positions_after)
+    # Get agent actions ordered by step number
+    agent_actions = dataframe[dataframe['agent_id'] == agent_id].sort_values('step_number')
+    
+    # Extract positions from details
+    try:
+        positions = []
+        for _, row in agent_actions.iterrows():
+            if pd.notnull(row['details']):
+                details = json.loads(row['details'])
+                if 'target_position' in details:
+                    positions.append(tuple(details['target_position']))
+                elif 'distance_moved' in details:
+                    # For move actions, we need to track the actual positions
+                    # For now, we'll skip these since we don't have the absolute position
+                    continue
+        
+        if not positions:
+            print("No position data found in action details")
+            return
+            
+        # Convert positions to arrays
+        x_positions = [p[0] for p in positions]
+        y_positions = [p[1] for p in positions]
+        
+        # Create before/after pairs
+        x_before = x_positions[:-1]  # All positions except the last
+        y_before = y_positions[:-1]  # All positions except the last
+        x_after = x_positions[1:]    # All positions except the first
+        y_after = y_positions[1:]    # All positions except the first
 
-    plt.figure(figsize=(10, 6))
-    plt.scatter(x_before, y_before, label='Before', alpha=0.7, color='blue')
-    plt.scatter(x_after, y_after, label='After', alpha=0.7, color='red')
-    plt.plot(x_after, y_after, linestyle='--', alpha=0.5, color='gray')
-    plt.title(f'Position Changes for Agent {agent_id}')
-    plt.xlabel('X Position')
-    plt.ylabel('Y Position')
-    plt.legend()
-    plt.show()
+        plt.figure(figsize=(10, 6))
+        plt.scatter(x_before, y_before, label='Target Positions', alpha=0.7, color='blue')
+        plt.scatter(x_after, y_after, label='Next Target', alpha=0.7, color='red')
+        plt.plot(x_positions, y_positions, linestyle='--', alpha=0.5, color='gray', label='Path')
+        plt.title(f'Target Positions for Agent {agent_id}')
+        plt.xlabel('X Position')
+        plt.ylabel('Y Position')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        plt.show()
+        
+    except Exception as e:
+        print(f"Error processing position data: {e}")
+        print("Please ensure the action details contain position information")
 
 def plot_rewards_over_time(dataframe):
     """Plot cumulative rewards over time."""
@@ -85,14 +121,6 @@ def plot_action_target_distribution(dataframe):
     plt.xlabel('Target ID')
     plt.ylabel('Frequency')
     plt.show()
-
-def analyze_action_details(dataframe):
-    """Analyze and print details from the JSON-encoded 'details' field."""
-    print("Action Details Analysis:")
-    for index, row in dataframe.iterrows():
-        if pd.notnull(row['details']):
-            details = json.loads(row['details'])
-            print(f"Action ID: {row['action_id']}, Details: {details}")
 
 # Load the dataset
 def main(dataframe):
@@ -122,9 +150,6 @@ def main(dataframe):
 
         print("Plotting action target distribution...")
         plot_action_target_distribution(dataframe)
-
-        print("Analyzing action details...")
-        analyze_action_details(dataframe)
 
     except Exception as e:
         print(f"An error occurred: {e}")

@@ -1,15 +1,17 @@
 import glob
 import os
+import tkinter as tk
+from tkinter import ttk
 from typing import Any, Dict, List
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from sqlalchemy import func
-import tkinter as tk
-from tkinter import ttk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from sqlalchemy import func
+from PIL import Image, ImageDraw, ImageFont
+import io
 
 from farm.database.database import SimulationDatabase
 from farm.database.models import Simulation, SimulationStepModel
@@ -153,6 +155,506 @@ def gather_simulation_metadata(db_path: str) -> Dict[str, Any]:
         db.close()
 
 
+def plot_population_dynamics(df: pd.DataFrame, output_dir: str):
+    """Plot population dynamics across simulations."""
+    plt.figure(figsize=(12, 6))
+    x = range(len(df))
+
+    plt.plot(x, df["median_population"], "b--", label="Median Population")
+    plt.plot(x, df["mode_population"], "g--", label="Mode Population")
+    plt.plot(x, df["final_total_agents"], "r-", label="Final Population")
+    plt.title("Population Comparison Across Simulations")
+    plt.xlabel("Simulation Index")
+    plt.ylabel("Number of Agents")
+    plt.legend()
+
+    # Save the figure without the note first
+    temp_path = os.path.join(output_dir, 'temp_population_comparison.png')
+    plt.savefig(temp_path, dpi=300, bbox_inches='tight')
+    plt.close()
+
+    # Add the note using Pillow
+    note_text = ('Note: This plot compares different population metrics across simulations. '
+                'The median and mode show typical population levels, while the final population '
+                'indicates how simulations ended.')
+    
+    final_path = os.path.join(output_dir, 'population_comparison.png')
+    add_note_to_image(temp_path, note_text)
+    
+    # Clean up temporary file
+    os.remove(temp_path)
+
+
+def plot_resource_utilization(df: pd.DataFrame, output_dir: str):
+    """Plot resource utilization across simulations."""
+    plt.figure(figsize=(12, 6))
+    x = range(len(df))
+    plt.plot(x, df["avg_total_resources"], "g-", label="Average Resources")
+    plt.plot(x, df["final_total_resources"], "m--", label="Final Resources")
+    plt.title("Resource Utilization Across Simulations")
+    plt.xlabel("Simulation Index")
+    plt.ylabel("Resource Level")
+    plt.legend()
+
+    # Save the figure without the note first
+    temp_path = os.path.join(output_dir, 'temp_resource_comparison.png')
+    plt.savefig(temp_path, dpi=300, bbox_inches='tight')
+    plt.close()
+
+    # Add the note using Pillow
+    note_text = ('Note: This visualization tracks resource levels across simulations. '
+                'Average resources show typical availability, while final resources '
+                'indicate end-state resource levels.')
+    
+    final_path = os.path.join(output_dir, 'resource_comparison.png')
+    add_note_to_image(temp_path, note_text)
+    
+    # Clean up temporary file
+    os.remove(temp_path)
+
+
+def plot_health_reward_distribution(df: pd.DataFrame, output_dir: str):
+    """Plot health and reward distributions."""
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+
+    sns.boxplot(data=df[["avg_health", "final_average_health"]], ax=ax1)
+    ax1.set_title("Health Distribution")
+    ax1.set_ylabel("Health Level")
+
+    sns.boxplot(data=df[["avg_reward", "final_average_reward"]], ax=ax2)
+    ax2.set_title("Reward Distribution")
+    ax2.set_ylabel("Reward Level")
+
+    plt.tight_layout()
+    
+    # Save the figure without the note first
+    temp_path = os.path.join(output_dir, 'temp_health_reward_distribution.png')
+    plt.savefig(temp_path, dpi=300, bbox_inches='tight')
+    plt.close()
+
+    # Add the note using Pillow
+    note_text = ('Note: These box plots show the distribution of health and reward metrics. '
+                'The boxes show the middle 50% of values, while whiskers extend to the full range '
+                'excluding outliers.')
+    
+    final_path = os.path.join(output_dir, 'health_reward_distribution.png')
+    add_note_to_image(temp_path, note_text)
+    
+    # Clean up temporary file
+    os.remove(temp_path)
+
+
+def plot_population_vs_cycles(df: pd.DataFrame, output_dir: str):
+    """Plot population vs simulation duration."""
+    plt.figure(figsize=(12, 6))
+    plt.scatter(
+        df["avg_total_agents"], df["duration_steps"], alpha=0.6, c="blue", s=100
+    )
+
+    plt.title("Average Population vs Simulation Duration")
+    plt.xlabel("Average Population")
+    plt.ylabel("Number of Cycles (Steps)")
+
+    z = np.polyfit(df["avg_total_agents"], df["duration_steps"], 1)
+    p = np.poly1d(z)
+    plt.plot(
+        df["avg_total_agents"],
+        p(df["avg_total_agents"]),
+        "r--",
+        alpha=0.8,
+        label=f"Trend line (slope: {z[0]:.2f})",
+    )
+
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+
+    # Save the figure without the note first
+    temp_path = os.path.join(output_dir, 'temp_population_vs_cycles.png')
+    plt.savefig(temp_path, dpi=300, bbox_inches='tight')
+    plt.close()
+
+    # Add the note using Pillow
+    note_text = ('Note: This scatter plot reveals the relationship between population size and '
+                'simulation duration. The trend line shows the general correlation between '
+                'these variables.')
+    
+    final_path = os.path.join(output_dir, 'population_vs_cycles.png')
+    add_note_to_image(temp_path, note_text)
+    
+    # Clean up temporary file
+    os.remove(temp_path)
+
+
+def plot_population_vs_age(df: pd.DataFrame, output_dir: str):
+    """Plot population vs agent age with birth rate color gradient."""
+    plt.figure(figsize=(12, 6))
+
+    scatter = plt.scatter(
+        df["avg_total_agents"],
+        df["avg_agent_age"],
+        c=df["avg_births"],
+        s=100,
+        alpha=0.6,
+        cmap="viridis",
+    )
+
+    cbar = plt.colorbar(scatter)
+    cbar.set_label("Average Birth Rate", rotation=270, labelpad=15)
+
+    correlation = df["avg_total_agents"].corr(df["avg_agent_age"])
+    plt.title(f"Average Population vs Average Agent Age (r = {correlation:.2f})")
+    plt.xlabel("Average Population")
+    plt.ylabel("Average Agent Age")
+
+    z = np.polyfit(df["avg_total_agents"], df["avg_agent_age"], 1)
+    p = np.poly1d(z)
+    plt.plot(
+        df["avg_total_agents"],
+        p(df["avg_total_agents"]),
+        "r--",
+        alpha=0.8,
+        label=f"Trend line (slope: {z[0]:.2f})",
+    )
+
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+
+    # Save the figure without the note first
+    temp_path = os.path.join(output_dir, 'temp_population_vs_age.png')
+    plt.savefig(temp_path, dpi=300, bbox_inches='tight')
+    plt.close()
+
+    # Add the note using Pillow
+    note_text = ('Note: This scatter plot shows how population size relates to average agent age. '
+                'The color gradient indicates birth rates, while the trend line shows the overall '
+                'relationship between population and age.')
+    
+    final_path = os.path.join(output_dir, 'population_vs_age.png')
+    add_note_to_image(temp_path, note_text)
+    
+    # Clean up temporary file
+    os.remove(temp_path)
+
+
+def plot_population_trends_across_simulations(df: pd.DataFrame, output_dir: str):
+    """
+    Create a visualization showing population trends across all simulations.
+    """
+    # Create figure with two subplots sharing x axis
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 12), height_ratios=[1, 2])
+    fig.suptitle('Population Trends Across All Simulations', fontsize=14, y=0.95)
+    
+    # Get all simulation databases and collect step-wise data
+    all_populations = []
+    max_steps = 0
+    
+    for db_path in df['db_path']:
+        db = SimulationDatabase(db_path)
+        session = db.Session()
+        
+        try:
+            population_data = (
+                session.query(SimulationStepModel.step_number, SimulationStepModel.total_agents)
+                .order_by(SimulationStepModel.step_number)
+                .all()
+            )
+            
+            steps = np.array([p[0] for p in population_data])
+            pop = np.array([p[1] for p in population_data])
+            
+            max_steps = max(max_steps, len(steps))
+            all_populations.append(pop)
+            
+        finally:
+            session.close()
+            db.close()
+    
+    # Pad shorter simulations with NaN values
+    padded_populations = []
+    for pop in all_populations:
+        if len(pop) < max_steps:
+            padded = np.pad(
+                pop,
+                (0, max_steps - len(pop)),
+                mode='constant',
+                constant_values=np.nan
+            )
+        else:
+            padded = pop
+        padded_populations.append(padded)
+    
+    population_array = np.array(padded_populations)
+    
+    # Calculate statistics
+    mean_pop = np.nanmean(population_array, axis=0)
+    median_pop = np.nanmedian(population_array, axis=0)
+    std_pop = np.nanstd(population_array, axis=0)
+    confidence_interval = 1.96 * std_pop / np.sqrt(len(all_populations))
+    
+    steps = np.arange(max_steps)
+    
+    # Plot full range in top subplot (linear scale)
+    ax1.plot(steps, mean_pop, 'b-', label='Mean Population', linewidth=2)
+    ax1.plot(steps, median_pop, 'g--', label='Median Population', linewidth=2)
+    ax1.fill_between(
+        steps,
+        mean_pop - confidence_interval,
+        mean_pop + confidence_interval,
+        color='b',
+        alpha=0.2,
+        label='95% Confidence Interval'
+    )
+    
+    # Customize top subplot
+    ax1.set_ylabel('Number of Agents', fontsize=12)
+    ax1.grid(True, alpha=0.3)
+    ax1.legend(fontsize=10)
+    
+    # Add text to explain the views
+    ax1.text(0.02, 0.98, 'Full Range View', 
+             transform=ax1.transAxes, fontsize=10, 
+             verticalalignment='top')
+    
+    # Plot steady-state detail in bottom subplot (linear scale)
+    # Find where the initial spike settles (simple heuristic)
+    settling_point = 55  # Skip first 100 steps to avoid initial spike
+    
+    ax2.plot(steps[settling_point:], mean_pop[settling_point:], 'b-', 
+            label='Mean Population', linewidth=2)
+    ax2.plot(steps[settling_point:], median_pop[settling_point:], 'g--', 
+            label='Median Population', linewidth=2)
+    ax2.fill_between(
+        steps[settling_point:],
+        mean_pop[settling_point:] - confidence_interval[settling_point:],
+        mean_pop[settling_point:] + confidence_interval[settling_point:],
+        color='b',
+        alpha=0.2,
+        label='95% Confidence Interval'
+    )
+    
+    # Customize bottom subplot
+    steady_state_min = np.nanmin(mean_pop[settling_point:] - confidence_interval[settling_point:])
+    steady_state_max = np.nanmax(mean_pop[settling_point:] + confidence_interval[settling_point:])
+    padding = (steady_state_max - steady_state_min) * 0.1
+    ax2.set_ylim(steady_state_min - padding, steady_state_max + padding)
+    ax2.set_xlabel('Simulation Step', fontsize=12)
+    ax2.set_ylabel('Number of Agents', fontsize=12)
+    ax2.grid(True, alpha=0.3)
+    ax2.legend(fontsize=10)
+    
+    # Add text to explain the views
+    ax2.text(0.02, 0.98, 'Steady State Detail', 
+             transform=ax2.transAxes, fontsize=10, 
+             verticalalignment='top')
+    
+    # Save the figure without the note first
+    temp_path = os.path.join(output_dir, 'temp_population_trends.png')
+    plt.savefig(temp_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    # Add the note using Pillow
+    note_text = ('Note: This visualization shows population changes over time across all simulations. '
+                'The top panel displays the full range including initial population spikes, while '
+                'the bottom panel focuses on the steady-state behavior after initial fluctuations settle.')
+    
+    final_path = os.path.join(output_dir, 'population_trends.png')
+    add_note_to_image(temp_path, note_text)
+    
+    # Clean up temporary file
+    os.remove(temp_path)
+
+
+def add_note_to_image(figure_path, note_text):
+    """
+    Add a note below the matplotlib figure using Pillow.
+    
+    Parameters
+    ----------
+    figure_path : str
+        Path to the saved matplotlib figure
+    note_text : str
+        Text to add below the figure
+    """
+    # Open the original figure
+    with Image.open(figure_path) as img:
+        # Try to load Arial font, fall back to default if not available
+        try:
+            font = ImageFont.truetype("arial.ttf", 14)  # Increased font size
+        except OSError:
+            font = ImageFont.load_default()
+        
+        # Calculate wrapped text dimensions
+        margin = 120  # Much larger margin
+        max_text_width = img.width - (2 * margin)
+        
+        # Wrap text and calculate required height
+        words = note_text.split()
+        lines = []
+        current_line = []
+        current_width = 0
+        
+        for word in words:
+            word_width = font.getlength(word + " ")
+            if current_width + word_width <= max_text_width:
+                current_line.append(word)
+                current_width += word_width
+            else:
+                lines.append(" ".join(current_line))
+                current_line = [word]
+                current_width = word_width
+        
+        if current_line:
+            lines.append(" ".join(current_line))
+        
+        # Calculate required height for text
+        line_height = 24  # Increased line height
+        text_height = len(lines) * line_height
+        note_height = text_height + (3 * margin)  # Much more vertical space
+        
+        # Create new image with space for text
+        new_img = Image.new('RGB', (img.width, img.height + note_height), 'white')
+        new_img.paste(img, (0, 0))
+        
+        # Draw a light gray line to separate the note from the plot
+        draw = ImageDraw.Draw(new_img)
+        line_y = img.height + margin  # Line is now margin pixels below the image
+        draw.line([(margin, line_y), (img.width - margin, line_y)], fill='#CCCCCC', width=2)
+        
+        # Add the text lines
+        y = img.height + (margin * 1.5)  # Text starts half margin below the line
+        
+        for line in lines:
+            # Center each line
+            text_bbox = draw.textbbox((0, 0), line, font=font)
+            text_width = text_bbox[2] - text_bbox[0]
+            x = (img.width - text_width) // 2
+            
+            draw.text((x, y), line, fill='black', font=font)
+            y += line_height
+        
+        # Save the combined image
+        new_img.save(figure_path)
+
+
+def plot_population_candlestick(df: pd.DataFrame, output_dir: str):
+    """
+    Create a candlestick-style visualization showing population trends across simulations.
+    """
+    # Create figure with two subplots sharing x axis
+    fig = plt.figure(figsize=(15, 12))
+    gs = plt.GridSpec(3, 2, figure=fig)
+    
+    # Get all simulation databases and collect step-wise data
+    all_populations = []
+    max_steps = 0
+    
+    for db_path in df['db_path']:
+        db = SimulationDatabase(db_path)
+        session = db.Session()
+        
+        try:
+            population_data = (
+                session.query(SimulationStepModel.step_number, SimulationStepModel.total_agents)
+                .order_by(SimulationStepModel.step_number)
+                .all()
+            )
+            
+            steps = np.array([p[0] for p in population_data])
+            pop = np.array([p[1] for p in population_data])
+            
+            max_steps = max(max_steps, len(steps))
+            all_populations.append(pop)
+            
+        finally:
+            session.close()
+            db.close()
+    
+    # Pad shorter simulations with NaN values
+    padded_populations = []
+    for pop in all_populations:
+        if len(pop) < max_steps:
+            padded = np.pad(
+                pop,
+                (0, max_steps - len(pop)),
+                mode='constant',
+                constant_values=np.nan
+            )
+        else:
+            padded = pop
+        padded_populations.append(padded)
+    
+    population_array = np.array(padded_populations)
+    
+    # Calculate statistics for each time step
+    steps = np.arange(max_steps)
+    percentile_25 = np.nanpercentile(population_array, 25, axis=0)
+    percentile_75 = np.nanpercentile(population_array, 75, axis=0)
+    median_pop = np.nanmedian(population_array, axis=0)
+    min_pop = np.nanmin(population_array, axis=0)
+    max_pop = np.nanmax(population_array, axis=0)
+    
+    # Plot full range in top subplot
+    # Plot min-max range
+    ax1 = fig.add_subplot(gs[0, 0])
+    ax1.fill_between(steps, min_pop, max_pop, alpha=0.2, color='gray', label='Min-Max Range')
+    # Plot interquartile range
+    ax1.fill_between(steps, percentile_25, percentile_75, alpha=0.4, color='blue', label='Interquartile Range')
+    # Plot median line
+    ax1.plot(steps, median_pop, 'r-', label='Median', linewidth=1.5)
+    
+    # Customize top subplot
+    ax1.set_ylabel('Number of Agents', fontsize=12)
+    ax1.grid(True, alpha=0.3)
+    ax1.legend(fontsize=10)
+    ax1.text(0.02, 0.98, 'Full Range Distribution', 
+             transform=ax1.transAxes, fontsize=10, 
+             verticalalignment='top')
+    
+    # Plot steady-state detail in bottom subplot
+    settling_point = 55
+    
+    # Plot min-max range for steady state
+    ax2 = fig.add_subplot(gs[0, 1])
+    ax2.fill_between(steps[settling_point:], 
+                    min_pop[settling_point:], 
+                    max_pop[settling_point:], 
+                    alpha=0.2, color='gray', label='Min-Max Range')
+    # Plot interquartile range
+    ax2.fill_between(steps[settling_point:], 
+                    percentile_25[settling_point:], 
+                    percentile_75[settling_point:], 
+                    alpha=0.4, color='blue', label='Interquartile Range')
+    # Plot median line
+    ax2.plot(steps[settling_point:], median_pop[settling_point:], 
+             'r-', label='Median', linewidth=1.5)
+    
+    # Customize bottom subplot
+    ax2.set_ylim(np.nanmin(min_pop[settling_point:]), np.nanmax(max_pop[settling_point:]))
+    ax2.set_xlabel('Simulation Step', fontsize=12)
+    ax2.set_ylabel('Number of Agents', fontsize=12)
+    ax2.grid(True, alpha=0.3)
+    ax2.legend(fontsize=10)
+    ax2.text(0.02, 0.98, 'Steady State Distribution', 
+             transform=ax2.transAxes, fontsize=10, 
+             verticalalignment='top')
+    
+    # Save the figure without the note first
+    temp_path = os.path.join(output_dir, 'temp_population_distribution.png')
+    plt.savefig(temp_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    # Add the note using Pillow
+    note_text = ('Note: This chart shows the spread of population sizes across simulations. '
+                'The gray area shows the full range (min to max), while the blue area shows where '
+                'the middle 50% of populations fall. The red line tracks the median population.')
+    
+    final_path = os.path.join(output_dir, 'population_distribution.png')
+    add_note_to_image(temp_path, note_text)
+    
+    # Clean up temporary file
+    os.remove(temp_path)
+
+
 def plot_comparative_metrics(
     df: pd.DataFrame, output_dir: str = "simulations/analysis"
 ):
@@ -168,109 +670,13 @@ def plot_comparative_metrics(
     """
     os.makedirs(output_dir, exist_ok=True)
 
-    # 1. Population Dynamics
-    plt.figure(figsize=(12, 6))
-    x = range(len(df))
-
-    plt.plot(x, df["median_population"], "b--", label="Median Population")
-    plt.plot(x, df["mode_population"], "g--", label="Mode Population")
-    plt.plot(x, df["final_total_agents"], "r-", label="Final Population")
-    plt.title("Population Comparison Across Simulations")
-    plt.xlabel("Simulation Index")
-    plt.ylabel("Number of Agents")
-    plt.legend()
-    plt.savefig(os.path.join(output_dir, "population_comparison.png"))
-    plt.close()
-
-    # 2. Resource Utilization
-    plt.figure(figsize=(12, 6))
-    plt.plot(x, df["avg_total_resources"], "g-", label="Average Resources")
-    plt.plot(x, df["final_total_resources"], "m--", label="Final Resources")
-    plt.title("Resource Utilization Across Simulations")
-    plt.xlabel("Simulation Index")
-    plt.ylabel("Resource Level")
-    plt.legend()
-    plt.savefig(os.path.join(output_dir, "resource_comparison.png"))
-    plt.close()
-
-    # 3. Health and Reward Distribution
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
-
-    sns.boxplot(data=df[["avg_health", "final_average_health"]], ax=ax1)
-    ax1.set_title("Health Distribution")
-    ax1.set_ylabel("Health Level")
-
-    sns.boxplot(data=df[["avg_reward", "final_average_reward"]], ax=ax2)
-    ax2.set_title("Reward Distribution")
-    ax2.set_ylabel("Reward Level")
-
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, "health_reward_distribution.png"))
-    plt.close()
-
-    # Add new chart comparing cycles vs max population
-    plt.figure(figsize=(12, 6))
-    plt.scatter(df['avg_total_agents'], df['duration_steps'],
-               alpha=0.6, c='blue', s=100)
-    
-    # Add labels and title
-    plt.title('Average Population vs Simulation Duration')
-    plt.xlabel('Average Population')
-    plt.ylabel('Number of Cycles (Steps)')
-    
-    # Add a trend line
-    z = np.polyfit(df['avg_total_agents'], df['duration_steps'], 1)
-    p = np.poly1d(z)
-    plt.plot(df['avg_total_agents'], p(df['avg_total_agents']), "r--", alpha=0.8,
-            label=f'Trend line (slope: {z[0]:.2f})')
-    
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.savefig(os.path.join(output_dir, 'population_vs_cycles.png'))
-    plt.close()
-
-    # Population vs Age plot
-    plt.figure(figsize=(12, 6))
-    
-    # Create scatter plot with color gradient based on birth rate
-    scatter = plt.scatter(
-        df["avg_total_agents"], 
-        df["avg_agent_age"], 
-        c=df["avg_births"],  # Color based on birth rate
-        s=100,
-        alpha=0.6,
-        cmap='viridis'  # Use viridis colormap (or try 'RdYlBu', 'plasma', etc)
-    )
-    
-    # Add colorbar
-    cbar = plt.colorbar(scatter)
-    cbar.set_label('Average Birth Rate', rotation=270, labelpad=15)
-    
-    # Calculate correlation coefficient
-    correlation = df["avg_total_agents"].corr(df["avg_agent_age"])
-    
-    # Add labels and title with correlation
-    plt.title(f"Average Population vs Average Agent Age (r = {correlation:.2f})")
-    plt.xlabel("Average Population")
-    plt.ylabel("Average Agent Age")
-    
-    # Compute the trend line
-    z = np.polyfit(df["avg_total_agents"], df["avg_agent_age"], 1)
-    p = np.poly1d(z)
-    plt.plot(
-        df["avg_total_agents"],
-        p(df["avg_total_agents"]),
-        "r--",
-        alpha=0.8,
-        label=f"Trend line (slope: {z[0]:.2f})",
-    )
-    
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    
-    # Save the plot
-    plt.savefig(os.path.join(output_dir, "population_vs_age.png"))
-    plt.close()
+    plot_population_dynamics(df, output_dir)
+    plot_resource_utilization(df, output_dir)
+    plot_health_reward_distribution(df, output_dir)
+    plot_population_vs_cycles(df, output_dir)
+    plot_population_vs_age(df, output_dir)
+    plot_population_trends_across_simulations(df, output_dir)
+    plot_population_candlestick(df, output_dir)
 
 
 def compare_simulations(db_paths: List[str]) -> pd.DataFrame:
@@ -295,9 +701,9 @@ def compare_simulations(db_paths: List[str]) -> pd.DataFrame:
 
     # Generate plots
     plot_comparative_metrics(df)
-    
+
     # Launch interactive analysis window
-    create_interactive_analysis_window(df)
+    # create_interactive_analysis_window(df)
 
     return df
 
@@ -445,6 +851,7 @@ def create_interactive_analysis_window(df: pd.DataFrame):
     """Create an interactive window for population vs age analysis."""
     import tkinter as tk
     from tkinter import ttk
+
     from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
     # Create the main window
@@ -464,11 +871,18 @@ def create_interactive_analysis_window(df: pd.DataFrame):
     color_var = tk.StringVar(value="avg_births")
     x_var = tk.StringVar(value="avg_total_agents")
     y_var = tk.StringVar(value="avg_agent_age")
-    
+
     available_metrics = [
-        "avg_births", "avg_deaths", "avg_health", "avg_reward",
-        "avg_total_resources", "median_population", "mode_population",
-        "avg_total_agents", "avg_agent_age", "duration_steps"
+        "avg_births",
+        "avg_deaths",
+        "avg_health",
+        "avg_reward",
+        "avg_total_resources",
+        "median_population",
+        "mode_population",
+        "avg_total_agents",
+        "avg_agent_age",
+        "duration_steps",
     ]
 
     # Create the figure and canvas
@@ -481,23 +895,23 @@ def create_interactive_analysis_window(df: pd.DataFrame):
         # Clear the entire figure
         fig.clear()
         ax = fig.add_subplot(111)
-        
+
         # Create scatter plot with selected metrics
         scatter = ax.scatter(
-            df[x_var.get()], 
+            df[x_var.get()],
             df[y_var.get()],
             c=df[color_var.get()],
             s=100,
             alpha=0.6,
-            cmap='viridis'
+            cmap="viridis",
         )
-        
+
         # Add colorbar
         fig.colorbar(scatter, ax=ax, label=color_var.get())
-        
+
         # Calculate correlation
         correlation = df[x_var.get()].corr(df[y_var.get()])
-        
+
         # Add trend line
         z = np.polyfit(df[x_var.get()], df[y_var.get()], 1)
         p = np.poly1d(z)
@@ -506,16 +920,16 @@ def create_interactive_analysis_window(df: pd.DataFrame):
             p(df[x_var.get()]),
             "r--",
             alpha=0.8,
-            label=f"Trend line (slope: {z[0]:.2f})"
+            label=f"Trend line (slope: {z[0]:.2f})",
         )
-        
+
         # Set labels and title
         ax.set_title(f"{x_var.get()} vs {y_var.get()} (r = {correlation:.2f})")
-        ax.set_xlabel(x_var.get().replace('_', ' ').title())
-        ax.set_ylabel(y_var.get().replace('_', ' ').title())
+        ax.set_xlabel(x_var.get().replace("_", " ").title())
+        ax.set_ylabel(y_var.get().replace("_", " ").title())
         ax.grid(True, alpha=0.3)
         ax.legend()
-        
+
         # Refresh canvas
         fig.tight_layout()
         canvas.draw()
@@ -523,35 +937,26 @@ def create_interactive_analysis_window(df: pd.DataFrame):
     # Create controls
     ttk.Label(control_frame, text="X Axis:").pack(side=tk.LEFT, padx=5)
     x_menu = ttk.Combobox(
-        control_frame, 
-        textvariable=x_var,
-        values=available_metrics,
-        width=20
+        control_frame, textvariable=x_var, values=available_metrics, width=20
     )
     x_menu.pack(side=tk.LEFT, padx=5)
 
     ttk.Label(control_frame, text="Y Axis:").pack(side=tk.LEFT, padx=5)
     y_menu = ttk.Combobox(
-        control_frame, 
-        textvariable=y_var,
-        values=available_metrics,
-        width=20
+        control_frame, textvariable=y_var, values=available_metrics, width=20
     )
     y_menu.pack(side=tk.LEFT, padx=5)
 
     ttk.Label(control_frame, text="Color by:").pack(side=tk.LEFT, padx=5)
     color_menu = ttk.Combobox(
-        control_frame, 
-        textvariable=color_var,
-        values=available_metrics,
-        width=20
+        control_frame, textvariable=color_var, values=available_metrics, width=20
     )
     color_menu.pack(side=tk.LEFT, padx=5)
 
     # Bind events
-    x_menu.bind('<<ComboboxSelected>>', lambda e: update_plot())
-    y_menu.bind('<<ComboboxSelected>>', lambda e: update_plot())
-    color_menu.bind('<<ComboboxSelected>>', lambda e: update_plot())
+    x_menu.bind("<<ComboboxSelected>>", lambda e: update_plot())
+    y_menu.bind("<<ComboboxSelected>>", lambda e: update_plot())
+    color_menu.bind("<<ComboboxSelected>>", lambda e: update_plot())
 
     # Initial plot
     update_plot()
@@ -585,7 +990,7 @@ def main(path: str):
     create_dashboard_summary(results_df)
 
     # Create interactive analysis window
-    create_interactive_analysis_window(results_df)
+    # create_interactive_analysis_window(results_df)
 
 
 if __name__ == "__main__":
