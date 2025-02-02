@@ -56,6 +56,11 @@ def gather_simulation_metadata(db_path: str) -> Dict[str, Any]:
     session = db.Session()
 
     try:
+        # Debug print to check table structure
+        step = session.query(SimulationStepModel).first()
+        if step:
+            print("Available columns:", [column.key for column in SimulationStepModel.__table__.columns])
+
         # 1) Fetch simulation record
         sim = (
             session.query(Simulation).order_by(Simulation.simulation_id.desc()).first()
@@ -464,76 +469,297 @@ def plot_population_trends_across_simulations(df: pd.DataFrame, output_dir: str)
     os.remove(temp_path)
 
 
+def plot_population_trends_by_type_across_simulations(df: pd.DataFrame, output_dir: str):
+    """
+    Create a visualization showing population trends by agent type across all simulations.
+    """
+    print(f"Starting plot_population_trends_by_type_across_simulations with output_dir: {output_dir}")
+    
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Create figure with four subplots: one large at top, three below
+    fig = plt.figure(figsize=(15, 20))
+    gs = plt.GridSpec(4, 1, height_ratios=[1, 1, 1, 1], hspace=0.3)
+    
+    ax_full = fig.add_subplot(gs[0])  # Top subplot for full view
+    ax1 = fig.add_subplot(gs[1])      # System agents
+    ax2 = fig.add_subplot(gs[2])      # Independent agents
+    ax3 = fig.add_subplot(gs[3])      # Control agents
+    
+    fig.suptitle('Population Trends by Agent Type Across All Simulations', fontsize=14, y=0.95)
+    
+    # Get all simulation databases and collect step-wise data
+    agent_types = {
+        'System Agents': [],
+        'Independent Agents': [],
+        'Control Agents': []
+    }
+    max_steps = 0
+    
+    for db_path in df['db_path']:
+        db = SimulationDatabase(db_path)
+        session = db.Session()
+        
+        try:
+            population_data = (
+                session.query(
+                    SimulationStepModel.step_number,
+                    SimulationStepModel.system_agents,
+                    SimulationStepModel.independent_agents,
+                    SimulationStepModel.control_agents
+                )
+                .order_by(SimulationStepModel.step_number)
+                .all()
+            )
+            
+            steps = np.array([p[0] for p in population_data])
+            system_pop = np.array([p[1] if p[1] is not None else 0 for p in population_data])
+            independent_pop = np.array([p[2] if p[2] is not None else 0 for p in population_data])
+            control_pop = np.array([p[3] if p[3] is not None else 0 for p in population_data])
+            
+            max_steps = max(max_steps, len(steps))
+            agent_types['System Agents'].append(system_pop)
+            agent_types['Independent Agents'].append(independent_pop)
+            agent_types['Control Agents'].append(control_pop)
+            
+        finally:
+            session.close()
+            db.close()
+    
+    # Pad shorter simulations with NaN values for each agent type
+    padded_populations = {agent_type: [] for agent_type in agent_types.keys()}
+    for agent_type, populations in agent_types.items():
+        for pop in populations:
+            if len(pop) < max_steps:
+                padded = np.pad(
+                    pop,
+                    (0, max_steps - len(pop)),
+                    mode='constant',
+                    constant_values=np.nan
+                )
+            else:
+                padded = pop
+            padded_populations[agent_type].append(padded)
+    
+    # Convert to numpy arrays and calculate statistics
+    population_arrays = {
+        agent_type: np.array(pops) 
+        for agent_type, pops in padded_populations.items()
+    }
+    
+    steps = np.arange(max_steps)
+    colors = {
+        'System Agents': 'blue',
+        'Independent Agents': 'green',
+        'Control Agents': 'red'
+    }
+    axes = {
+        'System Agents': ax1,
+        'Independent Agents': ax2,
+        'Control Agents': ax3
+    }
+    
+    # Plot full range view at the top
+    for agent_type, pop_array in population_arrays.items():
+        color = colors[agent_type]
+        mean_pop = np.nanmean(pop_array, axis=0)
+        median_pop = np.nanmedian(pop_array, axis=0)
+        std_pop = np.nanstd(pop_array, axis=0)
+        confidence_interval = 1.96 * std_pop / np.sqrt(len(pop_array))
+        
+        # Plot mean line for full view
+        ax_full.plot(steps, mean_pop, color=color, linestyle='-', 
+                    label=f'{agent_type} (Mean)', linewidth=2)
+        ax_full.fill_between(
+            steps,
+            mean_pop - confidence_interval,
+            mean_pop + confidence_interval,
+            color=color,
+            alpha=0.2
+        )
+    
+    # Customize full view subplot
+    ax_full.set_ylabel('Number of Agents', fontsize=12)
+    ax_full.grid(True, alpha=0.3)
+    ax_full.legend(fontsize=10)
+    ax_full.set_title('Full Range View - All Agent Types', fontsize=12, pad=10)
+    
+    # Plot stable view for each agent type
+    settling_point = 55  # Skip first 55 steps to avoid initial spike
+    axes = {
+        'System Agents': ax1,
+        'Independent Agents': ax2,
+        'Control Agents': ax3
+    }
+    
+    for agent_type, pop_array in population_arrays.items():
+        ax = axes[agent_type]
+        color = colors[agent_type]
+        
+        mean_pop = np.nanmean(pop_array, axis=0)
+        median_pop = np.nanmedian(pop_array, axis=0)
+        std_pop = np.nanstd(pop_array, axis=0)
+        confidence_interval = 1.96 * std_pop / np.sqrt(len(pop_array))
+        
+        # Plot stable period only
+        ax.plot(steps[settling_point:], mean_pop[settling_point:], 
+               color=color, linestyle='-', label='Mean Population', linewidth=2)
+        ax.plot(steps[settling_point:], median_pop[settling_point:], 
+               color=color, linestyle='--', label='Median Population', linewidth=2)
+        
+        # Add confidence interval
+        ax.fill_between(
+            steps[settling_point:],
+            mean_pop[settling_point:] - confidence_interval[settling_point:],
+            mean_pop[settling_point:] + confidence_interval[settling_point:],
+            color=color,
+            alpha=0.2,
+            label='95% Confidence Interval'
+        )
+        
+        # Customize subplot
+        ax.set_ylabel('Number of Agents', fontsize=12)
+        ax.grid(True, alpha=0.3)
+        ax.legend(fontsize=10)
+        ax.set_title(f'{agent_type} Population Trends (Stable Period)', fontsize=12, pad=10)
+    
+    # Set common x-axis label for bottom subplot only
+    ax3.set_xlabel('Simulation Step', fontsize=12)
+    
+    # Adjust layout
+    plt.tight_layout()
+    
+    # Save the figure without the note first
+    temp_path = os.path.join(output_dir, 'temp_population_trends_by_type.png')
+    final_path = os.path.join(output_dir, 'population_trends_by_type.png')
+    
+    # Ensure we're using forward slashes for consistency
+    temp_path = os.path.normpath(temp_path)
+    final_path = os.path.normpath(final_path)
+    
+    print(f"Saving temporary file to: {temp_path}")
+    try:
+        plt.savefig(temp_path, dpi=300, bbox_inches='tight')
+        print(f"Temporary file saved successfully")
+        print(f"File size: {os.path.getsize(temp_path)} bytes")
+    except Exception as e:
+        print(f"Error saving temporary file: {str(e)}")
+        return
+    finally:
+        plt.close()
+    
+    # Add the note using Pillow
+    note_text = ('Note: This visualization shows population changes over time for each agent type '
+                'across all simulations. The top panel shows the full range for all agent types, '
+                'while the lower panels show detailed stable-period trends for each type. '
+                'The lines show mean and median populations, while the shaded areas represent '
+                '95% confidence intervals.')
+    
+    print(f"Adding note and saving final file to: {final_path}")
+    add_note_to_image(temp_path, note_text)
+    
+    # Clean up temporary file
+    try:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+            print(f"Temporary file removed: {temp_path}")
+    except Exception as e:
+        print(f"Error removing temporary file: {str(e)}")
+    
+    if os.path.exists(final_path):
+        print(f"Final image saved successfully to: {final_path}")
+        print(f"File size: {os.path.getsize(final_path)} bytes")
+    else:
+        print(f"Warning: Final image not found at: {final_path}")
+
+
 def add_note_to_image(figure_path, note_text):
     """
     Add a note below the matplotlib figure using Pillow.
-    
-    Parameters
-    ----------
-    figure_path : str
-        Path to the saved matplotlib figure
-    note_text : str
-        Text to add below the figure
     """
-    # Open the original figure
-    with Image.open(figure_path) as img:
-        # Try to load Arial font, fall back to default if not available
-        try:
-            font = ImageFont.truetype("arial.ttf", 14)  # Increased font size
-        except OSError:
-            font = ImageFont.load_default()
-        
-        # Calculate wrapped text dimensions
-        margin = 120  # Much larger margin
-        max_text_width = img.width - (2 * margin)
-        
-        # Wrap text and calculate required height
-        words = note_text.split()
-        lines = []
-        current_line = []
-        current_width = 0
-        
-        for word in words:
-            word_width = font.getlength(word + " ")
-            if current_width + word_width <= max_text_width:
-                current_line.append(word)
-                current_width += word_width
-            else:
-                lines.append(" ".join(current_line))
-                current_line = [word]
-                current_width = word_width
-        
-        if current_line:
-            lines.append(" ".join(current_line))
-        
-        # Calculate required height for text
-        line_height = 24  # Increased line height
-        text_height = len(lines) * line_height
-        note_height = text_height + (3 * margin)  # Much more vertical space
-        
-        # Create new image with space for text
-        new_img = Image.new('RGB', (img.width, img.height + note_height), 'white')
-        new_img.paste(img, (0, 0))
-        
-        # Draw a light gray line to separate the note from the plot
-        draw = ImageDraw.Draw(new_img)
-        line_y = img.height + margin  # Line is now margin pixels below the image
-        draw.line([(margin, line_y), (img.width - margin, line_y)], fill='#CCCCCC', width=2)
-        
-        # Add the text lines
-        y = img.height + (margin * 1.5)  # Text starts half margin below the line
-        
-        for line in lines:
-            # Center each line
-            text_bbox = draw.textbbox((0, 0), line, font=font)
-            text_width = text_bbox[2] - text_bbox[0]
-            x = (img.width - text_width) // 2
+    try:
+        print(f"Opening image from: {figure_path}")
+        # Open the original figure
+        with Image.open(figure_path) as img:
+            print(f"Original image size: {img.size}")
             
-            draw.text((x, y), line, fill='black', font=font)
-            y += line_height
-        
-        # Save the combined image
-        new_img.save(figure_path)
+            # Try to load Arial font, fall back to default if not available
+            try:
+                font = ImageFont.truetype("arial.ttf", 14)
+                print("Using Arial font")
+            except OSError:
+                font = ImageFont.load_default()
+                print("Using default font")
+            
+            # Calculate wrapped text dimensions
+            margin = 120
+            max_text_width = img.width - (2 * margin)
+            
+            # Wrap text and calculate required height
+            words = note_text.split()
+            lines = []
+            current_line = []
+            current_width = 0
+            
+            for word in words:
+                word_width = font.getlength(word + " ")
+                if current_width + word_width <= max_text_width:
+                    current_line.append(word)
+                    current_width += word_width
+                else:
+                    lines.append(" ".join(current_line))
+                    current_line = [word]
+                    current_width = word_width
+            
+            if current_line:
+                lines.append(" ".join(current_line))
+            
+            # Calculate required height for text
+            line_height = 24
+            text_height = len(lines) * line_height
+            note_height = text_height + (3 * margin)
+            
+            print(f"Creating new image with dimensions: {img.width}x{img.height + note_height}")
+            # Create new image with space for text
+            new_img = Image.new('RGB', (img.width, img.height + note_height), 'white')
+            new_img.paste(img, (0, 0))
+            
+            # Draw a light gray line to separate the note from the plot
+            draw = ImageDraw.Draw(new_img)
+            line_y = img.height + margin
+            draw.line([(margin, line_y), (img.width - margin, line_y)], 
+                     fill='#CCCCCC', width=2)
+            
+            # Add the text lines
+            y = img.height + (margin * 1.5)
+            
+            for line in lines:
+                # Center each line
+                text_bbox = draw.textbbox((0, 0), line, font=font)
+                text_width = text_bbox[2] - text_bbox[0]
+                x = (img.width - text_width) // 2
+                
+                draw.text((x, y), line, fill='black', font=font)
+                y += line_height
+            
+            # Save the combined image to a new file to avoid any file locking issues
+            final_path = figure_path.replace('temp_', '')
+            print(f"Saving annotated image to: {final_path}")
+            new_img.save(final_path, format='PNG')
+            print(f"Image saved successfully")
+            
+            # Verify the file was created
+            if os.path.exists(final_path):
+                print(f"Verified: File exists at {final_path}")
+                print(f"File size: {os.path.getsize(final_path)} bytes")
+            else:
+                print(f"Warning: File not found at {final_path}")
+                
+    except Exception as e:
+        print(f"Error in add_note_to_image: {str(e)}")
+        import traceback
+        traceback.print_exc()
 
 
 def plot_population_candlestick(df: pd.DataFrame, output_dir: str):
@@ -655,27 +881,18 @@ def plot_population_candlestick(df: pd.DataFrame, output_dir: str):
     os.remove(temp_path)
 
 
-def plot_comparative_metrics(
-    df: pd.DataFrame, output_dir: str = "simulations/analysis"
-):
-    """
-    Generate comparative visualizations of simulation metrics.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        DataFrame containing simulation metrics
-    output_dir : str
-        Directory to save generated plots
-    """
+def plot_comparative_metrics(df: pd.DataFrame, output_dir: str = "simulations/analysis"):
+    """Generate comparative visualizations of simulation metrics."""
+    print(f"Creating output directory: {output_dir}")
     os.makedirs(output_dir, exist_ok=True)
-
+    
     plot_population_dynamics(df, output_dir)
     plot_resource_utilization(df, output_dir)
     plot_health_reward_distribution(df, output_dir)
     plot_population_vs_cycles(df, output_dir)
     plot_population_vs_age(df, output_dir)
     plot_population_trends_across_simulations(df, output_dir)
+    plot_population_trends_by_type_across_simulations(df, output_dir)
     plot_population_candlestick(df, output_dir)
 
 
@@ -970,24 +1187,24 @@ def main(path: str):
     db_paths = find_simulation_databases(path)
 
     if not db_paths:
-        print(
-            "No simulation databases found. Please ensure databases exist in 'simulations/databases/'"
-        )
+        print(f"No simulation databases found in path: {path}")
         return
 
+    print(f"Found {len(db_paths)} database files")
+    
     # Compare and analyze simulations
     results_df = compare_simulations(db_paths)
 
     # Save results to CSV
-    output_dir = "simulations/analysis"
+    output_dir = os.path.join("simulations", "analysis")
+    print(f"Using output directory: {output_dir}")
     os.makedirs(output_dir, exist_ok=True)
-    results_df.to_csv(
-        os.path.join(output_dir, "simulation_comparison.csv"), index=False
-    )
-    print(f"\nResults saved to {output_dir}")
+    
+    results_df.to_csv(os.path.join(output_dir, "simulation_comparison.csv"), index=False)
+    print(f"Results saved to {output_dir}")
 
     # Create dashboard summary
-    create_dashboard_summary(results_df)
+    create_dashboard_summary(results_df, output_dir)
 
     # Create interactive analysis window
     # create_interactive_analysis_window(results_df)
