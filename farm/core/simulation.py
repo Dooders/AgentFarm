@@ -103,7 +103,7 @@ def run_simulation(
     save_config: bool = False,
 ) -> Environment:
     """
-    Run the main simulation loop.
+    Run the main simulation loop. The simulation will stop early if all agents die.
 
     Parameters
     ----------
@@ -150,6 +150,13 @@ def run_simulation(
 
             # Process agents in batches
             alive_agents = [agent for agent in environment.agents if agent.alive]
+            
+            # Stop if no agents are alive
+            if len(alive_agents) <= 1:
+                logging.info(f"Simulation stopped early at step {step} - no agents remaining")
+                break
+                
+
             batch_size = 32  # Adjust based on your needs
 
             for i in range(0, len(alive_agents), batch_size):
