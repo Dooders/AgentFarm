@@ -18,7 +18,6 @@ import pandas as pd
 from farm.core.config import SimulationConfig
 from farm.core.simulation import run_simulation
 
-
 DEFAULT_NUM_STEPS = 1000
 
 
@@ -69,7 +68,10 @@ class ExperimentRunner:
         self.logger.addHandler(file_handler)
 
     def run_iterations(
-        self, num_iterations: int, config_variations: Optional[List[Dict]] = None
+        self,
+        num_iterations: int,
+        config_variations: Optional[List[Dict]] = None,
+        num_steps: int = DEFAULT_NUM_STEPS,
     ) -> None:
         """Run multiple iterations of the simulation."""
         self.logger.info(f"Starting experiment with {num_iterations} iterations")
@@ -86,7 +88,7 @@ class ExperimentRunner:
             try:
                 # Run simulation
                 env = run_simulation(
-                    num_steps=DEFAULT_NUM_STEPS,
+                    num_steps=num_steps,
                     config=iteration_config,
                     db_path=db_path,
                 )

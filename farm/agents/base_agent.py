@@ -112,6 +112,7 @@ class BaseAgent:
 
         # Add to environment using batch operation
         self.environment.batch_add_agents([self])
+        self.environment.record_birth()
 
     def _generate_genome_id(self, parent_ids: list[str]) -> str:
         """Generate a unique genome ID for this agent.
@@ -357,29 +358,20 @@ class BaseAgent:
         return new_agent
 
     def die(self):
-        """Handle the agent's death process.
-
-        Performs cleanup operations including:
-        1. Setting alive status to False
-        2. Logging death event to database
-        3. Removing agent from environment's active agents
-        4. Logging death information
-        """
-        self.alive = False
-
-        # Log death to database
-        self.environment.db.update_agent_death(
-            agent_id=self.agent_id, death_time=self.environment.time
-        )
-
-        # Remove agent from environment's active agents list
-        if hasattr(self.environment, "agents"):
-            try:
-                self.environment.agents.remove(self)
-            except ValueError:
-                pass  # Agent was already removed
-
-        logger.info(
+        """Handle agent death."""
+        if self.alive:
+            self.alive = False
+            self.death_time = self.environment.time
+            # Record the death in environment
+            self.environment.record_death()
+            # Log death in database
+            if self.environment.db:
+                self.environment.db.update_agent_death(
+                    self.agent_id, 
+                    self.death_time
+                )
+                
+            logger.info(
             f"Agent {self.agent_id} died at {self.position} during step {self.environment.time}"
         )
 

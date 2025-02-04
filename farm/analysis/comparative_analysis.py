@@ -14,7 +14,7 @@ from PIL import Image, ImageDraw, ImageFont
 import io
 
 from farm.database.database import SimulationDatabase
-from farm.database.models import Simulation, SimulationStepModel
+from farm.database.models import Simulation, SimulationStepModel, AgentModel
 
 
 def find_simulation_databases(base_path: str) -> List[str]:
@@ -131,6 +131,12 @@ def gather_simulation_metadata(db_path: str) -> Dict[str, Any]:
             func.avg(SimulationStepModel.average_agent_age)
         ).scalar()
 
+        # Add lifespan analysis
+        lifespan_data = calculate_agent_lifespans(db_path)
+        
+        # Get phase lifespans with safe defaults
+        phase_lifespans = lifespan_data.get('phase_lifespans', {})
+        
         # 7) Build complete metadata dictionary
         return {
             "simulation_name": sim_name,
@@ -154,6 +160,14 @@ def gather_simulation_metadata(db_path: str) -> Dict[str, Any]:
             "avg_reward": float(avg_metrics[5]) if avg_metrics[5] else 0,
             "avg_agent_age": float(avg_age_result) if avg_age_result else 0,
             **final_snapshot,
+            "lifespan_data": lifespan_data,
+            "avg_lifespan": lifespan_data["avg_lifespan"],
+            "median_lifespan": lifespan_data["median_lifespan"],
+            "initial_phase_lifespan": phase_lifespans.get('initial', {}).get('mean', 0),
+            "early_phase_lifespan": phase_lifespans.get('early', {}).get('mean', 0),
+            "mid_phase_lifespan": phase_lifespans.get('mid', {}).get('mean', 0),
+            "late_phase_lifespan": phase_lifespans.get('late', {}).get('mean', 0),
+            "final_phase_lifespan": phase_lifespans.get('final', {}).get('mean', 0),
         }
     finally:
         session.close()
@@ -881,6 +895,383 @@ def plot_population_candlestick(df: pd.DataFrame, output_dir: str):
     os.remove(temp_path)
 
 
+def plot_birth_death_rates(df: pd.DataFrame, output_dir: str):
+    """
+    Create a visualization showing average birth and death rates across all simulations by step.
+    """
+    # Get all simulation databases and collect step-wise data
+    births_by_step = []
+    deaths_by_step = []
+    max_steps = 0
+    
+    for db_path in df['db_path']:
+        db = SimulationDatabase(db_path)
+        session = db.Session()
+        
+        try:
+            step_data = (
+                session.query(
+                    SimulationStepModel.step_number,
+                    SimulationStepModel.births,
+                    SimulationStepModel.deaths
+                )
+                .order_by(SimulationStepModel.step_number)
+                .all()
+            )
+            
+            steps = [s[0] for s in step_data]
+            births = [s[1] if s[1] is not None else 0 for s in step_data]
+            deaths = [s[2] if s[2] is not None else 0 for s in step_data]
+            
+            max_steps = max(max_steps, len(steps))
+            births_by_step.append(births)
+            deaths_by_step.append(deaths)
+            
+        finally:
+            session.close()
+            db.close()
+    
+    # Pad shorter simulations with zeros
+    padded_births = []
+    padded_deaths = []
+    for births, deaths in zip(births_by_step, deaths_by_step):
+        if len(births) < max_steps:
+            padded_births.append(
+                np.pad(births, (0, max_steps - len(births)), mode='constant', constant_values=0)
+            )
+            padded_deaths.append(
+                np.pad(deaths, (0, max_steps - len(deaths)), mode='constant', constant_values=0)
+            )
+        else:
+            padded_births.append(births)
+            padded_deaths.append(deaths)
+    
+    # Convert to numpy arrays for calculations
+    births_array = np.array(padded_births)
+    deaths_array = np.array(padded_deaths)
+    
+    # Calculate statistics
+    mean_births = np.mean(births_array, axis=0)
+    mean_deaths = np.mean(deaths_array, axis=0)
+    std_births = np.std(births_array, axis=0)
+    std_deaths = np.std(deaths_array, axis=0)
+    
+    # Create confidence intervals
+    confidence_interval_births = 1.96 * std_births / np.sqrt(len(births_by_step))
+    confidence_interval_deaths = 1.96 * std_deaths / np.sqrt(len(deaths_by_step))
+    
+    # Create figure with two subplots
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 12), height_ratios=[1, 1.5])
+    fig.suptitle('Birth and Death Rates Across Simulations', fontsize=14, y=0.95)
+    steps = np.arange(max_steps)
+    
+    # Plot full range in top subplot
+    # Plot births
+    ax1.plot(steps, mean_births, 'g-', label='Birth Rate', linewidth=2)
+    ax1.fill_between(
+        steps,
+        mean_births - confidence_interval_births,
+        mean_births + confidence_interval_births,
+        color='green',
+        alpha=0.2,
+        label='95% CI (Births)'
+    )
+    
+    # Plot deaths
+    ax1.plot(steps, mean_deaths, 'r-', label='Death Rate', linewidth=2)
+    ax1.fill_between(
+        steps,
+        mean_deaths - confidence_interval_deaths,
+        mean_deaths + confidence_interval_deaths,
+        color='red',
+        alpha=0.2,
+        label='95% CI (Deaths)'
+    )
+    
+    # Plot net change
+    net_change = mean_births - mean_deaths
+    ax1.plot(steps, net_change, 'b--', label='Net Population Change', linewidth=1.5)
+    
+    # Customize top subplot
+    ax1.set_title('Full Range View', fontsize=12, pad=10)
+    ax1.set_ylabel('Number of Agents', fontsize=12)
+    ax1.grid(True, alpha=0.3)
+    ax1.legend(fontsize=10)
+    
+    # Plot stable period in bottom subplot
+    settling_point = 55  # Skip first 55 steps to avoid initial spike
+    
+    # Plot births for stable period
+    ax2.plot(steps[settling_point:], mean_births[settling_point:], 
+             'g-', label='Birth Rate', linewidth=2)
+    ax2.fill_between(
+        steps[settling_point:],
+        mean_births[settling_point:] - confidence_interval_births[settling_point:],
+        mean_births[settling_point:] + confidence_interval_births[settling_point:],
+        color='green',
+        alpha=0.2,
+        label='95% CI (Births)'
+    )
+    
+    # Plot deaths for stable period
+    ax2.plot(steps[settling_point:], mean_deaths[settling_point:], 
+             'r-', label='Death Rate', linewidth=2)
+    ax2.fill_between(
+        steps[settling_point:],
+        mean_deaths[settling_point:] - confidence_interval_deaths[settling_point:],
+        mean_deaths[settling_point:] + confidence_interval_deaths[settling_point:],
+        color='red',
+        alpha=0.2,
+        label='95% CI (Deaths)'
+    )
+    
+    # Plot net change for stable period
+    ax2.plot(steps[settling_point:], net_change[settling_point:], 
+             'b--', label='Net Population Change', linewidth=1.5)
+    
+    # Customize bottom subplot
+    ax2.set_title('Stable Period View', fontsize=12, pad=10)
+    ax2.set_xlabel('Simulation Step', fontsize=12)
+    ax2.set_ylabel('Number of Agents', fontsize=12)
+    ax2.grid(True, alpha=0.3)
+    ax2.legend(fontsize=10)
+    
+    # Adjust layout
+    plt.tight_layout()
+    
+    # Save the figure without the note first
+    temp_path = os.path.join(output_dir, 'temp_birth_death_rates.png')
+    plt.savefig(temp_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    # Add the note using Pillow
+    note_text = ('Note: This visualization shows the average birth and death rates across all simulations. '
+                'The top panel shows the full range including initial fluctuations, while the bottom panel '
+                'focuses on the stable period after initial population changes settle. The shaded areas '
+                'represent 95% confidence intervals, and the dashed blue line shows the net population '
+                'change (births minus deaths) at each step.')
+    
+    final_path = os.path.join(output_dir, 'birth_death_rates.png')
+    add_note_to_image(temp_path, note_text)
+    
+    # Clean up temporary file
+    os.remove(temp_path)
+
+
+def calculate_agent_lifespans(db_path: str) -> Dict[str, Any]:
+    """Calculate lifespan statistics for agents in a simulation."""
+    db = SimulationDatabase(db_path)
+    session = db.Session()
+    
+    try:
+        # Query all agents with both birth and death times
+        agents = (
+            session.query(AgentModel)
+            .filter(AgentModel.birth_time.isnot(None))
+            .filter(AgentModel.death_time.isnot(None))
+        )        
+        if not agents:
+            return {
+                "avg_lifespan": 0,
+                "median_lifespan": 0,
+                "phase_lifespans": {},
+                "lifespans_by_type": {},
+            }
+        
+        # Calculate individual lifespans
+        lifespans = [agent.death_time - agent.birth_time for agent in agents]
+        
+        # Get simulation duration for phase analysis
+        max_step = session.query(func.max(SimulationStepModel.step_number)).scalar()
+        if max_step:
+            # Split into 5 phases instead of 3
+            phase_size = max_step // 5
+            phases = {
+                'initial': (0, phase_size),
+                'early': (phase_size, 2 * phase_size),
+                'mid': (2 * phase_size, 3 * phase_size),
+                'late': (3 * phase_size, 4 * phase_size),
+                'final': (4 * phase_size, max_step)
+            }
+            
+            # Calculate lifespans for each phase
+            phase_lifespans = {}
+            for phase_name, (start, end) in phases.items():
+                phase_agents = [
+                    agent.death_time - agent.birth_time 
+                    for agent in agents 
+                    if start <= agent.birth_time < end
+                ]
+                if phase_agents:
+                    phase_lifespans[phase_name] = {
+                        'mean': float(np.mean(phase_agents)),
+                        'count': len(phase_agents)
+                    }
+                else:
+                    phase_lifespans[phase_name] = {'mean': 0.0, 'count': 0}
+            
+            # Calculate lifespans by agent type - fixed to properly handle agent_type
+            lifespans_by_type = {}
+            for agent_type in ['system', 'independent', 'control']:
+                type_agents = [agent for agent in agents if agent.agent_type == agent_type]
+                if type_agents:
+                    type_lifespans = [
+                        agent.death_time - agent.birth_time 
+                        for agent in type_agents
+                    ]
+                    lifespans_by_type[agent_type] = {
+                        'mean': float(np.mean(type_lifespans)),
+                        'median': float(np.median(type_lifespans)),
+                        'std': float(np.std(type_lifespans)),
+                        'count': len(type_lifespans)
+                    }
+                else:
+                    lifespans_by_type[agent_type] = {
+                        'mean': 0.0,
+                        'median': 0.0,
+                        'std': 0.0,
+                        'count': 0
+                    }
+            
+            return {
+                "avg_lifespan": float(np.mean(lifespans)),
+                "median_lifespan": float(np.median(lifespans)),
+                "phase_lifespans": phase_lifespans,
+                "lifespans_by_type": lifespans_by_type,
+            }
+        
+        return {
+            "avg_lifespan": float(np.mean(lifespans)),
+            "median_lifespan": float(np.median(lifespans)),
+            "phase_lifespans": {},
+            "lifespans_by_type": {},
+        }
+        
+    finally:
+        session.close()
+        db.close()
+
+
+def plot_agent_lifespans(df: pd.DataFrame, output_dir: str):
+    """Create visualizations for agent lifespan analysis."""
+    fig = plt.figure(figsize=(15, 10))
+    gs = plt.GridSpec(2, 2, figure=fig)
+    
+    # 1. Phase Analysis (top left)
+    ax1 = fig.add_subplot(gs[0, 0])
+    
+    # Extract phase data from all simulations
+    phase_names = ['initial', 'early', 'mid', 'late', 'final']
+    phase_means = []
+    
+    for phase in phase_names:
+        phase_values = []
+        for sim_data in df['lifespan_data']:
+            if sim_data.get('phase_lifespans'):
+                phase_values.append(sim_data['phase_lifespans'].get(phase, {}).get('mean', 0))
+        phase_means.append(np.mean(phase_values) if phase_values else 0)
+    
+    bars = ax1.bar(phase_names, phase_means)
+    ax1.set_title('Average Lifespan by Simulation Phase')
+    ax1.set_ylabel('Steps')
+    plt.setp(ax1.xaxis.get_majorticklabels(), rotation=45)
+    
+    # Add value labels on bars
+    for bar in bars:
+        height = bar.get_height()
+        ax1.text(bar.get_x() + bar.get_width()/2., height,
+                f'{height:.1f}',
+                ha='center', va='bottom')
+    
+    # 2. Agent Type Comparison (top right)
+    ax2 = fig.add_subplot(gs[0, 1])
+    agent_types = ['system', 'independent', 'control']
+    
+    # Calculate means and standard deviations for each agent type
+    type_stats = {agent_type: {'means': [], 'counts': []} for agent_type in agent_types}
+    
+    for sim_data in df['lifespan_data']:
+        for agent_type in agent_types:
+            type_data = sim_data.get('lifespans_by_type', {}).get(agent_type, {})
+            if type_data.get('count', 0) > 0:  # Only include if agents existed
+                type_stats[agent_type]['means'].append(type_data.get('mean', 0))
+                type_stats[agent_type]['counts'].append(type_data.get('count', 0))
+    
+    # Calculate weighted means and standard errors
+    type_means = []
+    type_errors = []
+    
+    for agent_type in agent_types:
+        means = type_stats[agent_type]['means']
+        counts = type_stats[agent_type]['counts']
+        
+        if means and counts:
+            weighted_mean = np.average(means, weights=counts)
+            type_means.append(weighted_mean)
+            # Calculate weighted standard error
+            variance = np.average((np.array(means) - weighted_mean) ** 2, weights=counts)
+            type_errors.append(np.sqrt(variance / sum(counts)) if sum(counts) > 0 else 0)
+        else:
+            type_means.append(0)
+            type_errors.append(0)
+    
+    bars = ax2.bar(agent_types, type_means, yerr=type_errors, capsize=5)
+    ax2.set_title('Average Lifespan by Agent Type')
+    ax2.set_ylabel('Steps')
+    
+    # Add value labels
+    for bar in bars:
+        height = bar.get_height()
+        ax2.text(bar.get_x() + bar.get_width()/2., height,
+                f'{height:.1f}',
+                ha='center', va='bottom')
+    
+    # 3. Lifespan Distribution (bottom)
+    ax3 = fig.add_subplot(gs[1, :])
+    
+    # Create violin plot for lifespan distribution
+    all_lifespans = []
+    for sim_data in df['lifespan_data']:
+        if sim_data.get('lifespans_by_type'):
+            for agent_type in agent_types:
+                type_data = sim_data['lifespans_by_type'].get(agent_type, {})
+                if type_data.get('count', 0) > 0:
+                    all_lifespans.append(type_data['mean'])
+    
+    if all_lifespans:
+        violin_parts = ax3.violinplot([all_lifespans], positions=[1])
+        ax3.set_title('Distribution of Agent Lifespans')
+        ax3.set_xticks([1])
+        ax3.set_xticklabels(['All Agents'])
+        ax3.set_ylabel('Steps')
+        
+        # Customize violin plot colors
+        for pc in violin_parts['bodies']:
+            pc.set_facecolor('#3498db')
+            pc.set_edgecolor('black')
+            pc.set_alpha(0.7)
+    
+    # Adjust layout
+    plt.tight_layout()
+    
+    # Save the figure without the note first
+    temp_path = os.path.join(output_dir, 'temp_agent_lifespans.png')
+    plt.savefig(temp_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    # Add the note using Pillow
+    note_text = ('Note: This visualization shows agent lifespan analysis across simulations. '
+                'The top left panel shows average lifespans in different simulation phases, '
+                'the top right panel compares lifespans across agent types, and the bottom '
+                'panel shows the distribution of lifespans across all agents.')
+    
+    final_path = os.path.join(output_dir, 'agent_lifespans.png')
+    add_note_to_image(temp_path, note_text)
+    
+    # Clean up temporary file
+    os.remove(temp_path)
+
+
 def plot_comparative_metrics(df: pd.DataFrame, output_dir: str = "simulations/analysis"):
     """Generate comparative visualizations of simulation metrics."""
     print(f"Creating output directory: {output_dir}")
@@ -894,6 +1285,8 @@ def plot_comparative_metrics(df: pd.DataFrame, output_dir: str = "simulations/an
     plot_population_trends_across_simulations(df, output_dir)
     plot_population_trends_by_type_across_simulations(df, output_dir)
     plot_population_candlestick(df, output_dir)
+    plot_birth_death_rates(df, output_dir)
+    plot_agent_lifespans(df, output_dir)
 
 
 def compare_simulations(db_paths: List[str]) -> pd.DataFrame:

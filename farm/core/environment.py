@@ -57,7 +57,7 @@ class Environment:
         self.db = SimulationDatabase(db_path)
         self.seed = ShortUUID()
         self.next_resource_id = 0
-        self.max_resource = max_resource
+        self.max_resource = max_resource or (config.max_resource_amount if config else None)
         self.config = config
         self.initial_agent_count = 0
         self.pending_actions = []  # Initialize pending_actions list
@@ -67,6 +67,10 @@ class Environment:
         self.resource_kdtree = None
         self.agent_positions = None
         self.resource_positions = None
+
+        # Add tracking for births and deaths
+        self.births_this_step = 0
+        self.deaths_this_step = 0
 
         # Initialize environment
         self.initialize_resources(resource_distribution)
@@ -160,20 +164,24 @@ class Environment:
         return resource_id
 
     def initialize_resources(self, distribution):
+        """Initialize resources with proper amounts."""
         for _ in range(distribution["amount"]):
             position = (random.uniform(0, self.width), random.uniform(0, self.height))
             resource = Resource(
                 resource_id=self.get_next_resource_id(),
                 position=position,
-                amount=random.randint(3, 8),
+                amount=self.config.max_resource_amount,  # Use config value instead of random
+                max_amount=self.config.max_resource_amount,
+                regeneration_rate=self.config.resource_regen_rate
             )
             self.resources.append(resource)
             # Log resource to database
-            self.db.logger.log_resource(
-                resource_id=resource.resource_id,
-                initial_amount=resource.amount,
-                position=resource.position,
-            )
+            if self.db:
+                self.db.logger.log_resource(
+                    resource_id=resource.resource_id,
+                    initial_amount=resource.amount,
+                    position=resource.position,
+                )
 
     def add_agent(self, agent):
         self.agents.append(agent)
@@ -198,42 +206,34 @@ class Environment:
             )
 
     def update(self):
-        """Update environment state with batch processing."""
-        self.time += 1
-
-        # Process resource regeneration
-        regen_mask = (
-            np.random.random(len(self.resources)) < self.config.resource_regen_rate
-        )
-        for resource, should_regen in zip(self.resources, regen_mask):
-            if should_regen and (
-                self.max_resource is None or resource.amount < self.max_resource
-            ):
-                resource.amount = min(
-                    resource.amount + self.config.resource_regen_amount,
-                    self.max_resource or float("inf"),
-                )
-
-        # Update KD-trees after any position changes
-        self._update_kdtrees()
-
-        # Calculate metrics
-        metrics = self._calculate_metrics()
-
-        # Log simulation state using SQLAlchemy
-        if self.db is not None:
-            self.db.logger.log_step(
-                step_number=self.time,
-                agent_states=[
-                    self._prepare_agent_state(agent) 
-                    for agent in self.agents if agent.alive
-                ],
-                resource_states=[
-                    self._prepare_resource_state(resource) 
-                    for resource in self.resources
-                ],
-                metrics=metrics
+        """Update environment state for current time step."""
+        try:
+            # Update resources with proper regeneration
+            regen_mask = (
+                np.random.random(len(self.resources)) < self.config.resource_regen_rate
             )
+            for resource, should_regen in zip(self.resources, regen_mask):
+                if should_regen and (
+                    self.max_resource is None or resource.amount < self.max_resource
+                ):
+                    resource.amount = min(
+                        resource.amount + self.config.resource_regen_amount,
+                        self.max_resource or float("inf"),
+                    )
+
+            # Calculate and log metrics
+            metrics = self._calculate_metrics()
+            self.update_metrics(metrics)
+
+            # Update KD trees
+            self._update_kdtrees()
+
+            # Increment time step
+            self.time += 1
+
+        except Exception as e:
+            logging.error(f"Error in environment update: {e}")
+            raise
 
     def _calculate_metrics(self):
         """Calculate various metrics for the current simulation state."""
@@ -247,13 +247,9 @@ class Environment:
             independent_agents = len([a for a in alive_agents if isinstance(a, IndependentAgent)])
             control_agents = len([a for a in alive_agents if isinstance(a, ControlAgent)])
 
-            # Calculate births (agents created this step)
-            births = len([a for a in alive_agents if self.time - a.birth_time == 0])
-
-            # Calculate deaths (difference from previous population)
-            previous_population = getattr(self, "previous_population", total_agents)
-            deaths = max(0, previous_population - total_agents)
-            self.previous_population = total_agents
+            # Get births and deaths from tracking
+            births = self.births_this_step
+            deaths = self.deaths_this_step
 
             # Calculate generation metrics
             current_max_generation = max([a.generation for a in alive_agents]) if alive_agents else 0
@@ -298,8 +294,8 @@ class Environment:
             resources_consumed = max(0, previous_resources - current_resources)
             self.previous_total_resources = current_resources
 
-            # Return all metrics in a dictionary
-            return {
+            # Add births and deaths to metrics
+            metrics = {
                 "total_agents": total_agents,
                 "system_agents": system_agents,
                 "independent_agents": independent_agents,
@@ -321,31 +317,15 @@ class Environment:
                 "genetic_diversity": genetic_diversity,
                 "dominant_genome_ratio": dominant_genome_ratio
             }
+
+            # Reset counters for next step
+            self.births_this_step = 0
+            self.deaths_this_step = 0
+
+            return metrics
         except Exception as e:
             logging.error(f"Error calculating metrics: {e}")
-            # Return default metrics to prevent database errors
-            return {
-                "total_agents": 0,
-                "system_agents": 0,
-                "independent_agents": 0,
-                "control_agents": 0,
-                "total_resources": 0,
-                "average_agent_resources": 0,
-                "resources_consumed": 0.0,
-                "births": 0,
-                "deaths": 0,
-                "current_max_generation": 0,
-                "resource_efficiency": 0,
-                "resource_distribution_entropy": 0,
-                "average_agent_health": 0,
-                "average_agent_age": 0,
-                "average_reward": 0,
-                "combat_encounters": 0,
-                "successful_attacks": 0,
-                "resources_shared": 0,
-                "genetic_diversity": 0,
-                "dominant_genome_ratio": 0
-            }
+            return {}  # Return empty metrics on error
 
     def get_next_agent_id(self):
         """Generate a unique short ID for an agent using environment's seed.
@@ -435,96 +415,13 @@ class Environment:
         y = random.uniform(0, self.height)
         return (x, y)
 
-    # def get_step_metrics(self) -> Dict:
-    #     """Calculate comprehensive metrics for the current simulation step."""
-    #     alive_agents = [a for a in self.agents if a.alive]
+    def record_birth(self):
+        """Record a birth event."""
+        self.births_this_step += 1
 
-    #     # Calculate basic population metrics
-    #     total_agents = len(alive_agents)
-    #     system_agents = len([a for a in alive_agents if isinstance(a, SystemAgent)])
-    #     independent_agents = len(
-    #         [a for a in alive_agents if isinstance(a, IndependentAgent)]
-    #     )
-
-    #     # Calculate new metrics
-    #     births = len([a for a in alive_agents if self.time - a.birth_time == 0])
-    #     deaths = (
-    #         self.previous_population - total_agents
-    #         if hasattr(self, "previous_population")
-    #         else 0
-    #     )
-    #     self.previous_population = total_agents
-
-    #     # Calculate generation metrics
-    #     current_max_generation = (
-    #         max([a.generation for a in alive_agents]) if alive_agents else 0
-    #     )
-
-    #     # Calculate health and age metrics
-    #     average_health = (
-    #         sum(a.current_health for a in alive_agents) / total_agents
-    #         if total_agents > 0
-    #         else 0
-    #     )
-    #     average_age = (
-    #         sum(self.time - a.birth_time for a in alive_agents) / total_agents
-    #         if total_agents > 0
-    #         else 0
-    #     )
-    #     average_reward = (
-    #         sum(a.total_reward for a in alive_agents) / total_agents
-    #         if total_agents > 0
-    #         else 0
-    #     )
-
-    #     # Calculate resource metrics
-    #     total_resources = sum(r.amount for r in self.resources)
-    #     resource_efficiency = (
-    #         total_resources / (len(self.resources) * self.config.max_resource_amount)
-    #         if self.resources
-    #         else 0
-    #     )
-
-    #     # Calculate genetic diversity (example implementation)
-    #     genome_counts = {}
-    #     for agent in alive_agents:
-    #         genome_counts[agent.genome_id] = genome_counts.get(agent.genome_id, 0) + 1
-    #     genetic_diversity = len(genome_counts) / total_agents if total_agents > 0 else 0
-    #     dominant_genome_ratio = (
-    #         max(genome_counts.values()) / total_agents if total_agents > 0 else 0
-    #     )
-
-    #     return {
-    #         "total_agents": total_agents,
-    #         "system_agents": system_agents,
-    #         "independent_agents": independent_agents,
-    #         "control_agents": 0,  # If you're not using control agents
-    #         "total_resources": total_resources,
-    #         "average_agent_resources": (
-    #             sum(a.resource_level for a in alive_agents) / total_agents
-    #             if total_agents > 0
-    #             else 0
-    #         ),
-    #         "births": births,
-    #         "deaths": deaths,
-    #         "current_max_generation": current_max_generation,
-    #         "resource_efficiency": resource_efficiency,
-    #         "resource_distribution_entropy": 0.0,  # Implement entropy calculation if needed
-    #         "average_agent_health": average_health,
-    #         "average_agent_age": average_age,
-    #         "average_reward": average_reward,
-    #         "combat_encounters": (
-    #             self.combat_encounters if hasattr(self, "combat_encounters") else 0
-    #         ),
-    #         "successful_attacks": (
-    #             self.successful_attacks if hasattr(self, "successful_attacks") else 0
-    #         ),
-    #         "resources_shared": (
-    #             self.resources_shared if hasattr(self, "resources_shared") else 0
-    #         ),
-    #         "genetic_diversity": genetic_diversity,
-    #         "dominant_genome_ratio": dominant_genome_ratio,
-    #     }
+    def record_death(self):
+        """Record a death event."""
+        self.deaths_this_step += 1
 
     def close(self):
         """Clean up environment resources."""

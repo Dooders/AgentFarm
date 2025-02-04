@@ -6,22 +6,33 @@ import logging
 import os
 from typing import Dict, List
 
+from farm.analysis.comparative_analysis import find_simulation_databases
+from farm.analysis.comparative_analysis import main as compare_simulations
 from farm.core.config import SimulationConfig
 from farm.core.experiment_runner import ExperimentRunner
-from farm.analysis.comparative_analysis import find_simulation_databases, main as compare_simulations
 
 logging.basicConfig(level=logging.INFO)
 
 
-def run_experiment(name: str, variations: List[Dict] = None, num_iterations: int = 10) -> None:
+def run_experiment(
+    name: str,
+    variations: List[Dict] = None,
+    num_iterations: int = 10,
+    num_steps: int = 1500,
+) -> None:
     """Run experiment with given variations."""
     logging.info(f"Starting {name} experiment...")
 
     try:
         base_config = SimulationConfig.from_yaml("config.yaml")
+        #! make it easier to change config when running experiments
+        base_config.independent_agents = 0
+        base_config.system_agents = 0
+        base_config.control_agents = 30
         experiment = ExperimentRunner(base_config, name)
 
-        experiment.run_iterations(num_iterations, variations)
+
+        experiment.run_iterations(num_iterations, variations, num_steps)
         # experiment.generate_report()
 
     except Exception as e:
@@ -67,13 +78,14 @@ def main():
     print("Starting experiments...")
 
     # Run selected experiments
-    # run_experiment("initial_experiments")
+    # run_experiment("only_control_agents", num_iterations=100, num_steps=1500)
     # run_experiment("population_ratio_test", experiments["population_ratio_test"])
 
+
     print("Experiments completed! Check the experiments directory for results.")
-    
+
     # Compare simulations
-    compare_simulations("experiments/initial_experiments/databases")
+    compare_simulations("experiments/only_control_agents/databases")
 
 
 if __name__ == "__main__":
