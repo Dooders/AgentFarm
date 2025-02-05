@@ -49,8 +49,8 @@ class SimulationConfig:
     system_agents: int = 10
     independent_agents: int = 10
     control_agents: int = 10
-    initial_resource_level: int = 5
-    max_population: int = 300
+    initial_resource_level: int = 0
+    max_population: int = 3000
     starvation_threshold: int = 0
     max_starvation_time: int = 15
     offspring_cost: int = 6
@@ -72,7 +72,7 @@ class SimulationConfig:
     initial_resources: int = 20
     resource_regen_rate: float = 0.1
     resource_regen_amount: int = 2
-    max_resource_amount: int = 100
+    max_resource_amount: int = 30
 
     # Agent behavior settings
     base_consumption_rate: float = 0.1

@@ -161,11 +161,12 @@ if __name__ == "__main__":
     from sqlalchemy import create_engine
 
     # connection_string = "sqlite:///simulations/simulation_20241110_122335.db"
-    connection_string = "sqlite:///simulations/simulation.db"
+    connection_string = "sqlite:///simulations/simulation_results.db"
+
 
     # Create engine
     engine = create_engine(connection_string)
     
-    df = pd.read_sql("SELECT * FROM AgentStates", engine)
+    df = pd.read_sql("SELECT * FROM Agent_States", engine)
 
     main(df)

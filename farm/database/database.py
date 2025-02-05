@@ -65,6 +65,7 @@ from .models import (
     ResourceModel,
     SimulationConfig,
     SimulationStepModel,
+    ReproductionEventModel,
 )
 from .utilities import (
     create_database_schema,
@@ -603,3 +604,33 @@ class SimulationDatabase:
             session.add(config_obj)
 
         self._execute_in_transaction(_insert)
+
+    def log_reproduction_event(
+        self,
+        step_number: int,
+        parent_id: str,
+        offspring_id: str | None,
+        success: bool,
+        parent_resources_before: float,
+        parent_resources_after: float,
+        offspring_initial_resources: float | None,
+        failure_reason: str | None,
+        parent_generation: int,
+        offspring_generation: int | None,
+        parent_position: tuple[float, float]
+    ) -> None:
+        """Queue a reproduction event for batch logging."""
+        # Forward to DataLogger
+        self.logger.log_reproduction_event(
+            step_number=step_number,
+            parent_id=parent_id,
+            offspring_id=offspring_id,
+            success=success,
+            parent_resources_before=parent_resources_before,
+            parent_resources_after=parent_resources_after,
+            offspring_initial_resources=offspring_initial_resources,
+            failure_reason=failure_reason,
+            parent_generation=parent_generation,
+            offspring_generation=offspring_generation,
+            parent_position=parent_position
+        )

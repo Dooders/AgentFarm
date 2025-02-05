@@ -57,7 +57,8 @@ class Environment:
         self.db = SimulationDatabase(db_path)
         self.seed = ShortUUID()
         self.next_resource_id = 0
-        self.max_resource = max_resource or (config.max_resource_amount if config else None)
+        # self.max_resource = max_resource or (config.max_resource_amount if config else None)
+        self.max_resource = max_resource
         self.config = config
         self.initial_agent_count = 0
         self.pending_actions = []  # Initialize pending_actions list
@@ -74,7 +75,6 @@ class Environment:
 
         # Initialize environment
         self.initialize_resources(resource_distribution)
-        self._initialize_agents()
         self._update_kdtrees()
 
     def _update_kdtrees(self):
@@ -170,7 +170,8 @@ class Environment:
             resource = Resource(
                 resource_id=self.get_next_resource_id(),
                 position=position,
-                amount=self.config.max_resource_amount,  # Use config value instead of random
+                # amount=self.config.max_resource_amount,  # Use config value instead of random
+                amount=random.randint(3, 8),
                 max_amount=self.config.max_resource_amount,
                 regeneration_rate=self.config.resource_regen_rate
             )
@@ -188,9 +189,14 @@ class Environment:
         # Update initial count only during setup (time=0)
         if self.time == 0:
             self.initial_agent_count += 1
+            
+    def remove_agent(self, agent):
+        self.record_death()
+        self.agents.remove(agent)
 
     def collect_action(self, **action_data):
         """Collect an action for batch processing."""
+
         if self.logger is not None:
             self.logger.log_agent_action(
                 step_number=action_data["step_number"],
@@ -373,41 +379,6 @@ class Environment:
                 regeneration_rate=self.config.resource_regen_rate,
             )
             self.resources.append(resource)
-
-    def _initialize_agents(self):
-        """Initialize starting agent populations."""
-        # Create system agents
-        for _ in range(self.config.system_agents):
-            position = self._get_random_position()
-            agent = SystemAgent(
-                agent_id=self.get_next_agent_id(),
-                position=position,
-                resource_level=self.config.initial_resource_level,
-                environment=self,
-            )
-            self.add_agent(agent)
-
-        # Create independent agents
-        for _ in range(self.config.independent_agents):
-            position = self._get_random_position()
-            agent = IndependentAgent(
-                agent_id=self.get_next_agent_id(),
-                position=position,
-                resource_level=self.config.initial_resource_level,
-                environment=self,
-            )
-            self.add_agent(agent)
-
-        # Create control agents
-        for _ in range(self.config.control_agents):
-            position = self._get_random_position()
-            agent = ControlAgent(
-                agent_id=self.get_next_agent_id(),
-                position=position,
-                resource_level=self.config.initial_resource_level,
-                environment=self,
-            )
-            self.add_agent(agent)
 
     def _get_random_position(self):
         """Get a random position within the environment bounds."""
