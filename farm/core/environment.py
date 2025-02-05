@@ -57,7 +57,8 @@ class Environment:
         self.db = SimulationDatabase(db_path)
         self.seed = ShortUUID()
         self.next_resource_id = 0
-        self.max_resource = max_resource or (config.max_resource_amount if config else None)
+        # self.max_resource = max_resource or (config.max_resource_amount if config else None)
+        self.max_resource = max_resource
         self.config = config
         self.initial_agent_count = 0
         self.pending_actions = []  # Initialize pending_actions list
@@ -170,7 +171,8 @@ class Environment:
             resource = Resource(
                 resource_id=self.get_next_resource_id(),
                 position=position,
-                amount=self.config.max_resource_amount,  # Use config value instead of random
+                # amount=self.config.max_resource_amount,  # Use config value instead of random
+                amount=random.randint(3, 8),
                 max_amount=self.config.max_resource_amount,
                 regeneration_rate=self.config.resource_regen_rate
             )

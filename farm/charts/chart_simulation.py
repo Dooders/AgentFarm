@@ -17,14 +17,29 @@ def plot_population_dynamics(dataframe):
     plt.show()
 
 def plot_births_and_deaths(dataframe):
-    """Plot births and deaths over time."""
+    """Plot births and deaths over time, with deaths shown as negative values, starting from step 20."""
     plt.figure(figsize=(10, 6))
-    plt.plot(dataframe['step_number'], dataframe['births'], label='Births', color='green')
-    plt.plot(dataframe['step_number'], dataframe['deaths'], label='Deaths', color='red')
-    plt.title('Births and Deaths Over Time')
+    
+    # Filter data starting from step 20
+    df_filtered = dataframe[dataframe['step_number'] >= 20]
+    
+    # Make deaths negative but keep actual numbers
+    births = df_filtered['births']
+    deaths = -df_filtered['deaths']  # Make deaths negative
+    
+    plt.fill_between(df_filtered['step_number'], births, 0, label='Births', color='green', alpha=0.3)
+    plt.fill_between(df_filtered['step_number'], deaths, 0, label='Deaths', color='red', alpha=0.3)
+    
+    plt.axhline(y=0, color='black', linestyle='-', linewidth=0.5)
+    plt.title('Population Changes Over Time')
     plt.xlabel('Step Number')
-    plt.ylabel('Count')
+    plt.ylabel('Number of Agents (Births +, Deaths -)')
     plt.legend()
+    
+    # Set y-axis limits to be symmetrical around zero
+    max_value = max(births.max(), abs(deaths.min()))
+    plt.ylim(-max_value * 1.1, max_value * 1.1)
+    
     plt.show()
 
 def plot_resource_efficiency(dataframe):
@@ -143,11 +158,11 @@ if __name__ == "__main__":
     from sqlalchemy import create_engine, inspect
 
     # connection_string = "sqlite:///simulations/simulation_20241110_122335.db"
-    connection_string = "sqlite:///simulations/simulation.db"
+    connection_string = "sqlite:///simulations/simulation_results.db"
 
     # Create engine
     engine = create_engine(connection_string)
     
-    df = pd.read_sql("SELECT * FROM SimulationSteps", engine)
+    df = pd.read_sql("SELECT * FROM Simulation_Steps", engine)
 
     main(df)

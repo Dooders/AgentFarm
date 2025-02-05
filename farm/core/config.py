@@ -72,7 +72,7 @@ class SimulationConfig:
     initial_resources: int = 20
     resource_regen_rate: float = 0.1
     resource_regen_amount: int = 2
-    max_resource_amount: int = 100
+    max_resource_amount: int = 30
 
     # Agent behavior settings
     base_consumption_rate: float = 0.1

@@ -103,7 +103,7 @@ if __name__ == "__main__":
     from sqlalchemy import create_engine, inspect
 
     # connection_string = "sqlite:///simulations/simulation_20241110_122335.db"
-    connection_string = "sqlite:///simulations/simulation.db"
+    connection_string = "sqlite:///simulations/simulation_results.db"
 
     # Create engine
     engine = create_engine(connection_string)
