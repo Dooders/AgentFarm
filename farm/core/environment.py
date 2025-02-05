@@ -189,9 +189,14 @@ class Environment:
         # Update initial count only during setup (time=0)
         if self.time == 0:
             self.initial_agent_count += 1
+            
+    def remove_agent(self, agent):
+        self.record_death()
+        self.agents.remove(agent)
 
     def collect_action(self, **action_data):
         """Collect an action for batch processing."""
+
         if self.logger is not None:
             self.logger.log_agent_action(
                 step_number=action_data["step_number"],

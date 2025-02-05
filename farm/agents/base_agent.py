@@ -8,13 +8,15 @@ from farm.actions.attack import AttackActionSpace, AttackModule, attack_action
 from farm.actions.gather import GatherModule, gather_action
 from farm.actions.move import MoveModule, move_action
 from farm.actions.reproduce import ReproduceModule, reproduce_action
-from farm.actions.select import SelectConfig, SelectModule, create_selection_state
+from farm.actions.select import (SelectConfig, SelectModule,
+                                 create_selection_state)
 from farm.actions.share import ShareModule, share_action
 from farm.core.action import *
 from farm.core.genome import Genome
 from farm.core.perception import PerceptionData
 from farm.core.state import AgentState
 from farm.database.data_types import GenomeId
+from farm.database.models import ReproductionEventModel
 
 if TYPE_CHECKING:
     from farm.core.environment import Environment
@@ -104,7 +106,7 @@ class BaseAgent:
         self.attack_module = AttackModule(self.config)
         self.share_module = ShareModule(self.config)
         self.gather_module = GatherModule(self.config)
-        self.reproduce_module = ReproduceModule(self.config)
+        self.reproduce_module = ReproduceModule(self.config)  #! not being used
         #! change to ChoiceModule
         self.select_module = SelectModule(
             num_actions=len(self.actions), config=SelectConfig(), device=self.device
@@ -316,20 +318,98 @@ class BaseAgent:
 
     def reproduce(self) -> bool:
         """Attempt reproduction. Returns True if successful."""
+        # Store initial resources for tracking
+        initial_resources = self.resource_level
+        failure_reason = None
+
+        # Check population limit
         if len(self.environment.agents) >= self.config.max_population:
+            failure_reason = f"Population limit reached. Population: {len(self.environment.agents)}, Max Population: {self.config.max_population}"
+            # print(failure_reason)
+            # breakpoint()
+
+            # Record failed reproduction attempt
+            if self.environment.db:
+                self.environment.db.log_reproduction_event(
+                    step_number=self.environment.time,
+                    parent_id=self.agent_id,
+                    offspring_id=None,
+                    success=False,
+                    parent_resources_before=initial_resources,
+                    parent_resources_after=initial_resources,
+                    offspring_initial_resources=None,
+                    failure_reason=failure_reason,
+                    parent_generation=self.generation,
+                    offspring_generation=None,
+                    parent_position=self.position
+                )
             return False
 
-        if self.resource_level >= self.config.min_reproduction_resources:
-            if self.resource_level >= self.config.offspring_cost + 2:
-                new_agent = self.create_offspring()
-                self.environment.add_agent(new_agent)
-                self.resource_level -= self.config.offspring_cost
+        # Check resource requirements
+        if self.resource_level < self.config.min_reproduction_resources:
+            failure_reason = "Insufficient resources"
 
-                logger.info(
-                    f"Agent {self.agent_id} reproduced at {self.position} during step {self.environment.time} creating agent {new_agent.agent_id}"
+            # Record failed reproduction attempt
+            if self.environment.db:
+                self.environment.db.log_reproduction_event(
+                    step_number=self.environment.time,
+                    parent_id=self.agent_id,
+                    offspring_id=None,
+                    success=False,
+                    parent_resources_before=initial_resources,
+                    parent_resources_after=initial_resources,
+                    offspring_initial_resources=None,
+                    failure_reason=failure_reason,
+                    parent_generation=self.generation,
+                    offspring_generation=None,
+                    parent_position=self.position
                 )
-                return True
-        return False
+            return False
+
+        # Check if enough resources for offspring cost
+        if self.resource_level < self.config.offspring_cost + 2:
+            failure_reason = "Insufficient resources for offspring cost"
+
+            # Record failed reproduction attempt
+            if self.environment.db:
+                self.environment.db.log_reproduction_event(
+                    step_number=self.environment.time,
+                    parent_id=self.agent_id,
+                    offspring_id=None,
+                    success=False,
+                    parent_resources_before=initial_resources,
+                    parent_resources_after=initial_resources,
+                    offspring_initial_resources=None,
+                    failure_reason=failure_reason,
+                    parent_generation=self.generation,
+                    offspring_generation=None,
+                    parent_position=self.position
+                )
+            return False
+
+        # Attempt reproduction
+        new_agent = self.create_offspring()
+
+        # Record successful reproduction
+        if self.environment.db:
+            self.environment.db.log_reproduction_event(
+                step_number=self.environment.time,
+                parent_id=self.agent_id,
+                offspring_id=new_agent.agent_id,
+                success=True,
+                parent_resources_before=initial_resources,
+                parent_resources_after=self.resource_level,
+                offspring_initial_resources=self.config.offspring_initial_resources,
+                failure_reason=None,
+                parent_generation=self.generation,
+                offspring_generation=new_agent.generation,
+                parent_position=self.position
+            )
+
+        logger.info(
+            f"Agent {self.agent_id} reproduced at {self.position} during step {self.environment.time} creating agent {new_agent.agent_id}"
+        )
+        return True
 
     def create_offspring(self):
         """Create a new agent as offspring."""
@@ -350,6 +430,12 @@ class BaseAgent:
             generation=generation,
         )
 
+        # Add new agent to environment
+        self.environment.add_agent(new_agent)
+
+        # Subtract offspring cost from parent's resources
+        self.resource_level -= self.config.offspring_cost
+
         # Log creation
         logger.info(
             f"Agent {new_id} created at {self.position} during step {self.environment.time} of type {agent_class.__name__}"
@@ -359,21 +445,19 @@ class BaseAgent:
 
     def die(self):
         """Handle agent death."""
+
         if self.alive:
             self.alive = False
             self.death_time = self.environment.time
             # Record the death in environment
-            self.environment.record_death()
             # Log death in database
             if self.environment.db:
-                self.environment.db.update_agent_death(
-                    self.agent_id, 
-                    self.death_time
-                )
-                
+                self.environment.db.update_agent_death(self.agent_id, self.death_time)
+
             logger.info(
-            f"Agent {self.agent_id} died at {self.position} during step {self.environment.time}"
-        )
+                f"Agent {self.agent_id} died at {self.position} during step {self.environment.time}"
+            )
+            self.environment.remove_agent(self)
 
     def get_environment(self) -> "Environment":
         return self._environment
@@ -613,16 +697,16 @@ class BaseAgent:
 
     def take_damage(self, damage: float) -> bool:
         """Apply damage to the agent.
-        
+
         Args:
             damage: Amount of damage to apply
-            
+
         Returns:
             bool: True if damage was successfully applied
         """
         if damage <= 0:
             return False
-        
+
         self.current_health -= damage
         if self.current_health < 0:
             self.current_health = 0
@@ -630,23 +714,25 @@ class BaseAgent:
 
     def calculate_attack_position(self, action: int) -> Tuple[float, float]:
         """Calculate the target position for an attack based on action.
-        
+
         Args:
             action: Attack action index
-            
+
         Returns:
             Tuple[float, float]: Target position coordinates
         """
         dx, dy = self.attack_module.action_space[action]
         return (
             self.position[0] + dx * self.config.attack_range,
-            self.position[1] + dy * self.config.attack_range
+            self.position[1] + dy * self.config.attack_range,
         )
 
     @property
     def attack_strength(self) -> float:
         """Calculate the agent's current attack strength."""
-        return self.config.base_attack_strength * (self.current_health / self.starting_health)
+        return self.config.base_attack_strength * (
+            self.current_health / self.starting_health
+        )
 
     @property
     def defense_strength(self) -> float:
