@@ -49,7 +49,7 @@ class SimulationConfig:
     system_agents: int = 10
     independent_agents: int = 10
     control_agents: int = 10
-    initial_resource_level: int = 5
+    initial_resource_level: int = 0
     max_population: int = 300
     starvation_threshold: int = 0
     max_starvation_time: int = 15

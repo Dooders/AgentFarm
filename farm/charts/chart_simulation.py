@@ -1,5 +1,6 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+from sqlalchemy import create_engine, inspect
 
 # Define the analysis functions
 
@@ -116,6 +117,49 @@ def plot_rewards(dataframe):
     plt.legend()
     plt.show()
 
+def plot_average_resources(dataframe):
+    """Plot average agent resource levels over time."""
+    plt.figure(figsize=(10, 6))
+    plt.plot(dataframe['step_number'], dataframe['average_agent_resources'], label='Average Agent Resources', color='green')
+    plt.title('Average Agent Resources Over Time')
+    plt.xlabel('Step Number')
+    plt.ylabel('Average Resources')
+    plt.legend()
+    plt.show()
+
+def plot_agent_lifespan_histogram(dataframe):
+    """Plot histogram of agent lifespans."""
+    plt.figure(figsize=(10, 6))
+    
+    # Calculate lifespans - for living agents, use the last step as death_time
+    max_step = dataframe['step_number'].max()
+    lifespans = []
+    
+    # Query the agents table directly since we need birth/death data
+    engine = create_engine(connection_string)
+    agents_df = pd.read_sql("SELECT birth_time, death_time FROM agents", engine)
+    
+    # Calculate lifespan for each agent
+    lifespans = agents_df.apply(
+        lambda x: x['death_time'] - x['birth_time'] if pd.notnull(x['death_time']) 
+        else max_step - x['birth_time'], 
+        axis=1
+    )
+    
+    plt.hist(lifespans, bins=30, color='blue', alpha=0.7)
+    plt.title('Distribution of Agent Lifespans')
+    plt.xlabel('Lifespan (steps)')
+    plt.ylabel('Number of Agents')
+    
+    # Add mean and median lines
+    mean_lifespan = lifespans.mean()
+    median_lifespan = lifespans.median()
+    plt.axvline(mean_lifespan, color='red', linestyle='--', label=f'Mean: {mean_lifespan:.1f}')
+    plt.axvline(median_lifespan, color='green', linestyle='--', label=f'Median: {median_lifespan:.1f}')
+    
+    plt.legend()
+    plt.show()
+
 # Load the dataset
 def main(dataframe):
 
@@ -146,17 +190,20 @@ def main(dataframe):
         print("Plotting resource distribution entropy...")
         plot_resource_distribution_entropy(dataframe)
 
+        print("Plotting average agent resources...")
+        plot_average_resources(dataframe)
+
         print("Plotting average rewards...")
         plot_rewards(dataframe)
+
+        print("Plotting agent lifespan histogram...")
+        plot_agent_lifespan_histogram(dataframe)
 
     except Exception as e:
         print(f"An error occurred: {e}")
 
 # Run the analysis
 if __name__ == "__main__":
-    import pandas as pd
-    from sqlalchemy import create_engine, inspect
-
     # connection_string = "sqlite:///simulations/simulation_20241110_122335.db"
     connection_string = "sqlite:///simulations/simulation_results.db"
 

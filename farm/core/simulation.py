@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import List, Optional, Tuple
 
 from farm.agents import IndependentAgent, SystemAgent
+from farm.agents.control_agent import ControlAgent
 from farm.core.config import SimulationConfig
 from farm.core.environment import Environment
 
@@ -40,7 +41,7 @@ def setup_logging(log_dir: str = "logs") -> None:
 
 
 def create_initial_agents(
-    environment: Environment, num_system_agents: int, num_independent_agents: int
+    environment: Environment, num_system_agents: int, num_independent_agents: int, num_control_agents: int
 ) -> List[Tuple[float, float]]:
     """
     Create initial population of agents.
@@ -70,7 +71,7 @@ def create_initial_agents(
         agent = SystemAgent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            resource_level=10,
+            resource_level=1,
             environment=environment,
             generation=0,
         )
@@ -86,7 +87,23 @@ def create_initial_agents(
         agent = IndependentAgent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            resource_level=10,
+            resource_level=1,
+            environment=environment,
+            generation=0,
+        )
+        environment.add_agent(agent)
+        positions.append(position)
+        
+    # Create control agents
+    for _ in range(num_control_agents):
+        position = (
+            random.uniform(0, environment.width),
+            random.uniform(0, environment.height),
+        )
+        agent = ControlAgent(
+            agent_id=environment.get_next_agent_id(),
+            position=position,
+            resource_level=1,
             environment=environment,
             generation=0,
         )
@@ -140,7 +157,7 @@ def run_simulation(
 
         # Create initial agents
         create_initial_agents(
-            environment, config.system_agents, config.independent_agents
+            environment, config.system_agents, config.independent_agents, config.control_agents
         )
 
         # Main simulation loop

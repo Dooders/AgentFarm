@@ -75,7 +75,6 @@ class Environment:
 
         # Initialize environment
         self.initialize_resources(resource_distribution)
-        self._initialize_agents()
         self._update_kdtrees()
 
     def _update_kdtrees(self):
@@ -375,41 +374,6 @@ class Environment:
                 regeneration_rate=self.config.resource_regen_rate,
             )
             self.resources.append(resource)
-
-    def _initialize_agents(self):
-        """Initialize starting agent populations."""
-        # Create system agents
-        for _ in range(self.config.system_agents):
-            position = self._get_random_position()
-            agent = SystemAgent(
-                agent_id=self.get_next_agent_id(),
-                position=position,
-                resource_level=self.config.initial_resource_level,
-                environment=self,
-            )
-            self.add_agent(agent)
-
-        # Create independent agents
-        for _ in range(self.config.independent_agents):
-            position = self._get_random_position()
-            agent = IndependentAgent(
-                agent_id=self.get_next_agent_id(),
-                position=position,
-                resource_level=self.config.initial_resource_level,
-                environment=self,
-            )
-            self.add_agent(agent)
-
-        # Create control agents
-        for _ in range(self.config.control_agents):
-            position = self._get_random_position()
-            agent = ControlAgent(
-                agent_id=self.get_next_agent_id(),
-                position=position,
-                resource_level=self.config.initial_resource_level,
-                environment=self,
-            )
-            self.add_agent(agent)
 
     def _get_random_position(self):
         """Get a random position within the environment bounds."""
