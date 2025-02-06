@@ -78,7 +78,7 @@ def main():
     print("Starting experiments...")
 
     # Run selected experiments
-    # run_experiment("only_control_agents", num_iterations=100, num_steps=1500)
+    run_experiment("only_control_agents", num_iterations=100, num_steps=1000)
     # run_experiment("population_ratio_test", experiments["population_ratio_test"])
 
 

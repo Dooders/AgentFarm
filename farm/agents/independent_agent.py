@@ -6,6 +6,7 @@ if TYPE_CHECKING:
 from farm.actions.attack import attack_action
 from farm.actions.gather import gather_action
 from farm.actions.move import move_action
+from farm.actions.reproduce import reproduce_action
 from farm.actions.share import share_action
 from farm.agents.base_agent import BaseAgent
 from farm.core.action import Action
@@ -47,9 +48,10 @@ class IndependentAgent(BaseAgent):
         if action_set is None:
             action_set = [
                 Action("move", 0.25, move_action),
-                Action("gather", 0.45, gather_action),  # Higher weight for gathering
+                Action("gather", 0.25, gather_action),  # Higher weight for gathering
                 Action("share", 0.05, share_action),  # Lower weight for sharing
-                Action("attack", 0.25, attack_action),  # Moderate weight for attacking
+                Action("attack", 0.20, attack_action),  # Moderate weight for attacking
+                Action("reproduce", 0.25, reproduce_action) # Lower weight for reproducing
             ]
 
         # Initialize base agent with custom action set and genealogy info

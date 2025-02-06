@@ -81,6 +81,7 @@ class SelectModule(BaseDQNModule):
     def select_action(
         self, agent: "BaseAgent", actions: List[Action], state: torch.Tensor
     ) -> Action:
+        #! change to decide_action
         """Select an action using both predefined weights and learned preferences.
 
         Args:

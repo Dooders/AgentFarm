@@ -106,7 +106,7 @@ class BaseAgent:
         self.attack_module = AttackModule(self.config)
         self.share_module = ShareModule(self.config)
         self.gather_module = GatherModule(self.config)
-        self.reproduce_module = ReproduceModule(self.config)  #! not being used
+        self.reproduce_module = ReproduceModule(self.config)  #! not being used???
         #! change to ChoiceModule
         self.select_module = SelectModule(
             num_actions=len(self.actions), config=SelectConfig(), device=self.device
@@ -322,28 +322,28 @@ class BaseAgent:
         initial_resources = self.resource_level
         failure_reason = None
 
-        # Check population limit
-        if len(self.environment.agents) >= self.config.max_population:
-            failure_reason = f"Population limit reached. Population: {len(self.environment.agents)}, Max Population: {self.config.max_population}"
-            # print(failure_reason)
-            # breakpoint()
+        # # Check population limit
+        # if len(self.environment.agents) >= self.config.max_population:
+        #     failure_reason = f"Population limit reached. Population: {len(self.environment.agents)}, Max Population: {self.config.max_population}"
+        #     # print(failure_reason)
+        #     # breakpoint()
 
-            # Record failed reproduction attempt
-            if self.environment.db:
-                self.environment.db.log_reproduction_event(
-                    step_number=self.environment.time,
-                    parent_id=self.agent_id,
-                    offspring_id=None,
-                    success=False,
-                    parent_resources_before=initial_resources,
-                    parent_resources_after=initial_resources,
-                    offspring_initial_resources=None,
-                    failure_reason=failure_reason,
-                    parent_generation=self.generation,
-                    offspring_generation=None,
-                    parent_position=self.position
-                )
-            return False
+        #     # Record failed reproduction attempt
+        #     if self.environment.db:
+        #         self.environment.db.log_reproduction_event(
+        #             step_number=self.environment.time,
+        #             parent_id=self.agent_id,
+        #             offspring_id=None,
+        #             success=False,
+        #             parent_resources_before=initial_resources,
+        #             parent_resources_after=initial_resources,
+        #             offspring_initial_resources=None,
+        #             failure_reason=failure_reason,
+        #             parent_generation=self.generation,
+        #             offspring_generation=None,
+        #             parent_position=self.position
+        #         )
+        #     return False
 
         # Check resource requirements
         if self.resource_level < self.config.min_reproduction_resources:
