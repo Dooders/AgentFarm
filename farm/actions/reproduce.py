@@ -11,7 +11,8 @@ Key Components:
 """
 
 import logging
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Tuple, Optional
+import random
 
 import numpy as np
 import torch
@@ -87,6 +88,26 @@ class ReproduceModule(BaseDQNModule):
 
         self.target_network.load_state_dict(self.q_network.state_dict())
 
+    def select_action(self, state: torch.Tensor, epsilon: Optional[float] = None) -> int:
+        """Select reproduction action using epsilon-greedy strategy.
+
+        Args:
+            state: Current state tensor
+            epsilon: Optional override for exploration rate
+
+        Returns:
+            int: Selected action (WAIT or REPRODUCE)
+        """
+        if epsilon is None:
+            epsilon = self.epsilon
+
+        if random.random() < epsilon:
+            return random.randint(0, 1)  # Random choice between WAIT and REPRODUCE
+
+        with torch.no_grad():
+            q_values = self.q_network(state)
+            return q_values.argmax().item()
+
     def get_reproduction_decision(
         self, agent: "BaseAgent", state: torch.Tensor
     ) -> Tuple[bool, float]:
@@ -128,9 +149,9 @@ def reproduce_action(agent: "BaseAgent") -> None:
     should_reproduce, confidence = agent.reproduce_module.get_reproduction_decision(
         agent, state
     )
-    logger.info(
-        f"Reproduction decision for agent {agent.agent_id}: {should_reproduce}, confidence: {confidence}"
-    )
+    # logger.info(
+    #     f"Reproduction decision for agent {agent.agent_id}: {should_reproduce}, confidence: {confidence}"
+    # )
 
     if not should_reproduce or not _check_reproduction_conditions(agent):
         # Log skipped reproduction action
@@ -251,29 +272,17 @@ def _get_reproduce_state(agent: "BaseAgent") -> torch.Tensor:
 def _check_reproduction_conditions(agent: "BaseAgent") -> bool:
     """Check if conditions are suitable for reproduction."""
     # Check basic requirements
-    if len(agent.environment.agents) >= agent.config.max_population:
-        logger.info(
-            f"Reproduction failed for agent {agent.agent_id}: Population limit reached"
-        )
-        return False
+    # if len(agent.environment.agents) >= agent.config.max_population:
+    #     return False
 
     if agent.resource_level < agent.config.min_reproduction_resources:
-        logger.info(
-            f"Reproduction failed for agent {agent.agent_id}: Insufficient resources"
-        )
         return False
 
     if agent.resource_level < agent.config.offspring_cost + 2:
-        logger.info(
-            f"Reproduction failed for agent {agent.agent_id}: Insufficient resources"
-        )
         return False
 
     # Check health status
     if agent.current_health < agent.starting_health * ReproduceConfig.min_health_ratio:
-        logger.info(
-            f"Reproduction failed for agent {agent.agent_id}: Insufficient health"
-        )
         return False
 
     # Check local population density
@@ -290,12 +299,8 @@ def _check_reproduction_conditions(agent: "BaseAgent") -> bool:
         len(nearby_agents) / max(1, len(agent.environment.agents))
         > ReproduceConfig.max_local_density
     ):
-        logger.info(
-            f"Reproduction failed for agent {agent.agent_id}: Local density too high"
-        )
         return False
 
-    logger.info(f"Reproduction successful for agent {agent.agent_id}")
     return True
 
 

@@ -6,9 +6,11 @@ if TYPE_CHECKING:
 from farm.actions.attack import attack_action
 from farm.actions.gather import gather_action
 from farm.actions.move import move_action
+from farm.actions.reproduce import reproduce_action
 from farm.actions.share import share_action
 from farm.agents.base_agent import BaseAgent
 from farm.core.action import Action
+
 
 
 class SystemAgent(BaseAgent):
@@ -46,11 +48,15 @@ class SystemAgent(BaseAgent):
         # Create default action set if none provided
         if action_set is None:
             action_set = [
-                Action("move", 0.3, move_action),
-                Action("gather", 0.35, gather_action),
-                Action("share", 0.3, share_action),  # Higher weight for sharing
+                Action("move", 0.25, move_action),
+                Action("gather", 0.25, gather_action),
+                Action("share", 0.20, share_action),  # Higher weight for sharing
                 Action("attack", 0.05, attack_action),  # Lower weight for attacking
+                Action("reproduce", 0.25, reproduce_action),  # Lower weight for reproducing
             ]
+
+
+
 
         # Initialize base agent with custom action set and genealogy info
         super().__init__(

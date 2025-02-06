@@ -6,9 +6,11 @@ if TYPE_CHECKING:
 from farm.actions.attack import attack_action
 from farm.actions.gather import gather_action
 from farm.actions.move import move_action
+from farm.actions.reproduce import reproduce_action
 from farm.actions.share import share_action
 from farm.agents.base_agent import BaseAgent
 from farm.core.action import Action
+
 
 
 class ControlAgent(BaseAgent):
@@ -47,11 +49,14 @@ class ControlAgent(BaseAgent):
         # Create default action set if none provided
         if action_set is None:
             action_set = [
-                Action("move", 0.30, move_action),  # Balanced movement
-                Action("gather", 0.40, gather_action),  # Moderate focus on gathering
+                Action("move", 0.25, move_action),  # Balanced movement
+                Action("gather", 0.25, gather_action),  # Moderate focus on gathering
                 Action("share", 0.15, share_action),  # Moderate sharing
-                Action("attack", 0.15, attack_action),  # Moderate aggression
+                Action("attack", 0.10, attack_action),  # Moderate aggression
+                Action("reproduce", 0.25, reproduce_action),  # Moderate reproduction
+
             ]
+
 
         # Initialize base agent with custom action set and genealogy info
         super().__init__(
