@@ -13,6 +13,8 @@ import numpy as np
 import pandas as pd
 import logging
 from sqlalchemy import text
+import os
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +69,75 @@ class SignificantEventAnalyzer:
             Database connection to query simulation history
         """
         self.db = simulation_db
+        self.high_scores_path = "simulation_high_scores.json"
+        self.high_scores = self._load_high_scores()
+
+    def _load_high_scores(self) -> dict:
+        """Load high scores from JSON file or create default if not exists."""
+        default_high_scores = {
+            "population": {
+                "max_total_agents": {"value": 0, "step": 0, "date": None},
+                "max_system_agents": {"value": 0, "step": 0, "date": None},
+                "max_independent_agents": {"value": 0, "step": 0, "date": None},
+                "max_generation": {"value": 0, "step": 0, "date": None}
+            },
+            "resources": {
+                "max_total_resources": {"value": 0, "step": 0, "date": None},
+                "max_agent_resources": {"value": 0, "step": 0, "date": None},
+                "max_resource_efficiency": {"value": 0, "step": 0, "date": None}
+            },
+            "combat": {
+                "most_combat_encounters": {"value": 0, "step": 0, "date": None},
+                "highest_success_rate": {"value": 0, "step": 0, "date": None}
+            },
+            "learning": {
+                "highest_reward": {"value": 0, "step": 0, "date": None},
+                "most_learning_agents": {"value": 0, "step": 0, "date": None}
+            },
+            "reproduction": {
+                "most_births": {"value": 0, "step": 0, "date": None},
+                "highest_success_rate": {"value": 0, "step": 0, "date": None}
+            }
+        }
+
+        if os.path.exists(self.high_scores_path):
+            try:
+                with open(self.high_scores_path, 'r') as f:
+                    return json.load(f)
+            except json.JSONDecodeError:
+                logger.warning("Corrupted high scores file, creating new one")
+                return default_high_scores
+        return default_high_scores
+
+    def _save_high_scores(self):
+        """Save high scores to JSON file."""
+        with open(self.high_scores_path, 'w') as f:
+            json.dump(self.high_scores, f, indent=2)
+
+    def _check_and_update_high_score(
+        self, 
+        category: str, 
+        metric: str, 
+        value: float, 
+        step: int
+    ) -> bool:
+        """Check if value breaks record and update if so."""
+        if category not in self.high_scores:
+            return False
+        
+        if metric not in self.high_scores[category]:
+            return False
+
+        current_record = self.high_scores[category][metric]["value"]
+        if value > current_record:
+            self.high_scores[category][metric].update({
+                "value": value,
+                "step": step,
+                "date": datetime.now().isoformat()
+            })
+            self._save_high_scores()
+            return True
+        return False
 
     def get_significant_events(
         self, start_step: int = None, end_step: int = None, min_severity: float = 0.3
@@ -118,6 +189,84 @@ class SignificantEventAnalyzer:
 
         # Add learning experience analysis
         events.extend(self._analyze_learning_experiences(start_step, end_step))
+        
+        # Add action pattern analysis
+        events.extend(self._analyze_action_patterns(start_step, end_step))
+
+        # Check for high scores in metrics
+        for _, row in metrics_df.iterrows():
+            step = row['step_number']
+            
+            # Population records
+            if self._check_and_update_high_score('population', 'max_total_agents', row['total_agents'], step):
+                events.append(
+                    SignificantEvent(
+                        step_number=step,
+                        event_type="high_score",
+                        description=f"New record: Highest total population ({row['total_agents']} agents)",
+                        metrics={"total_agents": row['total_agents']},
+                        severity=0.8
+                    )
+                )
+
+            if self._check_and_update_high_score('population', 'max_generation', row['current_max_generation'], step):
+                events.append(
+                    SignificantEvent(
+                        step_number=step,
+                        event_type="high_score",
+                        description=f"New record: Highest generation reached ({row['current_max_generation']})",
+                        metrics={"max_generation": row['current_max_generation']},
+                        severity=0.7
+                    )
+                )
+
+            # Resource records
+            if self._check_and_update_high_score('resources', 'max_total_resources', row['total_resources'], step):
+                events.append(
+                    SignificantEvent(
+                        step_number=step,
+                        event_type="high_score",
+                        description=f"New record: Most total resources ({row['total_resources']:.1f})",
+                        metrics={"total_resources": row['total_resources']},
+                        severity=0.7
+                    )
+                )
+
+            if self._check_and_update_high_score('resources', 'max_resource_efficiency', row['resource_efficiency'], step):
+                events.append(
+                    SignificantEvent(
+                        step_number=step,
+                        event_type="high_score",
+                        description=f"New record: Highest resource efficiency ({row['resource_efficiency']:.2f})",
+                        metrics={"resource_efficiency": row['resource_efficiency']},
+                        severity=0.6
+                    )
+                )
+
+            # Combat records
+            if row['combat_encounters'] > 0:  # Only check combat records if there was combat
+                if self._check_and_update_high_score('combat', 'most_combat_encounters', row['combat_encounters'], step):
+                    events.append(
+                        SignificantEvent(
+                            step_number=step,
+                            event_type="high_score",
+                            description=f"New record: Most combat encounters ({row['combat_encounters']})",
+                            metrics={"combat_encounters": row['combat_encounters']},
+                            severity=0.7
+                        )
+                    )
+
+                success_rate = row['successful_attacks'] / row['combat_encounters']
+                if self._check_and_update_high_score('combat', 'highest_success_rate', success_rate, step):
+                    events.append(
+                        SignificantEvent(
+                            step_number=step,
+                            event_type="high_score",
+                            description=f"New record: Highest combat success rate ({success_rate:.1%})",
+                            metrics={"success_rate": success_rate},
+                            severity=0.6
+                        )
+                    )
 
         # Filter by severity and sort chronologically
         significant_events = [
@@ -894,6 +1043,233 @@ class SignificantEventAnalyzer:
         logger.info(f"Detected {len(events)} significant learning events")
         return events
 
+    def _analyze_action_patterns(
+        self, start_step: int = None, end_step: int = None
+    ) -> List[SignificantEvent]:
+        """Analyze patterns and shifts in non-combat agent actions.
+        
+        Detects significant changes in:
+        - Resource sharing behavior
+        - Movement patterns 
+        - Defensive stance adoption
+        - Action type distributions
+        
+        Parameters
+        ----------
+        start_step : int, optional
+            First step to analyze
+        end_step : int, optional
+            Last step to analyze
+            
+        Returns
+        -------
+        List[SignificantEvent]
+            Detected action pattern events
+        """
+        events = []
+        
+        # Query action data with aggregation by step and type
+        query = """
+            SELECT 
+                step_number,
+                action_type,
+                COUNT(*) as action_count,
+                COUNT(DISTINCT agent_id) as unique_agents,
+                AVG(CASE 
+                    WHEN resources_after IS NOT NULL 
+                    AND resources_before IS NOT NULL 
+                    THEN resources_after - resources_before 
+                    ELSE 0 
+                END) as avg_resource_change,
+                SUM(CASE 
+                    WHEN reward IS NOT NULL 
+                    THEN reward 
+                    ELSE 0 
+                END) as total_reward
+            FROM agent_actions
+            WHERE step_number >= COALESCE(:start_step, 0)
+            AND step_number <= COALESCE(:end_step, step_number)
+            AND action_type NOT IN ('attack', 'defend_from_attack')
+            GROUP BY step_number, action_type
+            ORDER BY step_number, action_type
+        """
+        
+        action_df = pd.read_sql(
+            query,
+            self.db.engine,
+            params={"start_step": start_step, "end_step": end_step},
+        )
+        
+        if action_df.empty:
+            logger.debug("No non-combat actions found in the specified time range")
+            return events
+        
+        # Calculate rolling statistics for each action type
+        window_size = 5
+        for action_type in action_df['action_type'].unique():
+            type_data = action_df[action_df['action_type'] == action_type].copy()
+            
+            # Skip if insufficient data
+            if len(type_data) < window_size:
+                continue
+            
+            # Calculate rolling averages and changes
+            type_data['action_count_avg'] = type_data['action_count'].rolling(
+                window=window_size, min_periods=1
+            ).mean()
+            
+            type_data['action_count_change'] = type_data['action_count'].diff()
+            type_data['reward_per_action'] = (
+                type_data['total_reward'] / type_data['action_count'].replace(0, 1)
+            )
+            
+            # Detect significant changes in action frequency
+            count_std = type_data['action_count_change'].std()
+            threshold = max(count_std * 1.5, 3.0)  # At least 3 actions difference
+            
+            significant_changes = type_data[
+                abs(type_data['action_count_change']) > threshold
+            ]
+            
+            for _, row in significant_changes.iterrows():
+                direction = "increase" if row['action_count_change'] > 0 else "decrease"
+                severity = min(
+                    abs(row['action_count_change']) / threshold,
+                    1.0
+                )
+                severity = max(severity, 0.4)  # Minimum severity threshold
+                
+                events.append(
+                    SignificantEvent(
+                        step_number=row['step_number'],
+                        event_type="action_pattern_shift",
+                        description=(
+                            f"Significant {direction} in {action_type} actions: "
+                            f"{row['action_count']} actions by {row['unique_agents']} agents"
+                        ),
+                        metrics={
+                            "action_type": action_type,
+                            "action_count": row['action_count'],
+                            "action_count_change": row['action_count_change'],
+                            "unique_agents": row['unique_agents'],
+                            "avg_resource_change": row['avg_resource_change'],
+                            "reward_per_action": row['reward_per_action'],
+                        },
+                        severity=severity,
+                    )
+                )
+        
+        # Analyze resource sharing patterns specifically
+        sharing_data = action_df[action_df['action_type'] == 'share_resources'].copy()
+        if not sharing_data.empty:
+            sharing_data['resource_flow'] = (
+                sharing_data['action_count'] * sharing_data['avg_resource_change']
+            )
+            sharing_data['resource_flow_change'] = sharing_data['resource_flow'].diff()
+            
+            # Detect significant changes in resource sharing
+            flow_std = sharing_data['resource_flow_change'].std()
+            flow_threshold = flow_std * 2
+            
+            sharing_changes = sharing_data[
+                abs(sharing_data['resource_flow_change']) > flow_threshold
+            ]
+            
+            for _, row in sharing_changes.iterrows():
+                direction = "increase" if row['resource_flow_change'] > 0 else "decrease"
+                severity = min(
+                    abs(row['resource_flow_change']) / flow_threshold,
+                    1.0
+                )
+                severity = max(severity, 0.4)
+                
+                events.append(
+                    SignificantEvent(
+                        step_number=row['step_number'],
+                        event_type="resource_sharing_shift",
+                        description=(
+                            f"Significant {direction} in resource sharing activity: "
+                            f"{row['unique_agents']} agents involved"
+                        ),
+                        metrics={
+                            "resource_flow": row['resource_flow'],
+                            "flow_change": row['resource_flow_change'],
+                            "sharing_actions": row['action_count'],
+                            "unique_agents": row['unique_agents'],
+                            "avg_transfer_amount": row['avg_resource_change'],
+                        },
+                        severity=severity,
+                    )
+                )
+        
+        # Analyze defensive behavior patterns
+        defensive_query = """
+            SELECT 
+                s.step_number,  -- Explicitly use s.step_number
+                COUNT(DISTINCT s.agent_id) as defending_agents,
+                COUNT(DISTINCT a.agent_id) as total_agents,
+                AVG(s.resource_level) as avg_defender_resources
+            FROM agent_states s
+            JOIN (
+                SELECT DISTINCT step_number, agent_id  -- Added DISTINCT for efficiency
+                FROM agent_states
+            ) a ON s.step_number = a.step_number
+            WHERE s.is_defending = 1
+            AND s.step_number >= COALESCE(:start_step, 0)
+            AND s.step_number <= COALESCE(:end_step, s.step_number)  -- Use s.step_number
+            GROUP BY s.step_number  -- Explicitly use s.step_number
+            ORDER BY s.step_number  -- Explicitly use s.step_number
+        """
+        
+        defense_df = pd.read_sql(
+            defensive_query,
+            self.db.engine,
+            params={"start_step": start_step, "end_step": end_step},
+        )
+        
+        if not defense_df.empty:
+            defense_df['defense_ratio'] = (
+                defense_df['defending_agents'] / defense_df['total_agents']
+            )
+            defense_df['ratio_change'] = defense_df['defense_ratio'].diff()
+            
+            # Detect significant changes in defensive behavior
+            ratio_std = defense_df['ratio_change'].std()
+            ratio_threshold = max(ratio_std * 2, 0.1)  # At least 10% change
+            
+            defensive_shifts = defense_df[
+                abs(defense_df['ratio_change']) > ratio_threshold
+            ]
+            
+            for _, row in defensive_shifts.iterrows():
+                direction = "increase" if row['ratio_change'] > 0 else "decrease"
+                severity = min(
+                    abs(row['ratio_change']) / ratio_threshold,
+                    1.0
+                )
+                severity = max(severity, 0.4)
+                
+                events.append(
+                    SignificantEvent(
+                        step_number=row['step_number'],
+                        event_type="defensive_behavior_shift",
+                        description=(
+                            f"Significant {direction} in defensive behavior: "
+                            f"{row['defending_agents']} agents ({row['defense_ratio']:.1%} of population)"
+                        ),
+                        metrics={
+                            "defending_agents": row['defending_agents'],
+                            "total_agents": row['total_agents'],
+                            "defense_ratio": row['defense_ratio'],
+                            "ratio_change": row['ratio_change'],
+                            "avg_defender_resources": row['avg_defender_resources'],
+                        },
+                        severity=severity,
+                    )
+                )
+        
+        return events
+
     def get_event_summary(self, events: List[SignificantEvent]) -> str:
         """Generate a human-readable summary of significant events."""
         if not events:
@@ -916,7 +1292,11 @@ class SignificantEventAnalyzer:
             ("learning_reward_shift", "Learning Rewards"),
             ("learning_breakthrough", "Learning Breakthroughs"),
             ("agent_learning_breakthrough", "Individual Learning Progress"),
-            ("agent_sustained_performance", "Agent Performance Highlights")
+            ("agent_sustained_performance", "Agent Performance Highlights"),
+            ("action_pattern_shift", "Action Patterns"),
+            ("resource_sharing_shift", "Resource Sharing"),
+            ("defensive_behavior_shift", "Defensive Behavior"),
+            ("high_score", "New Records")
         ]
 
         # Group events by type
