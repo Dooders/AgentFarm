@@ -101,3 +101,72 @@ The experiment runner includes built-in error handling to:
 - Mark failed iterations in results
 
 Failed iterations will be logged but won't prevent the completion of the overall experiment.
+
+## ExperimentDatabase Class
+
+The `ExperimentDatabase` class is designed to manage multiple simulation runs and aggregate results across simulations. It provides methods for adding, updating, retrieving, listing, and deleting simulation records, ensuring thread-safe access to the database, exporting data to CSV, and aggregating results.
+
+### SQLite Schema
+
+The `ExperimentDatabase` class uses a SQLite schema to store experiment metadata, simulation parameters, and results summaries. The schema includes a `Simulations` table with the following columns:
+
+- `simulation_id`: Primary key.
+- `start_time`: Unix timestamp for the start of the simulation.
+- `end_time`: Unix timestamp for the end of the simulation.
+- `status`: Text field for simulation status (`pending`, `running`, `completed`, `failed`).
+- `parameters`: JSON-encoded string of simulation parameters.
+- `results_summary`: JSON-encoded string summarizing simulation results.
+- `simulation_db_path`: File path to the corresponding `SimulationDatabase`.
+
+### Methods
+
+The `ExperimentDatabase` class provides the following methods:
+
+- `add_simulation(parameters: dict, simulation_db_path: str) -> int`: Adds a new simulation record to the database.
+- `update_simulation_status(simulation_id: int, status: str, results_summary: dict = None)`: Updates the status and results of a simulation.
+- `get_simulation(simulation_id: int) -> dict`: Retrieves details of a specific simulation.
+- `list_simulations(status: str = None) -> list`: Lists all simulations, optionally filtered by status.
+- `delete_simulation(simulation_id: int)`: Deletes a simulation record.
+- `export_experiment_data(filepath: str)`: Exports all experiment data to a CSV file.
+- `get_aggregate_results() -> dict`: Aggregates results across completed simulations.
+
+### Example Usage
+
+```python
+from core.experiment_database import ExperimentDatabase
+
+# Initialize ExperimentDatabase
+experiment_db = ExperimentDatabase("sqlite:///experiment.db")
+
+# Add a new simulation
+simulation_id = experiment_db.add_simulation(
+    parameters={"num_agents": 100, "steps": 500},
+    simulation_db_path="simulations/simulation_1.db",
+)
+print(f"New simulation added with ID: {simulation_id}")
+
+# Update simulation status
+experiment_db.update_simulation_status(
+    simulation_id=simulation_id,
+    status="completed",
+    results_summary={"total_agents": 100, "average_lifespan": 50.5},
+)
+
+# Retrieve a simulation
+simulation = experiment_db.get_simulation(simulation_id)
+print(f"Simulation Details: {simulation}")
+
+# List all completed simulations
+completed_sims = experiment_db.list_simulations(status="completed")
+print(f"Completed Simulations: {completed_sims}")
+
+# Export data to CSV
+experiment_db.export_experiment_data("experiment_results.csv")
+
+# Aggregate results
+aggregate_results = experiment_db.get_aggregate_results()
+print(f"Aggregate Results: {aggregate_results}")
+
+# Delete a simulation
+experiment_db.delete_simulation(simulation_id)
+```
