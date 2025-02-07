@@ -3,13 +3,11 @@ Script to run simulation experiments with different configurations.
 """
 
 import logging
-import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
 
-from farm.analysis.comparative_analysis import find_simulation_databases
 from farm.analysis.comparative_analysis import main as compare_simulations
 from farm.core.config import SimulationConfig
 from farm.core.experiment_runner import ExperimentRunner

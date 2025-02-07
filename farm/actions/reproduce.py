@@ -11,8 +11,8 @@ Key Components:
 """
 
 import logging
-from typing import TYPE_CHECKING, Tuple, Optional
 import random
+from typing import TYPE_CHECKING, Optional, Tuple
 
 import numpy as np
 import torch
@@ -88,7 +88,9 @@ class ReproduceModule(BaseDQNModule):
 
         self.target_network.load_state_dict(self.q_network.state_dict())
 
-    def select_action(self, state: torch.Tensor, epsilon: Optional[float] = None) -> int:
+    def select_action(
+        self, state: torch.Tensor, epsilon: Optional[float] = None
+    ) -> int:
         """Select reproduction action using epsilon-greedy strategy.
 
         Args:
@@ -149,27 +151,22 @@ def reproduce_action(agent: "BaseAgent") -> None:
     should_reproduce, confidence = agent.reproduce_module.get_reproduction_decision(
         agent, state
     )
-    # logger.info(
-    #     f"Reproduction decision for agent {agent.agent_id}: {should_reproduce}, confidence: {confidence}"
-    # )
 
     if not should_reproduce or not _check_reproduction_conditions(agent):
-        # Log skipped reproduction action
+        # Log failed reproduction event
         if agent.environment.db is not None:
-            agent.environment.db.logger.log_agent_action(
+            agent.environment.db.logger.log_reproduction_event(
                 step_number=agent.environment.time,
-                agent_id=agent.agent_id,
-                action_type="reproduce",
-                position_before=agent.position,
-                position_after=agent.position,
-                resources_before=initial_resources,
-                resources_after=initial_resources,
-                reward=0,
-                details={
-                    "success": False,
-                    "reason": "conditions_not_met",
-                    "confidence": confidence,
-                },
+                parent_id=agent.agent_id,
+                offspring_id=None,
+                success=False,
+                parent_resources_before=initial_resources,
+                parent_resources_after=initial_resources,
+                offspring_initial_resources=None,
+                failure_reason="conditions_not_met",
+                parent_generation=agent.generation,
+                offspring_generation=None,
+                parent_position=agent.position,
             )
         return
 
@@ -182,7 +179,23 @@ def reproduce_action(agent: "BaseAgent") -> None:
         reward = _calculate_reproduction_reward(agent, offspring)
         agent.total_reward += reward
 
-        # Log successful reproduction action
+        # Log successful reproduction event
+        if agent.environment.db is not None:
+            agent.environment.db.logger.log_reproduction_event(
+                step_number=agent.environment.time,
+                parent_id=agent.agent_id,
+                offspring_id=offspring.agent_id,
+                success=True,
+                parent_resources_before=initial_resources,
+                parent_resources_after=agent.resource_level,
+                offspring_initial_resources=offspring.resource_level,
+                failure_reason=None,
+                parent_generation=agent.generation,
+                offspring_generation=offspring.generation,
+                parent_position=agent.position,
+            )
+
+        # Log action (keep existing logging)
         if agent.environment.db is not None:
             agent.environment.db.logger.log_agent_action(
                 step_number=agent.environment.time,
@@ -203,8 +216,22 @@ def reproduce_action(agent: "BaseAgent") -> None:
 
     except Exception as e:
         logger.error(f"Reproduction failed for agent {agent.agent_id}: {str(e)}")
-        # Log failed reproduction action
+        # Log failed reproduction event
         if agent.environment.db is not None:
+            agent.environment.db.logger.log_reproduction_event(
+                step_number=agent.environment.time,
+                parent_id=agent.agent_id,
+                offspring_id=None,
+                success=False,
+                parent_resources_before=initial_resources,
+                parent_resources_after=agent.resource_level,
+                offspring_initial_resources=None,
+                failure_reason=str(e),
+                parent_generation=agent.generation,
+                offspring_generation=None,
+                parent_position=agent.position,
+            )
+            # Keep existing error logging
             agent.environment.db.logger.log_agent_action(
                 step_number=agent.environment.time,
                 agent_id=agent.agent_id,
