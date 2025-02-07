@@ -113,6 +113,9 @@ class SignificantEventAnalyzer:
         # Add reproduction analysis
         events.extend(self._analyze_reproduction_events(start_step, end_step))
 
+        # Add health incident analysis
+        events.extend(self._analyze_health_incidents(start_step, end_step))
+
         # Filter by severity and sort chronologically
         significant_events = [
             event for event in events if event.severity >= min_severity
@@ -458,6 +461,133 @@ class SignificantEventAnalyzer:
         logger.info(f"Total reproduction events detected: {len(events)}")
         return events
 
+    def _analyze_health_incidents(
+        self, start_step: int = None, end_step: int = None
+    ) -> List[SignificantEvent]:
+        """Detect significant health-related events and patterns.
+        
+        Analyzes health incidents to identify:
+        - Sudden spikes in health incidents
+        - Mass health decline events
+        - Patterns of specific health incident causes
+        """
+        events = []
+        
+        # Query health incidents with aggregation by step
+        query = """
+            SELECT 
+                step_number,
+                COUNT(*) as incident_count,
+                AVG(health_before - health_after) as avg_health_loss,
+                GROUP_CONCAT(DISTINCT cause) as causes,
+                COUNT(DISTINCT agent_id) as affected_agents,
+                MIN(health_after) as min_health_after,
+                AVG(health_after) as avg_health_after
+            FROM health_incidents
+            WHERE step_number >= COALESCE(:start_step, 0)
+            AND step_number <= COALESCE(:end_step, step_number)
+            GROUP BY step_number
+            ORDER BY step_number
+        """
+        
+        health_df = pd.read_sql(
+            query,
+            self.db.engine,
+            params={"start_step": start_step, "end_step": end_step},
+        )
+        
+        if health_df.empty:
+            logger.debug("No health incidents found in the specified time range")
+            return events
+        
+        # Calculate rolling averages for smoother detection
+        window_size = 5
+        health_df['incident_count_avg'] = health_df['incident_count'].rolling(
+            window=window_size, min_periods=1
+        ).mean()
+        
+        # Calculate incident spikes
+        incident_std = health_df['incident_count'].std()
+        base_threshold = max(
+            health_df['incident_count_avg'].mean() + (incident_std * 1.5),
+            3.0  # Minimum threshold for significance
+        )
+        
+        # Detect significant spikes in health incidents
+        spike_periods = health_df[health_df['incident_count'] > base_threshold]
+        
+        for _, row in spike_periods.iterrows():
+            # Calculate severity based on deviation from normal
+            severity = min(
+                row['incident_count'] / base_threshold,
+                1.0
+            )
+            severity = max(severity, 0.4)  # Minimum severity threshold
+            
+            # Analyze causes
+            causes = row['causes'].split(',') if row['causes'] else []
+            primary_cause = max(set(causes), key=causes.count) if causes else "unknown"
+            
+            # Create description based on patterns
+            if row['avg_health_loss'] > 0.5:  # Significant average health loss
+                description = f"Mass health decline event: {row['affected_agents']} agents affected"
+            else:
+                description = f"Spike in health incidents: {row['incident_count']} incidents"
+            
+            if primary_cause != "unknown":
+                description += f" (primary cause: {primary_cause})"
+            
+            events.append(
+                SignificantEvent(
+                    step_number=row['step_number'],
+                    event_type="health_crisis",
+                    description=description,
+                    metrics={
+                        "incident_count": row['incident_count'],
+                        "affected_agents": row['affected_agents'],
+                        "average_health_loss": row['avg_health_loss'],
+                        "minimum_health": row['min_health_after'],
+                        "average_health": row['avg_health_after'],
+                        "primary_cause": primary_cause,
+                    },
+                    severity=severity,
+                )
+            )
+        
+        # Analyze patterns of sustained health decline
+        health_df['health_trend'] = health_df['avg_health_after'].rolling(
+            window=window_size, min_periods=1
+        ).mean().diff()
+        
+        # Detect periods of sustained health decline
+        decline_threshold = health_df['health_trend'].std() * -1.5
+        decline_periods = health_df[health_df['health_trend'] < decline_threshold]
+        
+        for _, row in decline_periods.iterrows():
+            severity = min(
+                abs(row['health_trend'] / decline_threshold),
+                1.0
+            )
+            severity = max(severity, 0.4)
+            
+            events.append(
+                SignificantEvent(
+                    step_number=row['step_number'],
+                    event_type="health_decline_trend",
+                    description="Sustained decline in population health",
+                    metrics={
+                        "health_decline_rate": row['health_trend'],
+                        "average_health": row['avg_health_after'],
+                        "affected_agents": row['affected_agents'],
+                        "incident_count": row['incident_count'],
+                    },
+                    severity=severity,
+                )
+            )
+        
+        logger.info(f"Detected {len(events)} significant health-related events")
+        return events
+
     def get_event_summary(self, events: List[SignificantEvent]) -> str:
         """Generate a human-readable summary of significant events."""
         if not events:
@@ -473,7 +603,9 @@ class SignificantEventAnalyzer:
             ("intense_combat", "Combat Events"),
             ("reproduction_shift", "Reproduction Trends"),
             ("reproduction_resource_crisis", "Reproduction Resources"),
-            ("reproduction_failure_pattern", "Reproduction Failures")
+            ("reproduction_failure_pattern", "Reproduction Failures"),
+            ("health_crisis", "Health Incidents"),
+            ("health_decline_trend", "Health Decline Trends")
         ]
 
         # Group events by type
