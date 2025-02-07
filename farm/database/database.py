@@ -62,10 +62,10 @@ from .models import (
     AgentStateModel,
     Base,
     HealthIncident,
+    ReproductionEventModel,
     ResourceModel,
     SimulationConfig,
     SimulationStepModel,
-    ReproductionEventModel,
 )
 from .utilities import (
     create_database_schema,
@@ -620,7 +620,7 @@ class SimulationDatabase:
         offspring_generation: int = None,
     ) -> None:
         """Log a reproduction event to the database.
-        
+
         Parameters
         ----------
         step_number : int
@@ -646,6 +646,7 @@ class SimulationDatabase:
         offspring_generation : int, optional
             Offspring's generation number (if successful)
         """
+
         def _log(session):
             event = ReproductionEventModel(
                 step_number=step_number,
@@ -660,7 +661,7 @@ class SimulationDatabase:
                 offspring_generation=offspring_generation,
                 parent_position_x=parent_position[0] if parent_position else None,
                 parent_position_y=parent_position[1] if parent_position else None,
-                timestamp=datetime.now()
+                timestamp=datetime.now(),
             )
             session.add(event)
 
