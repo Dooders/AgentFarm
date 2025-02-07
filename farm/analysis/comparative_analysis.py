@@ -12,6 +12,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from sqlalchemy import func
 from PIL import Image, ImageDraw, ImageFont
 import io
+import json
 
 from farm.database.database import SimulationDatabase
 from farm.database.models import Simulation, SimulationStepModel, AgentModel
@@ -19,7 +20,7 @@ from farm.database.models import Simulation, SimulationStepModel, AgentModel
 
 def find_simulation_databases(base_path: str) -> List[str]:
     """
-    Find all SQLite database files in the specified directory.
+    Find all SQLite database files in the specified directory and its subdirectories.
 
     Parameters
     ----------
@@ -33,13 +34,21 @@ def find_simulation_databases(base_path: str) -> List[str]:
     """
     # Create directory if it doesn't exist
     os.makedirs(base_path, exist_ok=True)
+    print(f"Searching for databases in: {os.path.abspath(base_path)}")
 
-    # Find all .db files in the directory
-    db_pattern = os.path.join(base_path, "*.db")
-    db_files = glob.glob(db_pattern)
+    # Find all simulation.db files in subdirectories
+    db_files = []
+    for root, dirs, files in os.walk(base_path):
+        if "simulation.db" in files:
+            db_path = os.path.join(root, "simulation.db")
+            db_files.append(db_path)
 
     if not db_files:
-        print(f"Warning: No database files found in {base_path}")
+        print(f"Warning: No simulation.db files found in {base_path} or its subdirectories")
+    else:
+        print(f"Found {len(db_files)} database files:")
+        for db_file in db_files:
+            print(f"  - {db_file}")
 
     return sorted(db_files)
 
@@ -78,10 +87,12 @@ def gather_simulation_metadata(db_path: str) -> Dict[str, Any]:
         )
         population_series = pd.Series([p[0] for p in population_data])
 
-        # Calculate population statistics
-        median_population = population_series.median()
-        mode_population = population_series.mode().iloc[0]
-        mean_population = population_series.mean()
+        # Calculate population statistics with safe defaults
+        median_population = population_series.median() if not population_series.empty else 0
+        # Handle case where mode() returns empty series
+        mode_series = population_series.mode()
+        mode_population = mode_series.iloc[0] if not mode_series.empty else 0
+        mean_population = population_series.mean() if not population_series.empty else 0
 
         # 4) Calculate across-time averages
         avg_metrics = session.query(
@@ -1289,172 +1300,285 @@ def plot_comparative_metrics(df: pd.DataFrame, output_dir: str = "simulations/an
     plot_agent_lifespans(df, output_dir)
 
 
-def compare_simulations(db_paths: List[str]) -> pd.DataFrame:
-    """Compare N simulations by collecting key metadata and stats into a pandas DataFrame."""
-    records = []
-    for path in db_paths:
-        meta = gather_simulation_metadata(path)
-        records.append(meta)
-
-    df = pd.DataFrame(records)
-
-    # Generate summary statistics
-    print("\nComparative Simulation Summary:")
-    print("\nBasic Statistics:")
-    print(df[["duration_steps", "avg_total_agents", "avg_total_resources"]].describe())
-
-    print("\nConfiguration Differences:")
-    if "config" in df.columns:
-        configs = pd.json_normalize(df["config"].apply(lambda x: x or {}))
-        if not configs.empty:
-            print(configs.describe())
-
-    # Generate plots
-    plot_comparative_metrics(df)
-
-    # Launch interactive analysis window
-    # create_interactive_analysis_window(df)
-
-    return df
-
-
-def create_dashboard_summary(
-    df: pd.DataFrame, output_dir: str = "simulations/analysis"
-):
+def compare_simulations(db_paths: List[str], analysis_path: str) -> None:
     """
-    Create a dashboard-style summary image highlighting key metrics across simulations.
+    Compare multiple simulations and generate analysis.
 
     Parameters
     ----------
-    df : pd.DataFrame
-        DataFrame containing simulation metrics
-    output_dir : str
-        Directory to save the dashboard image
+    db_paths : List[str]
+        List of paths to simulation database files
+    analysis_path : str
+        Path where analysis results should be saved
     """
-    # Use a built-in style instead of 'seaborn'
-    plt.style.use("fivethirtyeight")  # Alternative: 'ggplot'
+    print(f"Analyzing {len(db_paths)} simulations...")
+    print(f"Results will be saved to: {analysis_path}")
 
-    # Create figure with subplots in a 3x2 grid
-    fig = plt.figure(figsize=(20, 15))
-    gs = plt.GridSpec(3, 2, figure=fig)
+    # Create results DataFrame
+    results = []
+    
+    for path in db_paths:
+        print(f"\nAnalyzing simulation: {path}")
+        meta = gather_simulation_metadata(path)
+        results.append(meta)
+    
+    results_df = pd.DataFrame(results)
+    
+    # Save results to CSV
+    csv_path = os.path.join(analysis_path, "simulation_comparison.csv")
+    results_df.to_csv(csv_path, index=False)
+    print(f"Saved comparison results to: {csv_path}")
 
-    # 1. Population Metrics (Top Left)
-    ax1 = fig.add_subplot(gs[0, 0])
-    metrics = {
-        "Avg Population": df["avg_total_agents"].mean(),
-        "Peak Population": df["final_total_agents"].max(),
-        "Avg Birth Rate": df["avg_births"].mean(),
-        "Avg Death Rate": df["avg_deaths"].mean(),
-    }
+    # Create visualizations
+    create_comparison_plots(results_df, analysis_path)
+    
+    # Create dashboard summary
+    create_dashboard_summary(results_df, analysis_path)
 
-    colors = ["#2ecc71", "#3498db", "#e74c3c", "#f1c40f"]
-    ax1.bar(range(len(metrics)), metrics.values(), color=colors)
-    ax1.set_xticks(range(len(metrics)))
-    ax1.set_xticklabels(metrics.keys(), rotation=45)
-    ax1.set_title("Population Metrics", fontsize=12, pad=20)
+    # Create experiment analysis
+    create_experiment_analysis(results_df, analysis_path)
 
-    # Add value labels on bars
-    for i, v in enumerate(metrics.values()):
-        ax1.text(i, v, f"{v:.1f}", ha="center", va="bottom")
+def create_comparison_plots(results_df: pd.DataFrame, analysis_path: str) -> None:
+    """Create and save comparison visualizations."""
+    plots_path = os.path.join(analysis_path, "plots")
+    os.makedirs(plots_path, exist_ok=True)
 
-    # 2. Resource Metrics (Top Right)
-    ax2 = fig.add_subplot(gs[0, 1])
-    resource_data = {
-        "Avg Resources": df["avg_total_resources"].mean(),
-        "Final Resources": df["final_total_resources"].mean(),
-    }
-
-    ax2.pie(
-        resource_data.values(),
-        labels=resource_data.keys(),
-        autopct="%1.1f%%",
-        colors=["#2ecc71", "#e74c3c"],
-    )
-    ax2.set_title("Resource Distribution", fontsize=12, pad=20)
-
-    # 3. Health & Reward Trends (Middle)
-    ax3 = fig.add_subplot(gs[1, :])
-
-    # Use simulation names for x-axis if available
-    if "simulation_name" in df.columns:
-        x = df["simulation_name"]
-    else:
-        x = range(len(df))
-
-    ax3.plot(
-        x, df["final_average_health"], "r-", label="Pre-Final Agent Health", linewidth=2
-    )
-    ax3.plot(x, df["avg_health"], "g-", label="Average Agent Health", linewidth=2)
-
-    ax3.set_title(
-        "Health Metrics Across Simulations (Pre-Final Step)", fontsize=12, pad=20
-    )
-    ax3.set_xlabel("Simulation Name")
-    ax3.set_ylabel("Health")
-    ax3.legend()
-    ax3.grid(True, alpha=0.3)
-
-    # Rotate x-axis labels if they're text
-    if "simulation_name" in df.columns:
-        plt.xticks(rotation=45, ha="right")
-
-    # 4. Key Statistics Table (Bottom)
-    ax4 = fig.add_subplot(gs[2, :])
-    ax4.axis("tight")
-    ax4.axis("off")
-
-    stats_data = [
-        ["Metric", "Mean", "Min", "Max", "Std Dev"],
-        [
-            "Duration (steps)",
-            f"{df['duration_steps'].mean():.1f}",
-            f"{df['duration_steps'].min():.1f}",
-            f"{df['duration_steps'].max():.1f}",
-            f"{df['duration_steps'].std():.1f}",
-        ],
-        [
-            "Total Agents",
-            f"{df['avg_total_agents'].mean():.1f}",
-            f"{df['avg_total_agents'].min():.1f}",
-            f"{df['avg_total_agents'].max():.1f}",
-            f"{df['avg_total_agents'].std():.1f}",
-        ],
-        [
-            "Final Health",
-            f"{df['final_average_health'].mean():.2f}",
-            f"{df['final_average_health'].min():.2f}",
-            f"{df['final_average_health'].max():.2f}",
-            f"{df['final_average_health'].std():.2f}",
-        ],
-        [
-            "Average Health",
-            f"{df['avg_health'].mean():.2f}",
-            f"{df['avg_health'].min():.2f}",
-            f"{df['avg_health'].max():.2f}",
-            f"{df['avg_health'].std():.2f}",
-        ],
-    ]
-
-    table = ax4.table(cellText=stats_data, loc="center", cellLoc="center")
-    table.auto_set_font_size(False)
-    table.set_fontsize(10)
-    table.scale(1.2, 2)
-
-    # Style header row
-    for i in range(len(stats_data[0])):
-        table[(0, i)].set_facecolor("#3498db")
-        table[(0, i)].set_text_props(color="white")
-
-    plt.suptitle("Simulation Analysis Dashboard", fontsize=16, y=0.95)
-    plt.tight_layout()
-
-    # Save the dashboard
-    plt.savefig(
-        os.path.join(output_dir, "simulation_dashboard.png"),
-        dpi=300,
-        bbox_inches="tight",
-    )
+    # 1. Population metrics plot
+    plt.figure(figsize=(12, 6))
+    plt.plot(results_df['mean_population'], label='Mean')
+    plt.plot(results_df['median_population'], label='Median')
+    plt.plot(results_df['mode_population'], label='Mode')
+    plt.title('Population Statistics Across Simulations')
+    plt.xlabel('Simulation Index')
+    plt.ylabel('Population')
+    plt.legend()
+    plt.savefig(os.path.join(plots_path, 'population_metrics.png'))
     plt.close()
+
+    # 2. Health and Resources
+    plt.figure(figsize=(12, 6))
+    plt.plot(results_df['avg_health'], label='Average Health', color='green')
+    plt.plot(results_df['avg_total_resources'], label='Average Resources', color='blue')
+    plt.title('Health and Resources Over Time')
+    plt.xlabel('Simulation Index')
+    plt.ylabel('Value')
+    plt.legend()
+    plt.savefig(os.path.join(plots_path, 'health_resources.png'))
+    plt.close()
+
+    # 3. Birth and Death Rates
+    plt.figure(figsize=(12, 6))
+    plt.plot(results_df['avg_births'], label='Birth Rate', color='green')
+    plt.plot(results_df['avg_deaths'], label='Death Rate', color='red')
+    plt.title('Birth and Death Rates')
+    plt.xlabel('Simulation Index')
+    plt.ylabel('Rate')
+    plt.legend()
+    plt.savefig(os.path.join(plots_path, 'birth_death_rates.png'))
+    plt.close()
+
+    # 4. Rewards Distribution
+    plt.figure(figsize=(12, 6))
+    plt.hist(results_df['avg_reward'], bins=20, color='purple', alpha=0.7)
+    plt.title('Distribution of Average Rewards')
+    plt.xlabel('Average Reward')
+    plt.ylabel('Frequency')
+    plt.savefig(os.path.join(plots_path, 'reward_distribution.png'))
+    plt.close()
+
+    # 5. Population vs Resources Scatter
+    plt.figure(figsize=(12, 6))
+    plt.scatter(results_df['avg_total_agents'], results_df['avg_total_resources'], 
+                alpha=0.6, c=results_df['avg_reward'], cmap='viridis')
+    plt.colorbar(label='Average Reward')
+    plt.title('Population vs Resources (colored by reward)')
+    plt.xlabel('Average Population')
+    plt.ylabel('Average Resources')
+    plt.savefig(os.path.join(plots_path, 'population_resources_scatter.png'))
+    plt.close()
+
+    # 6. Simulation Duration Analysis
+    plt.figure(figsize=(12, 6))
+    plt.bar(range(len(results_df)), results_df['duration_steps'], 
+            color='skyblue', alpha=0.7)
+    plt.title('Simulation Durations')
+    plt.xlabel('Simulation Index')
+    plt.ylabel('Number of Steps')
+    plt.savefig(os.path.join(plots_path, 'simulation_durations.png'))
+    plt.close()
+
+    print(f"Saved {6} plots to {plots_path}")
+
+def create_dashboard_summary(results_df: pd.DataFrame, analysis_path: str) -> None:
+    """Create and save a dashboard summary of the analysis."""
+    summary_path = os.path.join(analysis_path, "dashboard_summary.html")
+    
+    # Create HTML summary
+    html_content = f"""
+    <html>
+    <head>
+        <title>Simulation Analysis Summary</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; margin: 20px; }}
+            .metric {{ margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 5px; }}
+            .metric h3 {{ color: #333; margin-top: 0; }}
+            .value {{ color: #2980b9; font-weight: bold; }}
+        </style>
+    </head>
+    <body>
+        <h1>Simulation Analysis Summary</h1>
+        
+        <div class="metric">
+            <h3>Population Statistics</h3>
+            <p>Mean Population: <span class="value">{results_df['mean_population'].mean():.2f}</span></p>
+            <p>Median Population: <span class="value">{results_df['median_population'].mean():.2f}</span></p>
+            <p>Mode Population: <span class="value">{results_df['mode_population'].mean():.2f}</span></p>
+        </div>
+
+        <div class="metric">
+            <h3>Health and Resources</h3>
+            <p>Average Health: <span class="value">{results_df['avg_health'].mean():.2f}</span></p>
+            <p>Average Resources: <span class="value">{results_df['avg_total_resources'].mean():.2f}</span></p>
+        </div>
+
+        <div class="metric">
+            <h3>Population Dynamics</h3>
+            <p>Average Birth Rate: <span class="value">{results_df['avg_births'].mean():.2f}</span></p>
+            <p>Average Death Rate: <span class="value">{results_df['avg_deaths'].mean():.2f}</span></p>
+        </div>
+
+        <div class="metric">
+            <h3>Performance Metrics</h3>
+            <p>Average Reward: <span class="value">{results_df['avg_reward'].mean():.2f}</span></p>
+            <p>Average Duration: <span class="value">{results_df['duration_steps'].mean():.1f} steps</span></p>
+        </div>
+    </body>
+    </html>
+    """
+    
+    with open(summary_path, 'w') as f:
+        f.write(html_content)
+    
+    print(f"Saved dashboard summary to: {summary_path}")
+
+
+def create_experiment_analysis(results_df: pd.DataFrame, analysis_path: str) -> None:
+    """Create structured analysis of experiment results for both human and machine consumption."""
+    
+    # Calculate key metrics and their significance
+    metrics = {
+        "population": {
+            "mean": float(results_df['mean_population'].mean()),
+            "trend": "increasing" if results_df['mean_population'].is_monotonic_increasing else 
+                     "decreasing" if results_df['mean_population'].is_monotonic_decreasing else "fluctuating",
+            "stability": float(results_df['mean_population'].std() / results_df['mean_population'].mean()),
+            "expectation_met": bool(results_df['mean_population'].mean() > 10)
+        },
+        "resources": {
+            "mean": float(results_df['avg_total_resources'].mean()),
+            "efficiency": float(results_df['avg_total_resources'].mean() / results_df['mean_population'].mean()),
+            "sustainability": bool(results_df['avg_total_resources'].std() < results_df['avg_total_resources'].mean() * 0.5)
+        },
+        "health": {
+            "mean": float(results_df['avg_health'].mean()),
+            "consistency": float(results_df['avg_health'].std() / results_df['avg_health'].mean())
+        },
+        "reproduction": {
+            "birth_rate": float(results_df['avg_births'].mean()),
+            "death_rate": float(results_df['avg_deaths'].mean()),
+            "sustainability": bool(results_df['avg_births'].mean() > results_df['avg_deaths'].mean())
+        }
+    }
+    
+    # Generate analysis conclusions
+    conclusions = []
+    if metrics['population']['expectation_met']:
+        conclusions.append("Population levels met or exceeded expectations")
+    else:
+        conclusions.append("Population levels were below target")
+        
+    if metrics['reproduction']['sustainability']:
+        conclusions.append("Population showed sustainable growth")
+    else:
+        conclusions.append("Population growth may not be sustainable")
+        
+    if metrics['resources']['sustainability']:
+        conclusions.append("Resource management was stable")
+    else:
+        conclusions.append("Resource management needs improvement")
+
+    # Create machine-readable JSON
+    analysis_dict = {
+        "experiment_id": os.path.basename(analysis_path),
+        "timestamp": pd.Timestamp.now().isoformat(),
+        "metrics": metrics,
+        "conclusions": conclusions,
+        "recommendations": [
+            "Adjust reproduction threshold" if not metrics['reproduction']['sustainability'] else None,
+            "Modify resource distribution" if not metrics['resources']['sustainability'] else None,
+            "Review population control parameters" if not metrics['population']['expectation_met'] else None
+        ],
+        "comparison_to_baseline": {
+            "population_performance": "above" if metrics['population']['mean'] > 15 else "below",
+            "resource_efficiency": "efficient" if metrics['resources']['efficiency'] > 0.8 else "inefficient",
+            "health_stability": "stable" if metrics['health']['consistency'] < 0.2 else "unstable"
+        }
+    }
+    
+    # Save JSON analysis
+    json_path = os.path.join(analysis_path, "experiment_analysis.json")
+    with open(json_path, 'w') as f:
+        json.dump(analysis_dict, f, indent=2)   
+        
+
+    print(f"Saved experiment analysis to {json_path}")
+    
+
+    # Create human-readable markdown
+    markdown_content = f"""# Experiment Analysis Report
+    
+## Overview
+Experiment ID: {analysis_dict['experiment_id']}
+Analysis Date: {analysis_dict['timestamp']}
+
+## Key Metrics
+### Population
+- Mean Population: {metrics['population']['mean']:.2f}
+- Population Trend: {metrics['population']['trend']}
+- Population Stability: {metrics['population']['stability']:.2%}
+
+### Resources
+- Mean Resources: {metrics['resources']['mean']:.2f}
+- Resource Efficiency: {metrics['resources']['efficiency']:.2f}
+- Resource Sustainability: {'Yes' if metrics['resources']['sustainability'] else 'No'}
+
+### Health
+- Mean Health: {metrics['health']['mean']:.2f}
+- Health Consistency: {metrics['health']['consistency']:.2%}
+
+### Reproduction
+- Birth Rate: {metrics['reproduction']['birth_rate']:.2f}
+- Death Rate: {metrics['reproduction']['death_rate']:.2f}
+- Sustainable: {'Yes' if metrics['reproduction']['sustainability'] else 'No'}
+
+## Conclusions
+{chr(10).join(f"- {conclusion}" for conclusion in conclusions)}
+
+## Recommendations
+{chr(10).join(f"- {rec}" for rec in analysis_dict['recommendations'] if rec)}
+
+## Comparison to Baseline
+- Population Performance: {analysis_dict['comparison_to_baseline']['population_performance']}
+- Resource Efficiency: {analysis_dict['comparison_to_baseline']['resource_efficiency']}
+- Health Stability: {analysis_dict['comparison_to_baseline']['health_stability']}
+"""
+    
+    # Save markdown analysis
+    markdown_path = os.path.join(analysis_path, "experiment_analysis.md")
+    with open(markdown_path, 'w') as f:
+        f.write(markdown_content)
+    
+    print(f"Saved experiment analysis to {json_path} and {markdown_path}")
 
 
 def create_interactive_analysis_window(df: pd.DataFrame):
@@ -1586,21 +1710,7 @@ def main(path: str):
     print(f"Found {len(db_paths)} database files")
     
     # Compare and analyze simulations
-    results_df = compare_simulations(db_paths)
-
-    # Save results to CSV
-    output_dir = os.path.join("simulations", "analysis")
-    print(f"Using output directory: {output_dir}")
-    os.makedirs(output_dir, exist_ok=True)
-    
-    results_df.to_csv(os.path.join(output_dir, "simulation_comparison.csv"), index=False)
-    print(f"Results saved to {output_dir}")
-
-    # Create dashboard summary
-    create_dashboard_summary(results_df, output_dir)
-
-    # Create interactive analysis window
-    # create_interactive_analysis_window(results_df)
+    compare_simulations(db_paths, path)
 
 
 if __name__ == "__main__":
