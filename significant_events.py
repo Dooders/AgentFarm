@@ -116,6 +116,9 @@ class SignificantEventAnalyzer:
         # Add health incident analysis
         events.extend(self._analyze_health_incidents(start_step, end_step))
 
+        # Add learning experience analysis
+        events.extend(self._analyze_learning_experiences(start_step, end_step))
+
         # Filter by severity and sort chronologically
         significant_events = [
             event for event in events if event.severity >= min_severity
@@ -588,6 +591,309 @@ class SignificantEventAnalyzer:
         logger.info(f"Detected {len(events)} significant health-related events")
         return events
 
+    def _analyze_learning_experiences(
+        self, start_step: int = None, end_step: int = None
+    ) -> List[SignificantEvent]:
+        """Analyze learning experiences to detect significant patterns and anomalies."""
+        events = []
+        
+        # Query learning experiences with aggregation
+        query = """
+            SELECT 
+                step_number,
+                module_type,
+                COUNT(*) as experience_count,
+                COUNT(DISTINCT agent_id) as learning_agents,
+                AVG(reward) as avg_reward,
+                MIN(reward) as min_reward,
+                MAX(reward) as max_reward,
+                COUNT(DISTINCT module_id) as unique_modules,
+                GROUP_CONCAT(DISTINCT action_taken_mapped) as actions_taken
+            FROM learning_experiences
+            WHERE step_number >= COALESCE(:start_step, 0)
+            AND step_number <= COALESCE(:end_step, step_number)
+            GROUP BY step_number, module_type
+            ORDER BY step_number, module_type
+        """
+        
+        learning_df = pd.read_sql(
+            query,
+            self.db.engine,
+            params={"start_step": start_step, "end_step": end_step},
+        )
+        
+        if learning_df.empty:
+            logger.debug("No learning experiences found in the specified time range")
+            return events
+        
+        # Calculate rolling statistics for each module type
+        for module_type in learning_df['module_type'].unique():
+            module_data = learning_df[learning_df['module_type'] == module_type].copy()
+            
+            # Skip if insufficient data
+            if len(module_data) < 3:
+                continue
+            
+            # Calculate rolling averages
+            window_size = 5
+            module_data['experience_count_avg'] = module_data['experience_count'].rolling(
+                window=window_size, min_periods=1
+            ).mean()
+            
+            module_data['reward_avg'] = module_data['avg_reward'].rolling(
+                window=window_size, min_periods=1
+            ).mean()
+            
+            # Detect learning spikes
+            count_std = module_data['experience_count'].std()
+            count_threshold = max(
+                module_data['experience_count_avg'].mean() + (count_std * 1.5),
+                5.0  # Minimum threshold
+            )
+            
+            spike_periods = module_data[
+                module_data['experience_count'] > count_threshold
+            ]
+            
+            for _, row in spike_periods.iterrows():
+                severity = min(
+                    row['experience_count'] / count_threshold,
+                    1.0
+                )
+                severity = max(severity, 0.4)
+                
+                # Analyze actions taken
+                actions = row['actions_taken'].split(',') if row['actions_taken'] else []
+                primary_action = max(set(actions), key=actions.count) if actions else "unknown"
+                
+                events.append(
+                    SignificantEvent(
+                        step_number=row['step_number'],
+                        event_type="learning_spike",
+                        description=(
+                            f"Surge in learning activity for {module_type} module: "
+                            f"{row['learning_agents']} agents, "
+                            f"{row['experience_count']} experiences"
+                        ),
+                        metrics={
+                            "module_type": module_type,
+                            "experience_count": row['experience_count'],
+                            "learning_agents": row['learning_agents'],
+                            "average_reward": row['avg_reward'],
+                            "reward_range": row['max_reward'] - row['min_reward'],
+                            "unique_modules": row['unique_modules'],
+                            "primary_action": primary_action,
+                        },
+                        severity=severity,
+                    )
+                )
+            
+            # Detect reward anomalies
+            module_data['reward_change'] = module_data['avg_reward'].diff()
+            reward_std = module_data['reward_change'].std()
+            reward_threshold = reward_std * 2
+            
+            reward_anomalies = module_data[
+                abs(module_data['reward_change']) > reward_threshold
+            ]
+            
+            for _, row in reward_anomalies.iterrows():
+                direction = "increase" if row['reward_change'] > 0 else "decrease"
+                severity = min(
+                    abs(row['reward_change']) / reward_threshold,
+                    1.0
+                )
+                severity = max(severity, 0.4)
+                
+                events.append(
+                    SignificantEvent(
+                        step_number=row['step_number'],
+                        event_type="learning_reward_shift",
+                        description=(
+                            f"Significant {direction} in learning rewards for {module_type} module"
+                        ),
+                        metrics={
+                            "module_type": module_type,
+                            "reward_change": row['reward_change'],
+                            "average_reward": row['avg_reward'],
+                            "experience_count": row['experience_count'],
+                            "learning_agents": row['learning_agents'],
+                        },
+                        severity=severity,
+                    )
+                )
+        
+        # Analyze collective learning trends
+        total_data = learning_df.groupby('step_number').agg({
+            'experience_count': 'sum',
+            'learning_agents': 'sum',
+            'avg_reward': 'mean',
+            'unique_modules': 'sum'
+        }).reset_index()
+        
+        total_data['learning_efficiency'] = (
+            total_data['avg_reward'] * total_data['learning_agents'] / 
+            total_data['experience_count'].replace(0, 1)
+        )
+        
+        # Detect collective learning breakthroughs
+        total_data['efficiency_change'] = total_data['learning_efficiency'].diff()
+        efficiency_std = total_data['efficiency_change'].std()
+        breakthrough_threshold = efficiency_std * 2
+        
+        breakthroughs = total_data[
+            total_data['efficiency_change'] > breakthrough_threshold
+        ]
+        
+        for _, row in breakthroughs.iterrows():
+            severity = min(
+                row['efficiency_change'] / breakthrough_threshold,
+                1.0
+            )
+            severity = max(severity, 0.4)
+            
+            events.append(
+                SignificantEvent(
+                    step_number=row['step_number'],
+                    event_type="learning_breakthrough",
+                    description="Collective learning breakthrough detected",
+                    metrics={
+                        "learning_efficiency": row['learning_efficiency'],
+                        "efficiency_change": row['efficiency_change'],
+                        "total_experiences": row['experience_count'],
+                        "total_learning_agents": row['learning_agents'],
+                        "average_reward": row['avg_reward'],
+                        "active_modules": row['unique_modules'],
+                    },
+                    severity=severity,
+                )
+            )
+        
+        # Add agent-level analysis
+        agent_query = """
+            SELECT 
+                step_number,
+                agent_id,
+                module_type,
+                COUNT(*) as experience_count,
+                AVG(reward) as avg_reward,
+                SUM(reward) as total_reward,
+                MIN(reward) as min_reward,
+                MAX(reward) as max_reward,
+                GROUP_CONCAT(DISTINCT action_taken_mapped) as actions_taken
+            FROM learning_experiences
+            WHERE step_number >= COALESCE(:start_step, 0)
+            AND step_number <= COALESCE(:end_step, step_number)
+            GROUP BY step_number, agent_id, module_type
+            ORDER BY step_number, agent_id, module_type
+        """
+        
+        agent_learning_df = pd.read_sql(
+            agent_query,
+            self.db.engine,
+            params={"start_step": start_step, "end_step": end_step},
+        )
+        
+        if not agent_learning_df.empty:
+            # Calculate agent performance metrics
+            for agent_id in agent_learning_df['agent_id'].unique():
+                agent_data = agent_learning_df[agent_learning_df['agent_id'] == agent_id].copy()
+                
+                # Skip if insufficient data
+                if len(agent_data) < 3:
+                    continue
+                    
+                # Calculate rolling metrics
+                window_size = 3  # Smaller window for individual analysis
+                agent_data['reward_avg'] = agent_data['avg_reward'].rolling(
+                    window=window_size, min_periods=1
+                ).mean()
+                agent_data['reward_trend'] = agent_data['reward_avg'].diff()
+                
+                # Detect rapid learning progress
+                reward_std = agent_data['reward_trend'].std()
+                progress_threshold = reward_std * 2
+                
+                progress_spikes = agent_data[
+                    agent_data['reward_trend'] > progress_threshold
+                ]
+                
+                for _, row in progress_spikes.iterrows():
+                    severity = min(
+                        row['reward_trend'] / progress_threshold,
+                        1.0
+                    )
+                    severity = max(severity, 0.4)
+                    
+                    # Get module-specific details
+                    module_info = (
+                        f"in {row['module_type']}" if row['module_type'] else "across modules"
+                    )
+                    
+                    events.append(
+                        SignificantEvent(
+                            step_number=row['step_number'],
+                            event_type="agent_learning_breakthrough",
+                            description=(
+                                f"Agent {agent_id} shows rapid learning progress {module_info}"
+                            ),
+                            metrics={
+                                "agent_id": agent_id,
+                                "module_type": row['module_type'],
+                                "reward_improvement": row['reward_trend'],
+                                "current_reward_level": row['avg_reward'],
+                                "experience_count": row['experience_count'],
+                                "reward_range": row['max_reward'] - row['min_reward'],
+                            },
+                            severity=severity,
+                        )
+                    )
+                
+                # Detect consistent high performers
+                performance_window = 5
+                agent_data['performance_score'] = (
+                    agent_data['avg_reward'] * agent_data['experience_count']
+                )
+                agent_data['high_performer'] = (
+                    agent_data['performance_score'] > 
+                    agent_data['performance_score'].mean() + agent_data['performance_score'].std()
+                )
+                
+                # Find sustained high performance periods
+                high_performance_streaks = (
+                    agent_data['high_performer'].astype(float).rolling(performance_window).sum() >= 
+                    performance_window * 0.8  # 80% of window needs to be high performance
+                )
+                
+                streak_starts = agent_data[
+                    high_performance_streaks & 
+                    (~high_performance_streaks.shift(1).fillna(0).astype(bool))  # Explicit type conversion
+                ]
+                
+                for _, row in streak_starts.iterrows():
+                    events.append(
+                        SignificantEvent(
+                            step_number=row['step_number'],
+                            event_type="agent_sustained_performance",
+                            description=(
+                                f"Agent {agent_id} demonstrates sustained high performance "
+                                f"in {row['module_type']}"
+                            ),
+                            metrics={
+                                "agent_id": agent_id,
+                                "module_type": row['module_type'],
+                                "average_reward": row['avg_reward'],
+                                "total_reward": row['total_reward'],
+                                "experience_count": row['experience_count'],
+                                "performance_score": row['performance_score'],
+                            },
+                            severity=0.6,  # Fixed severity for sustained performance
+                        )
+                    )
+        
+        logger.info(f"Detected {len(events)} significant learning events")
+        return events
+
     def get_event_summary(self, events: List[SignificantEvent]) -> str:
         """Generate a human-readable summary of significant events."""
         if not events:
@@ -605,7 +911,12 @@ class SignificantEventAnalyzer:
             ("reproduction_resource_crisis", "Reproduction Resources"),
             ("reproduction_failure_pattern", "Reproduction Failures"),
             ("health_crisis", "Health Incidents"),
-            ("health_decline_trend", "Health Decline Trends")
+            ("health_decline_trend", "Health Decline Trends"),
+            ("learning_spike", "Learning Activity"),
+            ("learning_reward_shift", "Learning Rewards"),
+            ("learning_breakthrough", "Learning Breakthroughs"),
+            ("agent_learning_breakthrough", "Individual Learning Progress"),
+            ("agent_sustained_performance", "Agent Performance Highlights")
         ]
 
         # Group events by type
