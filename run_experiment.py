@@ -26,9 +26,9 @@ def run_experiment(
     try:
         base_config = SimulationConfig.from_yaml("config.yaml")
         #! make it easier to change config when running experiments
-        base_config.independent_agents = 0
-        base_config.system_agents = 0
-        base_config.control_agents = 30
+        base_config.independent_agents = 1
+        base_config.system_agents = 1
+        base_config.control_agents = 1
         experiment = ExperimentRunner(base_config, name)
 
 
@@ -78,7 +78,7 @@ def main():
     print("Starting experiments...")
 
     # Run selected experiments
-    run_experiment("only_control_agents", num_iterations=100, num_steps=1000)
+    run_experiment("one_of_a_kind", num_iterations=100, num_steps=1000)
     # run_experiment("population_ratio_test", experiments["population_ratio_test"])
 
 
