@@ -4,6 +4,11 @@ import json
 
 # Define the analysis functions
 
+def save_plot_to_file(plt, filename: str):
+    """Save the current plot to a file."""
+    plt.savefig(filename)
+    plt.close()
+
 def plot_action_type_distribution(dataframe):
     """Plot the distribution of different action types."""
     action_counts = dataframe['action_type'].value_counts()
@@ -13,7 +18,9 @@ def plot_action_type_distribution(dataframe):
     plt.xlabel('Action Type')
     plt.ylabel('Frequency')
     plt.xticks(rotation=45)
-    plt.show()
+    filename = "action_type_distribution.png"
+    save_plot_to_file(plt, filename)
+    return filename
 
 def plot_rewards_by_action_type(dataframe):
     """Plot average rewards for each action type."""
@@ -24,7 +31,9 @@ def plot_rewards_by_action_type(dataframe):
     plt.xlabel('Action Type')
     plt.ylabel('Average Reward')
     plt.xticks(rotation=45)
-    plt.show()
+    filename = "rewards_by_action_type.png"
+    save_plot_to_file(plt, filename)
+    return filename
 
 def plot_resource_changes(dataframe):
     """Plot resource changes (before vs after) across actions."""
@@ -34,7 +43,9 @@ def plot_resource_changes(dataframe):
     plt.title('Resource Change Distribution')
     plt.xlabel('Resource Change')
     plt.ylabel('Frequency')
-    plt.show()
+    filename = "resource_changes.png"
+    save_plot_to_file(plt, filename)
+    return filename
 
 def plot_action_frequency_over_time(dataframe):
     """Plot the frequency of actions over time as a stacked area chart."""
@@ -52,7 +63,9 @@ def plot_action_frequency_over_time(dataframe):
     plt.ylabel('Number of Actions')
     plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()  # Adjust layout to prevent legend cutoff
-    plt.show()
+    filename = "action_frequency_over_time.png"
+    save_plot_to_file(plt, filename)
+    return filename
 
 def plot_position_changes(dataframe, agent_id):
     """Plot the position changes for a specific agent."""
@@ -95,7 +108,9 @@ def plot_position_changes(dataframe, agent_id):
         plt.ylabel('Y Position')
         plt.legend()
         plt.grid(True, alpha=0.3)
-        plt.show()
+        filename = f"position_changes_agent_{agent_id}.png"
+        save_plot_to_file(plt, filename)
+        return filename
         
     except Exception as e:
         print(f"Error processing position data: {e}")
@@ -110,7 +125,9 @@ def plot_rewards_over_time(dataframe):
     plt.xlabel('Step Number')
     plt.ylabel('Cumulative Reward')
     plt.legend()
-    plt.show()
+    filename = "rewards_over_time.png"
+    save_plot_to_file(plt, filename)
+    return filename
 
 def plot_action_target_distribution(dataframe):
     """Plot the distribution of action targets."""
@@ -120,7 +137,9 @@ def plot_action_target_distribution(dataframe):
     plt.title('Action Target Distribution')
     plt.xlabel('Target ID')
     plt.ylabel('Frequency')
-    plt.show()
+    filename = "action_target_distribution.png"
+    save_plot_to_file(plt, filename)
+    return filename
 
 # Load the dataset
 def main(dataframe):
