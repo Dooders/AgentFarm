@@ -1,6 +1,10 @@
 import os
 from typing import Dict, List
 
+import matplotlib.pyplot as plt
+import pandas as pd
+from sqlalchemy import create_engine
+
 from .chart_actions import (
     plot_action_frequency_over_time,
     plot_action_target_distribution,
@@ -18,39 +22,57 @@ from .chart_agents import (
     plot_resources_by_generation,
     plot_spatial_distribution,
     plot_starvation_thresholds,
-    save_plot,
 )
-from .llm_client import LLMClient
-import matplotlib.pyplot as plt
-import pandas as pd
-from sqlalchemy import create_engine
 from .chart_simulation import (
-    plot_population_dynamics,
-    plot_births_and_deaths,
-    plot_births_and_deaths_by_type,
-    plot_resource_efficiency,
     plot_agent_health_and_age,
-    plot_combat_metrics,
-    plot_resource_sharing,
-    plot_evolutionary_metrics,
-    plot_resource_distribution_entropy,
-    plot_rewards,
-    plot_average_resources,
     plot_agent_lifespan_histogram,
     plot_agent_type_comparison,
-    plot_reproduction_success_rate,
-    plot_reproduction_resources,
+    plot_average_resources,
+    plot_births_and_deaths,
+    plot_births_and_deaths_by_type,
+    plot_combat_metrics,
+    plot_evolutionary_metrics,
     plot_generational_analysis,
+    plot_population_dynamics,
     plot_reproduction_failure_reasons,
+    plot_reproduction_resources,
+    plot_reproduction_success_rate,
+    plot_resource_distribution_entropy,
+    plot_resource_efficiency,
+    plot_resource_sharing,
+    plot_rewards,
 )
+from .llm_client import LLMClient
+
+
+def save_plot(plt, chart_name, save_to_file=True):
+    """Helper function to save plot to file and return path."""
+    if save_to_file:
+        output_dir = "chart_analysis"
+        os.makedirs(output_dir, exist_ok=True)
+        file_path = os.path.join(output_dir, f"{chart_name}.png")
+        plt.savefig(file_path)
+        plt.close()
+        return file_path
+    else:
+        # Return the current figure for in-memory use
+        return plt.gcf()
 
 
 class ChartAnalyzer:
-    def __init__(self, output_dir: str = "chart_analysis"):
-        """Initialize the chart analyzer with output directory."""
+    def __init__(self, output_dir: str = "example_output", save_charts: bool = True):
+        """
+        Initialize the chart analyzer.
+
+        Args:
+            output_dir: Directory to save charts and analyses
+            save_charts: Whether to save charts to files or keep in memory
+        """
         self.output_dir = output_dir
+        self.save_charts = save_charts
         self.llm_client = LLMClient()
-        os.makedirs(output_dir, exist_ok=True)
+        if save_charts:
+            os.makedirs(output_dir, exist_ok=True)
 
     def analyze_all_charts(self, actions_df=None, agents_df=None) -> Dict[str, str]:
         """Generate and analyze all charts, returning a dictionary of analyses."""
@@ -60,12 +82,14 @@ class ChartAnalyzer:
         try:
             engine = create_engine("sqlite:///simulations/simulation_results.db")
             simulation_df = pd.read_sql("SELECT * FROM simulation_steps", engine)
-            
+
             # Simulation charts
             simulation_chart_functions = {
                 "population_dynamics": plot_population_dynamics,
                 "births_and_deaths": plot_births_and_deaths,
-                "births_and_deaths_by_type": lambda df: plot_births_and_deaths_by_type(df, "sqlite:///simulations/simulation_results.db"),
+                "births_and_deaths_by_type": lambda df: plot_births_and_deaths_by_type(
+                    df, "sqlite:///simulations/simulation_results.db"
+                ),
                 "resource_efficiency": plot_resource_efficiency,
                 "agent_health_and_age": plot_agent_health_and_age,
                 "combat_metrics": plot_combat_metrics,
@@ -74,12 +98,24 @@ class ChartAnalyzer:
                 "resource_distribution_entropy": plot_resource_distribution_entropy,
                 "rewards": plot_rewards,
                 "average_resources": plot_average_resources,
-                "agent_lifespan_histogram": lambda df: plot_agent_lifespan_histogram(df, "sqlite:///simulations/simulation_results.db"),
-                "agent_type_comparison": lambda df: plot_agent_type_comparison(df, "sqlite:///simulations/simulation_results.db"),
-                "reproduction_success_rate": lambda df: plot_reproduction_success_rate(df, "sqlite:///simulations/simulation_results.db"),
-                "reproduction_resources": lambda df: plot_reproduction_resources(df, "sqlite:///simulations/simulation_results.db"),
-                "generational_analysis": lambda df: plot_generational_analysis(df, "sqlite:///simulations/simulation_results.db"),
-                "reproduction_failure_reasons": lambda df: plot_reproduction_failure_reasons(df, "sqlite:///simulations/simulation_results.db"),
+                "agent_lifespan_histogram": lambda df: plot_agent_lifespan_histogram(
+                    df, "sqlite:///simulations/simulation_results.db"
+                ),
+                "agent_type_comparison": lambda df: plot_agent_type_comparison(
+                    df, "sqlite:///simulations/simulation_results.db"
+                ),
+                "reproduction_success_rate": lambda df: plot_reproduction_success_rate(
+                    df, "sqlite:///simulations/simulation_results.db"
+                ),
+                "reproduction_resources": lambda df: plot_reproduction_resources(
+                    df, "sqlite:///simulations/simulation_results.db"
+                ),
+                "generational_analysis": lambda df: plot_generational_analysis(
+                    df, "sqlite:///simulations/simulation_results.db"
+                ),
+                "reproduction_failure_reasons": lambda df: plot_reproduction_failure_reasons(
+                    df, "sqlite:///simulations/simulation_results.db"
+                ),
             }
 
             for chart_name, chart_func in simulation_chart_functions.items():
@@ -87,8 +123,11 @@ class ChartAnalyzer:
                     print(f"Generating {chart_name} chart...")
                     plt.figure()
                     chart_func(simulation_df)
-                    image_path = save_plot(plt, chart_name)
-                    
+                    if self.save_charts:
+                        image_path = save_plot(plt, chart_name)
+                    else:
+                        plt.close()  # Clean up the figure after analysis
+
                     analysis = self._analyze_simulation_chart(chart_name, simulation_df)
                     analyses[chart_name] = analysis
                 except Exception as e:
@@ -109,8 +148,13 @@ class ChartAnalyzer:
 
                 for chart_name, chart_func in action_chart_functions.items():
                     try:
-                        image_path = chart_func(actions_df)
-                        analysis = self.llm_client.analyze_chart(image_path)
+                        if self.save_charts:
+                            image_path = chart_func(actions_df)
+                            analysis = self.llm_client.analyze_chart(image_path)
+                        else:
+                            fig = chart_func(actions_df, save_to_file=False)
+                            analysis = self.llm_client.analyze_figure(fig)
+                            plt.close(fig)
                         analyses[chart_name] = analysis
                     except Exception as e:
                         print(f"Error analyzing {chart_name}: {str(e)}")
@@ -138,15 +182,16 @@ class ChartAnalyzer:
                         print(f"Error analyzing {chart_name}: {str(e)}")
                         analyses[chart_name] = f"Analysis failed: {str(e)}"
 
-            # Save analyses to text file (moved outside the if blocks)
-            text_path = os.path.join(self.output_dir, "chart_analyses.txt")
-            with open(text_path, "w") as f:
-                f.write("SIMULATION ANALYSIS SUMMARY\n\n")
-                for chart_name, analysis in analyses.items():
-                    f.write(f"\n{'='*30}\n")
-                    f.write(f"{chart_name} Analysis\n\n")
-                    f.write(f"{analysis.strip()}")
-                    f.write(f"\n{'='*30}\n")
+            # Save analyses to text file if saving is enabled
+            if self.save_charts:
+                text_path = os.path.join(self.output_dir, "chart_analyses.txt")
+                with open(text_path, "w") as f:
+                    f.write("SIMULATION ANALYSIS SUMMARY\n\n")
+                    for chart_name, analysis in analyses.items():
+                        f.write(f"\n{'='*30}\n")
+                        f.write(f"{chart_name} Analysis\n\n")
+                        f.write(f"{analysis.strip()}")
+                        f.write(f"\n{'='*30}\n")
 
             return analyses
 
@@ -200,7 +245,7 @@ class ChartAnalyzer:
         """Analyze population dynamics chart."""
         latest = df.iloc[-1]
         trend = df["total_agents"].diff().mean()
-        
+
         return f"""
 Population Dynamics Analysis:
 - Current population: {latest["total_agents"]} total agents
@@ -214,7 +259,7 @@ Population Dynamics Analysis:
         total_births = df["births"].sum()
         total_deaths = df["deaths"].sum()
         net_growth = total_births - total_deaths
-        
+
         return f"""
 Population Change Analysis:
 - Total births: {total_births}
@@ -229,7 +274,7 @@ Population Change Analysis:
         """Analyze resource efficiency chart."""
         avg_efficiency = df["resource_efficiency"].mean()
         efficiency_trend = df["resource_efficiency"].diff().mean()
-        
+
         return f"""
 Resource Efficiency Analysis:
 - Average efficiency: {avg_efficiency:.2f}
@@ -242,8 +287,10 @@ Resource Efficiency Analysis:
         """Analyze combat metrics chart."""
         total_encounters = df["combat_encounters"].sum()
         total_successes = df["successful_attacks"].sum()
-        success_rate = (total_successes / total_encounters * 100) if total_encounters > 0 else 0
-        
+        success_rate = (
+            (total_successes / total_encounters * 100) if total_encounters > 0 else 0
+        )
+
         return f"""
 Combat Analysis:
 - Total combat encounters: {total_encounters}
@@ -257,7 +304,7 @@ Combat Analysis:
         total_shared = df["resources_shared"].sum()
         avg_shared = df["resources_shared"].mean()
         sharing_trend = df["resources_shared"].diff().mean()
-        
+
         return f"""
 Resource Sharing Analysis:
 - Total resources shared: {total_shared:.0f}
@@ -271,7 +318,7 @@ Resource Sharing Analysis:
         avg_diversity = df["genetic_diversity"].mean()
         diversity_trend = df["genetic_diversity"].diff().mean()
         avg_dominance = df["dominant_genome_ratio"].mean()
-        
+
         return f"""
 Evolutionary Analysis:
 - Average genetic diversity: {avg_diversity:.2f}
@@ -284,7 +331,7 @@ Evolutionary Analysis:
         """Analyze resource distribution entropy chart."""
         avg_entropy = df["resource_distribution_entropy"].mean()
         entropy_trend = df["resource_distribution_entropy"].diff().mean()
-        
+
         return f"""
 Resource Distribution Analysis:
 - Average entropy: {avg_entropy:.2f}
@@ -298,7 +345,7 @@ Resource Distribution Analysis:
         avg_reward = df["average_reward"].mean()
         reward_trend = df["average_reward"].diff().mean()
         total_reward = df["average_reward"].sum()
-        
+
         return f"""
 Reward Analysis:
 - Average reward: {avg_reward:.2f}
@@ -312,7 +359,7 @@ Reward Analysis:
         current_resources = df["average_agent_resources"].iloc[-1]
         avg_resources = df["average_agent_resources"].mean()
         resource_trend = df["average_agent_resources"].diff().mean()
-        
+
         return f"""
 Average Resources Analysis:
 - Current average: {current_resources:.2f}

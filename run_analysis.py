@@ -32,14 +32,22 @@ def load_data(database_path: str) -> pd.DataFrame:
         raise Exception(f"Error loading data from database: {str(e)}")
 
 
-def run_analysis(database_path: str, output_dir: str):
-    """Run the complete chart analysis pipeline."""
+def run_analysis(database_path: str, output_dir: str, save_charts: bool = True):
+    """
+    Run the complete chart analysis pipeline.
+    
+    Args:
+        database_path: Path to the SQLite database
+        output_dir: Directory to save output files
+        save_charts: Whether to save charts to files or keep in memory
+    """
     # Setup environment
     setup_environment()
 
-    # Create output directory
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    # Create output directory if saving charts
+    if save_charts:
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
 
     # Load data
     print("Loading data from database...")
@@ -47,14 +55,15 @@ def run_analysis(database_path: str, output_dir: str):
 
     # Initialize analyzer and run analysis
     print("Initializing chart analyzer...")
-    analyzer = ChartAnalyzer(str(output_dir))
+    analyzer = ChartAnalyzer(str(output_dir), save_charts=save_charts)
 
     print("Running chart analysis...")
     analyses = analyzer.analyze_all_charts(df)
 
     # Print summary
     print("\nAnalysis Complete!")
-    print(f"Charts and analyses have been saved to: {output_dir}")
+    if save_charts:
+        print(f"Charts and analyses have been saved to: {output_dir}")
     print("\nAnalysis Summary:")
     for chart_name, analysis in analyses.items():
         print(f"\n=== {chart_name} ===")
