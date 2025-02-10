@@ -35,7 +35,7 @@ def load_data(database_path: str) -> pd.DataFrame:
 def run_analysis(database_path: str, output_dir: str, save_charts: bool = True):
     """
     Run the complete chart analysis pipeline.
-    
+
     Args:
         database_path: Path to the SQLite database
         output_dir: Directory to save output files

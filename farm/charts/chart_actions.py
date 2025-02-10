@@ -135,6 +135,36 @@ def plot_rewards_over_time(dataframe):
     return plt
 
 
+def plot_action_target_distribution(dataframe):
+    """Plot the distribution of action targets."""
+    plt.figure(figsize=(10, 6))
+
+    # Extract target information from the details column
+    targets = []
+    for _, row in dataframe.iterrows():
+        if pd.notnull(row["details"]):
+            try:
+                details = json.loads(row["details"])
+                if "target_id" in details:
+                    targets.append(details["target_id"])
+                elif "target_position" in details:
+                    targets.append("position")
+                else:
+                    targets.append("no_target")
+            except json.JSONDecodeError:
+                targets.append("invalid_details")
+
+    # Create distribution plot
+    target_counts = pd.Series(targets).value_counts()
+    plt.bar(range(len(target_counts)), target_counts.values, alpha=0.7)
+    plt.xticks(range(len(target_counts)), target_counts.index, rotation=45)
+    plt.title("Action Target Distribution")
+    plt.xlabel("Target Type")
+    plt.ylabel("Frequency")
+    plt.tight_layout()
+    return plt
+
+
 # Load the dataset
 def main(dataframe):
     try:
@@ -145,6 +175,7 @@ def main(dataframe):
             "resource_changes": plot_resource_changes,
             "action_frequency_over_time": plot_action_frequency_over_time,
             "rewards_over_time": plot_rewards_over_time,
+            "action_target_distribution": plot_action_target_distribution,
         }
 
         # Generate and show each plot
