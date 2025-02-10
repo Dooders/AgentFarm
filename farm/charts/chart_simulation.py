@@ -2,7 +2,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sqlalchemy import create_engine, inspect
-from .chart_agents import save_plot  # Import save_plot helper
+
+from .chart_utils import (
+    save_plot,
+)  # Import from new utilities module instead of chart_agents
 
 # Define database connection string once at module level
 CONNECTION_STRING = "sqlite:///simulations/simulation_results.db"
@@ -41,7 +44,7 @@ def plot_population_dynamics(dataframe):
     plt.xlabel("Step Number")
     plt.ylabel("Number of Agents")
     plt.legend()
-    return save_plot(plt, "population_dynamics")
+    return plt
 
 
 def plot_births_and_deaths(dataframe):
@@ -71,14 +74,14 @@ def plot_births_and_deaths(dataframe):
     # Set y-axis limits to be symmetrical around zero
     max_value = max(births.max(), abs(deaths.min()))
     plt.ylim(-max_value * 1.1, max_value * 1.1)
-    return save_plot(plt, "births_and_deaths")
+    return plt
 
 
 def plot_births_and_deaths_by_type(dataframe, connection_string=None):
     """Plot births and deaths over time separated by agent type."""
     if connection_string is None:
         connection_string = CONNECTION_STRING
-        
+
     try:
         engine = create_engine(connection_string)
         events_query = """
@@ -108,20 +111,24 @@ def plot_births_and_deaths_by_type(dataframe, connection_string=None):
         """
 
         events_df = pd.read_sql(events_query, engine)
-        
+
         if events_df.empty:
             print("No birth/death data available to plot")
             return None
 
         # Create subplots for each agent type
         agent_types = ["SystemAgent", "IndependentAgent", "ControlAgent"]
-        active_agent_types = [at for at in agent_types if at in events_df["agent_type"].unique()]
+        active_agent_types = [
+            at for at in agent_types if at in events_df["agent_type"].unique()
+        ]
 
         if not active_agent_types:
             print("No data available for any agent type")
             return None
 
-        fig, axes = plt.subplots(len(active_agent_types), 1, figsize=(15, 12), sharex=True)
+        fig, axes = plt.subplots(
+            len(active_agent_types), 1, figsize=(15, 12), sharex=True
+        )
         fig.suptitle("Population Changes by Agent Type Over Time", fontsize=14, y=0.95)
 
         # Handle case where there's only one subplot
@@ -134,31 +141,45 @@ def plot_births_and_deaths_by_type(dataframe, connection_string=None):
         # Find global min and max values
         global_min_step = events_df["step_number"].min()
         global_max_step = events_df["step_number"].max()
-        global_max_value = max(events_df["births"].fillna(0).max(), events_df["deaths"].fillna(0).max())
+        global_max_value = max(
+            events_df["births"].fillna(0).max(), events_df["deaths"].fillna(0).max()
+        )
 
         for idx, agent_type in enumerate(active_agent_types):
             ax = axes[idx]
             agent_data = events_df[events_df["agent_type"] == agent_type]
 
             if not agent_data.empty:
-                ax.fill_between(agent_data["step_number"], agent_data["births"].fillna(0), 0,
-                              label="Births", color=birth_color, alpha=0.3)
-                ax.fill_between(agent_data["step_number"], -agent_data["deaths"].fillna(0), 0,
-                              label="Deaths", color=death_color, alpha=0.3)
+                ax.fill_between(
+                    agent_data["step_number"],
+                    agent_data["births"].fillna(0),
+                    0,
+                    label="Births",
+                    color=birth_color,
+                    alpha=0.3,
+                )
+                ax.fill_between(
+                    agent_data["step_number"],
+                    -agent_data["deaths"].fillna(0),
+                    0,
+                    label="Deaths",
+                    color=death_color,
+                    alpha=0.3,
+                )
                 ax.legend()
                 ax.axhline(y=0, color="black", linestyle="-", linewidth=0.5)
 
             ax.set_xlim(global_min_step, global_max_step)
             ax.set_ylim(-global_max_value * 1.1, global_max_value * 1.1)
             ax.grid(True, alpha=0.3)
-            
+
             display_name = agent_type.replace("Agent", "")
             ax.set_title(f"{display_name} Agents", pad=5)
             ax.set_ylabel("Count")
 
         axes[-1].set_xlabel("Step Number")
         plt.tight_layout()
-        return save_plot(plt, "births_and_deaths_by_type")
+        return plt
 
     except Exception as e:
         print(f"Error plotting births and deaths by type: {e}")
@@ -185,7 +206,7 @@ def plot_resource_efficiency(dataframe):
     plt.xlabel("Step Number")
     plt.ylabel("Value")
     plt.legend()
-    return save_plot(plt, "resource_efficiency")
+    return plt
 
 
 def plot_agent_health_and_age(dataframe):
@@ -207,7 +228,7 @@ def plot_agent_health_and_age(dataframe):
     plt.xlabel("Step Number")
     plt.ylabel("Value")
     plt.legend()
-    return save_plot(plt, "agent_health_and_age")
+    return plt
 
 
 def plot_combat_metrics(dataframe):
@@ -229,7 +250,7 @@ def plot_combat_metrics(dataframe):
     plt.xlabel("Step Number")
     plt.ylabel("Count")
     plt.legend()
-    return save_plot(plt, "combat_metrics")
+    return plt
 
 
 def plot_resource_sharing(dataframe):
@@ -245,7 +266,7 @@ def plot_resource_sharing(dataframe):
     plt.xlabel("Step Number")
     plt.ylabel("Resources Shared")
     plt.legend()
-    return save_plot(plt, "resource_sharing")
+    return plt
 
 
 def plot_evolutionary_metrics(dataframe):
@@ -267,7 +288,7 @@ def plot_evolutionary_metrics(dataframe):
     plt.xlabel("Step Number")
     plt.ylabel("Value")
     plt.legend()
-    return save_plot(plt, "evolutionary_metrics")
+    return plt
 
 
 def plot_resource_distribution_entropy(dataframe):
@@ -283,7 +304,7 @@ def plot_resource_distribution_entropy(dataframe):
     plt.xlabel("Step Number")
     plt.ylabel("Entropy")
     plt.legend()
-    return save_plot(plt, "resource_distribution_entropy")
+    return plt
 
 
 def plot_rewards(dataframe):
@@ -299,7 +320,7 @@ def plot_rewards(dataframe):
     plt.xlabel("Step Number")
     plt.ylabel("Average Reward")
     plt.legend()
-    return save_plot(plt, "rewards")
+    return plt
 
 
 def plot_average_resources(dataframe):
@@ -315,7 +336,7 @@ def plot_average_resources(dataframe):
     plt.xlabel("Step Number")
     plt.ylabel("Average Resources")
     plt.legend()
-    return save_plot(plt, "average_resources")
+    return plt
 
 
 def plot_agent_lifespan_histogram(dataframe, connection_string=None):
@@ -329,11 +350,13 @@ def plot_agent_lifespan_histogram(dataframe, connection_string=None):
     try:
         engine = create_engine(connection_string)
         agents_df = pd.read_sql("SELECT birth_time, death_time FROM agents", engine)
-        
+
         lifespans = agents_df.apply(
-            lambda x: (x["death_time"] - x["birth_time"] 
-                      if pd.notnull(x["death_time"]) 
-                      else max_step - x["birth_time"]),
+            lambda x: (
+                x["death_time"] - x["birth_time"]
+                if pd.notnull(x["death_time"])
+                else max_step - x["birth_time"]
+            ),
             axis=1,
         )
 
@@ -344,13 +367,21 @@ def plot_agent_lifespan_histogram(dataframe, connection_string=None):
 
         mean_lifespan = lifespans.mean()
         median_lifespan = lifespans.median()
-        plt.axvline(mean_lifespan, color="red", linestyle="--", 
-                   label=f"Mean: {mean_lifespan:.1f}")
-        plt.axvline(median_lifespan, color="green", linestyle="--",
-                   label=f"Median: {median_lifespan:.1f}")
+        plt.axvline(
+            mean_lifespan,
+            color="red",
+            linestyle="--",
+            label=f"Mean: {mean_lifespan:.1f}",
+        )
+        plt.axvline(
+            median_lifespan,
+            color="green",
+            linestyle="--",
+            label=f"Median: {median_lifespan:.1f}",
+        )
 
         plt.legend()
-        return save_plot(plt, "agent_lifespan_histogram")
+        return plt
 
     except Exception as e:
         print(f"Error plotting lifespan histogram: {e}")
@@ -361,7 +392,7 @@ def plot_agent_type_comparison(dataframe, connection_string=None):
     """Create a radar chart comparing different agent types on key metrics."""
     if connection_string is None:
         connection_string = CONNECTION_STRING
-        
+
     # Get the last step's data
     final_step = dataframe.iloc[-1]
 
@@ -470,14 +501,14 @@ def plot_agent_type_comparison(dataframe, connection_string=None):
 
     plt.title("Agent Type Performance Comparison\n(Normalized Metrics)", pad=20)
     plt.tight_layout()
-    return save_plot(plt, "agent_type_comparison")
+    return plt
 
 
 def plot_reproduction_success_rate(dataframe, connection_string=None):
     """Plot reproduction success rate over time."""
     if connection_string is None:
         connection_string = CONNECTION_STRING
-        
+
     plt.figure(figsize=(10, 6))
 
     # Query reproduction events data
@@ -521,14 +552,14 @@ def plot_reproduction_success_rate(dataframe, connection_string=None):
     plt.ylabel("Success Rate (%)")
     plt.legend()
     plt.grid(True, alpha=0.3)
-    return save_plot(plt, "reproduction_success_rate")
+    return plt
 
 
 def plot_reproduction_resources(dataframe, connection_string=None):
     """Plot resource distribution in reproduction events."""
     if connection_string is None:
         connection_string = CONNECTION_STRING
-        
+
     plt.figure(figsize=(12, 6))
 
     # Query reproduction events data
@@ -556,14 +587,14 @@ def plot_reproduction_resources(dataframe, connection_string=None):
     plt.title("Resource Distribution in Successful Reproduction Events")
     plt.ylabel("Resource Amount")
     plt.grid(True, alpha=0.3)
-    return save_plot(plt, "reproduction_resources")
+    return plt
 
 
 def plot_generational_analysis(dataframe, connection_string=None):
     """Plot analysis of reproduction across generations."""
     if connection_string is None:
         connection_string = CONNECTION_STRING
-        
+
     plt.figure(figsize=(12, 8))
 
     # Query generation data
@@ -603,14 +634,14 @@ def plot_generational_analysis(dataframe, connection_string=None):
     plt.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    return save_plot(plt, "generational_analysis")
+    return plt
 
 
 def plot_reproduction_failure_reasons(dataframe, connection_string=None):
     """Plot reproduction failure reasons over time."""
     if connection_string is None:
         connection_string = CONNECTION_STRING
-        
+
     plt.figure(figsize=(12, 6))
 
     # Query reproduction events data for failures
@@ -644,7 +675,7 @@ def plot_reproduction_failure_reasons(dataframe, connection_string=None):
     plt.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    return save_plot(plt, "reproduction_failure_reasons")
+    return plt
 
 
 def check_database(connection_string):
@@ -670,55 +701,72 @@ def check_database(connection_string):
 def main(dataframe):
     try:
         print("Plotting population dynamics...")
-        plot_population_dynamics(dataframe)
+        plt = plot_population_dynamics(dataframe)
+        save_plot(plt, "population_dynamics")
 
         print("Plotting births and deaths...")
-        plot_births_and_deaths(dataframe)
+        plt = plot_births_and_deaths(dataframe)
+        save_plot(plt, "births_and_deaths")
 
         print("Plotting births and deaths by type...")
-        plot_births_and_deaths_by_type(dataframe)
+        plt = plot_births_and_deaths_by_type(dataframe)
+        save_plot(plt, "births_and_deaths_by_type")
 
         print("Plotting resource efficiency...")
-        plot_resource_efficiency(dataframe)
+        plt = plot_resource_efficiency(dataframe)
+        save_plot(plt, "resource_efficiency")
 
         print("Plotting agent health and age...")
-        plot_agent_health_and_age(dataframe)
+        plt = plot_agent_health_and_age(dataframe)
+        save_plot(plt, "agent_health_and_age")
 
         print("Plotting combat metrics...")
-        plot_combat_metrics(dataframe)
+        plt = plot_combat_metrics(dataframe)
+        save_plot(plt, "combat_metrics")
 
         print("Plotting resource sharing...")
-        plot_resource_sharing(dataframe)
+        plt = plot_resource_sharing(dataframe)
+        save_plot(plt, "resource_sharing")
 
         print("Plotting evolutionary metrics...")
-        plot_evolutionary_metrics(dataframe)
+        plt = plot_evolutionary_metrics(dataframe)
+        save_plot(plt, "evolutionary_metrics")
 
         print("Plotting resource distribution entropy...")
-        plot_resource_distribution_entropy(dataframe)
+        plt = plot_resource_distribution_entropy(dataframe)
+        save_plot(plt, "resource_distribution_entropy")
 
         print("Plotting average agent resources...")
-        plot_average_resources(dataframe)
+        plt = plot_average_resources(dataframe)
+        save_plot(plt, "average_resources")
 
         print("Plotting average rewards...")
-        plot_rewards(dataframe)
+        plt = plot_rewards(dataframe)
+        save_plot(plt, "rewards")
 
         print("Plotting agent lifespan histogram...")
-        plot_agent_lifespan_histogram(dataframe)
+        plt = plot_agent_lifespan_histogram(dataframe)
+        save_plot(plt, "agent_lifespan_histogram")
 
         print("Plotting agent type comparison...")
-        plot_agent_type_comparison(dataframe)
+        plt = plot_agent_type_comparison(dataframe)
+        save_plot(plt, "agent_type_comparison")
 
         print("Plotting reproduction success rate...")
-        plot_reproduction_success_rate(dataframe)
+        plt = plot_reproduction_success_rate(dataframe)
+        save_plot(plt, "reproduction_success_rate")
 
         print("Plotting reproduction resources...")
-        plot_reproduction_resources(dataframe)
+        plt = plot_reproduction_resources(dataframe)
+        save_plot(plt, "reproduction_resources")
 
         print("Plotting generational analysis...")
-        plot_generational_analysis(dataframe)
+        plt = plot_generational_analysis(dataframe)
+        save_plot(plt, "generational_analysis")
 
         print("Plotting reproduction failure reasons...")
-        plot_reproduction_failure_reasons(dataframe)
+        plt = plot_reproduction_failure_reasons(dataframe)
+        save_plot(plt, "reproduction_failure_reasons")
 
     except Exception as e:
         print(f"An error occurred: {e}")
