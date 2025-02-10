@@ -69,8 +69,9 @@ class SignificantEventAnalyzer:
             Database connection to query simulation history
         """
         self.db = simulation_db
-        self.high_scores_path = "simulation_high_scores.json"
+        self.high_scores_path = "utils/simulation_high_scores.json"
         self.high_scores = self._load_high_scores()
+
 
     def _load_high_scores(self) -> dict:
         """Load high scores from JSON file or create default if not exists."""
