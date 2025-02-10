@@ -15,49 +15,50 @@
 
 ## Folder Structure
 research/
-├── {research_name}/
-│   ├── metadata.json           # Research project configuration and metadata
-│   ├── hypothesis.md           # Research questions and hypotheses
-│   ├── literature/             # Related research and references
-│   │   ├── papers/            # Referenced academic papers
-│   │   └── bibliography.bib   # Bibliography in BibTeX format
-│   ├── protocols/             # Standard procedures and methodologies
-│   │   ├── validation.md      # Validation protocols
-│   │   └── analysis.md        # Analysis procedures
-│   └── experiments/
-│       └── {experiment_name}/
-│           ├── experiment_config.json    # Experiment parameters and setup
-│           ├── experiment_design.md      # Detailed experiment methodology
-│           ├── pilot_results/           # Initial test runs and calibration data
-│           ├── simulations/
-│           │   └── {simulation_id}/
-│           │       ├── data/
-│           │       │   ├── simulation.db     # Time-series data of simulation steps
-│           │       │   ├── analysis.db       # Processed results and metrics
-│           │       │   ├── states.farm       # System state snapshots
-│           │       │   ├── config.json       # Simulation-specific configuration
-│           │       │   ├── simulation.log    # Detailed execution log
-│           │       │   └── raw_outputs/      # Raw output files before processing
-│           │       └── analysis/
-│           │           ├── charts/
-│           │           │   ├── metrics/      # Standard metric visualizations
-│           │           │   └── custom/       # Special-purpose visualizations
-│           │           └── reports/
-│           │               ├── chart_analysis.txt         # AI interpretation of charts
-│           │               ├── validation_results.txt     # Simulation validation report
-│           │               ├── simulation_summary.txt     # Contextual analysis
-│           │               └── anomalies.txt             # Detected anomalies and edge cases
-│           ├── aggregate_analysis/
-│           │   ├── comparative_results/      # Cross-simulation analysis
-│           │   ├── statistical_tests/        # Statistical validation results
-│           │   ├── experiment_summary.md     # Overall experiment findings
-│           │   └── reproducibility/          # Reproducibility verification data
-│           └── artifacts/
-│               ├── presentations/            # Experiment presentations and demos
-│               ├── notebooks/                # Jupyter notebooks for analysis
-│               └── media/                    # Videos, animations, key visualizations
-│               └── benchmarks/   # Performance benchmarks
-│               └── reviews/      # Peer review feedback
+├── {research-name}/
+│   ├── `metadata.json`            # Research project configuration and metadata
+│   ├── `hypothesis.md`            # Research questions and hypotheses
+│   ├── `literature/`              # Related research and references
+│   │   ├── `papers/`              # Referenced academic papers
+│   │   └── `bibliography.bib`     # Bibliography in BibTeX format
+│   ├── `protocols/`               # Standard procedures and methodologies
+│   │   ├── `validation.md`        # Validation protocols
+│   │   └── `analysis.md`          # Analysis procedures
+│   └── `experiments/`
+│       └── {experiment-name}/
+│           ├── `experiment-config.json`    # Experiment parameters and setup
+│           ├── `experiment-design.md`      # Detailed experiment methodology
+│           ├── `pilot-results/`            # Initial test runs and calibration data
+│           ├── `simulations/`
+│           │   └── {simulation-id}/
+│           │       ├── `data/`
+│           │       │   ├── `simulation.db`     # Time-series data of simulation steps
+│           │       │   ├── `analysis.db`       # Processed results and metrics
+│           │       │   ├── `states.farm`       # System state snapshots
+│           │       │   ├── `config.json`       # Simulation-specific configuration
+│           │       │   ├── `simulation.log`    # Detailed execution log
+│           │       │   └── `raw-outputs/`      # Raw output files before processing
+│           │       └── `analysis/`
+│           │           ├── `charts/`
+│           │           │   ├── `metrics/`      # Standard metric visualizations
+│           │           │   └── `custom/`       # Special-purpose visualizations
+│           │           └── `reports/`
+│           │               ├── `chart-analysis.txt`       # AI interpretation of charts
+│           │               ├── `validation-results.txt`   # Simulation validation report
+│           │               ├── `simulation-summary.txt`   # Contextual analysis
+│           │               └── `anomalies.txt`            # Detected anomalies and edge cases
+│           ├── `aggregate-analysis/`
+│           │   ├── `comparative-results/`     # Cross-simulation analysis
+│           │   ├── `statistical-tests/`       # Statistical validation results
+│           │   ├── `experiment-summary.md`    # Overall experiment findings
+│           │   └── `reproducibility/`         # Reproducibility verification data
+│           └── `artifacts/`
+│               ├── `presentations/`           # Experiment presentations and demos
+│               ├── `notebooks/`               # Jupyter notebooks for analysis
+│               ├── `media/`                    # Videos, animations, key visualizations
+│               ├── `benchmarks/`               # Performance benchmarks
+│               └── `reviews/`                  # Peer review feedback
+
 
 ## Additional Data Types
 - **Validation Data**: Reference datasets and expected outcomes for validation
