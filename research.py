@@ -111,6 +111,8 @@ class ResearchProject:
         Export research results and artifacts
     update_status(status)
         Update project status
+    list_experiments()
+        Return a list of experiment IDs in this project
     """
 
     def __init__(
@@ -489,3 +491,10 @@ class ResearchProject:
         self.metadata.updated_at = datetime.now().isoformat()
         self._save_metadata()
         self.logger.info(f"Updated project status to: {status}")
+
+    def list_experiments(self) -> List[str]:
+        """Return a list of experiment IDs in this project."""
+        exp_dir = self.project_path / "experiments"
+        if not exp_dir.exists():
+            return []
+        return [d.name for d in exp_dir.iterdir() if d.is_dir()]
