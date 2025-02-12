@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import random
@@ -120,7 +121,7 @@ def run_simulation(
     num_steps: int,
     config: SimulationConfig,
     db_path: Optional[str] = None,
-    save_config: bool = False,
+    save_config: bool = True,
 ) -> Environment:
     """
     Run the main simulation loop. The simulation will stop early if all agents die.
@@ -134,7 +135,7 @@ def run_simulation(
     db_path : Optional[str]
         Path to database file for storing results
     save_config : bool
-        If True, saves the configuration to a timestamped YAML file
+        If True, saves the configuration as a JSON file
     """
     # Setup logging
     setup_logging()
@@ -155,7 +156,13 @@ def run_simulation(
         )
 
         # Save configuration if requested
-        if save_config and environment.db is not None:
+        if save_config:
+            config_path = f"{db_path}/config.json"
+            with open(config_path, "w") as f:
+                json.dump(config.to_dict(), f, indent=4)
+            logging.info(f"Saved configuration to {config_path}")
+
+        if environment.db is not None:
             environment.db.save_configuration(config.to_dict())
 
         # Create initial agents
