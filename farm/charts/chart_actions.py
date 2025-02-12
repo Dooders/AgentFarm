@@ -201,7 +201,7 @@ if __name__ == "__main__":
     import pandas as pd
     from sqlalchemy import create_engine
 
-    connection_string = "sqlite:///simulations/simulation_results.db"
+    connection_string = "sqlite:///simulations/simulation.db"
     engine = create_engine(connection_string)
     df = pd.read_sql("SELECT * FROM agent_actions", engine)
     main(df)

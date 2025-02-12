@@ -7,7 +7,7 @@ from farm.database.models import Agent, AgentState, SimulationStep
 
 
 class SimulationAnalyzer:
-    def __init__(self, db_path: str = "simulation_results.db"):
+    def __init__(self, db_path: str = "simulation.db"):
         self.db = SimulationDatabase(db_path)
 
     def calculate_survival_rates(self) -> pd.DataFrame:

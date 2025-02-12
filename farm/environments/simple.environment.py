@@ -16,7 +16,7 @@ class Environment(BaseEnvironment):
         width,
         height,
         resource_distribution,
-        db_path="simulation_results.db",
+        db_path="simulation.db",
         **kwargs,
     ):
         super().__init__(width, height, **kwargs)

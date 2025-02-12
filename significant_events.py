@@ -1417,7 +1417,7 @@ def main():
 
     try:
         # Connect to database
-        db_path = "simulations/simulation_results.db"
+        db_path = "simulations/simulation.db"
         print(f"Connecting to database: {db_path}")
         db = SimulationDatabase(db_path)
 

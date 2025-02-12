@@ -134,7 +134,7 @@ def run_simulation(
 
     try:
         # Clean up any existing database file
-        db_path = f"{path}/simulation_results.db"
+        db_path = f"{path}/simulation.db"
         if os.path.exists(db_path):
             try:
                 os.remove(db_path)

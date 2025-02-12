@@ -36,7 +36,7 @@ def validate_chart(chart_name: str, show_plot: bool = True):
     analyzer = ChartAnalyzer(save_charts=False)
     
     # Connect to database
-    engine = create_engine("sqlite:///simulations/simulation_results.db")
+    engine = create_engine("sqlite:///simulations/simulation.db")
     simulation_df = pd.read_sql("SELECT * FROM simulation_steps", engine)
     actions_df = pd.read_sql("SELECT * FROM agent_actions", engine)
     agents_df = pd.read_sql("SELECT * FROM Agents", engine)
@@ -46,7 +46,7 @@ def validate_chart(chart_name: str, show_plot: bool = True):
         # Simulation charts
         "population_dynamics": lambda: plot_population_dynamics(simulation_df),
         "births_and_deaths": lambda: plot_births_and_deaths(simulation_df),
-        "births_and_deaths_by_type": lambda: plot_births_and_deaths_by_type(simulation_df, "sqlite:///simulations/simulation_results.db"),
+        "births_and_deaths_by_type": lambda: plot_births_and_deaths_by_type(simulation_df, "sqlite:///simulations/simulation.db"),
         "resource_efficiency": lambda: plot_resource_efficiency(simulation_df),
         "agent_health_and_age": lambda: plot_agent_health_and_age(simulation_df),
         "combat_metrics": lambda: plot_combat_metrics(simulation_df),
@@ -55,8 +55,8 @@ def validate_chart(chart_name: str, show_plot: bool = True):
         "resource_distribution_entropy": lambda: plot_resource_distribution_entropy(simulation_df),
         "rewards": lambda: plot_rewards(simulation_df),
         "average_resources": lambda: plot_average_resources(simulation_df),
-        "agent_lifespan_histogram": lambda: plot_agent_lifespan_histogram(simulation_df, "sqlite:///simulations/simulation_results.db"),
-        "agent_type_comparison": lambda: plot_agent_type_comparison(simulation_df, "sqlite:///simulations/simulation_results.db"),
+        "agent_lifespan_histogram": lambda: plot_agent_lifespan_histogram(simulation_df, "sqlite:///simulations/simulation.db"),
+        "agent_type_comparison": lambda: plot_agent_type_comparison(simulation_df, "sqlite:///simulations/simulation.db"),
         
         # Action charts
         "action_type_distribution": lambda: plot_action_type_distribution(actions_df),
@@ -70,7 +70,7 @@ def validate_chart(chart_name: str, show_plot: bool = True):
         "lifespan_distribution": lambda: plot_lifespan_distribution(agents_df),
         "lineage_size": lambda: plot_lineage_size(agents_df),
         "agent_types_over_time": lambda: plot_agent_types_over_time(agents_df),
-        "reproduction_success_rate": lambda: plot_reproduction_success_rate(simulation_df, "sqlite:///simulations/simulation_results.db"),
+        "reproduction_success_rate": lambda: plot_reproduction_success_rate(simulation_df, "sqlite:///simulations/simulation.db"),
     }
 
     if chart_name not in chart_functions:

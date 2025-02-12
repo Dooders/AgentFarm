@@ -74,7 +74,7 @@ def run_analysis(database_path: str, output_dir: str, save_charts: bool = True):
 
 def main():
     print("Loading data from database...")
-    connection_string = "sqlite:///simulations/simulation_results.db"
+    connection_string = "sqlite:///simulations/simulation.db"
     engine = create_engine(connection_string)
 
     # Load both actions and agents data

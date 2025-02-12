@@ -113,7 +113,7 @@ venv/
 # Test data
 test_data/
 .pytest_cache/
-simulation_results.db-journal
+simulation.db-journal
 *.csv
 config_*.yaml
 node_modules/

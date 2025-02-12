@@ -5,6 +5,7 @@ import tkinter as tk
 
 from farm.database.session_manager import SessionManager
 from farm.gui import SimulationGUI
+from farm.database.models import Base
 
 # Configure logging with more detail
 logging.basicConfig(
@@ -34,8 +35,12 @@ def main():
         os.makedirs(sim_dir, exist_ok=True)
         logger.info(f"Using simulations directory: {sim_dir}")
 
-        # Initialize session manager
+        # Initialize session manager and create tables
         session_manager = SessionManager(path=sim_dir)
+        
+        # Create all database tables if they don't exist
+        Base.metadata.create_all(bind=session_manager.engine)
+        logger.info("Database tables created successfully")
 
         root = tk.Tk()
         app = SimulationGUI(root, sim_dir, session_manager)
