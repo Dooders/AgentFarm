@@ -239,7 +239,7 @@ from database.repositories.agent_action_repository import AgentActionRepository
 from services.actions_service import ActionsService
 
 # Initialize session manager and repositories
-session_manager = SessionManager('sqlite:///simulation_results.db')
+session_manager = SessionManager('sqlite:///simulation.db')
 action_repository = AgentActionRepository(session_manager)
 
 # Initialize services

@@ -52,7 +52,7 @@ class ChartAnalyzer:
         analyses = {}
 
         try:
-            engine = create_engine("sqlite:///simulations/simulation_results.db")
+            engine = create_engine("sqlite:///simulations/simulation.db")
             simulation_df = pd.read_sql("SELECT * FROM simulation_steps", engine)
 
             # Simulation charts
@@ -60,7 +60,7 @@ class ChartAnalyzer:
                 "population_dynamics": plot_population_dynamics,
                 "births_and_deaths": plot_births_and_deaths,
                 "births_and_deaths_by_type": lambda df: plot_births_and_deaths_by_type(
-                    df, "sqlite:///simulations/simulation_results.db"
+                    df, "sqlite:///simulations/simulation.db"
                 ),
                 "resource_efficiency": plot_resource_efficiency,
                 "agent_health_and_age": plot_agent_health_and_age,
@@ -71,22 +71,22 @@ class ChartAnalyzer:
                 "rewards": plot_rewards,
                 "average_resources": plot_average_resources,
                 "agent_lifespan_histogram": lambda df: plot_agent_lifespan_histogram(
-                    df, "sqlite:///simulations/simulation_results.db"
+                    df, "sqlite:///simulations/simulation.db"
                 ),
                 "agent_type_comparison": lambda df: plot_agent_type_comparison(
-                    df, "sqlite:///simulations/simulation_results.db"
+                    df, "sqlite:///simulations/simulation.db"
                 ),
                 "reproduction_success_rate": lambda df: plot_reproduction_success_rate(
-                    df, "sqlite:///simulations/simulation_results.db"
+                    df, "sqlite:///simulations/simulation.db"
                 ),
                 "reproduction_resources": lambda df: plot_reproduction_resources(
-                    df, "sqlite:///simulations/simulation_results.db"
+                    df, "sqlite:///simulations/simulation.db"
                 ),
                 "generational_analysis": lambda df: plot_generational_analysis(
-                    df, "sqlite:///simulations/simulation_results.db"
+                    df, "sqlite:///simulations/simulation.db"
                 ),
                 "reproduction_failure_reasons": lambda df: plot_reproduction_failure_reasons(
-                    df, "sqlite:///simulations/simulation_results.db"
+                    df, "sqlite:///simulations/simulation.db"
                 ),
             }
 
@@ -406,7 +406,7 @@ Agent Type Comparison:
         """Analyze reproduction success rate metrics."""
         try:
             # Connect to database to get reproduction events data
-            engine = create_engine("sqlite:///simulations/simulation_results.db")
+            engine = create_engine("sqlite:///simulations/simulation.db")
             repro_query = """
             SELECT 
                 COUNT(*) as total_attempts,
@@ -641,7 +641,7 @@ if __name__ == "__main__":
     import pandas as pd
     from sqlalchemy import create_engine
 
-    connection_string = "sqlite:///simulations/simulation_results.db"
+    connection_string = "sqlite:///simulations/simulation.db"
     engine = create_engine(connection_string)
     actions_df = pd.read_sql("SELECT * FROM agent_actions", engine)
     agents_df = pd.read_sql("SELECT * FROM Agents", engine)

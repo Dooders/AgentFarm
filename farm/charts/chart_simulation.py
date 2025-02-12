@@ -8,7 +8,7 @@ from .chart_utils import (
 )  # Import from new utilities module instead of chart_agents
 
 # Define database connection string once at module level
-CONNECTION_STRING = "sqlite:///simulations/simulation_results.db"
+CONNECTION_STRING = "sqlite:///simulations/simulation.db"
 
 # Define the analysis functions
 

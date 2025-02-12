@@ -134,7 +134,7 @@ if __name__ == "__main__":
     import pandas as pd
     from sqlalchemy import create_engine
 
-    connection_string = "sqlite:///simulations/simulation_results.db"
+    connection_string = "sqlite:///simulations/simulation.db"
 
     # Create engine
     engine = create_engine(connection_string)

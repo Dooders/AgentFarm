@@ -29,7 +29,7 @@ Features
 
 Usage Example
 ------------
->>> db = SimulationDatabase("simulation_results.db")
+>>> db = SimulationDatabase("simulation.db")
 >>> db.save_configuration(config_dict)
 >>> db.logger.log_step(step_number, agent_states, resource_states, metrics)
 >>> db.export_data("results.csv")
@@ -128,7 +128,7 @@ class SimulationDatabase:
 
     Example
     -------
-    >>> db = SimulationDatabase("simulation_results.db")
+    >>> db = SimulationDatabase("simulation.db")
     >>> db.save_configuration({"agents": 100, "resources": 1000})
     >>> db.logger.log_step(1, agent_states, resource_states, metrics)
     >>> db.export_data("results.csv")

@@ -29,14 +29,14 @@ class SessionManager:
         Session: Thread-local session factory
     """
 
-    def __init__(self, db_url: Optional[str] = None):
+    def __init__(self, path: Optional[str] = None):
         """Initialize the session manager.
 
         Args:
-            db_url: SQLAlchemy database URL. If None, uses SQLite with default path.
+            path: Path to database directory. If None, uses default path.
         """
         self.engine = create_engine(
-            db_url or "sqlite:///simulation.db",
+            f"sqlite:///{path}/simulation.db",
             poolclass=QueuePool,
             pool_size=10,
             max_overflow=20,
@@ -170,13 +170,18 @@ class SessionManager:
         self.remove_session()
 
     def cleanup(self) -> None:
-        """Clean up database resources.
-
-        This method should be called during application shutdown to properly
-        clean up database connections and resources.
-        """
+        """Clean up database connections and resources."""
         try:
+            # Close all sessions
             self.Session.remove()
-            self.engine.dispose()
+
+            # Dispose of the engine connections
+            if hasattr(self, "engine"):
+                # Close all connections in the pool
+                self.engine.dispose()
+
+                # Remove reference to engine
+                delattr(self, "engine")
+
         except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
+            logging.error(f"Error during session cleanup: {e}", exc_info=True)

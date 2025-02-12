@@ -153,12 +153,12 @@ class BatchRunner:
 
 
 def run_simulation_wrapper(args):
-    params, config, num_steps, db_path = args
+    params, config, num_steps, path = args
     try:
         config_copy = SimulationConfig.from_yaml(config.config_file)
         for param, value in params.items():
             setattr(config_copy, param, value)
-        return run_simulation(num_steps, config_copy, db_path)
+        return run_simulation(num_steps, config_copy, path)
     except Exception as e:
         logging.error(f"Simulation failed with params {params}: {str(e)}")
         return None

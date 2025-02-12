@@ -53,7 +53,7 @@ class SimulationVisualizer:
         "average_agent_resources": "#9b59b6",  # Purple
     }
 
-    def __init__(self, parent, db_path="simulation_results.db"):
+    def __init__(self, parent, db_path="simulation.db"):
         """Initialize visualizer with parent frame."""
         self.parent = parent
         self.db = SimulationDatabase(db_path)

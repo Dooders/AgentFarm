@@ -49,7 +49,7 @@ def main():
     parser.add_argument('--mode', choices=['simulate', 'visualize', 'analyze', 'experiment'], 
                        default='simulate',
                        help='Mode of operation')
-    parser.add_argument('--db-path', default='simulation_results.db',
+    parser.add_argument('--db-path', default='simulation.db',
                        help='Path to the simulation database')
     parser.add_argument('--report-path', default='simulation_report.html',
                        help='Path for the analysis report')

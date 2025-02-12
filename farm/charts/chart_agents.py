@@ -50,7 +50,7 @@ def plot_reproduction_success_rate(dataframe, connection_string=None):
 
     try:
         if connection_string is None:
-            connection_string = "sqlite:///simulations/simulation_results.db"
+            connection_string = "sqlite:///simulations/simulation.db"
 
         engine = create_engine(connection_string)
 
@@ -149,7 +149,7 @@ def main(dataframe):
 # Run the analysis
 if __name__ == "__main__":
     # connection_string = "sqlite:///simulations/simulation_20241110_122335.db"
-    connection_string = "sqlite:///simulations/simulation_results.db"
+    connection_string = "sqlite:///simulations/simulation.db"
 
     # Create engine
     engine = create_engine(connection_string)

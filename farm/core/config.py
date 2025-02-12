@@ -38,6 +38,19 @@ class VisualizationConfig:
         }
     )
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert visualization config to a JSON-serializable dictionary."""
+        return {
+            key: value
+            for key, value in self.__dict__.items()
+            if not key.startswith("_")
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "VisualizationConfig":
+        """Create visualization config from a dictionary."""
+        return cls(**data)
+
 
 @dataclass
 class SimulationConfig:
@@ -259,27 +272,25 @@ class SimulationConfig:
             yaml.dump(config_dict, f, default_flow_style=False)
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert configuration to dictionary."""
-        config_dict = self.__dict__.copy()
-        config_dict["visualization"] = self.visualization.__dict__
+        """Convert configuration to a JSON-serializable dictionary."""
+        config_dict = {}
+        for key, value in self.__dict__.items():
+            if key.startswith("_"):
+                continue
+            if key == "visualization":
+                config_dict[key] = self.visualization.to_dict()
+            else:
+                config_dict[key] = value
         return config_dict
 
     def copy(self):
         """Create a deep copy of the configuration."""
         return copy.deepcopy(self)
 
-    def to_dict(self):
-        """Convert config object to a dictionary for storage"""
-        return {
-            key: getattr(self, key)
-            for key in self.__dict__
-            if not key.startswith('_')
-        }
-    
     @classmethod
-    def from_dict(cls, data):
-        """Recreate config object from dictionary"""
-        config = cls()
-        for key, value in data.items():
-            setattr(config, key, value)
-        return config
+    def from_dict(cls, data: Dict[str, Any]) -> "SimulationConfig":
+        """Create configuration from a dictionary."""
+        # Handle visualization config specially
+        vis_data = data.pop("visualization", {})
+        data["visualization"] = VisualizationConfig(**vis_data)
+        return cls(**data)

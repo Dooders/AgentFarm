@@ -42,7 +42,7 @@ class Environment:
         width,
         height,
         resource_distribution,
-        db_path="simulation_results.db",
+        db_path="simulation.db",
         max_resource=None,
         config=None,
     ):
