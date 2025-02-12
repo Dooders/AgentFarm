@@ -41,7 +41,7 @@ class SimulationGUI:
         self.root.state("zoomed")
 
         # Initialize variables
-        self.current_db_path = None
+        self.current_path = None
         self.current_step = 0
         self.components = {}
         self.playback_timer = None
@@ -463,25 +463,32 @@ class SimulationGUI:
                 try:
                     self.db.close()
                     delattr(self, "db")
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.error(f"Error closing database: {e}")
 
             # Close database connections in components
             for component in self.components.values():
                 if hasattr(component, "db"):
                     try:
                         component.db.close()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.error(f"Error closing component database: {e}")
 
-            # Load base config to get default values
+            # Clean up session manager
+            if hasattr(self, "session_manager"):
+                try:
+                    self.session_manager.cleanup()
+                except Exception as e:
+                    logger.error(f"Error cleaning up session manager: {e}")
+
+            # Create new session manager
+            self.session_manager = SessionManager(path=self.save_path)
+
+            # Load and update configuration
             base_config = SimulationConfig.from_yaml("config.yaml")
-
-            # Create a dictionary of the updated values
             config_updates = {}
             for key, var in self.config_vars.items():
                 try:
-                    # Convert string values to appropriate types
                     value = var.get().strip()
                     if isinstance(getattr(base_config, key), float):
                         config_updates[key] = float(value)
@@ -490,26 +497,11 @@ class SimulationGUI:
                 except ValueError:
                     raise ValueError(f"Invalid value for {key}: {var.get()}")
 
-            # Create new config by updating base config with new values
             config = replace(base_config, **config_updates)
-
-            # Save the current configuration
             self._save_last_config()
 
-            # Create new database
-            self.current_db_path = self.save_path
-            os.makedirs("simulations", exist_ok=True)
-
-            # Remove existing database file if it exists
-            if os.path.exists(self.current_db_path):
-                try:
-                    os.remove(self.current_db_path)
-                except PermissionError:
-                    raise Exception(
-                        "Cannot overwrite existing simulation - database file is in use. Please restart the application."
-                    )
-
-            # Show progress screen
+            # Set current path and show progress
+            self.current_path = self.save_path
             self._show_progress_screen("Running simulation...")
 
             # Run simulation in separate thread
@@ -637,7 +629,7 @@ class SimulationGUI:
             run_simulation(
                 num_steps=config.simulation_steps,
                 config=config,
-                db_path=self.current_db_path,
+                path=self.current_path,
             )
             self.root.after(0, self._simulation_complete)
         except Exception as e:
@@ -645,7 +637,7 @@ class SimulationGUI:
 
     def _start_visualization(self) -> None:
         """Initialize visualization components with simulation data."""
-        if not self.current_db_path:
+        if not self.current_path:
             return
 
         try:
@@ -725,7 +717,7 @@ class SimulationGUI:
             filetypes=[("Database files", "*.db"), ("All files", "*.*")],
         )
         if filepath:
-            self.current_db_path = filepath
+            self.current_path = filepath
             self._setup_simulation_view()
             self._start_visualization()
 
@@ -745,18 +737,18 @@ class SimulationGUI:
 
     def _view_statistics(self) -> None:
         """Show statistics window."""
-        if not self.current_db_path:
+        if not self.current_path:
             messagebox.showwarning("No Data", "Please open or run a simulation first.")
             return
 
         from gui.windows.statistics_window import StatisticsWindow
 
-        stats_window = StatisticsWindow(self.root, self.current_db_path)
+        stats_window = StatisticsWindow(self.root, self.current_path)
         stats_window.show()
 
     def _open_agent_analysis_window(self) -> None:
         """Switch to agent analysis tab."""
-        if not self.current_db_path:
+        if not self.current_path:
             messagebox.showwarning("No Data", "Please open or run a simulation first.")
             return
 
@@ -787,7 +779,7 @@ class SimulationGUI:
 
     def _export_data(self) -> None:
         """Export simulation data."""
-        if not self.current_db_path:
+        if not self.current_path:
             messagebox.showwarning("No Data", "Please run or open a simulation first.")
             return
 
@@ -912,7 +904,7 @@ class SimulationGUI:
 
     def _step_to(self, step: int) -> None:
         """Move to specific simulation step."""
-        if not self.current_db_path:
+        if not self.current_path:
             return
 
         try:
@@ -982,7 +974,7 @@ class SimulationGUI:
             # Set simulation ID for notes after view is setup
             if "notes" in self.components:
                 self.components["notes"].set_simulation(
-                    os.path.basename(self.current_db_path)
+                    os.path.basename(self.current_path)
                 )
 
             self._start_visualization()

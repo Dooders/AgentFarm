@@ -3,6 +3,29 @@
 This module provides tools to analyze simulation data and identify key events 
 that may explain major changes in population dynamics, resource distribution,
 and other important metrics.
+
+Example:
+    >>> from significant_events import SignificantEventAnalyzer
+    >>> analyzer = SignificantEventAnalyzer(simulation_db)
+    >>> events = analyzer.get_significant_events(start_step=100, end_step=200)
+    >>> print(events)
+    [
+        SignificantEvent(
+            step_number=100,
+            event_type="population_shift",
+            description="Significant increase in system agents",
+            metrics={"population_ratio": 0.5, "ratio_change": 0.1},
+            severity=0.8,
+        ),
+
+        SignificantEvent(
+            step_number=101,
+            event_type="resource_crisis",
+            description="Resource efficiency drops sharply",
+            metrics={"resource_efficiency": 0.45},
+            severity=0.7,
+        ),
+    ]
 """
 
 import json
@@ -52,10 +75,6 @@ class SignificantEventAnalyzer:
 
     Methods
     -------
-    analyze_population_dynamics(start_step, end_step)
-        Identifies significant population changes and their likely causes
-    analyze_resource_distribution(start_step, end_step)
-        Detects resource-related events that impacted populations
     get_significant_events(start_step, end_step)
         Returns all significant events in chronological order
     """
@@ -71,7 +90,6 @@ class SignificantEventAnalyzer:
         self.db = simulation_db
         self.high_scores_path = "utils/simulation_high_scores.json"
         self.high_scores = self._load_high_scores()
-
 
     def _load_high_scores(self) -> dict:
         """Load high scores from JSON file or create default if not exists."""

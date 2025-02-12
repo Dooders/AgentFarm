@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import random
+import time
 from datetime import datetime
 from typing import List, Optional, Tuple
 
@@ -120,22 +121,11 @@ def create_initial_agents(
 def run_simulation(
     num_steps: int,
     config: SimulationConfig,
-    db_path: Optional[str] = None,
+    path: Optional[str] = None,
     save_config: bool = True,
 ) -> Environment:
     """
-    Run the main simulation loop. The simulation will stop early if all agents die.
-
-    Parameters
-    ----------
-    num_steps : int
-        Number of simulation steps to run
-    config : SimulationConfig
-        Configuration object containing simulation parameters
-    db_path : Optional[str]
-        Path to database file for storing results
-    save_config : bool
-        If True, saves the configuration as a JSON file
+    Run the main simulation loop.
     """
     # Setup logging
     setup_logging()
@@ -143,7 +133,18 @@ def run_simulation(
     logging.info(f"Configuration: {config}")
 
     try:
-        # Create environment
+        # Clean up any existing database file
+        db_path = f"{path}/simulation_results.db"
+        if os.path.exists(db_path):
+            try:
+                os.remove(db_path)
+            except PermissionError:
+                # If can't remove, create unique filename
+                base, ext = os.path.splitext(db_path)
+                db_path = f"{base}_{int(time.time())}{ext}"
+                logging.warning(f"Using alternative database path: {db_path}")
+
+        # Create environment with clean database
         environment = Environment(
             width=config.width,
             height=config.height,
@@ -151,13 +152,13 @@ def run_simulation(
                 "type": "random",
                 "amount": config.initial_resources,
             },
-            db_path=db_path or "simulation_results.db",
+            db_path=db_path,
             config=config,
         )
 
         # Save configuration if requested
         if save_config:
-            config_path = f"{db_path}/config.json"
+            config_path = f"{path}/config.json"
             with open(config_path, "w") as f:
                 json.dump(config.to_dict(), f, indent=4)
             logging.info(f"Saved configuration to {config_path}")
@@ -216,11 +217,19 @@ def run_simulation(
     except Exception as e:
         logging.error(f"Simulation failed: {str(e)}", exc_info=True)
         if "environment" in locals():
-            environment.cleanup()
+            try:
+                environment.cleanup()
+            except Exception as cleanup_error:
+                logging.error(f"Cleanup error: {cleanup_error}")
         raise
     finally:
         if "environment" in locals():
-            environment.cleanup()
+            try:
+                if hasattr(environment, "db") and environment.db:
+                    environment.db.close()
+                environment.cleanup()
+            except Exception as e:
+                logging.error(f"Final cleanup error: {e}")
 
     elapsed_time = datetime.now() - start_time
     logging.info(f"Simulation completed in {elapsed_time.total_seconds():.2f} seconds")
@@ -235,7 +244,7 @@ def main():
     config = SimulationConfig.from_yaml("config.yaml")
 
     # Run simulation
-    run_simulation(num_steps=1000, config=config, save_config=True)
+    run_simulation(num_steps=1000, config=config, save_config=True, path="simulations")
 
 
 if __name__ == "__main__":

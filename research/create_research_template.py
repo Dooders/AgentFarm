@@ -1,10 +1,9 @@
 """Helper script to create a new research project with template files."""
 
 import argparse
-from pathlib import Path
 from typing import List
 
-from research import ResearchProject
+from research.research import ResearchProject
 
 EXAMPLE_HYPOTHESIS = """# Research Hypotheses
 

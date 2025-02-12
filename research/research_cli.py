@@ -37,7 +37,7 @@ import argparse
 from pathlib import Path
 
 from farm.core.config import SimulationConfig
-from research import ResearchProject
+from research.research import ResearchProject
 
 
 def main():
