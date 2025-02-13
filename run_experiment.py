@@ -7,8 +7,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
+import os
 
-from farm.analysis.comparative_analysis import main as compare_simulations
+from farm.analysis.comparative_analysis import compare_simulations
 from farm.core.config import SimulationConfig
 from farm.core.experiment_runner import ExperimentRunner
 from research.research import ResearchProject
@@ -62,7 +63,7 @@ class Research:
                 for key, value in variation.items():
                     setattr(base_config, key, value)
 
-        # Create experiment in research project
+        # Create experiment in research project and get experiment path
         exp_path = self.research_project.create_experiment(
             experiment_config.name,
             f"Experiment with variations: {experiment_config.variations}",
@@ -72,7 +73,13 @@ class Research:
         experiment = None
         try:
             # Create experiment runner with the experiment path
-            experiment = ExperimentRunner(base_config, experiment_config.name)
+            # Convert exp_path to Path object and join with simulation.db
+            db_path = Path(exp_path) / "simulation.db"
+            experiment = ExperimentRunner(
+                base_config, 
+                experiment_config.name,
+                db_path=db_path  # Pass the properly constructed Path object
+            )
 
             experiment.run_iterations(
                 experiment_config.num_iterations,
@@ -100,7 +107,15 @@ class Research:
 
     def compare_results(self) -> None:
         """Compare results across all experiments in this research."""
-        compare_simulations(str(self.research_dir))
+        # Create analysis directory if it doesn't exist
+        analysis_dir = os.path.join(str(self.research_dir), "experiments", "analysis")
+        os.makedirs(analysis_dir, exist_ok=True)
+        
+        # Pass both the experiment directory (for finding DBs) and analysis directory
+        compare_simulations(
+            search_path=str(self.research_dir), 
+            analysis_path=analysis_dir
+        )
 
 
 def main():

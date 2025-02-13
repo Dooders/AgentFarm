@@ -12,6 +12,7 @@ import logging
 import os
 from datetime import datetime
 from typing import Dict, List, Optional
+from pathlib import Path
 
 import pandas as pd
 
@@ -24,7 +25,7 @@ DEFAULT_NUM_STEPS = 1000
 class ExperimentRunner:
     """Manages multiple simulation runs and result analysis."""
 
-    def __init__(self, base_config: SimulationConfig, experiment_name: str):
+    def __init__(self, base_config: SimulationConfig, experiment_name: str, db_path: Optional[Path] = None):
         """
         Initialize experiment runner.
 
@@ -34,6 +35,8 @@ class ExperimentRunner:
             Base configuration for simulations
         experiment_name : str
             Name of the experiment for organizing results
+        db_path : Optional[Path]
+            Explicit path for the simulation database. If None, uses default location.
         """
         self.base_config = base_config
         self.experiment_name = experiment_name
@@ -41,13 +44,16 @@ class ExperimentRunner:
 
         # Setup experiment directories
         self.experiment_dir = os.path.join("experiments", experiment_name)
-        self.db_dir = os.path.join(self.experiment_dir, "databases")
+        self.db_dir = os.path.dirname(str(db_path)) if db_path else os.path.join(self.experiment_dir, "databases")
         self.results_dir = os.path.join(self.experiment_dir, "results")
 
         # Create directories
         os.makedirs(self.experiment_dir, exist_ok=True)
         os.makedirs(self.db_dir, exist_ok=True)
         os.makedirs(self.results_dir, exist_ok=True)
+
+        # Store the database path
+        self.db_path = db_path
 
         # Setup logging
         self._setup_logging()
@@ -82,29 +88,26 @@ class ExperimentRunner:
             # Create iteration-specific config
             iteration_config = self._create_iteration_config(i, config_variations)
 
-            # Setup database path for this iteration
-            db_path = os.path.join(self.db_dir, f"iteration_{i+1}.db")
-
             try:
                 # Run simulation
                 env = run_simulation(
                     num_steps=num_steps,
                     config=iteration_config,
-                    db_path=db_path,
+                    path=self.db_dir,
                 )
 
                 # Ensure all data is flushed
                 if env.db:
-                    env.logger.flush_all_buffers()
+                    env.db.logger.flush_all_buffers()
 
                 # Analyze results
-                results = self._analyze_iteration(db_path)
-                results["iteration"] = i + 1
-                results["config_variation"] = str(
-                    config_variations[i] if config_variations else "base"
-                )
+                # results = self._analyze_iteration(self.db_dir)
+                # results["iteration"] = i + 1
+                # results["config_variation"] = str(
+                #     config_variations[i] if config_variations else "base"
+                # )
 
-                self.results.append(results)
+                # self.results.append(results)
                 self.logger.info(f"Completed iteration {i+1}")
 
             except Exception as e:

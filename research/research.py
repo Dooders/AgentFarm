@@ -119,7 +119,7 @@ class ResearchProject:
         self,
         name: str,
         description: str = "",
-        base_path: Union[str, Path] = "research",
+        base_path: Union[str, Path] = "results",
         tags: Optional[List[str]] = None,
     ):
         """
@@ -258,12 +258,12 @@ class ResearchProject:
         --------
         >>> config = SimulationConfig.from_yaml("configs/base.yaml")
         >>> project.create_experiment("baseline", "Baseline behavior", config)
-        'research/project_name/experiments/baseline_20230615_120000'
+        'results/project_name/experiments/simulations/baseline_20230615_120000'
         """
         # Create experiment directory
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         exp_id = f"{name}_{timestamp}"
-        exp_path = self.project_path / "experiments" / exp_id
+        exp_path = self.project_path / "experiments" / "simulations" / exp_id
         exp_path.mkdir(parents=True, exist_ok=True)
 
         # Save experiment configuration

@@ -8,7 +8,7 @@ def main():
     os.makedirs(EXPERIMENT_PATH, exist_ok=True)
     
     # Create analysis directory within experiment path
-    analysis_path = os.path.join(EXPERIMENT_PATH, "analysis")
+    analysis_path = os.path.join(EXPERIMENT_PATH, "experiments/analysis")
     os.makedirs(analysis_path, exist_ok=True)
     
     # Find all simulation.db files in subdirectories
