@@ -11,6 +11,7 @@ from typing import Dict, List
 from farm.analysis.comparative_analysis import main as compare_simulations
 from farm.core.config import SimulationConfig
 from farm.core.experiment_runner import ExperimentRunner
+from research.research import ResearchProject
 
 logging.basicConfig(level=logging.INFO)
 
@@ -35,47 +36,42 @@ class Research:
             name: Name of the research project
             description: Optional description of research purpose
         """
+        # Create or load existing research project using ResearchProject
+        self.research_project = ResearchProject(name, description)
         self.name = name
         self.description = description
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.research_dir = Path("research") / f"{self.name}_{self.timestamp}"
-        self.research_dir.mkdir(parents=True, exist_ok=True)
-
-        # Save research metadata
-        with open(self.research_dir / "metadata.txt", "w") as f:
-            f.write(f"Research: {name}\n")
-            f.write(f"Started: {datetime.now().isoformat()}\n")
-            f.write(f"Description: {description}\n")
-
-        self.logger = self._setup_logging()
+        self.research_dir = self.research_project.project_path
+        self.logger = self.research_project.logger
 
     def _setup_logging(self) -> logging.Logger:
         """Setup logging for this research project."""
-        logger = logging.getLogger(self.name)
-        fh = logging.FileHandler(self.research_dir / "research.log")
-        fh.setLevel(logging.INFO)
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
-        fh.setFormatter(formatter)
-        logger.addHandler(fh)
-        return logger
+        # Use the logger from ResearchProject
+        return self.research_project.logger
 
     def run_experiment(self, experiment_config: ExperimentConfig) -> None:
         """Run a single experiment with given configuration."""
         self.logger.info(f"Starting experiment: {experiment_config.name}")
 
+        # Create experiment in research project
+        base_config = SimulationConfig.from_yaml("config.yaml")
+        
+        # Apply variations to base config
+        if experiment_config.variations:
+            for variation in experiment_config.variations:
+                for key, value in variation.items():
+                    setattr(base_config, key, value)
+
+        # Create experiment in research project
+        exp_path = self.research_project.create_experiment(
+            experiment_config.name,
+            f"Experiment with variations: {experiment_config.variations}",
+            base_config
+        )
+
         experiment = None
         try:
-            base_config = SimulationConfig.from_yaml("config.yaml")
-
-            # Apply variations to base config
-            if experiment_config.variations:
-                for variation in experiment_config.variations:
-                    for key, value in variation.items():
-                        setattr(base_config, key, value)
-
-            # Create experiment runner without output_dir parameter
+            # Create experiment runner with the experiment path
             experiment = ExperimentRunner(base_config, experiment_config.name)
 
             experiment.run_iterations(
@@ -86,7 +82,7 @@ class Research:
 
         except Exception as e:
             self.logger.error(f"Experiment failed: {str(e)}")
-            raise  # Re-raise the exception for debugging
+            raise
         finally:
             if experiment and hasattr(experiment, "db"):
                 experiment.db.close()
@@ -110,7 +106,7 @@ class Research:
 def main():
     """Run research project testing individual agent types."""
     research = Research(
-        name="single_agent_study",
+        name="testing_research_experiment",
         description="Investigating behavior of individual agent types in isolation",
     )
 
@@ -121,7 +117,7 @@ def main():
             variations=[
                 {"control_agents": 1, "system_agents": 0, "independent_agents": 0}
             ],
-            num_iterations=100,
+            num_iterations=1,
             num_steps=1000,
         ),
         ExperimentConfig(
@@ -129,7 +125,7 @@ def main():
             variations=[
                 {"control_agents": 0, "system_agents": 1, "independent_agents": 0}
             ],
-            num_iterations=100,
+            num_iterations=1,
             num_steps=1000,
         ),
         ExperimentConfig(
@@ -137,7 +133,7 @@ def main():
             variations=[
                 {"control_agents": 0, "system_agents": 0, "independent_agents": 1}
             ],
-            num_iterations=100,
+            num_iterations=1,
             num_steps=1000,
         ),
     ]
