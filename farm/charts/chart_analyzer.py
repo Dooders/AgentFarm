@@ -33,6 +33,7 @@ from .llm_client import LLMClient
 
 
 class ChartAnalyzer:
+    #! this could be an agent thats called from the experiment runner
     def __init__(self, output_dir: str = "example_output", save_charts: bool = True):
         """
         Initialize the chart analyzer.
@@ -44,8 +45,6 @@ class ChartAnalyzer:
         self.output_dir = output_dir
         self.save_charts = save_charts
         self.llm_client = LLMClient()
-        if save_charts:
-            os.makedirs(output_dir, exist_ok=True)
 
     def analyze_all_charts(self, actions_df=None, agents_df=None) -> Dict[str, str]:
         """Generate and analyze all charts, returning a dictionary of analyses."""

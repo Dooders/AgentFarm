@@ -185,17 +185,17 @@ class ResearchProject:
 
         # Create subdirectories based on research.md specification
         directories = [
-            "literature/papers",
-            "protocols",
+            # "literature/papers",
+            # "protocols",
             "experiments",
-            "experiments/pilot-results",
+            # "experiments/pilot-results",
             "experiments/simulations",
-            "experiments/aggregate-analysis",
-            "experiments/artifacts/presentations",
-            "experiments/artifacts/notebooks",
-            "experiments/artifacts/media",
-            "experiments/artifacts/benchmarks",
-            "experiments/artifacts/reviews",
+            # "experiments/aggregate-analysis",
+            # "experiments/artifacts/presentations",
+            # "experiments/artifacts/notebooks",
+            # "experiments/artifacts/media",
+            # "experiments/artifacts/benchmarks",
+            # "experiments/artifacts/reviews",
         ]
 
         for directory in directories:
@@ -215,15 +215,15 @@ class ResearchProject:
                 )
 
         # Create bibliography file
-        bib_path = self.project_path / "literature" / "bibliography.bib"
-        if not bib_path.exists():
-            bib_path.touch()
+        # bib_path = self.project_path / "literature" / "bibliography.bib"
+        # if not bib_path.exists():
+        #     bib_path.touch()
 
         # Create protocol files
-        for protocol in ["validation.md", "analysis.md"]:
-            protocol_path = self.project_path / "protocols" / protocol
-            if not protocol_path.exists():
-                protocol_path.touch()
+        # for protocol in ["validation.md", "analysis.md"]:
+        #     protocol_path = self.project_path / "protocols" / protocol
+        #     if not protocol_path.exists():
+        #         protocol_path.touch()
 
     def _setup_logging(self) -> logging.Logger:
         """Configure project-specific logging."""
@@ -293,9 +293,9 @@ class ResearchProject:
             json.dump(config.to_dict(), f, indent=2)
 
         # Create experiment design document
-        design_path = exp_path / "experiment-design.md"
-        with open(design_path, "w") as f:
-            f.write(f"# {name}\n\n## Description\n{description}\n\n## Methodology\n")
+        # design_path = exp_path / "experiment-design.md"
+        # with open(design_path, "w") as f:
+        #     f.write(f"# {name}\n\n## Description\n{description}\n\n## Methodology\n")
 
         self.logger.info(f"Created experiment: {exp_id}")
         return str(exp_path)

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
+import time
 
 from farm.analysis.comparative_analysis import compare_simulations
 from farm.core.config import SimulationConfig
@@ -76,13 +77,17 @@ class Research:
         experiment = None
         try:
             # Create experiment runner with the experiment path
-            # Convert exp_path to Path object
             exp_path = Path(exp_path)
             db_path = exp_path / "simulation.db"
+            
+            # Ensure parent directory exists
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+            
             experiment = ExperimentRunner(
                 base_config, experiment_config.name, db_path=db_path
             )
 
+            # Run experiment iterations
             experiment.run_iterations(
                 experiment_config.num_iterations,
                 None,  # Don't pass variations here since we already applied them
@@ -94,8 +99,17 @@ class Research:
             self.logger.error(f"Experiment failed: {str(e)}")
             raise
         finally:
-            if experiment and hasattr(experiment, "db"):
-                experiment.db.close()
+            if experiment:
+                try:
+                    # Ensure proper database cleanup
+                    if hasattr(experiment, "db"):
+                        experiment.db.close()
+                        delattr(experiment, "db")
+                    
+                    # Add small delay to ensure file handles are released
+                    time.sleep(0.1)
+                except Exception as cleanup_error:
+                    self.logger.error(f"Error during database cleanup: {cleanup_error}")
 
         self.logger.info(f"Experiment {experiment_config.name} completed")
 
@@ -132,11 +146,12 @@ def main():
     experiments = [
         ExperimentConfig(
             name="single_control_agent",
+            #! call the config file (customized only changes from the base config)
             variations=[
                 {"control_agents": 1, "system_agents": 0, "independent_agents": 0}
             ],
             num_iterations=3,
-            num_steps=1000,
+            num_steps=500,
         ),
         ExperimentConfig(
             name="single_system_agent",
@@ -144,7 +159,7 @@ def main():
                 {"control_agents": 0, "system_agents": 1, "independent_agents": 0}
             ],
             num_iterations=3,
-            num_steps=1000,
+            num_steps=500,
         ),
         ExperimentConfig(
             name="single_independent_agent",
@@ -152,7 +167,7 @@ def main():
                 {"control_agents": 0, "system_agents": 0, "independent_agents": 1}
             ],
             num_iterations=3,
-            num_steps=1000,
+            num_steps=500,
         ),
     ]
 

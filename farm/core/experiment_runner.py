@@ -16,8 +16,11 @@ from typing import Dict, List, Optional
 
 import pandas as pd
 
+from farm.charts.chart_analyzer import ChartAnalyzer
 from farm.core.config import SimulationConfig
 from farm.core.simulation import run_simulation
+from farm.database.database import SimulationDatabase
+from significant_events import SignificantEventAnalyzer
 
 DEFAULT_NUM_STEPS = 1000
 
@@ -88,6 +91,7 @@ class ExperimentRunner:
         config_variations: Optional[List[Dict]] = None,
         num_steps: int = DEFAULT_NUM_STEPS,
         path: Optional[Path] = None,
+        run_analysis: bool = True,
     ) -> None:
         """Run multiple iterations of the simulation."""
         self.logger.info(f"Starting experiment with {num_iterations} iterations")
@@ -126,6 +130,17 @@ class ExperimentRunner:
             except Exception as e:
                 self.logger.error(f"Error in iteration {i+1}: {str(e)}")
                 continue
+
+            if run_analysis:
+                print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! STUFF")
+                chart_analyzer = ChartAnalyzer()
+                chart_analyzer.analyze_all_charts(iteration_path)
+
+                db = SimulationDatabase(iteration_path / "simulation.db")
+                significant_event_analyzer = SignificantEventAnalyzer(db)
+                significant_event_analyzer.analyze_simulation(
+                    start_step=0, end_step=num_steps, min_severity=0.3
+                )
 
     def _create_iteration_config(
         self, iteration: int, variations: Optional[List[Dict]] = None
