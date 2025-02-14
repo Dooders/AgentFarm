@@ -1300,20 +1300,33 @@ def plot_comparative_metrics(df: pd.DataFrame, output_dir: str = "simulations/an
     plot_agent_lifespans(df, output_dir)
 
 
-def compare_simulations(db_paths: List[str], analysis_path: str) -> None:
+def compare_simulations(search_path: str, analysis_path: str) -> None:
     """
     Compare multiple simulations and generate analysis.
 
     Parameters
     ----------
-    db_paths : List[str]
-        List of paths to simulation database files
+    search_path : str
+        Base path to search for simulation database files
     analysis_path : str
         Path where analysis results should be saved
     """
-    print(f"Analyzing {len(db_paths)} simulations...")
+    print(f"Analyzing simulations from: {search_path}")
     print(f"Results will be saved to: {analysis_path}")
 
+    # Find all simulation.db files in subdirectories
+    db_paths = []
+    for root, dirs, files in os.walk(search_path):
+        if "simulation.db" in files:
+            db_path = os.path.join(root, "simulation.db")
+            db_paths.append(db_path)
+    
+    if not db_paths:
+        print(f"No simulation.db files found in {search_path} or its subdirectories")
+        return
+
+    print(f"Found {len(db_paths)} database files")
+    
     # Create results DataFrame
     results = []
     
@@ -1699,6 +1712,7 @@ def create_interactive_analysis_window(df: pd.DataFrame):
     root.mainloop()
 
 
+
 def main(path: str):
     # Find all simulation databases
     db_paths = find_simulation_databases(path)
@@ -1710,7 +1724,7 @@ def main(path: str):
     print(f"Found {len(db_paths)} database files")
     
     # Compare and analyze simulations
-    compare_simulations(db_paths, path)
+    compare_simulations(path, path)
 
 
 if __name__ == "__main__":

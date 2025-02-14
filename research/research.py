@@ -28,10 +28,12 @@ ResearchProject : class
     Main class for managing research projects and experiments
 """
 
+import errno
 import json
 import logging
 import os
 import shutil
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -119,7 +121,7 @@ class ResearchProject:
         self,
         name: str,
         description: str = "",
-        base_path: Union[str, Path] = "research",
+        base_path: Union[str, Path] = "results",
         tags: Optional[List[str]] = None,
     ):
         """
@@ -143,6 +145,21 @@ class ResearchProject:
         # Setup directory structure
         self.base_path = Path(base_path)
         self.project_path = self.base_path / name
+
+        # Delete existing project directory if it exists
+        if self.project_path.exists():
+            max_attempts = 3
+            for attempt in range(max_attempts):
+                try:
+                    shutil.rmtree(self.project_path)
+                    break
+                except PermissionError as e:
+                    if attempt == max_attempts - 1:  # Last attempt
+                        raise Exception(
+                            f"Unable to delete directory after {max_attempts} attempts: {e}"
+                        )
+                    time.sleep(1)  # Wait a second before retrying
+
         self._setup_directory_structure()
 
         # Initialize metadata
@@ -168,17 +185,17 @@ class ResearchProject:
 
         # Create subdirectories based on research.md specification
         directories = [
-            "literature/papers",
-            "protocols",
+            # "literature/papers",
+            # "protocols",
             "experiments",
-            "experiments/pilot-results",
+            # "experiments/pilot-results",
             "experiments/simulations",
-            "experiments/aggregate-analysis",
-            "experiments/artifacts/presentations",
-            "experiments/artifacts/notebooks",
-            "experiments/artifacts/media",
-            "experiments/artifacts/benchmarks",
-            "experiments/artifacts/reviews",
+            # "experiments/aggregate-analysis",
+            # "experiments/artifacts/presentations",
+            # "experiments/artifacts/notebooks",
+            # "experiments/artifacts/media",
+            # "experiments/artifacts/benchmarks",
+            # "experiments/artifacts/reviews",
         ]
 
         for directory in directories:
@@ -198,15 +215,15 @@ class ResearchProject:
                 )
 
         # Create bibliography file
-        bib_path = self.project_path / "literature" / "bibliography.bib"
-        if not bib_path.exists():
-            bib_path.touch()
+        # bib_path = self.project_path / "literature" / "bibliography.bib"
+        # if not bib_path.exists():
+        #     bib_path.touch()
 
         # Create protocol files
-        for protocol in ["validation.md", "analysis.md"]:
-            protocol_path = self.project_path / "protocols" / protocol
-            if not protocol_path.exists():
-                protocol_path.touch()
+        # for protocol in ["validation.md", "analysis.md"]:
+        #     protocol_path = self.project_path / "protocols" / protocol
+        #     if not protocol_path.exists():
+        #         protocol_path.touch()
 
     def _setup_logging(self) -> logging.Logger:
         """Configure project-specific logging."""
@@ -232,7 +249,11 @@ class ResearchProject:
             json.dump(vars(self.metadata), f, indent=2)
 
     def create_experiment(
-        self, name: str, description: str, config: SimulationConfig
+        self,
+        name: str,
+        description: str,
+        config: SimulationConfig,
+        path: Optional[Path] = None,
     ) -> str:
         """
         Create a new experiment within the research project.
@@ -258,12 +279,12 @@ class ResearchProject:
         --------
         >>> config = SimulationConfig.from_yaml("configs/base.yaml")
         >>> project.create_experiment("baseline", "Baseline behavior", config)
-        'research/project_name/experiments/baseline_20230615_120000'
+        'results/project_name/experiments/simulations/baseline_20230615_120000'
         """
         # Create experiment directory
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         exp_id = f"{name}_{timestamp}"
-        exp_path = self.project_path / "experiments" / exp_id
+        exp_path = self.project_path / "experiments" / "data" / exp_id
         exp_path.mkdir(parents=True, exist_ok=True)
 
         # Save experiment configuration
@@ -272,9 +293,9 @@ class ResearchProject:
             json.dump(config.to_dict(), f, indent=2)
 
         # Create experiment design document
-        design_path = exp_path / "experiment-design.md"
-        with open(design_path, "w") as f:
-            f.write(f"# {name}\n\n## Description\n{description}\n\n## Methodology\n")
+        # design_path = exp_path / "experiment-design.md"
+        # with open(design_path, "w") as f:
+        #     f.write(f"# {name}\n\n## Description\n{description}\n\n## Methodology\n")
 
         self.logger.info(f"Created experiment: {exp_id}")
         return str(exp_path)

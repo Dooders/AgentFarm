@@ -73,22 +73,37 @@ class SignificantEventAnalyzer:
     This class processes simulation metrics and agent data to detect notable
     events that may explain major changes in simulation outcomes.
 
+    Attributes
+    ----------
+    db : SimulationDatabase
+        Database connection to query simulation history
+    high_scores_path : str
+        Path to JSON file storing high scores
+    high_scores : dict
+        Current high scores data
+
     Methods
     -------
-    get_significant_events(start_step, end_step)
+    get_significant_events(start_step, end_step, min_severity)
         Returns all significant events in chronological order
+    get_event_summary(events)
+        Generates human-readable summary of events
     """
 
-    def __init__(self, simulation_db):
+    def __init__(
+        self, simulation_db, high_scores_path="utils/simulation_high_scores.json"
+    ):
         """Initialize analyzer with database connection.
 
         Parameters
         ----------
         simulation_db : SimulationDatabase
             Database connection to query simulation history
+        high_scores_path : str, optional
+            Path to high scores JSON file
         """
         self.db = simulation_db
-        self.high_scores_path = "utils/simulation_high_scores.json"
+        self.high_scores_path = high_scores_path
         self.high_scores = self._load_high_scores()
 
     def _load_high_scores(self) -> dict:
@@ -1382,131 +1397,84 @@ class SignificantEventAnalyzer:
 
         return "\n".join(summary)
 
+    def analyze_simulation(self, start_step=None, end_step=None, min_severity=0.3):
+        """Analyze simulation and return both events and summary.
 
-def main():
-    """Run significant event analysis from command line."""
-    import argparse
-    import logging
+        Parameters
+        ----------
+        start_step : int, optional
+            First step to analyze
+        end_step : int, optional
+            Last step to analyze
+        min_severity : float, optional
+            Minimum severity threshold (0-1) for events
 
-    from farm.database.database import SimulationDatabase
-
-    # Configure logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
-
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(
-        description="Analyze significant events in simulation history"
-    )
-    parser.add_argument("--start-step", type=int, help="First step to analyze")
-    parser.add_argument("--end-step", type=int, help="Last step to analyze")
-    parser.add_argument(
-        "--min-severity",
-        type=float,
-        default=0.3,
-        help="Minimum severity threshold (0-1) for events",
-    )
-    parser.add_argument("--output", help="Path to save analysis results (optional)")
-    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
-    args = parser.parse_args()
-
-    if args.debug:
-        logging.getLogger().setLevel(logging.DEBUG)
-
-    try:
-        # Connect to database
-        db_path = "simulations/simulation.db"
-        print(f"Connecting to database: {db_path}")
-        db = SimulationDatabase(db_path)
-
-        # Check tables and data
-        with db.engine.connect() as conn:
-            # Check if reproduction_events table exists
-            table_exists = conn.execute(
-                text(
-                    """
-                    SELECT name FROM sqlite_master 
-                    WHERE type='table' AND name='reproduction_events'
-                """
-                )
-            ).fetchone()
-
-            if not table_exists:
-                logger.warning("reproduction_events table does not exist!")
-            else:
-                # Check if table has data
-                count = conn.execute(
-                    text("SELECT COUNT(*) FROM reproduction_events")
-                ).scalar()
-                logger.info(f"Found {count} reproduction events in database")
-
-            # Check combat data
-            try:
-                combat_data = conn.execute(
-                    text(
-                        """
-                        SELECT 
-                            COUNT(*) as count, 
-                            COALESCE(SUM(combat_encounters), 0) as total_encounters,
-                            COALESCE(AVG(combat_encounters), 0) as avg_encounters
-                        FROM simulation_steps 
-                        WHERE combat_encounters > 0
-                    """
-                    )
-                ).fetchone()
-
-                if combat_data and combat_data[0] > 0:
-                    logger.info(
-                        f"Combat stats: {combat_data[0]} steps with combat, "
-                        f"total encounters: {combat_data[1]}, "
-                        f"avg per step: {combat_data[2]:.2f}"
-                    )
-                else:
-                    logger.info("No combat events found in database")
-            except Exception as e:
-                logger.warning(f"Error checking combat data: {e}")
-
-        # Create analyzer
-        analyzer = SignificantEventAnalyzer(db)
-
-        # Get events
-        print("Analyzing significant events...")
-        events = analyzer.get_significant_events(
-            start_step=args.start_step,
-            end_step=args.end_step,
-            min_severity=args.min_severity,
+        Returns
+        -------
+        tuple
+            (List[SignificantEvent], str) containing events and summary
+        """
+        events = self.get_significant_events(
+            start_step=start_step, end_step=end_step, min_severity=min_severity
         )
+        summary = self.get_event_summary(events)
+        return events, summary
 
-        # Log event type counts
+    def get_event_types(self, events):
+        """Get counts of each event type.
+
+        Parameters
+        ----------
+        events : List[SignificantEvent]
+            Events to analyze
+
+        Returns
+        -------
+        dict
+            Mapping of event types to counts
+        """
         event_counts = {}
         for event in events:
             event_counts[event.event_type] = event_counts.get(event.event_type, 0) + 1
+        return event_counts
 
-        if event_counts:
-            logger.info("Event counts by type: %s", event_counts)
-        else:
-            logger.info("No significant events detected")
+    def get_events_by_type(self, events, event_type):
+        """Filter events by type.
 
-        # Generate summary
-        summary = analyzer.get_event_summary(events)
+        Parameters
+        ----------
+        events : List[SignificantEvent]
+            Events to filter
+        event_type : str
+            Event type to filter for
 
-        # Output results
-        if args.output:
-            with open(args.output, "w") as f:
-                f.write(summary)
-            print(f"\nAnalysis saved to: {args.output}")
-        else:
-            print("\n" + summary)
+        Returns
+        -------
+        List[SignificantEvent]
+            Events matching the specified type
+        """
+        return [e for e in events if e.event_type == event_type]
 
-    except Exception as e:
-        logger.exception("Error during analysis")
-        raise
-    finally:
-        if "db" in locals():
-            db.close()
+    def get_events_in_range(self, events, start_step, end_step):
+        """Filter events by step range.
 
+        Parameters
+        ----------
+        events : List[SignificantEvent]
+            Events to filter
+        start_step : int
+            First step to include
+        end_step : int
+            Last step to include
 
-if __name__ == "__main__":
-    main()
+        Returns
+        -------
+        List[SignificantEvent]
+            Events within the step range
+        """
+        return [
+            e
+            for e in events
+            if (start_step is None or e.step_number >= start_step)
+            and (end_step is None or e.step_number <= end_step)
+        ]

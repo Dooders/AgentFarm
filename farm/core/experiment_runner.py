@@ -11,12 +11,16 @@ This module provides functionality to:
 import logging
 import os
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Optional
 
 import pandas as pd
 
+from farm.charts.chart_analyzer import ChartAnalyzer
 from farm.core.config import SimulationConfig
 from farm.core.simulation import run_simulation
+from farm.database.database import SimulationDatabase
+from significant_events import SignificantEventAnalyzer
 
 DEFAULT_NUM_STEPS = 1000
 
@@ -24,7 +28,12 @@ DEFAULT_NUM_STEPS = 1000
 class ExperimentRunner:
     """Manages multiple simulation runs and result analysis."""
 
-    def __init__(self, base_config: SimulationConfig, experiment_name: str):
+    def __init__(
+        self,
+        base_config: SimulationConfig,
+        experiment_name: str,
+        db_path: Optional[Path] = None,
+    ):
         """
         Initialize experiment runner.
 
@@ -34,6 +43,8 @@ class ExperimentRunner:
             Base configuration for simulations
         experiment_name : str
             Name of the experiment for organizing results
+        db_path : Optional[Path]
+            Explicit path for the simulation database. If None, uses default location.
         """
         self.base_config = base_config
         self.experiment_name = experiment_name
@@ -41,13 +52,20 @@ class ExperimentRunner:
 
         # Setup experiment directories
         self.experiment_dir = os.path.join("experiments", experiment_name)
-        self.db_dir = os.path.join(self.experiment_dir, "databases")
+        self.db_dir = (
+            os.path.dirname(str(db_path))
+            if db_path
+            else os.path.join(self.experiment_dir, "databases")
+        )
         self.results_dir = os.path.join(self.experiment_dir, "results")
 
         # Create directories
         os.makedirs(self.experiment_dir, exist_ok=True)
         os.makedirs(self.db_dir, exist_ok=True)
         os.makedirs(self.results_dir, exist_ok=True)
+
+        # Store the database path
+        self.db_path = db_path
 
         # Setup logging
         self._setup_logging()
@@ -72,9 +90,15 @@ class ExperimentRunner:
         num_iterations: int,
         config_variations: Optional[List[Dict]] = None,
         num_steps: int = DEFAULT_NUM_STEPS,
+        path: Optional[Path] = None,
+        run_analysis: bool = True,
     ) -> None:
         """Run multiple iterations of the simulation."""
         self.logger.info(f"Starting experiment with {num_iterations} iterations")
+
+        # Ensure path is a Path object
+        if path and not isinstance(path, Path):
+            path = Path(path)
 
         for i in range(num_iterations):
             self.logger.info(f"Starting iteration {i+1}/{num_iterations}")
@@ -82,34 +106,41 @@ class ExperimentRunner:
             # Create iteration-specific config
             iteration_config = self._create_iteration_config(i, config_variations)
 
-            # Setup database path for this iteration
-            db_path = os.path.join(self.db_dir, f"iteration_{i+1}.db")
-
             try:
+                # Create iteration directory path
+                iteration_path = path / f"iteration_{i+1}" if path else None
+                if iteration_path:
+                    iteration_path.mkdir(parents=True, exist_ok=True)
+
                 # Run simulation
                 env = run_simulation(
                     num_steps=num_steps,
                     config=iteration_config,
-                    db_path=db_path,
+                    path=(
+                        str(iteration_path) if iteration_path else None
+                    ),  # Convert Path to string
                 )
 
                 # Ensure all data is flushed
                 if env.db:
-                    env.logger.flush_all_buffers()
+                    env.db.logger.flush_all_buffers()
 
-                # Analyze results
-                results = self._analyze_iteration(db_path)
-                results["iteration"] = i + 1
-                results["config_variation"] = str(
-                    config_variations[i] if config_variations else "base"
-                )
-
-                self.results.append(results)
                 self.logger.info(f"Completed iteration {i+1}")
 
             except Exception as e:
                 self.logger.error(f"Error in iteration {i+1}: {str(e)}")
                 continue
+
+            if run_analysis:
+                print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! STUFF")
+                chart_analyzer = ChartAnalyzer(iteration_path)
+                chart_analyzer.analyze_all_charts(iteration_path)
+
+                db = SimulationDatabase(iteration_path / "simulation.db")
+                significant_event_analyzer = SignificantEventAnalyzer(db)
+                significant_event_analyzer.analyze_simulation(
+                    start_step=0, end_step=num_steps, min_severity=0.3
+                )
 
     def _create_iteration_config(
         self, iteration: int, variations: Optional[List[Dict]] = None

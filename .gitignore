@@ -123,3 +123,5 @@ last_config.json
 *.json
 *.html
 *.pdf
+
+results/
