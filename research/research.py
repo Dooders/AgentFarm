@@ -28,10 +28,12 @@ ResearchProject : class
     Main class for managing research projects and experiments
 """
 
+import errno
 import json
 import logging
 import os
 import shutil
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -143,6 +145,21 @@ class ResearchProject:
         # Setup directory structure
         self.base_path = Path(base_path)
         self.project_path = self.base_path / name
+
+        # Delete existing project directory if it exists
+        if self.project_path.exists():
+            max_attempts = 3
+            for attempt in range(max_attempts):
+                try:
+                    shutil.rmtree(self.project_path)
+                    break
+                except PermissionError as e:
+                    if attempt == max_attempts - 1:  # Last attempt
+                        raise Exception(
+                            f"Unable to delete directory after {max_attempts} attempts: {e}"
+                        )
+                    time.sleep(1)  # Wait a second before retrying
+
         self._setup_directory_structure()
 
         # Initialize metadata
@@ -232,7 +249,11 @@ class ResearchProject:
             json.dump(vars(self.metadata), f, indent=2)
 
     def create_experiment(
-        self, name: str, description: str, config: SimulationConfig
+        self,
+        name: str,
+        description: str,
+        config: SimulationConfig,
+        path: Optional[Path] = None,
     ) -> str:
         """
         Create a new experiment within the research project.
@@ -263,7 +284,7 @@ class ResearchProject:
         # Create experiment directory
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         exp_id = f"{name}_{timestamp}"
-        exp_path = self.project_path / "experiments" / "simulations" / exp_id
+        exp_path = self.project_path / "experiments" / "data" / exp_id
         exp_path.mkdir(parents=True, exist_ok=True)
 
         # Save experiment configuration

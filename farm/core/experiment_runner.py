@@ -11,8 +11,8 @@ This module provides functionality to:
 import logging
 import os
 from datetime import datetime
-from typing import Dict, List, Optional
 from pathlib import Path
+from typing import Dict, List, Optional
 
 import pandas as pd
 
@@ -25,7 +25,12 @@ DEFAULT_NUM_STEPS = 1000
 class ExperimentRunner:
     """Manages multiple simulation runs and result analysis."""
 
-    def __init__(self, base_config: SimulationConfig, experiment_name: str, db_path: Optional[Path] = None):
+    def __init__(
+        self,
+        base_config: SimulationConfig,
+        experiment_name: str,
+        db_path: Optional[Path] = None,
+    ):
         """
         Initialize experiment runner.
 
@@ -44,7 +49,11 @@ class ExperimentRunner:
 
         # Setup experiment directories
         self.experiment_dir = os.path.join("experiments", experiment_name)
-        self.db_dir = os.path.dirname(str(db_path)) if db_path else os.path.join(self.experiment_dir, "databases")
+        self.db_dir = (
+            os.path.dirname(str(db_path))
+            if db_path
+            else os.path.join(self.experiment_dir, "databases")
+        )
         self.results_dir = os.path.join(self.experiment_dir, "results")
 
         # Create directories
@@ -78,9 +87,14 @@ class ExperimentRunner:
         num_iterations: int,
         config_variations: Optional[List[Dict]] = None,
         num_steps: int = DEFAULT_NUM_STEPS,
+        path: Optional[Path] = None,
     ) -> None:
         """Run multiple iterations of the simulation."""
         self.logger.info(f"Starting experiment with {num_iterations} iterations")
+
+        # Ensure path is a Path object
+        if path and not isinstance(path, Path):
+            path = Path(path)
 
         for i in range(num_iterations):
             self.logger.info(f"Starting iteration {i+1}/{num_iterations}")
@@ -89,25 +103,24 @@ class ExperimentRunner:
             iteration_config = self._create_iteration_config(i, config_variations)
 
             try:
+                # Create iteration directory path
+                iteration_path = path / f"iteration_{i+1}" if path else None
+                if iteration_path:
+                    iteration_path.mkdir(parents=True, exist_ok=True)
+
                 # Run simulation
                 env = run_simulation(
                     num_steps=num_steps,
                     config=iteration_config,
-                    path=self.db_dir,
+                    path=(
+                        str(iteration_path) if iteration_path else None
+                    ),  # Convert Path to string
                 )
 
                 # Ensure all data is flushed
                 if env.db:
                     env.db.logger.flush_all_buffers()
 
-                # Analyze results
-                # results = self._analyze_iteration(self.db_dir)
-                # results["iteration"] = i + 1
-                # results["config_variation"] = str(
-                #     config_variations[i] if config_variations else "base"
-                # )
-
-                # self.results.append(results)
                 self.logger.info(f"Completed iteration {i+1}")
 
             except Exception as e:

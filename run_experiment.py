@@ -3,11 +3,11 @@ Script to run simulation experiments with different configurations.
 """
 
 import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
-import os
 
 from farm.analysis.comparative_analysis import compare_simulations
 from farm.core.config import SimulationConfig
@@ -50,13 +50,15 @@ class Research:
         # Use the logger from ResearchProject
         return self.research_project.logger
 
-    def run_experiment(self, experiment_config: ExperimentConfig) -> None:
+    def run_experiment(
+        self, experiment_config: ExperimentConfig, folder_name: str
+    ) -> None:
         """Run a single experiment with given configuration."""
         self.logger.info(f"Starting experiment: {experiment_config.name}")
 
         # Create experiment in research project
         base_config = SimulationConfig.from_yaml("config.yaml")
-        
+
         # Apply variations to base config
         if experiment_config.variations:
             for variation in experiment_config.variations:
@@ -67,24 +69,25 @@ class Research:
         exp_path = self.research_project.create_experiment(
             experiment_config.name,
             f"Experiment with variations: {experiment_config.variations}",
-            base_config
+            base_config,
+            folder_name,
         )
 
         experiment = None
         try:
             # Create experiment runner with the experiment path
-            # Convert exp_path to Path object and join with simulation.db
-            db_path = Path(exp_path) / "simulation.db"
+            # Convert exp_path to Path object
+            exp_path = Path(exp_path)
+            db_path = exp_path / "simulation.db"
             experiment = ExperimentRunner(
-                base_config, 
-                experiment_config.name,
-                db_path=db_path  # Pass the properly constructed Path object
+                base_config, experiment_config.name, db_path=db_path
             )
 
             experiment.run_iterations(
                 experiment_config.num_iterations,
                 None,  # Don't pass variations here since we already applied them
                 experiment_config.num_steps,
+                exp_path,  # Pass the Path object
             )
 
         except Exception as e:
@@ -101,7 +104,8 @@ class Research:
         self.logger.info(f"Starting research batch with {len(experiments)} experiments")
 
         for experiment in experiments:
-            self.run_experiment(experiment)
+            folder_name = experiment.name + "_" + self.timestamp
+            self.run_experiment(experiment, folder_name)
 
         self.logger.info("All experiments completed")
 
@@ -110,19 +114,18 @@ class Research:
         # Create analysis directory if it doesn't exist
         analysis_dir = os.path.join(str(self.research_dir), "experiments", "analysis")
         os.makedirs(analysis_dir, exist_ok=True)
-        
+
         # Pass both the experiment directory (for finding DBs) and analysis directory
         compare_simulations(
-            search_path=str(self.research_dir), 
-            analysis_path=analysis_dir
+            search_path=str(self.research_dir), analysis_path=analysis_dir
         )
 
 
 def main():
     """Run research project testing individual agent types."""
     research = Research(
-        name="testing_research_experiment",
-        description="Investigating behavior of individual agent types in isolation",
+        name="testing_research_system",
+        description="Testing the system with different agent types",
     )
 
     # Create experiments for each agent type
@@ -132,7 +135,7 @@ def main():
             variations=[
                 {"control_agents": 1, "system_agents": 0, "independent_agents": 0}
             ],
-            num_iterations=1,
+            num_iterations=3,
             num_steps=1000,
         ),
         ExperimentConfig(
@@ -140,7 +143,7 @@ def main():
             variations=[
                 {"control_agents": 0, "system_agents": 1, "independent_agents": 0}
             ],
-            num_iterations=1,
+            num_iterations=3,
             num_steps=1000,
         ),
         ExperimentConfig(
@@ -148,7 +151,7 @@ def main():
             variations=[
                 {"control_agents": 0, "system_agents": 0, "independent_agents": 1}
             ],
-            num_iterations=1,
+            num_iterations=3,
             num_steps=1000,
         ),
     ]
