@@ -6,28 +6,39 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from sqlalchemy import create_engine
 
-from .chart_actions import (plot_action_frequency_over_time,
-                            plot_action_target_distribution,
-                            plot_action_type_distribution,
-                            plot_position_changes, plot_resource_changes,
-                            plot_rewards_by_action_type,
-                            plot_rewards_over_time)
-from .chart_agents import (plot_agent_types_over_time,
-                           plot_lifespan_distribution, plot_lineage_size,
-                           plot_reproduction_success_rate)
-from .chart_simulation import (plot_agent_health_and_age,
-                               plot_agent_lifespan_histogram,
-                               plot_agent_type_comparison,
-                               plot_average_resources, plot_births_and_deaths,
-                               plot_births_and_deaths_by_type,
-                               plot_combat_metrics, plot_evolutionary_metrics,
-                               plot_generational_analysis,
-                               plot_population_dynamics,
-                               plot_reproduction_failure_reasons,
-                               plot_reproduction_resources,
-                               plot_resource_distribution_entropy,
-                               plot_resource_efficiency, plot_resource_sharing,
-                               plot_rewards)
+from .chart_actions import (
+    plot_action_frequency_over_time,
+    plot_action_target_distribution,
+    plot_action_type_distribution,
+    plot_position_changes,
+    plot_resource_changes,
+    plot_rewards_by_action_type,
+    plot_rewards_over_time,
+)
+from .chart_agents import (
+    plot_agent_types_over_time,
+    plot_lifespan_distribution,
+    plot_lineage_size,
+    plot_reproduction_success_rate,
+)
+from .chart_simulation import (
+    plot_agent_health_and_age,
+    plot_agent_lifespan_histogram,
+    plot_agent_type_comparison,
+    plot_average_resources,
+    plot_births_and_deaths,
+    plot_births_and_deaths_by_type,
+    plot_combat_metrics,
+    plot_evolutionary_metrics,
+    plot_generational_analysis,
+    plot_population_dynamics,
+    plot_reproduction_failure_reasons,
+    plot_reproduction_resources,
+    plot_resource_distribution_entropy,
+    plot_resource_efficiency,
+    plot_resource_sharing,
+    plot_rewards,
+)
 from .chart_utils import save_plot  # Import from utilities module
 from .llm_client import LLMClient
 
@@ -51,7 +62,7 @@ class ChartAnalyzer:
         analyses = {}
 
         try:
-            engine = create_engine("sqlite:///simulations/simulation.db")
+            engine = create_engine(f"sqlite:///{self.output_dir}/simulation.db")
             simulation_df = pd.read_sql("SELECT * FROM simulation_steps", engine)
 
             # Simulation charts
@@ -96,9 +107,13 @@ class ChartAnalyzer:
                     if plt is not None:
                         if self.save_charts:
                             image_path = save_plot(plt, chart_name)
-                            analysis = self._analyze_simulation_chart(chart_name, simulation_df)
+                            analysis = self._analyze_simulation_chart(
+                                chart_name, simulation_df
+                            )
                         else:
-                            analysis = self._analyze_simulation_chart(chart_name, simulation_df)
+                            analysis = self._analyze_simulation_chart(
+                                chart_name, simulation_df
+                            )
                             plt.close()
                         analyses[chart_name] = analysis
                 except Exception as e:
@@ -123,9 +138,13 @@ class ChartAnalyzer:
                         if plt is not None:
                             if self.save_charts:
                                 image_path = save_plot(plt, chart_name)
-                                analysis = self._analyze_simulation_chart(chart_name, actions_df)
+                                analysis = self._analyze_simulation_chart(
+                                    chart_name, actions_df
+                                )
                             else:
-                                analysis = self._analyze_simulation_chart(chart_name, actions_df)
+                                analysis = self._analyze_simulation_chart(
+                                    chart_name, actions_df
+                                )
                                 plt.close()
                             analyses[chart_name] = analysis
                     except Exception as e:
@@ -148,9 +167,13 @@ class ChartAnalyzer:
                         if plt is not None:
                             if self.save_charts:
                                 image_path = save_plot(plt, chart_name)
-                                analysis = self._analyze_simulation_chart(chart_name, agents_df)
+                                analysis = self._analyze_simulation_chart(
+                                    chart_name, agents_df
+                                )
                             else:
-                                analysis = self._analyze_simulation_chart(chart_name, agents_df)
+                                analysis = self._analyze_simulation_chart(
+                                    chart_name, agents_df
+                                )
                                 plt.close()
                             analyses[chart_name] = analysis
                     except Exception as e:
@@ -413,10 +436,14 @@ Agent Type Comparison:
             FROM reproduction_events
             """
             repro_data = pd.read_sql(repro_query, engine)
-            
-            total_attempts = repro_data['total_attempts'].iloc[0]
-            successful_attempts = repro_data['successful_attempts'].iloc[0]
-            success_rate = (successful_attempts / total_attempts * 100) if total_attempts > 0 else 0
+
+            total_attempts = repro_data["total_attempts"].iloc[0]
+            successful_attempts = repro_data["successful_attempts"].iloc[0]
+            success_rate = (
+                (successful_attempts / total_attempts * 100)
+                if total_attempts > 0
+                else 0
+            )
 
             return f"""
 Reproduction Success Analysis:
@@ -464,11 +491,12 @@ Reproduction Failure Analysis:
             action_counts = df["action_type"].value_counts()
             total_actions = len(df)
             most_common = action_counts.index[0]
-            
+
             # Convert the first 3 items to a list before joining
-            top_3_actions = [f'{action}: {count}' for action, count in 
-                            action_counts.head(3).items()]
-            
+            top_3_actions = [
+                f"{action}: {count}" for action, count in action_counts.head(3).items()
+            ]
+
             return f"""
 Action Type Analysis:
 - Total actions: {total_actions}
@@ -482,9 +510,9 @@ Action Type Analysis:
     def _analyze_rewards_by_action_type(self, df: pd.DataFrame) -> str:
         """Analyze rewards by action type."""
         try:
-            avg_rewards = df.groupby("action_type")["reward"].agg(['mean', 'count'])
-            best_action = avg_rewards['mean'].idxmax()
-            
+            avg_rewards = df.groupby("action_type")["reward"].agg(["mean", "count"])
+            best_action = avg_rewards["mean"].idxmax()
+
             return f"""
 Action Rewards Analysis:
 - Most rewarding action: {best_action} (avg: {avg_rewards.loc[best_action, 'mean']:.2f})
@@ -497,10 +525,10 @@ Action Rewards Analysis:
     def _analyze_resource_changes(self, df: pd.DataFrame) -> str:
         """Analyze resource changes from actions."""
         try:
-            df['resource_change'] = df['resources_after'] - df['resources_before']
-            avg_change = df['resource_change'].mean()
-            positive_changes = (df['resource_change'] > 0).sum()
-            
+            df["resource_change"] = df["resources_after"] - df["resources_before"]
+            avg_change = df["resource_change"].mean()
+            positive_changes = (df["resource_change"] > 0).sum()
+
             return f"""
 Resource Change Analysis:
 - Average resource change: {avg_change:.2f}
@@ -513,10 +541,10 @@ Resource Change Analysis:
     def _analyze_action_frequency_over_time(self, df: pd.DataFrame) -> str:
         """Analyze action frequency patterns."""
         try:
-            actions_per_step = df.groupby('step_number').size()
+            actions_per_step = df.groupby("step_number").size()
             avg_actions = actions_per_step.mean()
             trend = actions_per_step.diff().mean()
-            
+
             return f"""
 Action Frequency Analysis:
 - Average actions per step: {avg_actions:.2f}
@@ -529,10 +557,10 @@ Action Frequency Analysis:
     def _analyze_rewards_over_time(self, df: pd.DataFrame) -> str:
         """Analyze reward patterns over time."""
         try:
-            rewards_per_step = df.groupby('step_number')['reward'].sum()
+            rewards_per_step = df.groupby("step_number")["reward"].sum()
             avg_reward = rewards_per_step.mean()
             trend = rewards_per_step.diff().mean()
-            
+
             return f"""
 Rewards Over Time Analysis:
 - Average reward per step: {avg_reward:.2f}
@@ -547,20 +575,20 @@ Rewards Over Time Analysis:
         try:
             targets = []
             for _, row in df.iterrows():
-                if pd.notnull(row['details']):
+                if pd.notnull(row["details"]):
                     try:
-                        details = json.loads(row['details'])
-                        if 'target_id' in details:
-                            targets.append(details['target_id'])
-                        elif 'target_position' in details:
-                            targets.append('position')
+                        details = json.loads(row["details"])
+                        if "target_id" in details:
+                            targets.append(details["target_id"])
+                        elif "target_position" in details:
+                            targets.append("position")
                         else:
-                            targets.append('no_target')
+                            targets.append("no_target")
                     except json.JSONDecodeError:
-                        targets.append('invalid_details')
-                    
+                        targets.append("invalid_details")
+
             target_counts = pd.Series(targets).value_counts()
-            
+
             return f"""
 Action Target Analysis:
 - Most common target: {target_counts.index[0]} ({target_counts.iloc[0]} times)
@@ -577,7 +605,7 @@ Action Target Analysis:
             avg_lifespan = df["lifespan"].mean()
             max_lifespan = df["lifespan"].max()
             survival_rate = (df["lifespan"] > avg_lifespan).mean() * 100
-            
+
             return f"""
 Lifespan Distribution Analysis:
 - Average lifespan: {avg_lifespan:.1f} steps
@@ -595,7 +623,7 @@ Lifespan Distribution Analysis:
             avg_lineage = lineage_sizes.mean()
             max_lineage = lineage_sizes.max()
             successful_lineages = (lineage_sizes > avg_lineage).sum()
-            
+
             return f"""
 Lineage Size Analysis:
 - Average lineage size: {avg_lineage:.1f} agents
@@ -609,10 +637,12 @@ Lineage Size Analysis:
     def _analyze_agent_types_over_time(self, df: pd.DataFrame) -> str:
         """Analyze the evolution of agent types over time."""
         try:
-            type_counts = df.groupby(["agent_type", "birth_time"]).size().unstack(fill_value=0)
+            type_counts = (
+                df.groupby(["agent_type", "birth_time"]).size().unstack(fill_value=0)
+            )
             dominant_type = df["agent_type"].mode().iloc[0]
             type_diversity = len(df["agent_type"].unique())
-            
+
             return f"""
 Agent Type Evolution Analysis:
 - Dominant type: {dominant_type}

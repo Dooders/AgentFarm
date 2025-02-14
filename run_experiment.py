@@ -79,10 +79,10 @@ class Research:
             # Create experiment runner with the experiment path
             exp_path = Path(exp_path)
             db_path = exp_path / "simulation.db"
-            
+
             # Ensure parent directory exists
             db_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
             experiment = ExperimentRunner(
                 base_config, experiment_config.name, db_path=db_path
             )
@@ -105,7 +105,7 @@ class Research:
                     if hasattr(experiment, "db"):
                         experiment.db.close()
                         delattr(experiment, "db")
-                    
+
                     # Add small delay to ensure file handles are released
                     time.sleep(0.1)
                 except Exception as cleanup_error:

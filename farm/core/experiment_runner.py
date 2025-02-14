@@ -133,7 +133,7 @@ class ExperimentRunner:
 
             if run_analysis:
                 print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! STUFF")
-                chart_analyzer = ChartAnalyzer()
+                chart_analyzer = ChartAnalyzer(iteration_path)
                 chart_analyzer.analyze_all_charts(iteration_path)
 
                 db = SimulationDatabase(iteration_path / "simulation.db")
