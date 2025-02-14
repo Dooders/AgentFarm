@@ -1,10 +1,13 @@
 import json
 import os
-from typing import Dict, List
+from pathlib import Path
+from typing import Dict, List, Optional
 
 import matplotlib.pyplot as plt
 import pandas as pd
 from sqlalchemy import create_engine
+
+from farm.database.database import SimulationDatabase
 
 from .chart_actions import (
     plot_action_frequency_over_time,
@@ -44,34 +47,41 @@ from .llm_client import LLMClient
 
 
 class ChartAnalyzer:
-    #! this could be an agent thats called from the experiment runner
-    def __init__(self, output_dir: str = "example_output", save_charts: bool = True):
+    def __init__(self, database: "SimulationDatabase", output_dir: Optional[Path] = None, save_charts: bool = True):
         """
         Initialize the chart analyzer.
 
         Args:
-            output_dir: Directory to save charts and analyses
+            database: SimulationDatabase instance for data access
+            output_dir: Optional directory to save charts and analyses
             save_charts: Whether to save charts to files or keep in memory
         """
-        self.output_dir = output_dir
+        self.db = database
+        self.output_dir = output_dir if output_dir else Path("example_output")
         self.save_charts = save_charts
         self.llm_client = LLMClient()
 
-    def analyze_all_charts(self, actions_df=None, agents_df=None) -> Dict[str, str]:
+    def analyze_all_charts(self, output_path: Optional[Path] = None) -> Dict[str, str]:
         """Generate and analyze all charts, returning a dictionary of analyses."""
         analyses = {}
+        
+        if output_path:
+            self.output_dir = output_path
 
         try:
-            engine = create_engine(f"sqlite:///{self.output_dir}/simulation.db")
-            simulation_df = pd.read_sql("SELECT * FROM simulation_steps", engine)
+            # Use the database connection directly instead of creating a new one
+            simulation_df = pd.read_sql("SELECT * FROM simulation_steps", self.db.engine)
+            actions_df = pd.read_sql("SELECT * FROM agent_actions", self.db.engine)
+            agents_df = pd.read_sql("SELECT * FROM agents", self.db.engine)
+
+            # Get connection string from engine
+            connection_string = str(self.db.engine.url)
 
             # Simulation charts
             simulation_chart_functions = {
                 "population_dynamics": plot_population_dynamics,
                 "births_and_deaths": plot_births_and_deaths,
-                "births_and_deaths_by_type": lambda df: plot_births_and_deaths_by_type(
-                    df, "sqlite:///simulations/simulation.db"
-                ),
+                "births_and_deaths_by_type": plot_births_and_deaths_by_type,
                 "resource_efficiency": plot_resource_efficiency,
                 "agent_health_and_age": plot_agent_health_and_age,
                 "combat_metrics": plot_combat_metrics,
@@ -80,48 +90,41 @@ class ChartAnalyzer:
                 "resource_distribution_entropy": plot_resource_distribution_entropy,
                 "rewards": plot_rewards,
                 "average_resources": plot_average_resources,
-                "agent_lifespan_histogram": lambda df: plot_agent_lifespan_histogram(
-                    df, "sqlite:///simulations/simulation.db"
-                ),
-                "agent_type_comparison": lambda df: plot_agent_type_comparison(
-                    df, "sqlite:///simulations/simulation.db"
-                ),
-                "reproduction_success_rate": lambda df: plot_reproduction_success_rate(
-                    df, "sqlite:///simulations/simulation.db"
-                ),
-                "reproduction_resources": lambda df: plot_reproduction_resources(
-                    df, "sqlite:///simulations/simulation.db"
-                ),
-                "generational_analysis": lambda df: plot_generational_analysis(
-                    df, "sqlite:///simulations/simulation.db"
-                ),
-                "reproduction_failure_reasons": lambda df: plot_reproduction_failure_reasons(
-                    df, "sqlite:///simulations/simulation.db"
-                ),
+                "agent_lifespan_histogram": plot_agent_lifespan_histogram,
+                "agent_type_comparison": plot_agent_type_comparison,
+                "reproduction_success_rate": plot_reproduction_success_rate,
+                "reproduction_resources": plot_reproduction_resources,
+                "generational_analysis": plot_generational_analysis,
+                "reproduction_failure_reasons": plot_reproduction_failure_reasons,
             }
 
+            # Update chart functions to use the database connection
             for chart_name, chart_func in simulation_chart_functions.items():
                 try:
                     print(f"Generating {chart_name} chart...")
-                    plt = chart_func(simulation_df)
+                    # Pass connection string to chart functions that need it
+                    if chart_name in ["births_and_deaths_by_type", "agent_lifespan_histogram", 
+                                    "agent_type_comparison", "reproduction_success_rate",
+                                    "reproduction_resources", "generational_analysis",
+                                    "reproduction_failure_reasons"]:
+                        plt = chart_func(simulation_df, connection_string)
+                    else:
+                        plt = chart_func(simulation_df)
+
                     if plt is not None:
                         if self.save_charts:
-                            image_path = save_plot(plt, chart_name)
-                            analysis = self._analyze_simulation_chart(
-                                chart_name, simulation_df
-                            )
+                            image_path = save_plot(plt, chart_name, self.output_dir)
+                            analysis = self._analyze_simulation_chart(chart_name, simulation_df)
                         else:
-                            analysis = self._analyze_simulation_chart(
-                                chart_name, simulation_df
-                            )
+                            analysis = self._analyze_simulation_chart(chart_name, simulation_df)
                             plt.close()
                         analyses[chart_name] = analysis
                 except Exception as e:
                     print(f"Error generating {chart_name} chart: {e}")
                     analyses[chart_name] = f"Analysis failed: {str(e)}"
 
-            # Process action charts if actions_df is provided
-            if actions_df is not None:
+            # Process action charts
+            if not actions_df.empty:
                 self.llm_client.set_data(actions_df, data_type="actions")
                 action_chart_functions = {
                     "action_type_distribution": plot_action_type_distribution,
@@ -137,28 +140,23 @@ class ChartAnalyzer:
                         plt = chart_func(actions_df)
                         if plt is not None:
                             if self.save_charts:
-                                image_path = save_plot(plt, chart_name)
-                                analysis = self._analyze_simulation_chart(
-                                    chart_name, actions_df
-                                )
+                                image_path = save_plot(plt, chart_name, self.output_dir)
+                                analysis = self._analyze_simulation_chart(chart_name, actions_df)
                             else:
-                                analysis = self._analyze_simulation_chart(
-                                    chart_name, actions_df
-                                )
+                                analysis = self._analyze_simulation_chart(chart_name, actions_df)
                                 plt.close()
                             analyses[chart_name] = analysis
                     except Exception as e:
                         print(f"Error analyzing {chart_name}: {str(e)}")
                         analyses[chart_name] = f"Analysis failed: {str(e)}"
 
-            # Process agent charts if agents_df is provided
-            if agents_df is not None:
+            # Process agent charts
+            if not agents_df.empty:
                 self.llm_client.set_data(agents_df, data_type="agents")
                 agent_chart_functions = {
                     "lifespan_distribution": plot_lifespan_distribution,
                     "lineage_size": plot_lineage_size,
                     "agent_types_over_time": plot_agent_types_over_time,
-                    "reproduction_success_rate": plot_reproduction_success_rate,
                 }
 
                 for chart_name, chart_func in agent_chart_functions.items():
@@ -166,14 +164,10 @@ class ChartAnalyzer:
                         plt = chart_func(agents_df)
                         if plt is not None:
                             if self.save_charts:
-                                image_path = save_plot(plt, chart_name)
-                                analysis = self._analyze_simulation_chart(
-                                    chart_name, agents_df
-                                )
+                                image_path = save_plot(plt, chart_name, self.output_dir)
+                                analysis = self._analyze_simulation_chart(chart_name, agents_df)
                             else:
-                                analysis = self._analyze_simulation_chart(
-                                    chart_name, agents_df
-                                )
+                                analysis = self._analyze_simulation_chart(chart_name, agents_df)
                                 plt.close()
                             analyses[chart_name] = analysis
                     except Exception as e:
@@ -182,7 +176,7 @@ class ChartAnalyzer:
 
             # Save analyses to text file if saving is enabled
             if self.save_charts:
-                text_path = os.path.join(self.output_dir, "chart_analyses.txt")
+                text_path = self.output_dir / "chart_analyses.txt"
                 with open(text_path, "w") as f:
                     f.write("SIMULATION ANALYSIS SUMMARY\n\n")
                     for chart_name, analysis in analyses.items():
@@ -657,7 +651,7 @@ Agent Type Evolution Analysis:
 def main(actions_df=None, agents_df=None):
     """Main function to run chart analysis."""
     analyzer = ChartAnalyzer()
-    analyses = analyzer.analyze_all_charts(actions_df, agents_df)
+    analyses = analyzer.analyze_all_charts()
 
     # Print analyses
     for chart_name, analysis in analyses.items():

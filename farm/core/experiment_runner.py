@@ -102,13 +102,10 @@ class ExperimentRunner:
 
         for i in range(num_iterations):
             self.logger.info(f"Starting iteration {i+1}/{num_iterations}")
-
-            # Create iteration-specific config
             iteration_config = self._create_iteration_config(i, config_variations)
+            iteration_path = path / f"iteration_{i+1}" if path else None
 
             try:
-                # Create iteration directory path
-                iteration_path = path / f"iteration_{i+1}" if path else None
                 if iteration_path:
                     iteration_path.mkdir(parents=True, exist_ok=True)
 
@@ -116,31 +113,36 @@ class ExperimentRunner:
                 env = run_simulation(
                     num_steps=num_steps,
                     config=iteration_config,
-                    path=(
-                        str(iteration_path) if iteration_path else None
-                    ),  # Convert Path to string
+                    path=str(iteration_path) if iteration_path else None,
                 )
 
                 # Ensure all data is flushed
                 if env.db:
                     env.db.logger.flush_all_buffers()
-
+                
                 self.logger.info(f"Completed iteration {i+1}")
+
+                if run_analysis and iteration_path:
+                    # Create a new database connection for analysis
+                    db_path = iteration_path / "simulation.db"
+                    analysis_db = SimulationDatabase(str(db_path))
+                    
+                    try:
+                        # Run chart analysis with the new connection
+                        chart_analyzer = ChartAnalyzer(analysis_db)
+                        chart_analyzer.analyze_all_charts(iteration_path)
+
+                        significant_event_analyzer = SignificantEventAnalyzer(analysis_db)
+                        significant_event_analyzer.analyze_simulation(
+                            start_step=0, end_step=num_steps, min_severity=0.3
+                        )
+                    finally:
+                        # Clean up analysis database connection
+                        analysis_db.close()
 
             except Exception as e:
                 self.logger.error(f"Error in iteration {i+1}: {str(e)}")
                 continue
-
-            if run_analysis:
-                print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! STUFF")
-                chart_analyzer = ChartAnalyzer(iteration_path)
-                chart_analyzer.analyze_all_charts(iteration_path)
-
-                db = SimulationDatabase(iteration_path / "simulation.db")
-                significant_event_analyzer = SignificantEventAnalyzer(db)
-                significant_event_analyzer.analyze_simulation(
-                    start_step=0, end_step=num_steps, min_severity=0.3
-                )
 
     def _create_iteration_config(
         self, iteration: int, variations: Optional[List[Dict]] = None
