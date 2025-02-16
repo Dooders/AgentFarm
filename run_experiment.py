@@ -2,18 +2,20 @@
 Script to run simulation experiments with different configurations.
 """
 
+#! why is experiments folder still being created for each experiment?
+
 import logging
 import os
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
-import time
 
 from farm.analysis.comparative_analysis import compare_simulations
 from farm.core.config import SimulationConfig
 from farm.core.experiment_runner import ExperimentRunner
-from research.research import ResearchProject
+from farm.research.research import ResearchProject
 
 logging.basicConfig(level=logging.INFO)
 
@@ -146,11 +148,10 @@ def main():
     experiments = [
         ExperimentConfig(
             name="single_control_agent",
-            #! call the config file (customized only changes from the base config)
             variations=[
                 {"control_agents": 1, "system_agents": 0, "independent_agents": 0}
             ],
-            num_iterations=3,
+            num_iterations=1,
             num_steps=500,
         ),
         ExperimentConfig(
@@ -158,7 +159,7 @@ def main():
             variations=[
                 {"control_agents": 0, "system_agents": 1, "independent_agents": 0}
             ],
-            num_iterations=3,
+            num_iterations=1,
             num_steps=500,
         ),
         ExperimentConfig(
@@ -166,7 +167,7 @@ def main():
             variations=[
                 {"control_agents": 0, "system_agents": 0, "independent_agents": 1}
             ],
-            num_iterations=3,
+            num_iterations=1,
             num_steps=500,
         ),
     ]
