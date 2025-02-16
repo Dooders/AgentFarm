@@ -354,7 +354,18 @@ def generate_interactive_tree(
                 right: 10px;
                 z-index: 1000;
                 display: flex;
+                flex-direction: column;
                 gap: 10px;
+                background: rgba(0, 0, 0, 0.7);
+                padding: 10px;
+                border-radius: 5px;
+                color: white;
+                font-family: monospace;
+            }
+            .control-row {
+                display: flex;
+                gap: 10px;
+                align-items: center;
             }
             .control-button {
                 background: rgba(255, 255, 255, 0.8);
@@ -363,10 +374,9 @@ def generate_interactive_tree(
                 border-radius: 3px;
                 cursor: pointer;
             }
-            #zoom-level {
-                background: rgba(255, 255, 255, 0.8);
-                padding: 5px 10px;
-                border-radius: 3px;
+            .info-text {
+                font-size: 12px;
+                white-space: nowrap;
             }
             #hud-overlay {
                 position: fixed;
@@ -374,33 +384,15 @@ def generate_interactive_tree(
                 left: 20px;
                 width: 150px;
                 height: 150px;
-                background: rgba(0, 128, 255, 0.8);  /* Bright blue with high opacity */
-                border: 1px solid rgba(0, 128, 255, 1);  /* Solid bright blue border */
+                background: rgba(0, 128, 255, 0.8);
+                border: 1px solid rgba(0, 128, 255, 1);
                 z-index: 1000;
                 border-radius: 5px;
-                box-shadow: 0 0 10px rgba(0, 128, 255, 0.5);  /* Blue glow effect */
+                box-shadow: 0 0 10px rgba(0, 128, 255, 0.5);
+                pointer-events: none;  /* Allow clicking through the HUD */
             }
-            #hud-overlay-2 {
-                position: fixed;
-                top: 190px;
-                left: 20px;
-                width: 150px;
-                height: 150px;
-                background: rgba(255, 255, 255, 0.1);
-                border: 1px solid rgba(255, 255, 255, 0.3);
-                z-index: 1000;
-                border-radius: 5px;
-            }
-            #hud-overlay-3 {
-                position: fixed;
-                top: 360px;
-                left: 20px;
-                width: 150px;
-                height: 150px;
-                background: rgba(255, 255, 255, 0.1);
-                border: 1px solid rgba(255, 255, 255, 0.3);
-                z-index: 1000;
-                border-radius: 5px;
+            #hud-overlay-2, #hud-overlay-3 {
+                pointer-events: none;  /* Allow clicking through the HUD */
             }
         </style>
     </head>
@@ -409,14 +401,21 @@ def generate_interactive_tree(
         <div id="hud-overlay-2"></div>
         <div id="hud-overlay-3"></div>
         <div id="controls">
-            <div id="zoom-level">Zoom: 1.00</div>
-            <button class="control-button" id="fit-button">Fit to Screen</button>
+            <div class="control-row">
+                <div id="zoom-level" class="info-text">Zoom: 1.00</div>
+                <button class="control-button" id="fit-button">Fit to Screen</button>
+            </div>
+            <div id="root-position" class="info-text">Root: (0, 0)</div>
         </div>
         <div id="cy"></div>
         <script>
             fetch('/static/family_tree.json')
                 .then(response => response.json())
                 .then(data => {
+                    const HUD_WIDTH = 200;
+                    const HUD_HEIGHT = 200;
+                    let isPushing = false;
+
                     const cy = cytoscape({
                         container: document.getElementById('cy'),
                         elements: {
@@ -433,7 +432,7 @@ def generate_interactive_tree(
                         boxSelectionEnabled: false,
                         autounselectify: true,
                         wheelSensitivity: 0.2,
-                        minZoom: 0.01,  // Allow much more zoom out
+                        minZoom: 0.01,
                         maxZoom: 3,
                         style: [
                             {
@@ -503,21 +502,101 @@ def generate_interactive_tree(
                                 }
                             }
                         ],
+                        panningEnabled: true,
+                        userPanningEnabled: true,
+                        minZoom: 0.01,
+                        maxZoom: 3,
                     });
 
-                    // Run initial layout
+                    // Soft boundary pan logic
+                    let lastPan = { x: 0, y: 0 };
+                    cy.on('pan', _.throttle(() => {
+                        const zoom = cy.zoom();
+                        const pan = cy.pan();
+                        const panDelta = {
+                            x: pan.x - lastPan.x,
+                            y: pan.y - lastPan.y
+                        };
+                        
+                        // Check if we're in the HUD zone
+                        const inHudZone = {
+                            x: -pan.x / zoom < HUD_WIDTH,
+                            y: -pan.y / zoom < HUD_HEIGHT
+                        };
+
+                        // If actively pushing against HUD (large pan delta), allow breakthrough
+                        if (Math.abs(panDelta.x) > 20 || Math.abs(panDelta.y) > 20) {
+                            isPushing = true;
+                            lastPan = pan;
+                            return;  // Allow the pan
+                        }
+
+                        // If not pushing and in HUD zone, apply soft resistance
+                        if (!isPushing && (inHudZone.x || inHudZone.y)) {
+                            const newPan = { ...pan };
+                            if (inHudZone.x) {
+                                newPan.x = -HUD_WIDTH * zoom;
+                            }
+                            if (inHudZone.y) {
+                                newPan.y = -HUD_HEIGHT * zoom;
+                            }
+                            cy.pan(newPan);
+                        }
+
+                        lastPan = pan;
+                    }, 16));
+
+                    // Reset pushing state when pan ends
+                    cy.on('panend', () => {
+                        isPushing = false;
+                    });
+
+                    // Run initial layout centered in available space
                     cy.layout({
                         name: 'dagre',
                         rankDir: 'LR',
                         nodeSep: 50,
                         rankSep: 200,
-                        padding: 25,
+                        padding: 50,
                         animate: false,
                         spacingFactor: 1.0
                     }).run();
 
-                    // Fit to screen with padding
-                    cy.fit(50);
+                    // Center the graph in the available space (excluding HUD)
+                    const centerGraph = () => {
+                        const bb = cy.elements().boundingBox();
+                        const availableWidth = cy.width() - HUD_WIDTH;
+                        const availableHeight = cy.height() - HUD_HEIGHT;
+                        
+                        // Calculate center position in available space
+                        const centerX = HUD_WIDTH + (availableWidth / 2);
+                        const centerY = HUD_HEIGHT + (availableHeight / 2);
+                        
+                        // Calculate required zoom to fit
+                        const widthRatio = availableWidth / bb.w;
+                        const heightRatio = availableHeight / bb.h;
+                        const newZoom = Math.min(widthRatio, heightRatio) * 0.8; // 80% of available space
+                        
+                        // Set zoom and pan to center
+                        cy.zoom(newZoom);
+                        cy.center();
+                        
+                        // Adjust pan to account for HUD
+                        const currentPan = cy.pan();
+                        cy.pan({
+                            x: currentPan.x + (HUD_WIDTH / 2),
+                            y: currentPan.y + (HUD_HEIGHT / 2)
+                        });
+
+                        // Force position update after centering
+                        setTimeout(updateRootPosition, 50);
+                    };
+
+                    // Initial centering
+                    centerGraph();
+
+                    // Update fit button to use centering
+                    document.getElementById('fit-button').addEventListener('click', centerGraph);
 
                     // Update zoom level display
                     const zoomDisplay = document.getElementById('zoom-level');
@@ -525,10 +604,34 @@ def generate_interactive_tree(
                         zoomDisplay.textContent = `Zoom: ${cy.zoom().toFixed(2)}`;
                     }, 100));
 
-                    // Add fit to screen button handler
-                    document.getElementById('fit-button').addEventListener('click', () => {
-                        cy.fit(50);
-                    });
+                    // Function to update root node position display
+                    const updateRootPosition = _.throttle(() => {
+                        const rootNode = cy.nodes()[0];
+                        if (rootNode) {
+                            const renderedPosition = rootNode.renderedPosition();
+                            const zoom = cy.zoom();
+                            
+                            // Convert rendered position back to model coordinates
+                            const modelX = Math.round(renderedPosition.x / zoom);
+                            const modelY = Math.round(renderedPosition.y / zoom);
+                            
+                            document.getElementById('root-position').textContent = 
+                                `Root: (${modelX}, ${modelY})`;
+                        }
+                    }, 16);  // 60fps
+
+                    // Add event listeners
+                    cy.on('render', updateRootPosition);
+                    cy.on('pan', updateRootPosition);
+                    cy.on('zoom', updateRootPosition);
+                    cy.on('position', updateRootPosition);
+                    cy.on('layoutstop', updateRootPosition);
+
+                    // Also update on viewport changes
+                    cy.on('viewport', updateRootPosition);
+
+                    // Make the entire updateRootPosition function available to the cy object
+                    cy.updateRootPosition = updateRootPosition;
                 });
         </script>
     </body>
