@@ -1397,7 +1397,7 @@ class SignificantEventAnalyzer:
 
         return "\n".join(summary)
 
-    def analyze_simulation(self, start_step=None, end_step=None, min_severity=0.3):
+    def analyze_simulation(self, start_step=None, end_step=None, min_severity=0.3, path=None):
         """Analyze simulation and return both events and summary.
 
         Parameters
@@ -1418,6 +1418,11 @@ class SignificantEventAnalyzer:
             start_step=start_step, end_step=end_step, min_severity=min_severity
         )
         summary = self.get_event_summary(events)
+        
+        if path:
+            with open(path / "significant_events.txt", "w") as f:
+                f.write(summary)
+
         return events, summary
 
     def get_event_types(self, events):

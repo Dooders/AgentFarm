@@ -134,7 +134,7 @@ class ExperimentRunner:
 
                         significant_event_analyzer = SignificantEventAnalyzer(analysis_db)
                         significant_event_analyzer.analyze_simulation(
-                            start_step=0, end_step=num_steps, min_severity=0.3
+                            start_step=0, end_step=num_steps, min_severity=0.3, path=iteration_path
                         )
                     finally:
                         # Clean up analysis database connection
