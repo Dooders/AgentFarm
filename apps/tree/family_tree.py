@@ -252,7 +252,7 @@ def generate_interactive_tree(
 
     # Convert to network structure
     G = nx.DiGraph()
-    
+
     # Add nodes with their attributes
     for agent_id in agents:
         if agent_id in agent_details:
@@ -264,17 +264,13 @@ def generate_interactive_tree(
                 birth_time=agent.birth_time,
                 offspring_count=offspring_count.get(agent_id, 0),
                 resources_consumed=resources_consumed.get(agent_id, 0),
-                color=get_node_color(agent_id)
+                color=get_node_color(agent_id),
             )
 
     # Add edges
     for event in reproduction_events:
         if event.offspring_id:
-            G.add_edge(
-                event.parent_id,
-                event.offspring_id,
-                step=event.step_number
-            )
+            G.add_edge(event.parent_id, event.offspring_id, step=event.step_number)
 
     # Convert to JSON format for visualization
     graph_data = {
@@ -285,38 +281,32 @@ def generate_interactive_tree(
                 "details": (
                     f"Generation: {G.nodes[node]['generation']}\n"
                     f"Type: {G.nodes[node]['agent_type']}\n"
-                    f"Birth: {G.nodes[node]['birth_time']}\n" +
-                    (f"Offspring: {G.nodes[node]['offspring_count']}" if color_by == "offspring" else
-                     f"Resources: {G.nodes[node]['resources_consumed']:.1f}")
-                ).replace(
-                    "Generation:", "<b>Generation:</b>"
-                ).replace(
-                    "Type:", "<b>Type:</b>"
-                ).replace(
-                    "Birth:", "<b>Birth:</b>"
-                ).replace(
-                    "Offspring:", "<b>Offspring:</b>"
-                ).replace(
-                    "Resources:", "<b>Resources:</b>"
-                ),
-                **G.nodes[node]
+                    f"Birth: {G.nodes[node]['birth_time']}\n"
+                    + (
+                        f"Offspring: {G.nodes[node]['offspring_count']}"
+                        if color_by == "offspring"
+                        else f"Resources: {G.nodes[node]['resources_consumed']:.1f}"
+                    )
+                )
+                .replace("Generation:", "<b>Generation:</b>")
+                .replace("Type:", "<b>Type:</b>")
+                .replace("Birth:", "<b>Birth:</b>")
+                .replace("Offspring:", "<b>Offspring:</b>")
+                .replace("Resources:", "<b>Resources:</b>"),
+                **G.nodes[node],
             }
             for node in G.nodes()
         ],
         "edges": [
-            {
-                "source": u,
-                "target": v,
-                "step": G.edges[u, v]["step"]
-            }
+            {"source": u, "target": v, "step": G.edges[u, v]["step"]}
             for u, v in G.edges()
-        ]
+        ],
     }
 
     # Add debug logging
     print(f"Number of nodes: {len(graph_data['nodes'])}")
     print(f"Number of edges: {len(graph_data['edges'])}")
-    if len(graph_data['nodes']) == 0:
+    if len(graph_data["nodes"]) == 0:
         print("No nodes found in graph!")
         print(f"Number of agents: {len(agents)}")
         print(f"Number of agent_details: {len(agent_details)}")
@@ -648,19 +638,18 @@ if __name__ == "__main__":
     try:
         # Generate both visualizations
         generate_family_tree(
-            session,
-            output_path="family_tree",
-            max_generations=5,
-            color_by="offspring"
+            session, output_path="family_tree", max_generations=5, color_by="offspring"
         )
-        
+
         generate_interactive_tree(
             session,
             output_path="family_tree",
             max_generations=5,
             color_by="offspring",
         )
-        print("Open family_tree.html in your web browser to view the interactive visualization")
+        print(
+            "Open family_tree.html in your web browser to view the interactive visualization"
+        )
         print("Check family_tree_pdf.pdf for the static visualization")
     finally:
         session.close()
