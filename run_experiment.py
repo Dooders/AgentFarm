@@ -140,8 +140,8 @@ class Research:
 def main():
     """Run research project testing individual agent types."""
     research = Research(
-        name="testing_research_system",
-        description="Testing the system with different agent types",
+        name="one_of_a_kind",
+        description="3 experiments with 100 iterations and 1000 steps, each with a different agent type (1 control, 1 system, 1 independent)",
     )
 
     # Create experiments for each agent type
@@ -151,24 +151,24 @@ def main():
             variations=[
                 {"control_agents": 1, "system_agents": 0, "independent_agents": 0}
             ],
-            num_iterations=1,
-            num_steps=500,
+            num_iterations=100,
+            num_steps=1000,
         ),
         ExperimentConfig(
             name="single_system_agent",
             variations=[
                 {"control_agents": 0, "system_agents": 1, "independent_agents": 0}
             ],
-            num_iterations=1,
-            num_steps=500,
+            num_iterations=100,
+            num_steps=1000,
         ),
         ExperimentConfig(
             name="single_independent_agent",
             variations=[
                 {"control_agents": 0, "system_agents": 0, "independent_agents": 1}
             ],
-            num_iterations=1,
-            num_steps=500,
+            num_iterations=100,
+            num_steps=1000,
         ),
     ]
 

@@ -121,7 +121,6 @@ simulations/last_config.json
 last_config.json
 
 *.json
-*.html
 *.pdf
 
 results/
