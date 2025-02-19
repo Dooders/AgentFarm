@@ -299,9 +299,6 @@ def _get_reproduce_state(agent: "BaseAgent") -> torch.Tensor:
 def _check_reproduction_conditions(agent: "BaseAgent") -> bool:
     """Check if conditions are suitable for reproduction."""
     # Check basic requirements
-    # if len(agent.environment.agents) >= agent.config.max_population:
-    #     return False
-
     if agent.resource_level < agent.config.min_reproduction_resources:
         return False
 
