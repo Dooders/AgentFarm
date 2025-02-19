@@ -3,17 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simulation Project</title>
+    <title>Simulation Control</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
-        <h1>Simulation Project</h1>
+        <nav class="navigation">
+            <a href="index.html" class="active">Simulation Control</a>
+            <a href="tree.html">Family Tree</a>
+        </nav>
+        <h1>Simulation Control Panel</h1>
         <div id="connection-status" class="status"></div>
-        <div id="simulation-form">
-            <input type="text" id="simulation-name" placeholder="Simulation name">
-            <button onclick="runSimulation()">Run Simulation</button>
+        
+        <div id="simulation-form" class="control-panel">
+            <h2>Start New Simulation</h2>
+            <div class="input-group">
+                <input type="text" id="simulation-name" placeholder="Simulation name">
+                <input type="number" id="simulation-steps" placeholder="Number of steps" value="1000">
+            </div>
+            <div class="button-group">
+                <button onclick="startSimulation()" class="btn primary">Start Simulation</button>
+            </div>
         </div>
+
+        <div id="active-simulations" class="simulation-list">
+            <h2>Active Simulations</h2>
+            <div id="simulation-cards"></div>
+        </div>
+
         <div id="results"></div>
     </div>
     <script src="app.js"></script>
