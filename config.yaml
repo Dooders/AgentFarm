@@ -10,8 +10,8 @@ initial_resource_level: 5
 max_population: 300
 starvation_threshold: 0
 max_starvation_time: 15
-offspring_cost: 6
-min_reproduction_resources: 10
+offspring_cost: 3 # down form 6
+min_reproduction_resources: 8 # down from 10
 offspring_initial_resources: 5
 perception_radius: 2
 base_attack_strength: 2
@@ -24,9 +24,9 @@ resource_regen_amount: 2
 max_resource_amount: 30
 
 # Agent behavior settings
-base_consumption_rate: 0.1
+base_consumption_rate: 0.15
 max_movement: 8
-gathering_range: 20
+gathering_range: 30 # up from 20
 max_gather_amount: 3
 territory_range: 30
 

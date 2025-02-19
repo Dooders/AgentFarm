@@ -66,8 +66,8 @@ class SimulationConfig:
     max_population: int = 3000
     starvation_threshold: int = 0
     max_starvation_time: int = 15
-    offspring_cost: int = 6
-    min_reproduction_resources: int = 10
+    offspring_cost: int = 3
+    min_reproduction_resources: int = 8
     offspring_initial_resources: int = 5
     perception_radius: int = 2
     base_attack_strength: int = 2
@@ -88,9 +88,9 @@ class SimulationConfig:
     max_resource_amount: int = 30
 
     # Agent behavior settings
-    base_consumption_rate: float = 0.1
+    base_consumption_rate: float = 0.15
     max_movement: int = 8
-    gathering_range: int = 20
+    gathering_range: int = 30
     max_gather_amount: int = 3
     territory_range: int = 30
 

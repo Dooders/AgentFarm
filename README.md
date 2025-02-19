@@ -37,4 +37,10 @@
 
 ## Why Choose AgentFarm?
 
-AgentFarm is more than just a simulation tool; it’s a **hub for innovation, discovery, and exploration**. Whether you're modeling ecosystems, social dynamics, or evolutionary processes, AgentFarm provides the control, flexibility, and insights you need to understand and harness the dynamics of complex systems. With its intuitive interface and powerful AI assistant, AgentFarm ensures that you spend less time on routine tasks and more time uncovering breakthroughs.
+AgentFarm is more than just a simulation tool; it's a **hub for innovation, discovery, and exploration**. Whether you're modeling ecosystems, social dynamics, or evolutionary processes, AgentFarm provides the control, flexibility, and insights you need to understand and harness the dynamics of complex systems. With its intuitive interface and powerful AI assistant, AgentFarm ensures that you spend less time on routine tasks and more time uncovering breakthroughs.
+
+# Simulation Project
+
+A web-based simulation project with FastAPI backend and simple frontend.
+
+## Project Structure
