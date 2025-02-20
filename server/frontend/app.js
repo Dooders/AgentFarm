@@ -43,13 +43,14 @@ async function stopSimulation(name) {
             method: 'POST'
         });
         
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
         const data = await response.json();
-        delete activeSimulations[name];
-        updateSimulationList();
+        
+        // Handle all stop cases as success
+        if (data.status === "stopped") {
+            delete activeSimulations[name];
+            updateSimulationList();
+            await getSimulationHistory(); // Refresh history
+        }
         
     } catch (error) {
         showError(`Failed to stop simulation: ${error.message}`);
@@ -85,6 +86,14 @@ function updateSimulationList() {
 async function pollSimulationStatus(name) {
     try {
         const response = await fetch(`${API_BASE_URL}/simulation/status/${name}`);
+        if (response.status === 404) {
+            // Simulation is completed and cleaned up
+            delete activeSimulations[name];
+            updateSimulationList();
+            await getSimulationHistory(); // Refresh history
+            return;
+        }
+        
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -95,6 +104,10 @@ async function pollSimulationStatus(name) {
         
         if (data.running) {
             setTimeout(() => pollSimulationStatus(name), 1000);
+        } else {
+            // Simulation completed naturally
+            await stopSimulation(name); // Clean up gracefully
+            await getSimulationHistory(); // Refresh history
         }
     } catch (error) {
         console.error(`Error polling simulation status: ${error.message}`);
@@ -151,8 +164,86 @@ async function checkBackendConnection() {
     }
 }
 
+async function loadSimulation(id) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/simulation/load/${id}`, {
+            method: 'POST'
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        activeSimulations[data.name] = data;
+        updateSimulationList();
+        startPollingStatus(data.name);
+        
+    } catch (error) {
+        showError(`Failed to load simulation: ${error.message}`);
+    }
+}
+
+async function deleteSimulation(id) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/simulation/history/${id}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        await getSimulationHistory(); // Refresh history after deletion
+        
+    } catch (error) {
+        showError(`Failed to delete simulation: ${error.message}`);
+    }
+}
+
+async function getSimulationHistory() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/simulation/history`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const history = await response.json();
+        const container = document.getElementById('history-cards');
+        container.innerHTML = '';
+        
+        history.forEach(sim => {
+            const card = document.createElement('div');
+            card.className = 'simulation-card history-card';
+            const timestamp = new Date(sim.timestamp).toLocaleString();
+            
+            card.innerHTML = `
+                <div class="simulation-info">
+                    <h3>${sim.name}</h3>
+                    <p>Result: ${sim.result.toFixed(2)}</p>
+                    <p>Run on: ${timestamp}</p>
+                </div>
+                <div class="simulation-controls">
+                    <button onclick="loadSimulation(${sim.id})" class="btn secondary">Load</button>
+                    <button onclick="deleteSimulation(${sim.id})" class="btn danger">Delete</button>
+                </div>
+            `;
+            
+            container.appendChild(card);
+        });
+        
+    } catch (error) {
+        console.error('Failed to fetch simulation history:', error);
+    }
+}
+
+async function refreshHistory() {
+    await getSimulationHistory();
+}
+
 // Initialize
 window.addEventListener('load', () => {
     checkBackendConnection();
     updateSimulationList();
+    getSimulationHistory();
 }); 

@@ -160,4 +160,37 @@ select {
     border: 1px solid #ddd;
     border-radius: 4px;
     background: white;
+}
+
+.history-card {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+}
+
+.btn.secondary {
+    background: #6c757d;
+    color: white;
+}
+
+.history-controls {
+    margin-bottom: 15px;
+}
+
+.simulation-info p {
+    margin: 5px 0;
+    color: #666;
+}
+
+.history-card .simulation-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.history-card .btn.danger {
+    background: #dc3545;
+    color: white;
+}
+
+.history-card .btn.danger:hover {
+    background: #c82333;
 } 
