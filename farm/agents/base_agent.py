@@ -112,9 +112,14 @@ class BaseAgent:
             num_actions=len(self.actions), config=SelectConfig(), device=self.device
         )
 
-        # Add to environment using batch operation
-        self.environment.batch_add_agents([self])
-        self.environment.record_birth()
+        # Context management
+        self._active = False  # Track if agent is in context
+        self._parent_context = None  # Track parent agent context
+        self._child_contexts = set()  # Track child agent contexts
+        self._context_depth = 0  # Track nesting level
+        
+        # Context-specific logging
+        self._context_logger = logging.getLogger(f"agent.{agent_id}.context")
 
     def _generate_genome_id(self, parent_ids: list[str]) -> str:
         """Generate a unique genome ID for this agent.
@@ -276,6 +281,9 @@ class BaseAgent:
         The agent will not act if it's not alive. Each turn consumes base resources
         and can potentially lead to death if resources are depleted.
         """
+        # Validate context before acting
+        self.validate_context()
+        
         if not self.alive:
             return
 
@@ -715,3 +723,116 @@ class BaseAgent:
     def defense_strength(self) -> float:
         """Calculate the agent's current defense strength."""
         return self.config.base_defense_strength if self.is_defending else 0.0
+
+    def __enter__(self):
+        """Enter agent context.
+        
+        Activates agent in environment, initializes resources, and sets up context tracking.
+        
+        Raises:
+            RuntimeError: If agent is already in an active context
+        """
+        if self._active:
+            raise RuntimeError(f"Agent {self.agent_id} is already in an active context")
+            
+        self._active = True
+        self._context_depth += 1
+        
+        # Register with environment's context tracker
+        self.environment.register_active_context(self)
+        
+        # Add to environment and record birth
+        self.environment.batch_add_agents([self])
+        self.environment.record_birth()
+        
+        self._context_logger.info(
+            f"Agent {self.agent_id} entered context (depth: {self._context_depth})"
+        )
+        
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Exit agent context.
+        
+        Ensures proper cleanup of agent resources and state. Also handles nested contexts
+        and relationship cleanup.
+        
+        Args:
+            exc_type: Type of exception that occurred, if any
+            exc_val: Exception instance that occurred, if any
+            exc_tb: Exception traceback, if any
+        """
+        try:
+            # Clean up child contexts first
+            for child in self._child_contexts.copy():
+                if child._active:
+                    child.__exit__(None, None, None)
+            
+            # Clean up agent state
+            if self.alive:
+                self.die()
+                
+            # Remove from environment's context tracker
+            self.environment.unregister_active_context(self)
+            
+            # Clear relationship tracking
+            if self._parent_context:
+                self._parent_context._child_contexts.remove(self)
+            self._parent_context = None
+            self._child_contexts.clear()
+            
+            self._context_logger.info(
+                f"Agent {self.agent_id} exited context (depth: {self._context_depth})"
+            )
+            
+            if exc_type:
+                self._context_logger.error(
+                    f"Agent {self.agent_id} context exited with error: {exc_val}"
+                )
+                
+        finally:
+            self._active = False
+            self._context_depth -= 1
+            
+        return False  # Don't suppress exceptions
+
+    def create_child_context(self, child_agent: "BaseAgent") -> None:
+        """Create parent-child relationship between agent contexts.
+        
+        Args:
+            child_agent: Agent to establish as child context
+            
+        Raises:
+            RuntimeError: If either agent is not in an active context
+        """
+        if not self._active:
+            raise RuntimeError("Parent agent must be in active context")
+        if not child_agent._active:
+            raise RuntimeError("Child agent must be in active context")
+            
+        child_agent._parent_context = self
+        self._child_contexts.add(child_agent)
+        
+        self._context_logger.info(
+            f"Established parent-child context: {self.agent_id} -> {child_agent.agent_id}"
+        )
+
+    def validate_context(self) -> None:
+        """Validate agent's context state.
+        
+        Raises:
+            RuntimeError: If agent's context state is invalid
+        """
+        if not self._active:
+            raise RuntimeError("Agent must be used within context manager")
+            
+        if self._context_depth <= 0:
+            raise RuntimeError("Invalid context depth")
+            
+        # Validate parent-child relationships
+        if self._parent_context and self not in self._parent_context._child_contexts:
+            raise RuntimeError("Inconsistent parent-child relationship")
+            
+        for child in self._child_contexts:
+            if child._parent_context is not self:
+                raise RuntimeError("Inconsistent child-parent relationship")

@@ -2,12 +2,14 @@ import logging
 import os
 import random
 import time
-from typing import Dict
+from typing import Dict, Set
+import threading
 
 import numpy as np
 from scipy.spatial import cKDTree
 
 from farm.agents import ControlAgent, IndependentAgent, SystemAgent
+from farm.agents.base_agent import BaseAgent
 from farm.database.database import SimulationDatabase
 from farm.core.resources import Resource
 from farm.core.state import EnvironmentState
@@ -72,6 +74,10 @@ class Environment:
         # Add tracking for births and deaths
         self.births_this_step = 0
         self.deaths_this_step = 0
+
+        # Context tracking
+        self._active_contexts: Set[BaseAgent] = set()
+        self._context_lock = threading.Lock()
 
         # Initialize environment
         self.initialize_resources(resource_distribution)
@@ -510,3 +516,18 @@ class Environment:
             resource.position[0],  # x coordinate
             resource.position[1]   # y coordinate
         )
+
+    def register_active_context(self, agent: BaseAgent) -> None:
+        """Register an active agent context."""
+        with self._context_lock:
+            self._active_contexts.add(agent)
+
+    def unregister_active_context(self, agent: BaseAgent) -> None:
+        """Unregister an active agent context."""
+        with self._context_lock:
+            self._active_contexts.discard(agent)
+
+    def get_active_contexts(self) -> Set[BaseAgent]:
+        """Get currently active agent contexts."""
+        with self._context_lock:
+            return self._active_contexts.copy()
