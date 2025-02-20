@@ -1,99 +1,130 @@
 <!DOCTYPE html>
 <html>
-<head>
+  <head>
     <title>Interactive Family Tree</title>
-    <link rel="icon" href="data:,">  <!-- Empty favicon to prevent 404 -->
+    <link rel="icon" href="data:," />
+    <!-- Empty favicon to prevent 404 -->
     <script src="https://unpkg.com/cytoscape@3.23.0/dist/cytoscape.min.js"></script>
     <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
     <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
     <style>
-        body { margin: 0; background-color: #000; }
-        #cy { 
-            width: 100vw; 
-            height: 100vh; 
-            position: absolute;
-            font-family: Arial, sans-serif;
-            background-color: #000;
-        }
-        #controls {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            z-index: 1000;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 10px;
-            border-radius: 5px;
-            color: white;
-            font-family: monospace;
-        }
-        .control-row {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-        .control-button {
-            background: rgba(255, 255, 255, 0.8);
-            border: none;
-            padding: 5px 10px;
-            border-radius: 3px;
-            cursor: pointer;
-        }
-        .info-text {
-            font-size: 12px;
-            white-space: nowrap;
-        }
-        #hud-overlay {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            min-width: 200px;
-            min-height: 100px;
-            max-width: 300px;
-            background-color: #001428;
-            border: 2px solid #00ff00;
-            z-index: 9999;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0, 128, 255, 0.5);
-            padding: 15px;
-            color: white;
-            font-family: monospace;
-            pointer-events: none;
-            opacity: 0;
-            display: none;
-            transition: opacity 0.3s ease-in-out;
-        }
-        #hud-overlay h3 {
-            margin: 0 0 10px 0;
-            color: #4af;
-            font-size: 14px;
-        }
-        #hud-overlay p {
-            margin: 5px 0;
-            font-size: 12px;
-            line-height: 1.4;
-        }
-        #hud-overlay strong {
-            color: #8cf;
-        }
-        #hud-overlay-2, #hud-overlay-3 {
-            pointer-events: none;
-        }
+      body {
+        margin: 0;
+        background-color: #000;
+      }
+      #cy {
+        width: 100vw;
+        height: 100vh;
+        position: absolute;
+        font-family: Arial, sans-serif;
+        background-color: #000;
+      }
+      #controls {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 10px;
+        border-radius: 5px;
+        color: white;
+        font-family: monospace;
+      }
+      .control-row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      .control-button {
+        background: rgba(255, 255, 255, 0.8);
+        border: none;
+        padding: 5px 10px;
+        border-radius: 3px;
+        cursor: pointer;
+      }
+      .info-text {
+        font-size: 12px;
+        white-space: nowrap;
+      }
+      #hud-overlay {
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        min-width: 200px;
+        min-height: 100px;
+        max-width: 300px;
+        background-color: #001428;
+        border: 2px solid #00ff00;
+        z-index: 9999;
+        border-radius: 5px;
+        box-shadow: 0 0 10px rgba(0, 128, 255, 0.5);
+        padding: 15px;
+        color: white;
+        font-family: monospace;
+        pointer-events: none;
+        opacity: 0;
+        display: none;
+        transition: opacity 0.3s ease-in-out;
+      }
+      #hud-overlay h3 {
+        margin: 0 0 10px 0;
+        color: #4af;
+        font-size: 14px;
+      }
+      #hud-overlay p {
+        margin: 5px 0;
+        font-size: 12px;
+        line-height: 1.4;
+      }
+      #hud-overlay strong {
+        color: #8cf;
+      }
+      #hud-overlay-2,
+      #hud-overlay-3 {
+        pointer-events: none;
+      }
+      select.control-button {
+        background: rgba(255, 255, 255, 0.8);
+        border: none;
+        padding: 5px 10px;
+        border-radius: 3px;
+        cursor: pointer;
+        color: #000;
+        font-family: monospace;
+        min-width: 150px;
+      }
+
+      select.control-button:hover {
+        background: rgba(255, 255, 255, 0.9);
+      }
+
+      select.control-button:focus {
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(0, 128, 255, 0.5);
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div id="hud-overlay"></div>
     <div id="controls">
-        <div class="control-row">
-            <div id="zoom-level" class="info-text">Zoom: 1.00</div>
-            <button class="control-button" id="fit-button">Fit to Screen</button>
-        </div>
-        <div id="root-position" class="info-text">Root: (0, 0)</div>
+      <div class="control-row">
+        <div id="zoom-level" class="info-text">Zoom: 1.00</div>
+        <button class="control-button" id="fit-button">Fit to Screen</button>
+      </div>
+      <div class="control-row">
+        <select id="color-by" class="control-button">
+          <option value="offspring">Color by Offspring</option>
+          <option value="resources">Color by Resources</option>
+          <option value="age">Color by Age</option>
+        </select>
+      </div>
+      <div id="root-position" class="info-text">Root: (0, 0)</div>
     </div>
     <div id="cy"></div>
     <script src="/static/js/family_tree.js"></script>
-</body>
+  </body>
 </html>
