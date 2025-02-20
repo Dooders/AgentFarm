@@ -241,27 +241,26 @@ fetch('/static/family_tree.json')
             selectedNode = node;
             node.addClass('selected');
             
-            // Build details HTML
+            // Build details HTML with structure matching the CSS
             let detailsHtml = `<h3>Agent ${data.id}</h3>`;
-            if (data.generation !== undefined) {
-                detailsHtml += `<p><strong>Generation:</strong> ${data.generation}</p>`;
-            }
-            if (data.agent_type !== undefined) {
-                detailsHtml += `<p><strong>Type:</strong> ${data.agent_type}</p>`;
-            }
-            if (data.birth_time !== undefined) {
-                detailsHtml += `<p><strong>Birth Time:</strong> ${data.birth_time}</p>`;
-            }
-            if (data.offspring_count !== undefined) {
-                detailsHtml += `<p><strong>Offspring:</strong> ${data.offspring_count}</p>`;
-            }
-            if (data.resources_consumed !== undefined) {
-                detailsHtml += `<p><strong>Resources:</strong> ${data.resources_consumed.toFixed(1)}</p>`;
-            }
+            
+            const stats = [
+                ['Generation', data.generation],
+                ['Type', data.agent_type],
+                ['Birth Time', data.birth_time],
+                ['Offspring', data.offspring_count],
+                ['Resources', data.resources_consumed?.toFixed(1)]
+            ];
+            
+            stats.forEach(([label, value]) => {
+                if (value !== undefined) {
+                    detailsHtml += `<p><strong>${label}:</strong><span>${value}</span></p>`;
+                }
+            });
             
             // Update HUD content and ensure it's visible
             hudOverlay.innerHTML = detailsHtml;
-            hudOverlay.style.display = 'block';  // Make sure it's displayed
+            hudOverlay.style.display = 'block';
             hudOverlay.style.opacity = '1';
             
             // Prevent event from bubbling to background
