@@ -119,6 +119,10 @@ fetch("/static/family_tree.json")
               "text-background-padding": "8px",
               "text-wrap": "wrap",
               "text-transform": "none",
+              "text-opacity": 0,
+              "text-opacity-depends-on-zoom": true,
+              "text-opacity-min": 0.15,
+              "text-opacity-max": 0.4,
             },
           },
           {
@@ -147,6 +151,25 @@ fetch("/static/family_tree.json")
 
       // Apply colors after cy is initialized
       setTimeout(() => updateNodeColors(currentColorBy), 0);
+
+      // Add zoom-based label visibility
+      cy.on('zoom', _.throttle(() => {
+        const zoom = cy.zoom();
+        const minZoom = 0.15;
+        const maxZoom = 0.4;
+        
+        cy.nodes().forEach(node => {
+          if (zoom < minZoom) {
+            node.style('text-opacity', 0);
+          } else if (zoom > maxZoom) {
+            node.style('text-opacity', 1);
+          } else {
+            // Linear interpolation between min and max zoom
+            const opacity = (zoom - minZoom) / (maxZoom - minZoom);
+            node.style('text-opacity', opacity);
+          }
+        });
+      }, 100));
 
       return cy;
     }
