@@ -321,19 +321,23 @@ fetch("/static/family_tree.json")
       node.addClass("selected");
 
       // Build details HTML with structure matching the CSS
-      let detailsHtml = `<h3>Agent ${data.id}</h3>`;
+      let detailsHtml = `<h3>Agent Details</h3>`;
 
       const stats = [
-        ["Generation", data.generation],
+        ["ID", data.id],
         ["Type", data.agent_type],
+        ["Age", data.age],
         ["Birth Time", data.birth_time],
+        ["Death Time", data.death_time || "Still alive"],
         ["Offspring", data.offspring_count],
-        ["Resources", data.resources_consumed?.toFixed(1)],
+        ["Total Resources", data.resources_consumed?.toFixed(2) || "0.00"],
+        ["Avg Resources", data.avg_resources?.toFixed(2) || "0.00"],
+        ["Generation", data.generation],
       ];
 
       stats.forEach(([label, value]) => {
         if (value !== undefined) {
-          detailsHtml += `<p><strong>${label}:</strong><span>${value}</span></p>`;
+          detailsHtml += `<p><strong>${label}:</strong> ${value}</p>`;
         }
       });
 

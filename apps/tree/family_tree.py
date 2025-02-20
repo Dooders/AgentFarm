@@ -259,6 +259,19 @@ def generate_interactive_tree(
         hex_value = f"#{rgb_value:02x}{rgb_value:02x}ff"
         return hex_value
 
+    # Get max step number for each agent
+    agent_max_steps = {}
+    for agent_id in agents:
+        if agent_id in agent_details:
+            states = (
+                session.query(AgentStateModel)
+                .filter(AgentStateModel.agent_id == agent_id)
+                .order_by(AgentStateModel.step_number.desc())
+                .first()
+            )
+            if states:
+                agent_max_steps[agent_id] = states.step_number
+
     # Convert to network structure
     G = nx.DiGraph()
 
@@ -266,13 +279,22 @@ def generate_interactive_tree(
     for agent_id in agents:
         if agent_id in agent_details:
             agent = agent_details[agent_id]
+            max_step = agent_max_steps.get(agent_id, agent.birth_time)
+            current_age = (agent.death_time or max_step) - agent.birth_time
+            
             G.add_node(
                 agent_id,
+                id=agent_id,
                 generation=agent.generation,
                 agent_type=agent.agent_type,
                 birth_time=agent.birth_time,
+                death_time=agent.death_time,
+                age=current_age,
                 offspring_count=offspring_count.get(agent_id, 0),
                 resources_consumed=resources_consumed.get(agent_id, 0),
+                avg_resources=resources_consumed.get(agent_id, 0) / (
+                    (agent.death_time or max_step) - agent.birth_time
+                ) if agent_id in resources_consumed else 0,
                 color=get_node_color(agent_id),
             )
 
