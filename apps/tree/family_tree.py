@@ -5,10 +5,15 @@ from typing import List, Optional
 
 import networkx as nx
 from graphviz import Digraph
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func
 from sqlalchemy.orm import Session, sessionmaker
 
-from farm.database.models import AgentModel, AgentStateModel, ReproductionEventModel
+from farm.database.models import (
+    ActionModel,
+    AgentModel,
+    AgentStateModel,
+    ReproductionEventModel,
+)
 
 
 def get_database_session() -> Session:
@@ -107,24 +112,9 @@ def generate_family_tree(
         if color_by == "offspring":
             count = offspring_count.get(agent_id, 0)
             if count == 0:
-                return "#ffffff"  # White in hex format
+                return "#ffffff"
             max_count = max(offspring_count.values())
             intensity = count / max_count
-
-        elif color_by == "age":
-            if agent_id not in agent_details:
-                return "#ffffff"
-            agent = agent_details[agent_id]
-            death_time = agent.death_time or max(
-                state.step_number for state in agent.states
-            )
-            age = death_time - agent.birth_time
-            max_age = max(
-                (a.death_time or max(s.step_number for s in a.states)) - a.birth_time
-                for a in agent_details.values()
-            )
-            intensity = age / max_age if max_age > 0 else 0
-
         else:  # color_by == "resources"
             consumed = resources_consumed.get(agent_id, 0)
             if consumed == 0:
@@ -132,13 +122,8 @@ def generate_family_tree(
             max_consumed = max(resources_consumed.values())
             intensity = consumed / max_consumed
 
-        # Convert to a hex color from light blue to dark blue
-        # Ensure rgb_value is between 0 and 255
-        rgb_value = max(
-            0, min(255, int(255 * (1 - intensity * 0.3)))
-        )  # 70% minimum brightness
-        hex_value = f"#{rgb_value:02x}{rgb_value:02x}ff"
-        return hex_value
+        rgb_value = max(0, min(255, int(255 * (1 - intensity * 0.3))))
+        return f"#{rgb_value:02x}{rgb_value:02x}ff"
 
     # Add nodes with agent information
     for agent_id in agents:
@@ -237,31 +222,11 @@ def generate_interactive_tree(
                     total_consumed += resource_diff
             resources_consumed[agent_id] = total_consumed
 
-    def get_node_color(agent_id):
-        if color_by == "offspring":
-            count = offspring_count.get(agent_id, 0)
-            if count == 0:
-                return "#ffffff"  # White in hex format
-            max_count = max(offspring_count.values())
-            intensity = count / max_count
-        else:  # color_by == "resources"
-            consumed = resources_consumed.get(agent_id, 0)
-            if consumed == 0:
-                return "#ffffff"
-            max_consumed = max(resources_consumed.values())
-            intensity = consumed / max_consumed
-
-        # Convert to a hex color from light blue to dark blue
-        # Ensure rgb_value is between 0 and 255
-        rgb_value = max(
-            0, min(255, int(255 * (1 - intensity * 0.3)))
-        )  # 70% minimum brightness
-        hex_value = f"#{rgb_value:02x}{rgb_value:02x}ff"
-        return hex_value
-
-    # Get max step number for each agent
+    # Get action counts for each agent
+    action_counts = {}
     agent_max_steps = {}
     for agent_id in agents:
+        # Get max step for each agent
         if agent_id in agent_details:
             states = (
                 session.query(AgentStateModel)
@@ -272,6 +237,32 @@ def generate_interactive_tree(
             if states:
                 agent_max_steps[agent_id] = states.step_number
 
+        # Get action counts - using action_id instead of action_type for counting
+        counts = (
+            session.query(ActionModel.action_type, func.count(ActionModel.action_id))
+            .filter(ActionModel.agent_id == agent_id)
+            .group_by(ActionModel.action_type)
+            .all()
+        )
+        action_counts[agent_id] = {action: count for action, count in counts}
+
+    def get_node_color(agent_id):
+        if color_by == "offspring":
+            count = offspring_count.get(agent_id, 0)
+            if count == 0:
+                return "#ffffff"
+            max_count = max(offspring_count.values())
+            intensity = count / max_count
+        else:  # color_by == "resources"
+            consumed = resources_consumed.get(agent_id, 0)
+            if consumed == 0:
+                return "#ffffff"
+            max_consumed = max(resources_consumed.values())
+            intensity = consumed / max_consumed
+
+        rgb_value = max(0, min(255, int(255 * (1 - intensity * 0.3))))
+        return f"#{rgb_value:02x}{rgb_value:02x}ff"
+
     # Convert to network structure
     G = nx.DiGraph()
 
@@ -281,7 +272,7 @@ def generate_interactive_tree(
             agent = agent_details[agent_id]
             max_step = agent_max_steps.get(agent_id, agent.birth_time)
             current_age = (agent.death_time or max_step) - agent.birth_time
-            
+
             G.add_node(
                 agent_id,
                 id=agent_id,
@@ -292,10 +283,14 @@ def generate_interactive_tree(
                 age=current_age,
                 offspring_count=offspring_count.get(agent_id, 0),
                 resources_consumed=resources_consumed.get(agent_id, 0),
-                avg_resources=resources_consumed.get(agent_id, 0) / (
-                    (agent.death_time or max_step) - agent.birth_time
-                ) if agent_id in resources_consumed else 0,
+                avg_resources=(
+                    resources_consumed.get(agent_id, 0)
+                    / ((agent.death_time or max_step) - agent.birth_time)
+                    if agent_id in resources_consumed
+                    else 0
+                ),
                 color=get_node_color(agent_id),
+                action_counts=action_counts.get(agent_id, {}),
             )
 
     # Add edges
