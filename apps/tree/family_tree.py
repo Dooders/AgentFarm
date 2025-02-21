@@ -134,7 +134,9 @@ def generate_family_tree(
 
         # Convert to a hex color from light blue to dark blue
         # Ensure rgb_value is between 0 and 255
-        rgb_value = max(0, min(255, int(255 * (1 - intensity * 0.3))))  # 70% minimum brightness
+        rgb_value = max(
+            0, min(255, int(255 * (1 - intensity * 0.3)))
+        )  # 70% minimum brightness
         hex_value = f"#{rgb_value:02x}{rgb_value:02x}ff"
         return hex_value
 
@@ -251,9 +253,24 @@ def generate_interactive_tree(
 
         # Convert to a hex color from light blue to dark blue
         # Ensure rgb_value is between 0 and 255
-        rgb_value = max(0, min(255, int(255 * (1 - intensity * 0.3))))  # 70% minimum brightness
+        rgb_value = max(
+            0, min(255, int(255 * (1 - intensity * 0.3)))
+        )  # 70% minimum brightness
         hex_value = f"#{rgb_value:02x}{rgb_value:02x}ff"
         return hex_value
+
+    # Get max step number for each agent
+    agent_max_steps = {}
+    for agent_id in agents:
+        if agent_id in agent_details:
+            states = (
+                session.query(AgentStateModel)
+                .filter(AgentStateModel.agent_id == agent_id)
+                .order_by(AgentStateModel.step_number.desc())
+                .first()
+            )
+            if states:
+                agent_max_steps[agent_id] = states.step_number
 
     # Convert to network structure
     G = nx.DiGraph()
@@ -262,13 +279,22 @@ def generate_interactive_tree(
     for agent_id in agents:
         if agent_id in agent_details:
             agent = agent_details[agent_id]
+            max_step = agent_max_steps.get(agent_id, agent.birth_time)
+            current_age = (agent.death_time or max_step) - agent.birth_time
+            
             G.add_node(
                 agent_id,
+                id=agent_id,
                 generation=agent.generation,
                 agent_type=agent.agent_type,
                 birth_time=agent.birth_time,
+                death_time=agent.death_time,
+                age=current_age,
                 offspring_count=offspring_count.get(agent_id, 0),
                 resources_consumed=resources_consumed.get(agent_id, 0),
+                avg_resources=resources_consumed.get(agent_id, 0) / (
+                    (agent.death_time or max_step) - agent.birth_time
+                ) if agent_id in resources_consumed else 0,
                 color=get_node_color(agent_id),
             )
 
@@ -409,6 +435,25 @@ def generate_interactive_tree(
         #hud-overlay-2, #hud-overlay-3 {
             pointer-events: none;
         }
+        select.control-button {
+            background: rgba(255, 255, 255, 0.8);
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            color: #000;
+            font-family: monospace;
+            min-width: 150px;
+        }
+        
+        select.control-button:hover {
+            background: rgba(255, 255, 255, 0.9);
+        }
+        
+        select.control-button:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(0, 128, 255, 0.5);
+        }
     </style>
 </head>
 <body>
@@ -417,6 +462,13 @@ def generate_interactive_tree(
         <div class="control-row">
             <div id="zoom-level" class="info-text">Zoom: 1.00</div>
             <button class="control-button" id="fit-button">Fit to Screen</button>
+        </div>
+        <div class="control-row">
+            <select id="color-by" class="control-button">
+                <option value="offspring">Color by Offspring</option>
+                <option value="resources">Color by Resources</option>
+                <option value="age">Color by Age</option>
+            </select>
         </div>
         <div id="root-position" class="info-text">Root: (0, 0)</div>
     </div>

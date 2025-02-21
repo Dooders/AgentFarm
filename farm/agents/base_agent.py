@@ -111,15 +111,18 @@ class BaseAgent:
         self.select_module = SelectModule(
             num_actions=len(self.actions), config=SelectConfig(), device=self.device
         )
+        
+        self.environment.batch_add_agents([self])
+        self.environment.record_birth()
 
         # Context management
-        self._active = False  # Track if agent is in context
-        self._parent_context = None  # Track parent agent context
-        self._child_contexts = set()  # Track child agent contexts
-        self._context_depth = 0  # Track nesting level
+        # self._active = False  # Track if agent is in context
+        # self._parent_context = None  # Track parent agent context
+        # self._child_contexts = set()  # Track child agent contexts
+        # self._context_depth = 0  # Track nesting level
         
-        # Context-specific logging
-        self._context_logger = logging.getLogger(f"agent.{agent_id}.context")
+        # # Context-specific logging
+        # self._context_logger = logging.getLogger(f"agent.{agent_id}.context")
 
     def _generate_genome_id(self, parent_ids: list[str]) -> str:
         """Generate a unique genome ID for this agent.
@@ -282,7 +285,7 @@ class BaseAgent:
         and can potentially lead to death if resources are depleted.
         """
         # Validate context before acting
-        self.validate_context()
+        # self.validate_context()
         
         if not self.alive:
             return

@@ -82,6 +82,25 @@
         #hud-overlay-2, #hud-overlay-3 {
             pointer-events: none;
         }
+        select.control-button {
+            background: rgba(255, 255, 255, 0.8);
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            color: #000;
+            font-family: monospace;
+            min-width: 150px;
+        }
+        
+        select.control-button:hover {
+            background: rgba(255, 255, 255, 0.9);
+        }
+        
+        select.control-button:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(0, 128, 255, 0.5);
+        }
     </style>
 </head>
 <body>
@@ -90,6 +109,13 @@
         <div class="control-row">
             <div id="zoom-level" class="info-text">Zoom: 1.00</div>
             <button class="control-button" id="fit-button">Fit to Screen</button>
+        </div>
+        <div class="control-row">
+            <select id="color-by" class="control-button">
+                <option value="offspring">Color by Offspring</option>
+                <option value="resources">Color by Resources</option>
+                <option value="age">Color by Age</option>
+            </select>
         </div>
         <div id="root-position" class="info-text">Root: (0, 0)</div>
     </div>
