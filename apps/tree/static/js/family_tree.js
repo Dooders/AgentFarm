@@ -16,41 +16,65 @@ fetch("/static/family_tree.json")
       let intensity = 0;
 
       try {
+        // Helper function to normalize values with moderate outlier handling
+        const normalizeValues = (values) => {
+          if (values.length === 0) return 0;
+
+          // Remove zeros and get log values
+          const nonZeroValues = values.filter((v) => v > 0);
+          if (nonZeroValues.length === 0) return 0;
+
+          // Use cube root for moderate compression (between sqrt and log)
+          const rootValues = nonZeroValues.map((v) => Math.pow(v, 1 / 3));
+          const minRoot = Math.min(...rootValues);
+          const maxRoot = Math.max(...rootValues);
+
+          return (value) => {
+            if (value <= 0) return 0;
+            const rootValue = Math.pow(value, 1 / 3);
+            return maxRoot > minRoot
+              ? (rootValue - minRoot) / (maxRoot - minRoot)
+              : 0;
+          };
+        };
+
         switch (colorBy) {
-          case "offspring":
-            const maxOffspring = Math.max(
-              ...cy.nodes().map((n) => n.data("offspring_count") || 0)
-            );
-            intensity =
-              maxOffspring > 0 ? (data.offspring_count || 0) / maxOffspring : 0;
+          case "offspring": {
+            const values = cy
+              .nodes()
+              .map((n) => n.data("offspring_count") || 0);
+            const normalize = normalizeValues(values);
+            intensity = normalize(data.offspring_count || 0);
             break;
-
-          case "resources":
-            const maxResources = Math.max(
-              ...cy.nodes().map((n) => n.data("resources_consumed") || 0)
-            );
-            intensity =
-              maxResources > 0
-                ? (data.resources_consumed || 0) / maxResources
-                : 0;
+          }
+          case "resources": {
+            const values = cy
+              .nodes()
+              .map((n) => n.data("resources_consumed") || 0);
+            const normalize = normalizeValues(values);
+            intensity = normalize(data.resources_consumed || 0);
             break;
-
-          case "age":
-            const maxAge = Math.max(
-              ...cy.nodes().map((n) => n.data("birth_time") || 0)
-            );
-            intensity = maxAge > 0 ? (data.birth_time || 0) / maxAge : 0;
+          }
+          case "age": {
+            const values = cy.nodes().map((n) => n.data("age") || 0);
+            const normalize = normalizeValues(values);
+            intensity = normalize(data.age || 0);
             break;
+          }
         }
       } catch (e) {
         console.warn("Error calculating node color:", e);
         return "#ffffff";
       }
 
+      // Moderate intensity adjustment
+      intensity = Math.pow(intensity, 0.8); // Middle ground between 0.7 and 0.85
+
       const rgb_value = Math.max(
         0,
-        Math.min(255, Math.round(255 * (1 - intensity * 0.3)))
+        Math.min(255, Math.round(255 * (1 - intensity * 0.6))) // Middle ground between 0.7 and 0.5
       );
+
       return intensity === 0
         ? "#ffffff"
         : `#${rgb_value.toString(16).padStart(2, "0")}${rgb_value
