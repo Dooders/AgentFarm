@@ -197,12 +197,6 @@ def run_simulation(
                 for agent in batch:
                     agent.act()
 
-                # Process reproduction in parallel
-                #! need to change this to use the action module and not be called directly
-                #! or maybe test like this first, then change to action module???
-                # for agent in batch:
-                #     agent.reproduce()
-
             # Update environment once per step
             environment.update()
 

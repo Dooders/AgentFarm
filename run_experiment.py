@@ -170,6 +170,14 @@ def main():
             num_iterations=100,
             num_steps=1000,
         ),
+            ExperimentConfig(
+            name="one_of_a_kind",
+            variations=[
+                {"control_agents": 1, "system_agents": 1, "independent_agents": 1}
+            ],
+            num_iterations=100,
+            num_steps=1000,
+        ),
     ]
 
     research.run_experiments(experiments)
