@@ -36,23 +36,45 @@ def find_simulation_databases(base_path: str) -> List[str]:
     return sorted(str(path) for path in db_files)
 
 
-def pad_population(pop: np.ndarray, target_length: int) -> np.ndarray:
+def create_population_df(
+    all_populations: List[np.ndarray], max_steps: int
+) -> pd.DataFrame:
     """
-    Convert population data to float and pad it with NaN values to match target_length.
+    Create a DataFrame from population data with proper padding for missing steps.
+
+    Args:
+        all_populations: List of population arrays from different simulations
+        max_steps: Maximum number of steps across all simulations
+
+    Returns:
+        DataFrame with columns: simulation_id, step, population
     """
-    pop = pop.astype(float)
-    return np.pad(
-        pop, (0, target_length - len(pop)), mode="constant", constant_values=np.nan
-    )
+    data = []
+    for sim_idx, pop in enumerate(all_populations):
+        for step in range(max_steps):
+            population = pop[step] if step < len(pop) else np.nan
+            data.append((f"sim_{sim_idx}", step, population))
+    return pd.DataFrame(data, columns=["simulation_id", "step", "population"])
 
 
-def compute_statistics(
-    population_array: np.ndarray,
+def calculate_statistics(
+    df: pd.DataFrame,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    mean_pop = np.nanmean(population_array, axis=0)
-    median_pop = np.nanmedian(population_array, axis=0)
-    std_pop = np.nanstd(population_array, axis=0)
-    confidence_interval = 1.96 * std_pop / np.sqrt(population_array.shape[0])
+    """
+    Calculate population statistics using Pandas operations.
+
+    Args:
+        df: DataFrame with columns: simulation_id, step, population
+
+    Returns:
+        Tuple of (mean, median, std_dev, confidence_interval)
+    """
+    grouped = df.groupby("step")["population"]
+    mean_pop = grouped.mean().values
+    median_pop = grouped.median().values
+    std_pop = grouped.std().values
+    n_simulations = df["simulation_id"].nunique()
+    confidence_interval = 1.96 * std_pop / np.sqrt(n_simulations)
     return mean_pop, median_pop, std_pop, confidence_interval
 
 
@@ -135,12 +157,12 @@ def plot_population_trends_across_simulations(
     )
     ax.set_title(experiment_name, fontsize=12, pad=10)
 
-    # Pad populations and calculate statistics
-    padded_populations = [pad_population(pop, max_steps) for pop in all_populations]
-    population_array = np.array(padded_populations)
+    # Create DataFrame and calculate statistics
+    df = create_population_df(all_populations, max_steps)
+    mean_pop, median_pop, std_pop, confidence_interval = calculate_statistics(df)
     steps = np.arange(max_steps)
 
-    mean_pop, median_pop, _, confidence_interval = compute_statistics(population_array)
+    # Calculate key metrics
     overall_median = np.nanmedian(median_pop)
     final_median = median_pop[-1]
     peak_step = np.nanargmax(mean_pop)
@@ -211,20 +233,18 @@ def plot_population_trends_by_agent_type(
             logger.warning(f"Skipping {agent_type} - no valid data")
             continue
 
-        populations = [
-            pad_population(pop, data["max_steps"]) for pop in data["populations"]
-        ]
-        population_array = np.array(populations)
+        # Create DataFrame and calculate statistics for this agent type
+        df = create_population_df(data["populations"], data["max_steps"])
+        mean_pop, _, _, confidence_interval = calculate_statistics(df)
         steps = np.arange(data["max_steps"])
 
-        mean_pop, _, _, confidence_interval = compute_statistics(population_array)
         display_name = agent_type.replace("_", " ").title()
 
         ax.plot(
             steps,
             mean_pop,
             color=colors[agent_type],
-            label=f"{display_name} Agent (n={len(populations)})",
+            label=f"{display_name} Agent (n={len(data['populations'])})",
             linewidth=2,
         )
         ax.fill_between(
