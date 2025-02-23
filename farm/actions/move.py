@@ -200,7 +200,7 @@ def move_action(agent: "BaseAgent") -> None:
     """Execute movement using optimized Deep Q-Learning based policy."""
     # Get state and ensure it's a tensor
     state = _ensure_tensor(agent.get_state(), agent.move_module.device)
-    
+
     # Get movement and update position
     initial_position = agent.position
     new_position = agent.move_module.get_movement(agent, state)

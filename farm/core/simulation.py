@@ -183,7 +183,7 @@ def run_simulation(
             alive_agents = [agent for agent in environment.agents if agent.alive]
 
             # Stop if no agents are alive
-            if len(alive_agents) <= 1:
+            if len(alive_agents) < 1:
                 logging.info(
                     f"Simulation stopped early at step {step} - no agents remaining"
                 )
@@ -196,12 +196,6 @@ def run_simulation(
 
                 for agent in batch:
                     agent.act()
-
-                # Process reproduction in parallel
-                #! need to change this to use the action module and not be called directly
-                #! or maybe test like this first, then change to action module???
-                # for agent in batch:
-                #     agent.reproduce()
 
             # Update environment once per step
             environment.update()

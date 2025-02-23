@@ -186,14 +186,3 @@ def attack_action(agent: "BaseAgent") -> None:
         damage_dealt=total_damage_dealt,
         reason="hit" if successful_hits > 0 else "missed",
     )
-
-    # Update agent's learning state if attack was successful
-    # if successful_hits > 0:
-    #     reward = agent.config.attack_success_reward * (
-    #         total_damage_dealt / agent.attack_strength
-    #     )
-    #     agent.attack_module.update_q_values(state, action, reward)
-    # else:
-    #     agent.attack_module.update_q_values(
-    #         state, action, agent.config.attack_failure_penalty
-    #     )

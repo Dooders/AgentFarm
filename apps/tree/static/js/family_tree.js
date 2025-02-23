@@ -16,41 +16,65 @@ fetch("/static/family_tree.json")
       let intensity = 0;
 
       try {
+        // Helper function to normalize values with moderate outlier handling
+        const normalizeValues = (values) => {
+          if (values.length === 0) return 0;
+
+          // Remove zeros and get log values
+          const nonZeroValues = values.filter((v) => v > 0);
+          if (nonZeroValues.length === 0) return 0;
+
+          // Use cube root for moderate compression (between sqrt and log)
+          const rootValues = nonZeroValues.map((v) => Math.pow(v, 1 / 3));
+          const minRoot = Math.min(...rootValues);
+          const maxRoot = Math.max(...rootValues);
+
+          return (value) => {
+            if (value <= 0) return 0;
+            const rootValue = Math.pow(value, 1 / 3);
+            return maxRoot > minRoot
+              ? (rootValue - minRoot) / (maxRoot - minRoot)
+              : 0;
+          };
+        };
+
         switch (colorBy) {
-          case "offspring":
-            const maxOffspring = Math.max(
-              ...cy.nodes().map((n) => n.data("offspring_count") || 0)
-            );
-            intensity =
-              maxOffspring > 0 ? (data.offspring_count || 0) / maxOffspring : 0;
+          case "offspring": {
+            const values = cy
+              .nodes()
+              .map((n) => n.data("offspring_count") || 0);
+            const normalize = normalizeValues(values);
+            intensity = normalize(data.offspring_count || 0);
             break;
-
-          case "resources":
-            const maxResources = Math.max(
-              ...cy.nodes().map((n) => n.data("resources_consumed") || 0)
-            );
-            intensity =
-              maxResources > 0
-                ? (data.resources_consumed || 0) / maxResources
-                : 0;
+          }
+          case "resources": {
+            const values = cy
+              .nodes()
+              .map((n) => n.data("resources_consumed") || 0);
+            const normalize = normalizeValues(values);
+            intensity = normalize(data.resources_consumed || 0);
             break;
-
-          case "age":
-            const maxAge = Math.max(
-              ...cy.nodes().map((n) => n.data("birth_time") || 0)
-            );
-            intensity = maxAge > 0 ? (data.birth_time || 0) / maxAge : 0;
+          }
+          case "age": {
+            const values = cy.nodes().map((n) => n.data("age") || 0);
+            const normalize = normalizeValues(values);
+            intensity = normalize(data.age || 0);
             break;
+          }
         }
       } catch (e) {
         console.warn("Error calculating node color:", e);
         return "#ffffff";
       }
 
+      // Moderate intensity adjustment
+      intensity = Math.pow(intensity, 0.8); // Middle ground between 0.7 and 0.85
+
       const rgb_value = Math.max(
         0,
-        Math.min(255, Math.round(255 * (1 - intensity * 0.3)))
+        Math.min(255, Math.round(255 * (1 - intensity * 0.6))) // Middle ground between 0.7 and 0.5
       );
+
       return intensity === 0
         ? "#ffffff"
         : `#${rgb_value.toString(16).padStart(2, "0")}${rgb_value
@@ -153,23 +177,26 @@ fetch("/static/family_tree.json")
       setTimeout(() => updateNodeColors(currentColorBy), 0);
 
       // Add zoom-based label visibility
-      cy.on('zoom', _.throttle(() => {
-        const zoom = cy.zoom();
-        const minZoom = 0.15;
-        const maxZoom = 0.4;
-        
-        cy.nodes().forEach(node => {
-          if (zoom < minZoom) {
-            node.style('text-opacity', 0);
-          } else if (zoom > maxZoom) {
-            node.style('text-opacity', 1);
-          } else {
-            // Linear interpolation between min and max zoom
-            const opacity = (zoom - minZoom) / (maxZoom - minZoom);
-            node.style('text-opacity', opacity);
-          }
-        });
-      }, 100));
+      cy.on(
+        "zoom",
+        _.throttle(() => {
+          const zoom = cy.zoom();
+          const minZoom = 0.15;
+          const maxZoom = 0.4;
+
+          cy.nodes().forEach((node) => {
+            if (zoom < minZoom) {
+              node.style("text-opacity", 0);
+            } else if (zoom > maxZoom) {
+              node.style("text-opacity", 1);
+            } else {
+              // Linear interpolation between min and max zoom
+              const opacity = (zoom - minZoom) / (maxZoom - minZoom);
+              node.style("text-opacity", opacity);
+            }
+          });
+        }, 100)
+      );
 
       return cy;
     }
@@ -308,6 +335,62 @@ fetch("/static/family_tree.json")
     const hudOverlay = document.getElementById("hud-overlay");
     let selectedNode = null;
 
+    // Add this function after the fetch block but before the event handlers
+    function createActionBarChart(actionCounts) {
+      if (!actionCounts || Object.keys(actionCounts).length === 0) {
+        return "<p><em>No action data available</em></p>";
+      }
+
+      const sortedActions = Object.entries(actionCounts).sort(
+        ([, a], [, b]) => b - a
+      );
+      const maxCount = Math.max(...Object.values(actionCounts));
+
+      let chartHtml = '<div class="action-chart">';
+
+      sortedActions.forEach(([action, count]) => {
+        const percentage = (count / maxCount) * 100;
+        const actionName = action
+          .toLowerCase()
+          .replace(/_/g, " ")
+          .replace(/\b\w/g, (l) => l.toUpperCase());
+
+        chartHtml += `
+          <div class="chart-row">
+            <div class="action-name">${actionName}</div>
+            <svg class="bar-svg" width="200" height="20">
+              <rect 
+                x="0" 
+                y="2" 
+                width="${percentage}%" 
+                height="16" 
+                fill="url(#blueGradient)"
+                rx="2"
+              />
+              <text 
+                x="${percentage > 15 ? percentage - 5 : percentage + 5}%" 
+                y="14"
+                fill="${percentage > 15 ? "white" : "#8cf"}"
+                text-anchor="${percentage > 15 ? "end" : "start"}"
+                font-family="monospace"
+                font-size="12px"
+              >${count}</text>
+              <defs>
+                <linearGradient id="blueGradient">
+                  <stop offset="0%" stop-color="#4af"/>
+                  <stop offset="100%" stop-color="#08f"/>
+                </linearGradient>
+              </defs>
+            </svg>
+            <div class="count"></div>
+          </div>
+        `;
+      });
+
+      chartHtml += "</div>";
+      return chartHtml;
+    }
+
     // When a node is tapped, display agent details in the HUD overlay
     cy.on("tap", "node", function (event) {
       const node = event.target;
@@ -340,6 +423,12 @@ fetch("/static/family_tree.json")
           detailsHtml += `<p><strong>${label}:</strong> ${value}</p>`;
         }
       });
+
+      // Add the action chart section
+      detailsHtml += `
+        <h3>Action Distribution</h3>
+        ${createActionBarChart(data.action_counts)}
+      `;
 
       // Update HUD content and ensure it's visible
       hudOverlay.innerHTML = detailsHtml;
