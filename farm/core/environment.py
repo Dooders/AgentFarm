@@ -1,41 +1,43 @@
 import logging
 import os
 import random
+import threading
 import time
 from typing import Dict, Set
-import threading
 
 import numpy as np
 from scipy.spatial import cKDTree
 
 from farm.agents import ControlAgent, IndependentAgent, SystemAgent
-# from farm.agents.base_agent import BaseAgent
-from farm.database.database import SimulationDatabase
 from farm.core.resources import Resource
 from farm.core.state import EnvironmentState
+
+# from farm.agents.base_agent import BaseAgent
+from farm.database.database import SimulationDatabase
 from farm.utils.short_id import ShortUUID
 
 logger = logging.getLogger(__name__)
 
+
 def setup_db(db_path):
-        # Try to clean up any existing database connections first
+    # Try to clean up any existing database connections first
+    try:
+        import sqlite3
+
+        conn = sqlite3.connect(db_path)
+        conn.close()
+    except Exception:
+        pass
+
+    # Delete existing database file if it exists
+    if os.path.exists(db_path):
         try:
-            import sqlite3
-
-            conn = sqlite3.connect(db_path)
-            conn.close()
-        except Exception:
-            pass
-
-        # Delete existing database file if it exists
-        if os.path.exists(db_path):
-            try:
-                os.remove(db_path)
-            except OSError as e:
-                logger.warning(f"Failed to remove database {db_path}: {e}")
-                # Generate unique filename if can't delete
-                base, ext = os.path.splitext(db_path)
-                db_path = f"{base}_{int(time.time())}{ext}"
+            os.remove(db_path)
+        except OSError as e:
+            logger.warning(f"Failed to remove database {db_path}: {e}")
+            # Generate unique filename if can't delete
+            base, ext = os.path.splitext(db_path)
+            db_path = f"{base}_{int(time.time())}{ext}"
 
 
 class Environment:
@@ -96,7 +98,9 @@ class Environment:
 
         # Update resource KD-tree
         if self.resources:
-            self.resource_positions = np.array([resource.position for resource in self.resources])
+            self.resource_positions = np.array(
+                [resource.position for resource in self.resources]
+            )
             self.resource_kdtree = cKDTree(self.resource_positions)
         else:
             self.resource_kdtree = None
@@ -104,14 +108,14 @@ class Environment:
 
     def get_nearby_agents(self, position, radius):
         """Find all agents within radius of position.
-        
+
         Parameters
         ----------
         position : tuple
             (x, y) coordinates to search around
         radius : float
             Search radius
-            
+
         Returns
         -------
         list
@@ -119,21 +123,22 @@ class Environment:
         """
         if self.agent_kdtree is None:
             return []
-            
+
         indices = self.agent_kdtree.query_ball_point(position, radius)
-        return [agent for i, agent in enumerate(self.agents) 
-                if agent.alive and i in indices]
+        return [
+            agent for i, agent in enumerate(self.agents) if agent.alive and i in indices
+        ]
 
     def get_nearby_resources(self, position, radius):
         """Find all resources within radius of position.
-        
+
         Parameters
         ----------
         position : tuple
             (x, y) coordinates to search around
         radius : float
             Search radius
-            
+
         Returns
         -------
         list
@@ -141,18 +146,18 @@ class Environment:
         """
         if self.resource_kdtree is None:
             return []
-            
+
         indices = self.resource_kdtree.query_ball_point(position, radius)
         return [self.resources[i] for i in indices]
 
     def get_nearest_resource(self, position):
         """Find nearest resource to position.
-        
+
         Parameters
         ----------
         position : tuple
             (x, y) coordinates to search from
-            
+
         Returns
         -------
         Resource or None
@@ -160,7 +165,7 @@ class Environment:
         """
         if self.resource_kdtree is None:
             return None
-            
+
         distance, index = self.resource_kdtree.query(position)
         return self.resources[index]
 
@@ -179,7 +184,7 @@ class Environment:
                 # amount=self.config.max_resource_amount,  # Use config value instead of random
                 amount=random.randint(3, 8),
                 max_amount=self.config.max_resource_amount,
-                regeneration_rate=self.config.resource_regen_rate
+                regeneration_rate=self.config.resource_regen_rate,
             )
             self.resources.append(resource)
             # Log resource to database
@@ -190,12 +195,12 @@ class Environment:
                     position=resource.position,
                 )
 
-    def add_agent(self, agent):
-        self.agents.append(agent)
-        # Update initial count only during setup (time=0)
-        if self.time == 0:
-            self.initial_agent_count += 1
-            
+    # def add_agent(self, agent):
+    #     self.agents.append(agent)
+    #     # Update initial count only during setup (time=0)
+    #     if self.time == 0:
+    #         self.initial_agent_count += 1
+
     def remove_agent(self, agent):
         self.record_death()
         self.agents.remove(agent)
@@ -214,7 +219,7 @@ class Environment:
                 resources_before=action_data.get("resources_before"),
                 resources_after=action_data.get("resources_after"),
                 reward=action_data.get("reward"),
-                details=action_data.get("details")
+                details=action_data.get("details"),
             )
 
     def update(self):
@@ -256,32 +261,65 @@ class Environment:
 
             # Calculate agent type counts
             system_agents = len([a for a in alive_agents if isinstance(a, SystemAgent)])
-            independent_agents = len([a for a in alive_agents if isinstance(a, IndependentAgent)])
-            control_agents = len([a for a in alive_agents if isinstance(a, ControlAgent)])
+            independent_agents = len(
+                [a for a in alive_agents if isinstance(a, IndependentAgent)]
+            )
+            control_agents = len(
+                [a for a in alive_agents if isinstance(a, ControlAgent)]
+            )
 
             # Get births and deaths from tracking
             births = self.births_this_step
             deaths = self.deaths_this_step
 
             # Calculate generation metrics
-            current_max_generation = max([a.generation for a in alive_agents]) if alive_agents else 0
+            current_max_generation = (
+                max([a.generation for a in alive_agents]) if alive_agents else 0
+            )
 
             # Calculate health and age metrics
-            average_health = sum(a.current_health for a in alive_agents) / total_agents if total_agents > 0 else 0
-            average_age = sum(self.time - a.birth_time for a in alive_agents) / total_agents if total_agents > 0 else 0
-            average_reward = sum(a.total_reward for a in alive_agents) / total_agents if total_agents > 0 else 0
+            average_health = (
+                sum(a.current_health for a in alive_agents) / total_agents
+                if total_agents > 0
+                else 0
+            )
+            average_age = (
+                sum(self.time - a.birth_time for a in alive_agents) / total_agents
+                if total_agents > 0
+                else 0
+            )
+            average_reward = (
+                sum(a.total_reward for a in alive_agents) / total_agents
+                if total_agents > 0
+                else 0
+            )
 
             # Calculate resource metrics
             total_resources = sum(r.amount for r in self.resources)
-            average_agent_resources = sum(a.resource_level for a in alive_agents) / total_agents if total_agents > 0 else 0
-            resource_efficiency = total_resources / (len(self.resources) * self.config.max_resource_amount) if self.resources else 0
+            average_agent_resources = (
+                sum(a.resource_level for a in alive_agents) / total_agents
+                if total_agents > 0
+                else 0
+            )
+            resource_efficiency = (
+                total_resources
+                / (len(self.resources) * self.config.max_resource_amount)
+                if self.resources
+                else 0
+            )
 
             # Calculate genetic diversity
             genome_counts = {}
             for agent in alive_agents:
-                genome_counts[agent.genome_id] = genome_counts.get(agent.genome_id, 0) + 1
-            genetic_diversity = len(genome_counts) / total_agents if total_agents > 0 else 0
-            dominant_genome_ratio = max(genome_counts.values()) / total_agents if genome_counts else 0
+                genome_counts[agent.genome_id] = (
+                    genome_counts.get(agent.genome_id, 0) + 1
+                )
+            genetic_diversity = (
+                len(genome_counts) / total_agents if total_agents > 0 else 0
+            )
+            dominant_genome_ratio = (
+                max(genome_counts.values()) / total_agents if genome_counts else 0
+            )
 
             # Get combat and sharing metrics
             combat_encounters = getattr(self, "combat_encounters", 0)
@@ -294,7 +332,9 @@ class Environment:
                 total = sum(resource_amounts)
                 if total > 0:
                     probabilities = [amt / total for amt in resource_amounts]
-                    resource_distribution_entropy = -sum(p * np.log(p) if p > 0 else 0 for p in probabilities)
+                    resource_distribution_entropy = -sum(
+                        p * np.log(p) if p > 0 else 0 for p in probabilities
+                    )
                 else:
                     resource_distribution_entropy = 0.0
             else:
@@ -327,7 +367,7 @@ class Environment:
                 "successful_attacks": successful_attacks,
                 "resources_shared": resources_shared,
                 "genetic_diversity": genetic_diversity,
-                "dominant_genome_ratio": dominant_genome_ratio
+                "dominant_genome_ratio": dominant_genome_ratio,
             }
 
             # Reset counters for next step
@@ -341,7 +381,7 @@ class Environment:
 
     def get_next_agent_id(self):
         """Generate a unique short ID for an agent using environment's seed.
-        
+
         Returns
         -------
         str
@@ -405,8 +445,8 @@ class Environment:
         if hasattr(self, "db"):
             self.db.close()
 
-    def batch_add_agents(self, agents):
-        """Add multiple agents at once with efficient database logging."""
+    def add_agent(self, agent):
+        """Add an agent to the environment with efficient database logging."""
         agent_data = [
             {
                 "agent_id": agent.agent_id,
@@ -419,14 +459,12 @@ class Environment:
                 "genome_id": getattr(agent, "genome_id", None),
                 "generation": getattr(agent, "generation", 0),
             }
-            for agent in agents
         ]
 
         # Add to environment
-        for agent in agents:
-            self.agents.append(agent)
-            if self.time == 0:
-                self.initial_agent_count += 1
+        self.agents.append(agent)
+        if self.time == 0:
+            self.initial_agent_count += 1
 
         # Batch log to database using SQLAlchemy
         if self.db is not None:
@@ -437,7 +475,7 @@ class Environment:
         try:
             if self.db:
                 # Use logger for buffer flushing
-                if hasattr(self.db, 'logger'):
+                if hasattr(self.db, "logger"):
                     self.db.logger.flush_all_buffers()
                 self.db.close()
         except Exception as e:
@@ -461,24 +499,27 @@ class Environment:
                 self.db.logger.log_step(
                     step_number=self.time,
                     agent_states=[
-                        self._prepare_agent_state(agent) for agent in self.agents if agent.alive
+                        self._prepare_agent_state(agent)
+                        for agent in self.agents
+                        if agent.alive
                     ],
                     resource_states=[
-                        self._prepare_resource_state(resource) for resource in self.resources
+                        self._prepare_resource_state(resource)
+                        for resource in self.resources
                     ],
-                    metrics=metrics
+                    metrics=metrics,
                 )
         except Exception as e:
             logging.error(f"Error updating metrics: {e}")
 
     def _prepare_agent_state(self, agent) -> tuple:
         """Prepare agent state data for database logging.
-        
+
         Parameters
         ----------
         agent : BaseAgent
             Agent to prepare state data for
-            
+
         Returns
         -------
         tuple
@@ -494,17 +535,17 @@ class Environment:
             agent.starvation_threshold,
             int(agent.is_defending),
             agent.total_reward,
-            self.time - agent.birth_time  # age
+            self.time - agent.birth_time,  # age
         )
 
     def _prepare_resource_state(self, resource) -> tuple:
         """Prepare resource state data for database logging.
-        
+
         Parameters
         ----------
         resource : Resource
             Resource to prepare state data for
-            
+
         Returns
         -------
         tuple
@@ -514,9 +555,10 @@ class Environment:
             resource.resource_id,
             resource.amount,
             resource.position[0],  # x coordinate
-            resource.position[1]   # y coordinate
+            resource.position[1],  # y coordinate
         )
 
+    #! part of context manager, commented out for now
     # def register_active_context(self, agent: BaseAgent) -> None:
     #     """Register an active agent context."""
     #     with self._context_lock:
