@@ -151,7 +151,7 @@ def main():
             variations=[
                 {"control_agents": 1, "system_agents": 0, "independent_agents": 0}
             ],
-            num_iterations=100,
+            num_iterations=50,
             num_steps=1000,
         ),
         ExperimentConfig(
@@ -159,7 +159,7 @@ def main():
             variations=[
                 {"control_agents": 0, "system_agents": 1, "independent_agents": 0}
             ],
-            num_iterations=100,
+            num_iterations=50,
             num_steps=1000,
         ),
         ExperimentConfig(
@@ -167,7 +167,7 @@ def main():
             variations=[
                 {"control_agents": 0, "system_agents": 0, "independent_agents": 1}
             ],
-            num_iterations=100,
+            num_iterations=50,
             num_steps=1000,
         ),
             ExperimentConfig(
@@ -175,7 +175,7 @@ def main():
             variations=[
                 {"control_agents": 1, "system_agents": 1, "independent_agents": 1}
             ],
-            num_iterations=100,
+            num_iterations=50,
             num_steps=1000,
         ),
     ]
