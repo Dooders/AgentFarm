@@ -49,41 +49,104 @@ def create_population_df(
 ) -> pd.DataFrame:
     """
     Create a DataFrame from population data with proper padding for missing steps.
-
-    Args:
-        all_populations: List of population arrays from different simulations
-        max_steps: Maximum number of steps across all simulations
-
-    Returns:
-        DataFrame with columns: simulation_id, step, population
+    Includes data validation.
     """
+    if not all_populations:
+        logger.error("No population data provided")
+        return pd.DataFrame(columns=["simulation_id", "step", "population"])
+
+    # Validate each population array
+    valid_populations = []
+    for i, pop in enumerate(all_populations):
+        if validate_population_data(pop):
+            valid_populations.append(pop)
+        else:
+            logger.warning(f"Skipping invalid population data from simulation {i}")
+
+    if not valid_populations:
+        logger.error("No valid population data after validation")
+        return pd.DataFrame(columns=["simulation_id", "step", "population"])
+
+    # Create DataFrame with valid data
     data = []
-    for sim_idx, pop in enumerate(all_populations):
+    for sim_idx, pop in enumerate(valid_populations):
         for step in range(max_steps):
             population = pop[step] if step < len(pop) else np.nan
             data.append((f"sim_{sim_idx}", step, population))
-    return pd.DataFrame(data, columns=["simulation_id", "step", "population"])
+
+    df = pd.DataFrame(data, columns=["simulation_id", "step", "population"])
+
+    # Final validation of the DataFrame
+    if df.empty:
+        logger.warning("Created DataFrame is empty")
+    elif df["population"].isna().all():
+        logger.warning("All population values are NaN in the DataFrame")
+
+    return df
 
 
 def calculate_statistics(
     df: pd.DataFrame,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
-    Calculate population statistics using Pandas operations.
+    Calculate population statistics with validation checks.
+    """
+    if df.empty:
+        logger.error("Cannot calculate statistics: DataFrame is empty")
+        return np.array([]), np.array([]), np.array([]), np.array([])
+
+    n_simulations = df["simulation_id"].nunique()
+    if n_simulations == 0:
+        logger.error("No valid simulations found in data")
+        return np.array([]), np.array([]), np.array([]), np.array([])
+
+    grouped = df.groupby("step")["population"]
+
+    # Calculate statistics with handling for all-NaN groups
+    mean_pop = grouped.mean().fillna(0).values
+    median_pop = grouped.median().fillna(0).values
+    std_pop = grouped.std().fillna(0).values
+
+    # Avoid division by zero in confidence interval calculation
+    confidence_interval = np.where(
+        n_simulations > 0, 1.96 * std_pop / np.sqrt(n_simulations), 0
+    )
+
+    return mean_pop, median_pop, std_pop, confidence_interval
+
+
+def validate_population_data(population: np.ndarray, db_path: str = None) -> bool:
+    """
+    Validate population data array for integrity.
 
     Args:
-        df: DataFrame with columns: simulation_id, step, population
+        population: Array of population values to validate
+        db_path: Optional database path for error logging
 
     Returns:
-        Tuple of (mean, median, std_dev, confidence_interval)
+        bool: True if data is valid, False otherwise
     """
-    grouped = df.groupby("step")["population"]
-    mean_pop = grouped.mean().values
-    median_pop = grouped.median().values
-    std_pop = grouped.std().values
-    n_simulations = df["simulation_id"].nunique()
-    confidence_interval = 1.96 * std_pop / np.sqrt(n_simulations)
-    return mean_pop, median_pop, std_pop, confidence_interval
+    if population is None:
+        logger.warning(f"Population data is None{f' in {db_path}' if db_path else ''}")
+        return False
+
+    if len(population) == 0:
+        logger.warning(f"Empty population data{f' in {db_path}' if db_path else ''}")
+        return False
+
+    if np.all(np.isnan(population)):
+        logger.warning(
+            f"Population data contains only NaN values{f' in {db_path}' if db_path else ''}"
+        )
+        return False
+
+    if np.any(population < 0):
+        logger.warning(
+            f"Population data contains negative values{f' in {db_path}' if db_path else ''}"
+        )
+        return False
+
+    return True
 
 
 # ---------------------
@@ -141,7 +204,25 @@ def get_columns_data(
             col: np.array([row[i + 1] for row in query])
             for i, col in enumerate(columns)
         }
+
+        # Validate each population array
+        for col, pop in populations.items():
+            if not validate_population_data(pop, experiment_db_path):
+                logger.error(f"Invalid data for column '{col}' in {experiment_db_path}")
+                return None, {}, 0
+
         max_steps = len(steps)
+
+        # Validate steps
+        if len(steps) == 0:
+            logger.error(f"No steps found in database: {experiment_db_path}")
+            return None, {}, 0
+
+        if not np.all(np.diff(steps) >= 0):
+            logger.error(
+                f"Steps are not monotonically increasing in {experiment_db_path}"
+            )
+            return None, {}, 0
 
         return steps, populations, max_steps
 
@@ -364,8 +445,7 @@ def process_experiment(agent_type: str, experiment: str) -> Dict[str, List]:
                 steps, pop, steps_count = get_data(db_path)
                 if steps is not None and pop is not None:
                     # Validate population data
-                    if len(pop) == 0 or np.all(np.isnan(pop)):
-                        logger.warning(f"Empty or invalid population data in {db_path}")
+                    if not validate_population_data(pop, db_path):
                         failed_dbs += 1
                         continue
 
