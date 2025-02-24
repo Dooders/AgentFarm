@@ -582,11 +582,17 @@ def plot_resource_consumption_trends(experiment_data: Dict[str, Dict], output_di
         # Calculate and display statistics
         avg_consumption = np.mean(smoothed_mean)
         max_consumption = np.max(smoothed_mean)
-
-        # Add statistics as text
+        total_consumption = np.sum(smoothed_mean)  # Total consumption across all steps
+        
+        # Calculate average consumption per simulation
+        avg_per_simulation = total_consumption / len(data["consumption"])
+        
+        # Add statistics as text with total consumption
         stats_text = (
             f"Average: {avg_consumption:.2f}\n"
             f"Maximum: {max_consumption:.2f}\n"
+            f"Total Consumed: {total_consumption:.2f}\n"
+            f"Avg Total per Sim: {avg_per_simulation:.2f}\n"
             f"Simulations: {len(data['consumption'])}"
         )
 
