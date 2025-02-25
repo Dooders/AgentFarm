@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+import matplotlib.patheffects
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
@@ -249,6 +250,64 @@ def get_data(experiment_db_path: str) -> Tuple[np.ndarray, np.ndarray, int]:
     return None, None, 0
 
 
+def get_columns_data_by_agent_type(
+    experiment_db_path: str,
+) -> Tuple[np.ndarray, Dict[str, np.ndarray], int]:
+    """
+    Retrieve population data for each agent type from the simulation database.
+    """
+    columns = ["system_agents", "control_agents", "independent_agents"]
+    return get_columns_data(experiment_db_path, columns)
+
+
+def get_resource_consumption_data(
+    experiment_db_path: str,
+) -> Tuple[np.ndarray, Dict[str, np.ndarray], int]:
+    """
+    Retrieve resource consumption data for each agent type from the simulation database.
+
+    Args:
+        experiment_db_path: Path to the database file
+
+    Returns:
+        Tuple containing:
+        - steps: Array of step numbers
+        - consumption: Dictionary mapping agent types to their consumption data arrays
+        - max_steps: Number of steps in the simulation
+    """
+    columns = [
+        "system_agents",
+        "control_agents",
+        "independent_agents",
+        "resources_consumed",
+    ]
+    steps, data, max_steps = get_columns_data(experiment_db_path, columns)
+
+    if steps is None or not data:
+        return None, {}, 0
+
+    # Calculate consumption per agent type
+    consumption = {}
+    total_agents = np.zeros_like(steps, dtype=float)
+
+    # Sum up all agent types to get total population
+    for agent_type in ["system_agents", "control_agents", "independent_agents"]:
+        if agent_type in data:
+            total_agents += data[agent_type]
+
+    # Calculate consumption proportionally for each agent type
+    for agent_type in ["system", "control", "independent"]:
+        db_column = f"{agent_type}_agents"
+        if db_column in data and "resources_consumed" in data:
+            # Avoid division by zero
+            safe_total = np.where(total_agents > 0, total_agents, 1)
+            consumption[agent_type] = (
+                data[db_column] * data["resources_consumed"] / safe_total
+            )
+
+    return steps, consumption, max_steps
+
+
 # ---------------------
 # Plotting Helpers
 # ---------------------
@@ -406,6 +465,176 @@ def plot_population_trends_by_agent_type(
         plt.close()
 
 
+def plot_resource_consumption_trends(experiment_data: Dict[str, Dict], output_dir: str):
+    """Plot resource consumption trends with separate subplots for each agent type."""
+    # Ensure output directory exists
+    output_dir = Path(output_dir)
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.error(f"Error creating output directory {output_dir}: {str(e)}")
+        return
+
+    # Check if we have any valid data to plot
+    valid_data = False
+    agent_types_with_data = []
+
+    # Determine which agent types have valid data
+    for agent_type in ["system", "control", "independent"]:
+        data = experiment_data.get(agent_type, {"consumption": []})
+        if data.get("consumption") and len(data["consumption"]) > 0:
+            # Check if there's actual consumption (not all zeros)
+            has_consumption = False
+            for consumption in data["consumption"]:
+                if (
+                    np.sum(consumption) > 0.01
+                ):  # Small threshold to account for floating point
+                    has_consumption = True
+                    break
+
+            if has_consumption:
+                valid_data = True
+                agent_types_with_data.append(agent_type)
+            else:
+                logger.warning(f"Skipping {agent_type} - zero consumption")
+
+    if not valid_data:
+        logger.error("No valid consumption data to plot for any agent type")
+        return
+
+    # Create figure with dynamic number of subplots based on available data
+    num_agent_types = len(agent_types_with_data)
+    fig, axes = plt.subplots(
+        num_agent_types, 1, figsize=(15, 5 * num_agent_types), sharex=True
+    )
+
+    # Handle case where there's only one subplot (axes is not an array)
+    if num_agent_types == 1:
+        axes = [axes]
+
+    fig.suptitle("Resource Consumption Trends by Agent Type", fontsize=16, y=0.98)
+
+    # Define colors for agent types
+    colors = {"system": "blue", "control": "green", "independent": "red"}
+
+    # Find maximum steps across all data
+    max_steps = max(
+        [data["max_steps"] for data in experiment_data.values() if "max_steps" in data]
+    )
+    steps = np.arange(max_steps)
+
+    # Process and plot each agent type in its own subplot
+    for i, agent_type in enumerate(agent_types_with_data):
+        ax = axes[i]
+        data = experiment_data.get(agent_type, {"consumption": []})
+
+        # Calculate average consumption across all simulations
+        all_consumption = []
+        for consumption in data["consumption"]:
+            # Pad shorter arrays to match max_steps
+            padded = np.zeros(max_steps)
+            padded[: len(consumption)] = consumption
+            all_consumption.append(padded)
+
+        # Convert to numpy array for easier calculations
+        all_consumption = np.array(all_consumption)
+
+        # Calculate mean and standard deviation
+        mean_consumption = np.mean(all_consumption, axis=0)
+        std_consumption = np.std(all_consumption, axis=0)
+
+        # Apply smoothing for better visualization
+        window_size = min(51, max_steps // 20)
+        if window_size % 2 == 0:  # Ensure window size is odd
+            window_size += 1
+
+        try:
+            from scipy.signal import savgol_filter
+
+            # Use savgol_filter with appropriate window size and polynomial order
+            smoothed_mean = savgol_filter(mean_consumption, window_size, 3)
+            smoothed_std = savgol_filter(std_consumption, window_size, 3)
+        except (ImportError, ValueError):
+            # Fall back to simple moving average if scipy is not available or window size issues
+            kernel = np.ones(window_size) / window_size
+            smoothed_mean = np.convolve(mean_consumption, kernel, mode="same")
+            smoothed_std = np.convolve(std_consumption, kernel, mode="same")
+
+        # Plot mean line
+        ax.plot(
+            steps,
+            smoothed_mean,
+            color=colors[agent_type],
+            linewidth=2,
+            label=f"Mean Consumption",
+        )
+
+        # Plot confidence interval
+        ax.fill_between(
+            steps,
+            smoothed_mean - smoothed_std,
+            smoothed_mean + smoothed_std,
+            color=colors[agent_type],
+            alpha=0.2,
+            label="±1 Std Dev",
+        )
+
+        # Calculate and display statistics
+        avg_consumption = np.mean(smoothed_mean)
+        max_consumption = np.max(smoothed_mean)
+        total_consumption = np.sum(smoothed_mean)  # Total consumption across all steps
+
+        # Calculate average consumption per simulation
+        avg_per_simulation = total_consumption / len(data["consumption"])
+
+        # Add statistics as text with total consumption
+        stats_text = (
+            f"Average: {avg_consumption:.2f}\n"
+            f"Maximum: {max_consumption:.2f}\n"
+            f"Total Consumed: {total_consumption:.2f}\n"
+            f"Avg Total per Sim: {avg_per_simulation:.2f}\n"
+            f"Simulations: {len(data['consumption'])}"
+        )
+
+        ax.text(
+            0.02,
+            0.95,
+            stats_text,
+            transform=ax.transAxes,
+            verticalalignment="top",
+            bbox=dict(boxstyle="round", facecolor="white", alpha=0.7),
+        )
+
+        # Set title and labels
+        ax.set_title(f"{agent_type.title()} Agent Consumption", fontsize=12)
+        ax.set_ylabel("Resources Consumed")
+        ax.grid(True, alpha=0.3)
+        ax.legend(loc="upper right")
+
+        # Set y-axis to start from 0 with a small margin
+        y_max = np.max(smoothed_mean + smoothed_std) * 1.1  # Add 10% margin
+        ax.set_ylim(bottom=0, top=y_max)
+
+    # Set common x-axis label on the bottom subplot
+    axes[-1].set_xlabel("Simulation Step")
+
+    # Adjust layout
+    plt.tight_layout()
+    fig.subplots_adjust(
+        top=0.95 - 0.02 * num_agent_types
+    )  # Adjust top margin based on number of subplots
+
+    # Save the figure
+    output_path = output_dir / "resource_consumption_trends.png"
+    try:
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        logger.info(f"Saved resource consumption plot to {output_path}")
+    except Exception as e:
+        logger.error(f"Error saving plot to {output_path}: {str(e)}")
+    finally:
+        plt.close()
+
+
 # ---------------------
 # Main Execution
 # ---------------------
@@ -492,17 +721,204 @@ def process_experiment(agent_type: str, experiment: str) -> Dict[str, List]:
 def find_experiments(base_path: str) -> Dict[str, List[str]]:
     """Find all experiment directories and their iterations."""
     base = Path(base_path)
-    experiments = {}
+    experiments = {
+        "single_agent": {},  # For single_*_agent experiments
+        "one_of_a_kind": [],  # For one_of_a_kind experiments
+    }
 
     # Look for directories that match the pattern single_*_agent_*
     for exp_dir in base.glob("single_*_agent_*"):
         if exp_dir.is_dir():
             agent_type = exp_dir.name.split("_")[1]  # Extract 'system', 'control', etc.
-            if agent_type not in experiments:
-                experiments[agent_type] = []
-            experiments[agent_type].append(exp_dir.name)
+            if agent_type not in experiments["single_agent"]:
+                experiments["single_agent"][agent_type] = []
+            experiments["single_agent"][agent_type].append(exp_dir.name)
+
+    # Look for directories that match the pattern one_of_a_kind_*
+    for exp_dir in base.glob("one_of_a_kind_*"):
+        if exp_dir.is_dir():
+            experiments["one_of_a_kind"].append(exp_dir.name)
 
     return experiments
+
+
+def process_experiment_by_agent_type(experiment: str) -> Dict[str, Dict]:
+    """
+    Process experiment data separated by agent type.
+
+    Args:
+        experiment: Name of the experiment
+
+    Returns:
+        Dictionary containing processed population data for each agent type
+    """
+    logger.info(f"Processing experiment by agent type: {experiment}")
+
+    result = {
+        "system": {"populations": [], "max_steps": 0},
+        "control": {"populations": [], "max_steps": 0},
+        "independent": {"populations": [], "max_steps": 0},
+    }
+
+    try:
+        experiment_path = f"results/one_of_a_kind/experiments/data/{experiment}"
+        if not os.path.exists(experiment_path):
+            logger.error(f"Experiment directory not found: {experiment_path}")
+            return result
+
+        db_paths = find_simulation_databases(experiment_path)
+        if not db_paths:
+            logger.error(f"No database files found in {experiment_path}")
+            return result
+
+        max_steps = 0
+        valid_dbs = 0
+        failed_dbs = 0
+
+        # Temporary storage for populations from each database
+        temp_populations = {"system": [], "control": [], "independent": []}
+
+        for db_path in db_paths:
+            try:
+                steps, pops, steps_count = get_columns_data_by_agent_type(db_path)
+                if steps is not None and pops:
+                    # Validate population data for each agent type
+                    valid_data = True
+                    for agent_type, pop in zip(
+                        ["system", "control", "independent"],
+                        ["system_agents", "control_agents", "independent_agents"],
+                    ):
+                        if pop in pops and validate_population_data(pops[pop], db_path):
+                            temp_populations[agent_type].append(pops[pop])
+                        else:
+                            valid_data = False
+                            break
+
+                    if valid_data:
+                        max_steps = max(max_steps, steps_count)
+                        valid_dbs += 1
+                    else:
+                        failed_dbs += 1
+                else:
+                    failed_dbs += 1
+            except Exception as e:
+                logger.error(f"Error processing database {db_path}: {str(e)}")
+                failed_dbs += 1
+
+        # Combine results
+        for agent_type in result:
+            result[agent_type]["populations"] = temp_populations[agent_type]
+            result[agent_type]["max_steps"] = max_steps
+
+        if valid_dbs == 0:
+            logger.error(
+                f"No valid data found in experiment {experiment}. "
+                f"All {failed_dbs} databases were corrupted or invalid."
+            )
+            return result
+
+        logger.info(
+            f"Successfully processed {valid_dbs} databases. "
+            f"Skipped {failed_dbs} corrupted/invalid databases."
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Unexpected error processing experiment {experiment}: {str(e)}")
+        return result
+
+
+def process_experiment_resource_consumption(experiment: str) -> Dict[str, Dict]:
+    """
+    Process experiment resource consumption data separated by agent type.
+
+    Args:
+        experiment: Name of the experiment
+
+    Returns:
+        Dictionary containing processed consumption data for each agent type
+    """
+    logger.info(f"Processing resource consumption for experiment: {experiment}")
+
+    result = {
+        "system": {"consumption": [], "max_steps": 0},
+        "control": {"consumption": [], "max_steps": 0},
+        "independent": {"consumption": [], "max_steps": 0},
+    }
+
+    try:
+        experiment_path = f"results/one_of_a_kind/experiments/data/{experiment}"
+        if not os.path.exists(experiment_path):
+            logger.error(f"Experiment directory not found: {experiment_path}")
+            return result
+
+        db_paths = find_simulation_databases(experiment_path)
+        if not db_paths:
+            logger.error(f"No database files found in {experiment_path}")
+            return result
+
+        max_steps = 0
+        valid_dbs = 0
+        failed_dbs = 0
+
+        # Temporary storage for consumption from each database
+        temp_consumption = {"system": [], "control": [], "independent": []}
+
+        for db_path in db_paths:
+            try:
+                steps, consumption, steps_count = get_resource_consumption_data(db_path)
+                if steps is not None and consumption:
+                    # Validate consumption data for each agent type
+                    valid_data = True
+                    for agent_type in ["system", "control", "independent"]:
+                        if (
+                            agent_type in consumption
+                            and len(consumption[agent_type]) > 0
+                        ):
+                            temp_consumption[agent_type].append(consumption[agent_type])
+                        else:
+                            logger.warning(
+                                f"Missing consumption data for {agent_type} in {db_path}"
+                            )
+                            valid_data = False
+                            break
+
+                    if valid_data:
+                        max_steps = max(max_steps, steps_count)
+                        valid_dbs += 1
+                    else:
+                        failed_dbs += 1
+                else:
+                    failed_dbs += 1
+            except Exception as e:
+                logger.error(f"Error processing database {db_path}: {str(e)}")
+                failed_dbs += 1
+
+        # Combine results
+        for agent_type in result:
+            result[agent_type]["consumption"] = temp_consumption[agent_type]
+            result[agent_type]["max_steps"] = max_steps
+
+        if valid_dbs == 0:
+            logger.error(
+                f"No valid consumption data found in experiment {experiment}. "
+                f"All {failed_dbs} databases were corrupted or invalid."
+            )
+            return result
+
+        logger.info(
+            f"Successfully processed consumption data from {valid_dbs} databases. "
+            f"Skipped {failed_dbs} corrupted/invalid databases."
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(
+            f"Unexpected error processing consumption data for {experiment}: {str(e)}"
+        )
+        return result
 
 
 def main():
@@ -515,23 +931,72 @@ def main():
         return
 
     experiments = find_experiments(str(base_path))
-
     logger.info(f"Found experiments: {experiments}")
 
+    # Process single agent experiments
     all_experiment_data = {}
-    for agent_type, experiment_list in experiments.items():
+    all_consumption_data = {}
+
+    for agent_type, experiment_list in experiments["single_agent"].items():
         all_experiment_data[agent_type] = {"populations": [], "max_steps": 0}
+        all_consumption_data[agent_type] = {"consumption": [], "max_steps": 0}
 
         # Process each iteration of this experiment type
         for experiment in experiment_list:
+            # Process population data
             data = process_experiment(agent_type, experiment)
             all_experiment_data[agent_type]["populations"].extend(data["populations"])
             all_experiment_data[agent_type]["max_steps"] = max(
                 all_experiment_data[agent_type]["max_steps"], data["max_steps"]
             )
 
-    # Create combined plot
+            # Process consumption data
+            consumption_data = process_experiment_resource_consumption(experiment)
+            if agent_type in consumption_data:
+                all_consumption_data[agent_type]["consumption"].extend(
+                    consumption_data[agent_type]["consumption"]
+                )
+                all_consumption_data[agent_type]["max_steps"] = max(
+                    all_consumption_data[agent_type]["max_steps"],
+                    consumption_data[agent_type]["max_steps"],
+                )
+
+            # Create individual experiment resource consumption chart
+            experiment_path = f"results/one_of_a_kind/experiments/data/{experiment}"
+            if any(
+                consumption_data[agent_type]["consumption"]
+                for agent_type in consumption_data
+            ):
+                plot_resource_consumption_trends(consumption_data, experiment_path)
+
+    # Create combined plots for single agent experiments
     plot_population_trends_by_agent_type(all_experiment_data, str(base_path))
+    plot_resource_consumption_trends(all_consumption_data, str(base_path))
+
+    # Process one_of_a_kind experiments
+    for experiment in experiments["one_of_a_kind"]:
+        experiment_path = base_path / experiment
+
+        # Create overall population trend plot
+        data = process_experiment("one_of_a_kind", experiment)
+        if data["populations"]:
+            output_path = experiment_path / "population_trends.png"
+            plot_population_trends_across_simulations(
+                data["populations"], data["max_steps"], str(output_path)
+            )
+
+        # Create agent type comparison plots
+        data_by_type = process_experiment_by_agent_type(experiment)
+        if any(data_by_type[agent_type]["populations"] for agent_type in data_by_type):
+            plot_population_trends_by_agent_type(data_by_type, str(experiment_path))
+
+        # Create resource consumption comparison plot
+        consumption_by_type = process_experiment_resource_consumption(experiment)
+        if any(
+            consumption_by_type[agent_type]["consumption"]
+            for agent_type in consumption_by_type
+        ):
+            plot_resource_consumption_trends(consumption_by_type, str(experiment_path))
 
 
 if __name__ == "__main__":

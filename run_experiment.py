@@ -170,7 +170,7 @@ def main():
             num_iterations=100,
             num_steps=1000,
         ),
-            ExperimentConfig(
+        ExperimentConfig(
             name="one_of_a_kind",
             variations=[
                 {"control_agents": 1, "system_agents": 1, "independent_agents": 1}
