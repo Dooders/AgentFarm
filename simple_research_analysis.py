@@ -1,7 +1,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import matplotlib.patheffects
 import numpy as np
@@ -635,6 +635,278 @@ def plot_resource_consumption_trends(experiment_data: Dict[str, Dict], output_di
         plt.close()
 
 
+def detect_early_terminations(
+    db_paths: List[str], expected_steps: int = None
+) -> Dict[str, Dict[str, Any]]:
+    """
+    Detect and analyze simulations that terminated earlier than expected.
+
+    Args:
+        db_paths: List of paths to simulation database files
+        expected_steps: Expected number of steps (if None, will use max steps found)
+
+    Returns:
+        Dictionary mapping database paths to termination analysis
+    """
+    logger.info(f"Analyzing {len(db_paths)} simulations for early termination")
+
+    results = {}
+    all_step_counts = []
+
+    # First pass: collect step counts for all simulations
+    for db_path in db_paths:
+        try:
+            steps, _, steps_count = get_data(db_path)
+            if steps is not None:
+                all_step_counts.append(steps_count)
+                results[db_path] = {"steps_completed": steps_count}
+            else:
+                logger.warning(f"Could not retrieve step data from {db_path}")
+        except Exception as e:
+            logger.error(f"Error analyzing {db_path}: {str(e)}")
+
+    if not all_step_counts:
+        logger.error("No valid step data found in any database")
+        return {}
+
+    # Determine expected step count if not provided
+    if expected_steps is None:
+        expected_steps = max(all_step_counts)
+        logger.info(
+            f"Using maximum observed steps ({expected_steps}) as expected duration"
+        )
+
+    # Set threshold for early termination (e.g., 90% of expected steps)
+    early_threshold = int(expected_steps * 0.9)
+
+    # Second pass: analyze early terminations
+    early_terminations = {}
+    for db_path, info in results.items():
+        steps_completed = info["steps_completed"]
+
+        # Check if this simulation ended early
+        if steps_completed < early_threshold:
+            try:
+                # Get final state data
+                steps, populations, _ = get_columns_data_by_agent_type(db_path)
+
+                if steps is None or not populations:
+                    logger.warning(f"Could not retrieve population data from {db_path}")
+                    continue
+
+                # Get resource consumption data
+                _, consumption, _ = get_resource_consumption_data(db_path)
+
+                # Analyze final state
+                final_state = {
+                    "steps_completed": steps_completed,
+                    "expected_steps": expected_steps,
+                    "completion_percentage": round(
+                        steps_completed / expected_steps * 100, 1
+                    ),
+                    "final_populations": {
+                        agent_type: (
+                            populations.get(f"{agent_type}_agents", [])[-1]
+                            if populations.get(f"{agent_type}_agents")
+                            else 0
+                        )
+                        for agent_type in ["system", "control", "independent"]
+                    },
+                    "total_final_population": sum(
+                        (
+                            populations.get(f"{agent_type}_agents", [])[-1]
+                            if populations.get(f"{agent_type}_agents")
+                            else 0
+                        )
+                        for agent_type in ["system", "control", "independent"]
+                    ),
+                    "resource_consumption": {
+                        agent_type: (
+                            consumption.get(agent_type, [])[-1]
+                            if agent_type in consumption and consumption[agent_type]
+                            else 0
+                        )
+                        for agent_type in ["system", "control", "independent"]
+                    },
+                }
+
+                # Determine likely cause of termination
+                if final_state["total_final_population"] == 0:
+                    final_state["likely_cause"] = "population_collapse"
+                elif (
+                    sum(final_state["resource_consumption"].values()) < 0.1
+                ):  # Near-zero resource consumption
+                    final_state["likely_cause"] = "resource_depletion"
+                else:
+                    final_state["likely_cause"] = "unknown"
+
+                early_terminations[db_path] = final_state
+
+            except Exception as e:
+                logger.error(
+                    f"Error analyzing early termination for {db_path}: {str(e)}"
+                )
+
+    logger.info(f"Found {len(early_terminations)} simulations that terminated early")
+    return early_terminations
+
+
+def plot_early_termination_analysis(
+    early_terminations: Dict[str, Dict], output_dir: str
+):
+    """
+    Create visualizations for early termination analysis.
+
+    Args:
+        early_terminations: Dictionary of early termination data from detect_early_terminations()
+        output_dir: Directory to save output plots
+    """
+    if not early_terminations:
+        logger.warning("No early terminations to analyze")
+        return
+
+    # Ensure output directory exists
+    output_dir = Path(output_dir)
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.error(f"Error creating output directory {output_dir}: {str(e)}")
+        return
+
+    # Extract data for plotting
+    completion_percentages = [
+        data["completion_percentage"] for data in early_terminations.values()
+    ]
+    causes = [data["likely_cause"] for data in early_terminations.values()]
+
+    # 1. Create histogram of completion percentages
+    plt.figure(figsize=(12, 6))
+    plt.hist(completion_percentages, bins=20, color="skyblue", edgecolor="black")
+    plt.title(
+        "Distribution of Early Terminations by Completion Percentage", fontsize=14
+    )
+    plt.xlabel("Completion Percentage", fontsize=12)
+    plt.ylabel("Number of Simulations", fontsize=12)
+    plt.grid(alpha=0.3)
+
+    # Add vertical line for the mean
+    mean_completion = sum(completion_percentages) / len(completion_percentages)
+    plt.axvline(
+        mean_completion,
+        color="red",
+        linestyle="--",
+        label=f"Mean: {mean_completion:.1f}%",
+    )
+    plt.legend()
+
+    # Save the plot
+    plt.tight_layout()
+    plt.savefig(output_dir / "early_termination_histogram.png", dpi=300)
+    plt.close()
+
+    # 2. Create pie chart of termination causes
+    cause_counts = {}
+    for cause in causes:
+        cause_counts[cause] = cause_counts.get(cause, 0) + 1
+
+    plt.figure(figsize=(10, 8))
+    plt.pie(
+        cause_counts.values(),
+        labels=[f"{cause} ({count})" for cause, count in cause_counts.items()],
+        autopct="%1.1f%%",
+        startangle=90,
+        colors=["#ff9999", "#66b3ff", "#99ff99", "#ffcc99"],
+    )
+    plt.title("Causes of Early Termination", fontsize=14)
+
+    # Save the plot
+    plt.tight_layout()
+    plt.savefig(output_dir / "early_termination_causes.png", dpi=300)
+    plt.close()
+
+    # 3. Create scatter plot of final population vs. completion percentage
+    plt.figure(figsize=(12, 8))
+
+    # Extract data for each agent type
+    data_points = []
+    for data in early_terminations.values():
+        for agent_type in ["system", "control", "independent"]:
+            if data["final_populations"][agent_type] > 0:
+                data_points.append(
+                    {
+                        "agent_type": agent_type,
+                        "population": data["final_populations"][agent_type],
+                        "completion": data["completion_percentage"],
+                        "cause": data["likely_cause"],
+                    }
+                )
+
+    # Create DataFrame for easier plotting
+    df = pd.DataFrame(data_points)
+
+    if not df.empty:
+        # Define colors and markers for agent types and causes
+        agent_colors = {"system": "blue", "control": "green", "independent": "red"}
+        cause_markers = {
+            "population_collapse": "x",
+            "resource_depletion": "o",
+            "unknown": "s",
+        }
+
+        # Plot each point
+        for agent_type in df["agent_type"].unique():
+            for cause in df["cause"].unique():
+                subset = df[(df["agent_type"] == agent_type) & (df["cause"] == cause)]
+                if not subset.empty:
+                    plt.scatter(
+                        subset["completion"],
+                        subset["population"],
+                        color=agent_colors[agent_type],
+                        marker=cause_markers[cause],
+                        alpha=0.7,
+                        s=50,
+                        label=f"{agent_type.title()} - {cause.replace('_', ' ').title()}",
+                    )
+
+        plt.title("Final Population vs. Completion Percentage", fontsize=14)
+        plt.xlabel("Completion Percentage", fontsize=12)
+        plt.ylabel("Final Population", fontsize=12)
+        plt.grid(alpha=0.3)
+        plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
+
+        # Save the plot
+        plt.tight_layout()
+        plt.savefig(output_dir / "early_termination_population_scatter.png", dpi=300)
+
+    plt.close()
+
+    # 4. Create summary report
+    with open(output_dir / "early_termination_summary.txt", "w") as f:
+        f.write("Early Termination Analysis Summary\n")
+        f.write("=================================\n\n")
+        f.write(f"Total simulations analyzed: {len(early_terminations)}\n")
+        f.write(f"Average completion percentage: {mean_completion:.1f}%\n\n")
+
+        f.write("Termination causes:\n")
+        for cause, count in cause_counts.items():
+            f.write(
+                f"  - {cause.replace('_', ' ').title()}: {count} ({count/len(early_terminations)*100:.1f}%)\n"
+            )
+
+        f.write("\nDetailed simulation data:\n")
+        for i, (db_path, data) in enumerate(early_terminations.items()):
+            f.write(f"\n{i+1}. Simulation: {Path(db_path).parent.name}\n")
+            f.write(
+                f"   Steps completed: {data['steps_completed']} / {data['expected_steps']} ({data['completion_percentage']}%)\n"
+            )
+            f.write(f"   Final population: {data['total_final_population']}\n")
+            f.write(
+                f"   Likely cause: {data['likely_cause'].replace('_', ' ').title()}\n"
+            )
+
+    logger.info(f"Early termination analysis saved to {output_dir}")
+
+
 # ---------------------
 # Main Execution
 # ---------------------
@@ -997,6 +1269,14 @@ def main():
             for agent_type in consumption_by_type
         ):
             plot_resource_consumption_trends(consumption_by_type, str(experiment_path))
+
+        # Analyze early terminations
+        db_paths = find_simulation_databases(str(experiment_path))
+        if db_paths:
+            early_terminations = detect_early_terminations(db_paths)
+            if early_terminations:
+                early_term_dir = experiment_path / "early_termination_analysis"
+                plot_early_termination_analysis(early_terminations, str(early_term_dir))
 
 
 if __name__ == "__main__":
