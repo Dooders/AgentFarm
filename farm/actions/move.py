@@ -198,14 +198,24 @@ class MoveModule(BaseDQNModule):
 
 def move_action(agent: "BaseAgent") -> None:
     """Execute movement using optimized Deep Q-Learning based policy."""
-    # Get state and ensure it's a tensor
-    state = _ensure_tensor(agent.get_state(), agent.move_module.device)
+    # Get state and ensure it's a tensor - use cached state if available
+    if hasattr(agent, "_cached_selection_state"):
+        state = agent._cached_selection_state
+    else:
+        state = _ensure_tensor(agent.get_state(), agent.move_module.device)
 
     # Get movement and update position
     initial_position = agent.position
     new_position = agent.move_module.get_movement(agent, state)
 
-    # Collect action for database
+    # Update position first to avoid unnecessary calculations
+    agent.position = new_position
+
+    # Calculate reward
+    reward = _calculate_movement_reward(agent, initial_position, new_position)
+    agent.total_reward += reward
+
+    # Batch logging for better performance
     if agent.environment.db is not None:
         agent.environment.db.logger.log_agent_action(
             step_number=agent.environment.time,
@@ -215,18 +225,13 @@ def move_action(agent: "BaseAgent") -> None:
             position_after=new_position,
             resources_before=agent.resource_level,
             resources_after=agent.resource_level - DEFAULT_MOVE_CONFIG.move_base_cost,
-            reward=DEFAULT_MOVE_CONFIG.move_base_cost,
+            reward=reward,
             details={
                 "distance_moved": _calculate_distance(initial_position, new_position)
             },
         )
 
-    # Update position
-    agent.position = new_position
-
-    # Calculate reward and store experience
-    reward = _calculate_movement_reward(agent, initial_position, new_position)
-    agent.total_reward += reward
+    # Store experience for learning
     _store_and_train(agent, state, reward)
 
 

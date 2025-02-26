@@ -1,6 +1,7 @@
 """Base DQN module providing common functionality for learning-based actions."""
 
 import logging
+import random
 from collections import deque
 from typing import TYPE_CHECKING, Any, Deque, Optional
 
@@ -80,15 +81,16 @@ class BaseDQNModule:
         self.config = config
         self.db = db
         self.module_id = id(self.__class__)
-        if db is not None:
-            self.logger = db.logger
-        else:
-            self.logger = None
+        self.logger = db.logger if db is not None else None
         self._setup_networks(input_dim, output_dim, config)
         self._setup_training(config)
         self.losses = []
         self.episode_rewards = []
         self.pending_experiences = []
+
+        # Add caching for state tensors
+        self._state_cache = {}
+        self._max_cache_size = 100
 
     def _setup_networks(
         self, input_dim: int, output_dim: int, config: BaseDQNConfig
@@ -309,3 +311,31 @@ class BaseDQNModule:
     def __del__(self):
         """Ensure cleanup on deletion."""
         self.cleanup()
+
+    def select_action(
+        self, state_tensor: torch.Tensor, epsilon: Optional[float] = None
+    ) -> int:
+        """Optimized action selection with tensor caching."""
+        if epsilon is None:
+            epsilon = self.epsilon
+
+        # Use epsilon-greedy strategy
+        if random.random() < epsilon:
+            return random.randint(0, self.output_dim - 1)
+
+        # Cache tensor hash for repeated states
+        state_hash = hash(state_tensor.cpu().numpy().tobytes())
+
+        if state_hash in self._state_cache:
+            return self._state_cache[state_hash]
+
+        with torch.no_grad():
+            action = self.q_network(state_tensor).argmax().item()
+
+        # Update cache with LRU behavior
+        if len(self._state_cache) >= self._max_cache_size:
+            # Remove a random item if cache is full
+            self._state_cache.pop(next(iter(self._state_cache)))
+
+        self._state_cache[state_hash] = action
+        return action
