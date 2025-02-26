@@ -18,8 +18,8 @@ from typing import TYPE_CHECKING, List
 import numpy as np
 import torch
 
-from farm.core.action import Action
 from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork
+from farm.core.action import Action
 
 if TYPE_CHECKING:
     from farm.agents.base_agent import BaseAgent
@@ -77,26 +77,26 @@ class SelectModule(BaseDQNModule):
             config=config,
             device=device,
         )
+        # Pre-compute action indices for faster lookup
+        self.action_indices = {}
 
     def select_action(
         self, agent: "BaseAgent", actions: List[Action], state: torch.Tensor
     ) -> Action:
-        #! change to decide_action
-        """Select an action using both predefined weights and learned preferences.
+        """Select an action using both predefined weights and learned preferences."""
+        # Cache action indices for this agent if not already done
+        if agent.agent_id not in self.action_indices:
+            self.action_indices[agent.agent_id] = {
+                action.name: i for i, action in enumerate(actions)
+            }
 
-        Args:
-            agent: Agent making the decision
-            actions: List of available actions
-            state: Current state tensor
-
-        Returns:
-            Selected Action object
-        """
         # Get base probabilities from weights
         base_probs = [action.weight for action in actions]
 
-        # Adjust probabilities based on state
-        adjusted_probs = self._adjust_probabilities(agent, base_probs)
+        # Adjust probabilities based on state - use faster implementation
+        adjusted_probs = self._fast_adjust_probabilities(
+            agent, base_probs, self.action_indices[agent.agent_id]
+        )
 
         # Use epsilon-greedy for exploration
         if random.random() < self.epsilon:
@@ -113,8 +113,10 @@ class SelectModule(BaseDQNModule):
 
         return random.choices(actions, weights=combined_probs, k=1)[0]
 
-    def _adjust_probabilities(self, agent: "BaseAgent", base_probs: List[float]) -> List[float]:
-        """Adjust action probabilities based on agent's current state."""
+    def _fast_adjust_probabilities(
+        self, agent: "BaseAgent", base_probs: List[float], action_indices: dict
+    ) -> List[float]:
+        """Optimized version of probability adjustment."""
         adjusted_probs = base_probs.copy()
         config = self.config
 
@@ -123,62 +125,75 @@ class SelectModule(BaseDQNModule):
         starvation_risk = agent.starvation_threshold / agent.max_starvation
         health_ratio = agent.current_health / agent.starting_health
 
-        # Helper function to safely get action index
-        def get_action_index(action_name: str) -> int:
-            try:
-                return next(i for i, a in enumerate(agent.actions) if a.name == action_name)
-            except StopIteration:
-                return -1
+        # Get nearby entities using environment's spatial indexing
+        nearby_resources = agent.environment.get_nearby_resources(
+            agent.position, agent.config.gathering_range
+        )
 
-        # Find nearby entities
-        nearby_resources = [
-            r for r in agent.environment.resources
-            if not r.is_depleted() and np.sqrt(((np.array(r.position) - np.array(agent.position)) ** 2).sum()) < agent.config.gathering_range
-        ]
+        nearby_agents = agent.environment.get_nearby_agents(
+            agent.position, agent.config.social_range
+        )
 
-        nearby_agents = [
-            a for a in agent.environment.agents
-            if a != agent and a.alive and np.sqrt(((np.array(a.position) - np.array(agent.position)) ** 2).sum()) < agent.config.social_range
-        ]
+        # Adjust move probability
+        if "move" in action_indices and not nearby_resources:
+            adjusted_probs[action_indices["move"]] *= config.move_mult_no_resources
 
-        # Adjust probabilities only for actions that exist
-        move_idx = get_action_index("move")
-        if move_idx >= 0 and not nearby_resources:
-            adjusted_probs[move_idx] *= config.move_mult_no_resources
+        # Adjust gather probability
+        if (
+            "gather" in action_indices
+            and nearby_resources
+            and resource_level < agent.config.min_reproduction_resources
+        ):
+            adjusted_probs[action_indices["gather"]] *= config.gather_mult_low_resources
 
-        gather_idx = get_action_index("gather")
-        if gather_idx >= 0 and nearby_resources and resource_level < agent.config.min_reproduction_resources:
-            adjusted_probs[gather_idx] *= config.gather_mult_low_resources
-
-        share_idx = get_action_index("share")
-        if share_idx >= 0:
-            if resource_level > agent.config.min_reproduction_resources and nearby_agents:
-                adjusted_probs[share_idx] *= config.share_mult_wealthy
+        # Adjust share probability
+        if "share" in action_indices:
+            if (
+                resource_level > agent.config.min_reproduction_resources
+                and nearby_agents
+            ):
+                adjusted_probs[action_indices["share"]] *= config.share_mult_wealthy
             else:
-                adjusted_probs[share_idx] *= config.share_mult_poor
+                adjusted_probs[action_indices["share"]] *= config.share_mult_poor
 
-        attack_idx = get_action_index("attack")
-        if attack_idx >= 0:
-            if starvation_risk > config.attack_starvation_threshold and nearby_agents and resource_level > 2:
-                adjusted_probs[attack_idx] *= config.attack_mult_desperate
+        # Adjust attack probability
+        if "attack" in action_indices:
+            if (
+                starvation_risk > config.attack_starvation_threshold
+                and nearby_agents
+                and resource_level > 2
+            ):
+                adjusted_probs[action_indices["attack"]] *= config.attack_mult_desperate
             else:
-                adjusted_probs[attack_idx] *= config.attack_mult_stable
+                adjusted_probs[action_indices["attack"]] *= config.attack_mult_stable
 
             if health_ratio < config.attack_defense_threshold:
-                adjusted_probs[attack_idx] *= 0.5
-            elif health_ratio > 0.8 and resource_level > agent.config.min_reproduction_resources:
-                adjusted_probs[attack_idx] *= 1.5
+                adjusted_probs[action_indices["attack"]] *= 0.5
+            elif (
+                health_ratio > 0.8
+                and resource_level > agent.config.min_reproduction_resources
+            ):
+                adjusted_probs[action_indices["attack"]] *= 1.5
 
-        reproduce_idx = get_action_index("reproduce")
-        if reproduce_idx >= 0:
-            if resource_level > agent.config.min_reproduction_resources * 1.5 and health_ratio > 0.8:
-                adjusted_probs[reproduce_idx] *= config.reproduce_mult_wealthy
+        # Adjust reproduce probability
+        if "reproduce" in action_indices:
+            if (
+                resource_level > agent.config.min_reproduction_resources * 1.5
+                and health_ratio > 0.8
+            ):
+                adjusted_probs[
+                    action_indices["reproduce"]
+                ] *= config.reproduce_mult_wealthy
             else:
-                adjusted_probs[reproduce_idx] *= config.reproduce_mult_poor
+                adjusted_probs[
+                    action_indices["reproduce"]
+                ] *= config.reproduce_mult_poor
 
-            population_ratio = len(agent.environment.agents) / agent.config.max_population
+            population_ratio = (
+                len(agent.environment.agents) / agent.config.max_population
+            )
             if population_ratio > config.reproduce_resource_threshold:
-                adjusted_probs[reproduce_idx] *= 0.5
+                adjusted_probs[action_indices["reproduce"]] *= 0.5
 
         # Normalize probabilities
         total = sum(adjusted_probs)
@@ -208,36 +223,29 @@ def create_selection_state(agent: "BaseAgent") -> torch.Tensor:
     health_ratio = agent.current_health / agent.starting_health
     starvation_ratio = agent.starvation_threshold / agent.max_starvation
 
-    # Get nearby entities
+    # Use environment's spatial indexing for faster nearby entity detection
     nearby_resources = len(
-        [
-            r
-            for r in agent.environment.resources
-            if not r.is_depleted()
-            and np.sqrt(((np.array(r.position) - np.array(agent.position)) ** 2).sum())
-            < agent.config.gathering_range
-        ]
+        agent.environment.get_nearby_resources(
+            agent.position, agent.config.gathering_range
+        )
     )
 
     nearby_agents = len(
-        [
-            a
-            for a in agent.environment.agents
-            if a != agent
-            and a.alive
-            and np.sqrt(((np.array(a.position) - np.array(agent.position)) ** 2).sum())
-            < agent.config.social_range
-        ]
+        agent.environment.get_nearby_agents(agent.position, agent.config.social_range)
     )
 
-    # Create state tensor - removed time/max_steps ratio since max_steps isn't available
+    # Normalize counts
+    resource_density = nearby_resources / max(1, len(agent.environment.resources))
+    agent_density = nearby_agents / max(1, len(agent.environment.agents))
+
+    # Create state tensor
     state = torch.tensor(
         [
             resource_ratio,
             health_ratio,
             starvation_ratio,
-            nearby_resources / max(1, len(agent.environment.resources)),
-            nearby_agents / max(1, len(agent.environment.agents)),
+            resource_density,
+            agent_density,
             float(
                 agent.environment.time > 0
             ),  # Simple binary indicator if not first step

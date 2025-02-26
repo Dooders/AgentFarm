@@ -241,13 +241,16 @@ class BaseAgent:
         Returns:
             Action: Selected action object to execute
         """
-        # Get current state for selection
-        #! is this needed? its different from the state in the agent
-        state = create_selection_state(self)
+        # Cache state tensor to avoid recreating it multiple times
+        if not hasattr(
+            self, "_cached_selection_state"
+        ) or self.environment.time != getattr(self, "_cached_selection_time", -1):
+            self._cached_selection_state = create_selection_state(self)
+            self._cached_selection_time = self.environment.time
 
         # Select action using selection module
         selected_action = self.select_module.select_action(
-            agent=self, actions=self.actions, state=state
+            agent=self, actions=self.actions, state=self._cached_selection_state
         )
 
         return selected_action
@@ -284,18 +287,16 @@ class BaseAgent:
         The agent will not act if it's not alive. Each turn consumes base resources
         and can potentially lead to death if resources are depleted.
         """
-        # Validate context before acting
-        # self.validate_context()
-
         if not self.alive:
             return
 
         # Reset defense status at start of turn
         self.is_defending = False
 
+        # Resource consumption
         self.resource_level -= self.config.base_consumption_rate
 
-        # Check starvation state
+        # Check starvation state - exit early if agent dies
         if self.check_starvation():
             return
 
