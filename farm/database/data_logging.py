@@ -14,6 +14,7 @@ Features:
 
 import json
 import logging
+import time
 from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -24,9 +25,9 @@ from farm.database.models import (
     AgentStateModel,
     HealthIncident,
     LearningExperienceModel,
+    ReproductionEventModel,
     ResourceModel,
     SimulationStepModel,
-    ReproductionEventModel,
 )
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,7 @@ logger = logging.getLogger(__name__)
 class DataLogger:
     """Handles data logging operations for the simulation database."""
 
-    def __init__(self, database, buffer_size: int = 1000):
+    def __init__(self, database, buffer_size: int = 1000, commit_interval: int = 30):
         """Initialize the data logger.
 
         Parameters
@@ -44,14 +45,26 @@ class DataLogger:
             Database instance to use for logging
         buffer_size : int, optional
             Maximum size of buffers before auto-flush, by default 1000
+        commit_interval : int, optional
+            Maximum time (in seconds) between commits, by default 30
         """
         self.db = database
         self._buffer_size = buffer_size
+        self._commit_interval = commit_interval
+        self._last_commit_time = time.time()
         self._action_buffer = []
         self._learning_exp_buffer = []
         self._health_incident_buffer = []
         self._resource_buffer = []
         self.reproduction_buffer = []
+        self._step_buffer = []
+
+    def _check_time_based_flush(self):
+        """Check if we should flush based on time interval."""
+        current_time = time.time()
+        if current_time - self._last_commit_time >= self._commit_interval:
+            self.flush_all_buffers()
+            self._last_commit_time = current_time
 
     def log_agent_action(
         self,
@@ -174,7 +187,7 @@ class DataLogger:
         failure_reason: str | None,
         parent_generation: int,
         offspring_generation: int | None,
-        parent_position: tuple[float, float]
+        parent_position: tuple[float, float],
     ) -> None:
         """Buffer a reproduction event for batch processing."""
         event = {
@@ -189,7 +202,7 @@ class DataLogger:
             "parent_generation": parent_generation,
             "offspring_generation": offspring_generation,
             "parent_position_x": parent_position[0],
-            "parent_position_y": parent_position[1]
+            "parent_position_y": parent_position[1],
         }
         self.reproduction_buffer.append(event)
 
@@ -261,39 +274,48 @@ class DataLogger:
         self.reproduction_buffer.clear()
 
     def flush_all_buffers(self) -> None:
-        """Flush all data buffers to the database.
+        """Flush all data buffers to the database in a single transaction."""
 
-        Safely writes all buffered data (actions, learning experiences, health incidents)
-        to the database in transactions. Maintains data integrity by only clearing
-        buffers after successful writes.
+        def _flush(session):
+            # Disable autoflush during bulk operations
+            original_autoflush = session.autoflush
+            session.autoflush = False
 
-        Raises
-        ------
-        SQLAlchemyError
-            If any buffer flush fails, with details about which buffer(s) failed
-        """
-        self.flush_reproduction_buffer()
-        buffers = {
-            "action": (self._action_buffer, self.flush_action_buffer),
-            "learning": (self._learning_exp_buffer, self.flush_learning_buffer),
-            "health": (self._health_incident_buffer, self.flush_health_buffer),
-        }
+            try:
+                # Use bulk_insert_mappings instead of bulk_save_objects for dictionaries
+                if self._action_buffer:
+                    session.bulk_insert_mappings(ActionModel, self._action_buffer)
+                    self._action_buffer.clear()
 
-        errors = []
-        for buffer_name, (buffer, flush_func) in buffers.items():
-            if buffer:  # Only attempt flush if buffer has data
-                try:
-                    flush_func()
-                except SQLAlchemyError as e:
-                    logger.error(f"Error flushing {buffer_name} buffer: {e}")
-                    errors.append((buffer_name, str(e)))
-                except Exception as e:
-                    logger.error(f"Unexpected error flushing {buffer_name} buffer: {e}")
-                    errors.append((buffer_name, str(e)))
+                if self._learning_exp_buffer:
+                    session.bulk_insert_mappings(
+                        LearningExperienceModel, self._learning_exp_buffer
+                    )
+                    self._learning_exp_buffer.clear()
 
-        if errors:
-            error_msg = "; ".join(f"{name}: {err}" for name, err in errors)
-            raise SQLAlchemyError(f"Failed to flush buffers: {error_msg}")
+                if self._health_incident_buffer:
+                    session.bulk_insert_mappings(
+                        HealthIncident, self._health_incident_buffer
+                    )
+                    self._health_incident_buffer.clear()
+
+                if self.reproduction_buffer:
+                    session.bulk_insert_mappings(
+                        ReproductionEventModel, self.reproduction_buffer
+                    )
+                    self.reproduction_buffer.clear()
+
+                if self._step_buffer:
+                    session.bulk_insert_mappings(SimulationStepModel, self._step_buffer)
+                    self._step_buffer.clear()
+
+                # Commit once for all buffers
+                session.commit()
+            finally:
+                # Restore original autoflush setting
+                session.autoflush = original_autoflush
+
+        self.db._execute_in_transaction(_flush)
 
     def log_agents_batch(self, agent_data_list: List[Dict]) -> None:
         """Batch insert multiple agents for better performance.
@@ -413,38 +435,10 @@ class DataLogger:
         resource_states: List[Tuple],
         metrics: Dict,
     ) -> None:
-        """Log comprehensive simulation state data for a single time step.
+        """Log a simulation step with all associated data.
 
-        Parameters
-        ----------
-        step_number : int
-            Current simulation step number
-        agent_states : List[Tuple]
-            List of agent state tuples containing:
-            (agent_id, position_x, position_y, resource_level, current_health,
-             starting_health, starvation_threshold, is_defending, total_reward, age)
-        resource_states : List[Tuple]
-            List of resource state tuples containing:
-            (resource_id, amount, position_x, position_y)
-        metrics : Dict
-            Dictionary of simulation metrics including:
-            - total_agents: int
-            - system_agents: int
-            - independent_agents: int
-            - control_agents: int
-            - total_resources: float
-            - average_agent_resources: float
-            - resources_consumed: float
-            - births: int
-            - deaths: int
-            And other relevant metrics
-
-        Raises
-        ------
-        SQLAlchemyError
-            If there's an error during database insertion
-        ValueError
-            If input data is malformed or invalid
+        This method buffers step data and flushes when buffer is full
+        or when the commit interval has elapsed.
         """
         try:
 
@@ -506,6 +500,13 @@ class DataLogger:
 
             self.db._execute_in_transaction(_insert)
 
+            # Check if we should flush based on buffer size
+            if len(self._step_buffer) >= self._buffer_size:
+                self.flush_all_buffers()
+            else:
+                # Check if we should flush based on time
+                self._check_time_based_flush()
+
         except (ValueError, TypeError) as e:
             logger.error(f"Invalid data format in log_step: {e}")
             raise
@@ -521,13 +522,15 @@ class DataLogger:
     ) -> None:
         """Log a new resource in the simulation."""
         try:
-            resource_data = [{  # Changed to list for bulk_insert_mappings
-                "step_number": 0,  # Initial state
-                "resource_id": resource_id,
-                "amount": initial_amount,
-                "position_x": position[0],
-                "position_y": position[1],
-            }]
+            resource_data = [
+                {  # Changed to list for bulk_insert_mappings
+                    "step_number": 0,  # Initial state
+                    "resource_id": resource_id,
+                    "amount": initial_amount,
+                    "position_x": position[0],
+                    "position_y": position[1],
+                }
+            ]
 
             def _insert(session):
                 # Changed to bulk_insert_mappings for consistency
@@ -544,3 +547,51 @@ class DataLogger:
         except Exception as e:
             logger.error(f"Unexpected error during resource insert: {e}")
             raise
+
+
+class ShardedDataLogger:
+    """Data logger that routes data to appropriate database shards."""
+
+    def __init__(self, sharded_db):
+        """Initialize the sharded data logger.
+
+        Parameters
+        ----------
+        sharded_db : ShardedSimulationDatabase
+            The sharded database instance
+        """
+        self.sharded_db = sharded_db
+
+    def log_agent_states(self, step_number, agent_states):
+        """Log agent states to the appropriate shard."""
+        shard_id = self.sharded_db._get_shard_for_step(step_number)
+        self.sharded_db.shards[shard_id]["agents"].logger.log_agent_states(
+            step_number, agent_states
+        )
+
+    def log_resources(self, step_number, resource_states):
+        """Log resource states to the appropriate shard."""
+        shard_id = self.sharded_db._get_shard_for_step(step_number)
+        self.sharded_db.shards[shard_id]["resources"].logger.log_resources(
+            step_number, resource_states
+        )
+
+    def log_metrics(self, step_number, metrics):
+        """Log metrics to the appropriate shard."""
+        shard_id = self.sharded_db._get_shard_for_step(step_number)
+        self.sharded_db.shards[shard_id]["metrics"].logger.log_metrics(
+            step_number, metrics
+        )
+
+    def log_action(self, step_number, action_data):
+        """Log an action to the appropriate shard."""
+        shard_id = self.sharded_db._get_shard_for_step(step_number)
+        self.sharded_db.shards[shard_id]["actions"].logger.log_agent_action(
+            **action_data
+        )
+
+    def flush_all_buffers(self):
+        """Flush all buffers across all shards."""
+        for shard_id, databases in self.sharded_db.shards.items():
+            for db_type, db in databases.items():
+                db.logger.flush_all_buffers()

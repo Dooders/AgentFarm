@@ -19,11 +19,11 @@ between related tables.
 """
 
 import logging
-from typing import Any, Dict, Optional, List
-from dataclasses import dataclass
-from deepdiff import DeepDiff
 import statistics
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
+from deepdiff import DeepDiff
 from sqlalchemy import (
     JSON,
     Boolean,
@@ -180,6 +180,8 @@ class AgentStateModel(Base):
     __table_args__ = (
         Index("idx_agent_states_agent_id", "agent_id"),
         Index("idx_agent_states_step_number", "step_number"),
+        Index("idx_agent_states_agent_step", "agent_id", "step_number"),
+        {"sqlite_autoincrement": False},
     )
 
     id = Column(
@@ -529,7 +531,7 @@ class Simulation(Base):
 
 class ReproductionEventModel(Base):
     """Records reproduction attempts and outcomes in the simulation.
-    
+
     This model tracks both successful and failed reproduction attempts,
     including details about the parent agent, resources involved, and
     any offspring created.
@@ -597,14 +599,10 @@ class ReproductionEventModel(Base):
 
     # Relationships
     parent = relationship(
-        "AgentModel",
-        foreign_keys=[parent_id],
-        backref="reproduction_attempts"
+        "AgentModel", foreign_keys=[parent_id], backref="reproduction_attempts"
     )
     offspring = relationship(
-        "AgentModel",
-        foreign_keys=[offspring_id],
-        backref="creation_event"
+        "AgentModel", foreign_keys=[offspring_id], backref="creation_event"
     )
 
     def as_dict(self) -> Dict[str, Any]:
@@ -628,7 +626,7 @@ class ReproductionEventModel(Base):
 @dataclass
 class SimulationDifference:
     """Represents differences between two simulations.
-    
+
     Attributes
     ----------
     metadata_diff : Dict[str, tuple]
@@ -640,21 +638,23 @@ class SimulationDifference:
     step_metrics_diff : Dict[str, Dict[str, float]]
         Statistical differences in step metrics (min, max, mean, etc.)
     """
+
     metadata_diff: Dict[str, tuple]
     parameter_diff: Dict
     results_diff: Dict
     step_metrics_diff: Dict[str, Dict[str, float]]
 
+
 class SimulationComparison:
     """Utility class for comparing two simulations.
-    
+
     This class provides methods to compare different aspects of two simulations,
     including metadata, parameters, results, and step metrics.
     """
-    
+
     def __init__(self, sim1: Simulation, sim2: Simulation):
         """Initialize with two simulations to compare.
-        
+
         Parameters
         ----------
         sim1 : Simulation
@@ -664,87 +664,101 @@ class SimulationComparison:
         """
         self.sim1 = sim1
         self.sim2 = sim2
-        
+
     def _compare_metadata(self) -> Dict[str, tuple]:
         """Compare basic metadata fields between simulations."""
-        metadata_fields = ['status', 'simulation_db_path']
+        metadata_fields = ["status", "simulation_db_path"]
         differences = {}
-        
+
         for field in metadata_fields:
             val1 = getattr(self.sim1, field)
             val2 = getattr(self.sim2, field)
             if val1 != val2:
                 differences[field] = (val1, val2)
-                
+
         # Compare timestamps
         if self.sim1.start_time != self.sim2.start_time:
-            differences['start_time'] = (self.sim1.start_time, self.sim2.start_time)
+            differences["start_time"] = (self.sim1.start_time, self.sim2.start_time)
         if self.sim1.end_time != self.sim2.end_time:
-            differences['end_time'] = (self.sim1.end_time, self.sim2.end_time)
-            
+            differences["end_time"] = (self.sim1.end_time, self.sim2.end_time)
+
         return differences
-    
+
     def _compare_parameters(self) -> Dict:
         """Compare simulation parameters using DeepDiff."""
         return DeepDiff(self.sim1.parameters, self.sim2.parameters, ignore_order=True)
-    
+
     def _compare_results(self) -> Dict:
         """Compare results summaries using DeepDiff."""
-        return DeepDiff(self.sim1.results_summary, self.sim2.results_summary, ignore_order=True)
-    
+        return DeepDiff(
+            self.sim1.results_summary, self.sim2.results_summary, ignore_order=True
+        )
+
     def _compare_step_metrics(self, session) -> Dict[str, Dict[str, float]]:
         """Compare statistical summaries of step metrics.
-        
+
         Returns
         -------
         Dict[str, Dict[str, float]]
             Dictionary mapping metric names to their statistical differences
         """
         metrics = {
-            'total_agents': [], 'births': [], 'deaths': [],
-            'average_agent_health': [], 'average_reward': [],
-            'combat_encounters': [], 'resources_consumed': []
+            "total_agents": [],
+            "births": [],
+            "deaths": [],
+            "average_agent_health": [],
+            "average_reward": [],
+            "combat_encounters": [],
+            "resources_consumed": [],
         }
-        
+
         differences = {}
-        
+
         # Get step data for both simulations
         for sim_id, metric_list in [
-            (self.sim1.simulation_id, '_sim1_metrics'),
-            (self.sim2.simulation_id, '_sim2_metrics')
+            (self.sim1.simulation_id, "_sim1_metrics"),
+            (self.sim2.simulation_id, "_sim2_metrics"),
         ]:
-            steps = session.query(SimulationStepModel).filter(
-                SimulationStepModel.simulation_id == sim_id
-            ).all()
-            
-            setattr(self, metric_list, {
-                metric: [getattr(step, metric) for step in steps]
-                for metric in metrics.keys()
-            })
-        
+            steps = (
+                session.query(SimulationStepModel)
+                .filter(SimulationStepModel.simulation_id == sim_id)
+                .all()
+            )
+
+            setattr(
+                self,
+                metric_list,
+                {
+                    metric: [getattr(step, metric) for step in steps]
+                    for metric in metrics.keys()
+                },
+            )
+
         # Compare statistics for each metric
         for metric in metrics.keys():
-            sim1_values = getattr(self, '_sim1_metrics')[metric]
-            sim2_values = getattr(self, '_sim2_metrics')[metric]
-            
+            sim1_values = getattr(self, "_sim1_metrics")[metric]
+            sim2_values = getattr(self, "_sim2_metrics")[metric]
+
             if sim1_values and sim2_values:  # Only compare if both have data
                 differences[metric] = {
-                    'mean_diff': statistics.mean(sim1_values) - statistics.mean(sim2_values),
-                    'max_diff': max(sim1_values) - max(sim2_values),
-                    'min_diff': min(sim1_values) - min(sim2_values),
-                    'std_diff': statistics.stdev(sim1_values) - statistics.stdev(sim2_values)
+                    "mean_diff": statistics.mean(sim1_values)
+                    - statistics.mean(sim2_values),
+                    "max_diff": max(sim1_values) - max(sim2_values),
+                    "min_diff": min(sim1_values) - min(sim2_values),
+                    "std_diff": statistics.stdev(sim1_values)
+                    - statistics.stdev(sim2_values),
                 }
-                
+
         return differences
-    
+
     def compare(self, session) -> SimulationDifference:
         """Perform full comparison between simulations.
-        
+
         Parameters
         ----------
         session : Session
             SQLAlchemy session for database queries
-            
+
         Returns
         -------
         SimulationDifference
@@ -754,5 +768,5 @@ class SimulationComparison:
             metadata_diff=self._compare_metadata(),
             parameter_diff=self._compare_parameters(),
             results_diff=self._compare_results(),
-            step_metrics_diff=self._compare_step_metrics(session)
+            step_metrics_diff=self._compare_step_metrics(session),
         )

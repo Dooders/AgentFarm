@@ -45,6 +45,10 @@ Notes
 
 import json
 import logging
+import os
+import queue
+import threading
+import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -52,10 +56,11 @@ import pandas as pd
 from sqlalchemy import create_engine, event
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload, scoped_session, sessionmaker
+from sqlalchemy.pool import QueuePool
 
 from farm.database.data_retrieval import DataRetriever
 
-from .data_logging import DataLogger
+from .data_logging import DataLogger, ShardedDataLogger
 from .models import (
     ActionModel,
     AgentModel,
@@ -159,13 +164,36 @@ class SimulationDatabase:
         - Sets up batch operation buffers
         """
         self.db_path = db_path
-        self.engine = create_engine(f"sqlite:///{db_path}")
+
+        # Configure engine with optimized settings
+        self.engine = create_engine(
+            f"sqlite:///{db_path}",
+            # Larger pool size for concurrent operations
+            pool_size=10,
+            # Longer timeout before connections are recycled
+            pool_recycle=3600,
+            # Enable connection pooling
+            poolclass=QueuePool,
+            # Optimize for write-heavy workloads
+            connect_args={
+                "timeout": 30,  # Longer timeout for busy database
+                "check_same_thread": False,  # Allow cross-thread usage
+            },
+        )
 
         # Enable foreign key support for SQLite
         @event.listens_for(self.engine, "connect")
         def set_sqlite_pragma(dbapi_connection, connection_record):
             cursor = dbapi_connection.cursor()
+            # Enable foreign key support
             cursor.execute("PRAGMA foreign_keys=ON")
+            # Optimize for write performance
+            cursor.execute("PRAGMA synchronous=NORMAL")  # Less safe but faster
+            cursor.execute("PRAGMA journal_mode=WAL")  # Write-Ahead Logging
+            cursor.execute(
+                "PRAGMA cache_size=-102400"
+            )  # 100MB cache (negative = kibibytes)
+            cursor.execute("PRAGMA temp_store=MEMORY")  # Store temp tables in memory
             cursor.close()
 
         # Create session factory
@@ -205,7 +233,11 @@ class SimulationDatabase:
         """
         session = self.Session()
         try:
-            return execute_with_retry(session, lambda: func(session))
+            # Disable autoflush temporarily for bulk operations
+            session.autoflush = False
+            result = execute_with_retry(session, lambda: func(session))
+            session.autoflush = True
+            return result
         finally:
             self.Session.remove()
 
@@ -666,3 +698,304 @@ class SimulationDatabase:
             session.add(event)
 
         self._execute_in_transaction(_log)
+
+
+class AsyncDataLogger:
+    """Asynchronous data logger for non-critical simulation data.
+
+    This class provides a non-blocking interface for logging data that
+    doesn't need to be immediately persisted, improving simulation performance.
+    """
+
+    def __init__(self, database, flush_interval=5.0):
+        """Initialize the asynchronous logger.
+
+        Parameters
+        ----------
+        database : SimulationDatabase
+            Database instance to use for persistence
+        flush_interval : float
+            How often to flush data to database (seconds)
+        """
+        self.database = database
+        self.flush_interval = flush_interval
+        self.queue = queue.Queue()
+        self.running = False
+        self.worker_thread = None
+
+    def start(self):
+        """Start the background worker thread."""
+        if self.running:
+            return
+
+        self.running = True
+        self.worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
+        self.worker_thread.start()
+
+    def stop(self):
+        """Stop the background worker and flush remaining data."""
+        if not self.running:
+            return
+
+        self.running = False
+        if self.worker_thread:
+            self.worker_thread.join(timeout=10.0)
+            self._flush_queue()
+
+    def log(self, log_type, data):
+        """Queue data for asynchronous logging.
+
+        Parameters
+        ----------
+        log_type : str
+            Type of data being logged (e.g., 'action', 'health')
+        data : dict
+            Data to be logged
+        """
+        self.queue.put((log_type, data))
+
+    def _worker_loop(self):
+        """Background worker that periodically flushes data."""
+        while self.running:
+            time.sleep(self.flush_interval)
+            self._flush_queue()
+
+    def _flush_queue(self):
+        """Process all queued log entries."""
+        if self.queue.empty():
+            return
+
+        # Group log entries by type for batch processing
+        batched_data = {
+            "actions": [],
+            "health": [],
+            "reproduction": [],
+            # Add other types as needed
+        }
+
+        # Collect all available items without blocking
+        try:
+            while True:
+                log_type, data = self.queue.get_nowait()
+                if log_type in batched_data:
+                    batched_data[log_type].append(data)
+                self.queue.task_done()
+        except queue.Empty:
+            pass
+
+        # Process batched data
+        session = self.database.Session()
+        try:
+            # Process actions
+            if batched_data["actions"]:
+                actions = [ActionModel(**data) for data in batched_data["actions"]]
+                session.bulk_save_objects(actions)
+
+            # Process health incidents
+            if batched_data["health"]:
+                incidents = [HealthIncident(**data) for data in batched_data["health"]]
+                session.bulk_save_objects(incidents)
+
+            # Process reproduction events
+            if batched_data["reproduction"]:
+                events = [
+                    ReproductionEventModel(**data)
+                    for data in batched_data["reproduction"]
+                ]
+                session.bulk_save_objects(events)
+
+            # Commit all changes at once
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Error in async data logger: {e}")
+        finally:
+            session.close()
+
+
+class InMemorySimulationDatabase(SimulationDatabase):
+    """In-memory database for high-performance simulation runs.
+
+    This class provides a high-performance alternative to disk-based storage
+    during simulation, with an option to persist data at the end of the run.
+    """
+
+    def __init__(self):
+        """Initialize an in-memory database."""
+        # Use in-memory SQLite database
+        self.db_path = ":memory:"
+        self.engine = create_engine("sqlite:///:memory:")
+
+        # Set up pragmas for in-memory optimization
+        @event.listens_for(self.engine, "connect")
+        def set_sqlite_pragma(dbapi_connection, connection_record):
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.execute("PRAGMA synchronous=OFF")  # Maximum performance
+            cursor.execute("PRAGMA journal_mode=MEMORY")
+            cursor.execute("PRAGMA temp_store=MEMORY")
+            cursor.close()
+
+        # Create session factory
+        session_factory = sessionmaker(bind=self.engine)
+        self.Session = scoped_session(session_factory)
+
+        # Create tables
+        self._create_tables()
+
+        # Initialize loggers with larger buffer sizes
+        self.logger = DataLogger(self, buffer_size=10000)  # 10x larger buffer
+        self.query = DataRetriever(self)
+
+    def persist_to_disk(self, db_path):
+        """Save the in-memory database to disk.
+
+        Parameters
+        ----------
+        db_path : str
+            Path where the database should be saved
+        """
+        # Flush all pending changes
+        self.logger.flush_all_buffers()
+
+        # Create a new disk-based database
+        disk_engine = create_engine(f"sqlite:///{db_path}")
+
+        # Copy schema
+        Base.metadata.create_all(disk_engine)
+
+        # Copy data
+        source_conn = self.engine.raw_connection()
+        dest_conn = disk_engine.raw_connection()
+
+        source_cursor = source_conn.cursor()
+        dest_cursor = dest_conn.cursor()
+
+        # Get all tables
+        source_cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = source_cursor.fetchall()
+
+        # Begin transaction on destination
+        dest_conn.execute("BEGIN TRANSACTION")
+
+        try:
+            # Copy each table's data
+            for (table_name,) in tables:
+                if table_name.startswith("sqlite_"):
+                    continue
+
+                # Get data from source
+                source_cursor.execute(f"SELECT * FROM {table_name}")
+                rows = source_cursor.fetchall()
+
+                if not rows:
+                    continue
+
+                # Get column names
+                source_cursor.execute(f"PRAGMA table_info({table_name})")
+                columns = [info[1] for info in source_cursor.fetchall()]
+                placeholders = ", ".join(["?" for _ in columns])
+                columns_str = ", ".join(columns)
+
+                # Insert into destination
+                for row in rows:
+                    dest_cursor.execute(
+                        f"INSERT INTO {table_name} ({columns_str}) VALUES ({placeholders})",
+                        row,
+                    )
+
+            # Commit transaction
+            dest_conn.execute("COMMIT")
+
+        except Exception as e:
+            dest_conn.execute("ROLLBACK")
+            raise e
+        finally:
+            source_conn.close()
+            dest_conn.close()
+
+
+class ShardedSimulationDatabase:
+    """Database implementation that shards data across multiple SQLite files.
+
+    This class distributes simulation data across multiple database files
+    based on data type and time periods, improving write performance for
+    large simulations.
+    """
+
+    def __init__(self, base_path, shard_size=1000):
+        """Initialize a sharded database.
+
+        Parameters
+        ----------
+        base_path : str
+            Base path for database files
+        shard_size : int
+            Number of steps per time shard
+        """
+        self.base_path = base_path
+        self.shard_size = shard_size
+        self.current_step = 0
+
+        # Create directory if it doesn't exist
+        os.makedirs(base_path, exist_ok=True)
+
+        # Initialize metadata database
+        self.metadata_db = SimulationDatabase(os.path.join(base_path, "metadata.db"))
+
+        # Initialize shard databases
+        self.shards = {}
+        self._init_shard(0)
+
+        # Create logger that routes to appropriate shards
+        self.logger = ShardedDataLogger(self)
+
+    def _get_shard_path(self, shard_id, data_type):
+        """Get path for a specific shard."""
+        return os.path.join(self.base_path, f"shard_{shard_id}_{data_type}.db")
+
+    def _init_shard(self, shard_id):
+        """Initialize databases for a new shard."""
+        if shard_id in self.shards:
+            return
+
+        self.shards[shard_id] = {
+            "agents": SimulationDatabase(self._get_shard_path(shard_id, "agents")),
+            "resources": SimulationDatabase(
+                self._get_shard_path(shard_id, "resources")
+            ),
+            "actions": SimulationDatabase(self._get_shard_path(shard_id, "actions")),
+            "metrics": SimulationDatabase(self._get_shard_path(shard_id, "metrics")),
+        }
+
+    def _get_shard_for_step(self, step_number):
+        """Get the shard ID for a specific step."""
+        return step_number // self.shard_size
+
+    def log_step(self, step_number, agent_states, resource_states, metrics):
+        """Log a simulation step, routing data to appropriate shards."""
+        self.current_step = step_number
+        shard_id = self._get_shard_for_step(step_number)
+
+        # Initialize shard if needed
+        if shard_id not in self.shards:
+            self._init_shard(shard_id)
+
+        # Log to appropriate shards
+        self.shards[shard_id]["agents"].logger.log_agent_states(
+            step_number, agent_states
+        )
+        self.shards[shard_id]["resources"].logger.log_resources(
+            step_number, resource_states
+        )
+        self.shards[shard_id]["metrics"].logger.log_metrics(step_number, metrics)
+
+    def close(self):
+        """Close all database connections."""
+        # Close metadata database
+        self.metadata_db.close()
+
+        # Close all shard databases
+        for shard_id, databases in self.shards.items():
+            for db_type, db in databases.items():
+                db.close()

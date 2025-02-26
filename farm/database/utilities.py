@@ -242,3 +242,44 @@ def execute_query(func):
         return self.db._execute_in_transaction(query)
 
     return wrapper
+
+
+def create_prepared_statements(session):
+    """Create prepared statements for common database operations.
+
+    Parameters
+    ----------
+    session : Session
+        SQLAlchemy session
+
+    Returns
+    -------
+    dict
+        Dictionary of prepared statements
+    """
+    connection = session.connection().connection
+
+    statements = {}
+
+    # Prepare statement for agent state insertion
+    statements["insert_agent_state"] = connection.prepare(
+        """
+        INSERT INTO agent_states 
+        (id, step_number, agent_id, position_x, position_y, position_z, 
+         resource_level, current_health, is_defending, total_reward, age)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+    )
+
+    # Prepare statement for resource state insertion
+    statements["insert_resource"] = connection.prepare(
+        """
+        INSERT INTO resource_states
+        (step_number, resource_id, amount, position_x, position_y)
+        VALUES (?, ?, ?, ?, ?)
+        """
+    )
+
+    # Add more prepared statements as needed
+
+    return statements
