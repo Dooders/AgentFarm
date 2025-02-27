@@ -10,7 +10,12 @@ from matplotlib import pyplot as plt
 from sqlalchemy import func
 
 from farm.database.database import SimulationDatabase
-from farm.database.models import ActionModel, AgentModel, SimulationStepModel
+from farm.database.models import (
+    ActionModel,
+    AgentModel,
+    LearningExperienceModel,
+    SimulationStepModel,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -451,6 +456,71 @@ def get_resource_level_data(
         return None, None, 0
 
     return steps, data["average_agent_resources"], max_steps
+
+
+def get_rewards_by_generation(experiment_db_path: str) -> Dict[int, float]:
+    """
+    Retrieve average rewards grouped by agent generation from the simulation database.
+
+    Args:
+        experiment_db_path: Path to the database file
+
+    Returns:
+        Dictionary mapping generation numbers to their average rewards
+    """
+    if not os.path.exists(experiment_db_path):
+        logger.error(f"Database file not found: {experiment_db_path}")
+        return {}
+
+    db = None
+    session = None
+    try:
+        db = SimulationDatabase(experiment_db_path)
+        session = db.Session()
+
+        # Query to get average reward by generation
+        # Join agents with their learning experiences
+        query = (
+            session.query(
+                AgentModel.generation,
+                func.avg(LearningExperienceModel.reward).label("avg_reward"),
+                func.count(LearningExperienceModel.experience_id).label(
+                    "experience_count"
+                ),
+            )
+            .join(
+                LearningExperienceModel,
+                LearningExperienceModel.agent_id == AgentModel.agent_id,
+            )
+            .group_by(AgentModel.generation)
+            .having(
+                func.count(LearningExperienceModel.experience_id) > 0
+            )  # Only include generations with data
+            .order_by(AgentModel.generation)
+            .all()
+        )
+
+        if not query:
+            logger.warning(
+                f"No reward data by generation found in database: {experiment_db_path}"
+            )
+            return {}
+
+        # Convert query results to dictionary
+        rewards_by_generation = {
+            generation: avg_reward for generation, avg_reward, _ in query
+        }
+
+        return rewards_by_generation
+
+    except Exception as e:
+        logger.error(f"Error accessing database {experiment_db_path}: {str(e)}")
+        return {}
+    finally:
+        if session:
+            session.close()
+        if db:
+            db.close()
 
 
 # ---------------------
@@ -1291,6 +1361,293 @@ def plot_final_agent_counts(final_counts: Dict[str, Dict], output_dir: str):
                 )
 
 
+def process_experiment_rewards_by_generation(
+    experiment: str,
+) -> Dict[str, Dict[int, float]]:
+    """
+    Process reward data by generation for each agent type in an experiment.
+
+    Args:
+        experiment: Name of the experiment
+
+    Returns:
+        Dictionary containing reward data by generation for each agent type
+    """
+    logger.info(f"Processing rewards by generation for experiment: {experiment}")
+
+    result = {
+        "system": {},
+        "control": {},
+        "independent": {},
+    }
+
+    try:
+        experiment_path = f"results/one_of_a_kind/experiments/data/{experiment}"
+        if not os.path.exists(experiment_path):
+            logger.error(f"Experiment directory not found: {experiment_path}")
+            return result
+
+        db_paths = find_simulation_databases(experiment_path)
+        if not db_paths:
+            logger.error(f"No database files found in {experiment_path}")
+            return result
+
+        valid_dbs = 0
+        failed_dbs = 0
+
+        # Temporary storage for aggregating data across simulations
+        all_rewards = {"system": {}, "control": {}, "independent": {}}
+        reward_counts = {"system": {}, "control": {}, "independent": {}}
+
+        for db_path in db_paths:
+            try:
+                # Get rewards by generation for all agents
+                rewards_by_generation = get_rewards_by_generation(db_path)
+
+                if not rewards_by_generation:
+                    failed_dbs += 1
+                    continue
+
+                # Get agent types for each generation
+                db = SimulationDatabase(db_path)
+                session = db.Session()
+
+                # Query to get generations and their agent types
+                gen_types = (
+                    session.query(AgentModel.generation, AgentModel.agent_type)
+                    .distinct()
+                    .all()
+                )
+
+                session.close()
+                db.close()
+
+                # Map generations to agent types
+                gen_to_type = {}
+                for gen, agent_type in gen_types:
+                    # Normalize agent type names
+                    if agent_type in ["system", "SystemAgent"]:
+                        type_key = "system"
+                    elif agent_type in ["control", "ControlAgent"]:
+                        type_key = "control"
+                    elif agent_type in ["independent", "IndependentAgent"]:
+                        type_key = "independent"
+                    else:
+                        continue
+
+                    gen_to_type[gen] = type_key
+
+                # Aggregate rewards by agent type and generation
+                for gen, reward in rewards_by_generation.items():
+                    if gen in gen_to_type:
+                        agent_type = gen_to_type[gen]
+
+                        if gen not in all_rewards[agent_type]:
+                            all_rewards[agent_type][gen] = 0
+                            reward_counts[agent_type][gen] = 0
+
+                        all_rewards[agent_type][gen] += reward
+                        reward_counts[agent_type][gen] += 1
+
+                valid_dbs += 1
+
+            except Exception as e:
+                logger.error(f"Error processing database {db_path}: {str(e)}")
+                failed_dbs += 1
+
+        # Calculate average rewards across all simulations
+        for agent_type in result:
+            for gen in all_rewards[agent_type]:
+                if reward_counts[agent_type][gen] > 0:
+                    result[agent_type][gen] = (
+                        all_rewards[agent_type][gen] / reward_counts[agent_type][gen]
+                    )
+
+        if valid_dbs == 0:
+            logger.error(
+                f"No valid reward data found in experiment {experiment}. "
+                f"All {failed_dbs} databases were corrupted or invalid."
+            )
+            return result
+
+        logger.info(
+            f"Successfully processed reward data from {valid_dbs} databases. "
+            f"Skipped {failed_dbs} corrupted/invalid databases."
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(
+            f"Unexpected error processing rewards by generation for {experiment}: {str(e)}"
+        )
+        return result
+
+
+def plot_rewards_by_generation(
+    rewards_data: Dict[str, Dict[int, float]], output_dir: str
+):
+    """
+    Create visualizations for rewards by generation.
+
+    Args:
+        rewards_data: Dictionary with reward data by generation for each agent type
+        output_dir: Directory to save output plots
+    """
+    if not any(rewards_data[agent_type] for agent_type in rewards_data):
+        logger.warning("No reward data by generation to visualize")
+        return
+
+    # Ensure output directory exists
+    output_dir = Path(output_dir)
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.error(f"Error creating output directory {output_dir}: {str(e)}")
+        return
+
+    # Create figure
+    plt.figure(figsize=(15, 8))
+    plt.title("Average Rewards by Generation and Agent Type", fontsize=14)
+
+    # Define colors for agent types
+    colors = {"system": "blue", "control": "green", "independent": "red"}
+    markers = {"system": "o", "control": "s", "independent": "^"}
+
+    # Plot data for each agent type
+    for agent_type, rewards in rewards_data.items():
+        if not rewards:
+            continue
+
+        # Sort generations
+        generations = sorted(rewards.keys())
+        avg_rewards = [rewards[gen] for gen in generations]
+
+        # Plot line
+        plt.plot(
+            generations,
+            avg_rewards,
+            color=colors[agent_type],
+            marker=markers[agent_type],
+            linestyle="-",
+            linewidth=2,
+            markersize=8,
+            label=f"{agent_type.title()} Agents",
+        )
+
+        # Add trend line (polynomial fit)
+        if len(generations) > 2:
+            try:
+                z = np.polyfit(generations, avg_rewards, 2)
+                p = np.poly1d(z)
+                x_trend = np.linspace(min(generations), max(generations), 100)
+                plt.plot(
+                    x_trend,
+                    p(x_trend),
+                    color=colors[agent_type],
+                    linestyle="--",
+                    alpha=0.5,
+                    linewidth=1.5,
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Could not create trend line for {agent_type}: {str(e)}"
+                )
+
+    # Set labels and grid
+    plt.xlabel("Generation", fontsize=12)
+    plt.ylabel("Average Reward", fontsize=12)
+    plt.grid(True, alpha=0.3)
+    plt.legend(fontsize=10)
+
+    # Add annotations for key points
+    for agent_type, rewards in rewards_data.items():
+        if not rewards:
+            continue
+
+        generations = sorted(rewards.keys())
+        avg_rewards = [rewards[gen] for gen in generations]
+
+        # Annotate maximum reward
+        if avg_rewards:
+            max_idx = np.argmax(avg_rewards)
+            max_gen = generations[max_idx]
+            max_reward = avg_rewards[max_idx]
+
+            plt.annotate(
+                f"Max: {max_reward:.2f}",
+                xy=(max_gen, max_reward),
+                xytext=(10, 10),
+                textcoords="offset points",
+                arrowprops=dict(arrowstyle="->", color=colors[agent_type]),
+                fontsize=9,
+                color=colors[agent_type],
+            )
+
+    # Save the figure
+    output_path = output_dir / "rewards_by_generation.png"
+    try:
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        logger.info(f"Saved rewards by generation plot to {output_path}")
+    except Exception as e:
+        logger.error(f"Error saving plot to {output_path}: {str(e)}")
+    finally:
+        plt.close()
+
+    # Create a text summary file
+    with open(output_dir / "rewards_by_generation_summary.txt", "w") as f:
+        f.write("Rewards by Generation Analysis\n")
+        f.write("============================\n\n")
+
+        for agent_type in ["system", "control", "independent"]:
+            rewards = rewards_data[agent_type]
+            f.write(f"{agent_type.title()} Agents:\n")
+
+            if not rewards:
+                f.write("  No reward data available\n\n")
+                continue
+
+            generations = sorted(rewards.keys())
+            avg_rewards = [rewards[gen] for gen in generations]
+
+            if avg_rewards:
+                max_idx = np.argmax(avg_rewards)
+                min_idx = np.argmin(avg_rewards)
+
+                f.write(f"  Generations analyzed: {len(generations)}\n")
+                f.write(
+                    f"  Maximum reward: {avg_rewards[max_idx]:.4f} (Generation {generations[max_idx]})\n"
+                )
+                f.write(
+                    f"  Minimum reward: {avg_rewards[min_idx]:.4f} (Generation {generations[min_idx]})\n"
+                )
+
+                if len(generations) > 1:
+                    first_gen = generations[0]
+                    last_gen = generations[-1]
+                    first_reward = rewards[first_gen]
+                    last_reward = rewards[last_gen]
+                    change = (
+                        ((last_reward - first_reward) / first_reward) * 100
+                        if first_reward != 0
+                        else float("inf")
+                    )
+
+                    f.write(
+                        f"  First generation ({first_gen}) reward: {first_reward:.4f}\n"
+                    )
+                    f.write(
+                        f"  Last generation ({last_gen}) reward: {last_reward:.4f}\n"
+                    )
+                    f.write(f"  Change from first to last: {change:.2f}%\n")
+
+                f.write("\n  Generation -> Reward mapping:\n")
+                for gen in generations:
+                    f.write(f"    Generation {gen}: {rewards[gen]:.4f}\n")
+
+            f.write("\n")
+
+
 # ---------------------
 # Main Execution
 # ---------------------
@@ -2081,6 +2438,21 @@ def main():
             if early_terminations:
                 early_term_dir = experiment_path / "early_termination_analysis"
                 plot_early_termination_analysis(early_terminations, str(early_term_dir))
+
+        # Process rewards by generation
+        rewards_data = process_experiment_rewards_by_generation(experiment)
+        if rewards_data:
+            plot_rewards_by_generation(
+                rewards_data, str(experiment_path / "rewards_by_generation")
+            )
+
+        # Add rewards by generation analysis
+        rewards_by_generation = process_experiment_rewards_by_generation(experiment)
+        if any(
+            rewards_by_generation[agent_type] for agent_type in rewards_by_generation
+        ):
+            rewards_analysis_dir = experiment_path / "rewards_analysis"
+            plot_rewards_by_generation(rewards_by_generation, str(rewards_analysis_dir))
 
 
 if __name__ == "__main__":
