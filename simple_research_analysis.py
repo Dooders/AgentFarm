@@ -47,31 +47,47 @@ def find_simulation_databases(base_path: str) -> List[str]:
 
 
 def create_population_df(
-    all_populations: List[np.ndarray], max_steps: int
+    all_populations: List[np.ndarray], max_steps: int, is_resource_data: bool = False
 ) -> pd.DataFrame:
     """
-    Create a DataFrame from population data with proper padding for missing steps.
+    Create a DataFrame from population or resource data with proper padding for missing steps.
     Includes data validation.
+
+    Args:
+        all_populations: List of data arrays
+        max_steps: Maximum number of steps
+        is_resource_data: Whether this is resource level data (allows negative values)
+
+    Returns:
+        DataFrame with the processed data
     """
     if not all_populations:
-        logger.error("No population data provided")
+        logger.error("No data provided")
         return pd.DataFrame(columns=["simulation_id", "step", "population"])
 
-    # Validate each population array
-    valid_populations = []
+    # Validate each data array
+    valid_data = []
     for i, pop in enumerate(all_populations):
-        if validate_population_data(pop):
-            valid_populations.append(pop)
+        if is_resource_data:
+            # Use resource validation for resource data
+            if validate_resource_level_data(pop):
+                valid_data.append(pop)
+            else:
+                logger.warning(f"Skipping invalid resource data from simulation {i}")
         else:
-            logger.warning(f"Skipping invalid population data from simulation {i}")
+            # Use population validation for population data
+            if validate_population_data(pop):
+                valid_data.append(pop)
+            else:
+                logger.warning(f"Skipping invalid population data from simulation {i}")
 
-    if not valid_populations:
-        logger.error("No valid population data after validation")
+    if not valid_data:
+        logger.error("No valid data after validation")
         return pd.DataFrame(columns=["simulation_id", "step", "population"])
 
     # Create DataFrame with valid data
     data = []
-    for sim_idx, pop in enumerate(valid_populations):
+    for sim_idx, pop in enumerate(valid_data):
         for step in range(max_steps):
             population = pop[step] if step < len(pop) else np.nan
             data.append((f"sim_{sim_idx}", step, population))
@@ -82,7 +98,7 @@ def create_population_df(
     if df.empty:
         logger.warning("Created DataFrame is empty")
     elif df["population"].isna().all():
-        logger.warning("All population values are NaN in the DataFrame")
+        logger.warning("All values are NaN in the DataFrame")
 
     return df
 
@@ -151,6 +167,42 @@ def validate_population_data(population: np.ndarray, db_path: str = None) -> boo
     return True
 
 
+def validate_resource_level_data(
+    resource_levels: np.ndarray, db_path: str = None
+) -> bool:
+    """
+    Validate resource level data array for integrity.
+    Unlike population data, resource levels can be negative.
+
+    Args:
+        resource_levels: Array of resource level values to validate
+        db_path: Optional database path for error logging
+
+    Returns:
+        bool: True if data is valid, False otherwise
+    """
+    if resource_levels is None:
+        logger.warning(
+            f"Resource level data is None{f' in {db_path}' if db_path else ''}"
+        )
+        return False
+
+    if len(resource_levels) == 0:
+        logger.warning(
+            f"Empty resource level data{f' in {db_path}' if db_path else ''}"
+        )
+        return False
+
+    if np.all(np.isnan(resource_levels)):
+        logger.warning(
+            f"Resource level data contains only NaN values{f' in {db_path}' if db_path else ''}"
+        )
+        return False
+
+    # We allow negative values for resource levels
+    return True
+
+
 # ---------------------
 # Database Interaction
 # ---------------------
@@ -207,11 +259,22 @@ def get_columns_data(
             for i, col in enumerate(columns)
         }
 
-        # Validate each population array
-        for col, pop in populations.items():
-            if not validate_population_data(pop, experiment_db_path):
-                logger.error(f"Invalid data for column '{col}' in {experiment_db_path}")
-                return None, {}, 0
+        # Validate each column's data with the appropriate validation function
+        for col, data in populations.items():
+            if col == "average_agent_resources":
+                # Use resource level validation for resource data
+                if not validate_resource_level_data(data, experiment_db_path):
+                    logger.error(
+                        f"Invalid resource level data for column '{col}' in {experiment_db_path}"
+                    )
+                    return None, {}, 0
+            else:
+                # Use population validation for other data
+                if not validate_population_data(data, experiment_db_path):
+                    logger.error(
+                        f"Invalid data for column '{col}' in {experiment_db_path}"
+                    )
+                    return None, {}, 0
 
         max_steps = len(steps)
 
@@ -366,6 +429,30 @@ def get_action_distribution_data(experiment_db_path: str) -> Dict[str, Dict[str,
             db.close()
 
 
+def get_resource_level_data(
+    experiment_db_path: str,
+) -> Tuple[np.ndarray, np.ndarray, int]:
+    """
+    Retrieve resource level data from the simulation database.
+
+    Args:
+        experiment_db_path: Path to the database file
+
+    Returns:
+        Tuple containing:
+        - steps: Array of step numbers
+        - resource_levels: Array of average agent resource levels
+        - max_steps: Number of steps in the simulation
+    """
+    columns = ["average_agent_resources"]
+    steps, data, max_steps = get_columns_data(experiment_db_path, columns)
+
+    if steps is None or not data:
+        return None, None, 0
+
+    return steps, data["average_agent_resources"], max_steps
+
+
 # ---------------------
 # Plotting Helpers
 # ---------------------
@@ -379,7 +466,14 @@ def plot_mean_and_ci(ax, steps, mean, ci, color, label):
 
 def plot_median_line(ax, steps, median, color="g", style="--"):
     """Plot median line."""
-    ax.plot(steps, median, f"{color}{style}", label="Median Population", linewidth=2)
+    ax.plot(
+        steps,
+        median,
+        color=color,
+        linestyle=style,
+        label="Median Population",
+        linewidth=2,
+    )
 
 
 def plot_reference_line(ax, y_value, label, color="orange"):
@@ -1704,6 +1798,167 @@ def plot_action_distributions(
             f.write("\n")
 
 
+def process_experiment_resource_levels(experiment: str) -> Dict[str, List]:
+    """
+    Process resource level data for an experiment.
+
+    Args:
+        experiment: Name of the experiment
+
+    Returns:
+        Dictionary containing processed resource level data
+    """
+    logger.info(f"Processing resource level data for experiment: {experiment}")
+
+    result = {"resource_levels": [], "max_steps": 0}
+
+    try:
+        experiment_path = f"results/one_of_a_kind/experiments/data/{experiment}"
+        if not os.path.exists(experiment_path):
+            logger.error(f"Experiment directory not found: {experiment_path}")
+            return result
+
+        db_paths = find_simulation_databases(experiment_path)
+        if not db_paths:
+            logger.error(f"No database files found in {experiment_path}")
+            return result
+
+        max_steps = 0
+        valid_dbs = 0
+        failed_dbs = 0
+
+        for db_path in db_paths:
+            try:
+                steps, resource_levels, steps_count = get_resource_level_data(db_path)
+                if steps is not None and resource_levels is not None:
+                    # Use the specialized validation function for resource levels
+                    if validate_resource_level_data(resource_levels, db_path):
+                        result["resource_levels"].append(resource_levels)
+                        max_steps = max(max_steps, steps_count)
+                        valid_dbs += 1
+                    else:
+                        failed_dbs += 1
+                else:
+                    failed_dbs += 1
+            except Exception as e:
+                logger.error(f"Error processing database {db_path}: {str(e)}")
+                failed_dbs += 1
+
+        result["max_steps"] = max_steps
+
+        if valid_dbs == 0:
+            logger.error(
+                f"No valid resource level data found in experiment {experiment}. "
+                f"All {failed_dbs} databases were corrupted or invalid."
+            )
+            return result
+
+        logger.info(
+            f"Successfully processed resource level data from {valid_dbs} databases. "
+            f"Skipped {failed_dbs} corrupted/invalid databases."
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(
+            f"Unexpected error processing resource level data for {experiment}: {str(e)}"
+        )
+        return result
+
+
+def plot_resource_level_trends(resource_level_data: Dict[str, List], output_path: str):
+    """
+    Plot resource level trends with confidence intervals.
+
+    Args:
+        resource_level_data: Dictionary containing resource level data
+        output_path: Path to save the output plot
+    """
+    # Ensure output directory exists
+    output_path = Path(output_path)
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.error(f"Error creating output directory {output_path.parent}: {str(e)}")
+        return
+
+    # Check if we have valid data
+    if not resource_level_data["resource_levels"]:
+        logger.error("No valid resource level data to plot")
+        return
+
+    fig, ax = plt.subplots(figsize=(15, 8))
+    experiment_name = output_path.parent.name
+    fig.suptitle(
+        f"Resource Level Trends Across All Simulations (N={len(resource_level_data['resource_levels'])})",
+        fontsize=14,
+        y=0.95,
+    )
+
+    # Create DataFrame and calculate statistics - specify this is resource data
+    df = create_population_df(
+        resource_level_data["resource_levels"],
+        resource_level_data["max_steps"],
+        is_resource_data=True,
+    )
+    mean_resources, median_resources, std_resources, confidence_interval = (
+        calculate_statistics(df)
+    )
+    steps = np.arange(resource_level_data["max_steps"])
+
+    # Check if we have valid statistics
+    if len(mean_resources) == 0:
+        logger.error("No valid statistics could be calculated")
+        plt.close()
+        return
+
+    # Calculate key metrics with safety checks
+    overall_median = np.nanmedian(median_resources) if len(median_resources) > 0 else 0
+    final_median = median_resources[-1] if len(median_resources) > 0 else 0
+
+    # Handle empty arrays for peak calculation
+    if len(mean_resources) > 0:
+        peak_step = np.nanargmax(mean_resources)
+        peak_value = mean_resources[peak_step]
+    else:
+        peak_step = 0
+        peak_value = 0
+
+    # Use helper functions for plotting
+    plot_mean_and_ci(
+        ax, steps, mean_resources, confidence_interval, "purple", "Mean Resource Level"
+    )
+    plot_median_line(ax, steps, median_resources, color="darkgreen")
+    plot_reference_line(ax, overall_median, "Overall Median", color="teal")
+    plot_marker_point(ax, peak_step, peak_value, f"Peak at step {peak_step}")
+    plot_marker_point(
+        ax,
+        resource_level_data["max_steps"] - 1,
+        final_median,
+        f"Final Median: {final_median:.1f}",
+    )
+
+    # Setup plot aesthetics
+    ax.set_title(experiment_name, fontsize=12, pad=10)
+    ax.set_xlabel("Simulation Step", fontsize=12)
+    ax.set_ylabel("Average Agent Resource Level", fontsize=12)
+    ax.grid(True, alpha=0.3)
+    ax.legend(fontsize=10)
+
+    # Ensure y-axis starts at 0 unless we have negative values
+    if len(mean_resources) > 0 and np.min(mean_resources - confidence_interval) >= 0:
+        ax.set_ylim(bottom=0)
+
+    try:
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        logger.info(f"Saved resource level plot to {output_path}")
+    except Exception as e:
+        logger.error(f"Error saving plot to {output_path}: {str(e)}")
+    finally:
+        plt.close()
+
+
 def main():
     base_path = Path("results/one_of_a_kind/experiments/data")
     try:
@@ -1719,6 +1974,7 @@ def main():
     # Process single agent experiments
     all_experiment_data = {}
     all_consumption_data = {}
+    all_resource_level_data = {"resource_levels": [], "max_steps": 0}
 
     for agent_type, experiment_list in experiments["single_agent"].items():
         all_experiment_data[agent_type] = {"populations": [], "max_steps": 0}
@@ -1744,6 +2000,15 @@ def main():
                     consumption_data[agent_type]["max_steps"],
                 )
 
+            # Process resource level data
+            resource_level_data = process_experiment_resource_levels(experiment)
+            all_resource_level_data["resource_levels"].extend(
+                resource_level_data["resource_levels"]
+            )
+            all_resource_level_data["max_steps"] = max(
+                all_resource_level_data["max_steps"], resource_level_data["max_steps"]
+            )
+
             # Create individual experiment resource consumption chart
             experiment_path = f"results/one_of_a_kind/experiments/data/{experiment}"
             if any(
@@ -1752,9 +2017,19 @@ def main():
             ):
                 plot_resource_consumption_trends(consumption_data, experiment_path)
 
+            # Create individual experiment resource level chart
+            if resource_level_data["resource_levels"]:
+                output_path = Path(experiment_path) / "resource_level_trends.png"
+                plot_resource_level_trends(resource_level_data, str(output_path))
+
     # Create combined plots for single agent experiments
     plot_population_trends_by_agent_type(all_experiment_data, str(base_path))
     plot_resource_consumption_trends(all_consumption_data, str(base_path))
+
+    # Create combined resource level plot
+    if all_resource_level_data["resource_levels"]:
+        output_path = base_path / "resource_level_trends.png"
+        plot_resource_level_trends(all_resource_level_data, str(output_path))
 
     # Process one_of_a_kind experiments
     for experiment in experiments["one_of_a_kind"]:
@@ -1786,6 +2061,12 @@ def main():
             for agent_type in consumption_by_type
         ):
             plot_resource_consumption_trends(consumption_by_type, str(experiment_path))
+
+        # Create resource level trend plot
+        resource_level_data = process_experiment_resource_levels(experiment)
+        if resource_level_data["resource_levels"]:
+            output_path = experiment_path / "resource_level_trends.png"
+            plot_resource_level_trends(resource_level_data, str(output_path))
 
         # Add action distribution analysis
         action_data = process_action_distributions(experiment)
