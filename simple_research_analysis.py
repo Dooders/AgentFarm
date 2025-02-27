@@ -10,7 +10,12 @@ from matplotlib import pyplot as plt
 from sqlalchemy import func
 
 from farm.database.database import SimulationDatabase
-from farm.database.models import ActionModel, AgentModel, SimulationStepModel
+from farm.database.models import (
+    ActionModel,
+    AgentModel,
+    LearningExperienceModel,
+    SimulationStepModel,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -47,31 +52,47 @@ def find_simulation_databases(base_path: str) -> List[str]:
 
 
 def create_population_df(
-    all_populations: List[np.ndarray], max_steps: int
+    all_populations: List[np.ndarray], max_steps: int, is_resource_data: bool = False
 ) -> pd.DataFrame:
     """
-    Create a DataFrame from population data with proper padding for missing steps.
+    Create a DataFrame from population or resource data with proper padding for missing steps.
     Includes data validation.
+
+    Args:
+        all_populations: List of data arrays
+        max_steps: Maximum number of steps
+        is_resource_data: Whether this is resource level data (allows negative values)
+
+    Returns:
+        DataFrame with the processed data
     """
     if not all_populations:
-        logger.error("No population data provided")
+        logger.error("No data provided")
         return pd.DataFrame(columns=["simulation_id", "step", "population"])
 
-    # Validate each population array
-    valid_populations = []
+    # Validate each data array
+    valid_data = []
     for i, pop in enumerate(all_populations):
-        if validate_population_data(pop):
-            valid_populations.append(pop)
+        if is_resource_data:
+            # Use resource validation for resource data
+            if validate_resource_level_data(pop):
+                valid_data.append(pop)
+            else:
+                logger.warning(f"Skipping invalid resource data from simulation {i}")
         else:
-            logger.warning(f"Skipping invalid population data from simulation {i}")
+            # Use population validation for population data
+            if validate_population_data(pop):
+                valid_data.append(pop)
+            else:
+                logger.warning(f"Skipping invalid population data from simulation {i}")
 
-    if not valid_populations:
-        logger.error("No valid population data after validation")
+    if not valid_data:
+        logger.error("No valid data after validation")
         return pd.DataFrame(columns=["simulation_id", "step", "population"])
 
     # Create DataFrame with valid data
     data = []
-    for sim_idx, pop in enumerate(valid_populations):
+    for sim_idx, pop in enumerate(valid_data):
         for step in range(max_steps):
             population = pop[step] if step < len(pop) else np.nan
             data.append((f"sim_{sim_idx}", step, population))
@@ -82,7 +103,7 @@ def create_population_df(
     if df.empty:
         logger.warning("Created DataFrame is empty")
     elif df["population"].isna().all():
-        logger.warning("All population values are NaN in the DataFrame")
+        logger.warning("All values are NaN in the DataFrame")
 
     return df
 
@@ -151,6 +172,42 @@ def validate_population_data(population: np.ndarray, db_path: str = None) -> boo
     return True
 
 
+def validate_resource_level_data(
+    resource_levels: np.ndarray, db_path: str = None
+) -> bool:
+    """
+    Validate resource level data array for integrity.
+    Unlike population data, resource levels can be negative.
+
+    Args:
+        resource_levels: Array of resource level values to validate
+        db_path: Optional database path for error logging
+
+    Returns:
+        bool: True if data is valid, False otherwise
+    """
+    if resource_levels is None:
+        logger.warning(
+            f"Resource level data is None{f' in {db_path}' if db_path else ''}"
+        )
+        return False
+
+    if len(resource_levels) == 0:
+        logger.warning(
+            f"Empty resource level data{f' in {db_path}' if db_path else ''}"
+        )
+        return False
+
+    if np.all(np.isnan(resource_levels)):
+        logger.warning(
+            f"Resource level data contains only NaN values{f' in {db_path}' if db_path else ''}"
+        )
+        return False
+
+    # We allow negative values for resource levels
+    return True
+
+
 # ---------------------
 # Database Interaction
 # ---------------------
@@ -207,11 +264,22 @@ def get_columns_data(
             for i, col in enumerate(columns)
         }
 
-        # Validate each population array
-        for col, pop in populations.items():
-            if not validate_population_data(pop, experiment_db_path):
-                logger.error(f"Invalid data for column '{col}' in {experiment_db_path}")
-                return None, {}, 0
+        # Validate each column's data with the appropriate validation function
+        for col, data in populations.items():
+            if col == "average_agent_resources":
+                # Use resource level validation for resource data
+                if not validate_resource_level_data(data, experiment_db_path):
+                    logger.error(
+                        f"Invalid resource level data for column '{col}' in {experiment_db_path}"
+                    )
+                    return None, {}, 0
+            else:
+                # Use population validation for other data
+                if not validate_population_data(data, experiment_db_path):
+                    logger.error(
+                        f"Invalid data for column '{col}' in {experiment_db_path}"
+                    )
+                    return None, {}, 0
 
         max_steps = len(steps)
 
@@ -366,6 +434,95 @@ def get_action_distribution_data(experiment_db_path: str) -> Dict[str, Dict[str,
             db.close()
 
 
+def get_resource_level_data(
+    experiment_db_path: str,
+) -> Tuple[np.ndarray, np.ndarray, int]:
+    """
+    Retrieve resource level data from the simulation database.
+
+    Args:
+        experiment_db_path: Path to the database file
+
+    Returns:
+        Tuple containing:
+        - steps: Array of step numbers
+        - resource_levels: Array of average agent resource levels
+        - max_steps: Number of steps in the simulation
+    """
+    columns = ["average_agent_resources"]
+    steps, data, max_steps = get_columns_data(experiment_db_path, columns)
+
+    if steps is None or not data:
+        return None, None, 0
+
+    return steps, data["average_agent_resources"], max_steps
+
+
+def get_rewards_by_generation(experiment_db_path: str) -> Dict[int, float]:
+    """
+    Retrieve average rewards grouped by agent generation from the simulation database.
+
+    Args:
+        experiment_db_path: Path to the database file
+
+    Returns:
+        Dictionary mapping generation numbers to their average rewards
+    """
+    if not os.path.exists(experiment_db_path):
+        logger.error(f"Database file not found: {experiment_db_path}")
+        return {}
+
+    db = None
+    session = None
+    try:
+        db = SimulationDatabase(experiment_db_path)
+        session = db.Session()
+
+        # Query to get average reward by generation
+        # Join agents with their learning experiences
+        query = (
+            session.query(
+                AgentModel.generation,
+                func.avg(LearningExperienceModel.reward).label("avg_reward"),
+                func.count(LearningExperienceModel.experience_id).label(
+                    "experience_count"
+                ),
+            )
+            .join(
+                LearningExperienceModel,
+                LearningExperienceModel.agent_id == AgentModel.agent_id,
+            )
+            .group_by(AgentModel.generation)
+            .having(
+                func.count(LearningExperienceModel.experience_id) > 0
+            )  # Only include generations with data
+            .order_by(AgentModel.generation)
+            .all()
+        )
+
+        if not query:
+            logger.warning(
+                f"No reward data by generation found in database: {experiment_db_path}"
+            )
+            return {}
+
+        # Convert query results to dictionary
+        rewards_by_generation = {
+            generation: avg_reward for generation, avg_reward, _ in query
+        }
+
+        return rewards_by_generation
+
+    except Exception as e:
+        logger.error(f"Error accessing database {experiment_db_path}: {str(e)}")
+        return {}
+    finally:
+        if session:
+            session.close()
+        if db:
+            db.close()
+
+
 # ---------------------
 # Plotting Helpers
 # ---------------------
@@ -379,7 +536,14 @@ def plot_mean_and_ci(ax, steps, mean, ci, color, label):
 
 def plot_median_line(ax, steps, median, color="g", style="--"):
     """Plot median line."""
-    ax.plot(steps, median, f"{color}{style}", label="Median Population", linewidth=2)
+    ax.plot(
+        steps,
+        median,
+        color=color,
+        linestyle=style,
+        label="Median Population",
+        linewidth=2,
+    )
 
 
 def plot_reference_line(ax, y_value, label, color="orange"):
@@ -1197,6 +1361,293 @@ def plot_final_agent_counts(final_counts: Dict[str, Dict], output_dir: str):
                 )
 
 
+def process_experiment_rewards_by_generation(
+    experiment: str,
+) -> Dict[str, Dict[int, float]]:
+    """
+    Process reward data by generation for each agent type in an experiment.
+
+    Args:
+        experiment: Name of the experiment
+
+    Returns:
+        Dictionary containing reward data by generation for each agent type
+    """
+    logger.info(f"Processing rewards by generation for experiment: {experiment}")
+
+    result = {
+        "system": {},
+        "control": {},
+        "independent": {},
+    }
+
+    try:
+        experiment_path = f"results/one_of_a_kind/experiments/data/{experiment}"
+        if not os.path.exists(experiment_path):
+            logger.error(f"Experiment directory not found: {experiment_path}")
+            return result
+
+        db_paths = find_simulation_databases(experiment_path)
+        if not db_paths:
+            logger.error(f"No database files found in {experiment_path}")
+            return result
+
+        valid_dbs = 0
+        failed_dbs = 0
+
+        # Temporary storage for aggregating data across simulations
+        all_rewards = {"system": {}, "control": {}, "independent": {}}
+        reward_counts = {"system": {}, "control": {}, "independent": {}}
+
+        for db_path in db_paths:
+            try:
+                # Get rewards by generation for all agents
+                rewards_by_generation = get_rewards_by_generation(db_path)
+
+                if not rewards_by_generation:
+                    failed_dbs += 1
+                    continue
+
+                # Get agent types for each generation
+                db = SimulationDatabase(db_path)
+                session = db.Session()
+
+                # Query to get generations and their agent types
+                gen_types = (
+                    session.query(AgentModel.generation, AgentModel.agent_type)
+                    .distinct()
+                    .all()
+                )
+
+                session.close()
+                db.close()
+
+                # Map generations to agent types
+                gen_to_type = {}
+                for gen, agent_type in gen_types:
+                    # Normalize agent type names
+                    if agent_type in ["system", "SystemAgent"]:
+                        type_key = "system"
+                    elif agent_type in ["control", "ControlAgent"]:
+                        type_key = "control"
+                    elif agent_type in ["independent", "IndependentAgent"]:
+                        type_key = "independent"
+                    else:
+                        continue
+
+                    gen_to_type[gen] = type_key
+
+                # Aggregate rewards by agent type and generation
+                for gen, reward in rewards_by_generation.items():
+                    if gen in gen_to_type:
+                        agent_type = gen_to_type[gen]
+
+                        if gen not in all_rewards[agent_type]:
+                            all_rewards[agent_type][gen] = 0
+                            reward_counts[agent_type][gen] = 0
+
+                        all_rewards[agent_type][gen] += reward
+                        reward_counts[agent_type][gen] += 1
+
+                valid_dbs += 1
+
+            except Exception as e:
+                logger.error(f"Error processing database {db_path}: {str(e)}")
+                failed_dbs += 1
+
+        # Calculate average rewards across all simulations
+        for agent_type in result:
+            for gen in all_rewards[agent_type]:
+                if reward_counts[agent_type][gen] > 0:
+                    result[agent_type][gen] = (
+                        all_rewards[agent_type][gen] / reward_counts[agent_type][gen]
+                    )
+
+        if valid_dbs == 0:
+            logger.error(
+                f"No valid reward data found in experiment {experiment}. "
+                f"All {failed_dbs} databases were corrupted or invalid."
+            )
+            return result
+
+        logger.info(
+            f"Successfully processed reward data from {valid_dbs} databases. "
+            f"Skipped {failed_dbs} corrupted/invalid databases."
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(
+            f"Unexpected error processing rewards by generation for {experiment}: {str(e)}"
+        )
+        return result
+
+
+def plot_rewards_by_generation(
+    rewards_data: Dict[str, Dict[int, float]], output_dir: str
+):
+    """
+    Create visualizations for rewards by generation.
+
+    Args:
+        rewards_data: Dictionary with reward data by generation for each agent type
+        output_dir: Directory to save output plots
+    """
+    if not any(rewards_data[agent_type] for agent_type in rewards_data):
+        logger.warning("No reward data by generation to visualize")
+        return
+
+    # Ensure output directory exists
+    output_dir = Path(output_dir)
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.error(f"Error creating output directory {output_dir}: {str(e)}")
+        return
+
+    # Create figure
+    plt.figure(figsize=(15, 8))
+    plt.title("Average Rewards by Generation and Agent Type", fontsize=14)
+
+    # Define colors for agent types
+    colors = {"system": "blue", "control": "green", "independent": "red"}
+    markers = {"system": "o", "control": "s", "independent": "^"}
+
+    # Plot data for each agent type
+    for agent_type, rewards in rewards_data.items():
+        if not rewards:
+            continue
+
+        # Sort generations
+        generations = sorted(rewards.keys())
+        avg_rewards = [rewards[gen] for gen in generations]
+
+        # Plot line
+        plt.plot(
+            generations,
+            avg_rewards,
+            color=colors[agent_type],
+            marker=markers[agent_type],
+            linestyle="-",
+            linewidth=2,
+            markersize=8,
+            label=f"{agent_type.title()} Agents",
+        )
+
+        # Add trend line (polynomial fit)
+        if len(generations) > 2:
+            try:
+                z = np.polyfit(generations, avg_rewards, 2)
+                p = np.poly1d(z)
+                x_trend = np.linspace(min(generations), max(generations), 100)
+                plt.plot(
+                    x_trend,
+                    p(x_trend),
+                    color=colors[agent_type],
+                    linestyle="--",
+                    alpha=0.5,
+                    linewidth=1.5,
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Could not create trend line for {agent_type}: {str(e)}"
+                )
+
+    # Set labels and grid
+    plt.xlabel("Generation", fontsize=12)
+    plt.ylabel("Average Reward", fontsize=12)
+    plt.grid(True, alpha=0.3)
+    plt.legend(fontsize=10)
+
+    # Add annotations for key points
+    for agent_type, rewards in rewards_data.items():
+        if not rewards:
+            continue
+
+        generations = sorted(rewards.keys())
+        avg_rewards = [rewards[gen] for gen in generations]
+
+        # Annotate maximum reward
+        if avg_rewards:
+            max_idx = np.argmax(avg_rewards)
+            max_gen = generations[max_idx]
+            max_reward = avg_rewards[max_idx]
+
+            plt.annotate(
+                f"Max: {max_reward:.2f}",
+                xy=(max_gen, max_reward),
+                xytext=(10, 10),
+                textcoords="offset points",
+                arrowprops=dict(arrowstyle="->", color=colors[agent_type]),
+                fontsize=9,
+                color=colors[agent_type],
+            )
+
+    # Save the figure
+    output_path = output_dir / "rewards_by_generation.png"
+    try:
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        logger.info(f"Saved rewards by generation plot to {output_path}")
+    except Exception as e:
+        logger.error(f"Error saving plot to {output_path}: {str(e)}")
+    finally:
+        plt.close()
+
+    # Create a text summary file
+    with open(output_dir / "rewards_by_generation_summary.txt", "w") as f:
+        f.write("Rewards by Generation Analysis\n")
+        f.write("============================\n\n")
+
+        for agent_type in ["system", "control", "independent"]:
+            rewards = rewards_data[agent_type]
+            f.write(f"{agent_type.title()} Agents:\n")
+
+            if not rewards:
+                f.write("  No reward data available\n\n")
+                continue
+
+            generations = sorted(rewards.keys())
+            avg_rewards = [rewards[gen] for gen in generations]
+
+            if avg_rewards:
+                max_idx = np.argmax(avg_rewards)
+                min_idx = np.argmin(avg_rewards)
+
+                f.write(f"  Generations analyzed: {len(generations)}\n")
+                f.write(
+                    f"  Maximum reward: {avg_rewards[max_idx]:.4f} (Generation {generations[max_idx]})\n"
+                )
+                f.write(
+                    f"  Minimum reward: {avg_rewards[min_idx]:.4f} (Generation {generations[min_idx]})\n"
+                )
+
+                if len(generations) > 1:
+                    first_gen = generations[0]
+                    last_gen = generations[-1]
+                    first_reward = rewards[first_gen]
+                    last_reward = rewards[last_gen]
+                    change = (
+                        ((last_reward - first_reward) / first_reward) * 100
+                        if first_reward != 0
+                        else float("inf")
+                    )
+
+                    f.write(
+                        f"  First generation ({first_gen}) reward: {first_reward:.4f}\n"
+                    )
+                    f.write(
+                        f"  Last generation ({last_gen}) reward: {last_reward:.4f}\n"
+                    )
+                    f.write(f"  Change from first to last: {change:.2f}%\n")
+
+                f.write("\n  Generation -> Reward mapping:\n")
+                for gen in generations:
+                    f.write(f"    Generation {gen}: {rewards[gen]:.4f}\n")
+
+            f.write("\n")
+
+
 # ---------------------
 # Main Execution
 # ---------------------
@@ -1704,6 +2155,167 @@ def plot_action_distributions(
             f.write("\n")
 
 
+def process_experiment_resource_levels(experiment: str) -> Dict[str, List]:
+    """
+    Process resource level data for an experiment.
+
+    Args:
+        experiment: Name of the experiment
+
+    Returns:
+        Dictionary containing processed resource level data
+    """
+    logger.info(f"Processing resource level data for experiment: {experiment}")
+
+    result = {"resource_levels": [], "max_steps": 0}
+
+    try:
+        experiment_path = f"results/one_of_a_kind/experiments/data/{experiment}"
+        if not os.path.exists(experiment_path):
+            logger.error(f"Experiment directory not found: {experiment_path}")
+            return result
+
+        db_paths = find_simulation_databases(experiment_path)
+        if not db_paths:
+            logger.error(f"No database files found in {experiment_path}")
+            return result
+
+        max_steps = 0
+        valid_dbs = 0
+        failed_dbs = 0
+
+        for db_path in db_paths:
+            try:
+                steps, resource_levels, steps_count = get_resource_level_data(db_path)
+                if steps is not None and resource_levels is not None:
+                    # Use the specialized validation function for resource levels
+                    if validate_resource_level_data(resource_levels, db_path):
+                        result["resource_levels"].append(resource_levels)
+                        max_steps = max(max_steps, steps_count)
+                        valid_dbs += 1
+                    else:
+                        failed_dbs += 1
+                else:
+                    failed_dbs += 1
+            except Exception as e:
+                logger.error(f"Error processing database {db_path}: {str(e)}")
+                failed_dbs += 1
+
+        result["max_steps"] = max_steps
+
+        if valid_dbs == 0:
+            logger.error(
+                f"No valid resource level data found in experiment {experiment}. "
+                f"All {failed_dbs} databases were corrupted or invalid."
+            )
+            return result
+
+        logger.info(
+            f"Successfully processed resource level data from {valid_dbs} databases. "
+            f"Skipped {failed_dbs} corrupted/invalid databases."
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(
+            f"Unexpected error processing resource level data for {experiment}: {str(e)}"
+        )
+        return result
+
+
+def plot_resource_level_trends(resource_level_data: Dict[str, List], output_path: str):
+    """
+    Plot resource level trends with confidence intervals.
+
+    Args:
+        resource_level_data: Dictionary containing resource level data
+        output_path: Path to save the output plot
+    """
+    # Ensure output directory exists
+    output_path = Path(output_path)
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.error(f"Error creating output directory {output_path.parent}: {str(e)}")
+        return
+
+    # Check if we have valid data
+    if not resource_level_data["resource_levels"]:
+        logger.error("No valid resource level data to plot")
+        return
+
+    fig, ax = plt.subplots(figsize=(15, 8))
+    experiment_name = output_path.parent.name
+    fig.suptitle(
+        f"Resource Level Trends Across All Simulations (N={len(resource_level_data['resource_levels'])})",
+        fontsize=14,
+        y=0.95,
+    )
+
+    # Create DataFrame and calculate statistics - specify this is resource data
+    df = create_population_df(
+        resource_level_data["resource_levels"],
+        resource_level_data["max_steps"],
+        is_resource_data=True,
+    )
+    mean_resources, median_resources, std_resources, confidence_interval = (
+        calculate_statistics(df)
+    )
+    steps = np.arange(resource_level_data["max_steps"])
+
+    # Check if we have valid statistics
+    if len(mean_resources) == 0:
+        logger.error("No valid statistics could be calculated")
+        plt.close()
+        return
+
+    # Calculate key metrics with safety checks
+    overall_median = np.nanmedian(median_resources) if len(median_resources) > 0 else 0
+    final_median = median_resources[-1] if len(median_resources) > 0 else 0
+
+    # Handle empty arrays for peak calculation
+    if len(mean_resources) > 0:
+        peak_step = np.nanargmax(mean_resources)
+        peak_value = mean_resources[peak_step]
+    else:
+        peak_step = 0
+        peak_value = 0
+
+    # Use helper functions for plotting
+    plot_mean_and_ci(
+        ax, steps, mean_resources, confidence_interval, "purple", "Mean Resource Level"
+    )
+    plot_median_line(ax, steps, median_resources, color="darkgreen")
+    plot_reference_line(ax, overall_median, "Overall Median", color="teal")
+    plot_marker_point(ax, peak_step, peak_value, f"Peak at step {peak_step}")
+    plot_marker_point(
+        ax,
+        resource_level_data["max_steps"] - 1,
+        final_median,
+        f"Final Median: {final_median:.1f}",
+    )
+
+    # Setup plot aesthetics
+    ax.set_title(experiment_name, fontsize=12, pad=10)
+    ax.set_xlabel("Simulation Step", fontsize=12)
+    ax.set_ylabel("Average Agent Resource Level", fontsize=12)
+    ax.grid(True, alpha=0.3)
+    ax.legend(fontsize=10)
+
+    # Ensure y-axis starts at 0 unless we have negative values
+    if len(mean_resources) > 0 and np.min(mean_resources - confidence_interval) >= 0:
+        ax.set_ylim(bottom=0)
+
+    try:
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        logger.info(f"Saved resource level plot to {output_path}")
+    except Exception as e:
+        logger.error(f"Error saving plot to {output_path}: {str(e)}")
+    finally:
+        plt.close()
+
+
 def main():
     base_path = Path("results/one_of_a_kind/experiments/data")
     try:
@@ -1719,6 +2331,7 @@ def main():
     # Process single agent experiments
     all_experiment_data = {}
     all_consumption_data = {}
+    all_resource_level_data = {"resource_levels": [], "max_steps": 0}
 
     for agent_type, experiment_list in experiments["single_agent"].items():
         all_experiment_data[agent_type] = {"populations": [], "max_steps": 0}
@@ -1744,6 +2357,15 @@ def main():
                     consumption_data[agent_type]["max_steps"],
                 )
 
+            # Process resource level data
+            resource_level_data = process_experiment_resource_levels(experiment)
+            all_resource_level_data["resource_levels"].extend(
+                resource_level_data["resource_levels"]
+            )
+            all_resource_level_data["max_steps"] = max(
+                all_resource_level_data["max_steps"], resource_level_data["max_steps"]
+            )
+
             # Create individual experiment resource consumption chart
             experiment_path = f"results/one_of_a_kind/experiments/data/{experiment}"
             if any(
@@ -1752,9 +2374,19 @@ def main():
             ):
                 plot_resource_consumption_trends(consumption_data, experiment_path)
 
+            # Create individual experiment resource level chart
+            if resource_level_data["resource_levels"]:
+                output_path = Path(experiment_path) / "resource_level_trends.png"
+                plot_resource_level_trends(resource_level_data, str(output_path))
+
     # Create combined plots for single agent experiments
     plot_population_trends_by_agent_type(all_experiment_data, str(base_path))
     plot_resource_consumption_trends(all_consumption_data, str(base_path))
+
+    # Create combined resource level plot
+    if all_resource_level_data["resource_levels"]:
+        output_path = base_path / "resource_level_trends.png"
+        plot_resource_level_trends(all_resource_level_data, str(output_path))
 
     # Process one_of_a_kind experiments
     for experiment in experiments["one_of_a_kind"]:
@@ -1787,6 +2419,12 @@ def main():
         ):
             plot_resource_consumption_trends(consumption_by_type, str(experiment_path))
 
+        # Create resource level trend plot
+        resource_level_data = process_experiment_resource_levels(experiment)
+        if resource_level_data["resource_levels"]:
+            output_path = experiment_path / "resource_level_trends.png"
+            plot_resource_level_trends(resource_level_data, str(output_path))
+
         # Add action distribution analysis
         action_data = process_action_distributions(experiment)
         if any(data["total_actions"] > 0 for data in action_data.values()):
@@ -1800,6 +2438,21 @@ def main():
             if early_terminations:
                 early_term_dir = experiment_path / "early_termination_analysis"
                 plot_early_termination_analysis(early_terminations, str(early_term_dir))
+
+        # Process rewards by generation
+        rewards_data = process_experiment_rewards_by_generation(experiment)
+        if rewards_data:
+            plot_rewards_by_generation(
+                rewards_data, str(experiment_path / "rewards_by_generation")
+            )
+
+        # Add rewards by generation analysis
+        rewards_by_generation = process_experiment_rewards_by_generation(experiment)
+        if any(
+            rewards_by_generation[agent_type] for agent_type in rewards_by_generation
+        ):
+            rewards_analysis_dir = experiment_path / "rewards_analysis"
+            plot_rewards_by_generation(rewards_by_generation, str(rewards_analysis_dir))
 
 
 if __name__ == "__main__":
