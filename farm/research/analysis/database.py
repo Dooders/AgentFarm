@@ -1,6 +1,8 @@
 import logging
 import os
+from pathlib import Path
 from typing import Any, Dict, List, Tuple
+
 import numpy as np
 from sqlalchemy import func
 
@@ -10,6 +12,10 @@ from farm.database.models import (
     AgentModel,
     LearningExperienceModel,
     SimulationStepModel,
+)
+from farm.research.analysis.util import (
+    validate_population_data,
+    validate_resource_level_data,
 )
 
 # Configure logging
@@ -21,311 +27,332 @@ logger = logging.getLogger(__name__)
 
 def find_simulation_databases(base_path: str) -> List[str]:
     """
-    Find all SQLite database files in the given base path.
-
-    Args:
-        base_path: The base directory to search in
-
-    Returns:
-        List of paths to database files
+    Find all simulation database files in the given directory and its subdirectories.
+    Creates the base directory if it doesn't exist.
     """
-    db_paths = []
-    for root, _, files in os.walk(base_path):
-        for file in files:
-            if file.endswith(".db"):
-                db_paths.append(os.path.join(root, file))
-    return db_paths
+    base = Path(base_path)
+    try:
+        base.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Searching for databases in: {base.resolve()}")
+
+        db_files = list(base.rglob("simulation.db"))
+        if not db_files:
+            logger.warning(f"No simulation.db files found in {base}")
+        else:
+            logger.info(f"Found {len(db_files)} database files:")
+            for db_file in db_files:
+                logger.info(f"  - {db_file}")
+        return sorted(str(path) for path in db_files)
+    except Exception as e:
+        logger.error(f"Error creating/accessing directory {base}: {str(e)}")
+        return []
 
 
 def get_columns_data(
     experiment_db_path: str, columns: List[str]
 ) -> Tuple[np.ndarray, Dict[str, np.ndarray], int]:
     """
-    Get data for specified columns from the database.
+    Retrieve specified columns from the simulation database with robust error handling.
 
     Args:
-        experiment_db_path: Path to the database
+        experiment_db_path: Path to the database file
         columns: List of column names to retrieve
 
     Returns:
-        Tuple containing steps array, data dictionary, and max steps
+        Tuple containing:
+        - steps: Array of step numbers
+        - populations: Dictionary mapping column names to their data arrays
+        - max_steps: Number of steps in the simulation
     """
-    db = SimulationDatabase(experiment_db_path)
-    session = db.Session()
+    if not os.path.exists(experiment_db_path):
+        logger.error(f"Database file not found: {experiment_db_path}")
+        return None, {}, 0
 
+    db = None
+    session = None
     try:
-        # Get all steps
-        steps_query = session.query(SimulationStepModel.step).order_by(
-            SimulationStepModel.step
+        db = SimulationDatabase(experiment_db_path)
+        session = db.Session()
+
+        # Validate requested columns exist
+        for col in columns:
+            if not hasattr(SimulationStepModel, col):
+                logger.error(f"Column '{col}' not found in database schema")
+                return None, {}, 0
+
+        # Build query dynamically based on requested columns
+        query_columns = [getattr(SimulationStepModel, col) for col in columns]
+        query = (
+            session.query(SimulationStepModel.step_number, *query_columns)
+            .order_by(SimulationStepModel.step_number)
+            .all()
         )
-        steps = np.array([step[0] for step in steps_query])
 
-        # Get max step
-        max_step = session.query(func.max(SimulationStepModel.step)).scalar() or 0
+        if not query:
+            logger.warning(f"No data found in database: {experiment_db_path}")
+            return None, {}, 0
 
-        # Initialize data dictionary
-        data = {column: np.zeros(len(steps)) for column in columns}
+        # Extract step numbers and column data
+        steps = np.array([row[0] for row in query])
+        populations = {
+            col: np.array([row[i + 1] for row in query])
+            for i, col in enumerate(columns)
+        }
 
-        # Get data for each step
-        for i, step in enumerate(steps):
-            step_data = (
-                session.query(SimulationStepModel)
-                .filter(SimulationStepModel.step == step)
-                .first()
+        # Validate each column's data with the appropriate validation function
+        for col, data in populations.items():
+            if col == "average_agent_resources":
+                # Use resource level validation for resource data
+                if not validate_resource_level_data(data, experiment_db_path):
+                    logger.error(
+                        f"Invalid resource level data for column '{col}' in {experiment_db_path}"
+                    )
+                    return None, {}, 0
+            else:
+                # Use population validation for other data
+                if not validate_population_data(data, experiment_db_path):
+                    logger.error(
+                        f"Invalid data for column '{col}' in {experiment_db_path}"
+                    )
+                    return None, {}, 0
+
+        max_steps = len(steps)
+
+        # Validate steps
+        if len(steps) == 0:
+            logger.error(f"No steps found in database: {experiment_db_path}")
+            return None, {}, 0
+
+        if not np.all(np.diff(steps) >= 0):
+            logger.error(
+                f"Steps are not monotonically increasing in {experiment_db_path}"
             )
+            return None, {}, 0
 
-            if step_data:
-                for column in columns:
-                    if hasattr(step_data, column):
-                        data[column][i] = getattr(step_data, column)
+        return steps, populations, max_steps
 
-        return steps, data, max_step
-
+    except Exception as e:
+        logger.error(f"Error accessing database {experiment_db_path}: {str(e)}")
+        return None, {}, 0
     finally:
-        session.close()
+        if session:
+            session.close()
+        if db:
+            db.close()
 
 
 def get_data(experiment_db_path: str) -> Tuple[np.ndarray, np.ndarray, int]:
     """
-    Get population data from the database.
-
-    Args:
-        experiment_db_path: Path to the database
-
-    Returns:
-        Tuple containing steps array, population array, and max steps
+    Retrieve step numbers and total agents from the simulation database.
+    This is a wrapper around get_columns_data for backward compatibility.
     """
-    steps, data, max_step = get_columns_data(experiment_db_path, ["population"])
-    return steps, data["population"], max_step
+    steps, populations, max_steps = get_columns_data(
+        experiment_db_path, ["total_agents"]
+    )
+    if steps is not None:
+        return steps, populations["total_agents"], max_steps
+    return None, None, 0
 
 
 def get_columns_data_by_agent_type(
     experiment_db_path: str,
 ) -> Tuple[np.ndarray, Dict[str, np.ndarray], int]:
     """
-    Get population data by agent type from the database.
-
-    Args:
-        experiment_db_path: Path to the database
-
-    Returns:
-        Tuple containing steps array, agent type data dictionary, and max steps
+    Retrieve population data for each agent type from the simulation database.
     """
-    db = SimulationDatabase(experiment_db_path)
-    session = db.Session()
-
-    try:
-        # Get all steps
-        steps_query = session.query(SimulationStepModel.step).order_by(
-            SimulationStepModel.step
-        )
-        steps = np.array([step[0] for step in steps_query])
-
-        # Get max step
-        max_step = session.query(func.max(SimulationStepModel.step)).scalar() or 0
-
-        # Get all agent types
-        agent_types_query = session.query(AgentModel.agent_type).distinct()
-        agent_types = [agent_type[0] for agent_type in agent_types_query]
-
-        # Initialize data dictionary
-        data = {agent_type: np.zeros(len(steps)) for agent_type in agent_types}
-
-        # Get data for each step and agent type
-        for i, step in enumerate(steps):
-            for agent_type in agent_types:
-                count = (
-                    session.query(func.count(AgentModel.id))
-                    .filter(
-                        AgentModel.agent_type == agent_type,
-                        AgentModel.created_at <= step,
-                        (AgentModel.removed_at > step)
-                        | (AgentModel.removed_at.is_(None)),
-                    )
-                    .scalar()
-                ) or 0
-
-                data[agent_type][i] = count
-
-        return steps, data, max_step
-
-    finally:
-        session.close()
+    columns = ["system_agents", "control_agents", "independent_agents"]
+    return get_columns_data(experiment_db_path, columns)
 
 
 def get_resource_consumption_data(
     experiment_db_path: str,
 ) -> Tuple[np.ndarray, Dict[str, np.ndarray], int]:
     """
-    Get resource consumption data by agent type from the database.
+    Retrieve resource consumption data for each agent type from the simulation database.
 
     Args:
-        experiment_db_path: Path to the database
+        experiment_db_path: Path to the database file
 
     Returns:
-        Tuple containing steps array, consumption data dictionary, and max steps
+        Tuple containing:
+        - steps: Array of step numbers
+        - consumption: Dictionary mapping agent types to their consumption data arrays
+        - max_steps: Number of steps in the simulation
     """
-    db = SimulationDatabase(experiment_db_path)
-    session = db.Session()
+    columns = [
+        "system_agents",
+        "control_agents",
+        "independent_agents",
+        "resources_consumed",
+    ]
+    steps, data, max_steps = get_columns_data(experiment_db_path, columns)
 
-    try:
-        # Get all steps
-        steps_query = session.query(SimulationStepModel.step).order_by(
-            SimulationStepModel.step
-        )
-        steps = np.array([step[0] for step in steps_query])
+    if steps is None or not data:
+        return None, {}, 0
 
-        # Get max step
-        max_step = session.query(func.max(SimulationStepModel.step)).scalar() or 0
+    # Calculate consumption per agent type
+    consumption = {}
+    total_agents = np.zeros_like(steps, dtype=float)
 
-        # Get all agent types
-        agent_types_query = session.query(AgentModel.agent_type).distinct()
-        agent_types = [agent_type[0] for agent_type in agent_types_query]
+    # Sum up all agent types to get total population
+    for agent_type in ["system_agents", "control_agents", "independent_agents"]:
+        if agent_type in data:
+            total_agents += data[agent_type]
 
-        # Initialize data dictionary
-        data = {agent_type: np.zeros(len(steps)) for agent_type in agent_types}
+    # Calculate consumption proportionally for each agent type
+    for agent_type in ["system", "control", "independent"]:
+        db_column = f"{agent_type}_agents"
+        if db_column in data and "resources_consumed" in data:
+            # Avoid division by zero
+            safe_total = np.where(total_agents > 0, total_agents, 1)
+            consumption[agent_type] = (
+                data[db_column] * data["resources_consumed"] / safe_total
+            )
 
-        # Get data for each step and agent type
-        for i, step in enumerate(steps):
-            for agent_type in agent_types:
-                # Get all agents of this type that were alive at this step
-                agents = (
-                    session.query(AgentModel)
-                    .filter(
-                        AgentModel.agent_type == agent_type,
-                        AgentModel.created_at <= step,
-                        (AgentModel.removed_at > step)
-                        | (AgentModel.removed_at.is_(None)),
-                    )
-                    .all()
-                )
-
-                # Sum up resource consumption for these agents at this step
-                total_consumption = 0
-                for agent in agents:
-                    action = (
-                        session.query(ActionModel)
-                        .filter(
-                            ActionModel.agent_id == agent.id,
-                            ActionModel.step == step,
-                        )
-                        .first()
-                    )
-
-                    if action and action.resource_delta < 0:
-                        total_consumption += abs(action.resource_delta)
-
-                data[agent_type][i] = total_consumption
-
-        return steps, data, max_step
-
-    finally:
-        session.close()
+    return steps, consumption, max_steps
 
 
 def get_action_distribution_data(experiment_db_path: str) -> Dict[str, Dict[str, int]]:
     """
-    Get action distribution data by agent type from the database.
+    Retrieve action distribution data for each agent type from the simulation database.
 
     Args:
-        experiment_db_path: Path to the database
+        experiment_db_path: Path to the database file
 
     Returns:
-        Dictionary mapping agent types to action counts
+        Dictionary mapping agent types to their action distributions
     """
-    db = SimulationDatabase(experiment_db_path)
-    session = db.Session()
+    if not os.path.exists(experiment_db_path):
+        logger.error(f"Database file not found: {experiment_db_path}")
+        return {}
 
+    db = None
+    session = None
     try:
-        # Get all agent types
-        agent_types_query = session.query(AgentModel.agent_type).distinct()
-        agent_types = [agent_type[0] for agent_type in agent_types_query]
+        db = SimulationDatabase(experiment_db_path)
+        session = db.Session()
 
-        # Initialize data dictionary
-        data = {agent_type: {} for agent_type in agent_types}
+        # Query to get agent types
+        agent_types = session.query(AgentModel.agent_type).distinct().all()
+        agent_types = [t[0] for t in agent_types]
 
-        # Get action counts for each agent type
+        # Initialize result structure
+        result = {agent_type: {} for agent_type in agent_types}
+
+        # For each agent type, get action distribution
         for agent_type in agent_types:
-            # Get all agents of this type
-            agents = (
-                session.query(AgentModel)
+            # Join agents with their actions and count by action type
+            query = (
+                session.query(
+                    ActionModel.action_type,
+                    func.count(ActionModel.action_id).label("count"),
+                )
+                .join(AgentModel, AgentModel.agent_id == ActionModel.agent_id)
                 .filter(AgentModel.agent_type == agent_type)
+                .group_by(ActionModel.action_type)
                 .all()
             )
 
-            # Get all actions for these agents
-            for agent in agents:
-                actions = (
-                    session.query(ActionModel)
-                    .filter(ActionModel.agent_id == agent.id)
-                    .all()
-                )
+            # Store results
+            action_counts = {action_type: count for action_type, count in query}
+            result[agent_type] = action_counts
 
-                for action in actions:
-                    action_type = action.action_type
-                    if action_type not in data[agent_type]:
-                        data[agent_type][action_type] = 0
-                    data[agent_type][action_type] += 1
+        return result
 
-        return data
-
+    except Exception as e:
+        logger.error(f"Error accessing database {experiment_db_path}: {str(e)}")
+        return {}
     finally:
-        session.close()
+        if session:
+            session.close()
+        if db:
+            db.close()
 
 
 def get_resource_level_data(
     experiment_db_path: str,
 ) -> Tuple[np.ndarray, np.ndarray, int]:
     """
-    Get resource level data from the database.
+    Retrieve resource level data from the simulation database.
 
     Args:
-        experiment_db_path: Path to the database
+        experiment_db_path: Path to the database file
 
     Returns:
-        Tuple containing steps array, resource levels array, and max steps
+        Tuple containing:
+        - steps: Array of step numbers
+        - resource_levels: Array of average agent resource levels
+        - max_steps: Number of steps in the simulation
     """
-    steps, data, max_step = get_columns_data(experiment_db_path, ["resource_level"])
-    return steps, data["resource_level"], max_step
+    columns = ["average_agent_resources"]
+    steps, data, max_steps = get_columns_data(experiment_db_path, columns)
+
+    if steps is None or not data:
+        return None, None, 0
+
+    return steps, data["average_agent_resources"], max_steps
 
 
 def get_rewards_by_generation(experiment_db_path: str) -> Dict[int, float]:
     """
-    Get average rewards by generation from the database.
+    Retrieve average rewards grouped by agent generation from the simulation database.
 
     Args:
-        experiment_db_path: Path to the database
+        experiment_db_path: Path to the database file
 
     Returns:
-        Dictionary mapping generations to average rewards
+        Dictionary mapping generation numbers to their average rewards
     """
-    db = SimulationDatabase(experiment_db_path)
-    session = db.Session()
+    if not os.path.exists(experiment_db_path):
+        logger.error(f"Database file not found: {experiment_db_path}")
+        return {}
 
+    db = None
+    session = None
     try:
-        # Get all generations
-        generations_query = (
-            session.query(LearningExperienceModel.generation)
-            .distinct()
-            .order_by(LearningExperienceModel.generation)
-        )
-        generations = [gen[0] for gen in generations_query]
+        db = SimulationDatabase(experiment_db_path)
+        session = db.Session()
 
-        # Initialize data dictionary
-        data = {}
-
-        # Get average reward for each generation
-        for generation in generations:
-            avg_reward = (
-                session.query(func.avg(LearningExperienceModel.reward))
-                .filter(LearningExperienceModel.generation == generation)
-                .scalar()
+        # Query to get average reward by generation
+        # Join agents with their learning experiences
+        query = (
+            session.query(
+                AgentModel.generation,
+                func.avg(LearningExperienceModel.reward).label("avg_reward"),
+                func.count(LearningExperienceModel.experience_id).label(
+                    "experience_count"
+                ),
             )
+            .join(
+                LearningExperienceModel,
+                LearningExperienceModel.agent_id == AgentModel.agent_id,
+            )
+            .group_by(AgentModel.generation)
+            .having(
+                func.count(LearningExperienceModel.experience_id) > 0
+            )  # Only include generations with data
+            .order_by(AgentModel.generation)
+            .all()
+        )
 
-            if avg_reward is not None:
-                data[generation] = float(avg_reward)
+        if not query:
+            logger.warning(
+                f"No reward data by generation found in database: {experiment_db_path}"
+            )
+            return {}
 
-        return data
+        # Convert query results to dictionary
+        rewards_by_generation = {
+            generation: avg_reward for generation, avg_reward, _ in query
+        }
 
+        return rewards_by_generation
+
+    except Exception as e:
+        logger.error(f"Error accessing database {experiment_db_path}: {str(e)}")
+        return {}
     finally:
-        session.close()
+        if session:
+            session.close()
+        if db:
+            db.close()
