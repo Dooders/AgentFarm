@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Deque, Optional
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ class BaseDQNConfig:
     dqn_hidden_size: int = 64
     batch_size: int = 32
     tau: float = 0.005
+    seed: Optional[int] = None  # Seed for reproducibility
 
 
 class BaseQNetwork(nn.Module):
@@ -75,13 +77,19 @@ class BaseDQNModule:
         output_dim: int,
         config: BaseDQNConfig,
         device: torch.device = DEVICE,
-        db: Optional["SimulationDatabase"] = None,
+        db: Optional["SimulationDatabase"] = None
     ) -> None:
         self.device = device
         self.config = config
         self.db = db
         self.module_id = id(self.__class__)
         self.logger = db.logger if db is not None else None
+        self.output_dim = output_dim
+        
+        # Set seed if provided for reproducibility
+        if config.seed is not None:
+            self._set_seed(config.seed)
+            
         self._setup_networks(input_dim, output_dim, config)
         self._setup_training(config)
         self.losses = []
@@ -91,6 +99,22 @@ class BaseDQNModule:
         # Add caching for state tensors
         self._state_cache = {}
         self._max_cache_size = 100
+
+    def _set_seed(self, seed: int) -> None:
+        """Set seeds for all random number generators to ensure reproducibility.
+        
+        Parameters
+        ----------
+        seed : int
+            The seed value to use
+        """
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        # For completely deterministic results, uncomment the following:
+        # torch.backends.cudnn.deterministic = True
+        # torch.backends.cudnn.benchmark = False
 
     def _setup_networks(
         self, input_dim: int, output_dim: int, config: BaseDQNConfig
@@ -283,6 +307,7 @@ class BaseDQNModule:
             "steps": self.steps,
             "losses": self.losses,
             "episode_rewards": self.episode_rewards,
+            "seed": self.config.seed,
         }
 
     def load_state_dict(self, state_dict: dict[str, Any]) -> None:

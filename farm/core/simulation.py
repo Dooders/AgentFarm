@@ -123,6 +123,7 @@ def run_simulation(
     config: SimulationConfig,
     path: Optional[str] = None,
     save_config: bool = True,
+    seed: Optional[int] = None,
 ) -> Environment:
     """
     Run the main simulation loop.
@@ -144,6 +145,7 @@ def run_simulation(
                 db_path = f"{base}_{int(time.time())}{ext}"
                 logging.warning(f"Using alternative database path: {db_path}")
 
+        config.seed = seed
         # Create environment with clean database
         environment = Environment(
             width=config.width,

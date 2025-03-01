@@ -1,6 +1,6 @@
 import copy
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
@@ -80,6 +80,7 @@ class SimulationConfig:
             "ControlAgent": 0.34,
         }
     )
+    seed: Optional[int] = 1234567890
 
     # Resource settings
     initial_resources: int = 20

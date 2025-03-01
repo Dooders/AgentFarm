@@ -16,6 +16,7 @@ offspring_initial_resources: 5
 perception_radius: 2
 base_attack_strength: 2
 base_defense_strength: 2
+seed: 1234567890
 
 # Resource settings
 initial_resources: 20
