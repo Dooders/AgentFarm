@@ -2,7 +2,7 @@ import logging
 import os
 import statistics
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import matplotlib.patheffects
 import numpy as np
@@ -10,21 +10,20 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from sqlalchemy import func
 
-from farm.database.database import SimulationDatabase
-from farm.database.models import (
-    ActionModel,
-    AgentModel,
-    LearningExperienceModel,
-    SimulationStepModel,
-    AgentStateModel,
-)
 import generational_fitness_analysis
+from farm.database.database import SimulationDatabase
+from farm.database.models import (ActionModel, AgentModel, AgentStateModel,
+                                  LearningExperienceModel, SimulationStepModel)
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+# Constants for file paths
+EXPERIMENT_DATA_PATH = "results/one_of_a_kind_v1/experiments/data"
+EXPERIMENT_ANALYSIS_PATH = "results/one_of_a_kind_v1/experiments/analysis"
 
 # ---------------------
 # Helper Functions
@@ -1385,7 +1384,7 @@ def process_experiment_rewards_by_generation(
     }
 
     try:
-        experiment_path = f"results/one_of_a_kind/experiments/data/{experiment}"
+        experiment_path = os.path.join(EXPERIMENT_DATA_PATH, experiment)
         if not os.path.exists(experiment_path):
             logger.error(f"Experiment directory not found: {experiment_path}")
             return result
@@ -1670,7 +1669,7 @@ def process_experiment(agent_type: str, experiment: str) -> Dict[str, List]:
     logger.info(f"Processing experiment: {experiment}")
 
     try:
-        experiment_path = f"results/one_of_a_kind/experiments/data/{experiment}"
+        experiment_path = os.path.join(EXPERIMENT_DATA_PATH, experiment)
         if not os.path.exists(experiment_path):
             logger.error(f"Experiment directory not found: {experiment_path}")
             return {"populations": [], "max_steps": 0}
@@ -1777,7 +1776,7 @@ def process_experiment_by_agent_type(experiment: str) -> Dict[str, Dict]:
     }
 
     try:
-        experiment_path = f"results/one_of_a_kind/experiments/data/{experiment}"
+        experiment_path = f"results/one_of_a_kind_v1/experiments/data/{experiment}"
         if not os.path.exists(experiment_path):
             logger.error(f"Experiment directory not found: {experiment_path}")
             return result
@@ -1864,7 +1863,7 @@ def process_experiment_resource_consumption(experiment: str) -> Dict[str, Dict]:
     }
 
     try:
-        experiment_path = f"results/one_of_a_kind/experiments/data/{experiment}"
+        experiment_path = f"results/one_of_a_kind_v1/experiments/data/{experiment}"
         if not os.path.exists(experiment_path):
             logger.error(f"Experiment directory not found: {experiment_path}")
             return result
@@ -1958,7 +1957,7 @@ def process_action_distributions(
     }
 
     try:
-        experiment_path = f"results/one_of_a_kind/experiments/data/{experiment}"
+        experiment_path = f"results/one_of_a_kind_v1/experiments/data/{experiment}"
         if not os.path.exists(experiment_path):
             logger.error(f"Experiment directory not found: {experiment_path}")
             return result
@@ -2173,7 +2172,7 @@ def process_experiment_resource_levels(experiment: str) -> Dict[str, List]:
     result = {"resource_levels": [], "max_steps": 0}
 
     try:
-        experiment_path = f"results/one_of_a_kind/experiments/data/{experiment}"
+        experiment_path = f"results/one_of_a_kind_v1/experiments/data/{experiment}"
         if not os.path.exists(experiment_path):
             logger.error(f"Experiment directory not found: {experiment_path}")
             return result
@@ -2320,7 +2319,7 @@ def plot_resource_level_trends(resource_level_data: Dict[str, List], output_path
 
 
 def main():
-    base_path = Path("results/one_of_a_kind/experiments/data")
+    base_path = Path(EXPERIMENT_DATA_PATH)
     try:
         # Ensure base directory exists
         base_path.mkdir(parents=True, exist_ok=True)
@@ -2370,7 +2369,7 @@ def main():
             )
 
             # Create individual experiment resource consumption chart
-            experiment_path = f"results/one_of_a_kind/experiments/data/{experiment}"
+            experiment_path = f"results/one_of_a_kind_v1/experiments/data/{experiment}"
             if any(
                 consumption_data[agent_type]["consumption"]
                 for agent_type in consumption_data
@@ -2460,7 +2459,11 @@ def main():
         # Add generational fitness analysis
         logger.info(f"Running generational fitness analysis for experiment: {experiment}")
         try:
-            generational_fitness_results = generational_fitness_analysis.process_experiment_generational_fitness(experiment)
+            generational_fitness_results = generational_fitness_analysis.process_experiment_generational_fitness(
+                experiment,
+                data_path=EXPERIMENT_DATA_PATH,
+                analysis_path=EXPERIMENT_ANALYSIS_PATH
+            )
             logger.info(f"Completed generational fitness analysis for {experiment}")
         except Exception as e:
             logger.error(f"Error in generational fitness analysis for {experiment}: {str(e)}")
