@@ -1,535 +1,252 @@
 import logging
 import os
-from typing import Any, Dict, List, Tuple
-import numpy as np
-import pandas as pd
+from pathlib import Path
+from typing import Any, Dict, List
 
+from farm.analysis.comparative_analysis import plot_population_trends_across_simulations
+from farm.database.database import SimulationDatabase
+from farm.database.models import AgentModel
 from farm.research.analysis.database import (
     find_simulation_databases,
-    get_data,
+    get_action_distribution_data,
     get_columns_data_by_agent_type,
+    get_data,
     get_resource_consumption_data,
     get_resource_level_data,
-    get_action_distribution_data,
     get_rewards_by_generation,
 )
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+from farm.research.analysis.util import (
+    validate_population_data,
+    validate_resource_level_data,
 )
+from simple_research_analysis import EXPERIMENT_DATA_PATH
+
 logger = logging.getLogger(__name__)
-
-
-def create_population_df(
-    all_populations: List[np.ndarray], max_steps: int, is_resource_data: bool = False
-) -> pd.DataFrame:
-    """
-    Create a DataFrame from population data.
-
-    Args:
-        all_populations: List of population arrays
-        max_steps: Maximum number of steps
-        is_resource_data: Whether this is resource data
-
-    Returns:
-        DataFrame with population data
-    """
-    # Create a DataFrame with steps as index
-    df = pd.DataFrame(index=range(max_steps + 1))
-
-    # Add each population as a column
-    for i, population in enumerate(all_populations):
-        # Pad or truncate the population array to match max_steps
-        if len(population) < max_steps + 1:
-            padded = np.pad(
-                population,
-                (0, max_steps + 1 - len(population)),
-                mode="constant",
-                constant_values=np.nan,
-            )
-            df[f"{'resource' if is_resource_data else 'population'}_{i}"] = padded
-        else:
-            df[f"{'resource' if is_resource_data else 'population'}_{i}"] = population[
-                : max_steps + 1
-            ]
-
-    return df
-
-
-def calculate_statistics(
-    df: pd.DataFrame,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Calculate statistics from a DataFrame.
-
-    Args:
-        df: DataFrame with population data
-
-    Returns:
-        Tuple containing mean, median, lower CI, and upper CI arrays
-    """
-    # Calculate statistics across all simulations
-    mean = df.mean(axis=1).values
-    median = df.median(axis=1).values
-    std = df.std(axis=1).values
-
-    # Calculate 95% confidence interval
-    n = df.shape[1]  # Number of simulations
-    z = 1.96  # z-score for 95% confidence
-    ci_margin = z * std / np.sqrt(n)
-    lower_ci = mean - ci_margin
-    upper_ci = mean + ci_margin
-
-    return mean, median, lower_ci, upper_ci
-
-
-def validate_population_data(population: np.ndarray, db_path: str = None) -> bool:
-    """
-    Validate population data.
-
-    Args:
-        population: Population array
-        db_path: Path to the database
-
-    Returns:
-        True if data is valid, False otherwise
-    """
-    # Check for NaN values
-    if np.isnan(population).any():
-        if db_path:
-            logger.warning(f"NaN values found in population data from {db_path}")
-        return False
-
-    # Check for negative values
-    if (population < 0).any():
-        if db_path:
-            logger.warning(f"Negative values found in population data from {db_path}")
-        return False
-
-    # Check for unreasonably large values
-    if (population > 1000).any():
-        if db_path:
-            logger.warning(
-                f"Unreasonably large values found in population data from {db_path}"
-            )
-        return False
-
-    return True
-
-
-def validate_resource_level_data(
-    resource_levels: np.ndarray, db_path: str = None
-) -> bool:
-    """
-    Validate resource level data.
-
-    Args:
-        resource_levels: Resource level array
-        db_path: Path to the database
-
-    Returns:
-        True if data is valid, False otherwise
-    """
-    # Check for NaN values
-    if np.isnan(resource_levels).any():
-        if db_path:
-            logger.warning(f"NaN values found in resource level data from {db_path}")
-        return False
-
-    # Check for negative values
-    if (resource_levels < 0).any():
-        if db_path:
-            logger.warning(
-                f"Negative values found in resource level data from {db_path}"
-            )
-        return False
-
-    # Check for unreasonably large values
-    if (resource_levels > 10000).any():
-        if db_path:
-            logger.warning(
-                f"Unreasonably large values found in resource level data from {db_path}"
-            )
-        return False
-
-    return True
 
 
 def detect_early_terminations(
     db_paths: List[str], expected_steps: int = None
 ) -> Dict[str, Dict[str, Any]]:
     """
-    Detect simulations that terminated early.
+    Detect and analyze simulations that terminated earlier than expected.
 
     Args:
-        db_paths: List of paths to databases
-        expected_steps: Expected number of steps
+        db_paths: List of paths to simulation database files
+        expected_steps: Expected number of steps (if None, will use max steps found)
 
     Returns:
-        Dictionary with information about early terminations
+        Dictionary mapping database paths to termination analysis
     """
-    early_terminations = {}
+    logger.info(f"Analyzing {len(db_paths)} simulations for early termination")
 
-    # If expected_steps is not provided, find the maximum steps across all simulations
-    if expected_steps is None:
-        max_steps_list = []
-        for db_path in db_paths:
-            try:
-                _, _, max_step = get_data(db_path)
-                max_steps_list.append(max_step)
-            except Exception as e:
-                logger.error(f"Error getting data from {db_path}: {e}")
+    results = {}
+    all_step_counts = []
 
-        if max_steps_list:
-            expected_steps = max(max_steps_list)
-        else:
-            logger.error("Could not determine expected steps")
-            return early_terminations
-
-    # Check each simulation for early termination
+    # First pass: collect step counts for all simulations
     for db_path in db_paths:
         try:
-            steps, population, max_step = get_data(db_path)
-
-            if (
-                max_step < expected_steps * 0.9
-            ):  # Consider it early if less than 90% of expected
-                # Get the last population value
-                last_population = population[-1] if len(population) > 0 else 0
-
-                # Get the maximum population
-                max_population = np.max(population) if len(population) > 0 else 0
-
-                # Calculate the percentage of expected steps completed
-                completion_percentage = (max_step / expected_steps) * 100
-
-                early_terminations[db_path] = {
-                    "max_step": max_step,
-                    "expected_steps": expected_steps,
-                    "completion_percentage": completion_percentage,
-                    "last_population": last_population,
-                    "max_population": max_population,
-                }
+            steps, _, steps_count = get_data(db_path)
+            if steps is not None:
+                all_step_counts.append(steps_count)
+                results[db_path] = {"steps_completed": steps_count}
+            else:
+                logger.warning(f"Could not retrieve step data from {db_path}")
         except Exception as e:
-            logger.error(f"Error checking for early termination in {db_path}: {e}")
+            logger.error(f"Error analyzing {db_path}: {str(e)}")
 
+    if not all_step_counts:
+        logger.error("No valid step data found in any database")
+        return {}
+
+    # Determine expected step count if not provided
+    if expected_steps is None:
+        expected_steps = max(all_step_counts)
+        logger.info(
+            f"Using maximum observed steps ({expected_steps}) as expected duration"
+        )
+
+    # Set threshold for early termination (e.g., 90% of expected steps)
+    early_threshold = int(expected_steps * 0.9)
+
+    # Second pass: analyze early terminations
+    early_terminations = {}
+    for db_path, info in results.items():
+        steps_completed = info["steps_completed"]
+
+        # Check if this simulation ended early
+        if steps_completed < early_threshold:
+            try:
+                # Get final state data
+                steps, populations, _ = get_columns_data_by_agent_type(db_path)
+
+                if steps is None or not populations:
+                    logger.warning(f"Could not retrieve population data from {db_path}")
+                    continue
+
+                # Get resource consumption data
+                _, consumption, _ = get_resource_consumption_data(db_path)
+
+                # Analyze final state
+                final_state = {
+                    "steps_completed": steps_completed,
+                    "expected_steps": expected_steps,
+                    "completion_percentage": round(
+                        steps_completed / expected_steps * 100, 1
+                    ),
+                    "final_populations": {
+                        agent_type: (
+                            populations.get(f"{agent_type}_agents", [])[-1]
+                            if populations.get(f"{agent_type}_agents")
+                            else 0
+                        )
+                        for agent_type in ["system", "control", "independent"]
+                    },
+                    "total_final_population": sum(
+                        (
+                            populations.get(f"{agent_type}_agents", [])[-1]
+                            if populations.get(f"{agent_type}_agents")
+                            else 0
+                        )
+                        for agent_type in ["system", "control", "independent"]
+                    ),
+                    "resource_consumption": {
+                        agent_type: (
+                            consumption.get(agent_type, [])[-1]
+                            if agent_type in consumption and consumption[agent_type]
+                            else 0
+                        )
+                        for agent_type in ["system", "control", "independent"]
+                    },
+                }
+
+                # Determine likely cause of termination
+                if final_state["total_final_population"] == 0:
+                    final_state["likely_cause"] = "population_collapse"
+                elif (
+                    sum(final_state["resource_consumption"].values()) < 0.1
+                ):  # Near-zero resource consumption
+                    final_state["likely_cause"] = "resource_depletion"
+                else:
+                    final_state["likely_cause"] = "unknown"
+
+                early_terminations[db_path] = final_state
+
+            except Exception as e:
+                logger.error(
+                    f"Error analyzing early termination for {db_path}: {str(e)}"
+                )
+
+    logger.info(f"Found {len(early_terminations)} simulations that terminated early")
     return early_terminations
 
 
 def analyze_final_agent_counts(experiment_data: Dict[str, Dict]) -> Dict[str, Dict]:
     """
-    Analyze final agent counts across simulations.
+    Analyze the final agent counts by type across all simulations in an experiment.
 
     Args:
-        experiment_data: Dictionary with experiment data
+        experiment_data: Dictionary containing processed population data for each agent type
 
     Returns:
-        Dictionary with analysis results
+        Dictionary with summary statistics about final agent counts
     """
-    results = {}
+    logger.info("Analyzing final agent counts by agent type")
 
+    result = {
+        "system": {
+            "total": 0,
+            "mean": 0,
+            "median": 0,
+            "max": 0,
+            "min": 0,
+            "simulations": 0,
+        },
+        "control": {
+            "total": 0,
+            "mean": 0,
+            "median": 0,
+            "max": 0,
+            "min": 0,
+            "simulations": 0,
+        },
+        "independent": {
+            "total": 0,
+            "mean": 0,
+            "median": 0,
+            "max": 0,
+            "min": 0,
+            "simulations": 0,
+        },
+        "dominant_type_counts": {"system": 0, "control": 0, "independent": 0, "tie": 0},
+    }
+
+    # Count valid simulations for each agent type
+    valid_simulations = 0
+
+    # Extract final population values for each simulation
+    final_populations = {"system": [], "control": [], "independent": []}
+
+    # Process each agent type's data
     for agent_type, data in experiment_data.items():
-        populations = data.get("populations", [])
-        if not populations:
+        if not data["populations"] or len(data["populations"]) == 0:
+            logger.warning(f"No valid population data for {agent_type} agents")
             continue
 
-        # Get final counts for each simulation
-        final_counts = []
-        for population in populations:
+        # Extract final population count from each simulation
+        for population in data["populations"]:
             if len(population) > 0:
-                final_counts.append(population[-1])
+                final_populations[agent_type].append(population[-1])
 
-        if not final_counts:
-            continue
+    # Count simulations where we have data for all agent types
+    simulation_count = min(
+        len(final_populations["system"]),
+        len(final_populations["control"]),
+        len(final_populations["independent"]),
+    )
 
-        # Calculate statistics
-        mean = np.mean(final_counts)
-        median = np.median(final_counts)
-        std = np.std(final_counts)
-        min_count = np.min(final_counts)
-        max_count = np.max(final_counts)
+    if simulation_count == 0:
+        logger.warning("No simulations with complete agent type data")
+        return result
 
-        # Calculate 95% confidence interval
-        n = len(final_counts)
-        z = 1.96  # z-score for 95% confidence
-        ci_margin = z * std / np.sqrt(n)
-        lower_ci = mean - ci_margin
-        upper_ci = mean + ci_margin
-
-        # Calculate survival rate (percentage of simulations with non-zero final count)
-        survival_rate = (np.array(final_counts) > 0).mean() * 100
-
-        results[agent_type] = {
-            "mean": mean,
-            "median": median,
-            "std": std,
-            "min": min_count,
-            "max": max_count,
-            "lower_ci": lower_ci,
-            "upper_ci": upper_ci,
-            "survival_rate": survival_rate,
-            "sample_size": n,
+    # Determine dominant agent type for each simulation
+    for i in range(simulation_count):
+        counts = {
+            "system": (
+                final_populations["system"][i]
+                if i < len(final_populations["system"])
+                else 0
+            ),
+            "control": (
+                final_populations["control"][i]
+                if i < len(final_populations["control"])
+                else 0
+            ),
+            "independent": (
+                final_populations["independent"][i]
+                if i < len(final_populations["independent"])
+                else 0
+            ),
         }
 
-    return results
+        # Find the dominant type
+        max_count = max(counts.values())
+        dominant_types = [t for t, c in counts.items() if c == max_count]
 
+        if len(dominant_types) > 1:
+            result["dominant_type_counts"]["tie"] += 1
+        else:
+            result["dominant_type_counts"][dominant_types[0]] += 1
 
-def process_experiment(agent_type: str, experiment: str) -> Dict[str, List]:
-    """
-    Process population data for a single experiment.
-
-    Args:
-        agent_type: Agent type
-        experiment: Experiment path
-
-    Returns:
-        Dictionary with processed data
-    """
-    result = {"populations": [], "max_steps": 0}
-
-    # Find all database files for this experiment
-    db_path = f"results/one_of_a_kind/experiments/data/{experiment}/{agent_type}"
-    db_paths = find_simulation_databases(db_path)
-
-    if not db_paths:
-        logger.warning(f"No database files found for {agent_type} in {experiment}")
-        return result
-
-    # Process each database
-    for db_path in db_paths:
-        try:
-            # Get population data
-            steps, population, max_step = get_data(db_path)
-
-            # Validate data
-            if validate_population_data(population, db_path):
-                result["populations"].append(population)
-                result["max_steps"] = max(result["max_steps"], max_step)
-        except Exception as e:
-            logger.error(f"Error processing {db_path}: {e}")
-
-    return result
-
-
-def find_experiments(base_path: str) -> Dict[str, List[str]]:
-    """
-    Find all experiments in the base path.
-
-    Args:
-        base_path: Base path to search in
-
-    Returns:
-        Dictionary mapping agent types to experiment paths
-    """
-    experiments = {}
-
-    # Find all directories in the base path
-    for item in os.listdir(base_path):
-        item_path = os.path.join(base_path, item)
-        if os.path.isdir(item_path):
-            # Check if this is an agent type directory
-            agent_types = []
-            for subitem in os.listdir(item_path):
-                subitem_path = os.path.join(item_path, subitem)
-                if os.path.isdir(subitem_path):
-                    agent_types.append(subitem)
-
-            if agent_types:
-                # This is an experiment directory
-                for agent_type in agent_types:
-                    if agent_type not in experiments:
-                        experiments[agent_type] = []
-                    experiments[agent_type].append(item)
-
-    return experiments
-
-
-def process_experiment_by_agent_type(experiment: str) -> Dict[str, Dict]:
-    """
-    Process population data by agent type for a single experiment.
-
-    Args:
-        experiment: Experiment path
-
-    Returns:
-        Dictionary with processed data by agent type
-    """
-    result = {}
-
-    # Find all database files for this experiment
-    db_path = f"results/one_of_a_kind/experiments/data/{experiment}"
-    db_paths = find_simulation_databases(db_path)
-
-    if not db_paths:
-        logger.warning(f"No database files found for {experiment}")
-        return result
-
-    # Process each database
-    for db_path in db_paths:
-        try:
-            # Get population data by agent type
-            steps, data_by_agent_type, max_step = get_columns_data_by_agent_type(
-                db_path
-            )
-
-            # Process each agent type
-            for agent_type, population in data_by_agent_type.items():
-                # Validate data
-                if validate_population_data(population, db_path):
-                    if agent_type not in result:
-                        result[agent_type] = {"populations": [], "max_steps": 0}
-
-                    result[agent_type]["populations"].append(population)
-                    result[agent_type]["max_steps"] = max(
-                        result[agent_type]["max_steps"], max_step
-                    )
-        except Exception as e:
-            logger.error(f"Error processing {db_path}: {e}")
-
-    return result
-
-
-def process_experiment_resource_consumption(experiment: str) -> Dict[str, Dict]:
-    """
-    Process resource consumption data for a single experiment.
-
-    Args:
-        experiment: Experiment path
-
-    Returns:
-        Dictionary with processed data
-    """
-    result = {}
-
-    # Find all database files for this experiment
-    db_path = f"results/one_of_a_kind/experiments/data/{experiment}"
-    db_paths = find_simulation_databases(db_path)
-
-    if not db_paths:
-        logger.warning(f"No database files found for {experiment}")
-        return result
-
-    # Process each database
-    for db_path in db_paths:
-        try:
-            # Get resource consumption data by agent type
-            steps, data_by_agent_type, max_step = get_resource_consumption_data(db_path)
-
-            # Process each agent type
-            for agent_type, consumption in data_by_agent_type.items():
-                # Validate data
-                if validate_population_data(consumption, db_path):
-                    if agent_type not in result:
-                        result[agent_type] = {"consumption": [], "max_steps": 0}
-
-                    result[agent_type]["consumption"].append(consumption)
-                    result[agent_type]["max_steps"] = max(
-                        result[agent_type]["max_steps"], max_step
-                    )
-        except Exception as e:
-            logger.error(f"Error processing {db_path}: {e}")
-
-    return result
-
-
-def process_action_distributions(
-    experiment: str,
-) -> Dict[str, Dict[str, Dict[str, float]]]:
-    """
-    Process action distribution data for a single experiment.
-
-    Args:
-        experiment: Experiment path
-
-    Returns:
-        Dictionary with processed data
-    """
-    result = {"simulations": {}, "aggregated": {}}
-
-    # Find all database files for this experiment
-    db_path = f"results/one_of_a_kind/experiments/data/{experiment}"
-    db_paths = find_simulation_databases(db_path)
-
-    if not db_paths:
-        logger.warning(f"No database files found for {experiment}")
-        return result
-
-    # Process each database
-    for i, db_path in enumerate(db_paths):
-        try:
-            # Get action distribution data
-            action_data = get_action_distribution_data(db_path)
-
-            # Store data for this simulation
-            sim_name = f"sim_{i}"
-            result["simulations"][sim_name] = {}
-
-            # Process each agent type
-            for agent_type, actions in action_data.items():
-                if agent_type not in result["aggregated"]:
-                    result["aggregated"][agent_type] = {}
-
-                # Calculate percentages for this simulation
-                total_actions = sum(actions.values())
-                if total_actions > 0:
-                    percentages = {
-                        action: count / total_actions * 100
-                        for action, count in actions.items()
-                    }
-                    result["simulations"][sim_name][agent_type] = percentages
-
-                    # Update aggregated data
-                    for action, count in actions.items():
-                        if action not in result["aggregated"][agent_type]:
-                            result["aggregated"][agent_type][action] = 0
-                        result["aggregated"][agent_type][action] += count
-        except Exception as e:
-            logger.error(f"Error processing {db_path}: {e}")
-
-    # Calculate percentages for aggregated data
-    for agent_type, actions in result["aggregated"].items():
-        total_actions = sum(actions.values())
-        if total_actions > 0:
-            result["aggregated"][agent_type] = {
-                action: count / total_actions * 100 for action, count in actions.items()
-            }
-
-    return result
-
-
-def process_experiment_resource_levels(experiment: str) -> Dict[str, List]:
-    """
-    Process resource level data for a single experiment.
-
-    Args:
-        experiment: Experiment path
-
-    Returns:
-        Dictionary with processed data
-    """
-    result = {"resource_levels": [], "max_steps": 0}
-
-    # Find all database files for this experiment
-    db_path = f"results/one_of_a_kind/experiments/data/{experiment}"
-    db_paths = find_simulation_databases(db_path)
-
-    if not db_paths:
-        logger.warning(f"No database files found for {experiment}")
-        return result
-
-    # Process each database
-    for db_path in db_paths:
-        try:
-            # Get resource level data
-            steps, resource_levels, max_step = get_resource_level_data(db_path)
-
-            # Validate data
-            if validate_resource_level_data(resource_levels, db_path):
-                result["resource_levels"].append(resource_levels)
-                result["max_steps"] = max(result["max_steps"], max_step)
-        except Exception as e:
-            logger.error(f"Error processing {db_path}: {e}")
+    # Calculate statistics for each agent type
+    for agent_type in ["system", "control", "independent"]:
+        if final_populations[agent_type]:
+            values = final_populations[agent_type]
+            result[agent_type]["total"] = sum(values)
+            result[agent_type]["mean"] = sum(values) / len(values)
+            result[agent_type]["median"] = sorted(values)[len(values) // 2]
+            result[agent_type]["max"] = max(values)
+            result[agent_type]["min"] = min(values)
+            result[agent_type]["simulations"] = len(values)
 
     return result
 
@@ -537,36 +254,564 @@ def process_experiment_resource_levels(experiment: str) -> Dict[str, List]:
 def process_experiment_rewards_by_generation(
     experiment: str,
 ) -> Dict[str, Dict[int, float]]:
+    #! refactor
     """
-    Process rewards by generation for a single experiment.
+    Process reward data by generation for each agent type in an experiment.
 
     Args:
-        experiment: Experiment path
+        experiment: Name of the experiment
 
     Returns:
-        Dictionary with processed data
+        Dictionary containing reward data by generation for each agent type
     """
-    result = {"simulations": {}}
+    logger.info(f"Processing rewards by generation for experiment: {experiment}")
 
-    # Find all database files for this experiment
-    db_path = f"results/one_of_a_kind/experiments/data/{experiment}"
-    db_paths = find_simulation_databases(db_path)
+    result = {
+        "system": {},
+        "control": {},
+        "independent": {},
+    }
 
-    if not db_paths:
-        logger.warning(f"No database files found for {experiment}")
+    try:
+        experiment_path = os.path.join(EXPERIMENT_DATA_PATH, experiment)
+        if not os.path.exists(experiment_path):
+            logger.error(f"Experiment directory not found: {experiment_path}")
+            return result
+
+        db_paths = find_simulation_databases(experiment_path)
+        if not db_paths:
+            logger.error(f"No database files found in {experiment_path}")
+            return result
+
+        valid_dbs = 0
+        failed_dbs = 0
+
+        # Temporary storage for aggregating data across simulations
+        all_rewards = {"system": {}, "control": {}, "independent": {}}
+        reward_counts = {"system": {}, "control": {}, "independent": {}}
+
+        for db_path in db_paths:
+            try:
+                # Get rewards by generation for all agents
+                rewards_by_generation = get_rewards_by_generation(db_path)
+
+                if not rewards_by_generation:
+                    failed_dbs += 1
+                    continue
+
+                # Get agent types for each generation
+                db = SimulationDatabase(db_path)
+                session = db.Session()
+
+                # Query to get generations and their agent types
+                gen_types = (
+                    session.query(AgentModel.generation, AgentModel.agent_type)
+                    .distinct()
+                    .all()
+                )
+
+                session.close()
+                db.close()
+
+                # Map generations to agent types
+                gen_to_type = {}
+                for gen, agent_type in gen_types:
+                    # Normalize agent type names
+                    if agent_type in ["system", "SystemAgent"]:
+                        type_key = "system"
+                    elif agent_type in ["control", "ControlAgent"]:
+                        type_key = "control"
+                    elif agent_type in ["independent", "IndependentAgent"]:
+                        type_key = "independent"
+                    else:
+                        continue
+
+                    gen_to_type[gen] = type_key
+
+                # Aggregate rewards by agent type and generation
+                for gen, reward in rewards_by_generation.items():
+                    if gen in gen_to_type:
+                        agent_type = gen_to_type[gen]
+
+                        if gen not in all_rewards[agent_type]:
+                            all_rewards[agent_type][gen] = 0
+                            reward_counts[agent_type][gen] = 0
+
+                        all_rewards[agent_type][gen] += reward
+                        reward_counts[agent_type][gen] += 1
+
+                valid_dbs += 1
+
+            except Exception as e:
+                logger.error(f"Error processing database {db_path}: {str(e)}")
+                failed_dbs += 1
+
+        # Calculate average rewards across all simulations
+        for agent_type in result:
+            for gen in all_rewards[agent_type]:
+                if reward_counts[agent_type][gen] > 0:
+                    result[agent_type][gen] = (
+                        all_rewards[agent_type][gen] / reward_counts[agent_type][gen]
+                    )
+
+        if valid_dbs == 0:
+            logger.error(
+                f"No valid reward data found in experiment {experiment}. "
+                f"All {failed_dbs} databases were corrupted or invalid."
+            )
+            return result
+
+        logger.info(
+            f"Successfully processed reward data from {valid_dbs} databases. "
+            f"Skipped {failed_dbs} corrupted/invalid databases."
+        )
+
         return result
 
-    # Process each database
-    for i, db_path in enumerate(db_paths):
-        try:
-            # Get rewards by generation
-            rewards = get_rewards_by_generation(db_path)
+    except Exception as e:
+        logger.error(
+            f"Unexpected error processing rewards by generation for {experiment}: {str(e)}"
+        )
+        return result
 
-            if rewards:
-                # Store data for this simulation
-                sim_name = f"sim_{i}"
-                result["simulations"][sim_name] = rewards
-        except Exception as e:
-            logger.error(f"Error processing {db_path}: {e}")
 
-    return result
+def process_experiment(agent_type: str, experiment: str) -> Dict[str, List]:
+    """
+    Process experiment data with comprehensive error handling.
+
+    Args:
+        agent_type: Type of agent being analyzed
+        experiment: Name of the experiment
+
+    Returns:
+        Dictionary containing processed population data and metadata
+    """
+    logger.info(f"Processing experiment: {experiment}")
+
+    try:
+        experiment_path = os.path.join(EXPERIMENT_DATA_PATH, experiment)
+        if not os.path.exists(experiment_path):
+            logger.error(f"Experiment directory not found: {experiment_path}")
+            return {"populations": [], "max_steps": 0}
+
+        db_paths = find_simulation_databases(experiment_path)
+        if not db_paths:
+            logger.error(f"No database files found in {experiment_path}")
+            return {"populations": [], "max_steps": 0}
+
+        all_populations = []
+        max_steps = 0
+        valid_dbs = 0
+        failed_dbs = 0
+
+        for db_path in db_paths:
+            try:
+                steps, pop, steps_count = get_data(db_path)
+                if steps is not None and pop is not None:
+                    # Validate population data
+                    if not validate_population_data(pop, db_path):
+                        failed_dbs += 1
+                        continue
+
+                    all_populations.append(pop)
+                    max_steps = max(max_steps, steps_count)
+                    valid_dbs += 1
+                else:
+                    failed_dbs += 1
+            except Exception as e:
+                logger.error(f"Error processing database {db_path}: {str(e)}")
+                failed_dbs += 1
+
+        if not all_populations:
+            logger.error(
+                f"No valid data found in experiment {experiment}. "
+                f"All {failed_dbs} databases were corrupted or invalid."
+            )
+            return {"populations": [], "max_steps": 0}
+
+        logger.info(
+            f"Successfully processed {valid_dbs} databases. "
+            f"Skipped {failed_dbs} corrupted/invalid databases."
+        )
+
+        # Only create plot if we have valid data
+        if valid_dbs > 0:
+            try:
+                output_path = Path(experiment_path) / "population_trends.png"
+                plot_population_trends_across_simulations(
+                    all_populations,
+                    max_steps,
+                    str(output_path),
+                )
+            except Exception as e:
+                logger.error(f"Error creating plot for {experiment}: {str(e)}")
+
+        return {"populations": all_populations, "max_steps": max_steps}
+
+    except Exception as e:
+        logger.error(f"Unexpected error processing experiment {experiment}: {str(e)}")
+        return {"populations": [], "max_steps": 0}
+
+
+def find_experiments(base_path: str) -> Dict[str, List[str]]:
+    """Find all experiment directories and their iterations."""
+    base = Path(base_path)
+    experiments = {
+        "single_agent": {},  # For single_*_agent experiments
+        "one_of_a_kind": [],  # For one_of_a_kind experiments
+    }
+
+    # Look for directories that match the pattern single_*_agent_*
+    for exp_dir in base.glob("single_*_agent_*"):
+        if exp_dir.is_dir():
+            agent_type = exp_dir.name.split("_")[1]  # Extract 'system', 'control', etc.
+            if agent_type not in experiments["single_agent"]:
+                experiments["single_agent"][agent_type] = []
+            experiments["single_agent"][agent_type].append(exp_dir.name)
+
+    # Look for directories that match the pattern one_of_a_kind_*
+    for exp_dir in base.glob("one_of_a_kind_*"):
+        if exp_dir.is_dir():
+            experiments["one_of_a_kind"].append(exp_dir.name)
+
+    return experiments
+
+
+def process_experiment_by_agent_type(experiment: str) -> Dict[str, Dict]:
+    """
+    Process experiment data separated by agent type.
+
+    Args:
+        experiment: Name of the experiment
+
+    Returns:
+        Dictionary containing processed population data for each agent type
+    """
+    logger.info(f"Processing experiment by agent type: {experiment}")
+
+    result = {
+        "system": {"populations": [], "max_steps": 0},
+        "control": {"populations": [], "max_steps": 0},
+        "independent": {"populations": [], "max_steps": 0},
+    }
+
+    try:
+        experiment_path = f"results/one_of_a_kind_v1/experiments/data/{experiment}"
+        if not os.path.exists(experiment_path):
+            logger.error(f"Experiment directory not found: {experiment_path}")
+            return result
+
+        db_paths = find_simulation_databases(experiment_path)
+        if not db_paths:
+            logger.error(f"No database files found in {experiment_path}")
+            return result
+
+        max_steps = 0
+        valid_dbs = 0
+        failed_dbs = 0
+
+        # Temporary storage for populations from each database
+        temp_populations = {"system": [], "control": [], "independent": []}
+
+        for db_path in db_paths:
+            try:
+                steps, pops, steps_count = get_columns_data_by_agent_type(db_path)
+                if steps is not None and pops:
+                    # Validate population data for each agent type
+                    valid_data = True
+                    for agent_type, pop in zip(
+                        ["system", "control", "independent"],
+                        ["system_agents", "control_agents", "independent_agents"],
+                    ):
+                        if pop in pops and validate_population_data(pops[pop], db_path):
+                            temp_populations[agent_type].append(pops[pop])
+                        else:
+                            valid_data = False
+                            break
+
+                    if valid_data:
+                        max_steps = max(max_steps, steps_count)
+                        valid_dbs += 1
+                    else:
+                        failed_dbs += 1
+                else:
+                    failed_dbs += 1
+            except Exception as e:
+                logger.error(f"Error processing database {db_path}: {str(e)}")
+                failed_dbs += 1
+
+        # Combine results
+        for agent_type in result:
+            result[agent_type]["populations"] = temp_populations[agent_type]
+            result[agent_type]["max_steps"] = max_steps
+
+        if valid_dbs == 0:
+            logger.error(
+                f"No valid data found in experiment {experiment}. "
+                f"All {failed_dbs} databases were corrupted or invalid."
+            )
+            return result
+
+        logger.info(
+            f"Successfully processed {valid_dbs} databases. "
+            f"Skipped {failed_dbs} corrupted/invalid databases."
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Unexpected error processing experiment {experiment}: {str(e)}")
+        return result
+
+
+def process_experiment_resource_consumption(experiment: str) -> Dict[str, Dict]:
+    """
+    Process experiment resource consumption data separated by agent type.
+
+    Args:
+        experiment: Name of the experiment
+
+    Returns:
+        Dictionary containing processed consumption data for each agent type
+    """
+    logger.info(f"Processing resource consumption for experiment: {experiment}")
+
+    result = {
+        "system": {"consumption": [], "max_steps": 0},
+        "control": {"consumption": [], "max_steps": 0},
+        "independent": {"consumption": [], "max_steps": 0},
+    }
+
+    try:
+        experiment_path = f"results/one_of_a_kind_v1/experiments/data/{experiment}"
+        if not os.path.exists(experiment_path):
+            logger.error(f"Experiment directory not found: {experiment_path}")
+            return result
+
+        db_paths = find_simulation_databases(experiment_path)
+        if not db_paths:
+            logger.error(f"No database files found in {experiment_path}")
+            return result
+
+        max_steps = 0
+        valid_dbs = 0
+        failed_dbs = 0
+
+        # Temporary storage for consumption from each database
+        temp_consumption = {"system": [], "control": [], "independent": []}
+
+        for db_path in db_paths:
+            try:
+                steps, consumption, steps_count = get_resource_consumption_data(db_path)
+                if steps is not None and consumption:
+                    # Validate consumption data for each agent type
+                    valid_data = True
+                    for agent_type in ["system", "control", "independent"]:
+                        if (
+                            agent_type in consumption
+                            and len(consumption[agent_type]) > 0
+                        ):
+                            temp_consumption[agent_type].append(consumption[agent_type])
+                        else:
+                            logger.warning(
+                                f"Missing consumption data for {agent_type} in {db_path}"
+                            )
+                            valid_data = False
+                            break
+
+                    if valid_data:
+                        max_steps = max(max_steps, steps_count)
+                        valid_dbs += 1
+                    else:
+                        failed_dbs += 1
+                else:
+                    failed_dbs += 1
+            except Exception as e:
+                logger.error(f"Error processing database {db_path}: {str(e)}")
+                failed_dbs += 1
+
+        # Combine results
+        for agent_type in result:
+            result[agent_type]["consumption"] = temp_consumption[agent_type]
+            result[agent_type]["max_steps"] = max_steps
+
+        if valid_dbs == 0:
+            logger.error(
+                f"No valid consumption data found in experiment {experiment}. "
+                f"All {failed_dbs} databases were corrupted or invalid."
+            )
+            return result
+
+        logger.info(
+            f"Successfully processed consumption data from {valid_dbs} databases. "
+            f"Skipped {failed_dbs} corrupted/invalid databases."
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(
+            f"Unexpected error processing consumption data for {experiment}: {str(e)}"
+        )
+        return result
+
+
+def process_action_distributions(
+    experiment: str,
+) -> Dict[str, Dict[str, Dict[str, float]]]:
+    """
+    Process action distribution data for an experiment.
+
+    Args:
+        experiment: Name of the experiment
+
+    Returns:
+        Dictionary containing processed action distribution data for each agent type
+    """
+    logger.info(f"Processing action distributions for experiment: {experiment}")
+
+    result = {
+        "system": {"actions": {}, "total_actions": 0},
+        "control": {"actions": {}, "total_actions": 0},
+        "independent": {"actions": {}, "total_actions": 0},
+    }
+
+    try:
+        experiment_path = f"results/one_of_a_kind_v1/experiments/data/{experiment}"
+        if not os.path.exists(experiment_path):
+            logger.error(f"Experiment directory not found: {experiment_path}")
+            return result
+
+        db_paths = find_simulation_databases(experiment_path)
+        if not db_paths:
+            logger.error(f"No database files found in {experiment_path}")
+            return result
+
+        valid_dbs = 0
+        failed_dbs = 0
+
+        # Process each database
+        for db_path in db_paths:
+            try:
+                action_data = get_action_distribution_data(db_path)
+                if action_data:
+                    # Aggregate action counts across databases
+                    for agent_type, actions in action_data.items():
+                        # Map database agent_type to our standard types
+                        if agent_type == "system" or agent_type == "SystemAgent":
+                            type_key = "system"
+                        elif agent_type == "control" or agent_type == "ControlAgent":
+                            type_key = "control"
+                        elif (
+                            agent_type == "independent"
+                            or agent_type == "IndependentAgent"
+                        ):
+                            type_key = "independent"
+                        else:
+                            logger.warning(f"Unknown agent type: {agent_type}")
+                            continue
+
+                        # Add action counts to our aggregated results
+                        for action, count in actions.items():
+                            if action not in result[type_key]["actions"]:
+                                result[type_key]["actions"][action] = 0
+                            result[type_key]["actions"][action] += count
+                            result[type_key]["total_actions"] += count
+
+                    valid_dbs += 1
+                else:
+                    failed_dbs += 1
+            except Exception as e:
+                logger.error(f"Error processing database {db_path}: {str(e)}")
+                failed_dbs += 1
+
+        # Calculate percentages
+        for agent_type in result:
+            if result[agent_type]["total_actions"] > 0:
+                for action in result[agent_type]["actions"]:
+                    result[agent_type]["actions"][action] = (
+                        result[agent_type]["actions"][action]
+                        / result[agent_type]["total_actions"]
+                    )
+
+        logger.info(
+            f"Successfully processed action distributions from {valid_dbs} databases. "
+            f"Skipped {failed_dbs} corrupted/invalid databases."
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(
+            f"Unexpected error processing action distributions for {experiment}: {str(e)}"
+        )
+        return result
+
+
+def process_experiment_resource_levels(experiment: str) -> Dict[str, List]:
+    """
+    Process resource level data for an experiment.
+
+    Args:
+        experiment: Name of the experiment
+
+    Returns:
+        Dictionary containing processed resource level data
+    """
+    logger.info(f"Processing resource level data for experiment: {experiment}")
+
+    result = {"resource_levels": [], "max_steps": 0}
+
+    try:
+        experiment_path = f"results/one_of_a_kind_v1/experiments/data/{experiment}"
+        if not os.path.exists(experiment_path):
+            logger.error(f"Experiment directory not found: {experiment_path}")
+            return result
+
+        db_paths = find_simulation_databases(experiment_path)
+        if not db_paths:
+            logger.error(f"No database files found in {experiment_path}")
+            return result
+
+        max_steps = 0
+        valid_dbs = 0
+        failed_dbs = 0
+
+        for db_path in db_paths:
+            try:
+                steps, resource_levels, steps_count = get_resource_level_data(db_path)
+                if steps is not None and resource_levels is not None:
+                    # Use the specialized validation function for resource levels
+                    if validate_resource_level_data(resource_levels, db_path):
+                        result["resource_levels"].append(resource_levels)
+                        max_steps = max(max_steps, steps_count)
+                        valid_dbs += 1
+                    else:
+                        failed_dbs += 1
+                else:
+                    failed_dbs += 1
+            except Exception as e:
+                logger.error(f"Error processing database {db_path}: {str(e)}")
+                failed_dbs += 1
+
+        result["max_steps"] = max_steps
+
+        if valid_dbs == 0:
+            logger.error(
+                f"No valid resource level data found in experiment {experiment}. "
+                f"All {failed_dbs} databases were corrupted or invalid."
+            )
+            return result
+
+        logger.info(
+            f"Successfully processed resource level data from {valid_dbs} databases. "
+            f"Skipped {failed_dbs} corrupted/invalid databases."
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(
+            f"Unexpected error processing resource level data for {experiment}: {str(e)}"
+        )
+        return result
