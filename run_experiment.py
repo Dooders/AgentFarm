@@ -4,6 +4,7 @@ Script to run simulation experiments with different configurations.
 
 #! why is experiments folder still being created for each experiment?
 
+import argparse
 import logging
 import os
 import time
@@ -139,9 +140,50 @@ class Research:
 
 def main():
     """Run research project testing individual agent types."""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Run simulation experiments")
+    parser.add_argument(
+        "--name", 
+        type=str, 
+        default="one_of_a_kind",
+        help="Name of the research project"
+    )
+    parser.add_argument(
+        "--description", 
+        type=str, 
+        default="Experiments with different agent configurations",
+        help="Description of the research project"
+    )
+    parser.add_argument(
+        "--iterations", 
+        type=int, 
+        default=100,
+        help="Number of iterations per experiment"
+    )
+    parser.add_argument(
+        "--steps", 
+        type=int, 
+        default=1000,
+        help="Number of steps per iteration"
+    )
+    parser.add_argument(
+        "--in-memory", 
+        action="store_true",
+        help="Use in-memory database for improved performance"
+    )
+    parser.add_argument(
+        "--memory-limit", 
+        type=int, 
+        default=None,
+        help="Memory limit in MB for in-memory database (None = no limit)"
+    )
+    
+    args = parser.parse_args()
+    
+    # Create research project
     research = Research(
-        name="one_of_a_kind",
-        description="3 experiments with 100 iterations and 1000 steps, each with a different agent type (1 control, 1 system, 1 independent)",
+        name=args.name,
+        description=args.description,
     )
 
     # Create experiments for each agent type
@@ -149,34 +191,58 @@ def main():
         ExperimentConfig(
             name="single_control_agent",
             variations=[
-                {"control_agents": 1, "system_agents": 0, "independent_agents": 0}
+                {
+                    "control_agents": 1, 
+                    "system_agents": 0, 
+                    "independent_agents": 0,
+                    "use_in_memory_db": args.in_memory,
+                    "in_memory_db_memory_limit_mb": args.memory_limit,
+                }
             ],
-            num_iterations=100,
-            num_steps=1000,
+            num_iterations=args.iterations,
+            num_steps=args.steps,
         ),
         ExperimentConfig(
             name="single_system_agent",
             variations=[
-                {"control_agents": 0, "system_agents": 1, "independent_agents": 0}
+                {
+                    "control_agents": 0, 
+                    "system_agents": 1, 
+                    "independent_agents": 0,
+                    "use_in_memory_db": args.in_memory,
+                    "in_memory_db_memory_limit_mb": args.memory_limit,
+                }
             ],
-            num_iterations=100,
-            num_steps=1000,
+            num_iterations=args.iterations,
+            num_steps=args.steps,
         ),
         ExperimentConfig(
             name="single_independent_agent",
             variations=[
-                {"control_agents": 0, "system_agents": 0, "independent_agents": 1}
+                {
+                    "control_agents": 0, 
+                    "system_agents": 0, 
+                    "independent_agents": 1,
+                    "use_in_memory_db": args.in_memory,
+                    "in_memory_db_memory_limit_mb": args.memory_limit,
+                }
             ],
-            num_iterations=100,
-            num_steps=1000,
+            num_iterations=args.iterations,
+            num_steps=args.steps,
         ),
         ExperimentConfig(
             name="one_of_a_kind",
             variations=[
-                {"control_agents": 1, "system_agents": 1, "independent_agents": 1}
+                {
+                    "control_agents": 1, 
+                    "system_agents": 1, 
+                    "independent_agents": 1,
+                    "use_in_memory_db": args.in_memory,
+                    "in_memory_db_memory_limit_mb": args.memory_limit,
+                }
             ],
-            num_iterations=100,
-            num_steps=1000,
+            num_iterations=args.iterations,
+            num_steps=args.steps,
         ),
     ]
 

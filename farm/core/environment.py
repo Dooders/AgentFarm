@@ -20,6 +20,10 @@ logger = logging.getLogger(__name__)
 
 
 def setup_db(db_path):
+    # Skip setup for in-memory database (when db_path is None)
+    if db_path is None:
+        return
+        
     # Try to clean up any existing database connections first
     try:
         import sqlite3
@@ -58,7 +62,14 @@ class Environment:
         self.agents = []
         self.resources = []
         self.time = 0
-        self.db = SimulationDatabase(db_path)
+        
+        # Only initialize database if db_path is provided (not for in-memory DB)
+        if db_path is not None:
+            self.db = SimulationDatabase(db_path)
+        else:
+            # Will be set to InMemorySimulationDatabase later
+            self.db = None
+            
         self.seed = ShortUUID()
         self.next_resource_id = 0
         # self.max_resource = max_resource or (config.max_resource_amount if config else None)
@@ -473,7 +484,7 @@ class Environment:
     def cleanup(self):
         """Clean up environment resources."""
         try:
-            if self.db:
+            if hasattr(self, 'db') and self.db is not None:
                 # Use logger for buffer flushing
                 if hasattr(self.db, "logger"):
                     self.db.logger.flush_all_buffers()

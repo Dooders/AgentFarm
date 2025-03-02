@@ -52,6 +52,22 @@ def main():
         action="store_true",
         help="Disable automatic SnakeViz visualization when profiling",
     )
+    parser.add_argument(
+        "--in-memory",
+        action="store_true",
+        help="Use in-memory database for improved performance",
+    )
+    parser.add_argument(
+        "--memory-limit",
+        type=int,
+        default=None,
+        help="Memory limit in MB for in-memory database (None = no limit)",
+    )
+    parser.add_argument(
+        "--no-persist",
+        action="store_true",
+        help="Don't persist in-memory database to disk after simulation",
+    )
     args = parser.parse_args()
 
     # Ensure simulations directory exists
@@ -62,6 +78,17 @@ def main():
     try:
         config = SimulationConfig.from_yaml(args.config)
         print(f"Loaded configuration from {args.config}")
+        
+        # Apply in-memory database settings if requested
+        if args.in_memory:
+            config.use_in_memory_db = True
+            config.in_memory_db_memory_limit_mb = args.memory_limit
+            config.persist_db_on_completion = not args.no_persist
+            print("Using in-memory database for improved performance")
+            if args.memory_limit:
+                print(f"Memory limit: {args.memory_limit} MB")
+            if args.no_persist:
+                print("Warning: In-memory database will not be persisted to disk")
     except Exception as e:
         print(f"Failed to load configuration: {e}")
         return

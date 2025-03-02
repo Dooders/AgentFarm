@@ -134,32 +134,63 @@ def run_simulation(
     logging.info(f"Configuration: {config}")
 
     try:
-        # Clean up any existing database file
-        db_path = f"{path}/simulation.db"
-        if os.path.exists(db_path):
-            try:
-                os.remove(db_path)
-            except PermissionError:
-                # If can't remove, create unique filename
-                base, ext = os.path.splitext(db_path)
-                db_path = f"{base}_{int(time.time())}{ext}"
-                logging.warning(f"Using alternative database path: {db_path}")
+        # Set up database path (None if path is None)
+        db_path = f"{path}/simulation.db" if path is not None else None
+        
+        # Handle in-memory database configuration
+        if config.use_in_memory_db:
+            logging.info("Using in-memory database for improved performance")
+            from farm.database.database import InMemorySimulationDatabase
+            
+            # Create environment with in-memory database
+            environment = Environment(
+                width=config.width,
+                height=config.height,
+                resource_distribution={
+                    "type": "random",
+                    "amount": config.initial_resources,
+                },
+                db_path=None,  # Will be ignored for in-memory DB
+                config=config,
+            )
+            
+            # Replace the default database with in-memory database
+            if hasattr(environment, 'db') and environment.db is not None:
+                environment.db.close()
+            
+            # Initialize in-memory database with optional memory limit
+            environment.db = InMemorySimulationDatabase(
+                memory_limit_mb=config.in_memory_db_memory_limit_mb
+            )
+            
+        else:
+            # Clean up any existing database file for disk-based DB
+            if os.path.exists(db_path):
+                try:
+                    os.remove(db_path)
+                except PermissionError:
+                    # If can't remove, create unique filename
+                    base, ext = os.path.splitext(db_path)
+                    db_path = f"{base}_{int(time.time())}{ext}"
+                    logging.warning(f"Using alternative database path: {db_path}")
+            
+            # Create environment with disk-based database
+            environment = Environment(
+                width=config.width,
+                height=config.height,
+                resource_distribution={
+                    "type": "random",
+                    "amount": config.initial_resources,
+                },
+                db_path=db_path,
+                config=config,
+            )
 
+        # Set seed if provided
         config.seed = seed
-        # Create environment with clean database
-        environment = Environment(
-            width=config.width,
-            height=config.height,
-            resource_distribution={
-                "type": "random",
-                "amount": config.initial_resources,
-            },
-            db_path=db_path,
-            config=config,
-        )
-
-        # Save configuration if requested
-        if save_config:
+        
+        # Save configuration if requested and path is provided
+        if save_config and path is not None:
             config_path = f"{path}/config.json"
             with open(config_path, "w") as f:
                 json.dump(config.to_dict(), f, indent=4)
@@ -208,6 +239,25 @@ def run_simulation(
         # Force final flush of database buffers
         if environment.db:
             environment.db.logger.flush_all_buffers()
+            
+            # Persist in-memory database to disk if configured and db_path is provided
+            if config.persist_db_on_completion and db_path is not None:
+                try:
+                    # Create directory if it doesn't exist
+                    os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
+                    
+                    logging.info(f"Persisting in-memory database to {db_path}")
+                    # Persist with selected tables or all tables
+                    stats = environment.db.persist_to_disk(
+                        db_path=db_path,
+                        tables=config.in_memory_tables_to_persist,
+                        show_progress=True
+                    )
+                    logging.info(f"Database persistence completed: {stats['rows_copied']} rows in {stats['duration']:.2f} seconds")
+                except Exception as e:
+                    logging.error(f"Failed to persist in-memory database: {e}")
+            
+            # Close database connection
             environment.db.close()
 
     except Exception as e:
