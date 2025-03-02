@@ -12,8 +12,13 @@ from sqlalchemy import func
 
 import generational_fitness_analysis
 from farm.database.database import SimulationDatabase
-from farm.database.models import (ActionModel, AgentModel, AgentStateModel,
-                                  LearningExperienceModel, SimulationStepModel)
+from farm.database.models import (
+    ActionModel,
+    AgentModel,
+    AgentStateModel,
+    LearningExperienceModel,
+    SimulationStepModel,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -22,8 +27,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Constants for file paths
-EXPERIMENT_DATA_PATH = "results/one_of_a_kind_v1/experiments/data"
-EXPERIMENT_ANALYSIS_PATH = "results/one_of_a_kind_v1/experiments/analysis"
+EXPERIMENT_DATA_PATH = "results/one_of_a_kind/experiments/data"
+EXPERIMENT_ANALYSIS_PATH = "results/one_of_a_kind/experiments/analysis"
 
 # ---------------------
 # Helper Functions
@@ -1776,7 +1781,7 @@ def process_experiment_by_agent_type(experiment: str) -> Dict[str, Dict]:
     }
 
     try:
-        experiment_path = f"results/one_of_a_kind_v1/experiments/data/{experiment}"
+        experiment_path = f"{EXPERIMENT_DATA_PATH}/{experiment}"
         if not os.path.exists(experiment_path):
             logger.error(f"Experiment directory not found: {experiment_path}")
             return result
@@ -1863,7 +1868,7 @@ def process_experiment_resource_consumption(experiment: str) -> Dict[str, Dict]:
     }
 
     try:
-        experiment_path = f"results/one_of_a_kind_v1/experiments/data/{experiment}"
+        experiment_path = f"{EXPERIMENT_DATA_PATH}/{experiment}"
         if not os.path.exists(experiment_path):
             logger.error(f"Experiment directory not found: {experiment_path}")
             return result
@@ -1957,7 +1962,7 @@ def process_action_distributions(
     }
 
     try:
-        experiment_path = f"results/one_of_a_kind_v1/experiments/data/{experiment}"
+        experiment_path = f"{EXPERIMENT_DATA_PATH}/{experiment}"
         if not os.path.exists(experiment_path):
             logger.error(f"Experiment directory not found: {experiment_path}")
             return result
@@ -2172,7 +2177,7 @@ def process_experiment_resource_levels(experiment: str) -> Dict[str, List]:
     result = {"resource_levels": [], "max_steps": 0}
 
     try:
-        experiment_path = f"results/one_of_a_kind_v1/experiments/data/{experiment}"
+        experiment_path = f"{EXPERIMENT_DATA_PATH}/{experiment}"
         if not os.path.exists(experiment_path):
             logger.error(f"Experiment directory not found: {experiment_path}")
             return result
@@ -2369,7 +2374,7 @@ def main():
             )
 
             # Create individual experiment resource consumption chart
-            experiment_path = f"results/one_of_a_kind_v1/experiments/data/{experiment}"
+            experiment_path = f"{EXPERIMENT_DATA_PATH}/{experiment}"
             if any(
                 consumption_data[agent_type]["consumption"]
                 for agent_type in consumption_data
@@ -2455,18 +2460,24 @@ def main():
         ):
             rewards_analysis_dir = experiment_path / "rewards_analysis"
             plot_rewards_by_generation(rewards_by_generation, str(rewards_analysis_dir))
-            
+
         # Add generational fitness analysis
-        logger.info(f"Running generational fitness analysis for experiment: {experiment}")
+        logger.info(
+            f"Running generational fitness analysis for experiment: {experiment}"
+        )
         try:
-            generational_fitness_results = generational_fitness_analysis.process_experiment_generational_fitness(
-                experiment,
-                data_path=EXPERIMENT_DATA_PATH,
-                analysis_path=EXPERIMENT_ANALYSIS_PATH
+            generational_fitness_results = (
+                generational_fitness_analysis.process_experiment_generational_fitness(
+                    experiment,
+                    data_path=EXPERIMENT_DATA_PATH,
+                    analysis_path=EXPERIMENT_ANALYSIS_PATH,
+                )
             )
             logger.info(f"Completed generational fitness analysis for {experiment}")
         except Exception as e:
-            logger.error(f"Error in generational fitness analysis for {experiment}: {str(e)}")
+            logger.error(
+                f"Error in generational fitness analysis for {experiment}: {str(e)}"
+            )
 
 
 if __name__ == "__main__":

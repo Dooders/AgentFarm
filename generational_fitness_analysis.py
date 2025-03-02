@@ -45,8 +45,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Constants for file paths
-DEFAULT_DATA_PATH = "results/one_of_a_kind_v1/experiments/data"
-DEFAULT_ANALYSIS_PATH = "results/one_of_a_kind_v1/experiments/analysis"
+DEFAULT_DATA_PATH = "results/one_of_a_kind/experiments/data"
+DEFAULT_ANALYSIS_PATH = "results/one_of_a_kind/experiments/analysis"
 
 
 def get_agent_metrics_by_generation(
