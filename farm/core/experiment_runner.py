@@ -93,8 +93,32 @@ class ExperimentRunner:
         path: Optional[Path] = None,
         run_analysis: bool = True,
     ) -> None:
-        """Run multiple iterations of the simulation."""
+        """Run multiple iterations of the simulation.
+        
+        Parameters
+        ----------
+        num_iterations : int
+            Number of simulation iterations to run
+        config_variations : Optional[List[Dict]]
+            List of configuration variations to apply to each iteration
+        num_steps : int
+            Number of simulation steps per iteration
+        path : Optional[Path]
+            Base path for storing simulation results
+        run_analysis : bool
+            Whether to run analysis after each iteration
+        """
         self.logger.info(f"Starting experiment with {num_iterations} iterations")
+        
+        # Check if in-memory database is enabled in base config
+        using_in_memory = getattr(self.base_config, "use_in_memory_db", False)
+        if using_in_memory:
+            self.logger.info("Using in-memory database for improved performance")
+            
+            # Log memory limit if configured
+            memory_limit = getattr(self.base_config, "in_memory_db_memory_limit_mb", None)
+            if memory_limit:
+                self.logger.info(f"Memory limit for in-memory database: {memory_limit} MB")
 
         # Ensure path is a Path object
         if path and not isinstance(path, Path):
@@ -125,6 +149,22 @@ class ExperimentRunner:
                 if run_analysis and iteration_path:
                     # Create a new database connection for analysis
                     db_path = iteration_path / "simulation.db"
+                    
+                    # Skip analysis if using in-memory DB without persistence
+                    if using_in_memory and not getattr(iteration_config, "persist_db_on_completion", True):
+                        self.logger.warning(
+                            "Skipping analysis for iteration {i+1} - "
+                            "in-memory database without persistence enabled"
+                        )
+                        continue
+                    
+                    # Ensure database file exists before analysis
+                    if not os.path.exists(db_path):
+                        self.logger.warning(
+                            f"Database file not found at {db_path}, skipping analysis"
+                        )
+                        continue
+                    
                     analysis_db = SimulationDatabase(str(db_path))
                     
                     try:

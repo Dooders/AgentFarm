@@ -166,6 +166,12 @@ class SimulationConfig:
     # Add to the main configuration section, before visualization settings
     max_wait_steps: int = 10  # Maximum steps to wait between gathering attempts
 
+    # Database configuration
+    use_in_memory_db: bool = False  # Whether to use in-memory database
+    persist_db_on_completion: bool = True  # Whether to persist in-memory DB to disk after simulation
+    in_memory_db_memory_limit_mb: Optional[int] = None  # Memory limit for in-memory DB (None = no limit)
+    in_memory_tables_to_persist: Optional[List[str]] = None  # Tables to persist (None = all tables)
+
     # Gathering Module Parameters
     gather_target_update_freq: int = 100
     gather_memory_size: int = 10000
