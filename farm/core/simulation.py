@@ -6,6 +6,8 @@ import time
 from datetime import datetime
 from typing import List, Optional, Tuple
 
+from tqdm import tqdm
+
 from farm.agents import IndependentAgent, SystemAgent
 from farm.agents.control_agent import ControlAgent
 from farm.core.config import SimulationConfig
@@ -26,15 +28,13 @@ def setup_logging(log_dir: str = "logs") -> None:
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
-    #! removed timestamp from log file name
-    # timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file = os.path.join(log_dir, f"simulation.log")
 
     # Add more detailed logging format and ensure file is writable
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
-        handlers=[logging.FileHandler(log_file, mode="w"), logging.StreamHandler()],
+        handlers=[logging.FileHandler(log_file, mode="w")],
         force=True,  # This ensures logging config is reset
     )
 
@@ -136,12 +136,12 @@ def run_simulation(
     try:
         # Set up database path (None if path is None)
         db_path = f"{path}/simulation.db" if path is not None else None
-        
+
         # Handle in-memory database configuration
         if config.use_in_memory_db:
             logging.info("Using in-memory database for improved performance")
             from farm.database.database import InMemorySimulationDatabase
-            
+
             # Create environment with in-memory database
             environment = Environment(
                 width=config.width,
@@ -153,16 +153,16 @@ def run_simulation(
                 db_path=None,  # Will be ignored for in-memory DB
                 config=config,
             )
-            
+
             # Replace the default database with in-memory database
-            if hasattr(environment, 'db') and environment.db is not None:
+            if hasattr(environment, "db") and environment.db is not None:
                 environment.db.close()
-            
+
             # Initialize in-memory database with optional memory limit
             environment.db = InMemorySimulationDatabase(
                 memory_limit_mb=config.in_memory_db_memory_limit_mb
             )
-            
+
         else:
             # Clean up any existing database file for disk-based DB
             if os.path.exists(db_path):
@@ -173,7 +173,7 @@ def run_simulation(
                     base, ext = os.path.splitext(db_path)
                     db_path = f"{base}_{int(time.time())}{ext}"
                     logging.warning(f"Using alternative database path: {db_path}")
-            
+
             # Create environment with disk-based database
             environment = Environment(
                 width=config.width,
@@ -188,7 +188,7 @@ def run_simulation(
 
         # Set seed if provided
         config.seed = seed
-        
+
         # Save configuration if requested and path is provided
         if save_config and path is not None:
             config_path = f"{path}/config.json"
@@ -209,7 +209,7 @@ def run_simulation(
 
         # Main simulation loop
         start_time = datetime.now()
-        for step in range(num_steps):
+        for step in tqdm(range(num_steps), desc="Simulation progress", unit="step"):
             logging.info(f"Starting step {step}/{num_steps}")
 
             # Process agents in batches
@@ -224,7 +224,9 @@ def run_simulation(
 
             batch_size = 32  # Adjust based on your needs
 
-            for i in range(0, len(alive_agents), batch_size):
+            # Process batches without a nested progress bar
+            batch_ranges = list(range(0, len(alive_agents), batch_size))
+            for i in batch_ranges:
                 batch = alive_agents[i : i + batch_size]
 
                 for agent in batch:
@@ -239,24 +241,28 @@ def run_simulation(
         # Force final flush of database buffers
         if environment.db:
             environment.db.logger.flush_all_buffers()
-            
+
             # Persist in-memory database to disk if configured and db_path is provided
             if config.persist_db_on_completion and db_path is not None:
                 try:
                     # Create directory if it doesn't exist
-                    os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
-                    
+                    os.makedirs(
+                        os.path.dirname(os.path.abspath(db_path)), exist_ok=True
+                    )
+
                     logging.info(f"Persisting in-memory database to {db_path}")
                     # Persist with selected tables or all tables
                     stats = environment.db.persist_to_disk(
                         db_path=db_path,
                         tables=config.in_memory_tables_to_persist,
-                        show_progress=True
+                        show_progress=True,
                     )
-                    logging.info(f"Database persistence completed: {stats['rows_copied']} rows in {stats['duration']:.2f} seconds")
+                    logging.info(
+                        f"Database persistence completed: {stats['rows_copied']} rows in {stats['duration']:.2f} seconds"
+                    )
                 except Exception as e:
                     logging.error(f"Failed to persist in-memory database: {e}")
-            
+
             # Close database connection
             environment.db.close()
 

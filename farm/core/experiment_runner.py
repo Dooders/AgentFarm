@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import pandas as pd
+from tqdm import tqdm
 
 from farm.charts.chart_analyzer import ChartAnalyzer
 from farm.core.config import SimulationConfig
@@ -124,7 +125,11 @@ class ExperimentRunner:
         if path and not isinstance(path, Path):
             path = Path(path)
 
-        for i in range(num_iterations):
+        # Create progress bar for iterations
+        progress_bar = tqdm(range(num_iterations), desc=f"Running {self.experiment_name}", unit="iteration")
+        
+        for i in progress_bar:
+            progress_bar.set_description(f"Running iteration {i+1}/{num_iterations}")
             self.logger.info(f"Starting iteration {i+1}/{num_iterations}")
             iteration_config = self._create_iteration_config(i, config_variations)
             iteration_path = path / f"iteration_{i+1}" if path else None
