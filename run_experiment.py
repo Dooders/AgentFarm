@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
+from tqdm import tqdm
 
 from farm.analysis.comparative_analysis import compare_simulations
 from farm.core.config import SimulationConfig
@@ -120,7 +121,11 @@ class Research:
         """Run multiple experiments in sequence."""
         self.logger.info(f"Starting research batch with {len(experiments)} experiments")
 
-        for experiment in experiments:
+        # Create progress bar for experiments
+        progress_bar = tqdm(experiments, desc=f"Research: {self.name}", unit="experiment")
+        
+        for experiment in progress_bar:
+            progress_bar.set_description(f"Running experiment: {experiment.name}")
             folder_name = experiment.name + "_" + self.timestamp
             self.run_experiment(experiment, folder_name)
 
@@ -145,7 +150,7 @@ def main():
     parser.add_argument(
         "--name", 
         type=str, 
-        default="one_of_a_kindttttt",
+        default="one_of_a_kind",
         help="Name of the research project"
     )
     parser.add_argument(
