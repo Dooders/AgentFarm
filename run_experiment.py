@@ -145,7 +145,7 @@ def main():
     parser.add_argument(
         "--name", 
         type=str, 
-        default="one_of_a_kind",
+        default="one_of_a_kindttttt",
         help="Name of the research project"
     )
     parser.add_argument(
@@ -169,6 +169,7 @@ def main():
     parser.add_argument(
         "--in-memory", 
         action="store_true",
+        default=True,
         help="Use in-memory database for improved performance"
     )
     parser.add_argument(

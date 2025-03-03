@@ -55,6 +55,7 @@ def main():
     parser.add_argument(
         "--in-memory",
         action="store_true",
+        default=True,
         help="Use in-memory database for improved performance",
     )
     parser.add_argument(
@@ -82,7 +83,7 @@ def main():
         # Apply in-memory database settings if requested
         if args.in_memory:
             config.use_in_memory_db = True
-            config.in_memory_db_memory_limit_mb = args.memory_limit
+            config.in_memory_db_memory_limit_mb = args.memory_limit if args.memory_limit else 1000
             config.persist_db_on_completion = not args.no_persist
             print("Using in-memory database for improved performance")
             if args.memory_limit:
