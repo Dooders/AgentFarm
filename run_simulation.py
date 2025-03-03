@@ -5,14 +5,10 @@ Simple script to run a single simulation using the farm simulation framework.
 
 import argparse
 import cProfile
-import logging
 import os
 import pstats
 import time
-import webbrowser
-from datetime import datetime
 from io import StringIO
-from pathlib import Path
 
 from farm.core.config import SimulationConfig
 from farm.core.simulation import run_simulation
@@ -79,11 +75,13 @@ def main():
     try:
         config = SimulationConfig.from_yaml(args.config)
         print(f"Loaded configuration from {args.config}")
-        
+
         # Apply in-memory database settings if requested
         if args.in_memory:
             config.use_in_memory_db = True
-            config.in_memory_db_memory_limit_mb = args.memory_limit if args.memory_limit else 1000
+            config.in_memory_db_memory_limit_mb = (
+                args.memory_limit if args.memory_limit else 1000
+            )
             config.persist_db_on_completion = not args.no_persist
             print("Using in-memory database for improved performance")
             if args.memory_limit:
