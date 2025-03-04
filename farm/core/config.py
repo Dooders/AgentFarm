@@ -171,6 +171,13 @@ class SimulationConfig:
     persist_db_on_completion: bool = True  # Whether to persist in-memory DB to disk after simulation
     in_memory_db_memory_limit_mb: Optional[int] = None  # Memory limit for in-memory DB (None = no limit)
     in_memory_tables_to_persist: Optional[List[str]] = None  # Tables to persist (None = all tables)
+    
+    # Database pragma settings
+    db_pragma_profile: str = "balanced"  # Options: "balanced", "performance", "safety", "memory"
+    db_cache_size_mb: int = 200  # Cache size in MB
+    db_synchronous_mode: str = "NORMAL"  # Options: "OFF", "NORMAL", "FULL"
+    db_journal_mode: str = "WAL"  # Options: "DELETE", "TRUNCATE", "PERSIST", "MEMORY", "WAL", "OFF"
+    db_custom_pragmas: Dict[str, str] = field(default_factory=dict)  # Custom pragma overrides
 
     # Gathering Module Parameters
     gather_target_update_freq: int = 100
