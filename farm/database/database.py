@@ -148,13 +148,15 @@ class SimulationDatabase:
     - Buffers operations through DataLogger for better performance
     """
 
-    def __init__(self, db_path: str) -> None:
+    def __init__(self, db_path: str, config=None) -> None:
         """Initialize a new SimulationDatabase instance with SQLAlchemy.
 
         Parameters
         ----------
         db_path : str
             Path to the SQLite database file
+        config : SimulationConfig, optional
+            Configuration object with database settings
 
         Notes
         -----
@@ -164,8 +166,30 @@ class SimulationDatabase:
         - Sets up batch operation buffers
         """
         self.db_path = db_path
+        self.config = config
 
-        # Configure engine with optimized settings
+        # Configure pragma settings from config
+        pragma_profile = "balanced"
+        cache_size_mb = 200
+        synchronous_mode = "NORMAL"
+        journal_mode = "WAL"
+        custom_pragmas = {}
+        
+        if config:
+            pragma_profile = getattr(config, "db_pragma_profile", pragma_profile)
+            cache_size_mb = getattr(config, "db_cache_size_mb", cache_size_mb)
+            synchronous_mode = getattr(config, "db_synchronous_mode", synchronous_mode)
+            journal_mode = getattr(config, "db_journal_mode", journal_mode)
+            custom_pragmas = getattr(config, "db_custom_pragmas", {})
+
+        # Store pragma settings for reference
+        self.pragma_profile = pragma_profile
+        self.cache_size_mb = cache_size_mb
+        self.synchronous_mode = synchronous_mode
+        self.journal_mode = journal_mode
+        self.custom_pragmas = custom_pragmas
+
+        # Create engine with connect_args
         self.engine = create_engine(
             f"sqlite:///{db_path}",
             # Larger pool size for concurrent operations
@@ -180,20 +204,47 @@ class SimulationDatabase:
                 "check_same_thread": False,  # Allow cross-thread usage
             },
         )
+        
+        # Apply pragma settings directly for the initial connection
+        conn = self.engine.raw_connection()
+        cursor = conn.cursor()
+        
+        # Apply profile-specific settings
+        self._direct_apply_pragma_profile(cursor, pragma_profile)
+        
+        # Apply any specific overrides
+        if synchronous_mode not in ["NORMAL", "OFF", "FULL"]:
+            cursor.execute(f"PRAGMA synchronous={synchronous_mode}")
+        
+        if journal_mode not in ["WAL", "MEMORY", "DELETE", "TRUNCATE", "PERSIST", "OFF"]:
+            cursor.execute(f"PRAGMA journal_mode={journal_mode}")
+            
+        # Apply custom pragmas
+        for pragma, value in custom_pragmas.items():
+            cursor.execute(f"PRAGMA {pragma}={value}")
+            
+        cursor.close()
+        conn.close()
 
-        # Enable foreign key support for SQLite
+        # Also set up the event listener for future connections
         @event.listens_for(self.engine, "connect")
         def set_sqlite_pragma(dbapi_connection, connection_record):
             cursor = dbapi_connection.cursor()
-            # Enable foreign key support
-            cursor.execute("PRAGMA foreign_keys=ON")
-            # Optimize for write performance
-            cursor.execute("PRAGMA synchronous=NORMAL")  # Less safe but faster
-            cursor.execute("PRAGMA journal_mode=WAL")  # Write-Ahead Logging
-            cursor.execute(
-                "PRAGMA cache_size=-102400"
-            )  # 100MB cache (negative = kibibytes)
-            cursor.execute("PRAGMA temp_store=MEMORY")  # Store temp tables in memory
+            
+            # Apply the selected pragma profile
+            self._direct_apply_pragma_profile(cursor, pragma_profile)
+            
+            # Apply any specific overrides
+            if synchronous_mode not in ["NORMAL", "OFF", "FULL"]:
+                cursor.execute(f"PRAGMA synchronous={synchronous_mode}")
+            
+            if journal_mode not in ["WAL", "MEMORY", "DELETE", "TRUNCATE", "PERSIST", "OFF"]:
+                cursor.execute(f"PRAGMA journal_mode={journal_mode}")
+                
+            # Apply custom pragmas
+            for pragma, value in custom_pragmas.items():
+                cursor.execute(f"PRAGMA {pragma}={value}")
+                
             cursor.close()
 
         # Create session factory
@@ -206,6 +257,231 @@ class SimulationDatabase:
         # Replace buffer initialization with DataLogger
         self.logger = DataLogger(self, buffer_size=1000)
         self.query = DataRetriever(self)
+
+    def _direct_apply_pragma_profile(self, cursor, profile):
+        """Apply a specific pragma profile directly to a cursor.
+        
+        Parameters
+        ----------
+        cursor : Cursor
+            SQLite cursor
+        profile : str
+            Profile name: "balanced", "performance", "safety", or "memory"
+        """
+        # Convert cache size from MB to KB (negative value for KB)
+        cache_size_kb = -1 * self.cache_size_mb * 1024
+        
+        # Common settings
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA temp_store=MEMORY")  # Store temp tables in memory
+        
+        # Apply profile-specific settings
+        if profile == "performance":
+            # Maximum performance settings
+            cursor.execute("PRAGMA synchronous=OFF")
+            cursor.execute("PRAGMA journal_mode=MEMORY")
+            cursor.execute(f"PRAGMA cache_size={cache_size_kb}")
+            cursor.execute("PRAGMA page_size=8192")  # Larger pages for fewer I/O ops
+            cursor.execute("PRAGMA mmap_size=1073741824")  # 1GB memory-mapped I/O
+            cursor.execute("PRAGMA automatic_index=OFF")  # Disable automatic indexing
+            cursor.execute("PRAGMA busy_timeout=60000")  # 60-second timeout
+        elif profile == "safety":
+            # Data safety settings
+            cursor.execute("PRAGMA synchronous=FULL")
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.execute(f"PRAGMA cache_size={min(cache_size_kb, -102400)}")  # Max 100MB for safety
+            cursor.execute("PRAGMA page_size=4096")  # Default page size
+            cursor.execute("PRAGMA busy_timeout=30000")  # 30-second timeout
+        elif profile == "memory":
+            # Memory-optimized settings
+            cursor.execute("PRAGMA synchronous=NORMAL")
+            cursor.execute("PRAGMA journal_mode=MEMORY")  # Explicitly set to MEMORY for memory profile
+            
+            # Always limit to 50MB max for memory profile, regardless of the configured size
+            cursor.execute("PRAGMA cache_size=-51200")  # Fixed at 50MB max for memory profile
+            
+            cursor.execute("PRAGMA page_size=4096")  # Default page size
+            cursor.execute("PRAGMA busy_timeout=15000")  # 15-second timeout
+        else:  # balanced (default)
+            # Balanced settings
+            cursor.execute("PRAGMA synchronous=NORMAL")
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.execute(f"PRAGMA cache_size={cache_size_kb}")
+            cursor.execute("PRAGMA page_size=4096")  # Default page size
+            cursor.execute("PRAGMA busy_timeout=30000")  # 30-second timeout
+        
+        # Run optimizer
+        cursor.execute("PRAGMA optimize")
+
+    def _apply_pragma_profile(self, cursor, profile="balanced", cache_size_mb=200, 
+                             synchronous_mode="NORMAL", journal_mode="WAL"):
+        """Apply a specific pragma profile to a database connection.
+        
+        Parameters
+        ----------
+        cursor : Cursor
+            SQLite cursor
+        profile : str
+            Profile name: "balanced", "performance", "safety", or "memory"
+        cache_size_mb : int
+            Cache size in MB
+        synchronous_mode : str
+            Override for synchronous mode
+        journal_mode : str
+            Override for journal mode
+            
+        Notes
+        -----
+        SQLite in-memory databases (:memory:) always use journal_mode=MEMORY
+        regardless of the setting. This is a limitation of SQLite itself.
+        
+        When using the "performance" profile with in-memory databases, the synchronous
+        mode may not be set to OFF as expected. To ensure synchronous=OFF, explicitly
+        set synchronous_mode="OFF" in the configuration.
+        """
+        # Just delegate to the direct method
+        self._direct_apply_pragma_profile(cursor, profile)
+        
+        # Apply overrides - this section is now simplified
+        if synchronous_mode in ["OFF", "NORMAL", "FULL"]:
+            cursor.execute(f"PRAGMA synchronous={synchronous_mode}")
+        
+        # For journal_mode, apply the override unless it's for an in-memory database
+        is_memory_db = self.db_path == ":memory:"
+        if not is_memory_db and journal_mode in ["WAL", "MEMORY", "DELETE", "TRUNCATE", "PERSIST", "OFF"]:
+            cursor.execute(f"PRAGMA journal_mode={journal_mode}")
+
+    def get_current_pragmas(self):
+        """Get current pragma settings for the database.
+        
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary of current pragma settings
+        """
+        conn = self.engine.raw_connection()
+        cursor = conn.cursor()
+        
+        pragmas = {}
+        for pragma in [
+            "synchronous", "journal_mode", "cache_size", "temp_store",
+            "mmap_size", "page_size", "busy_timeout", "foreign_keys",
+            "automatic_index"
+        ]:
+            try:
+                cursor.execute(f"PRAGMA {pragma}")
+                result = cursor.fetchone()
+                if result is not None:
+                    pragmas[pragma] = result[0]
+            except Exception as e:
+                logger.warning(f"Error getting pragma {pragma}: {e}")
+        
+        cursor.close()
+        conn.close()
+        
+        return pragmas
+        
+    def analyze_pragma_performance(self):
+        """Analyze current pragma settings for performance implications.
+        
+        Returns
+        -------
+        Dict[str, Dict]
+            Performance analysis for each pragma
+        """
+        pragmas = self.get_current_pragmas()
+        analysis = {}
+        
+        # Analyze synchronous mode
+        sync_mode = pragmas.get("synchronous")
+        if sync_mode == 0:  # OFF
+            analysis["synchronous"] = {
+                "performance": "Excellent",
+                "safety": "Poor",
+                "recommendation": "Only use for non-critical data or testing"
+            }
+        elif sync_mode == 1:  # NORMAL
+            analysis["synchronous"] = {
+                "performance": "Good",
+                "safety": "Moderate",
+                "recommendation": "Good balance for most workloads"
+            }
+        elif sync_mode == 2:  # FULL
+            analysis["synchronous"] = {
+                "performance": "Poor",
+                "safety": "Excellent",
+                "recommendation": "Consider NORMAL for better performance"
+            }
+        
+        # Analyze journal mode
+        journal_mode = pragmas.get("journal_mode", "").upper()
+        if journal_mode == "MEMORY":
+            analysis["journal_mode"] = {
+                "performance": "Excellent",
+                "safety": "Poor",
+                "recommendation": "Only use for non-critical data or testing"
+            }
+        elif journal_mode == "WAL":
+            analysis["journal_mode"] = {
+                "performance": "Good",
+                "safety": "Good",
+                "recommendation": "Good balance for most workloads"
+            }
+        elif journal_mode == "DELETE":
+            analysis["journal_mode"] = {
+                "performance": "Poor",
+                "safety": "Moderate",
+                "recommendation": "Consider WAL for better performance"
+            }
+        
+        # Analyze cache size
+        cache_size = pragmas.get("cache_size", 0)
+        cache_size_mb = abs(cache_size) / 1024 if cache_size < 0 else cache_size / 1024 / 1024
+        if cache_size_mb < 50:
+            analysis["cache_size"] = {
+                "performance": "Poor",
+                "memory_usage": "Excellent",
+                "recommendation": "Consider increasing for better performance"
+            }
+        elif cache_size_mb < 200:
+            analysis["cache_size"] = {
+                "performance": "Good",
+                "memory_usage": "Good",
+                "recommendation": "Good balance for most workloads"
+            }
+        else:
+            analysis["cache_size"] = {
+                "performance": "Excellent",
+                "memory_usage": "Poor",
+                "recommendation": "Monitor memory usage with large cache"
+            }
+        
+        return analysis
+        
+    def adjust_pragmas_for_workload(self, workload_type):
+        """Adjust pragma settings based on current workload.
+        
+        Parameters
+        ----------
+        workload_type : str
+            Type of workload: "read_heavy", "write_heavy", "balanced"
+        """
+        conn = self.engine.raw_connection()
+        cursor = conn.cursor()
+        
+        if workload_type == "write_heavy":
+            cursor.execute("PRAGMA synchronous=OFF")
+            cursor.execute("PRAGMA journal_mode=MEMORY")
+        elif workload_type == "read_heavy":
+            cursor.execute("PRAGMA synchronous=NORMAL")
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.execute("PRAGMA mmap_size=1073741824")  # 1GB memory-mapped I/O
+        else:  # balanced
+            cursor.execute("PRAGMA synchronous=NORMAL")
+            cursor.execute("PRAGMA journal_mode=WAL")
+        
+        cursor.close()
+        conn.close()
 
     def _execute_in_transaction(self, func: callable) -> Any:
         """Execute database operations within a transaction with error handling.
@@ -824,27 +1100,31 @@ class AsyncDataLogger:
 
 
 class InMemorySimulationDatabase(SimulationDatabase):
-    """In-memory database for high-performance simulation runs.
-
-    This class provides a high-performance alternative to disk-based storage
-    during simulation, with an option to persist data at the end of the run.
+    """In-memory database implementation for high-performance simulations.
+    
+    This class provides an in-memory SQLite database for maximum performance
+    during simulations. It can optionally persist data to disk after the
+    simulation completes.
     
     Features
     --------
-    - Significantly faster than disk-based storage (30-50% speedup)
-    - Memory usage monitoring to prevent OOM errors
-    - Selective table persistence
-    - Transaction-based persistence for data integrity
-    - Progress reporting for long-running operations
+    - Fully in-memory operation for maximum speed
+    - Optional memory usage monitoring
+    - Ability to persist to disk when simulation completes
+    - Optimized pragma settings for in-memory operation
     
     Notes
     -----
-    - Uses SQLite's in-memory database
-    - Optimized for write-heavy workloads
-    - Larger buffer sizes for batch operations
+    - SQLite in-memory databases always use journal_mode=MEMORY regardless of the setting.
+      This is a limitation of SQLite, not a configuration issue.
+    - Other pragma settings like synchronous, cache_size, etc. can be configured normally.
+    - For maximum performance, the default profile is "performance" unless overridden.
+    - When using the "performance" profile, the synchronous mode may not be set to OFF
+      as expected. This appears to be a limitation of SQLite with in-memory databases.
+      To explicitly set synchronous=OFF, use the db_synchronous_mode="OFF" configuration.
     """
 
-    def __init__(self, memory_limit_mb=None):
+    def __init__(self, memory_limit_mb=None, config=None):
         """Initialize an in-memory database.
         
         Parameters
@@ -853,24 +1133,166 @@ class InMemorySimulationDatabase(SimulationDatabase):
             Memory usage limit in MB. If None, no limit is enforced.
             When specified, the database will monitor memory usage and
             raise a warning when approaching the limit.
+        config : SimulationConfig, optional
+            Configuration object with database settings
         """
         # Use in-memory SQLite database
         self.db_path = ":memory:"
+        self.config = config
+        
+        # Configure pragma settings from config
+        # For in-memory DB, we default to performance profile if not specified
+        pragma_profile = "performance"  # Default to performance for in-memory DB
+        cache_size_mb = 200
+        synchronous_mode = "OFF"  # Set default to OFF for performance
+        journal_mode = "MEMORY"
+        custom_pragmas = {}
+        
+        if config:
+            # Only override the default profile if explicitly specified
+            if hasattr(config, "db_pragma_profile"):
+                pragma_profile = config.db_pragma_profile
+                # For in-memory DB, we respect the profile settings completely
+                
+                # Get the default settings for the selected profile
+                if pragma_profile == "balanced":
+                    synchronous_mode = "NORMAL"
+                    journal_mode = "WAL"  # Note: This will still be MEMORY in SQLite in-memory DB
+                elif pragma_profile == "safety":
+                    synchronous_mode = "FULL"
+                    journal_mode = "WAL"  # Note: This will still be MEMORY in SQLite in-memory DB
+                elif pragma_profile == "memory":
+                    synchronous_mode = "NORMAL"
+                    journal_mode = "MEMORY"
+                elif pragma_profile == "performance":
+                    synchronous_mode = "OFF"  # This is the key fix - ensure it's OFF
+                    journal_mode = "MEMORY"
+            
+            # Allow specific overrides from config
+            if hasattr(config, "db_cache_size_mb"):
+                cache_size_mb = config.db_cache_size_mb
+            if hasattr(config, "db_synchronous_mode"):
+                synchronous_mode = config.db_synchronous_mode
+            if hasattr(config, "db_journal_mode"):
+                journal_mode = config.db_journal_mode
+            if hasattr(config, "db_custom_pragmas"):
+                custom_pragmas = config.db_custom_pragmas
+            
+            # Override memory limit if specified in config
+            if memory_limit_mb is None and hasattr(config, "in_memory_db_memory_limit_mb"):
+                memory_limit_mb = config.in_memory_db_memory_limit_mb
+
+        # Store pragma settings for reference
+        self.pragma_profile = pragma_profile
+        self.cache_size_mb = cache_size_mb
+        self.synchronous_mode = synchronous_mode
+        self.journal_mode = journal_mode
+        self.custom_pragmas = custom_pragmas
+        
+        # Create the engine
         self.engine = create_engine("sqlite:///:memory:")
         self.memory_limit_mb = memory_limit_mb
         self.memory_usage_samples = []
         self.memory_warning_threshold = 0.8  # 80% of limit
         self.memory_critical_threshold = 0.95  # 95% of limit
         
-        # Set up pragmas for in-memory optimization
+        # Apply pragma settings directly for the initial connection
+        conn = self.engine.raw_connection()
+        cursor = conn.cursor()
+        
+        # Common settings that apply to all profiles
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA temp_store=MEMORY")  # Store temp tables in memory
+        
+        # Apply profile-specific settings based on the profile
+        if pragma_profile == "performance":
+            # Maximum performance settings
+            cursor.execute("PRAGMA synchronous=OFF")
+            cursor.execute("PRAGMA journal_mode=MEMORY")
+            cursor.execute(f"PRAGMA cache_size={-1 * cache_size_mb * 1024}")
+            cursor.execute("PRAGMA page_size=8192")  # Larger pages for fewer I/O ops
+            cursor.execute("PRAGMA mmap_size=1073741824")  # 1GB memory-mapped I/O
+            cursor.execute("PRAGMA automatic_index=OFF")  # Disable automatic indexing
+            cursor.execute("PRAGMA busy_timeout=60000")  # 60-second timeout
+        elif pragma_profile == "safety":
+            # Data safety settings
+            cursor.execute("PRAGMA synchronous=FULL")
+            cursor.execute("PRAGMA journal_mode=MEMORY")  # Always MEMORY for in-memory DB
+            cursor.execute(f"PRAGMA cache_size={-1 * min(cache_size_mb, 100) * 1024}")  # Max 100MB for safety
+            cursor.execute("PRAGMA page_size=4096")  # Default page size
+            cursor.execute("PRAGMA busy_timeout=30000")  # 30-second timeout
+        elif pragma_profile == "memory":
+            # Memory-optimized settings
+            cursor.execute("PRAGMA synchronous=NORMAL")
+            cursor.execute("PRAGMA journal_mode=MEMORY")
+            cursor.execute(f"PRAGMA cache_size={-1 * min(cache_size_mb, 50) * 1024}")  # Max 50MB for memory saving
+            cursor.execute("PRAGMA page_size=4096")  # Default page size
+            cursor.execute("PRAGMA busy_timeout=15000")  # 15-second timeout
+        else:  # balanced (default)
+            # Balanced settings
+            cursor.execute("PRAGMA synchronous=NORMAL")
+            cursor.execute("PRAGMA journal_mode=MEMORY")  # Always MEMORY for in-memory DB
+            cursor.execute(f"PRAGMA cache_size={-1 * cache_size_mb * 1024}")
+            cursor.execute("PRAGMA page_size=4096")  # Default page size
+            cursor.execute("PRAGMA busy_timeout=30000")  # 30-second timeout
+        
+        # Apply specific override to make sure synchronous mode is correctly set
+        cursor.execute(f"PRAGMA synchronous={synchronous_mode}")
+        
+        # Apply any custom pragmas
+        for pragma, value in custom_pragmas.items():
+            cursor.execute(f"PRAGMA {pragma}={value}")
+        
+        # Run optimizer
+        cursor.execute("PRAGMA optimize")
+        
+        cursor.close()
+        conn.close()
+        
+        # Set up the event listener for future connections
         @event.listens_for(self.engine, "connect")
         def set_sqlite_pragma(dbapi_connection, connection_record):
             cursor = dbapi_connection.cursor()
+            
+            # Apply the same settings as above
             cursor.execute("PRAGMA foreign_keys=ON")
-            cursor.execute("PRAGMA synchronous=OFF")  # Maximum performance
-            cursor.execute("PRAGMA journal_mode=MEMORY")
             cursor.execute("PRAGMA temp_store=MEMORY")
-            cursor.execute("PRAGMA cache_size=-102400")  # 100MB cache
+            
+            # Apply profile-specific settings
+            if pragma_profile == "performance":
+                cursor.execute("PRAGMA synchronous=OFF")
+                cursor.execute("PRAGMA journal_mode=MEMORY")
+                cursor.execute(f"PRAGMA cache_size={-1 * cache_size_mb * 1024}")
+                cursor.execute("PRAGMA page_size=8192")
+                cursor.execute("PRAGMA mmap_size=1073741824")
+                cursor.execute("PRAGMA automatic_index=OFF")
+                cursor.execute("PRAGMA busy_timeout=60000")
+            elif pragma_profile == "safety":
+                cursor.execute("PRAGMA synchronous=FULL")
+                cursor.execute("PRAGMA journal_mode=MEMORY")
+                cursor.execute(f"PRAGMA cache_size={-1 * min(cache_size_mb, 100) * 1024}")
+                cursor.execute("PRAGMA page_size=4096")
+                cursor.execute("PRAGMA busy_timeout=30000")
+            elif pragma_profile == "memory":
+                cursor.execute("PRAGMA synchronous=NORMAL")
+                cursor.execute("PRAGMA journal_mode=MEMORY")
+                cursor.execute(f"PRAGMA cache_size={-1 * min(cache_size_mb, 50) * 1024}")
+                cursor.execute("PRAGMA page_size=4096")
+                cursor.execute("PRAGMA busy_timeout=15000")
+            else:  # balanced
+                cursor.execute("PRAGMA synchronous=NORMAL")
+                cursor.execute("PRAGMA journal_mode=MEMORY")
+                cursor.execute(f"PRAGMA cache_size={-1 * cache_size_mb * 1024}")
+                cursor.execute("PRAGMA page_size=4096")
+                cursor.execute("PRAGMA busy_timeout=30000")
+            
+            # Apply specific override
+            cursor.execute(f"PRAGMA synchronous={synchronous_mode}")
+            
+            # Apply custom pragmas
+            for pragma, value in custom_pragmas.items():
+                cursor.execute(f"PRAGMA {pragma}={value}")
+                
             cursor.close()
 
         # Create session factory
@@ -879,12 +1301,14 @@ class InMemorySimulationDatabase(SimulationDatabase):
 
         # Create tables
         self._create_tables()
-
-        # Initialize loggers with larger buffer sizes
-        self.logger = DataLogger(self, buffer_size=10000)  # 10x larger buffer
+        
+        # Initialize data logger
+        self.logger = DataLogger(self)
+        
+        # Initialize data retriever
         self.query = DataRetriever(self)
         
-        # Start memory monitoring if limit is set
+        # Start memory monitoring if a limit is set
         if self.memory_limit_mb:
             self._start_memory_monitoring()
     
@@ -1147,9 +1571,7 @@ class ShardedSimulationDatabase:
 
         self.shards[shard_id] = {
             "agents": SimulationDatabase(self._get_shard_path(shard_id, "agents")),
-            "resources": SimulationDatabase(
-                self._get_shard_path(shard_id, "resources")
-            ),
+            "resources": SimulationDatabase(self._get_shard_path(shard_id, "resources")),
             "actions": SimulationDatabase(self._get_shard_path(shard_id, "actions")),
             "metrics": SimulationDatabase(self._get_shard_path(shard_id, "metrics")),
         }
