@@ -10,6 +10,7 @@ from typing import List, Dict, Any
 
 from benchmarks.base.runner import BenchmarkRunner
 from benchmarks.implementations.memory_db_benchmark import MemoryDBBenchmark
+from benchmarks.implementations.pragma_profile_benchmark import PragmaProfileBenchmark
 
 
 def parse_args():
@@ -19,7 +20,7 @@ def parse_args():
     parser.add_argument(
         "--benchmark",
         type=str,
-        choices=["memory_db", "all"],
+        choices=["memory_db", "pragma_profile", "all"],
         default="all",
         help="Benchmark to run",
     )
@@ -52,6 +53,21 @@ def parse_args():
         help="Directory to save results",
     )
     
+    # Add pragma profile benchmark specific arguments
+    parser.add_argument(
+        "--num-records",
+        type=int,
+        default=100000,
+        help="Number of records for pragma profile benchmark",
+    )
+    
+    parser.add_argument(
+        "--db-size-mb",
+        type=int,
+        default=100,
+        help="Database size in MB for pragma profile benchmark",
+    )
+    
     return parser.parse_args()
 
 
@@ -69,6 +85,13 @@ def main():
             num_agents=args.agents,
         )
         runner.register_benchmark(memory_db_benchmark)
+    
+    if args.benchmark == "pragma_profile" or args.benchmark == "all":
+        pragma_profile_benchmark = PragmaProfileBenchmark(
+            num_records=args.num_records,
+            db_size_mb=args.db_size_mb,
+        )
+        runner.register_benchmark(pragma_profile_benchmark)
     
     # Run benchmarks
     if args.benchmark == "all":
