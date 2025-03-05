@@ -241,6 +241,10 @@ def share_action(agent: "BaseAgent") -> None:
     target_initial_resources = target.resource_level
     agent.resource_level -= share_amount
     target.resource_level += share_amount
+    
+    # Update environment's resources_shared counter
+    agent.environment.resources_shared += share_amount
+    agent.environment.resources_shared_this_step += share_amount
 
     # Calculate reward
     reward = _calculate_share_reward(agent, target, share_amount)

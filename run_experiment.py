@@ -162,13 +162,13 @@ def main():
     parser.add_argument(
         "--iterations", 
         type=int, 
-        default=100,
+        default=250,
         help="Number of iterations per experiment"
     )
     parser.add_argument(
         "--steps", 
         type=int, 
-        default=1000,
+        default=2000,
         help="Number of steps per iteration"
     )
     parser.add_argument(
@@ -194,48 +194,48 @@ def main():
 
     # Create experiments for each agent type
     experiments = [
-        ExperimentConfig(
-            name="single_control_agent",
-            variations=[
-                {
-                    "control_agents": 1, 
-                    "system_agents": 0, 
-                    "independent_agents": 0,
-                    "use_in_memory_db": args.in_memory,
-                    "in_memory_db_memory_limit_mb": args.memory_limit,
-                }
-            ],
-            num_iterations=args.iterations,
-            num_steps=args.steps,
-        ),
-        ExperimentConfig(
-            name="single_system_agent",
-            variations=[
-                {
-                    "control_agents": 0, 
-                    "system_agents": 1, 
-                    "independent_agents": 0,
-                    "use_in_memory_db": args.in_memory,
-                    "in_memory_db_memory_limit_mb": args.memory_limit,
-                }
-            ],
-            num_iterations=args.iterations,
-            num_steps=args.steps,
-        ),
-        ExperimentConfig(
-            name="single_independent_agent",
-            variations=[
-                {
-                    "control_agents": 0, 
-                    "system_agents": 0, 
-                    "independent_agents": 1,
-                    "use_in_memory_db": args.in_memory,
-                    "in_memory_db_memory_limit_mb": args.memory_limit,
-                }
-            ],
-            num_iterations=args.iterations,
-            num_steps=args.steps,
-        ),
+        # ExperimentConfig(
+        #     name="single_control_agent",
+        #     variations=[
+        #         {
+        #             "control_agents": 1, 
+        #             "system_agents": 0, 
+        #             "independent_agents": 0,
+        #             "use_in_memory_db": args.in_memory,
+        #             "in_memory_db_memory_limit_mb": args.memory_limit,
+        #         }
+        #     ],
+        #     num_iterations=args.iterations,
+        #     num_steps=args.steps,
+        # ),
+        # ExperimentConfig(
+        #     name="single_system_agent",
+        #     variations=[
+        #         {
+        #             "control_agents": 0, 
+        #             "system_agents": 1, 
+        #             "independent_agents": 0,
+        #             "use_in_memory_db": args.in_memory,
+        #             "in_memory_db_memory_limit_mb": args.memory_limit,
+        #         }
+        #     ],
+        #     num_iterations=args.iterations,
+        #     num_steps=args.steps,
+        # ),
+        # ExperimentConfig(
+        #     name="single_independent_agent",
+        #     variations=[
+        #         {
+        #             "control_agents": 0, 
+        #             "system_agents": 0, 
+        #             "independent_agents": 1,
+        #             "use_in_memory_db": args.in_memory,
+        #             "in_memory_db_memory_limit_mb": args.memory_limit,
+        #         }
+        #     ],
+        #     num_iterations=args.iterations,
+        #     num_steps=args.steps,
+        # ),
         ExperimentConfig(
             name="one_of_a_kind",
             variations=[

@@ -153,6 +153,10 @@ def attack_action(agent: "BaseAgent") -> None:
     # Initialize attack statistics
     total_damage_dealt = 0.0
     successful_hits = 0
+    
+    # Increment combat encounters counter
+    agent.environment.combat_encounters += 1
+    agent.environment.combat_encounters_this_step += 1
 
     # Process each target in range
     for target in targets:
@@ -173,6 +177,11 @@ def attack_action(agent: "BaseAgent") -> None:
         if target.take_damage(base_damage):
             total_damage_dealt += base_damage
             successful_hits += 1
+
+    # Update successful attacks counter if any hits were successful
+    if successful_hits > 0:
+        agent.environment.successful_attacks += 1
+        agent.environment.successful_attacks_this_step += 1
 
     # Log attack outcome
     attack_logger.log_attack_attempt(
