@@ -87,6 +87,16 @@ class Environment:
         # Add tracking for births and deaths
         self.births_this_step = 0
         self.deaths_this_step = 0
+        
+        # Add tracking for resources shared
+        self.resources_shared = 0
+        self.resources_shared_this_step = 0
+        
+        # Add tracking for combat metrics
+        self.combat_encounters = 0
+        self.successful_attacks = 0
+        self.combat_encounters_this_step = 0
+        self.successful_attacks_this_step = 0
 
         # Context tracking
         # self._active_contexts: Set[BaseAgent] = set()
@@ -255,6 +265,11 @@ class Environment:
 
             # Update KD trees
             self._update_kdtrees()
+            
+            # Reset counters for next step
+            self.resources_shared_this_step = 0
+            self.combat_encounters_this_step = 0
+            self.successful_attacks_this_step = 0
 
             # Increment time step
             self.time += 1
@@ -265,6 +280,7 @@ class Environment:
 
     def _calculate_metrics(self):
         """Calculate various metrics for the current simulation state."""
+        #! resources_shared is now being calculated
         try:
             # Get alive agents
             alive_agents = [agent for agent in self.agents if agent.alive]
@@ -336,6 +352,9 @@ class Environment:
             combat_encounters = getattr(self, "combat_encounters", 0)
             successful_attacks = getattr(self, "successful_attacks", 0)
             resources_shared = getattr(self, "resources_shared", 0)
+            resources_shared_this_step = getattr(self, "resources_shared_this_step", 0)
+            combat_encounters_this_step = getattr(self, "combat_encounters_this_step", 0)
+            successful_attacks_this_step = getattr(self, "successful_attacks_this_step", 0)
 
             # Calculate resource distribution entropy
             resource_amounts = [r.amount for r in self.resources]
@@ -377,8 +396,11 @@ class Environment:
                 "combat_encounters": combat_encounters,
                 "successful_attacks": successful_attacks,
                 "resources_shared": resources_shared,
+                "resources_shared_this_step": resources_shared_this_step,
                 "genetic_diversity": genetic_diversity,
                 "dominant_genome_ratio": dominant_genome_ratio,
+                "combat_encounters_this_step": combat_encounters_this_step,
+                "successful_attacks_this_step": successful_attacks_this_step,
             }
 
             # Reset counters for next step

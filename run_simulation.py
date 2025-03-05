@@ -36,7 +36,7 @@ def main():
         help="Path to configuration YAML file",
     )
     parser.add_argument(
-        "--steps", type=int, default=500, help="Number of simulation steps to run"
+        "--steps", type=int, default=1000, help="Number of simulation steps to run"
     )
     parser.add_argument(
         "--profile",

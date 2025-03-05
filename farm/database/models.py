@@ -325,6 +325,12 @@ class SimulationStepModel(Base):
         Number of successful attack actions
     resources_shared : float
         Amount of resources transferred between agents
+    resources_shared_this_step : float
+        Amount of resources transferred between agents in the current step
+    combat_encounters_this_step : int
+        Number of combat interactions in the current step
+    successful_attacks_this_step : int
+        Number of successful attack actions in the current step
     genetic_diversity : float
         Measure of genetic variation in population
     dominant_genome_ratio : float
@@ -359,6 +365,9 @@ class SimulationStepModel(Base):
     combat_encounters = Column(Integer)
     successful_attacks = Column(Integer)
     resources_shared = Column(Float)
+    resources_shared_this_step = Column(Float, default=0.0)
+    combat_encounters_this_step = Column(Integer, default=0)
+    successful_attacks_this_step = Column(Integer, default=0)
     genetic_diversity = Column(Float)
     dominant_genome_ratio = Column(Float)
     resources_consumed = Column(Float, default=0.0)
@@ -383,6 +392,9 @@ class SimulationStepModel(Base):
             "combat_encounters": self.combat_encounters,
             "successful_attacks": self.successful_attacks,
             "resources_shared": self.resources_shared,
+            "resources_shared_this_step": self.resources_shared_this_step,
+            "combat_encounters_this_step": self.combat_encounters_this_step,
+            "successful_attacks_this_step": self.successful_attacks_this_step,
             "genetic_diversity": self.genetic_diversity,
             "dominant_genome_ratio": self.dominant_genome_ratio,
             "resources_consumed": self.resources_consumed,
