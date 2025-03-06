@@ -16,7 +16,8 @@ from tqdm import tqdm
 
 from farm.analysis.comparative_analysis import compare_simulations
 from farm.core.config import SimulationConfig
-from farm.core.experiment_runner import ExperimentRunner
+from farm.runners.experiment_runner import ExperimentRunner
+from farm.runners.parallel_experiment_runner import ParallelExperimentRunner
 from farm.research.research import ResearchProject
 
 logging.basicConfig(level=logging.INFO)
@@ -30,6 +31,8 @@ class ExperimentConfig:
     variations: List[Dict]
     num_iterations: int = 10
     num_steps: int = 1500
+    n_jobs: int = -1  # Use all available cores by default
+    use_parallel: bool = True  # Whether to use parallel execution
 
 
 class Research:
@@ -87,9 +90,27 @@ class Research:
             # Ensure parent directory exists
             db_path.parent.mkdir(parents=True, exist_ok=True)
 
-            experiment = ExperimentRunner(
-                base_config, experiment_config.name, db_path=db_path
-            )
+            # Determine whether to use parallel or sequential execution
+            if experiment_config.use_parallel:
+                self.logger.info(f"Using parallel execution with {experiment_config.n_jobs} workers")
+                
+                # Extract in-memory DB settings from base_config
+                use_in_memory_db = getattr(base_config, "use_in_memory_db", True)
+                in_memory_db_memory_limit_mb = getattr(base_config, "in_memory_db_memory_limit_mb", None)
+                
+                experiment = ParallelExperimentRunner(
+                    base_config, 
+                    experiment_config.name, 
+                    n_jobs=experiment_config.n_jobs,
+                    db_path=db_path,
+                    use_in_memory_db=use_in_memory_db,
+                    in_memory_db_memory_limit_mb=in_memory_db_memory_limit_mb
+                )
+            else:
+                self.logger.info("Using sequential execution")
+                experiment = ExperimentRunner(
+                    base_config, experiment_config.name, db_path=db_path
+                )
 
             # Run experiment iterations
             experiment.run_iterations(
@@ -184,6 +205,29 @@ def main():
         help="Memory limit in MB for in-memory database (None = no limit)"
     )
     
+    # Add mutually exclusive group for parallel/sequential execution
+    parallel_group = parser.add_mutually_exclusive_group()
+    parallel_group.add_argument(
+        "--parallel", 
+        action="store_true",
+        dest="parallel",
+        default=True,
+        help="Use parallel execution for experiments (default)"
+    )
+    parallel_group.add_argument(
+        "--no-parallel", 
+        action="store_false",
+        dest="parallel",
+        help="Disable parallel execution and use sequential processing"
+    )
+    
+    parser.add_argument(
+        "--jobs", 
+        type=int, 
+        default=-1,
+        help="Number of parallel jobs to use (-1 = all cores)"
+    )
+    
     args = parser.parse_args()
     
     # Create research project
@@ -207,6 +251,8 @@ def main():
         #     ],
         #     num_iterations=args.iterations,
         #     num_steps=args.steps,
+        #     n_jobs=args.jobs,
+        #     use_parallel=args.parallel,
         # ),
         # ExperimentConfig(
         #     name="single_system_agent",
@@ -221,6 +267,8 @@ def main():
         #     ],
         #     num_iterations=args.iterations,
         #     num_steps=args.steps,
+        #     n_jobs=args.jobs,
+        #     use_parallel=args.parallel,
         # ),
         # ExperimentConfig(
         #     name="single_independent_agent",
@@ -235,6 +283,8 @@ def main():
         #     ],
         #     num_iterations=args.iterations,
         #     num_steps=args.steps,
+        #     n_jobs=args.jobs,
+        #     use_parallel=args.parallel,
         # ),
         ExperimentConfig(
             name="one_of_a_kind",
@@ -249,6 +299,8 @@ def main():
             ],
             num_iterations=args.iterations,
             num_steps=args.steps,
+            n_jobs=args.jobs,
+            use_parallel=args.parallel,
         ),
     ]
 

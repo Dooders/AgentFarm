@@ -40,7 +40,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 from farm.core.config import SimulationConfig
-from farm.core.experiment_runner import ExperimentRunner
+from farm.runners.experiment_runner import ExperimentRunner
 
 
 @dataclass
