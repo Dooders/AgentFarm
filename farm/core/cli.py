@@ -8,7 +8,7 @@ from datetime import datetime
 from farm.agents import main as run_simulation
 from farm.core.analysis import SimulationAnalyzer
 from farm.core.config import SimulationConfig
-from farm.core.experiment_runner import ExperimentRunner
+from farm.runners.experiment_runner import ExperimentRunner
 from farm.core.visualization import SimulationVisualizer
 
 
