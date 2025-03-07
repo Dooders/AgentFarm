@@ -300,7 +300,7 @@ def main():
             num_iterations=args.iterations,
             num_steps=args.steps,
             n_jobs=args.jobs,
-            use_parallel=args.parallel,
+            use_parallel=False,
         ),
     ]
 
