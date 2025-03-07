@@ -201,7 +201,7 @@ def visualize_simulation(iteration, experiment_path, dominance_type):
 
 def main():
     # Path to the experiment folder
-    experiment_path = "results/one_of_a_kind/experiments/data/one_of_a_kind_20250302_193353"
+    experiment_path = "results/one_of_a_kind/experiments/data/one_of_a_kind_20250305_184350"
     
     # Create output directory for visualizations
     os.makedirs("initial_conditions_viz", exist_ok=True)
