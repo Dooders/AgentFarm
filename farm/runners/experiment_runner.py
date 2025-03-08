@@ -21,7 +21,7 @@ from farm.charts.chart_analyzer import ChartAnalyzer
 from farm.core.config import SimulationConfig
 from farm.core.simulation import run_simulation
 from farm.database.database import SimulationDatabase
-from significant_events import SignificantEventAnalyzer
+from scripts.significant_events import SignificantEventAnalyzer
 
 DEFAULT_NUM_STEPS = 1000
 
@@ -95,7 +95,7 @@ class ExperimentRunner:
         run_analysis: bool = True,
     ) -> None:
         """Run multiple iterations of the simulation.
-        
+
         Parameters
         ----------
         num_iterations : int
@@ -110,24 +110,32 @@ class ExperimentRunner:
             Whether to run analysis after each iteration
         """
         self.logger.info(f"Starting experiment with {num_iterations} iterations")
-        
+
         # Check if in-memory database is enabled in base config
         using_in_memory = getattr(self.base_config, "use_in_memory_db", False)
         if using_in_memory:
             self.logger.info("Using in-memory database for improved performance")
-            
+
             # Log memory limit if configured
-            memory_limit = getattr(self.base_config, "in_memory_db_memory_limit_mb", None)
+            memory_limit = getattr(
+                self.base_config, "in_memory_db_memory_limit_mb", None
+            )
             if memory_limit:
-                self.logger.info(f"Memory limit for in-memory database: {memory_limit} MB")
+                self.logger.info(
+                    f"Memory limit for in-memory database: {memory_limit} MB"
+                )
 
         # Ensure path is a Path object
         if path and not isinstance(path, Path):
             path = Path(path)
 
         # Create progress bar for iterations
-        progress_bar = tqdm(range(num_iterations), desc=f"Running {self.experiment_name}", unit="iteration")
-        
+        progress_bar = tqdm(
+            range(num_iterations),
+            desc=f"Running {self.experiment_name}",
+            unit="iteration",
+        )
+
         for i in progress_bar:
             progress_bar.set_description(f"Running iteration {i+1}/{num_iterations}")
             self.logger.info(f"Starting iteration {i+1}/{num_iterations}")
@@ -148,38 +156,45 @@ class ExperimentRunner:
                 # Ensure all data is flushed
                 if env.db:
                     env.db.logger.flush_all_buffers()
-                
+
                 self.logger.info(f"Completed iteration {i+1}")
 
                 if run_analysis and iteration_path:
                     # Create a new database connection for analysis
                     db_path = iteration_path / "simulation.db"
-                    
+
                     # Skip analysis if using in-memory DB without persistence
-                    if using_in_memory and not getattr(iteration_config, "persist_db_on_completion", True):
+                    if using_in_memory and not getattr(
+                        iteration_config, "persist_db_on_completion", True
+                    ):
                         self.logger.warning(
                             "Skipping analysis for iteration {i+1} - "
                             "in-memory database without persistence enabled"
                         )
                         continue
-                    
+
                     # Ensure database file exists before analysis
                     if not os.path.exists(db_path):
                         self.logger.warning(
                             f"Database file not found at {db_path}, skipping analysis"
                         )
                         continue
-                    
+
                     analysis_db = SimulationDatabase(str(db_path))
-                    
+
                     try:
                         # Run chart analysis with the new connection
                         chart_analyzer = ChartAnalyzer(analysis_db)
                         chart_analyzer.analyze_all_charts(iteration_path)
 
-                        significant_event_analyzer = SignificantEventAnalyzer(analysis_db)
+                        significant_event_analyzer = SignificantEventAnalyzer(
+                            analysis_db
+                        )
                         significant_event_analyzer.analyze_simulation(
-                            start_step=0, end_step=num_steps, min_severity=0.3, path=iteration_path
+                            start_step=0,
+                            end_step=num_steps,
+                            min_severity=0.3,
+                            path=iteration_path,
                         )
                     finally:
                         # Clean up analysis database connection

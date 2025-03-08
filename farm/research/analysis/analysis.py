@@ -19,7 +19,7 @@ from farm.research.analysis.util import (
     validate_population_data,
     validate_resource_level_data,
 )
-from simple_research_analysis import EXPERIMENT_DATA_PATH
+from results.one_of_a_kind.scripts.simple_research_analysis import EXPERIMENT_DATA_PATH
 
 logger = logging.getLogger(__name__)
 
