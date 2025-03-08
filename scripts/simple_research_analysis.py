@@ -10,7 +10,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from sqlalchemy import func
 
-import generational_fitness_analysis
+import results.one_of_a_kind.scripts.generational_fitness_analysis as generational_fitness_analysis
 from farm.database.database import SimulationDatabase
 from farm.database.models import (
     ActionModel,
