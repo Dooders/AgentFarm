@@ -29,6 +29,7 @@ if TYPE_CHECKING:
 
 import numpy as np
 import torch
+import random
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +138,7 @@ def attack_action(agent: "BaseAgent") -> None:
         attack_logger.log_attack_attempt(
             step_number=agent.environment.time,
             agent=agent,
+            action_target_id=None,
             target_position=target_pos,
             resources_before=initial_resources,
             resources_after=initial_resources,
@@ -158,25 +160,41 @@ def attack_action(agent: "BaseAgent") -> None:
     agent.environment.combat_encounters += 1
     agent.environment.combat_encounters_this_step += 1
 
-    # Process each target in range
-    for target in targets:
-        # Skip self-targeting
-        if target.agent_id == agent.agent_id:
-            continue
-
-        # Calculate base damage
-        base_damage = agent.attack_strength * (
-            agent.resource_level / agent.starting_health
+    # Filter out self from targets
+    valid_targets = [target for target in targets if target.agent_id != agent.agent_id]
+    
+    # If no valid targets remain after filtering
+    if not valid_targets:
+        # Log attack outcome with no valid targets
+        attack_logger.log_attack_attempt(
+            step_number=agent.environment.time,
+            agent=agent,
+            action_target_id=None,
+            target_position=target_pos,
+            resources_before=initial_resources,
+            resources_after=agent.resource_level,
+            success=False,
+            targets_found=0,
+            reason="no_valid_targets",
         )
+        return
+        
+    # Select a random target
+    target = random.choice(valid_targets)
+    
+    # Calculate base damage
+    base_damage = agent.attack_strength * (
+        agent.resource_level / agent.starting_health
+    )
 
-        # Apply defensive reduction if target is defending
-        if target.is_defending:
-            base_damage *= 1 - target.defense_strength
+    # Apply defensive reduction if target is defending
+    if target.is_defending:
+        base_damage *= 1 - target.defense_strength
 
-        # Apply damage and track statistics
-        if target.take_damage(base_damage):
-            total_damage_dealt += base_damage
-            successful_hits += 1
+    # Apply damage and track statistics
+    if target.take_damage(base_damage):
+        total_damage_dealt += base_damage
+        successful_hits += 1
 
     # Update successful attacks counter if any hits were successful
     if successful_hits > 0:
@@ -187,11 +205,12 @@ def attack_action(agent: "BaseAgent") -> None:
     attack_logger.log_attack_attempt(
         step_number=agent.environment.time,
         agent=agent,
+        action_target_id=target.agent_id,
         target_position=target_pos,
         resources_before=initial_resources,
         resources_after=agent.resource_level,
         success=successful_hits > 0,
-        targets_found=len(targets),
+        targets_found=len(valid_targets),
         damage_dealt=total_damage_dealt,
         reason="hit" if successful_hits > 0 else "missed",
     )
