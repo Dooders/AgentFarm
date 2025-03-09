@@ -5,8 +5,6 @@ import pandas as pd
 from farm.database.data_retrieval import DataRetriever
 from farm.database.database import SimulationDatabase
 
-#! Table not populating currently
-
 
 def analyze_learning_experiences(db_path: str):
     """Analyze learning experiences from the simulation database.
