@@ -13,7 +13,7 @@ This report analyzes the dominance patterns observed across 250 simulations in t
 
 ## 1. Dominance Distribution
 
-Three different measures of dominance were analyzed:
+Three different measures of dominance were analyzed (see [Dominance Measures](Measures.md) for detailed explanations of each measure):
 
 | Dominance Measure | System | Independent | Control |
 |-------------------|--------|-------------|---------|

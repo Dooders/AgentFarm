@@ -2645,6 +2645,121 @@ def check_reproduction_events(experiment_path):
         return False
 
 
+def plot_comprehensive_score_breakdown(df):
+    """
+    Generate a chart showing the breakdown of average comprehensive dominance scores for each agent type.
+    
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame with analysis results for each simulation
+    """
+    logging.info("Generating comprehensive score breakdown chart...")
+    
+    # Extract the components of the comprehensive dominance score for each agent type
+    agent_types = ["system", "independent", "control"]
+    components = ["auc", "recency_weighted_auc", "dominance_duration", "growth_trend", "final_ratio"]
+    
+    # Weights used in the comprehensive dominance calculation
+    weights = {
+        "auc": 0.2,  # Basic population persistence
+        "recency_weighted_auc": 0.3,  # Emphasize later simulation stages
+        "dominance_duration": 0.2,  # Reward consistent dominance
+        "growth_trend": 0.1,  # Reward positive growth in latter half
+        "final_ratio": 0.2,  # Reward final state
+    }
+    
+    # Create a DataFrame to store the average normalized scores for each component and agent type
+    avg_scores = pd.DataFrame(index=agent_types, columns=components)
+    
+    # Calculate the average normalized score for each component and agent type
+    for agent_type in agent_types:
+        for component in components:
+            # Get the raw component values for this agent type
+            col_name = f"{agent_type}_{component}"
+            if col_name in df.columns:
+                # For growth_trend, we only count positive growth in the comprehensive score
+                if component == "growth_trend":
+                    values = df[col_name].apply(lambda x: max(0, x))
+                else:
+                    values = df[col_name]
+                
+                # Calculate the average
+                avg_scores.loc[agent_type, component] = values.mean()
+            else:
+                logging.warning(f"Column {col_name} not found in DataFrame")
+                avg_scores.loc[agent_type, component] = 0
+    
+    # Normalize the components for each metric across agent types
+    # This is necessary because the comprehensive score uses normalized values
+    for component in components:
+        component_sum = avg_scores[component].sum()
+        if component_sum > 0:
+            avg_scores[component] = avg_scores[component] / component_sum
+    
+    # Calculate the weighted contribution of each component to the final score
+    weighted_scores = pd.DataFrame(index=agent_types, columns=components)
+    for component in components:
+        weighted_scores[component] = avg_scores[component] * weights[component]
+    
+    # Calculate the total score for each agent type
+    weighted_scores['total'] = weighted_scores.sum(axis=1)
+    
+    # Create the stacked bar chart
+    plt.figure(figsize=(12, 8))
+    
+    # Set up the bar positions
+    bar_width = 0.6
+    index = np.arange(len(agent_types))
+    
+    # Create a colormap for the components
+    colors = plt.cm.viridis(np.linspace(0, 0.8, len(components)))
+    
+    # Create the stacked bars
+    bottom = np.zeros(len(agent_types))
+    for i, component in enumerate(components):
+        plt.bar(index, weighted_scores[component], bar_width, bottom=bottom, 
+                label=f"{component.replace('_', ' ').title()} ({weights[component]*100:.0f}%)", 
+                color=colors[i])
+        bottom += weighted_scores[component]
+    
+    # Add the total score as text on top of each bar
+    for i, agent_type in enumerate(agent_types):
+        plt.text(i, bottom[i] + 0.01, f'Total: {weighted_scores.loc[agent_type, "total"]:.3f}', 
+                 ha='center', va='bottom', fontweight='bold')
+    
+    # Customize the chart
+    plt.xlabel('Agent Type', fontsize=14)
+    plt.ylabel('Weighted Score Contribution', fontsize=14)
+    plt.title('Breakdown of Average Comprehensive Dominance Score by Agent Type', fontsize=16)
+    plt.xticks(index, [agent_type.capitalize() for agent_type in agent_types], fontsize=12)
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=3, fontsize=10)
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    
+    # Add caption
+    caption = ("This chart shows the breakdown of the comprehensive dominance score for each agent type. "
+              "The comprehensive score is calculated using five weighted components: Area Under the Curve (AUC), "
+              "Recency-weighted AUC, Dominance Duration, Growth Trend, and Final Population Ratio. "
+              "Each component is normalized across agent types before applying weights. "
+              "The height of each colored segment represents that component's contribution to the total score.")
+    plt.figtext(0.5, 0.01, caption, wrap=True, horizontalalignment='center', fontsize=10, 
+                style='italic', bbox=dict(facecolor='#f0f0f0', alpha=0.5, pad=5))
+    
+    plt.tight_layout(rect=[0, 0.08, 1, 0.95])  # Adjust layout to make room for caption
+    
+    # Save the chart
+    output_path = os.path.join(CURRENT_OUTPUT_PATH, 'comprehensive_score_breakdown.png')
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    logging.info(f"Comprehensive score breakdown chart saved to {output_path}")
+    
+    # Also save the data to a CSV file
+    csv_path = os.path.join(CURRENT_OUTPUT_PATH, 'comprehensive_score_breakdown.csv')
+    weighted_scores.to_csv(csv_path)
+    logging.info(f"Comprehensive score breakdown data saved to {csv_path}")
+    
+    return weighted_scores
+
+
 def main():
     global CURRENT_OUTPUT_PATH
 
@@ -2779,6 +2894,9 @@ def main():
 
     # Plot dominance distribution
     plot_dominance_distribution(df)
+    
+    # Generate comprehensive score breakdown chart
+    plot_comprehensive_score_breakdown(df)
 
     # Plot dominance switching patterns
     if "total_switches" in df.columns:
