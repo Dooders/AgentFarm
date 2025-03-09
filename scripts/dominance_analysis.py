@@ -21,6 +21,7 @@ import json
 import logging
 import os
 import shutil
+import time
 from datetime import datetime
 
 import matplotlib.pyplot as plt
@@ -441,6 +442,134 @@ def get_reproduction_stats(sim_session):
     return result
 
 
+def compute_dominance_switches(sim_session):
+    """
+    Analyze how often agent types switch dominance during a simulation.
+
+    This function examines the entire simulation history to identify:
+    1. Total number of dominance switches
+    2. Average duration of dominance periods for each agent type
+    3. Volatility of dominance (frequency of switches in different phases)
+    4. Transition matrix showing which agent types tend to take over from others
+
+    Returns a dictionary with dominance switching statistics.
+    """
+    # Query all simulation steps ordered by step number
+    sim_steps = (
+        sim_session.query(SimulationStepModel)
+        .order_by(SimulationStepModel.step_number.asc())
+        .all()
+    )
+
+    if not sim_steps:
+        return None
+
+    # Initialize tracking variables
+    agent_types = ["system", "independent", "control"]
+    current_dominant = None
+    previous_dominant = None
+    dominance_periods = {agent_type: [] for agent_type in agent_types}
+    switches = []
+    transition_matrix = {
+        from_type: {to_type: 0 for to_type in agent_types} for from_type in agent_types
+    }
+
+    # Track the current dominance period
+    period_start_step = 0
+    total_steps = len(sim_steps)
+
+    # Process each simulation step
+    for step_idx, step in enumerate(sim_steps):
+        # Determine which type is dominant in this step
+        counts = {
+            "system": step.system_agents,
+            "independent": step.independent_agents,
+            "control": step.control_agents,
+        }
+
+        # Skip steps with no agents
+        if sum(counts.values()) == 0:
+            continue
+
+        current_dominant = max(counts, key=counts.get)
+
+        # If this is the first step with agents, initialize
+        if previous_dominant is None:
+            previous_dominant = current_dominant
+            period_start_step = step_idx
+            continue
+
+        # Check if dominance has switched
+        if current_dominant != previous_dominant:
+            # Record the switch
+            switches.append(
+                {
+                    "step": step.step_number,
+                    "from": previous_dominant,
+                    "to": current_dominant,
+                    "phase": (
+                        "early"
+                        if step_idx < total_steps / 3
+                        else "middle" if step_idx < 2 * total_steps / 3 else "late"
+                    ),
+                }
+            )
+
+            # Update transition matrix
+            transition_matrix[previous_dominant][current_dominant] += 1
+
+            # Record the duration of the completed dominance period
+            period_duration = step_idx - period_start_step
+            dominance_periods[previous_dominant].append(period_duration)
+
+            # Reset for the new period
+            period_start_step = step_idx
+            previous_dominant = current_dominant
+
+    # Record the final dominance period
+    if previous_dominant is not None:
+        final_period_duration = total_steps - period_start_step
+        dominance_periods[previous_dominant].append(final_period_duration)
+
+    # Calculate average dominance period durations
+    avg_dominance_periods = {}
+    for agent_type in agent_types:
+        periods = dominance_periods[agent_type]
+        avg_dominance_periods[agent_type] = (
+            sum(periods) / len(periods) if periods else 0
+        )
+
+    # Calculate phase-specific switch counts
+    phase_switches = {
+        "early": sum(1 for s in switches if s["phase"] == "early"),
+        "middle": sum(1 for s in switches if s["phase"] == "middle"),
+        "late": sum(1 for s in switches if s["phase"] == "late"),
+    }
+
+    # Calculate normalized transition probabilities
+    transition_probabilities = {from_type: {} for from_type in agent_types}
+
+    for from_type in agent_types:
+        total_transitions = sum(transition_matrix[from_type].values())
+        for to_type in agent_types:
+            transition_probabilities[from_type][to_type] = (
+                transition_matrix[from_type][to_type] / total_transitions
+                if total_transitions > 0
+                else 0
+            )
+
+    # Return comprehensive results
+    return {
+        "total_switches": len(switches),
+        "switches_per_step": len(switches) / total_steps if total_steps > 0 else 0,
+        "switches_detail": switches,
+        "avg_dominance_periods": avg_dominance_periods,
+        "phase_switches": phase_switches,
+        "transition_matrix": transition_matrix,
+        "transition_probabilities": transition_probabilities,
+    }
+
+
 def analyze_simulations(experiment_path):
     """
     Analyze all simulation databases in the experiment folder.
@@ -492,6 +621,9 @@ def analyze_simulations(experiment_path):
             survival_dominance = compute_survival_dominance(session)
             comprehensive_dominance = compute_comprehensive_dominance(session)
 
+            # Compute dominance switching metrics
+            dominance_switches = compute_dominance_switches(session)
+
             # Get initial positions and resource data
             initial_data = get_initial_positions_and_resources(session, config)
 
@@ -534,6 +666,30 @@ def analyze_simulations(experiment_path):
                 sim_data[f"{agent_type}_final_ratio"] = comprehensive_dominance[
                     "metrics"
                 ]["final_ratios"][agent_type]
+
+            # Add dominance switching data
+            if dominance_switches:
+                sim_data["total_switches"] = dominance_switches["total_switches"]
+                sim_data["switches_per_step"] = dominance_switches["switches_per_step"]
+
+                # Add average dominance periods
+                for agent_type in ["system", "independent", "control"]:
+                    sim_data[f"{agent_type}_avg_dominance_period"] = dominance_switches[
+                        "avg_dominance_periods"
+                    ][agent_type]
+
+                # Add phase-specific switch counts
+                for phase in ["early", "middle", "late"]:
+                    sim_data[f"{phase}_phase_switches"] = dominance_switches[
+                        "phase_switches"
+                    ][phase]
+
+                # Add transition matrix data
+                for from_type in ["system", "independent", "control"]:
+                    for to_type in ["system", "independent", "control"]:
+                        sim_data[f"{from_type}_to_{to_type}"] = dominance_switches[
+                            "transition_probabilities"
+                        ][from_type][to_type]
 
             # Add all other data
             sim_data.update(initial_data)
@@ -1110,6 +1266,272 @@ def plot_dominance_comparison(df):
     plt.close()
 
 
+def plot_dominance_switches(df):
+    """
+    Create visualizations for dominance switching patterns.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame with simulation analysis results
+    """
+    if df.empty or "total_switches" not in df.columns:
+        logging.warning("No dominance switch data available for plotting")
+        return
+
+    # 1. Distribution of total switches
+    plt.figure(figsize=(10, 6))
+    sns.histplot(df["total_switches"], kde=True)
+    plt.title("Distribution of Dominance Switches Across Simulations")
+    plt.xlabel("Number of Dominance Switches")
+    plt.ylabel("Count")
+    output_file = os.path.join(
+        CURRENT_OUTPUT_PATH, "dominance_switches_distribution.png"
+    )
+    plt.savefig(output_file)
+    plt.close()
+
+    # 2. Average dominance period duration by agent type
+    plt.figure(figsize=(10, 6))
+    agent_types = ["system", "independent", "control"]
+    avg_periods = [
+        df[f"{agent_type}_avg_dominance_period"].mean() for agent_type in agent_types
+    ]
+
+    bars = plt.bar(agent_types, avg_periods)
+
+    # Add value labels on top of bars
+    for bar in bars:
+        height = bar.get_height()
+        plt.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            height + 0.1,
+            f"{height:.1f}",
+            ha="center",
+            va="bottom",
+        )
+
+    plt.title("Average Dominance Period Duration by Agent Type")
+    plt.xlabel("Agent Type")
+    plt.ylabel("Average Steps")
+    output_file = os.path.join(CURRENT_OUTPUT_PATH, "avg_dominance_period.png")
+    plt.savefig(output_file)
+    plt.close()
+
+    # 3. Phase-specific switch frequency
+    if "early_phase_switches" in df.columns:
+        plt.figure(figsize=(10, 6))
+        phases = ["early", "middle", "late"]
+        phase_data = [df[f"{phase}_phase_switches"].mean() for phase in phases]
+
+        bars = plt.bar(phases, phase_data)
+
+        # Add value labels
+        for bar in bars:
+            height = bar.get_height()
+            plt.text(
+                bar.get_x() + bar.get_width() / 2.0,
+                height + 0.1,
+                f"{height:.1f}",
+                ha="center",
+                va="bottom",
+            )
+
+        plt.title("Average Dominance Switches by Simulation Phase")
+        plt.xlabel("Simulation Phase")
+        plt.ylabel("Average Number of Switches")
+        output_file = os.path.join(CURRENT_OUTPUT_PATH, "phase_switches.png")
+        plt.savefig(output_file)
+        plt.close()
+
+    # 4. Transition matrix heatmap (average across all simulations)
+    if all(
+        f"{from_type}_to_{to_type}" in df.columns
+        for from_type in agent_types
+        for to_type in agent_types
+    ):
+        plt.figure(figsize=(10, 8))
+        transition_data = np.zeros((3, 3))
+
+        for i, from_type in enumerate(agent_types):
+            for j, to_type in enumerate(agent_types):
+                transition_data[i, j] = df[f"{from_type}_to_{to_type}"].mean()
+
+        # Normalize rows to show probabilities
+        row_sums = transition_data.sum(axis=1, keepdims=True)
+        transition_probs = np.divide(
+            transition_data,
+            row_sums,
+            out=np.zeros_like(transition_data),
+            where=row_sums != 0,
+        )
+
+        sns.heatmap(
+            transition_probs,
+            annot=True,
+            cmap="YlGnBu",
+            fmt=".2f",
+            xticklabels=agent_types,
+            yticklabels=agent_types,
+        )
+        plt.title("Dominance Transition Probabilities")
+        plt.xlabel("To Agent Type")
+        plt.ylabel("From Agent Type")
+        output_file = os.path.join(CURRENT_OUTPUT_PATH, "dominance_transitions.png")
+        plt.savefig(output_file)
+        plt.close()
+
+
+def safe_remove_directory(directory_path, max_retries=3, retry_delay=1):
+    """
+    Safely remove a directory with retries.
+
+    Parameters
+    ----------
+    directory_path : str
+        Path to the directory to remove
+    max_retries : int
+        Maximum number of removal attempts
+    retry_delay : float
+        Delay in seconds between retries
+
+    Returns
+    -------
+    bool
+        True if directory was successfully removed, False otherwise
+    """
+    for attempt in range(max_retries):
+        try:
+            if os.path.exists(directory_path):
+                shutil.rmtree(directory_path)
+            return True
+        except (PermissionError, OSError) as e:
+            logging.warning(
+                f"Attempt {attempt+1}/{max_retries} to remove directory failed: {e}"
+            )
+            if attempt < max_retries - 1:
+                logging.info(f"Waiting {retry_delay} seconds before retrying...")
+                time.sleep(retry_delay)
+
+    return False
+
+
+def analyze_dominance_switch_factors(df):
+    """
+    Analyze what factors correlate with dominance switching patterns.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame with simulation analysis results
+
+    Returns
+    -------
+    dict
+        Dictionary with analysis results
+    """
+    if df.empty or "total_switches" not in df.columns:
+        logging.warning("No dominance switch data available for analysis")
+        return None
+
+    results = {}
+
+    # 1. Correlation between initial conditions and switching frequency
+    initial_condition_cols = [
+        col
+        for col in df.columns
+        if any(x in col for x in ["initial_", "resource_", "proximity"])
+    ]
+
+    if initial_condition_cols and len(df) > 5:
+        # Calculate correlations with total switches
+        corr_with_switches = (
+            df[initial_condition_cols + ["total_switches"]]
+            .corr()["total_switches"]
+            .drop("total_switches")
+        )
+
+        # Get top positive and negative correlations
+        top_positive = corr_with_switches.sort_values(ascending=False).head(5)
+        top_negative = corr_with_switches.sort_values().head(5)
+
+        results["top_positive_correlations"] = top_positive.to_dict()
+        results["top_negative_correlations"] = top_negative.to_dict()
+
+        logging.info("\nFactors associated with MORE dominance switching:")
+        for factor, corr in top_positive.items():
+            if abs(corr) > 0.1:  # Only report meaningful correlations
+                logging.info(f"  {factor}: {corr:.3f}")
+
+        logging.info("\nFactors associated with LESS dominance switching:")
+        for factor, corr in top_negative.items():
+            if abs(corr) > 0.1:  # Only report meaningful correlations
+                logging.info(f"  {factor}: {corr:.3f}")
+
+    # 2. Relationship between switching and final dominance
+    if "comprehensive_dominance" in df.columns:
+        # Average switches by dominant type
+        switches_by_dominant = df.groupby("comprehensive_dominance")[
+            "total_switches"
+        ].mean()
+        results["switches_by_dominant_type"] = switches_by_dominant.to_dict()
+
+        logging.info("\nAverage dominance switches by final dominant type:")
+        for agent_type, avg_switches in switches_by_dominant.items():
+            logging.info(f"  {agent_type}: {avg_switches:.2f}")
+
+    # 3. Relationship between switching and reproduction metrics
+    reproduction_cols = [col for col in df.columns if "reproduction" in col]
+    if reproduction_cols and len(df) > 5:
+        # Calculate correlations with total switches
+        repro_corr = (
+            df[reproduction_cols + ["total_switches"]]
+            .corr()["total_switches"]
+            .drop("total_switches")
+        )
+
+        # Get top correlations (absolute value)
+        top_repro_corr = repro_corr.abs().sort_values(ascending=False).head(5)
+        top_repro_factors = repro_corr[top_repro_corr.index]
+
+        results["reproduction_correlations"] = top_repro_factors.to_dict()
+
+        logging.info("\nReproduction factors most associated with dominance switching:")
+        for factor, corr in top_repro_factors.items():
+            if abs(corr) > 0.1:  # Only report meaningful correlations
+                direction = "more" if corr > 0 else "fewer"
+                logging.info(f"  {factor}: {corr:.3f} ({direction} switches)")
+
+    # 4. Create a plot showing the relationship between switching and dominance stability
+    plt.figure(figsize=(10, 6))
+
+    # Calculate stability metric (inverse of switches per step)
+    df["dominance_stability"] = 1 / (
+        df["switches_per_step"] + 0.01
+    )  # Add small constant to avoid division by zero
+
+    # Plot relationship between stability and dominance score for each agent type
+    for agent_type in ["system", "independent", "control"]:
+        score_col = f"{agent_type}_dominance_score"
+        if score_col in df.columns:
+            plt.scatter(
+                df["dominance_stability"], df[score_col], label=agent_type, alpha=0.7
+            )
+
+    plt.xlabel("Dominance Stability (inverse of switches per step)")
+    plt.ylabel("Dominance Score")
+    plt.title("Relationship Between Dominance Stability and Final Dominance Score")
+    plt.legend()
+    plt.tight_layout()
+
+    output_file = os.path.join(CURRENT_OUTPUT_PATH, "dominance_stability_analysis.png")
+    plt.savefig(output_file)
+    plt.close()
+    logging.info(f"Saved dominance stability analysis to {output_file}")
+
+    return results
+
+
 def main():
     global CURRENT_OUTPUT_PATH
 
@@ -1119,7 +1541,11 @@ def main():
     # Clear the dominance directory if it exists
     if os.path.exists(dominance_output_path):
         logging.info(f"Clearing existing dominance directory: {dominance_output_path}")
-        shutil.rmtree(dominance_output_path)
+        if not safe_remove_directory(dominance_output_path):
+            # If we couldn't remove the directory after retries, create a new one with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            dominance_output_path = os.path.join(OUTPUT_PATH, f"dominance_{timestamp}")
+            logging.info(f"Using alternative directory: {dominance_output_path}")
 
     # Create the directory
     os.makedirs(dominance_output_path, exist_ok=True)
@@ -1183,8 +1609,50 @@ def main():
         for agent_type, percentage in comp_percentages.items():
             logging.info(f"  {agent_type}: {percentage}%")
 
+    # Dominance switching statistics
+    if "total_switches" in df.columns:
+        logging.info("\nDominance switching statistics:")
+        logging.info(
+            f"Average switches per simulation: {df['total_switches'].mean():.2f}"
+        )
+        logging.info(f"Average switches per step: {df['switches_per_step'].mean():.4f}")
+
+        # Average dominance period by agent type
+        logging.info("\nAverage dominance period duration (steps):")
+        for agent_type in ["system", "independent", "control"]:
+            avg_period = df[f"{agent_type}_avg_dominance_period"].mean()
+            logging.info(f"  {agent_type}: {avg_period:.2f}")
+
+        # Phase-specific switching
+        if "early_phase_switches" in df.columns:
+            logging.info("\nAverage switches by simulation phase:")
+            for phase in ["early", "middle", "late"]:
+                avg_switches = df[f"{phase}_phase_switches"].mean()
+                logging.info(f"  {phase}: {avg_switches:.2f}")
+
+        # Transition probabilities
+        if all(
+            f"{from_type}_to_{to_type}" in df.columns
+            for from_type in ["system", "independent", "control"]
+            for to_type in ["system", "independent", "control"]
+        ):
+            logging.info("\nDominance transition probabilities:")
+            for from_type in ["system", "independent", "control"]:
+                logging.info(f"  From {from_type}:")
+                for to_type in ["system", "independent", "control"]:
+                    if from_type != to_type:  # Skip self-transitions
+                        prob = df[f"{from_type}_to_{to_type}"].mean()
+                        logging.info(f"    To {to_type}: {prob:.2f}")
+
     # Plot dominance distribution
     plot_dominance_distribution(df)
+
+    # Plot dominance switching patterns
+    if "total_switches" in df.columns:
+        plot_dominance_switches(df)
+
+        # Analyze factors related to dominance switching
+        analyze_dominance_switch_factors(df)
 
     # Plot resource proximity vs dominance
     plot_resource_proximity_vs_dominance(df)
