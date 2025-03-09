@@ -96,7 +96,9 @@ dmypy.json
 simulation_report.html
 simulation_data.csv
 efficiency_plot.png
+# Allow PNGs in docs directory, but ignore them elsewhere
 *.png
+!docs/**/*.png
 *.gif
 
 # Python cache
