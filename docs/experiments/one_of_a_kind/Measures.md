@@ -94,7 +94,7 @@ The comprehensive measure is generally preferred for overall analysis, while the
 
 The comprehensive dominance score can be further analyzed by examining the contribution of each component to the final score for each agent type. This breakdown reveals which specific aspects of performance drive an agent type's overall success.
 
-![Comprehensive Score Breakdown](../../comprehensive_score_breakdown.png)
+![Comprehensive Score Breakdown](/docs/experiments/one_of_a_kind/images/comprehensive_score_breakdown.png)
 *Figure 1: Breakdown of average comprehensive dominance score by agent type, showing the weighted contribution of each component.*
 
 ### Key Insights from Score Breakdown
