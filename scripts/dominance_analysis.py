@@ -341,105 +341,232 @@ def get_reproduction_stats(sim_session):
     """
     Analyze reproduction patterns for each agent type.
     """
-    # Query reproduction events
-    reproduction_events = sim_session.query(ReproductionEventModel).all()
+    try:
+        # Check if ReproductionEventModel table exists
+        inspector = sqlalchemy.inspect(sim_session.bind)
+        if 'reproduction_events' not in inspector.get_table_names():
+            logging.warning("No reproduction_events table found in database")
+            return {}
+            
+        # Query reproduction events
+        try:
+            reproduction_events = sim_session.query(ReproductionEventModel).all()
+            logging.info(f"Found {len(reproduction_events)} reproduction events in database")
+        except Exception as e:
+            logging.error(f"Error querying reproduction events: {e}")
+            return {}
 
-    if not reproduction_events:
-        return {}
+        if not reproduction_events:
+            logging.warning("No reproduction events found in the database")
+            return {}
 
-    # Get all agents to determine their types
-    agents = {
-        agent.agent_id: agent.agent_type.lower()
-        for agent in sim_session.query(AgentModel).all()
-    }
+        # Get all agents to determine their types
+        try:
+            # Create a mapping of agent IDs to normalized agent types
+            agents_raw = {
+                agent.agent_id: agent.agent_type
+                for agent in sim_session.query(AgentModel).all()
+            }
+            
+            # Normalize agent types (handle different case formats)
+            agents = {}
+            for agent_id, agent_type in agents_raw.items():
+                # Convert to lowercase for comparison
+                agent_type_lower = agent_type.lower()
+                
+                # Map to standard types based on substring matching
+                if "system" in agent_type_lower:
+                    normalized_type = "system"
+                elif "independent" in agent_type_lower:
+                    normalized_type = "independent"
+                elif "control" in agent_type_lower:
+                    normalized_type = "control"
+                else:
+                    normalized_type = "unknown"
+                    
+                agents[agent_id] = normalized_type
+                
+            logging.info(f"Found {len(agents)} agents in database")
+            
+            # Log the agent type mapping for debugging
+            agent_types_found = set(agents_raw.values())
+            normalized_types = set(agents.values())
+            logging.info(f"Original agent types in database: {', '.join(agent_types_found)}")
+            logging.info(f"Normalized to: {', '.join(normalized_types)}")
+            
+        except Exception as e:
+            logging.error(f"Error querying agents: {e}")
+            return {}
 
-    # Initialize counters
-    stats = {
-        "system": {
-            "attempts": 0,
-            "successes": 0,
-            "failures": 0,
-            "first_reproduction_time": float("inf"),
-        },
-        "independent": {
-            "attempts": 0,
-            "successes": 0,
-            "failures": 0,
-            "first_reproduction_time": float("inf"),
-        },
-        "control": {
-            "attempts": 0,
-            "successes": 0,
-            "failures": 0,
-            "first_reproduction_time": float("inf"),
-        },
-    }
+        # Initialize counters
+        stats = {
+            "system": {
+                "attempts": 0,
+                "successes": 0,
+                "failures": 0,
+                "first_reproduction_time": float("inf"),
+                "resources_spent": 0,
+                "offspring_resources": 0,
+            },
+            "independent": {
+                "attempts": 0,
+                "successes": 0,
+                "failures": 0,
+                "first_reproduction_time": float("inf"),
+                "resources_spent": 0,
+                "offspring_resources": 0,
+            },
+            "control": {
+                "attempts": 0,
+                "successes": 0,
+                "failures": 0,
+                "first_reproduction_time": float("inf"),
+                "resources_spent": 0,
+                "offspring_resources": 0,
+            },
+        }
 
-    # Process reproduction events
-    for event in reproduction_events:
-        parent_id = event.parent_id
-        parent_type = agents.get(parent_id, "unknown").lower()
+        # Process reproduction events
+        unknown_agent_types = set()
+        missing_resource_data = 0
+        
+        for event in reproduction_events:
+            try:
+                parent_id = event.parent_id
+                parent_type = agents.get(parent_id, "unknown")
 
-        if parent_type not in stats:
-            continue
+                if parent_type not in stats:
+                    if parent_type not in unknown_agent_types:
+                        unknown_agent_types.add(parent_type)
+                        logging.warning(f"Unknown agent type: {parent_type} for agent {parent_id}")
+                    continue
 
-        stats[parent_type]["attempts"] += 1
+                stats[parent_type]["attempts"] += 1
 
-        if event.success:
-            stats[parent_type]["successes"] += 1
-            # Track first successful reproduction time
-            stats[parent_type]["first_reproduction_time"] = min(
-                stats[parent_type]["first_reproduction_time"], event.step_number
-            )
+                # Calculate resources spent on reproduction
+                try:
+                    resources_spent = event.parent_resources_before - event.parent_resources_after
+                    stats[parent_type]["resources_spent"] += resources_spent
+                except (TypeError, AttributeError):
+                    missing_resource_data += 1
+                    # Skip resource calculation if data is missing
+
+                if event.success:
+                    stats[parent_type]["successes"] += 1
+                    # Track first successful reproduction time
+                    stats[parent_type]["first_reproduction_time"] = min(
+                        stats[parent_type]["first_reproduction_time"], event.step_number
+                    )
+                    # Track resources given to offspring
+                    if hasattr(event, 'offspring_initial_resources') and event.offspring_initial_resources is not None:
+                        stats[parent_type]["offspring_resources"] += event.offspring_initial_resources
+                else:
+                    stats[parent_type]["failures"] += 1
+            except Exception as e:
+                logging.error(f"Error processing reproduction event: {e}")
+                continue
+
+        if missing_resource_data > 0:
+            logging.warning(f"Missing resource data for {missing_resource_data} reproduction events")
+            
+        if unknown_agent_types:
+            logging.warning(f"Found unknown agent types: {', '.join(unknown_agent_types)}")
+
+        # Calculate derived metrics
+        result = {}
+        for agent_type, data in stats.items():
+            if data["attempts"] > 0:
+                result[f"{agent_type}_reproduction_attempts"] = data["attempts"]
+                result[f"{agent_type}_reproduction_successes"] = data["successes"]
+                result[f"{agent_type}_reproduction_failures"] = data["failures"]
+                
+                # Calculate success rate
+                result[f"{agent_type}_reproduction_success_rate"] = (
+                    data["successes"] / data["attempts"]
+                )
+                
+                # Calculate resource metrics if we have resource data
+                if data["resources_spent"] > 0:
+                    result[f"{agent_type}_avg_resources_per_reproduction"] = (
+                        data["resources_spent"] / data["attempts"]
+                    )
+                    
+                    if data["successes"] > 0 and data["offspring_resources"] > 0:
+                        result[f"{agent_type}_avg_offspring_resources"] = (
+                            data["offspring_resources"] / data["successes"]
+                        )
+                        result[f"{agent_type}_reproduction_efficiency"] = (
+                            data["offspring_resources"] / data["resources_spent"]
+                        )
+
+                # First reproduction time
+                if data["first_reproduction_time"] != float("inf"):
+                    result[f"{agent_type}_first_reproduction_time"] = data[
+                        "first_reproduction_time"
+                    ]
+                else:
+                    result[f"{agent_type}_first_reproduction_time"] = (
+                        -1
+                    )  # No successful reproduction
+
+        # Calculate relative advantages (differences between agent types)
+        agent_types = ["system", "independent", "control"]
+        for i, type1 in enumerate(agent_types):
+            for type2 in agent_types[i + 1 :]:
+                # Difference in reproduction success rate
+                key1 = f"{type1}_reproduction_success_rate"
+                key2 = f"{type2}_reproduction_success_rate"
+                if key1 in result and key2 in result:
+                    result[f"{type1}_vs_{type2}_reproduction_rate_advantage"] = (
+                        result[key1] - result[key2]
+                    )
+
+                # Difference in first reproduction time (negative is better - earlier reproduction)
+                key1 = f"{type1}_first_reproduction_time"
+                key2 = f"{type2}_first_reproduction_time"
+                if (
+                    key1 in result
+                    and key2 in result
+                    and result[key1] > 0
+                    and result[key2] > 0
+                ):
+                    result[f"{type1}_vs_{type2}_first_reproduction_advantage"] = (
+                        result[key2] - result[key1]
+                    )
+                    
+                # Difference in reproduction efficiency
+                key1 = f"{type1}_reproduction_efficiency"
+                key2 = f"{type2}_reproduction_efficiency"
+                if key1 in result and key2 in result:
+                    result[f"{type1}_vs_{type2}_reproduction_efficiency_advantage"] = (
+                        result[key1] - result[key2]
+                    )
+
+        # Log summary of reproduction stats
+        if result:
+            logging.info("\nReproduction statistics summary:")
+            for agent_type in agent_types:
+                attempts_key = f"{agent_type}_reproduction_attempts"
+                success_rate_key = f"{agent_type}_reproduction_success_rate"
+                if attempts_key in result:
+                    attempts = result[attempts_key]
+                    success_rate = result.get(success_rate_key, 0) * 100
+                    logging.info(f"  {agent_type}: {attempts} attempts, {success_rate:.1f}% success rate")
+                    
+            # Log all calculated metrics for debugging
+            logging.info(f"Calculated {len(result)} reproduction metrics:")
+            for key in sorted(result.keys())[:10]:  # Show first 10
+                logging.info(f"  {key}: {result[key]}")
         else:
-            stats[parent_type]["failures"] += 1
+            logging.warning("No reproduction statistics could be calculated")
 
-    # Calculate derived metrics
-    result = {}
-    for agent_type, data in stats.items():
-        if data["attempts"] > 0:
-            result[f"{agent_type}_reproduction_attempts"] = data["attempts"]
-            result[f"{agent_type}_reproduction_successes"] = data["successes"]
-            result[f"{agent_type}_reproduction_failures"] = data["failures"]
-            result[f"{agent_type}_reproduction_success_rate"] = (
-                data["successes"] / data["attempts"]
-            )
-
-            if data["first_reproduction_time"] != float("inf"):
-                result[f"{agent_type}_first_reproduction_time"] = data[
-                    "first_reproduction_time"
-                ]
-            else:
-                result[f"{agent_type}_first_reproduction_time"] = (
-                    -1
-                )  # No successful reproduction
-
-    # Calculate relative advantages (differences between agent types)
-    agent_types = ["system", "independent", "control"]
-    for i, type1 in enumerate(agent_types):
-        for type2 in agent_types[i + 1 :]:
-            # Difference in reproduction success rate
-            key1 = f"{type1}_reproduction_success_rate"
-            key2 = f"{type2}_reproduction_success_rate"
-            if key1 in result and key2 in result:
-                result[f"{type1}_vs_{type2}_reproduction_rate_advantage"] = (
-                    result[key1] - result[key2]
-                )
-
-            # Difference in first reproduction time (negative is better - earlier reproduction)
-            key1 = f"{type1}_first_reproduction_time"
-            key2 = f"{type2}_first_reproduction_time"
-            if (
-                key1 in result
-                and key2 in result
-                and result[key1] > 0
-                and result[key2] > 0
-            ):
-                result[f"{type1}_vs_{type2}_first_reproduction_advantage"] = (
-                    result[key2] - result[key1]
-                )
-
-    return result
+        return result
+        
+    except Exception as e:
+        logging.error(f"Error in get_reproduction_stats: {e}")
+        import traceback
+        logging.error(traceback.format_exc())
+        return {}
 
 
 def compute_dominance_switches(sim_session):
@@ -1532,6 +1659,528 @@ def analyze_dominance_switch_factors(df):
     return results
 
 
+def analyze_reproduction_dominance_switching(df):
+    """
+    Analyze the relationship between reproduction strategies and dominance switching patterns.
+    
+    This function examines how different reproduction metrics correlate with dominance
+    switching patterns, including:
+    1. How reproduction success rates affect dominance stability
+    2. How reproduction timing relates to dominance switches
+    3. Differences in reproduction strategies between simulations with high vs. low switching
+    4. How reproduction efficiency impacts dominance patterns
+    
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame with simulation analysis results
+        
+    Returns
+    -------
+    dict
+        Dictionary with analysis results
+    """
+    if df.empty or "total_switches" not in df.columns:
+        logging.warning("No dominance switch data available for reproduction-switching analysis")
+        return None
+        
+    # Check if we have reproduction data
+    reproduction_cols = [col for col in df.columns if "reproduction" in col]
+    
+    # Log all available columns for debugging
+    logging.info(f"Available columns in dataframe: {', '.join(df.columns)}")
+    
+    if not reproduction_cols:
+        logging.warning("No reproduction data columns found in the analysis dataframe")
+        # Check if we have any agent type columns that might indicate reproduction data
+        agent_type_cols = [col for col in df.columns if any(agent in col for agent in ["system", "independent", "control"])]
+        logging.info(f"Agent-related columns: {', '.join(agent_type_cols)}")
+        return None
+    
+    logging.info(f"Found reproduction columns: {', '.join(reproduction_cols)}")
+    
+    # Filter to only include numeric reproduction columns
+    numeric_repro_cols = []
+    for col in reproduction_cols:
+        if col in df.columns:
+            if pd.api.types.is_numeric_dtype(df[col]):
+                # Check if column has enough non-zero values
+                non_zero_count = (df[col] != 0).sum()
+                if non_zero_count > 5:  # Need at least 5 non-zero values for analysis
+                    numeric_repro_cols.append(col)
+                else:
+                    logging.info(f"Skipping column {col} with only {non_zero_count} non-zero values")
+            else:
+                logging.info(f"Skipping non-numeric reproduction column: {col}")
+    
+    if not numeric_repro_cols:
+        logging.warning("No numeric reproduction data columns found")
+        return None
+        
+    results = {}
+    
+    # 1. Divide simulations into high and low switching groups
+    median_switches = df["total_switches"].median()
+    high_switching = df[df["total_switches"] > median_switches]
+    low_switching = df[df["total_switches"] <= median_switches]
+    
+    logging.info(f"Analyzing {len(high_switching)} high-switching and {len(low_switching)} low-switching simulations")
+    
+    # Compare reproduction metrics between high and low switching groups
+    repro_comparison = {}
+    for col in numeric_repro_cols:
+        try:
+            high_mean = high_switching[col].mean()
+            low_mean = low_switching[col].mean()
+            difference = high_mean - low_mean
+            percent_diff = (difference / low_mean * 100) if low_mean != 0 else float('inf')
+            
+            repro_comparison[col] = {
+                "high_switching_mean": high_mean,
+                "low_switching_mean": low_mean,
+                "difference": difference,
+                "percent_difference": percent_diff
+            }
+        except Exception as e:
+            logging.warning(f"Error processing column {col}: {e}")
+    
+    results["reproduction_high_vs_low_switching"] = repro_comparison
+    
+    # Log the most significant differences
+    logging.info("\nReproduction differences between high and low switching simulations:")
+    sorted_diffs = sorted(
+        repro_comparison.items(), 
+        key=lambda x: abs(x[1]["percent_difference"]), 
+        reverse=True
+    )
+    
+    for col, stats in sorted_diffs[:5]:  # Top 5 differences
+        if abs(stats["percent_difference"]) > 10:  # Only report meaningful differences
+            direction = "higher" if stats["difference"] > 0 else "lower"
+            logging.info(
+                f"  {col}: {stats['high_switching_mean']:.3f} vs {stats['low_switching_mean']:.3f} "
+                f"({abs(stats['percent_difference']):.1f}% {direction} in high-switching simulations)"
+            )
+    
+    # 2. Analyze how first reproduction timing relates to dominance switching
+    first_repro_cols = [col for col in numeric_repro_cols if "first_reproduction_time" in col]
+    if first_repro_cols:
+        first_repro_corr = {}
+        for col in first_repro_cols:
+            try:
+                # Filter out -1 values (no reproduction)
+                valid_data = df[df[col] > 0]
+                if len(valid_data) > 5:  # Need enough data points
+                    corr = valid_data[[col, "total_switches"]].corr().iloc[0, 1]
+                    first_repro_corr[col] = corr
+                else:
+                    logging.info(f"Not enough valid data points for {col} correlation analysis")
+            except Exception as e:
+                logging.warning(f"Error calculating correlation for {col}: {e}")
+        
+        results["first_reproduction_timing_correlation"] = first_repro_corr
+        
+        logging.info("\nCorrelation between first reproduction timing and dominance switches:")
+        for col, corr in first_repro_corr.items():
+            agent_type = col.split("_first_reproduction")[0]
+            if abs(corr) > 0.1:  # Only report meaningful correlations
+                direction = "more" if corr > 0 else "fewer"
+                logging.info(f"  Earlier {agent_type} reproduction → {direction} dominance switches (r={corr:.3f})")
+    else:
+        logging.info("No first reproduction timing data available for analysis")
+    
+    # 3. Create visualization showing reproduction success rate vs. dominance switching
+    success_rate_cols = [col for col in numeric_repro_cols if "reproduction_success_rate" in col]
+    if success_rate_cols:
+        plt.figure(figsize=(12, 8))
+        
+        for i, col in enumerate(success_rate_cols):
+            try:
+                agent_type = col.split("_reproduction")[0]
+                
+                # Filter out NaN values before plotting
+                valid_data = df.dropna(subset=[col, "total_switches"])
+                
+                if len(valid_data) < 5:  # Skip if not enough valid data
+                    logging.warning(f"Not enough valid data points for {col} visualization")
+                    continue
+                    
+                plt.subplot(1, len(success_rate_cols), i+1)
+                
+                # Create scatter plot with only valid data
+                plt.scatter(valid_data[col], valid_data["total_switches"], alpha=0.7, 
+                           label=agent_type, c=f"C{i}")
+                
+                # Add trend line - with robust error handling
+                if len(valid_data) > 5:
+                    try:
+                        # Check if we have enough variation in the data
+                        if valid_data[col].std() > 0.001:  # Need some variation
+                            # Try polynomial fit with regularization
+                            from sklearn.linear_model import Ridge
+                            from sklearn.preprocessing import PolynomialFeatures
+                            from sklearn.pipeline import make_pipeline
+                            
+                            # Create a simple linear model with regularization
+                            X = valid_data[col].values.reshape(-1, 1)
+                            y = valid_data["total_switches"].values
+                            
+                            # Make sure there are no NaN values
+                            if np.isnan(X).any() or np.isnan(y).any():
+                                logging.warning(f"Data for {col} still contains NaN values after filtering")
+                                # Fallback to simple mean line
+                                plt.axhline(y=valid_data["total_switches"].mean(), color=f"C{i}", linestyle='--', alpha=0.5)
+                            else:
+                                # Use Ridge regression which is more stable
+                                model = make_pipeline(
+                                    PolynomialFeatures(degree=1),
+                                    Ridge(alpha=1.0)
+                                )
+                                model.fit(X, y)
+                                
+                                # Generate prediction points
+                                x_plot = np.linspace(valid_data[col].min(), valid_data[col].max(), 100).reshape(-1, 1)
+                                y_plot = model.predict(x_plot)
+                                
+                                # Plot the trend line
+                                plt.plot(x_plot, y_plot, f"C{i}--", alpha=0.8)
+                        else:
+                            logging.info(f"Not enough variation in {col} for trend line")
+                            # Fallback to simple mean line
+                            plt.axhline(y=valid_data["total_switches"].mean(), color=f"C{i}", linestyle='--', alpha=0.5)
+                    except Exception as e:
+                        logging.warning(f"Error creating trend line for {col}: {e}")
+                        # Fallback to simple mean line if trend calculation fails
+                        plt.axhline(y=valid_data["total_switches"].mean(), color=f"C{i}", linestyle='--', alpha=0.5)
+                
+                plt.xlabel(f"{agent_type.capitalize()} Reproduction Success Rate")
+                plt.ylabel("Total Dominance Switches")
+                plt.title(f"{agent_type.capitalize()} Reproduction vs. Switching")
+            except Exception as e:
+                logging.warning(f"Error creating plot for {col}: {e}")
+        
+        plt.tight_layout()
+        output_file = os.path.join(CURRENT_OUTPUT_PATH, "reproduction_vs_switching.png")
+        plt.savefig(output_file)
+        plt.close()
+        logging.info(f"Saved reproduction vs. switching analysis to {output_file}")
+    else:
+        logging.info("No reproduction success rate data available for visualization")
+    
+    # 4. Analyze if reproduction efficiency correlates with dominance stability
+    efficiency_cols = [col for col in numeric_repro_cols if "reproduction_efficiency" in col]
+    if efficiency_cols and "switches_per_step" in df.columns:
+        # Calculate stability metric (inverse of switches per step)
+        df["dominance_stability"] = 1 / (df["switches_per_step"] + 0.01)
+        
+        efficiency_stability_corr = {}
+        for col in efficiency_cols:
+            try:
+                # Filter out rows with NaN or zero values
+                valid_data = df[(df[col].notna()) & (df[col] != 0)]
+                if len(valid_data) > 5:  # Need enough data points
+                    corr = valid_data[[col, "dominance_stability"]].corr().iloc[0, 1]
+                    efficiency_stability_corr[col] = corr
+                else:
+                    logging.info(f"Not enough valid data points for {col} correlation analysis")
+            except Exception as e:
+                logging.warning(f"Error calculating correlation for {col}: {e}")
+            
+        results["reproduction_efficiency_stability_correlation"] = efficiency_stability_corr
+        
+        logging.info("\nCorrelation between reproduction efficiency and dominance stability:")
+        for col, corr in efficiency_stability_corr.items():
+            if abs(corr) > 0.1:  # Only report meaningful correlations
+                agent_type = col.split("_reproduction")[0]
+                direction = "more" if corr > 0 else "less"
+                logging.info(f"  Higher {agent_type} reproduction efficiency → {direction} stable dominance (r={corr:.3f})")
+    
+    # 5. Analyze reproduction advantage and dominance switching
+    advantage_cols = [col for col in numeric_repro_cols if "reproduction_rate_advantage" in col or 
+                                                         "reproduction_efficiency_advantage" in col]
+    if advantage_cols and "switches_per_step" in df.columns:
+        # Calculate stability metric (inverse of switches per step)
+        if "dominance_stability" not in df.columns:
+            df["dominance_stability"] = 1 / (df["switches_per_step"] + 0.01)
+        
+        advantage_stability_corr = {}
+        for col in advantage_cols:
+            try:
+                # Filter out rows with NaN values
+                valid_data = df[df[col].notna()]
+                if len(valid_data) > 5:  # Need enough data points
+                    corr = valid_data[[col, "dominance_stability"]].corr().iloc[0, 1]
+                    advantage_stability_corr[col] = corr
+                else:
+                    logging.info(f"Not enough valid data points for {col} correlation analysis")
+            except Exception as e:
+                logging.warning(f"Error calculating correlation for {col}: {e}")
+            
+        results["reproduction_advantage_stability_correlation"] = advantage_stability_corr
+        
+        logging.info("\nCorrelation between reproduction advantage and dominance stability:")
+        for col, corr in advantage_stability_corr.items():
+            if abs(corr) > 0.1:  # Only report meaningful correlations
+                if "_vs_" in col:
+                    types = col.split("_vs_")[0], col.split("_vs_")[1].split("_reproduction")[0]
+                    direction = "more" if corr > 0 else "less"
+                    logging.info(f"  {types[0]} advantage over {types[1]} → {direction} stable dominance (r={corr:.3f})")
+                
+        # Create visualization of reproduction advantage vs. stability
+        plt.figure(figsize=(10, 6))
+        
+        # Count how many valid columns we have for plotting
+        valid_advantage_cols = []
+        for col in advantage_cols:
+            # Check if column has enough non-NaN values
+            valid_count = df[col].notna().sum()
+            if valid_count > 5 and "_vs_" in col:
+                valid_advantage_cols.append(col)
+        
+        if valid_advantage_cols:
+            for i, col in enumerate(valid_advantage_cols):
+                try:
+                    if "_vs_" in col:
+                        types = col.split("_vs_")[0], col.split("_vs_")[1].split("_reproduction")[0]
+                        label = f"{types[0]} vs {types[1]}"
+                        
+                        # Filter out NaN values
+                        valid_data = df[df[col].notna() & df["dominance_stability"].notna()]
+                        
+                        if len(valid_data) < 5:  # Skip if not enough valid data
+                            logging.warning(f"Not enough valid data points for {col} visualization")
+                            continue
+                            
+                        plt.scatter(valid_data[col], valid_data["dominance_stability"], alpha=0.7, label=label)
+                        
+                        # Add trend line - with robust error handling
+                        if len(valid_data) > 5:
+                            try:
+                                # Check if we have enough variation in the data
+                                if valid_data[col].std() > 0.001:  # Need some variation
+                                    # Use robust regression
+                                    from sklearn.linear_model import RANSACRegressor
+                                    
+                                    # Create a robust regression model
+                                    X = valid_data[col].values.reshape(-1, 1)
+                                    y = valid_data["dominance_stability"].values
+                                    
+                                    # Double-check for NaN values
+                                    if np.isnan(X).any() or np.isnan(y).any():
+                                        logging.warning(f"Data for {col} still contains NaN values after filtering")
+                                        # Fallback to horizontal line at mean
+                                        plt.axhline(y=valid_data["dominance_stability"].mean(), 
+                                                  linestyle='--', alpha=0.3)
+                                    else:
+                                        # RANSAC is robust to outliers
+                                        model = RANSACRegressor(random_state=42)
+                                        model.fit(X, y)
+                                        
+                                        # Generate prediction points
+                                        x_sorted = np.sort(X, axis=0)
+                                        y_pred = model.predict(x_sorted)
+                                        
+                                        # Plot the trend line
+                                        plt.plot(x_sorted, y_pred, "--", alpha=0.6)
+                                else:
+                                    logging.info(f"Not enough variation in {col} for trend line")
+                                    # Fallback to horizontal line at mean
+                                    plt.axhline(y=valid_data["dominance_stability"].mean(), 
+                                              linestyle='--', alpha=0.3)
+                            except Exception as e:
+                                logging.warning(f"Error creating trend line for {col}: {e}")
+                                # Fallback to horizontal line at mean
+                                plt.axhline(y=valid_data["dominance_stability"].mean(), 
+                                          linestyle='--', alpha=0.3)
+                except Exception as e:
+                    logging.warning(f"Error creating plot for {col}: {e}")
+                    
+            plt.xlabel("Reproduction Advantage")
+            plt.ylabel("Dominance Stability")
+            plt.title("Reproduction Advantage vs. Dominance Stability")
+            plt.legend()
+            plt.tight_layout()
+            
+            output_file = os.path.join(CURRENT_OUTPUT_PATH, "reproduction_advantage_stability.png")
+            plt.savefig(output_file)
+            plt.close()
+            logging.info(f"Saved reproduction advantage vs. stability analysis to {output_file}")
+        else:
+            logging.warning("No valid advantage columns for plotting")
+            plt.close()
+    
+    # 6. Analyze relationship between reproduction metrics and dominance switching by agent type
+    if "comprehensive_dominance" in df.columns:
+        # Group by dominant agent type
+        for agent_type in ["system", "independent", "control"]:
+            type_data = df[df["comprehensive_dominance"] == agent_type]
+            if len(type_data) > 5:  # Need enough data points
+                type_results = {}
+                
+                # Calculate correlations between reproduction metrics and switching for this agent type
+                for col in numeric_repro_cols:
+                    try:
+                        # Filter out NaN values
+                        valid_data = type_data[type_data[col].notna() & type_data["total_switches"].notna()]
+                        if len(valid_data) > 5:  # Need enough data points
+                            corr = valid_data[[col, "total_switches"]].corr().iloc[0, 1]
+                            if not np.isnan(corr):
+                                type_results[col] = corr
+                        else:
+                            logging.info(f"Not enough valid data points for {col} in {agent_type}-dominant simulations")
+                    except Exception as e:
+                        logging.warning(f"Error calculating correlation for {col} in {agent_type}-dominant simulations: {e}")
+                
+                # Add to results
+                results[f"{agent_type}_dominance_reproduction_correlations"] = type_results
+                
+                # Log top correlations
+                if type_results:
+                    logging.info(f"\nTop reproduction factors affecting switching in {agent_type}-dominant simulations:")
+                    sorted_corrs = sorted(type_results.items(), key=lambda x: abs(x[1]), reverse=True)
+                    for col, corr in sorted_corrs[:3]:  # Top 3
+                        if abs(corr) > 0.2:  # Only report stronger correlations
+                            direction = "more" if corr > 0 else "fewer"
+                            logging.info(f"  {col}: {corr:.3f} ({direction} switches)")
+    
+    return results
+
+
+def check_db_schema(engine, table_name):
+    """
+    Check the schema of a specific table in the database.
+    
+    Parameters
+    ----------
+    engine : sqlalchemy.engine.Engine
+        SQLAlchemy engine connected to the database
+    table_name : str
+        Name of the table to check
+        
+    Returns
+    -------
+    dict
+        Dictionary with table schema information
+    """
+    try:
+        inspector = sqlalchemy.inspect(engine)
+        
+        if table_name not in inspector.get_table_names():
+            return {"exists": False}
+            
+        columns = inspector.get_columns(table_name)
+        column_names = [col['name'] for col in columns]
+        
+        # Get primary key
+        pk = inspector.get_pk_constraint(table_name)
+        
+        # Get foreign keys
+        fks = inspector.get_foreign_keys(table_name)
+        
+        # Get indexes
+        indexes = inspector.get_indexes(table_name)
+        
+        return {
+            "exists": True,
+            "column_count": len(columns),
+            "columns": column_names,
+            "primary_key": pk,
+            "foreign_keys": fks,
+            "indexes": indexes
+        }
+    except Exception as e:
+        return {"exists": False, "error": str(e)}
+
+def check_reproduction_events(experiment_path):
+    """
+    Check if reproduction events exist in the simulation databases.
+    
+    Parameters
+    ----------
+    experiment_path : str
+        Path to the experiment folder containing simulation databases
+        
+    Returns
+    -------
+    bool
+        True if any reproduction events are found, False otherwise
+    """
+    logging.info("Checking for reproduction events in databases...")
+    
+    # Find all simulation folders
+    sim_folders = glob.glob(os.path.join(experiment_path, "iteration_*"))
+    total_events = 0
+    checked_dbs = 0
+    
+    for folder in sim_folders[:5]:  # Check first 5 databases
+        # Check if this is a simulation folder with a database
+        db_path = os.path.join(folder, "simulation.db")
+        
+        if not os.path.exists(db_path):
+            continue
+            
+        try:
+            # Connect to the database
+            engine = sqlalchemy.create_engine(f"sqlite:///{db_path}")
+            Session = sessionmaker(bind=engine)
+            session = Session()
+            
+            # Check if ReproductionEventModel table exists
+            inspector = sqlalchemy.inspect(engine)
+            if 'reproduction_events' not in inspector.get_table_names():
+                logging.warning(f"Database {db_path} does not have a reproduction_events table")
+                
+                # Check what tables do exist
+                tables = inspector.get_table_names()
+                logging.info(f"Available tables: {', '.join(tables)}")
+                
+                session.close()
+                continue
+            
+            # Check the schema of the reproduction_events table
+            schema_info = check_db_schema(engine, 'reproduction_events')
+            if schema_info["exists"]:
+                logging.info(f"reproduction_events table schema: {len(schema_info['columns'])} columns")
+                required_columns = ['event_id', 'step_number', 'parent_id', 'offspring_id', 
+                                   'success', 'parent_resources_before', 'parent_resources_after']
+                missing_columns = [col for col in required_columns if col not in schema_info['columns']]
+                if missing_columns:
+                    logging.warning(f"Missing required columns in reproduction_events: {', '.join(missing_columns)}")
+                
+            # Count reproduction events
+            event_count = session.query(ReproductionEventModel).count()
+            total_events += event_count
+            checked_dbs += 1
+            
+            logging.info(f"Database {os.path.basename(folder)}: {event_count} reproduction events")
+            
+            # If we have events, check a sample
+            if event_count > 0:
+                sample_event = session.query(ReproductionEventModel).first()
+                logging.info(f"Sample event: parent_id={sample_event.parent_id}, success={sample_event.success}")
+                
+                # Check if we have resource data
+                has_resource_data = (hasattr(sample_event, 'parent_resources_before') and 
+                                    sample_event.parent_resources_before is not None)
+                if not has_resource_data:
+                    logging.warning("Sample event is missing resource data")
+            
+            # Close the session
+            session.close()
+            
+        except Exception as e:
+            logging.error(f"Error checking reproduction events in {folder}: {e}")
+            import traceback
+            logging.error(traceback.format_exc())
+    
+    if checked_dbs > 0:
+        logging.info(f"Found {total_events} total reproduction events in {checked_dbs} checked databases")
+        return total_events > 0
+    else:
+        logging.warning("Could not check any databases for reproduction events")
+        return False
+
+
 def main():
     global CURRENT_OUTPUT_PATH
 
@@ -1568,6 +2217,11 @@ def main():
     experiment_folders.sort(key=os.path.getmtime, reverse=True)
     experiment_path = experiment_folders[0]
 
+    # Check if reproduction events exist in the databases
+    has_reproduction_events = check_reproduction_events(experiment_path)
+    if not has_reproduction_events:
+        logging.warning("No reproduction events found in databases. Reproduction analysis may be limited.")
+
     logging.info(f"Analyzing simulations in {experiment_path}...")
     df = analyze_simulations(experiment_path)
 
@@ -1580,6 +2234,17 @@ def main():
     df.to_csv(output_csv, index=False)
     logging.info(f"Saved analysis data to {output_csv}")
 
+    # Check if we have reproduction data in the dataframe
+    reproduction_cols = [col for col in df.columns if "reproduction" in col]
+    if reproduction_cols:
+        logging.info(f"Found {len(reproduction_cols)} reproduction-related columns in analysis data")
+        for col in reproduction_cols[:10]:  # Show first 10
+            non_null = df[col].count()
+            logging.info(f"  {col}: {non_null} non-null values")
+    else:
+        logging.warning("No reproduction columns found in analysis data")
+
+    # Continue with the rest of the analysis
     logging.info(f"Analyzed {len(df)} simulations.")
     logging.info("\nSummary statistics:")
     logging.info(df.describe().to_string())
@@ -1653,6 +2318,9 @@ def main():
 
         # Analyze factors related to dominance switching
         analyze_dominance_switch_factors(df)
+        
+        # Analyze relationship between reproduction and dominance switching
+        analyze_reproduction_dominance_switching(df)
 
     # Plot resource proximity vs dominance
     plot_resource_proximity_vs_dominance(df)
