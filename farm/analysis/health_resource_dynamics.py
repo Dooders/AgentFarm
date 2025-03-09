@@ -14,6 +14,8 @@ from sklearn.preprocessing import StandardScaler
 from farm.database.database import SimulationDatabase
 from farm.database.data_retrieval import DataRetriever
 
+#! SIMULATION LEVEL ANALYSIS
+
 
 def fetch_health_resource_data(db: SimulationDatabase) -> pd.DataFrame:
     """

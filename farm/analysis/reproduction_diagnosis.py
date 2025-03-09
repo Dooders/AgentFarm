@@ -6,14 +6,7 @@ from typing import Dict, List, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sqlalchemy import create_engine, func, desc
-
-from farm.database.models import (
-    AgentModel, 
-    SimulationStepModel,
-    ReproductionEventModel,
-    AgentStateModel
-)
+from sqlalchemy import create_engine
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

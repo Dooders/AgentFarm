@@ -1,7 +1,8 @@
 """
+#! SIMULATION LEVEL ANALYSIS
 Objective
-The purpose of Action Type Distribution Analysis is to investigate the relationship 
-between the types of actions agents perform and their overall success or behavior 
+The purpose of Action Type Distribution Analysis is to investigate the relationship
+between the types of actions agents perform and their overall success or behavior
 in the simulation. It helps to uncover:
 
 Which actions are most or least common.
@@ -102,18 +103,18 @@ def plot_action_distribution(actions_df):
     action_counts.plot(kind="bar", ax=ax1, color="skyblue", edgecolor="black")
     # Add value labels on bars
     for i, v in enumerate(action_counts):
-        ax1.text(i, v, str(v), ha='center', va='bottom')
+        ax1.text(i, v, str(v), ha="center", va="bottom")
     ax1.set_title("Action Type Distribution")
     ax1.set_xlabel("Action Type")
     ax1.set_ylabel("Frequency")
 
     # Plot 2: Average reward by action type
     avg_rewards = actions_df.groupby("action_type")["reward"].mean()
-    colors = ['red' if x < 0 else 'lightgreen' for x in avg_rewards]
+    colors = ["red" if x < 0 else "lightgreen" for x in avg_rewards]
     avg_rewards.plot(kind="bar", ax=ax2, color=colors, edgecolor="black")
     # Add value labels on bars
     for i, v in enumerate(avg_rewards):
-        ax2.text(i, v, f'{v:.2f}', ha='center', va='bottom' if v >= 0 else 'top')
+        ax2.text(i, v, f"{v:.2f}", ha="center", va="bottom" if v >= 0 else "top")
     ax2.set_title("Average Reward by Action Type")
     ax2.set_xlabel("Action Type")
     ax2.set_ylabel("Average Reward")
@@ -122,11 +123,11 @@ def plot_action_distribution(actions_df):
     plt.show()
 
 
-def main(engine):
+def action_type_distribution(engine):
     # Load data from AgentActions table
     query = """
     SELECT action_type, reward, agent_id
-    FROM AgentActions
+    FROM agent_actions
     WHERE reward IS NOT NULL
     """
     actions_df = pd.read_sql(query, engine)
@@ -156,4 +157,4 @@ if __name__ == "__main__":
 
     # Create engine
     engine = create_engine(connection_string)
-    main(engine)
+    action_type_distribution(engine)
