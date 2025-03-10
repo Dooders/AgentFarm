@@ -46,9 +46,6 @@ from farm.database.models import (
     SimulationStepModel,
 )
 
-# Global variable to store the current output path
-CURRENT_OUTPUT_PATH = None
-
 
 # Setup logging to both console and file
 def setup_logging(output_dir):
@@ -65,7 +62,7 @@ def setup_logging(output_dir):
 
     # Create a timestamp for the log file
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file = os.path.join(output_dir, f"analysis_log_{timestamp}.txt")
+    log_file = os.path.join(output_dir, f"analysis_log.txt")
 
     # Configure logging
     logger = logging.getLogger()
@@ -734,7 +731,7 @@ def analyze_simulations(experiment_path):
     data = []
 
     # Find all simulation folders
-    sim_folders = glob.glob(os.path.join(experiment_path, "iteration_*"))
+    sim_folders: list[str] = glob.glob(os.path.join(experiment_path, "iteration_*"))
 
     for folder in sim_folders:
         # Check if this is a simulation folder with a database
@@ -896,12 +893,10 @@ def train_classifier(X, y, label_name):
     return clf, feat_imp
 
 
-def plot_dominance_distribution(df):
+def plot_dominance_distribution(df, output_path):
     """
     Plot the distribution of dominance types as percentages.
     """
-    global CURRENT_OUTPUT_PATH
-
     # Determine how many plots we need
     dominance_measures = [
         "population_dominance",
@@ -951,18 +946,16 @@ def plot_dominance_distribution(df):
 
     # Adjust layout to make room for caption
     plt.tight_layout(rect=[0, 0.05, 1, 1])
-    output_file = os.path.join(CURRENT_OUTPUT_PATH, "dominance_distribution.png")
+    output_file = os.path.join(output_path, "dominance_distribution.png")
     plt.savefig(output_file)
     logging.info(f"Saved dominance distribution plot to {output_file}")
     plt.close()
 
 
-def plot_feature_importance(feat_imp, label_name):
+def plot_feature_importance(feat_imp, label_name, output_path):
     """
     Plot feature importance for a classifier.
     """
-    global CURRENT_OUTPUT_PATH
-
     top_features = feat_imp[:15]
     features = [f[0] for f in top_features]
     importances = [f[1] for f in top_features]
@@ -984,20 +977,16 @@ def plot_feature_importance(feat_imp, label_name):
 
     # Adjust layout to make room for caption
     plt.tight_layout(rect=[0, 0.05, 1, 0.95])
-    output_file = os.path.join(
-        CURRENT_OUTPUT_PATH, f"{label_name}_feature_importance.png"
-    )
+    output_file = os.path.join(output_path, f"{label_name}_feature_importance.png")
     plt.savefig(output_file)
     logging.info(f"Saved feature importance plot to {output_file}")
     plt.close()
 
 
-def plot_resource_proximity_vs_dominance(df):
+def plot_resource_proximity_vs_dominance(df, output_path):
     """
     Plot the relationship between initial resource proximity and dominance.
     """
-    global CURRENT_OUTPUT_PATH
-
     resource_metrics = [
         col
         for col in df.columns
@@ -1031,20 +1020,16 @@ def plot_resource_proximity_vs_dominance(df):
 
     # Adjust layout to make room for caption
     plt.tight_layout(rect=[0, 0.03, 1, 0.97])
-    output_file = os.path.join(
-        CURRENT_OUTPUT_PATH, "resource_proximity_vs_dominance.png"
-    )
+    output_file = os.path.join(output_path, "resource_proximity_vs_dominance.png")
     plt.savefig(output_file)
     logging.info(f"Saved resource proximity plot to {output_file}")
     plt.close()
 
 
-def plot_reproduction_vs_dominance(df):
+def plot_reproduction_vs_dominance(df, output_path):
     """
     Plot reproduction metrics vs dominance.
     """
-    global CURRENT_OUTPUT_PATH
-
     reproduction_metrics = [
         col for col in df.columns if "reproduction" in col or "offspring" in col
     ]
@@ -1076,18 +1061,16 @@ def plot_reproduction_vs_dominance(df):
 
     # Adjust layout to make room for caption
     plt.tight_layout(rect=[0, 0.03, 1, 0.97])
-    output_file = os.path.join(CURRENT_OUTPUT_PATH, "reproduction_metrics_boxplots.png")
+    output_file = os.path.join(output_path, "reproduction_metrics_boxplots.png")
     plt.savefig(output_file)
     logging.info(f"Saved reproduction metrics boxplots to {output_file}")
     plt.close()
 
 
-def plot_correlation_matrix(df, label_name):
+def plot_correlation_matrix(df, label_name, output_path):
     """
     Plot correlation matrix between features and the target label.
     """
-    global CURRENT_OUTPUT_PATH
-
     # Convert categorical target to numeric for correlation
     target_numeric = pd.get_dummies(df[label_name])
 
@@ -1155,9 +1138,7 @@ def plot_correlation_matrix(df, label_name):
 
     # Adjust layout to make room for caption
     plt.tight_layout(rect=[0, 0.05, 1, 0.95])
-    output_file = os.path.join(
-        CURRENT_OUTPUT_PATH, f"{label_name}_correlation_matrix.png"
-    )
+    output_file = os.path.join(output_path, f"{label_name}_correlation_matrix.png")
     plt.savefig(output_file)
     logging.info(f"Saved correlation matrix plot to {output_file}")
     plt.close()
@@ -1327,7 +1308,7 @@ def compute_comprehensive_dominance(sim_session):
     }
 
 
-def plot_dominance_comparison(df):
+def plot_dominance_comparison(df, output_path):
     """
     Create visualizations to compare different dominance measures.
 
@@ -1341,8 +1322,6 @@ def plot_dominance_comparison(df):
     df : pandas.DataFrame
         DataFrame containing the dominance metrics for each simulation iteration
     """
-    global CURRENT_OUTPUT_PATH
-
     plt.figure(figsize=(15, 10))
 
     # 1. Create subplots
@@ -1465,13 +1444,13 @@ def plot_dominance_comparison(df):
 
     # Adjust layout and save
     plt.tight_layout(rect=[0, 0.05, 1, 0.97])
-    output_file = os.path.join(CURRENT_OUTPUT_PATH, "dominance_comparison.png")
+    output_file = os.path.join(output_path, "dominance_comparison.png")
     plt.savefig(output_file, dpi=300)
     logging.info(f"Saved dominance comparison plot to {output_file}")
     plt.close()
 
 
-def plot_dominance_switches(df):
+def plot_dominance_switches(df, output_path):
     """
     Create visualizations for dominance switching patterns.
 
@@ -1479,6 +1458,8 @@ def plot_dominance_switches(df):
     ----------
     df : pandas.DataFrame
         DataFrame with simulation analysis results
+    output_path : str
+        Path to the directory where output files will be saved
     """
     if df.empty or "total_switches" not in df.columns:
         logging.warning("No dominance switch data available for plotting")
@@ -1501,9 +1482,7 @@ def plot_dominance_switches(df):
 
     # Adjust layout to make room for caption
     plt.tight_layout(rect=[0, 0.07, 1, 0.95])
-    output_file = os.path.join(
-        CURRENT_OUTPUT_PATH, "dominance_switches_distribution.png"
-    )
+    output_file = os.path.join(output_path, "dominance_switches_distribution.png")
     plt.savefig(output_file)
     plt.close()
 
@@ -1541,7 +1520,7 @@ def plot_dominance_switches(df):
 
     # Adjust layout to make room for caption
     plt.tight_layout(rect=[0, 0.07, 1, 0.95])
-    output_file = os.path.join(CURRENT_OUTPUT_PATH, "avg_dominance_period.png")
+    output_file = os.path.join(output_path, "avg_dominance_period.png")
     plt.savefig(output_file)
     plt.close()
 
@@ -1580,7 +1559,7 @@ def plot_dominance_switches(df):
 
         # Adjust layout to make room for caption
         plt.tight_layout(rect=[0, 0.07, 1, 0.95])
-        output_file = os.path.join(CURRENT_OUTPUT_PATH, "phase_switches.png")
+        output_file = os.path.join(output_path, "phase_switches.png")
         plt.savefig(output_file)
         plt.close()
 
@@ -1631,15 +1610,15 @@ def plot_dominance_switches(df):
 
         # Adjust layout to make room for caption
         plt.tight_layout(rect=[0, 0.05, 1, 0.95])
-        output_file = os.path.join(CURRENT_OUTPUT_PATH, "dominance_transitions.png")
+        output_file = os.path.join(output_path, "dominance_transitions.png")
         plt.savefig(output_file)
         plt.close()
 
     # 5. Plot dominance stability vs dominance score
-    plot_dominance_stability(df)
+    plot_dominance_stability(df, output_path)
 
 
-def plot_dominance_stability(df):
+def plot_dominance_stability(df, output_path):
     """
     Create a scatter plot showing the relationship between dominance stability
     (inverse of switches per step) and dominance score for different agent types.
@@ -1648,9 +1627,9 @@ def plot_dominance_stability(df):
     ----------
     df : pandas.DataFrame
         DataFrame with simulation analysis results
+    output_path : str
+        Path to the directory where output files will be saved
     """
-    global CURRENT_OUTPUT_PATH
-
     if df.empty or "switches_per_step" not in df.columns:
         logging.warning("No dominance stability data available for plotting")
         return
@@ -1696,16 +1675,16 @@ def plot_dominance_stability(df):
 
     # Adjust layout to make room for caption
     plt.tight_layout(rect=[0, 0.07, 1, 0.95])
-    output_file = os.path.join(CURRENT_OUTPUT_PATH, "dominance_stability_analysis.png")
+    output_file = os.path.join(output_path, "dominance_stability_analysis.png")
     plt.savefig(output_file)
     plt.close()
     logging.info(f"Saved dominance stability analysis to {output_file}")
 
     # Plot reproduction advantage vs dominance stability
-    plot_reproduction_advantage_stability(df)
+    plot_reproduction_advantage_stability(df, output_path)
 
 
-def plot_reproduction_advantage_stability(df):
+def plot_reproduction_advantage_stability(df, output_path):
     """
     Create a scatter plot showing the relationship between reproduction advantage
     and dominance stability with trend lines for different agent type comparisons.
@@ -1714,9 +1693,9 @@ def plot_reproduction_advantage_stability(df):
     ----------
     df : pandas.DataFrame
         DataFrame with simulation analysis results
+    output_path : str
+        Path to the directory where output files will be saved
     """
-    global CURRENT_OUTPUT_PATH
-
     if df.empty or "switches_per_step" not in df.columns:
         logging.warning("No dominance stability data available for plotting")
         return
@@ -1808,9 +1787,7 @@ def plot_reproduction_advantage_stability(df):
 
     # Adjust layout to make room for caption
     plt.tight_layout(rect=[0, 0.07, 1, 0.95])
-    output_file = os.path.join(
-        CURRENT_OUTPUT_PATH, "reproduction_advantage_stability.png"
-    )
+    output_file = os.path.join(output_path, "reproduction_advantage_stability.png")
     plt.savefig(output_file)
     logging.info(f"Saved reproduction advantage vs stability plot to {output_file}")
     plt.close()
@@ -1850,7 +1827,7 @@ def safe_remove_directory(directory_path, max_retries=3, retry_delay=1):
     return False
 
 
-def analyze_dominance_switch_factors(df):
+def analyze_dominance_switch_factors(df, output_path):
     """
     Analyze what factors correlate with dominance switching patterns.
 
@@ -1858,6 +1835,8 @@ def analyze_dominance_switch_factors(df):
     ----------
     df : pandas.DataFrame
         DataFrame with simulation analysis results
+    output_path : str
+        Directory path where output files will be saved
 
     Returns
     -------
@@ -1958,7 +1937,7 @@ def analyze_dominance_switch_factors(df):
     plt.legend()
     plt.tight_layout()
 
-    output_file = os.path.join(CURRENT_OUTPUT_PATH, "dominance_stability_analysis.png")
+    output_file = os.path.join(output_path, "dominance_stability_analysis.png")
     plt.savefig(output_file)
     plt.close()
     logging.info(f"Saved dominance stability analysis to {output_file}")
@@ -1966,7 +1945,7 @@ def analyze_dominance_switch_factors(df):
     return results
 
 
-def analyze_reproduction_dominance_switching(df):
+def analyze_reproduction_dominance_switching(df, output_path):
     """
     Analyze the relationship between reproduction strategies and dominance switching patterns.
 
@@ -1981,6 +1960,8 @@ def analyze_reproduction_dominance_switching(df):
     ----------
     df : pandas.DataFrame
         DataFrame with simulation analysis results
+    output_path : str
+        Path to the directory where output files will be saved
 
     Returns
     -------
@@ -2231,7 +2212,7 @@ def analyze_reproduction_dominance_switching(df):
 
         # Adjust layout to make room for caption
         plt.tight_layout(rect=[0, 0.07, 1, 0.95])
-        output_file = os.path.join(CURRENT_OUTPUT_PATH, "reproduction_vs_switching.png")
+        output_file = os.path.join(output_path, "reproduction_vs_switching.png")
         plt.savefig(output_file)
         plt.close()
         logging.info(f"Saved reproduction vs. switching analysis to {output_file}")
@@ -2425,7 +2406,7 @@ def analyze_reproduction_dominance_switching(df):
             plt.tight_layout()
 
             output_file = os.path.join(
-                CURRENT_OUTPUT_PATH, "reproduction_advantage_stability.png"
+                output_path, "reproduction_advantage_stability.png"
             )
             plt.savefig(output_file)
             plt.close()
@@ -2645,21 +2626,29 @@ def check_reproduction_events(experiment_path):
         return False
 
 
-def plot_comprehensive_score_breakdown(df):
+def plot_comprehensive_score_breakdown(df, output_path):
     """
     Generate a chart showing the breakdown of average comprehensive dominance scores for each agent type.
-    
+
     Parameters
     ----------
     df : pandas.DataFrame
         DataFrame with analysis results for each simulation
+    output_path : str
+        Path to the directory where output files will be saved
     """
     logging.info("Generating comprehensive score breakdown chart...")
-    
+
     # Extract the components of the comprehensive dominance score for each agent type
     agent_types = ["system", "independent", "control"]
-    components = ["auc", "recency_weighted_auc", "dominance_duration", "growth_trend", "final_ratio"]
-    
+    components = [
+        "auc",
+        "recency_weighted_auc",
+        "dominance_duration",
+        "growth_trend",
+        "final_ratio",
+    ]
+
     # Weights used in the comprehensive dominance calculation
     weights = {
         "auc": 0.2,  # Basic population persistence
@@ -2668,10 +2657,10 @@ def plot_comprehensive_score_breakdown(df):
         "growth_trend": 0.1,  # Reward positive growth in latter half
         "final_ratio": 0.2,  # Reward final state
     }
-    
+
     # Create a DataFrame to store the average normalized scores for each component and agent type
     avg_scores = pd.DataFrame(index=agent_types, columns=components)
-    
+
     # Calculate the average normalized score for each component and agent type
     for agent_type in agent_types:
         for component in components:
@@ -2683,86 +2672,109 @@ def plot_comprehensive_score_breakdown(df):
                     values = df[col_name].apply(lambda x: max(0, x))
                 else:
                     values = df[col_name]
-                
+
                 # Calculate the average
                 avg_scores.loc[agent_type, component] = values.mean()
             else:
                 logging.warning(f"Column {col_name} not found in DataFrame")
                 avg_scores.loc[agent_type, component] = 0
-    
+
     # Normalize the components for each metric across agent types
     # This is necessary because the comprehensive score uses normalized values
     for component in components:
         component_sum = avg_scores[component].sum()
         if component_sum > 0:
             avg_scores[component] = avg_scores[component] / component_sum
-    
+
     # Calculate the weighted contribution of each component to the final score
     weighted_scores = pd.DataFrame(index=agent_types, columns=components)
     for component in components:
         weighted_scores[component] = avg_scores[component] * weights[component]
-    
+
     # Calculate the total score for each agent type
-    weighted_scores['total'] = weighted_scores.sum(axis=1)
-    
+    weighted_scores["total"] = weighted_scores.sum(axis=1)
+
     # Create the stacked bar chart
     plt.figure(figsize=(12, 8))
-    
+
     # Set up the bar positions
     bar_width = 0.6
     index = np.arange(len(agent_types))
-    
+
     # Create a colormap for the components
     colors = plt.cm.viridis(np.linspace(0, 0.8, len(components)))
-    
+
     # Create the stacked bars
     bottom = np.zeros(len(agent_types))
     for i, component in enumerate(components):
-        plt.bar(index, weighted_scores[component], bar_width, bottom=bottom, 
-                label=f"{component.replace('_', ' ').title()} ({weights[component]*100:.0f}%)", 
-                color=colors[i])
+        plt.bar(
+            index,
+            weighted_scores[component],
+            bar_width,
+            bottom=bottom,
+            label=f"{component.replace('_', ' ').title()} ({weights[component]*100:.0f}%)",
+            color=colors[i],
+        )
         bottom += weighted_scores[component]
-    
+
     # Add the total score as text on top of each bar
     for i, agent_type in enumerate(agent_types):
-        plt.text(i, bottom[i] + 0.01, f'Total: {weighted_scores.loc[agent_type, "total"]:.3f}', 
-                 ha='center', va='bottom', fontweight='bold')
-    
+        plt.text(
+            i,
+            bottom[i] + 0.01,
+            f'Total: {weighted_scores.loc[agent_type, "total"]:.3f}',
+            ha="center",
+            va="bottom",
+            fontweight="bold",
+        )
+
     # Customize the chart
-    plt.xlabel('Agent Type', fontsize=14)
-    plt.ylabel('Weighted Score Contribution', fontsize=14)
-    plt.title('Breakdown of Average Comprehensive Dominance Score by Agent Type', fontsize=16)
-    plt.xticks(index, [agent_type.capitalize() for agent_type in agent_types], fontsize=12)
-    plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=3, fontsize=10)
-    plt.grid(axis='y', linestyle='--', alpha=0.7)
-    
+    plt.xlabel("Agent Type", fontsize=14)
+    plt.ylabel("Weighted Score Contribution", fontsize=14)
+    plt.title(
+        "Breakdown of Average Comprehensive Dominance Score by Agent Type", fontsize=16
+    )
+    plt.xticks(
+        index, [agent_type.capitalize() for agent_type in agent_types], fontsize=12
+    )
+    plt.legend(loc="upper center", bbox_to_anchor=(0.5, -0.1), ncol=3, fontsize=10)
+    plt.grid(axis="y", linestyle="--", alpha=0.7)
+
     # Add caption
-    caption = ("This chart shows the breakdown of the comprehensive dominance score for each agent type. "
-              "The comprehensive score is calculated using five weighted components: Area Under the Curve (AUC), "
-              "Recency-weighted AUC, Dominance Duration, Growth Trend, and Final Population Ratio. "
-              "Each component is normalized across agent types before applying weights. "
-              "The height of each colored segment represents that component's contribution to the total score.")
-    plt.figtext(0.5, 0.01, caption, wrap=True, horizontalalignment='center', fontsize=10, 
-                style='italic', bbox=dict(facecolor='#f0f0f0', alpha=0.5, pad=5))
-    
+    caption = (
+        "This chart shows the breakdown of the comprehensive dominance score for each agent type. "
+        "The comprehensive score is calculated using five weighted components: Area Under the Curve (AUC), "
+        "Recency-weighted AUC, Dominance Duration, Growth Trend, and Final Population Ratio. "
+        "Each component is normalized across agent types before applying weights. "
+        "The height of each colored segment represents that component's contribution to the total score."
+    )
+    plt.figtext(
+        0.5,
+        0.01,
+        caption,
+        wrap=True,
+        horizontalalignment="center",
+        fontsize=10,
+        style="italic",
+        bbox=dict(facecolor="#f0f0f0", alpha=0.5, pad=5),
+    )
+
     plt.tight_layout(rect=[0, 0.08, 1, 0.95])  # Adjust layout to make room for caption
-    
+
     # Save the chart
-    output_path = os.path.join(CURRENT_OUTPUT_PATH, 'comprehensive_score_breakdown.png')
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    logging.info(f"Comprehensive score breakdown chart saved to {output_path}")
-    
+    output_file = os.path.join(output_path, "comprehensive_score_breakdown.png")
+    plt.savefig(output_file, dpi=300, bbox_inches="tight")
+    logging.info(f"Comprehensive score breakdown chart saved to {output_file}")
+
     # Also save the data to a CSV file
-    csv_path = os.path.join(CURRENT_OUTPUT_PATH, 'comprehensive_score_breakdown.csv')
+    csv_path = os.path.join(output_path, "comprehensive_score_breakdown.csv")
     weighted_scores.to_csv(csv_path)
     logging.info(f"Comprehensive score breakdown data saved to {csv_path}")
-    
+
     return weighted_scores
 
 
 def main():
-    global CURRENT_OUTPUT_PATH
-
     # Create dominance output directory
     dominance_output_path = os.path.join(OUTPUT_PATH, "dominance")
 
@@ -2777,9 +2789,6 @@ def main():
 
     # Create the directory
     os.makedirs(dominance_output_path, exist_ok=True)
-
-    # Set the global output path
-    CURRENT_OUTPUT_PATH = dominance_output_path
 
     # Set up logging to the dominance directory
     log_file = setup_logging(dominance_output_path)
@@ -2893,34 +2902,34 @@ def main():
                         logging.info(f"    To {to_type}: {prob:.2f}")
 
     # Plot dominance distribution
-    plot_dominance_distribution(df)
-    
+    plot_dominance_distribution(df, dominance_output_path)
+
     # Generate comprehensive score breakdown chart
-    plot_comprehensive_score_breakdown(df)
+    plot_comprehensive_score_breakdown(df, dominance_output_path)
 
     # Plot dominance switching patterns
     if "total_switches" in df.columns:
-        plot_dominance_switches(df)
+        plot_dominance_switches(df, dominance_output_path)
 
         # Analyze factors related to dominance switching
-        analyze_dominance_switch_factors(df)
+        analyze_dominance_switch_factors(df, dominance_output_path)
 
         # Analyze relationship between reproduction and dominance switching
-        analyze_reproduction_dominance_switching(df)
+        analyze_reproduction_dominance_switching(df, dominance_output_path)
 
     # Plot resource proximity vs dominance
-    plot_resource_proximity_vs_dominance(df)
+    plot_resource_proximity_vs_dominance(df, dominance_output_path)
 
     # Plot reproduction metrics vs dominance
-    plot_reproduction_vs_dominance(df)
+    plot_reproduction_vs_dominance(df, dominance_output_path)
 
     # Plot correlation matrices
     for label in ["population_dominance", "survival_dominance"]:
         if label in df.columns and df[label].nunique() > 1:
-            plot_correlation_matrix(df, label)
+            plot_correlation_matrix(df, label, dominance_output_path)
 
     # Plot comparison of different dominance measures
-    plot_dominance_comparison(df)
+    plot_dominance_comparison(df, dominance_output_path)
 
     # Prepare features for classification
     # Exclude non-feature columns and outcome variables
@@ -2971,7 +2980,7 @@ def main():
                 clf, feat_imp = train_classifier(X, y, label)
 
                 # Plot feature importance
-                plot_feature_importance(feat_imp, label)
+                plot_feature_importance(feat_imp, label, dominance_output_path)
 
     logging.info("\nAnalysis complete. Results saved to CSV and PNG files.")
     logging.info(f"Log file saved to: {log_file}")
