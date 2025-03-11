@@ -22,10 +22,7 @@ The experiment consisted of 500 simulation iterations, each with the following c
 - Tracking of population counts, survival times, reproduction events, and resource acquisition
 - Reproduction with no inheritance when an agent is above a set threshold
 
-<video width="640" height="360" controls>
-  <source src="images/simulation_5.mp4" type="video/mp4">
-  Your browser does not support the video embedding.
-</video>
+![Simulation Demo](images/simulation_demo.gif)
 
 Each simulation ran for 2,000 time steps, allowing population dynamics to evolve naturally. I recorded detailed metrics at each step, including:
 
