@@ -10,7 +10,14 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from sqlalchemy import func
 
-import results.one_of_a_kind.scripts.generational_fitness_analysis as generational_fitness_analysis
+# Import analysis configuration
+from analysis_config import (
+    DATA_PATH,
+    OUTPUT_PATH,
+    safe_remove_directory,
+    setup_logging,
+)
+
 from farm.database.database import SimulationDatabase
 from farm.database.models import (
     ActionModel,
@@ -19,6 +26,7 @@ from farm.database.models import (
     LearningExperienceModel,
     SimulationStepModel,
 )
+from scripts import generational_fitness_analysis
 
 # Configure logging
 logging.basicConfig(
@@ -27,8 +35,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Constants for file paths
-EXPERIMENT_DATA_PATH = "results/one_of_a_kind/experiments/data"
-EXPERIMENT_ANALYSIS_PATH = "results/one_of_a_kind/experiments/analysis"
+EXPERIMENT_DATA_PATH = DATA_PATH
+EXPERIMENT_ANALYSIS_PATH = OUTPUT_PATH
 
 # ---------------------
 # Helper Functions
