@@ -129,3 +129,4 @@ results/
 # Allow MP4s in docs directory, but ignore them elsewhere
 *.mp4
 !docs/**/*.mp4
+!docs/**/*.gif
