@@ -126,4 +126,6 @@ last_config.json
 *.pdf
 
 results/
+# Allow MP4s in docs directory, but ignore them elsewhere
 *.mp4
+!docs/**/*.mp4
