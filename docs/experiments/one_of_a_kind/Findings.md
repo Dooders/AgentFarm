@@ -10,7 +10,7 @@ This experiment compared three distinct agent types:
 - **Independent Agents**: Focused on individual survival and resource acquisition
 - **Control Agents**: Baseline agents with balanced characteristics
 
-The key question I sought to answer was: **What initial conditions and agent parameters lead to dominance in a multi-agent environment?** Through extensive data analysis and visualization, I discovered that initial positioning relative to resources plays a critical role in determining which agent type thrives.
+The key question I sought to answer was: **What initial conditions and agent parameters lead to dominance in a multi-agent environment?** Through extensive data analysis and visualization, I discovered that initial positioning relative to resources plays a critical role in determining which agent type thrives.
 
 ## **Experiment Setup**
 
@@ -23,7 +23,7 @@ The experiment consisted of 500 simulation iterations, each with the following c
 - Reproduction with no inheritance when an agent is above a set threshold
 
 <video width="640" height="360" controls>
-  <source src="/images/simulation_5.mp4" type="video/mp4">
+  <source src="images/simulation_5.mp4" type="video/mp4">
   Your browser does not support the video embedding.
 </video>
 
