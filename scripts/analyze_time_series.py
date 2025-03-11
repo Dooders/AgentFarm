@@ -477,13 +477,13 @@ def plot_comparative_analysis(simulations_data, title, filename):
 
 
 def main():
-    # Path to the experiment folder
-    experiment_path = (
-        "results/one_of_a_kind/experiments/data/one_of_a_kind_20250307_193855"
-    )
+    # Import analysis configuration
+    from analysis_config import DATA_PATH, OUTPUT_PATH
 
+    # Path to the experiment folder
+    experiment_path = DATA_PATH
     # Create output directory for time series analysis
-    os.makedirs("time_series_analysis", exist_ok=True)
+    os.makedirs(OUTPUT_PATH + "time_series_analysis", exist_ok=True)
 
     # Group simulations by dominance outcome
     dominance_groups = {

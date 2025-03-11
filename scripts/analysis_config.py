@@ -15,7 +15,7 @@ sys.path.append(project_root)
 
 from farm.database.models import ReproductionEventModel
 
-EXPERIMENT_PATH = "results/one_of_a_kind/"
+EXPERIMENT_PATH = "results/one_of_a_kind_500x3000/"
 DATA_PATH = EXPERIMENT_PATH + "experiments/data/"
 OUTPUT_PATH = EXPERIMENT_PATH + "experiments/analysis/"
 
