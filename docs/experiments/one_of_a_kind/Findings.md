@@ -22,6 +22,11 @@ The experiment consisted of 500 simulation iterations, each with the following c
 - Tracking of population counts, survival times, reproduction events, and resource acquisition
 - Reproduction with no inheritance when an agent is above a set threshold
 
+<video width="640" height="360" controls>
+  <source src="/images/simulation_5.mp4" type="video/mp4">
+  Your browser does not support the video embedding.
+</video>
+
 Each simulation ran for 2,000 time steps, allowing population dynamics to evolve naturally. I recorded detailed metrics at each step, including:
 
 - Population counts by agent type
@@ -34,7 +39,7 @@ Each simulation ran for 2,000 time steps, allowing population dynamics to evolve
 
 ### **1. Dominance Distribution**
 
-![dominance_distribution.png](attachment:33370214-5564-4227-a568-f8fab057d8e0:dominance_distribution.png)
+![dominance_distribution.png](images/dominance_distribution.png)
 
 Analysis revealed interesting patterns in which agent types became dominant:
 
@@ -47,7 +52,7 @@ This striking difference between population and survival dominance highlights th
 
 ### **2. The Critical Role of Initial Positioning**
 
-![population_time_series_11.png](attachment:098dea8e-928b-435f-97eb-c979e2c30be7:population_time_series_11.png)
+![population_time_series_11.png](images/population_time_series_11.png)
 
 The most significant factor determining which agent type would dominate was the initial positioning of agents relative to resources. Time series analysis revealed that:
 
@@ -61,7 +66,7 @@ The visualization above shows how population dynamics evolve over time, with ann
 
 ### **3. Different Paths to Dominance**
 
-![reproduction_time_series_233.png](attachment:e669650b-f279-4fe6-8d1b-2c8bc8023ec7:reproduction_time_series_233.png)
+![reproduction_time_series_233.png](images/reproduction_time_series_233.png)
 
 Analysis revealed that different agent types achieved dominance through distinct strategies:
 
