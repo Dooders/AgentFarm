@@ -4,9 +4,9 @@ import os
 from datetime import datetime
 
 # Import analysis configuration
-from analysis_config import DATA_PATH, OUTPUT_PATH
-
 from analysis_config import (
+    DATA_PATH,
+    OUTPUT_PATH,
     check_reproduction_events,
     safe_remove_directory,
     setup_logging,

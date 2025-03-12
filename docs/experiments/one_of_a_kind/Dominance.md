@@ -13,15 +13,7 @@ This report analyzes the dominance patterns observed across 250 simulations in t
 
 ## 1. Dominance Distribution
 
-Three different measures of dominance were analyzed (see [Dominance Measures](Measures.md) for detailed explanations of each measure):
-
-| Dominance Measure | System | Independent | Control |
-|-------------------|--------|-------------|---------|
-| Population Dominance | 42.8% | 21.2% | 36.0% |
-| Survival Dominance | 24.4% | 48.0% | 27.6% |
-| Comprehensive Dominance | 44.0% | 19.6% | 36.4% |
-
-Key observations:
+Key observations: (see [Dominance Measures](Measures.md) for detailed explanations of each measure)
 - **System agents** excel at population growth, leading in both population and comprehensive dominance measures.
 - **Independent agents** show superior survival skills (48% survival dominance) but struggle to convert this into overall dominance.
 - **Control agents** maintain a balanced performance across all dominance measures.
@@ -29,10 +21,10 @@ Key observations:
 The comprehensive dominance measure, which considers multiple factors including population growth, recency-weighted presence, and dominance duration, provides the most holistic view of agent performance.
 
 ![Dominance Distribution](images/dominance_distribution.png)
-*Figure 1: Distribution of dominance across agent types for different dominance measures.*
+
 
 ![Dominance Comparison](images/dominance_comparison.png)
-*Figure 2: Comparison of different dominance measures and their relationships.*
+
 
 ## 2. Dominance Switching Patterns
 
