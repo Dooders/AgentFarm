@@ -353,6 +353,16 @@ def plot_dominance_comparison(df, output_path):
     agent_types = ["system", "independent", "control"]
     colors = {"system": "blue", "independent": "green", "control": "red"}
 
+    # Define mapping between different agent type naming formats
+    agent_type_mapping = {
+        "SystemAgent": "system",
+        "IndependentAgent": "independent",
+        "ControlAgent": "control",
+        "system": "system",
+        "independent": "independent",
+        "control": "control",
+    }
+
     # 2. Dominance distribution comparison (as percentages)
     ax = axes[0, 0]
     comparison_data = []
@@ -363,19 +373,35 @@ def plot_dominance_comparison(df, output_path):
             counts = df[measure].value_counts()
             total = counts.sum()
 
+            # Log the raw counts for debugging
+            logging.info(f"Raw counts for {measure}: {counts}")
+
+            # Ensure all agent types are represented, even if they have 0%
             for agent_type in agent_types:
-                if agent_type in counts:
-                    percentage = (counts[agent_type] / total) * 100
-                    comparison_data.append(
-                        {
-                            "Measure": measure.replace("_", " ").title(),
-                            "Agent Type": agent_type,
-                            "Percentage": percentage,
-                        }
-                    )
+                percentage = 0.0  # Default to 0% if not in counts
+
+                # Check for this agent type in counts (using the mapping)
+                for raw_type, count in counts.items():
+                    # Map the raw agent type to our standard format if possible
+                    standard_type = agent_type_mapping.get(raw_type, raw_type)
+                    if standard_type == agent_type:
+                        percentage = (count / total) * 100
+                        break
+
+                comparison_data.append(
+                    {
+                        "Measure": measure.replace("_", " ").title(),
+                        "Agent Type": agent_type,
+                        "Percentage": percentage,
+                    }
+                )
 
     if comparison_data:
         comparison_df = pd.DataFrame(comparison_data)
+
+        # Log the processed data for debugging
+        logging.info(f"Processed comparison data: {comparison_df}")
+
         sns.barplot(
             x="Agent Type",
             y="Percentage",
@@ -390,12 +416,14 @@ def plot_dominance_comparison(df, output_path):
 
         # Add percentage labels on top of each bar
         for p in ax.patches:
-            ax.annotate(
-                f"{p.get_height():.1f}%",
-                (p.get_x() + p.get_width() / 2.0, p.get_height()),
-                ha="center",
-                va="bottom",
-            )
+            # Only add label if percentage is greater than 0
+            if p.get_height() > 0:
+                ax.annotate(
+                    f"{p.get_height():.1f}%",
+                    (p.get_x() + p.get_width() / 2.0, p.get_height()),
+                    ha="center",
+                    va="bottom",
+                )
 
         # Set y-axis limit to slightly above 100% to make room for annotations
         ax.set_ylim(0, 105)
@@ -451,7 +479,6 @@ def plot_dominance_comparison(df, output_path):
 
     # Add caption
     caption = (
-        "This multi-panel figure compares different dominance measures across simulations. "
         "Top left: Percentage of simulations where each agent type is dominant according to different measures. "
         "Top right: Correlation between different dominance scores. "
         "Bottom left: Relationship between total agent-steps (AUC) and composite dominance score. "

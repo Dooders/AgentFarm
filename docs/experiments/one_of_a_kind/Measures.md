@@ -81,7 +81,6 @@ All metrics are normalized to a [0,1] scale before being combined into the final
 - May obscure trade-offs between different success strategies
 
 ## Comparison of Dominance Measures
-$$
 Each dominance measure highlights different aspects of agent performance:
 
 - **Population Dominance** answers: "Which agent type had the most individuals at the end?"
@@ -95,7 +94,6 @@ The comprehensive measure is generally preferred for overall analysis, while the
 The comprehensive dominance score can be further analyzed by examining the contribution of each component to the final score for each agent type. This breakdown reveals which specific aspects of performance drive an agent type's overall success.
 
 ![Comprehensive Score Breakdown](/docs/experiments/one_of_a_kind/images/comprehensive_score_breakdown.png)
-*Figure 1: Breakdown of average comprehensive dominance score by agent type, showing the weighted contribution of each component.*
 
 ### Key Insights from Score Breakdown
 
@@ -118,19 +116,15 @@ The comprehensive dominance score can be further analyzed by examining the contr
 
 The relative contribution of each component to an agent type's comprehensive score provides insights into their simulation strategy:
 
-- **High AUC + Low Recency-weighted AUC**: Strong early but declining performance
-- **Low AUC + High Recency-weighted AUC**: Weak start but improving performance
-- **High Dominance Duration + Low Final Ratio**: Maintained leadership for long periods but lost it by the end
-- **Low Dominance Duration + High Final Ratio**: Achieved dominance late in the simulation
-- **High Growth Trend**: Demonstrated improving performance in the latter half of the simulation
+- **High AUC + Low Recency-weighted AUC**: 
+  - Strong early but declining performance
+- **Low AUC + High Recency-weighted AUC**: 
+  - Weak start but improving performance
+- **High Dominance Duration + Low Final Ratio**: 
+  - Maintained leadership for long periods but lost it by the end
+- **Low Dominance Duration + High Final Ratio**: 
+  - Achieved dominance late in the simulation
+- **High Growth Trend**: 
+  - Demonstrated improving performance in the latter half of the simulation
 
 This breakdown helps identify not just which agent type performed best overall, but also the specific aspects of performance that contributed to their success or failure, providing deeper insights into agent behavior and competitive dynamics.
-
-## References
-
-These dominance measures are implemented in the `dominance_analysis.py` script:
-
-- Population Dominance: `compute_population_dominance()` (line 99)
-- Survival Dominance: `compute_survival_dominance()` (line 121)
-- Comprehensive Dominance: `compute_comprehensive_dominance()` (line 1166)
-- Comprehensive Score Breakdown: `plot_comprehensive_score_breakdown()` (line 2648) 
