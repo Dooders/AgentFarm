@@ -30,6 +30,24 @@ def plot_dominance_distribution(df, output_path):
     if n_plots == 1:
         axes = [axes]
 
+    # Define consistent agent order and color scheme
+    agent_types = ["system", "independent", "control"]
+    colors = {
+        "system": "blue",
+        "independent": "red",
+        "control": "#DAA520",
+    }  # Goldenrod for control
+
+    # Define mapping between different agent type naming formats
+    agent_type_mapping = {
+        "SystemAgent": "system",
+        "IndependentAgent": "independent",
+        "ControlAgent": "control",
+        "system": "system",
+        "independent": "independent",
+        "control": "control",
+    }
+
     # Plot each dominance measure
     for i, measure in enumerate(available_measures):
         # Get counts and convert to percentages
@@ -37,24 +55,73 @@ def plot_dominance_distribution(df, output_path):
         total = counts.sum()
         percentages = (counts / total) * 100
 
-        # Plot percentages
-        axes[i].bar(percentages.index, percentages.values)
+        # Log the percentages for debugging
+        logging.info(f"Percentages for {measure}: {percentages}")
+
+        # Create a consistent DataFrame with all agent types
+        # This ensures the same order and includes all agent types even if some have 0%
+        ordered_percentages = pd.Series(0, index=agent_types)
+
+        # Map agent types to consistent format
+        for agent in percentages.index:
+            # Map the agent type to our standard format if possible
+            standard_agent_type = agent_type_mapping.get(agent)
+
+            if standard_agent_type in agent_types:
+                ordered_percentages[standard_agent_type] = percentages[agent]
+            else:
+                logging.warning(f"Unknown agent type in {measure}: {agent}")
+
+        # Log the ordered percentages for debugging
+        logging.info(f"Ordered percentages for {measure}: {ordered_percentages}")
+
+        # For survival dominance, ensure we have data
+        if measure == "survival_dominance" and ordered_percentages.sum() == 0:
+            logging.warning(f"No data for survival_dominance, using placeholder data")
+            # If there's no data, check if we can derive it from the DataFrame
+            if "survival_rate" in df.columns:
+                # Try to derive dominance from survival rates
+                for agent_type in agent_types:
+                    col = f"{agent_type}_survival_rate"
+                    if col in df.columns:
+                        avg_survival = df[col].mean()
+                        ordered_percentages[agent_type] = avg_survival * 100
+
+                # Normalize to ensure percentages sum to 100
+                if ordered_percentages.sum() > 0:
+                    ordered_percentages = (
+                        ordered_percentages / ordered_percentages.sum()
+                    ) * 100
+                    logging.info(f"Derived survival dominance: {ordered_percentages}")
+
+        # Plot percentages with consistent colors
+        bars = axes[i].bar(
+            ordered_percentages.index,
+            ordered_percentages.values,
+            color=[colors.get(agent, "gray") for agent in ordered_percentages.index],
+        )
+
         axes[i].set_title(f"{measure.replace('_', ' ').title()} Distribution")
         axes[i].set_ylabel("Percentage (%)")
-        axes[i].set_xlabel("Agent Type")
+        axes[i].set_xlabel("")
 
         # Add percentage labels on top of each bar
-        for j, p in enumerate(percentages):
-            axes[i].annotate(f"{p:.1f}%", (j, p), ha="center", va="bottom")
+        for j, p in enumerate(ordered_percentages):
+            if p > 0:  # Only add label if percentage is greater than 0
+                axes[i].annotate(f"{p:.1f}%", (j, p), ha="center", va="bottom")
 
         # Set y-axis limit to slightly above 100% to make room for annotations
         axes[i].set_ylim(0, 105)
 
+        # Set consistent x-tick labels with capitalized agent types
+        axes[i].set_xticks(range(len(agent_types)))
+        axes[i].set_xticklabels([agent.capitalize() for agent in agent_types])
+
     # Add caption
     caption = (
-        "This chart shows the percentage distribution of dominant agent types across simulations. "
+        "Percentage distribution of dominant agent types across simulations. "
         "Each bar represents the percentage of simulations where a particular agent type "
-        "(system, independent, or control) was dominant according to different dominance measures."
+        "was dominant according to different dominance measures."
     )
     plt.figtext(0.5, 0.01, caption, wrap=True, horizontalalignment="center", fontsize=9)
 
