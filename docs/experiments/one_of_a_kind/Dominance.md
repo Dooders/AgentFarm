@@ -4,7 +4,7 @@
 
 This report analyzes the dominance patterns observed across 250 simulations in the Agent Farm environment. Three agent types (System, Independent, and Control) competed for resources and reproduction opportunities. The analysis reveals:
 
-- **System agents** emerged as the most dominant type overall (44% comprehensive dominance), followed by Control agents (36.4%) and Independent agents (19.6%).
+- **System agents** emerged as the most dominant type overall (46% comprehensive dominance), followed by Control agents (33%) and Independent agents (21%).
 - **Dominance switching** occurred on average 8.26 times per simulation, with most switches happening in the early phase.
 - **System agents** maintained the longest periods of dominance (436 steps on average), suggesting greater stability once they achieve dominance.
 - **Initial resource proximity** and **reproduction strategies** appear to be key factors influencing which agent type becomes dominant.
@@ -13,12 +13,12 @@ This report analyzes the dominance patterns observed across 250 simulations in t
 
 ## 1. Dominance Distribution
 
-Key observations: (see [Dominance Measures](Measures.md) for detailed explanations of each measure)
+Key observations:
 - **System agents** excel at population growth, leading in both population and comprehensive dominance measures.
-- **Independent agents** show superior survival skills (48% survival dominance) but struggle to convert this into overall dominance.
+- **Independent agents** show superior survival skills but struggle to convert this into overall dominance.
 - **Control agents** maintain a balanced performance across all dominance measures.
 
-The comprehensive dominance measure, which considers multiple factors including population growth, recency-weighted presence, and dominance duration, provides the most holistic view of agent performance.
+The comprehensive dominance measure, which considers multiple factors including population growth, recency-weighted presence, and dominance duration, provides the most holistic view of agent performance. (see [Dominance Measures](Measures.md) for detailed explanations of each measure)
 
 ![Dominance Distribution](images/dominance_distribution.png)
 
