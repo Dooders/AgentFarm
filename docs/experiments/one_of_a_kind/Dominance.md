@@ -20,8 +20,6 @@ Key observations:
 
 The comprehensive dominance measure, which considers multiple factors including population growth, recency-weighted presence, and dominance duration, provides the most holistic view of agent performance. (see [Dominance Measures](Measures.md) for detailed explanations of each measure)
 
-![Dominance Distribution](images/dominance_distribution.png)
-
 
 ![Dominance Comparison](images/dominance_comparison.png)
 
