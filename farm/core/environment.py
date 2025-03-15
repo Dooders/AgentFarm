@@ -102,6 +102,15 @@ class Environment:
         self.resources = {}
         self.step_number = 0
         
+        # Initialize KD trees
+        self.agent_kdtree = None
+        self.resource_kdtree = None
+        self.agent_positions = None
+        self.resource_positions = None
+        
+        # Initialize resource parameters
+        self.max_resource = self.config.max_resource_amount if hasattr(self.config, 'max_resource_amount') else None
+        
         # Initialize counters
         self.births_this_step = 0
         self.deaths_this_step = 0
@@ -151,8 +160,16 @@ class Environment:
 
     def _update_kdtrees(self):
         """Update KD-trees for efficient spatial queries."""
+        try:
+            from scipy.spatial import cKDTree
+            import numpy as np
+        except ImportError:
+            self.agent_kdtree = None
+            self.resource_kdtree = None
+            return
+            
         # Update agent KD-tree
-        alive_agents = [agent for agent in self.agents if agent.alive]
+        alive_agents = [agent for agent in self.agents.values() if agent.alive]
         if alive_agents:
             self.agent_positions = np.array([agent.position for agent in alive_agents])
             self.agent_kdtree = cKDTree(self.agent_positions)
@@ -163,7 +180,7 @@ class Environment:
         # Update resource KD-tree
         if self.resources:
             self.resource_positions = np.array(
-                [resource.position for resource in self.resources]
+                [resource.position for resource in self.resources.values()]
             )
             self.resource_kdtree = cKDTree(self.resource_positions)
         else:
@@ -189,9 +206,8 @@ class Environment:
             return []
 
         indices = self.agent_kdtree.query_ball_point(position, radius)
-        return [
-            agent for i, agent in enumerate(self.agents) if agent.alive and i in indices
-        ]
+        alive_agents = [agent for agent in self.agents.values() if agent.alive]
+        return [alive_agents[i] for i in indices if i < len(alive_agents)]
 
     def get_nearby_resources(self, position, radius):
         """Find all resources within radius of position.
@@ -212,7 +228,8 @@ class Environment:
             return []
 
         indices = self.resource_kdtree.query_ball_point(position, radius)
-        return [self.resources[i] for i in indices]
+        resources_list = list(self.resources.values())
+        return [resources_list[i] for i in indices if i < len(resources_list)]
 
     def get_nearest_resource(self, position):
         """Find nearest resource to position.
@@ -231,7 +248,10 @@ class Environment:
             return None
 
         distance, index = self.resource_kdtree.query(position)
-        return self.resources[index]
+        resources_list = list(self.resources.values())
+        if index < len(resources_list):
+            return resources_list[index]
+        return None
 
     def get_next_resource_id(self):
         resource_id = self.next_resource_id
@@ -267,7 +287,8 @@ class Environment:
 
     def remove_agent(self, agent):
         self.record_death()
-        self.agents.remove(agent)
+        if agent.agent_id in self.agents:
+            del self.agents[agent.agent_id]
 
     def collect_action(self, **action_data):
         """Collect an action for batch processing."""
@@ -290,10 +311,11 @@ class Environment:
         """Update environment state for current time step."""
         try:
             # Update resources with proper regeneration
+            resources_list = list(self.resources.values())
             regen_mask = (
-                np.random.random(len(self.resources)) < self.config.resource_regen_rate
+                np.random.random(len(resources_list)) < self.config.resource_regen_rate
             )
-            for resource, should_regen in zip(self.resources, regen_mask):
+            for resource, should_regen in zip(resources_list, regen_mask):
                 if should_regen and (
                     self.max_resource is None or resource.amount < self.max_resource
                 ):
@@ -326,7 +348,7 @@ class Environment:
         #! resources_shared is now being calculated
         try:
             # Get alive agents
-            alive_agents = [agent for agent in self.agents if agent.alive]
+            alive_agents = [agent for agent in self.agents.values() if agent.alive]
             total_agents = len(alive_agents)
 
             # Calculate agent type counts
@@ -365,7 +387,7 @@ class Environment:
             )
 
             # Calculate resource metrics
-            total_resources = sum(r.amount for r in self.resources)
+            total_resources = sum(r.amount for r in self.resources.values())
             average_agent_resources = (
                 sum(a.resource_level for a in alive_agents) / total_agents
                 if total_agents > 0
@@ -400,7 +422,7 @@ class Environment:
             successful_attacks_this_step = getattr(self, "successful_attacks_this_step", 0)
 
             # Calculate resource distribution entropy
-            resource_amounts = [r.amount for r in self.resources]
+            resource_amounts = [r.amount for r in self.resources.values()]
             if resource_amounts:
                 total = sum(resource_amounts)
                 if total > 0:
@@ -415,7 +437,7 @@ class Environment:
 
             # Calculate resource consumption for this step
             previous_resources = getattr(self, "previous_total_resources", 0)
-            current_resources = sum(r.amount for r in self.resources)
+            current_resources = sum(r.amount for r in self.resources.values())
             resources_consumed = max(0, previous_resources - current_resources)
             self.previous_total_resources = current_resources
 

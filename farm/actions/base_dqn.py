@@ -195,15 +195,16 @@ class BaseDQNModule:
         self.memory.append((state, action, reward, next_state, done))
         self.episode_rewards.append(reward)
 
-        self.logger.log_learning_experience(
-            step_number=step_number,
-            agent_id=agent_id,
-            module_type=module_type,
-            module_id=module_id,
-            action_taken=action,
-            action_taken_mapped=action_taken_mapped,
-            reward=reward,
-        )
+        if self.logger is not None:
+            self.logger.log_learning_experience(
+                step_number=step_number,
+                agent_id=agent_id,
+                module_type=module_type,
+                module_id=module_id,
+                action_taken=action,
+                action_taken_mapped=action_taken_mapped,
+                reward=reward,
+            )
 
     def train(
         self,

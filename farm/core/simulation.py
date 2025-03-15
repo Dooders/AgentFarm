@@ -137,21 +137,22 @@ def run_simulation(
         # Set up database path (None if path is None)
         db_path = f"{path}/simulation.db" if path is not None else None
 
+        # Check if database should be disabled
+        if hasattr(config, 'use_db') and not config.use_db:
+            logging.info("Database logging disabled")
+            environment = Environment(
+                config=config,
+                database=None,
+            )
         # Handle in-memory database configuration
-        if config.use_in_memory_db:
+        elif config.use_in_memory_db:
             logging.info("Using in-memory database for improved performance")
             from farm.database.database import InMemorySimulationDatabase
 
             # Create environment with in-memory database
             environment = Environment(
-                width=config.width,
-                height=config.height,
-                resource_distribution={
-                    "type": "random",
-                    "amount": config.initial_resources,
-                },
-                db_path=None,  # Will be ignored for in-memory DB
                 config=config,
+                database=None,  # Will be replaced with in-memory DB
             )
 
             # Replace the default database with in-memory database
@@ -159,9 +160,18 @@ def run_simulation(
                 environment.db.close()
 
             # Initialize in-memory database with optional memory limit
-            environment.db = InMemorySimulationDatabase(
+            db = InMemorySimulationDatabase(
                 memory_limit_mb=config.in_memory_db_memory_limit_mb
             )
+            
+            # Initialize database schema
+            db.initialize_schema()
+            
+            # Disable foreign key constraints for in-memory database to avoid errors
+            db.disable_foreign_keys()
+            
+            # Set the database on the environment
+            environment.db = db
 
         else:
             # Clean up any existing database file for disk-based DB
@@ -175,15 +185,16 @@ def run_simulation(
                     logging.warning(f"Using alternative database path: {db_path}")
 
             # Create environment with disk-based database
+            from farm.database.database import SimulationDatabase
+            database = SimulationDatabase(db_path) if db_path else None
+            
+            # Initialize database schema if it exists
+            if database:
+                database.initialize_schema()
+            
             environment = Environment(
-                width=config.width,
-                height=config.height,
-                resource_distribution={
-                    "type": "random",
-                    "amount": config.initial_resources,
-                },
-                db_path=db_path,
                 config=config,
+                database=database,
             )
 
         # Set seed if provided
@@ -213,7 +224,7 @@ def run_simulation(
             logging.info(f"Starting step {step}/{num_steps}")
 
             # Process agents in batches
-            alive_agents = [agent for agent in environment.agents if agent.alive]
+            alive_agents = [agent for agent in environment.agents.values() if agent.alive]
 
             # Stop if no agents are alive
             if len(alive_agents) < 1:

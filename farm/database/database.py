@@ -837,6 +837,43 @@ class SimulationDatabase:
             create_database_schema(self.engine, Base)
 
         self._execute_in_transaction(_create)
+        
+    def initialize_schema(self):
+        """Initialize the database schema.
+        
+        This method ensures all required tables and indexes are created.
+        It's safe to call multiple times as it won't recreate existing tables.
+        
+        Raises
+        ------
+        SQLAlchemyError
+            If there's an error creating the schema
+        """
+        try:
+            self._create_tables()
+            logger.info(f"Database schema initialized successfully at {self.db_path}")
+        except Exception as e:
+            logger.error(f"Failed to initialize database schema: {e}")
+            raise
+            
+    def disable_foreign_keys(self):
+        """Disable foreign key constraints.
+        
+        This can be useful for in-memory databases during simulation to avoid
+        foreign key constraint errors when inserting data in a non-standard order.
+        
+        Warning: This should be used with caution as it bypasses data integrity checks.
+        """
+        try:
+            conn = self.engine.raw_connection()
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA foreign_keys=OFF")
+            cursor.close()
+            conn.close()
+            logger.info("Foreign key constraints disabled")
+        except Exception as e:
+            logger.error(f"Failed to disable foreign key constraints: {e}")
+            raise
 
     def update_notes(self, notes_data: Dict):
         """Update simulation notes in the database.
@@ -1436,87 +1473,38 @@ class InMemorySimulationDatabase(SimulationDatabase):
         else:  # balanced (default)
             # Balanced settings
             cursor.execute("PRAGMA synchronous=NORMAL")
-            cursor.execute("PRAGMA journal_mode=MEMORY")  # Always MEMORY for in-memory DB
+            cursor.execute("PRAGMA journal_mode=MEMORY")
             cursor.execute(f"PRAGMA cache_size={-1 * cache_size_mb * 1024}")
             cursor.execute("PRAGMA page_size=4096")  # Default page size
             cursor.execute("PRAGMA busy_timeout=30000")  # 30-second timeout
         
-        # Apply specific override to make sure synchronous mode is correctly set
+        # Apply specific override
         cursor.execute(f"PRAGMA synchronous={synchronous_mode}")
         
-        # Apply any custom pragmas
+        # Apply custom pragmas
         for pragma, value in custom_pragmas.items():
             cursor.execute(f"PRAGMA {pragma}={value}")
-        
-        # Run optimizer
-        cursor.execute("PRAGMA optimize")
-        
+            
         cursor.close()
         conn.close()
         
-        # Set up the event listener for future connections
-        @event.listens_for(self.engine, "connect")
-        def set_sqlite_pragma(dbapi_connection, connection_record):
-            cursor = dbapi_connection.cursor()
-            
-            # Apply the same settings as above
-            cursor.execute("PRAGMA foreign_keys=ON")
-            cursor.execute("PRAGMA temp_store=MEMORY")
-            
-            # Apply profile-specific settings
-            if pragma_profile == "performance":
-                cursor.execute("PRAGMA synchronous=OFF")
-                cursor.execute("PRAGMA journal_mode=MEMORY")
-                cursor.execute(f"PRAGMA cache_size={-1 * cache_size_mb * 1024}")
-                cursor.execute("PRAGMA page_size=8192")
-                cursor.execute("PRAGMA mmap_size=1073741824")
-                cursor.execute("PRAGMA automatic_index=OFF")
-                cursor.execute("PRAGMA busy_timeout=60000")
-            elif pragma_profile == "safety":
-                cursor.execute("PRAGMA synchronous=FULL")
-                cursor.execute("PRAGMA journal_mode=MEMORY")
-                cursor.execute(f"PRAGMA cache_size={-1 * min(cache_size_mb, 100) * 1024}")
-                cursor.execute("PRAGMA page_size=4096")
-                cursor.execute("PRAGMA busy_timeout=30000")
-            elif pragma_profile == "memory":
-                cursor.execute("PRAGMA synchronous=NORMAL")
-                cursor.execute("PRAGMA journal_mode=MEMORY")
-                cursor.execute(f"PRAGMA cache_size={-1 * min(cache_size_mb, 50) * 1024}")
-                cursor.execute("PRAGMA page_size=4096")
-                cursor.execute("PRAGMA busy_timeout=15000")
-            else:  # balanced
-                cursor.execute("PRAGMA synchronous=NORMAL")
-                cursor.execute("PRAGMA journal_mode=MEMORY")
-                cursor.execute(f"PRAGMA cache_size={-1 * cache_size_mb * 1024}")
-                cursor.execute("PRAGMA page_size=4096")
-                cursor.execute("PRAGMA busy_timeout=30000")
-            
-            # Apply specific override
-            cursor.execute(f"PRAGMA synchronous={synchronous_mode}")
-            
-            # Apply custom pragmas
-            for pragma, value in custom_pragmas.items():
-                cursor.execute(f"PRAGMA {pragma}={value}")
-                
-            cursor.close()
-
         # Create session factory
         session_factory = sessionmaker(bind=self.engine)
         self.Session = scoped_session(session_factory)
-
+        
         # Create tables
         self._create_tables()
         
-        # Initialize data logger
+        # Initialize logger
         self.logger = DataLogger(self)
         
-        # Initialize data retriever
+        # Initialize query interface
         self.query = DataRetriever(self)
         
-        # Start memory monitoring if a limit is set
-        if self.memory_limit_mb:
+        # Track memory usage
+        if memory_limit_mb:
             self._start_memory_monitoring()
-    
+            
     def _start_memory_monitoring(self):
         """Start background thread for memory usage monitoring."""
         import threading
@@ -1728,6 +1716,23 @@ class InMemorySimulationDatabase(SimulationDatabase):
         finally:
             source_conn.close()
             dest_conn.close()
+
+    def disable_foreign_keys(self):
+        """Disable foreign key constraints for in-memory database.
+        
+        This is particularly useful during simulation to avoid foreign key constraint
+        errors when inserting data in a non-standard order.
+        """
+        try:
+            conn = self.engine.raw_connection()
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA foreign_keys=OFF")
+            cursor.close()
+            conn.close()
+            logger.info("Foreign key constraints disabled for in-memory database")
+        except Exception as e:
+            logger.error(f"Failed to disable foreign key constraints: {e}")
+            raise
 
 
 class ShardedSimulationDatabase:

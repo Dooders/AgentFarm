@@ -270,7 +270,7 @@ def _find_closest_resource(
     environment: "Environment", position: Tuple[float, float]
 ) -> Optional["Resource"]:
     """Find the closest non-depleted resource."""
-    active_resources = [r for r in environment.resources if not r.is_depleted()]
+    active_resources = [r for r in environment.resources.values() if not r.is_depleted()]
     if not active_resources:
         return None
 

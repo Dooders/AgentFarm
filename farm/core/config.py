@@ -167,10 +167,11 @@ class SimulationConfig:
     max_wait_steps: int = 10  # Maximum steps to wait between gathering attempts
 
     # Database configuration
-    use_in_memory_db: bool = False  # Whether to use in-memory database
-    persist_db_on_completion: bool = True  # Whether to persist in-memory DB to disk after simulation
-    in_memory_db_memory_limit_mb: Optional[int] = None  # Memory limit for in-memory DB (None = no limit)
-    in_memory_tables_to_persist: Optional[List[str]] = None  # Tables to persist (None = all tables)
+    use_db: bool = True
+    use_in_memory_db: bool = False
+    in_memory_db_memory_limit_mb: Optional[int] = None
+    persist_db_on_completion: bool = True
+    in_memory_tables_to_persist: Optional[List[str]] = None
     
     # Database pragma settings
     db_pragma_profile: str = "balanced"  # Options: "balanced", "performance", "safety", "memory"

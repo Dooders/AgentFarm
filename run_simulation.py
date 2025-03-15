@@ -65,6 +65,11 @@ def main():
         action="store_true",
         help="Don't persist in-memory database to disk after simulation",
     )
+    parser.add_argument(
+        "--no-db",
+        action="store_true",
+        help="Disable database logging completely",
+    )
     args = parser.parse_args()
 
     # Ensure simulations directory exists
@@ -88,6 +93,11 @@ def main():
                 print(f"Memory limit: {args.memory_limit} MB")
             if args.no_persist:
                 print("Warning: In-memory database will not be persisted to disk")
+                
+        # Disable database if requested
+        if args.no_db:
+            config.use_db = False
+            print("Database logging disabled")
     except Exception as e:
         print(f"Failed to load configuration: {e}")
         return
@@ -156,10 +166,12 @@ def main():
 
         elapsed_time = time.time() - start_time
         print(f"\nSimulation completed in {elapsed_time:.2f} seconds")
-        print(f"Final agent count: {len(environment.agents)}")
+        print(f"Final agent count: {len(environment.agents.values())}")
         print(f"Results saved to {output_dir}")
     except Exception as e:
+        import traceback
         print(f"Simulation failed: {e}")
+        print(traceback.format_exc())
 
 
 if __name__ == "__main__":

@@ -254,7 +254,7 @@ def _get_reproduce_state(agent: "BaseAgent") -> torch.Tensor:
     # Calculate local population density
     nearby_agents = [
         a
-        for a in agent.environment.agents
+        for a in agent.environment.agents.values()
         if a != agent
         and a.alive
         and np.sqrt(((np.array(a.position) - np.array(agent.position)) ** 2).sum())
@@ -266,7 +266,7 @@ def _get_reproduce_state(agent: "BaseAgent") -> torch.Tensor:
     # Calculate resource availability in area
     nearby_resources = [
         r
-        for r in agent.environment.resources
+        for r in agent.environment.resources.values()
         if not r.is_depleted()
         and np.sqrt(((np.array(r.position) - np.array(agent.position)) ** 2).sum())
         < agent.config.gathering_range
@@ -312,7 +312,7 @@ def _check_reproduction_conditions(agent: "BaseAgent") -> bool:
     # Check local population density
     nearby_agents = [
         a
-        for a in agent.environment.agents
+        for a in agent.environment.agents.values()
         if a != agent
         and a.alive
         and np.sqrt(((np.array(a.position) - np.array(agent.position)) ** 2).sum())
