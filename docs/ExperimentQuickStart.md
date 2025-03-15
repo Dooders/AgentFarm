@@ -106,5 +106,3 @@ Execute the `run_multiple_experiments.py` script to run the series of simulation
 ```bash
 python run_multiple_experiments.py
 ```
-
-By following these steps, you can run a series of simulations with different configurations using the `ExperimentConfig` and `Research` classes from `run_experiment.py` in a separate script without using command-line argument parsing.
