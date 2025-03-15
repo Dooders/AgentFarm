@@ -53,7 +53,7 @@ For detailed explanations of these dominance measures and their implementation, 
   
 System Agents' strong performance in this measure suggests they excel particularly in maintaining dominance duration and demonstrating positive growth trends, while Independent Agents' lower score indicates they may achieve survival efficiency at the expense of population growth and leadership consistency.
 
-This marked divergence between population and survival metrics underscores a critical insight: how we define "success" fundamentally alters our conclusions about agent effectiveness.
+This marked divergence between population and survival metrics underscores a critical insight: how we define "success" fundamentally alters the conclusions about agent effectiveness.
 
 The comprehensive dominance results reveal a more nuanced picture of agent performance than either population or survival metrics alone. System Agents' strong showing (45.6%) in this holistic measure suggests they excel at maintaining consistent population advantages throughout simulations while also demonstrating sustainable growth patterns. Despite Independent Agents' superior survival capabilities, their lower comprehensive dominance score (20.8%) indicates they struggle to translate individual longevity into sustained population leadership. Control Agents maintain their intermediate position (33.6%) across all three measures, demonstrating balanced performance that combines moderate population growth with adequate survival efficiency. These patterns highlight how different agent architectures optimize for different aspects of success in multi-agent environments.
 
@@ -72,6 +72,8 @@ The most decisive factor determining agent dominance was initial positioning rel
 - Proximity to resources at simulation start consistently outweighed intrinsic agent characteristics in predicting outcomes
 
 The visualization above illustrates population dynamics over time, with annotations highlighting initial resource advantages for each agent type. Note how agents with greater initial resource access establish early leads that compound throughout the simulation.
+
+For a comprehensive analysis of positioning metrics, controlled experiments, statistical evidence, and implications for agent design, see [Initial Positioning Analysis](InitialPositioning.md).
 
 ---
 

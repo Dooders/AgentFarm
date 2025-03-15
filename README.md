@@ -6,39 +6,81 @@
 
 ## Key Features
 
-### 1. **Agent-Based Modeling**
-   - Focused on agent-based simulations where agents interact, adapt, and evolve within defined environments.
-   - Ideal for studying emergent behaviors and complex system dynamics.
+### Agent-Based Modeling & Analysis
+- Run complex simulations with interacting, adaptive agents
+- Study emergent behaviors and system dynamics
+- Track agent interactions and environmental influences
+- Analyze trends and patterns over time
 
-### 2. **Dynamic Analysis**
-   - Explore how interactions between agents and environmental factors influence system behavior over time.
-   - Gain insights into emergent phenomena and systemic trends.
+### Customization & Flexibility
+- Define custom parameters, rules, and environments
+- Create specialized agent behaviors and properties
+- Configure simulation parameters and conditions
+- Design custom experiments and scenarios
 
-### 3. **Customizable Simulations**
-   - Define custom parameters, rules, and environments tailored to your research needs.
-   - Conduct a wide variety of experiments with unparalleled flexibility.
+### AI & Machine Learning
+- Reinforcement learning for agent adaptation
+- Automated data analysis and insight generation
+- Pattern recognition and behavior prediction
+- Evolutionary algorithms and genetic modeling
 
-### 4. **AI Integration** (in-development)
-   - **Interpretation:** Analyze simulation data and uncover actionable insights.
-   - **Visualization:** Generate clear, engaging visual summaries of your results.
-   - **Automation:** Simplify tasks like parameter sweeps, optimizations, and documentation.
+### Data & Visualization
+- Comprehensive data collection and metrics
+- Interactive results dashboard
+- Real-time visualization tools
+- Automated report generation
 
-### 5. **Data-Driven Design**
-   - Built on a robust data schema designed to capture every detail, including:
-     - Agent behaviors, interactions, and genealogies.
-     - Resource states and availability.
-     - Simulation-wide metrics, trends, and dynamics over time.
-     - Agent learning experiences and decision-making processes.
+### Research Tools
+- Parameter sweep experiments
+- Comparative analysis framework
+- Experiment replication tools
+- Detailed logging and tracking
 
-### 6. **User-Centric Tools**
-   - **Results Dashboard:** Interactive visualizations and analytics at your fingertips.
-   - **Comparative Analysis:** Tools for side-by-side comparison of simulation outcomes.
-   - **Reporting:** Streamlined documentation and automated report generation.
+## Quick Start
 
-### 7. **Reinforcement Learning and Machine Learning Integration**
-   - Implement reinforcement learning algorithms to enable agents to learn and adapt to their environment.
-   - Utilize machine learning techniques to predict system behavior and optimize simulation parameters.
+### Prerequisites
+- Python 3.8 or higher
+- pip (Python package installer)
+- Git
 
-### 8. **Evolutionary Features**
-   - Simulate evolutionary processes to study adaptation and natural selection.
-   - Track agent evolution and analyze the impact of genetic variations over generations.
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/Dooders/AgentFarm.git
+cd AgentFarm
+
+# Set up virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### Running Your First Simulation
+
+1. **Copy the template configuration**
+   ```bash
+   cd config
+   cp config_template.yaml my_simulation.yaml
+   ```
+
+2. **Run the simulation**
+   ```bash
+   cd ..
+   python run_simulation.py --config config/my_simulation.yaml
+   ```
+
+Results will be saved in the `results` directory.
+
+## Documentation
+
+For detailed documentation and advanced usage:
+- [Simulation Guide](docs/SimulationQuickStart.md)
+- [Experiment Guide](docs/ExperimentQuickStart.md)
+- [Full Documentation](docs/README.md)
+
+## Support
+
+If you encounter any issues, please check our [issues page](https://github.com/Dooders/AgentFarm/issues) or open a new issue.
