@@ -499,8 +499,8 @@ def plot_reproduction_patterns(metrics, output_path):
     if "by_agent_type" in reproduction:
         by_agent_type = reproduction["by_agent_type"]
         
-        # Check if by_agent_type is a dictionary with string keys
-        if not isinstance(by_agent_type, dict) or not all(isinstance(k, str) for k in by_agent_type.keys()):
+        # Check if by_agent_type is a dictionary with string keys and numeric values
+        if not isinstance(by_agent_type, dict) or not all(isinstance(k, str) and (isinstance(v, (int, float)) or isinstance(v, dict)) for k, v in by_agent_type.items()):
             logging.warning("Reproduction by_agent_type is not properly structured, skipping agent type plots")
             
             # Create a simple overall plot instead
@@ -510,22 +510,49 @@ def plot_reproduction_patterns(metrics, output_path):
             plt.title('Total Reproduction Events')
             plt.grid(True, axis='y', alpha=0.3)
             plt.tight_layout()
-            plt.savefig(os.path.join(output_path, "reproduction_overall.png"))
+            plt.savefig(os.path.join(output_path, "reproduction_by_type_overall.png"))
             plt.close()
         else:
             # Normal processing when data is properly structured
-            agent_types = list(by_agent_type.keys())
-            counts = [by_agent_type[at] for at in agent_types]
-            
-            plt.figure(figsize=(10, 6))
-            plt.bar(agent_types, counts, color='#9C27B0')
-            plt.xlabel('Agent Type')
-            plt.ylabel('Number of Reproduction Events')
-            plt.title('Reproduction Events by Agent Type')
-            plt.grid(True, axis='y', alpha=0.3)
-            plt.tight_layout()
-            plt.savefig(os.path.join(output_path, "reproduction_by_type.png"))
-            plt.close()
+            try:
+                agent_types = []
+                counts = []
+                
+                # Handle both simple dict {type: count} and nested dict {type: {count: value}}
+                for agent_type, value in by_agent_type.items():
+                    agent_types.append(agent_type)
+                    if isinstance(value, dict):
+                        # If it's a nested dictionary, try to extract a count value
+                        if "count" in value:
+                            counts.append(value["count"])
+                        else:
+                            # Use the first numeric value found
+                            numeric_values = [v for k, v in value.items() if isinstance(v, (int, float))]
+                            counts.append(numeric_values[0] if numeric_values else 0)
+                    else:
+                        # If it's a direct value
+                        counts.append(value)
+                
+                plt.figure(figsize=(10, 6))
+                plt.bar(agent_types, counts, color='#9C27B0')
+                plt.xlabel('Agent Type')
+                plt.ylabel('Number of Reproduction Events')
+                plt.title('Reproduction Events by Agent Type')
+                plt.grid(True, axis='y', alpha=0.3)
+                plt.tight_layout()
+                plt.savefig(os.path.join(output_path, "reproduction_by_type.png"))
+                plt.close()
+            except Exception as e:
+                logging.warning(f"Error plotting reproduction by agent type: {e}")
+                # Fallback to simple plot
+                plt.figure(figsize=(8, 6))
+                plt.bar(["Overall"], [reproduction.get("total_events", 0)], color='#9C27B0')
+                plt.ylabel('Number of Reproduction Events')
+                plt.title('Total Reproduction Events')
+                plt.grid(True, axis='y', alpha=0.3)
+                plt.tight_layout()
+                plt.savefig(os.path.join(output_path, "reproduction_by_type_overall.png"))
+                plt.close()
     
     # Plot social context of reproduction
     if "social_context" in reproduction:
@@ -536,59 +563,65 @@ def plot_reproduction_patterns(metrics, output_path):
             logging.warning("Reproduction social_context is not properly structured, skipping context plots")
             return
         
-        # Get values
-        isolation = context.get("isolation", 0)
-        homogeneous = context.get("homogeneous", 0)
-        heterogeneous = context.get("heterogeneous", 0)
-        
-        labels = ['Isolation', 'Same-Type Group', 'Mixed Group']
-        values = [isolation, homogeneous, heterogeneous]
-        
-        plt.figure(figsize=(10, 6))
-        plt.pie(values, labels=labels, autopct='%1.1f%%', 
-                colors=['#FFC107', '#4CAF50', '#2196F3'], 
-                startangle=90)
-        plt.title('Social Context of Reproduction')
-        plt.axis('equal')
-        plt.tight_layout()
-        plt.savefig(os.path.join(output_path, "reproduction_social_context.png"))
-        plt.close()
-        
-        # Plot social context by agent type if available
-        if "by_agent_type" in context:
-            by_type = context["by_agent_type"]
+        try:
+            # Get values
+            isolation = context.get("isolation", 0)
+            homogeneous = context.get("homogeneous", 0)
+            heterogeneous = context.get("heterogeneous", 0)
             
-            # Check if by_type is properly structured
-            if not isinstance(by_type, dict) or not all(isinstance(k, str) for k in by_type.keys()):
-                logging.warning("Reproduction social_context by_agent_type is not properly structured, skipping context by type plots")
-                return
+            labels = ['Isolation', 'Same-Type Group', 'Mixed Group']
+            values = [isolation, homogeneous, heterogeneous]
             
-            agent_types = list(by_type.keys())
-            
-            # Create stacked bar chart
-            isolation_by_type = [by_type[at].get("isolation", 0) for at in agent_types]
-            homogeneous_by_type = [by_type[at].get("homogeneous", 0) for at in agent_types]
-            heterogeneous_by_type = [by_type[at].get("heterogeneous", 0) for at in agent_types]
-            
-            plt.figure(figsize=(12, 6))
-            width = 0.8
-            
-            plt.bar(agent_types, isolation_by_type, width, label='Isolation', color='#FFC107')
-            plt.bar(agent_types, homogeneous_by_type, width, bottom=isolation_by_type, 
-                    label='Same-Type Group', color='#4CAF50')
-            
-            bottom_values = [i + h for i, h in zip(isolation_by_type, homogeneous_by_type)]
-            plt.bar(agent_types, heterogeneous_by_type, width, bottom=bottom_values, 
-                    label='Mixed Group', color='#2196F3')
-            
-            plt.xlabel('Agent Type')
-            plt.ylabel('Number of Reproduction Events')
-            plt.title('Social Context of Reproduction by Agent Type')
-            plt.legend()
-            plt.grid(True, axis='y', alpha=0.3)
+            plt.figure(figsize=(10, 6))
+            plt.pie(values, labels=labels, autopct='%1.1f%%', 
+                    colors=['#FFC107', '#4CAF50', '#2196F3'], 
+                    startangle=90)
+            plt.title('Social Context of Reproduction')
+            plt.axis('equal')
             plt.tight_layout()
-            plt.savefig(os.path.join(output_path, "reproduction_context_by_type.png"))
+            plt.savefig(os.path.join(output_path, "reproduction_social_context.png"))
             plt.close()
+            
+            # Plot social context by agent type if available
+            if "by_agent_type" in context:
+                by_type = context["by_agent_type"]
+                
+                # Check if by_type is properly structured
+                if not isinstance(by_type, dict) or not all(isinstance(k, str) for k in by_type.keys()):
+                    logging.warning("Reproduction social_context by_agent_type is not properly structured, skipping context by type plots")
+                    return
+                
+                try:
+                    agent_types = list(by_type.keys())
+                    
+                    # Create stacked bar chart
+                    isolation_by_type = [by_type[at].get("isolation", 0) for at in agent_types]
+                    homogeneous_by_type = [by_type[at].get("homogeneous", 0) for at in agent_types]
+                    heterogeneous_by_type = [by_type[at].get("heterogeneous", 0) for at in agent_types]
+                    
+                    plt.figure(figsize=(12, 6))
+                    width = 0.8
+                    
+                    plt.bar(agent_types, isolation_by_type, width, label='Isolation', color='#FFC107')
+                    plt.bar(agent_types, homogeneous_by_type, width, bottom=isolation_by_type, 
+                            label='Same-Type Group', color='#4CAF50')
+                    
+                    bottom_values = [i + h for i, h in zip(isolation_by_type, homogeneous_by_type)]
+                    plt.bar(agent_types, heterogeneous_by_type, width, bottom=bottom_values, 
+                            label='Mixed Group', color='#2196F3')
+                    
+                    plt.xlabel('Agent Type')
+                    plt.ylabel('Number of Reproduction Events')
+                    plt.title('Social Context of Reproduction by Agent Type')
+                    plt.legend()
+                    plt.grid(True, axis='y', alpha=0.3)
+                    plt.tight_layout()
+                    plt.savefig(os.path.join(output_path, "reproduction_context_by_type.png"))
+                    plt.close()
+                except Exception as e:
+                    logging.warning(f"Error plotting reproduction social context by agent type: {e}")
+        except Exception as e:
+            logging.warning(f"Error plotting reproduction social context: {e}")
 
 
 def plot_all_visualizations(metrics, output_path):
@@ -635,7 +668,12 @@ def generate_summary_report(analysis_results, output_path):
             
             f.write(f"- **Total Interactions**: {sn.get('total_interactions', 0)}\n")
             f.write(f"- **Unique Interaction Pairs**: {sn.get('unique_interaction_pairs', 0)}\n")
-            f.write(f"- **Network Density**: {sn.get('network_density', 0):.3f}\n\n")
+            
+            # Fix for network_density potentially being a list
+            network_density = sn.get('network_density', 0)
+            if isinstance(network_density, list):
+                network_density = network_density[0] if network_density else 0
+            f.write(f"- **Network Density**: {network_density:.3f}\n\n")
             
             if "agent_type_averages" in sn:
                 f.write("### Agent Type Connection Metrics\n\n")
@@ -643,7 +681,19 @@ def generate_summary_report(analysis_results, output_path):
                 f.write("|------------|---------------------|---------------------|---------------|---------------|\n")
                 
                 for agent_type, data in sn["agent_type_averages"].items():
-                    f.write(f"| {agent_type} | {data.get('avg_out_degree', 0):.2f} | {data.get('avg_in_degree', 0):.2f} | {data.get('avg_total_outgoing', 0):.2f} | {data.get('avg_total_incoming', 0):.2f} |\n")
+                    # Handle potential list values
+                    avg_out = data.get('avg_out_degree', 0)
+                    avg_in = data.get('avg_in_degree', 0)
+                    total_out = data.get('avg_total_outgoing', 0)
+                    total_in = data.get('avg_total_incoming', 0)
+                    
+                    # Convert lists to single values
+                    if isinstance(avg_out, list): avg_out = avg_out[0] if avg_out else 0
+                    if isinstance(avg_in, list): avg_in = avg_in[0] if avg_in else 0
+                    if isinstance(total_out, list): total_out = total_out[0] if total_out else 0
+                    if isinstance(total_in, list): total_in = total_in[0] if total_in else 0
+                    
+                    f.write(f"| {agent_type} | {avg_out:.2f} | {avg_in:.2f} | {total_out:.2f} | {total_in:.2f} |\n")
                 
                 f.write("\n")
         else:
@@ -655,9 +705,19 @@ def generate_summary_report(analysis_results, output_path):
         if "resource_sharing" in metrics and "error" not in metrics["resource_sharing"]:
             rs = metrics["resource_sharing"]
             
-            f.write(f"- **Total Sharing Actions**: {rs.get('total_sharing_actions', 0)}\n")
-            f.write(f"- **Total Resources Shared**: {rs.get('total_resources_shared', 0):.2f}\n")
-            f.write(f"- **Average Resources per Share**: {rs.get('avg_resources_per_share', 0):.2f}\n\n")
+            # Handle potential list values
+            total_actions = rs.get('total_sharing_actions', 0)
+            total_resources = rs.get('total_resources_shared', 0)
+            avg_resources = rs.get('avg_resources_per_share', 0)
+            
+            # Convert lists to single values
+            if isinstance(total_actions, list): total_actions = total_actions[0] if total_actions else 0
+            if isinstance(total_resources, list): total_resources = total_resources[0] if total_resources else 0
+            if isinstance(avg_resources, list): avg_resources = avg_resources[0] if avg_resources else 0
+            
+            f.write(f"- **Total Sharing Actions**: {total_actions}\n")
+            f.write(f"- **Total Resources Shared**: {total_resources:.2f}\n")
+            f.write(f"- **Average Resources per Share**: {avg_resources:.2f}\n\n")
             
             if "by_agent_type" in rs:
                 f.write("### Resource Sharing by Agent Type\n\n")
@@ -665,16 +725,29 @@ def generate_summary_report(analysis_results, output_path):
                 f.write("|------------|---------|------------------|\n")
                 
                 for agent_type, data in rs["by_agent_type"].items():
-                    f.write(f"| {agent_type} | {data.get('actions', 0)} | {data.get('resources', 0):.2f} |\n")
+                    # Handle potential list values
+                    actions = data.get('actions', 0)
+                    resources = data.get('resources', 0)
+                    
+                    # Convert lists to single values
+                    if isinstance(actions, list): actions = actions[0] if actions else 0
+                    if isinstance(resources, list): resources = resources[0] if resources else 0
+                    
+                    f.write(f"| {agent_type} | {actions} | {resources:.2f} |\n")
                 
                 f.write("\n")
             
             if "altruistic_sharing" in rs:
                 alt = rs["altruistic_sharing"]
-                total = rs.get("total_sharing_actions", 0)
+                total = total_actions  # Using the already processed value
+                
+                # Handle potential list values
+                alt_count = alt.get('count', 0)
+                if isinstance(alt_count, list): alt_count = alt_count[0] if alt_count else 0
+                
                 if total > 0:
-                    percentage = (alt.get("count", 0) / total) * 100
-                    f.write(f"- **Altruistic Sharing**: {alt.get('count', 0)} actions ({percentage:.1f}% of all sharing)\n\n")
+                    percentage = (alt_count / total) * 100
+                    f.write(f"- **Altruistic Sharing**: {alt_count} actions ({percentage:.1f}% of all sharing)\n\n")
         else:
             f.write("No resource sharing data available.\n\n")
         
@@ -684,8 +757,20 @@ def generate_summary_report(analysis_results, output_path):
         if "cooperation_competition" in metrics:
             cc = metrics["cooperation_competition"]
             
-            coop_total = cc.get("cooperation", {}).get("total_actions", 0)
-            comp_total = cc.get("competition", {}).get("total_actions", 0)
+            # Handle potential nested dictionaries or direct values
+            if isinstance(cc.get("cooperation"), dict):
+                coop_total = cc.get("cooperation", {}).get("total_actions", 0)
+            else:
+                coop_total = cc.get("cooperation_total", 0)
+                
+            if isinstance(cc.get("competition"), dict):
+                comp_total = cc.get("competition", {}).get("total_actions", 0)
+            else:
+                comp_total = cc.get("competition_total", 0)
+            
+            # Handle potential list values
+            if isinstance(coop_total, list): coop_total = coop_total[0] if coop_total else 0
+            if isinstance(comp_total, list): comp_total = comp_total[0] if comp_total else 0
             
             f.write(f"- **Cooperation Actions**: {coop_total}\n")
             f.write(f"- **Competition Actions**: {comp_total}\n")
@@ -697,17 +782,30 @@ def generate_summary_report(analysis_results, output_path):
                 f.write("- **Cooperation-Competition Ratio**: ∞ (No competition actions)\n\n")
             
             if "coop_comp_ratio" in cc:
-                f.write("### Cooperation-Competition by Agent Type\n\n")
-                f.write("| Agent Type | Cooperation | Competition | Ratio |\n")
-                f.write("|------------|-------------|-------------|-------|\n")
+                ratios = cc["coop_comp_ratio"]
                 
-                for agent_type, data in cc["coop_comp_ratio"].items():
-                    ratio_value = data.get("ratio", 0)
-                    ratio_str = f"{ratio_value:.2f}" if ratio_value != float('inf') else "∞"
+                # Check if ratios is a dictionary (with agent types as keys)
+                if isinstance(ratios, dict):
+                    f.write("### Cooperation-Competition by Agent Type\n\n")
+                    f.write("| Agent Type | Cooperation | Competition | Ratio |\n")
+                    f.write("|------------|-------------|-------------|-------|\n")
                     
-                    f.write(f"| {agent_type} | {data.get('cooperation', 0)} | {data.get('competition', 0)} | {ratio_str} |\n")
-                
-                f.write("\n")
+                    for agent_type, data in ratios.items():
+                        # Handle potential list values
+                        coop = data.get('cooperation', 0)
+                        comp = data.get('competition', 0)
+                        ratio_value = data.get('ratio', 0)
+                        
+                        # Convert lists to single values
+                        if isinstance(coop, list): coop = coop[0] if coop else 0
+                        if isinstance(comp, list): comp = comp[0] if comp else 0
+                        if isinstance(ratio_value, list): ratio_value = ratio_value[0] if ratio_value else 0
+                        
+                        ratio_str = f"{ratio_value:.2f}" if ratio_value != float('inf') else "∞"
+                        
+                        f.write(f"| {agent_type} | {coop} | {comp} | {ratio_str} |\n")
+                    
+                    f.write("\n")
         else:
             f.write("No cooperation/competition data available.\n\n")
         
@@ -717,10 +815,24 @@ def generate_summary_report(analysis_results, output_path):
         if "spatial_clustering" in metrics and "error" not in metrics["spatial_clustering"]:
             sc = metrics["spatial_clustering"]
             
-            f.write(f"- **Total Clusters**: {sc.get('total_clusters', 0)}\n")
-            f.write(f"- **Average Cluster Size**: {sc.get('avg_cluster_size', 0):.2f}\n")
-            f.write(f"- **Clustering Ratio**: {sc.get('clustering_ratio', 0):.2f}\n")
-            f.write(f"- **Isolated Agents**: {sc.get('isolated_agents', 0)} ({(sc.get('isolated_agents', 0)/sc.get('total_agents', 1))*100:.1f}% of total)\n\n")
+            # Handle potential list values
+            total_clusters = sc.get('total_clusters', 0)
+            avg_cluster_size = sc.get('avg_cluster_size', 0)
+            clustering_ratio = sc.get('clustering_ratio', 0)
+            isolated_agents = sc.get('isolated_agents', 0)
+            total_agents = sc.get('total_agents', 1)
+            
+            # Convert lists to single values
+            if isinstance(total_clusters, list): total_clusters = total_clusters[0] if total_clusters else 0
+            if isinstance(avg_cluster_size, list): avg_cluster_size = avg_cluster_size[0] if avg_cluster_size else 0
+            if isinstance(clustering_ratio, list): clustering_ratio = clustering_ratio[0] if clustering_ratio else 0
+            if isinstance(isolated_agents, list): isolated_agents = isolated_agents[0] if isolated_agents else 0
+            if isinstance(total_agents, list): total_agents = total_agents[0] if total_agents else 1
+            
+            f.write(f"- **Total Clusters**: {total_clusters}\n")
+            f.write(f"- **Average Cluster Size**: {avg_cluster_size:.2f}\n")
+            f.write(f"- **Clustering Ratio**: {clustering_ratio:.2f}\n")
+            f.write(f"- **Isolated Agents**: {isolated_agents} ({(isolated_agents/total_agents)*100:.1f}% of total)\n\n")
             
             if "agent_type_clustering" in sc:
                 f.write("### Clustering by Agent Type\n\n")
@@ -728,26 +840,64 @@ def generate_summary_report(analysis_results, output_path):
                 f.write("|------------|-------------------|--------------|------------------|\n")
                 
                 for agent_type, data in sc["agent_type_clustering"].items():
-                    f.write(f"| {agent_type} | {data.get('agents_in_clusters', 0)} | {data.get('total_agents', 0)} | {data.get('clustering_ratio', 0):.2f} |\n")
+                    # Handle potential list values
+                    agents_in_clusters = data.get('agents_in_clusters', 0)
+                    total_agents_type = data.get('total_agents', 0)
+                    clustering_ratio_type = data.get('clustering_ratio', 0)
+                    
+                    # Convert lists to single values
+                    if isinstance(agents_in_clusters, list): agents_in_clusters = agents_in_clusters[0] if agents_in_clusters else 0
+                    if isinstance(total_agents_type, list): total_agents_type = total_agents_type[0] if total_agents_type else 0
+                    if isinstance(clustering_ratio_type, list): clustering_ratio_type = clustering_ratio_type[0] if clustering_ratio_type else 0
+                    
+                    f.write(f"| {agent_type} | {agents_in_clusters} | {total_agents_type} | {clustering_ratio_type:.2f} |\n")
                 
                 f.write("\n")
             
             if "cluster_stats" in sc:
                 f.write("### Largest Clusters\n\n")
                 
-                largest_clusters = sorted(sc["cluster_stats"], key=lambda x: x["size"], reverse=True)[:5]
+                # Ensure cluster_stats is a list
+                cluster_stats = sc["cluster_stats"]
+                if not isinstance(cluster_stats, list):
+                    if isinstance(cluster_stats, dict):
+                        # Convert dict to list if needed
+                        cluster_stats = [cluster_stats]
+                    else:
+                        # Skip if not convertible
+                        f.write("Cluster statistics data is not properly structured.\n\n")
+                        return
                 
-                for i, cluster in enumerate(largest_clusters, 1):
-                    f.write(f"#### Cluster {cluster['cluster_id']} (Size: {cluster['size']})\n\n")
+                try:
+                    largest_clusters = sorted(cluster_stats, key=lambda x: x.get("size", 0), reverse=True)[:5]
                     
-                    f.write(f"- **Diversity Index**: {cluster['diversity_index']:.3f}\n")
-                    f.write("- **Composition**:\n")
-                    
-                    for agent_type, count in cluster["type_composition"].items():
-                        percentage = (count / cluster["size"]) * 100
-                        f.write(f"  - {agent_type}: {count} agents ({percentage:.1f}%)\n")
-                    
-                    f.write("\n")
+                    for i, cluster in enumerate(largest_clusters, 1):
+                        cluster_id = cluster.get('cluster_id', i)
+                        size = cluster.get('size', 0)
+                        diversity_index = cluster.get('diversity_index', 0)
+                        
+                        # Convert lists to single values
+                        if isinstance(cluster_id, list): cluster_id = cluster_id[0] if cluster_id else i
+                        if isinstance(size, list): size = size[0] if size else 0
+                        if isinstance(diversity_index, list): diversity_index = diversity_index[0] if diversity_index else 0
+                        
+                        f.write(f"#### Cluster {cluster_id} (Size: {size})\n\n")
+                        f.write(f"- **Diversity Index**: {diversity_index:.3f}\n")
+                        f.write("- **Composition**:\n")
+                        
+                        if "type_composition" in cluster and isinstance(cluster["type_composition"], dict):
+                            for agent_type, count in cluster["type_composition"].items():
+                                # Convert list to single value
+                                if isinstance(count, list): count = count[0] if count else 0
+                                
+                                percentage = (count / size) * 100 if size > 0 else 0
+                                f.write(f"  - {agent_type}: {count} agents ({percentage:.1f}%)\n")
+                        else:
+                            f.write("  - Composition data not available\n")
+                        
+                        f.write("\n")
+                except Exception as e:
+                    f.write(f"Error processing cluster statistics: {str(e)}\n\n")
         else:
             f.write("No spatial clustering data available.\n\n")
         
@@ -757,23 +907,57 @@ def generate_summary_report(analysis_results, output_path):
         if "reproduction_patterns" in metrics and "error" not in metrics["reproduction_patterns"]:
             rp = metrics["reproduction_patterns"]
             
-            f.write(f"- **Total Reproduction Events**: {rp.get('total_events', 0)}\n\n")
+            # Handle potential list values
+            total_events = rp.get('total_events', 0)
+            if isinstance(total_events, list): total_events = total_events[0] if total_events else 0
+            
+            f.write(f"- **Total Reproduction Events**: {total_events}\n\n")
             
             if "social_context" in rp:
                 context = rp["social_context"]
                 
                 f.write("### Social Context of Reproduction\n\n")
-                f.write(f"- **Isolation**: {context.get('isolation', 0)} events ({context.get('isolation_pct', 0):.1f}%)\n")
-                f.write(f"- **Same-Type Group**: {context.get('homogeneous', 0)} events ({context.get('homogeneous_pct', 0):.1f}%)\n")
-                f.write(f"- **Mixed Group**: {context.get('heterogeneous', 0)} events ({context.get('heterogeneous_pct', 0):.1f}%)\n\n")
+                
+                # Handle potential list values
+                isolation = context.get('isolation', 0)
+                homogeneous = context.get('homogeneous', 0)
+                heterogeneous = context.get('heterogeneous', 0)
+                isolation_pct = context.get('isolation_pct', 0)
+                homogeneous_pct = context.get('homogeneous_pct', 0)
+                heterogeneous_pct = context.get('heterogeneous_pct', 0)
+                
+                # Convert lists to single values
+                if isinstance(isolation, list): isolation = isolation[0] if isolation else 0
+                if isinstance(homogeneous, list): homogeneous = homogeneous[0] if homogeneous else 0
+                if isinstance(heterogeneous, list): heterogeneous = heterogeneous[0] if heterogeneous else 0
+                if isinstance(isolation_pct, list): isolation_pct = isolation_pct[0] if isolation_pct else 0
+                if isinstance(homogeneous_pct, list): homogeneous_pct = homogeneous_pct[0] if homogeneous_pct else 0
+                if isinstance(heterogeneous_pct, list): heterogeneous_pct = heterogeneous_pct[0] if heterogeneous_pct else 0
+                
+                f.write(f"- **Isolation**: {isolation} events ({isolation_pct:.1f}%)\n")
+                f.write(f"- **Same-Type Group**: {homogeneous} events ({homogeneous_pct:.1f}%)\n")
+                f.write(f"- **Mixed Group**: {heterogeneous} events ({heterogeneous_pct:.1f}%)\n\n")
             
             if "by_agent_type" in rp:
                 f.write("### Reproduction by Agent Type\n\n")
                 f.write("| Agent Type | Reproduction Events |\n")
                 f.write("|------------|---------------------|\n")
                 
-                for agent_type, count in rp["by_agent_type"].items():
-                    f.write(f"| {agent_type} | {count} |\n")
+                by_agent_type = rp["by_agent_type"]
+                if isinstance(by_agent_type, dict):
+                    for agent_type, count in by_agent_type.items():
+                        # Convert list to single value
+                        if isinstance(count, list): count = count[0] if count else 0
+                        elif isinstance(count, dict):
+                            # If it's a nested dictionary, try to extract a count value
+                            if "count" in count:
+                                count = count["count"]
+                            else:
+                                # Use the first numeric value found
+                                numeric_values = [v for k, v in count.items() if isinstance(v, (int, float))]
+                                count = numeric_values[0] if numeric_values else 0
+                        
+                        f.write(f"| {agent_type} | {count} |\n")
                 
                 f.write("\n")
         else:
@@ -783,8 +967,27 @@ def generate_summary_report(analysis_results, output_path):
         f.write("## 8. Emergent Patterns\n\n")
         
         if "emergent_patterns" in insights and insights["emergent_patterns"]:
-            for pattern in insights["emergent_patterns"]:
-                f.write(f"- **{pattern['type'].replace('_', ' ').title()}**: {pattern['description']}\n")
+            # Ensure emergent_patterns is a list
+            emergent_patterns = insights["emergent_patterns"]
+            if not isinstance(emergent_patterns, list):
+                if isinstance(emergent_patterns, dict):
+                    # Convert dict to list if needed
+                    emergent_patterns = [emergent_patterns]
+                else:
+                    emergent_patterns = []
+            
+            for pattern in emergent_patterns:
+                if isinstance(pattern, dict):
+                    pattern_type = pattern.get('type', 'Unknown')
+                    description = pattern.get('description', 'No description available')
+                    
+                    # Convert lists to single values
+                    if isinstance(pattern_type, list): pattern_type = pattern_type[0] if pattern_type else 'Unknown'
+                    if isinstance(description, list): description = description[0] if description else 'No description available'
+                    
+                    f.write(f"- **{pattern_type.replace('_', ' ').title()}**: {description}\n")
+                else:
+                    f.write(f"- {pattern}\n")
         else:
             f.write("No emergent patterns identified.\n")
         f.write("\n")
@@ -793,13 +996,38 @@ def generate_summary_report(analysis_results, output_path):
         f.write("## 9. Agent Type Insights\n\n")
         
         if "agent_type_insights" in insights and insights["agent_type_insights"]:
-            for agent_type, type_insights in insights["agent_type_insights"].items():
-                f.write(f"### {agent_type.capitalize()} Agent\n\n")
-                
-                for insight in type_insights:
-                    f.write(f"- {insight}\n")
-                
-                f.write("\n")
+            agent_type_insights = insights["agent_type_insights"]
+            
+            # Check if agent_type_insights is a dictionary
+            if isinstance(agent_type_insights, dict):
+                for agent_type, type_insights in agent_type_insights.items():
+                    f.write(f"### {agent_type.capitalize()} Agent\n\n")
+                    
+                    # Ensure type_insights is a list
+                    if not isinstance(type_insights, list):
+                        if isinstance(type_insights, dict):
+                            # If it's a dictionary, extract values
+                            type_insights = list(type_insights.values())
+                        elif isinstance(type_insights, str):
+                            # If it's a string, make it a single-item list
+                            type_insights = [type_insights]
+                        else:
+                            type_insights = []
+                    
+                    for insight in type_insights:
+                        # Handle if insight is a dict with a description field
+                        if isinstance(insight, dict) and 'description' in insight:
+                            insight_text = insight['description']
+                            if isinstance(insight_text, list): insight_text = insight_text[0] if insight_text else ''
+                            f.write(f"- {insight_text}\n")
+                        else:
+                            # Handle if insight is a string or convert to string
+                            if isinstance(insight, list): insight = insight[0] if insight else ''
+                            f.write(f"- {insight}\n")
+                    
+                    f.write("\n")
+            else:
+                f.write("Agent type insights data is not properly structured.\n\n")
         else:
             f.write("No agent type insights available.\n\n")
         
@@ -807,8 +1035,28 @@ def generate_summary_report(analysis_results, output_path):
         f.write("## 10. Recommendations\n\n")
         
         if "recommendations" in insights and insights["recommendations"]:
-            for recommendation in insights["recommendations"]:
-                f.write(f"- {recommendation}\n")
+            # Ensure recommendations is a list
+            recommendations = insights["recommendations"]
+            if not isinstance(recommendations, list):
+                if isinstance(recommendations, dict):
+                    # If it's a dictionary, extract values
+                    recommendations = list(recommendations.values())
+                elif isinstance(recommendations, str):
+                    # If it's a string, make it a single-item list
+                    recommendations = [recommendations]
+                else:
+                    recommendations = []
+            
+            for recommendation in recommendations:
+                # Handle if recommendation is a dict with a description field
+                if isinstance(recommendation, dict) and 'description' in recommendation:
+                    rec_text = recommendation['description']
+                    if isinstance(rec_text, list): rec_text = rec_text[0] if rec_text else ''
+                    f.write(f"- {rec_text}\n")
+                else:
+                    # Handle if recommendation is a string or convert to string
+                    if isinstance(recommendation, list): recommendation = recommendation[0] if recommendation else ''
+                    f.write(f"- {recommendation}\n")
         else:
             f.write("No recommendations available.\n")
     
@@ -823,7 +1071,7 @@ def main():
     # Setup output directory
     social_behavior_output_path = args.output_path
     if not social_behavior_output_path:
-        social_behavior_output_path = os.path.join(OUTPUT_PATH, "social_behavior")
+        social_behavior_output_path = os.path.join(OUTPUT_PATH, "social")
     
     # Create the output directory
     os.makedirs(social_behavior_output_path, exist_ok=True)
