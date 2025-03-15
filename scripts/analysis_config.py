@@ -20,6 +20,91 @@ DATA_PATH = EXPERIMENT_PATH + "experiments/data/"
 OUTPUT_PATH = EXPERIMENT_PATH + "experiments/analysis/"
 
 
+def find_latest_experiment_path():
+    """
+    Find the most recent experiment folder and verify it contains iteration folders.
+    
+    Returns
+    -------
+    str
+        Path to the most recent experiment folder containing iteration folders
+    """
+    # Find the most recent experiment folder in DATA_PATH
+    experiment_folders = [
+        d for d in glob.glob(os.path.join(DATA_PATH, "*")) if os.path.isdir(d)
+    ]
+    if not experiment_folders:
+        logging.error(f"No experiment folders found in {DATA_PATH}")
+        return None
+
+    # Sort by modification time (most recent first)
+    experiment_folders.sort(key=os.path.getmtime, reverse=True)
+    experiment_path = experiment_folders[0]
+
+    # Check if experiment_path contains iteration folders directly
+    iteration_folders = glob.glob(os.path.join(experiment_path, "iteration_*"))
+    if not iteration_folders:
+        # If no iteration folders found directly, look for subdirectories that might contain them
+        subdirs = [
+            d for d in glob.glob(os.path.join(experiment_path, "*")) if os.path.isdir(d)
+        ]
+        if subdirs:
+            # Sort by modification time (most recent first)
+            subdirs.sort(key=os.path.getmtime, reverse=True)
+            experiment_path = subdirs[0]
+            logging.info(f"Using subdirectory as experiment path: {experiment_path}")
+
+            # Verify that this subdirectory contains iteration folders
+            iteration_folders = glob.glob(os.path.join(experiment_path, "iteration_*"))
+            if not iteration_folders:
+                logging.error(f"No iteration folders found in {experiment_path}")
+                return None
+        else:
+            logging.error(f"No subdirectories found in {experiment_path}")
+            return None
+
+    logging.info(f"Using experiment path: {experiment_path}")
+    return experiment_path
+
+
+def setup_analysis_directory(analysis_type):
+    """
+    Set up an analysis output directory for a specific analysis type.
+    
+    Parameters
+    ----------
+    analysis_type : str
+        Type of analysis (e.g., 'dominance', 'reproduction', etc.)
+        
+    Returns
+    -------
+    tuple
+        (output_path, log_file) where output_path is the path to the created directory
+        and log_file is the path to the log file
+    """
+    # Create analysis output directory
+    analysis_output_path = os.path.join(OUTPUT_PATH, analysis_type)
+    
+    # Clear the directory if it exists
+    if os.path.exists(analysis_output_path):
+        logging.info(f"Clearing existing {analysis_type} directory: {analysis_output_path}")
+        if not safe_remove_directory(analysis_output_path):
+            # If we couldn't remove the directory after retries, create a new one with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            analysis_output_path = os.path.join(OUTPUT_PATH, f"{analysis_type}_{timestamp}")
+            logging.info(f"Using alternative directory: {analysis_output_path}")
+    
+    # Create the directory
+    os.makedirs(analysis_output_path, exist_ok=True)
+    
+    # Set up logging to the analysis directory
+    log_file = setup_logging(analysis_output_path)
+    
+    logging.info(f"Saving {analysis_type} analysis results to {analysis_output_path}")
+    
+    return analysis_output_path, log_file
+
+
 # Setup logging to both console and file
 def setup_logging(output_dir):
     """
@@ -147,6 +232,7 @@ def check_db_schema(engine, table_name):
 
 
 def check_reproduction_events(experiment_path):
+    #! probably deleting this
     """
     Check if reproduction events exist in the simulation databases.
 

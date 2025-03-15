@@ -8,7 +8,9 @@ from analysis_config import (
     DATA_PATH,
     OUTPUT_PATH,
     check_reproduction_events,
+    find_latest_experiment_path,
     safe_remove_directory,
+    setup_analysis_directory,
     setup_logging,
 )
 
@@ -31,61 +33,18 @@ from farm.analysis.dominance.train import train_classifier
 
 
 def main():
-    # Create dominance output directory
-    dominance_output_path = os.path.join(OUTPUT_PATH, "dominance")
-
-    # Clear the dominance directory if it exists
-    if os.path.exists(dominance_output_path):
-        logging.info(f"Clearing existing dominance directory: {dominance_output_path}")
-        if not safe_remove_directory(dominance_output_path):
-            # If we couldn't remove the directory after retries, create a new one with timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            dominance_output_path = os.path.join(OUTPUT_PATH, f"dominance_{timestamp}")
-            logging.info(f"Using alternative directory: {dominance_output_path}")
-
-    # Create the directory
-    os.makedirs(dominance_output_path, exist_ok=True)
-
-    # Set up logging to the dominance directory
-    log_file = setup_logging(dominance_output_path)
+    # Set up the dominance analysis directory
+    dominance_output_path, log_file = setup_analysis_directory("dominance")
 
     logging.info(f"Saving results to {dominance_output_path}")
 
-    # Find the most recent experiment folder in DATA_PATH
-    experiment_folders = [
-        d for d in glob.glob(os.path.join(DATA_PATH, "*")) if os.path.isdir(d)
-    ]
-    if not experiment_folders:
-        logging.error(f"No experiment folders found in {DATA_PATH}")
+    # Find the most recent experiment folder
+    experiment_path = find_latest_experiment_path()
+    if not experiment_path:
         return
 
-    # Sort by modification time (most recent first)
-    experiment_folders.sort(key=os.path.getmtime, reverse=True)
-    experiment_path = experiment_folders[0]
-
-    # Check if experiment_path contains iteration folders directly
-    iteration_folders = glob.glob(os.path.join(experiment_path, "iteration_*"))
-    if not iteration_folders:
-        # If no iteration folders found directly, look for subdirectories that might contain them
-        subdirs = [
-            d for d in glob.glob(os.path.join(experiment_path, "*")) if os.path.isdir(d)
-        ]
-        if subdirs:
-            # Sort by modification time (most recent first)
-            subdirs.sort(key=os.path.getmtime, reverse=True)
-            experiment_path = subdirs[0]
-            logging.info(f"Using subdirectory as experiment path: {experiment_path}")
-
-            # Verify that this subdirectory contains iteration folders
-            iteration_folders = glob.glob(os.path.join(experiment_path, "iteration_*"))
-            if not iteration_folders:
-                logging.error(f"No iteration folders found in {experiment_path}")
-                return
-        else:
-            logging.error(f"No subdirectories found in {experiment_path}")
-            return
-
     # Check if reproduction events exist in the databases
+    #! Is this still needed
     has_reproduction_events = check_reproduction_events(experiment_path)
     if not has_reproduction_events:
         logging.warning(
@@ -93,6 +52,7 @@ def main():
         )
 
     logging.info(f"Analyzing simulations in {experiment_path}...")
+    #! This should be the data gathering and processing
     df = analyze_simulations(experiment_path)
 
     if df.empty:
@@ -100,11 +60,13 @@ def main():
         return
 
     # Save the raw data
+    #! Is this needed???
     output_csv = os.path.join(dominance_output_path, "simulation_analysis.csv")
     df.to_csv(output_csv, index=False)
     logging.info(f"Saved analysis data to {output_csv}")
 
     # Check if we have reproduction data in the dataframe
+    #! Is this needed???
     reproduction_cols = [col for col in df.columns if "reproduction" in col]
     if reproduction_cols:
         logging.info(
@@ -124,6 +86,7 @@ def main():
     # Calculate and display dominance distributions as percentages
     logging.info("\nDominance distribution (percentages):")
 
+    #! Need a better way to execute analysis types, or is it needed since its only logging?
     # Population dominance
     pop_counts = df["population_dominance"].value_counts()
     pop_percentages = (pop_counts / pop_counts.sum() * 100).round(1)
@@ -182,13 +145,14 @@ def main():
                         logging.info(f"    To {to_type}: {prob:.2f}")
 
     # Plot dominance distribution
+    #! make this cleaner and easier to execute
     plot_dominance_distribution(df, dominance_output_path)
 
     # Generate comprehensive score breakdown chart
     plot_comprehensive_score_breakdown(df, dominance_output_path)
 
     # Plot dominance switching patterns
-    if "total_switches" in df.columns:
+    if "total_switches" in df.columns:  #! make this mandatory
         plot_dominance_switches(df, dominance_output_path)
 
         # Analyze factors related to dominance switching
@@ -212,6 +176,7 @@ def main():
     plot_dominance_comparison(df, dominance_output_path)
 
     # Prepare features for classification
+    #! make a seperate module for ml training feature importances
     # Exclude non-feature columns and outcome variables
     exclude_cols = [
         "iteration",

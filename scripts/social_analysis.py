@@ -39,6 +39,8 @@ from analysis_config import (
     OUTPUT_PATH,
     safe_remove_directory,
     setup_logging,
+    setup_analysis_directory,
+    find_latest_experiment_path,
 )
 
 from farm.analysis.social_behavior.analyze import (
@@ -1071,13 +1073,12 @@ def main():
     # Setup output directory
     social_behavior_output_path = args.output_path
     if not social_behavior_output_path:
-        social_behavior_output_path = os.path.join(OUTPUT_PATH, "social")
-    
-    # Create the output directory
-    os.makedirs(social_behavior_output_path, exist_ok=True)
-    
-    # Set up logging
-    log_file = setup_logging(social_behavior_output_path)
+        # Use the setup_analysis_directory function
+        social_behavior_output_path, log_file = setup_analysis_directory("social")
+    else:
+        # If custom output path is provided, still set up logging
+        os.makedirs(social_behavior_output_path, exist_ok=True)
+        log_file = setup_logging(social_behavior_output_path)
     
     start_time = time.time()
     logging.info("Starting social behavior analysis script")
@@ -1086,20 +1087,12 @@ def main():
         # Determine the experiment path
         experiment_path = args.experiment_path
         if not experiment_path:
-            # Find the most recent experiment folder in DATA_PATH
-            logging.info(f"Searching for experiment folders in {DATA_PATH}")
-            experiment_folders = [
-                d for d in glob.glob(os.path.join(DATA_PATH, "*")) if os.path.isdir(d)
-            ]
-            if not experiment_folders:
-                logging.error(f"No experiment folders found in {DATA_PATH}")
+            # Use the find_latest_experiment_path function
+            experiment_path = find_latest_experiment_path()
+            if not experiment_path:
                 return
-            
-            # Sort by modification time (most recent first)
-            experiment_folders.sort(key=os.path.getmtime, reverse=True)
-            experiment_path = experiment_folders[0]
-        
-        logging.info(f"Using experiment path: {experiment_path}")
+        else:
+            logging.info(f"Using experiment path: {experiment_path}")
         
         # Run analysis across simulations
         logging.info("Starting analysis across simulations")

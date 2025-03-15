@@ -24,6 +24,7 @@ from farm.analysis.dominance.data import (
 
 
 def analyze_simulations(experiment_path):
+    #! this is more data gathering and processing
     """
     Analyze all simulation databases in the experiment folder.
 
@@ -182,6 +183,7 @@ def analyze_dominance_switch_factors(df, output_path):
         logging.warning("No dominance switch data available for analysis")
         return None
 
+    #! seperate this into a processing function (calculate_dominance_switch_factors)
     results = {}
 
     # 1. Correlation between initial conditions and switching frequency
@@ -250,6 +252,7 @@ def analyze_dominance_switch_factors(df, output_path):
                 direction = "more" if corr > 0 else "fewer"
                 logging.info(f"  {factor}: {corr:.3f} ({direction} switches)")
 
+    #! sperate this into a plot function
     # 4. Create a plot showing the relationship between switching and dominance stability
     plt.figure(figsize=(10, 6))
 

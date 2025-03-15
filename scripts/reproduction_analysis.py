@@ -14,6 +14,8 @@ from analysis_config import (
     check_reproduction_events,
     safe_remove_directory,
     setup_logging,
+    setup_analysis_directory,
+    find_latest_experiment_path,
 )
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -775,39 +777,13 @@ def plot_reproduction_correlation(df, output_path):
 
 
 def main():
-    # Create reproduction output directory
-    reproduction_output_path = os.path.join(OUTPUT_PATH, "reproduction")
+    # Set up the reproduction analysis directory
+    reproduction_output_path, log_file = setup_analysis_directory("reproduction")
 
-    # Clear the reproduction directory if it exists
-    if os.path.exists(reproduction_output_path):
-        logging.info(
-            f"Clearing existing reproduction directory: {reproduction_output_path}"
-        )
-        if not safe_remove_directory(reproduction_output_path):
-            # If we couldn't remove the directory after retries, create a new one with timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            reproduction_output_path = os.path.join(
-                OUTPUT_PATH, f"reproduction_{timestamp}"
-            )
-            logging.info(f"Using alternative directory: {reproduction_output_path}")
-
-    # Create the directory
-    os.makedirs(reproduction_output_path, exist_ok=True)
-
-    # Set up logging to the reproduction directory
-    log_file = setup_logging(reproduction_output_path)
-
-    logging.info(f"Saving results to {reproduction_output_path}")
-
-    # Find the most recent experiment folder in DATA_PATH
-    experiment_folders = glob.glob(os.path.join(DATA_PATH, "*"))
-    if not experiment_folders:
-        logging.error(f"No experiment folders found in {DATA_PATH}")
+    # Find the most recent experiment folder
+    experiment_path = find_latest_experiment_path()
+    if not experiment_path:
         return
-
-    # Sort by modification time (most recent first)
-    experiment_folders.sort(key=os.path.getmtime, reverse=True)
-    experiment_path = experiment_folders[0]
 
     # Check if reproduction events exist in the databases
     has_reproduction_events = check_reproduction_events(experiment_path)
