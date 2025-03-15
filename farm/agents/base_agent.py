@@ -728,6 +728,14 @@ class BaseAgent:
         """Calculate the agent's current defense strength."""
         return self.config.base_defense_strength if self.is_defending else 0.0
 
+    def get_action_weights(self) -> dict:
+        """Get a dictionary of action weights.
+        
+        Returns:
+            dict: A dictionary mapping action names to their weights
+        """
+        return {action.name: action.weight for action in self.actions}
+
     #! part of context manager, commented out for now
     # def __enter__(self):
     #     """Enter agent context.

@@ -317,62 +317,6 @@ class DataLogger:
 
         self.db._execute_in_transaction(_flush)
 
-    def log_agents_batch(self, agent_data_list: List[Dict]) -> None:
-        """Batch insert multiple agents for better performance.
-
-        Parameters
-        ----------
-        agent_data_list : List[Dict]
-            List of dictionaries containing agent data with fields:
-            - agent_id: str
-            - birth_time: int
-            - agent_type: str
-            - position: Tuple[float, float]
-            - initial_resources: float
-            - starting_health: float
-            - starvation_threshold: int
-            - genome_id: Optional[str]
-            - generation: int
-
-        Raises
-        ------
-        ValueError
-            If agent data is malformed
-        SQLAlchemyError
-            If database operation fails
-        """
-        try:
-
-            def _batch_insert(session):
-                mappings = [
-                    {
-                        "agent_id": data["agent_id"],
-                        "birth_time": data["birth_time"],
-                        "agent_type": data["agent_type"],
-                        "position_x": data["position"][0],
-                        "position_y": data["position"][1],
-                        "initial_resources": data["initial_resources"],
-                        "starting_health": data["starting_health"],
-                        "starvation_threshold": data["starvation_threshold"],
-                        "genome_id": data.get("genome_id"),
-                        "generation": data.get("generation", 0),
-                    }
-                    for data in agent_data_list
-                ]
-                session.bulk_insert_mappings(AgentModel, mappings)
-
-            self.db._execute_in_transaction(_batch_insert)
-
-        except (ValueError, TypeError) as e:
-            logger.error(f"Invalid agent data format: {e}")
-            raise
-        except SQLAlchemyError as e:
-            logger.error(f"Database error during batch agent insert: {e}")
-            raise
-        except Exception as e:
-            logger.error(f"Unexpected error during batch agent insert: {e}")
-            raise
-
     def log_agent(
         self,
         agent_id: str,
@@ -384,6 +328,7 @@ class DataLogger:
         starvation_threshold: int,
         genome_id: Optional[str] = None,
         generation: int = 0,
+        action_weights: Optional[Dict[str, float]] = None,
     ) -> None:
         """Log a single agent's creation to the database.
 
@@ -407,6 +352,8 @@ class DataLogger:
             Unique identifier for agent's genome
         generation : int
             Generation number in evolutionary lineage
+        action_weights : Optional[Dict[str, float]]
+            Dictionary mapping action names to their weights/probabilities
 
         Raises
         ------
@@ -415,6 +362,23 @@ class DataLogger:
         SQLAlchemyError
             If database operation fails
         """
+        # Ensure action_weights is properly serialized for JSON storage
+        serialized_action_weights = None
+        if action_weights is not None:
+            try:
+                # Convert action_weights to a serializable format
+                serialized_action_weights = {str(k): float(v) for k, v in action_weights.items()}
+                
+                # Verify serialization by doing a round-trip through JSON
+                json_test = json.dumps(serialized_action_weights)
+                json.loads(json_test)  # This will raise an exception if not properly serializable
+                
+                logger.debug(f"Serialized action_weights for agent {agent_id}: {serialized_action_weights}")
+            except Exception as e:
+                logger.warning(f"Failed to serialize action_weights for agent {agent_id}: {e}")
+                # Fall back to string representation if serialization fails
+                serialized_action_weights = str(action_weights)
+        
         agent_data = {
             "agent_id": agent_id,
             "birth_time": birth_time,
@@ -425,8 +389,85 @@ class DataLogger:
             "starvation_threshold": starvation_threshold,
             "genome_id": genome_id,
             "generation": generation,
+            "action_weights": serialized_action_weights,
         }
         self.log_agents_batch([agent_data])
+
+    def log_agents_batch(self, agent_data_list: List[Dict]) -> None:
+        """Batch insert multiple agents for better performance.
+
+        Parameters
+        ----------
+        agent_data_list : List[Dict]
+            List of dictionaries containing agent data with fields:
+            - agent_id: str
+            - birth_time: int
+            - agent_type: str
+            - position: Tuple[float, float]
+            - initial_resources: float
+            - starting_health: float
+            - starvation_threshold: int
+            - genome_id: Optional[str]
+            - generation: int
+            - action_weights: Optional[Dict[str, float]]
+
+        Raises
+        ------
+        ValueError
+            If agent data is malformed
+        SQLAlchemyError
+            If database operation fails
+        """
+        try:
+            def _batch_insert(session):
+                mappings = []
+                for data in agent_data_list:
+                    # Validate that the required fields are present
+                    required_fields = ["agent_id", "birth_time", "agent_type", "position", 
+                                       "initial_resources", "starting_health", "starvation_threshold"]
+                    for field in required_fields:
+                        if field not in data:
+                            raise ValueError(f"Missing required field '{field}' in agent data")
+                    
+                    # Process action_weights if present
+                    action_weights = data.get("action_weights")
+                    if action_weights is not None and not isinstance(action_weights, (dict, str)):
+                        logger.warning(f"Invalid action_weights format for agent {data['agent_id']}: {type(action_weights)}")
+                        action_weights = str(action_weights)
+                    
+                    # Create the mapping
+                    mapping = {
+                        "agent_id": data["agent_id"],
+                        "birth_time": data["birth_time"],
+                        "agent_type": data["agent_type"],
+                        "position_x": data["position"][0],
+                        "position_y": data["position"][1],
+                        "initial_resources": data["initial_resources"],
+                        "starting_health": data["starting_health"],
+                        "starvation_threshold": data["starvation_threshold"],
+                        "genome_id": data.get("genome_id"),
+                        "generation": data.get("generation", 0),
+                        "action_weights": action_weights,
+                    }
+                    mappings.append(mapping)
+                
+                # Log the mappings for debugging
+                logger.debug(f"Inserting {len(mappings)} agents into database")
+                
+                # Bulk insert the mappings
+                session.bulk_insert_mappings(AgentModel, mappings)
+
+            self.db._execute_in_transaction(_batch_insert)
+
+        except (ValueError, TypeError) as e:
+            logger.error(f"Invalid agent data format: {e}")
+            raise
+        except SQLAlchemyError as e:
+            logger.error(f"Database error during batch agent insert: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error during batch agent insert: {e}")
+            raise
 
     def log_step(
         self,
