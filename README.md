@@ -2,7 +2,7 @@
 
 ![Project Status](https://img.shields.io/badge/status-in%20development-orange)
 
-**AgentFarm** is a cutting-edge digital research platform for experimenting with simulations of complex systems. Designed as a comprehensive workbench, AgentFarm empowers users to explore, analyze, and compare simulation outcomes with ease. The platform includes a fully integrated AI assistant to handle complex tasks such as interpreting results, generating visualizations, and assisting in documentation, making it an indispensable tool for researchers and innovators.
+**AgentFarm** is an advanced simulation and computational modeling platform for exploring complex systems. Designed as a comprehensive workbench, it enables users to run, analyze, and compare simulations effortlessly. A fully integrated AI assistant—currently in development—will streamline tasks such as result interpretation, visualization generation, and documentation support, making AgentFarm an essential tool for researchers and innovators.
 
 ## Key Features
 
@@ -34,13 +34,3 @@
    - **Results Dashboard:** Interactive visualizations and analytics at your fingertips.
    - **Comparative Analysis:** Tools for side-by-side comparison of simulation outcomes.
    - **Reporting:** Streamlined documentation and automated report generation.
-
-## Why Choose AgentFarm?
-
-AgentFarm is more than just a simulation tool; it's a **hub for innovation, discovery, and exploration**. Whether you're modeling ecosystems, social dynamics, or evolutionary processes, AgentFarm provides the control, flexibility, and insights you need to understand and harness the dynamics of complex systems. With its intuitive interface and powerful AI assistant, AgentFarm ensures that you spend less time on routine tasks and more time uncovering breakthroughs.
-
-# Simulation Project
-
-A web-based simulation project with FastAPI backend and simple frontend.
-
-## Project Structure
