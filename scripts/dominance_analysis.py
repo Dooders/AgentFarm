@@ -52,7 +52,9 @@ def main():
     logging.info(f"Saving results to {dominance_output_path}")
 
     # Find the most recent experiment folder in DATA_PATH
-    experiment_folders = [d for d in glob.glob(os.path.join(DATA_PATH, "*")) if os.path.isdir(d)]
+    experiment_folders = [
+        d for d in glob.glob(os.path.join(DATA_PATH, "*")) if os.path.isdir(d)
+    ]
     if not experiment_folders:
         logging.error(f"No experiment folders found in {DATA_PATH}")
         return
@@ -60,18 +62,20 @@ def main():
     # Sort by modification time (most recent first)
     experiment_folders.sort(key=os.path.getmtime, reverse=True)
     experiment_path = experiment_folders[0]
-    
+
     # Check if experiment_path contains iteration folders directly
     iteration_folders = glob.glob(os.path.join(experiment_path, "iteration_*"))
     if not iteration_folders:
         # If no iteration folders found directly, look for subdirectories that might contain them
-        subdirs = [d for d in glob.glob(os.path.join(experiment_path, "*")) if os.path.isdir(d)]
+        subdirs = [
+            d for d in glob.glob(os.path.join(experiment_path, "*")) if os.path.isdir(d)
+        ]
         if subdirs:
             # Sort by modification time (most recent first)
             subdirs.sort(key=os.path.getmtime, reverse=True)
             experiment_path = subdirs[0]
             logging.info(f"Using subdirectory as experiment path: {experiment_path}")
-            
+
             # Verify that this subdirectory contains iteration folders
             iteration_folders = glob.glob(os.path.join(experiment_path, "iteration_*"))
             if not iteration_folders:
