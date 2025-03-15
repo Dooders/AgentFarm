@@ -4,6 +4,8 @@ This module defines the database schema using SQLAlchemy ORM models.
 Each class represents a table in the database and defines its structure and relationships.
 
 Main Models:
+- Experiment: Groups related simulations for experimental analysis
+- Simulation: Represents simulation runs with their core attributes
 - Agent: Represents simulation agents with their core attributes
 - AgentState: Tracks agent state changes over time
 - ResourceState: Tracks resource states in the environment
@@ -12,7 +14,6 @@ Main Models:
 - LearningExperience: Stores agent learning data
 - HealthIncident: Tracks changes in agent health
 - SimulationConfig: Stores simulation configuration data
-- Simulation: Stores simulation metadata
 
 Each model includes appropriate indexes for query optimization and relationships
 between related tables.
@@ -45,6 +46,61 @@ Base = declarative_base()
 
 
 # Define SQLAlchemy Models
+class Experiment(Base):
+    """Represents a collection of related simulations for experimental analysis.
+    
+    This model groups related simulations together as part of an experiment,
+    allowing for better organization and analysis of simulation runs.
+    """
+    __tablename__ = "experiments"
+    __table_args__ = (
+        Index("idx_experiments_name", "name"),
+        Index("idx_experiments_status", "status"),
+    )
+
+    experiment_id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(255), nullable=False)
+    description = Column(String(1000))
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    status = Column(String(50), default="created")  # created, running, completed, failed
+    base_config = Column(JSON, nullable=False)  # Base configuration for all simulations
+    experiment_metadata = Column(JSON)  # Additional experiment metadata
+    
+    # Relationships
+    simulations = relationship("Simulation", back_populates="experiment")
+    
+    def __repr__(self):
+        return f"<Experiment(experiment_id={self.experiment_id}, name='{self.name}')>"
+
+class ExperimentMetric(Base):
+    """Stores experiment-wide metrics and analysis results."""
+    __tablename__ = "experiment_metrics"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    experiment_id = Column(Integer, ForeignKey('experiments.experiment_id'), nullable=False)
+    metric_name = Column(String(255), nullable=False)
+    metric_value = Column(Float)
+    metric_type = Column(String(50))  # e.g., 'population', 'resources', 'efficiency'
+    timestamp = Column(DateTime, default=func.now())
+    metric_metadata = Column(JSON)  # Additional metric-specific data
+    
+    # Relationships
+    experiment = relationship("Experiment", backref="metrics")
+
+class ExperimentEvent(Base):
+    """Tracks significant events during experiment execution."""
+    __tablename__ = "experiment_events"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    experiment_id = Column(Integer, ForeignKey('experiments.experiment_id'), nullable=False)
+    event_type = Column(String(50), nullable=False)  # e.g., 'start', 'complete', 'error'
+    event_time = Column(DateTime, default=func.now())
+    details = Column(JSON)
+    
+    # Relationships
+    experiment = relationship("Experiment", backref="events")
+
 class AgentModel(Base):
     """Represents a simulation agent and its core attributes.
 
@@ -529,15 +585,19 @@ class Simulation(Base):
     __tablename__ = "simulations"
 
     simulation_id = Column(Integer, primary_key=True, autoincrement=True)
+    experiment_id = Column(Integer, ForeignKey('experiments.experiment_id'), nullable=True)
+    iteration_number = Column(Integer)  # Track iteration number within experiment
     start_time = Column(DateTime, default=func.now())
     end_time = Column(DateTime, nullable=True)
     status = Column(String(50), default="pending")
     parameters = Column(JSON, nullable=False)
     results_summary = Column(JSON, nullable=True)
     simulation_db_path = Column(String(255), nullable=False)
+    config_variation = Column(JSON)  # Specific variations from base config
 
-    # Relationships (optional, for future extensions)
-    # e.g., could relate to logs, individual agent data, etc.
+    # Relationships
+    experiment = relationship("Experiment", back_populates="simulations")
+    # Optional relationships for future extensions
     # logs = relationship("Log", back_populates="simulation")
 
     def __repr__(self):

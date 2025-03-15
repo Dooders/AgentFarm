@@ -7,6 +7,7 @@ from typing import Dict, Set
 
 import numpy as np
 from scipy.spatial import cKDTree
+from sqlalchemy import create_engine
 
 from farm.agents import ControlAgent, IndependentAgent, SystemAgent
 from farm.core.resources import Resource
@@ -20,91 +21,133 @@ logger = logging.getLogger(__name__)
 
 
 def setup_db(db_path):
-    # Skip setup for in-memory database (when db_path is None)
-    if db_path is None:
-        return
+    """Initialize database if it doesn't exist.
+    
+    Parameters
+    ----------
+    db_path : str
+        Path to the database file
         
-    # Try to clean up any existing database connections first
+    Returns
+    -------
+    str
+        Path to the database file
+    """
+    # Skip setup for in-memory database
+    if db_path is None:
+        return None
+        
     try:
-        import sqlite3
-
-        conn = sqlite3.connect(db_path)
-        conn.close()
-    except Exception:
-        pass
-
-    # Delete existing database file if it exists
-    if os.path.exists(db_path):
-        try:
-            os.remove(db_path)
-        except OSError as e:
-            logger.warning(f"Failed to remove database {db_path}: {e}")
-            # Generate unique filename if can't delete
-            base, ext = os.path.splitext(db_path)
-            db_path = f"{base}_{int(time.time())}{ext}"
+        # Create database if it doesn't exist
+        if not os.path.exists(db_path):
+            engine = create_engine(f"sqlite:///{db_path}")
+            Base.metadata.create_all(engine)
+            logger.info(f"Created new database at {db_path}")
+        return db_path
+        
+    except Exception as e:
+        logger.error(f"Failed to setup database: {e}")
+        raise
 
 
 class Environment:
-    def __init__(
-        self,
-        width,
-        height,
-        resource_distribution,
-        db_path="simulation.db",
-        max_resource=None,
-        config=None,
-    ):
-        setup_db(db_path)
-
-        # Initialize basic attributes
-        self.width = width
-        self.height = height
-        self.agents = []
-        self.resources = []
-        self.time = 0
+    def __init__(self, config, database=None, experiment_id=None, iteration_number=None):
+        """Initialize environment.
         
-        # Only initialize database if db_path is provided (not for in-memory DB)
-        if db_path is not None:
-            self.db = SimulationDatabase(db_path)
-        else:
-            # Will be set to InMemorySimulationDatabase later
-            self.db = None
-            
-        self.seed = ShortUUID()
-        self.next_resource_id = 0
-        # self.max_resource = max_resource or (config.max_resource_amount if config else None)
-        self.max_resource = max_resource
+        Parameters
+        ----------
+        config : SimulationConfig
+            Configuration object
+        database : SimulationDatabase, optional
+            Database instance to use
+        experiment_id : int, optional
+            ID of experiment this environment belongs to
+        iteration_number : int, optional
+            Iteration number within the experiment
+        """
         self.config = config
-        self.initial_agent_count = 0
-        self.pending_actions = []  # Initialize pending_actions list
+        self.db = database
+        self.time = 0  # Initialize time to 0
+        self.iteration_number = iteration_number
+        
+        # Initialize seed for ID generation
+        import random
+        import string
+        
+        class Seed:
+            def __init__(self):
+                self.counter = 0
+                # Generate a random prefix for this environment to avoid ID collisions
+                self.prefix = ''.join(random.choices(string.ascii_lowercase, k=5))
+                
+            def id(self):
+                self.counter += 1
+                return f"{self.prefix}_{self.counter}"
+        
+        self.seed = Seed()
+        
+        if self.db and experiment_id:
+            self.db.current_experiment_id = experiment_id
+            self.db.log_experiment_event('environment_initialized', {
+                'config': config.to_dict()
+            })
+            
+        # Initialize environment state
+        self._initialize_state()
 
-        # Add KD-tree attributes
-        self.agent_kdtree = None
-        self.resource_kdtree = None
-        self.agent_positions = None
-        self.resource_positions = None
-
-        # Add tracking for births and deaths
+    def _initialize_state(self):
+        """Initialize environment state."""
+        # Initialize with current simulation context
+        self.agents = {}
+        self.resources = {}
+        self.step_number = 0
+        
+        # Initialize counters
         self.births_this_step = 0
         self.deaths_this_step = 0
-        
-        # Add tracking for resources shared
+        self.total_births = 0
+        self.total_deaths = 0
         self.resources_shared = 0
         self.resources_shared_this_step = 0
-        
-        # Add tracking for combat metrics
         self.combat_encounters = 0
-        self.successful_attacks = 0
         self.combat_encounters_this_step = 0
+        self.successful_attacks = 0
         self.successful_attacks_this_step = 0
+        
+        # Create simulation record if we have a database and experiment
+        if self.db and self.db.current_experiment_id:
+            # Get the iteration number from the environment if available
+            iteration_number = getattr(self, 'iteration_number', None)
+            
+            self.simulation_id = self.db.create_simulation_in_experiment(
+                experiment_id=self.db.current_experiment_id,
+                config_variation=self.config.to_dict(),
+                iteration_number=iteration_number
+            )
+        
+        self._setup_initial_agents()
+        self._setup_initial_resources()
 
-        # Context tracking
-        # self._active_contexts: Set[BaseAgent] = set()
-        # self._context_lock = threading.Lock()
-
-        # Initialize environment
-        self.initialize_resources(resource_distribution)
-        self._update_kdtrees()
+    def _setup_initial_agents(self):
+        """Initialize agents in the environment based on configuration."""
+        from farm.core.simulation import create_initial_agents
+        
+        # Set width and height attributes from config for compatibility with create_initial_agents
+        self.width = self.config.width
+        self.height = self.config.height
+        
+        # Create initial agents based on configuration
+        create_initial_agents(
+            environment=self,
+            num_system_agents=self.config.system_agents,
+            num_independent_agents=self.config.independent_agents,
+            num_control_agents=self.config.control_agents
+        )
+        
+    def _setup_initial_resources(self):
+        """Initialize resources in the environment."""
+        # Initialize resources based on configuration
+        self._initialize_resources()
 
     def _update_kdtrees(self):
         """Update KD-trees for efficient spatial queries."""
@@ -457,7 +500,8 @@ class Environment:
                 max_amount=self.config.max_resource_amount,
                 regeneration_rate=self.config.resource_regen_rate,
             )
-            self.resources.append(resource)
+            # Add resource to dictionary with resource_id as key
+            self.resources[resource.resource_id] = resource
 
     def _get_random_position(self):
         """Get a random position within the environment bounds."""
@@ -472,6 +516,32 @@ class Environment:
     def record_death(self):
         """Record a death event."""
         self.deaths_this_step += 1
+
+    def step(self):
+        """Execute one step of the simulation."""
+        # Increment step counter
+        self.step_number += 1
+        self.time += 1
+        
+        # Reset step-specific counters
+        self.births_this_step = 0
+        self.deaths_this_step = 0
+        self.resources_shared_this_step = 0
+        self.combat_encounters_this_step = 0
+        self.successful_attacks_this_step = 0
+        
+        # Log step metrics if we have a database
+        if self.db and hasattr(self, 'simulation_id'):
+            metrics = self.get_metrics()
+            for name, value in metrics.items():
+                self.db.log_experiment_metric(
+                    metric_name=name,
+                    metric_value=value,
+                    metric_type='step',
+                    metadata={'step': self.step_number}
+                )
+        
+        return self.get_metrics()
 
     def close(self):
         """Clean up environment resources."""
@@ -495,10 +565,10 @@ class Environment:
             }
         ]
 
-        # Add to environment
-        self.agents.append(agent)
+        # Add to environment (agents is a dictionary with agent_id as key)
+        self.agents[agent.agent_id] = agent
         if self.time == 0:
-            self.initial_agent_count += 1
+            self.initial_agent_count = self.initial_agent_count + 1 if hasattr(self, 'initial_agent_count') else 1
 
         # Batch log to database using SQLAlchemy
         if self.db is not None:
@@ -607,3 +677,31 @@ class Environment:
     #     """Get currently active agent contexts."""
     #     with self._context_lock:
     #         return self._active_contexts.copy()
+
+    def get_metrics(self):
+        """Get current environment metrics.
+        
+        Returns
+        -------
+        Dict
+            Dictionary of metrics
+        """
+        # Basic metrics
+        metrics = {
+            "step": self.step_number,
+            "time": self.time,
+            "total_agents": len(self.agents),
+            "total_resources": sum(resource.amount for resource in self.resources.values()),
+            "births_this_step": self.births_this_step,
+            "deaths_this_step": self.deaths_this_step,
+            "total_births": self.total_births if hasattr(self, 'total_births') else 0,
+            "total_deaths": self.total_deaths if hasattr(self, 'total_deaths') else 0,
+            "resources_shared": self.resources_shared,
+            "resources_shared_this_step": self.resources_shared_this_step,
+            "combat_encounters": self.combat_encounters,
+            "combat_encounters_this_step": self.combat_encounters_this_step,
+            "successful_attacks": self.successful_attacks,
+            "successful_attacks_this_step": self.successful_attacks_this_step,
+        }
+        
+        return metrics

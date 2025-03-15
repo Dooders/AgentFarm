@@ -53,7 +53,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
-from sqlalchemy import create_engine, event, text
+from sqlalchemy import create_engine, event, text, func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload, scoped_session, sessionmaker
 from sqlalchemy.pool import QueuePool
@@ -66,11 +66,15 @@ from .models import (
     AgentModel,
     AgentStateModel,
     Base,
+    Experiment,
+    ExperimentMetric,
+    ExperimentEvent,
     HealthIncident,
     ReproductionEventModel,
     ResourceModel,
     SimulationConfig,
     SimulationStepModel,
+    Simulation,
 )
 from .utilities import (
     create_database_schema,
@@ -157,16 +161,11 @@ class SimulationDatabase:
             Path to the SQLite database file
         config : SimulationConfig, optional
             Configuration object with database settings
-
-        Notes
-        -----
-        - Enables foreign key support for SQLite
-        - Creates session factory with thread-local scope
-        - Initializes tables and indexes
-        - Sets up batch operation buffers
         """
         self.db_path = db_path
         self.config = config
+        self.current_experiment_id = None
+        self.current_simulation_id = None
 
         # Configure pragma settings from config
         pragma_profile = "balanced"
@@ -984,6 +983,212 @@ class SimulationDatabase:
             session.add(event)
 
         self._execute_in_transaction(_log)
+
+    def create_experiment(self, name: str, description: str = None, base_config: dict = None) -> int:
+        """Create a new experiment record.
+        
+        Parameters
+        ----------
+        name : str
+            Name of the experiment
+        description : str, optional
+            Description of the experiment
+        base_config : dict, optional
+            Base configuration for all simulations in this experiment
+            
+        Returns
+        -------
+        int
+            The ID of the created experiment
+        """
+        try:
+            def _create(session):
+                experiment = Experiment(
+                    name=name,
+                    description=description,
+                    base_config=base_config or {},
+                    status="created"
+                )
+                session.add(experiment)
+                session.flush()  # Get the ID without committing
+                return experiment.experiment_id
+                
+            experiment_id = self._execute_in_transaction(_create)
+            self.current_experiment_id = experiment_id
+            return experiment_id
+            
+        except Exception as e:
+            logger.error(f"Failed to create experiment: {e}")
+            raise
+
+    def create_simulation_in_experiment(self, 
+                                         experiment_id: int, 
+                                         iteration_number: int = None,
+                                         config_variation: dict = None) -> int:
+        """Create a new simulation as part of an experiment.
+        
+        Parameters
+        ----------
+        experiment_id : int
+            ID of the experiment this simulation belongs to
+        iteration_number : int, optional
+            Iteration number within the experiment
+        config_variation : dict, optional
+            Specific configuration variations for this simulation
+            
+        Returns
+        -------
+        int
+            The ID of the created simulation
+        """
+        try:
+            def _create(session):
+                simulation = Simulation(
+                    experiment_id=experiment_id,
+                    iteration_number=iteration_number,
+                    config_variation=config_variation,
+                    parameters=self.config.to_dict() if self.config else {},
+                    status="initialized",
+                    simulation_db_path=str(self.db_path)  # Set the current database path as the simulation_db_path
+                )
+                session.add(simulation)
+                session.flush()
+                return simulation.simulation_id
+                
+            simulation_id = self._execute_in_transaction(_create)
+            self.current_simulation_id = simulation_id
+            return simulation_id
+            
+        except Exception as e:
+            logger.error(f"Failed to create simulation in experiment: {e}")
+            raise
+
+    def log_experiment_metric(self, 
+                            metric_name: str, 
+                            metric_value: float,
+                            metric_type: str = None,
+                            metadata: dict = None) -> None:
+        """Log a metric for the current experiment.
+        
+        Parameters
+        ----------
+        metric_name : str
+            Name of the metric
+        metric_value : float
+            Value of the metric
+        metric_type : str, optional
+            Type of metric (e.g., 'population', 'resources')
+        metadata : dict, optional
+            Additional metric-specific data
+        """
+        if not self.current_experiment_id:
+            raise ValueError("No current experiment set")
+            
+        try:
+            def _log(session):
+                metric = ExperimentMetric(
+                    experiment_id=self.current_experiment_id,
+                    metric_name=metric_name,
+                    metric_value=metric_value,
+                    metric_type=metric_type,
+                    metadata=metadata
+                )
+                session.add(metric)
+                
+            self._execute_in_transaction(_log)
+            
+        except Exception as e:
+            logger.error(f"Failed to log experiment metric: {e}")
+            raise
+
+    def log_experiment_event(self, 
+                           event_type: str, 
+                           details: dict = None) -> None:
+        """Log an event for the current experiment.
+        
+        Parameters
+        ----------
+        event_type : str
+            Type of event (e.g., 'start', 'complete', 'error')
+        details : dict, optional
+            Additional event details
+        """
+        if not self.current_experiment_id:
+            raise ValueError("No current experiment set")
+            
+        try:
+            def _log(session):
+                event = ExperimentEvent(
+                    experiment_id=self.current_experiment_id,
+                    event_type=event_type,
+                    details=details
+                )
+                session.add(event)
+                
+            self._execute_in_transaction(_log)
+            
+        except Exception as e:
+            logger.error(f"Failed to log experiment event: {e}")
+            raise
+
+    def set_experiment_status(self, status: str) -> None:
+        """Update the status of the current experiment.
+        
+        Parameters
+        ----------
+        status : str
+            New status for the experiment
+        """
+        if not self.current_experiment_id:
+            raise ValueError("No current experiment set")
+            
+        try:
+            def _update(session):
+                experiment = session.query(Experiment).get(self.current_experiment_id)
+                if experiment:
+                    experiment.status = status
+                    experiment.updated_at = func.now()
+                    
+            self._execute_in_transaction(_update)
+            
+        except Exception as e:
+            logger.error(f"Failed to update experiment status: {e}")
+            raise
+
+    def get_experiment(self, experiment_id: int) -> Optional[Dict]:
+        """Get experiment details by ID.
+        
+        Parameters
+        ----------
+        experiment_id : int
+            ID of the experiment to retrieve
+            
+        Returns
+        -------
+        Optional[Dict]
+            Dictionary containing experiment details if found
+        """
+        try:
+            def _get(session):
+                experiment = session.query(Experiment).get(experiment_id)
+                if experiment:
+                    return {
+                        'id': experiment.experiment_id,
+                        'name': experiment.name,
+                        'description': experiment.description,
+                        'status': experiment.status,
+                        'created_at': experiment.created_at,
+                        'updated_at': experiment.updated_at,
+                        'base_config': experiment.base_config,
+                        'metadata': experiment.metadata
+                    }
+                return None
+                
+            return self._execute_in_transaction(_get)
+            
+        except Exception as e:
+            logger.error(f"Failed to get experiment: {e}")
+            raise
 
 
 class AsyncDataLogger:

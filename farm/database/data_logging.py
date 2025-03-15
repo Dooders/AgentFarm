@@ -28,6 +28,8 @@ from farm.database.models import (
     ReproductionEventModel,
     ResourceModel,
     SimulationStepModel,
+    ExperimentMetric,
+    ExperimentEvent,
 )
 
 logger = logging.getLogger(__name__)
@@ -58,6 +60,8 @@ class DataLogger:
         self._resource_buffer = []
         self.reproduction_buffer = []
         self._step_buffer = []
+        self._experiment_metric_buffer = []
+        self._experiment_event_buffer = []
 
     def _check_time_based_flush(self):
         """Check if we should flush based on time interval."""
@@ -273,6 +277,75 @@ class DataLogger:
         self.db._execute_in_transaction(_flush)
         self.reproduction_buffer.clear()
 
+    def log_experiment_metric(self, metric_name: str, metric_value: float, 
+                            metric_type: str = None, metadata: dict = None):
+        """Buffer an experiment metric."""
+        if not self.db.current_experiment_id:
+            raise ValueError("No current experiment set")
+            
+        metric_data = {
+            "experiment_id": self.db.current_experiment_id,
+            "metric_name": metric_name,
+            "metric_value": metric_value,
+            "metric_type": metric_type,
+            "metadata": metadata
+        }
+        
+        self._experiment_metric_buffer.append(metric_data)
+        
+        if len(self._experiment_metric_buffer) >= self._buffer_size:
+            self.flush_experiment_metric_buffer()
+
+    def log_experiment_event(self, event_type: str, details: dict = None):
+        """Buffer an experiment event."""
+        if not self.db.current_experiment_id:
+            raise ValueError("No current experiment set")
+            
+        event_data = {
+            "experiment_id": self.db.current_experiment_id,
+            "event_type": event_type,
+            "details": details
+        }
+        
+        self._experiment_event_buffer.append(event_data)
+        
+        if len(self._experiment_event_buffer) >= self._buffer_size:
+            self.flush_experiment_event_buffer()
+
+    def flush_experiment_metric_buffer(self):
+        """Flush the experiment metric buffer."""
+        if not self._experiment_metric_buffer:
+            return
+            
+        buffer_copy = list(self._experiment_metric_buffer)
+        try:
+            def _insert(session):
+                session.bulk_insert_mappings(ExperimentMetric, buffer_copy)
+                
+            self.db._execute_in_transaction(_insert)
+            self._experiment_metric_buffer.clear()
+            
+        except SQLAlchemyError as e:
+            logger.error(f"Failed to flush experiment metric buffer: {e}")
+            raise
+
+    def flush_experiment_event_buffer(self):
+        """Flush the experiment event buffer."""
+        if not self._experiment_event_buffer:
+            return
+            
+        buffer_copy = list(self._experiment_event_buffer)
+        try:
+            def _insert(session):
+                session.bulk_insert_mappings(ExperimentEvent, buffer_copy)
+                
+            self.db._execute_in_transaction(_insert)
+            self._experiment_event_buffer.clear()
+            
+        except SQLAlchemyError as e:
+            logger.error(f"Failed to flush experiment event buffer: {e}")
+            raise
+
     def flush_all_buffers(self) -> None:
         """Flush all data buffers to the database in a single transaction."""
 
@@ -282,32 +355,34 @@ class DataLogger:
             session.autoflush = False
 
             try:
-                # Use bulk_insert_mappings instead of bulk_save_objects for dictionaries
+                # Use bulk_insert_mappings for all buffers
                 if self._action_buffer:
                     session.bulk_insert_mappings(ActionModel, self._action_buffer)
                     self._action_buffer.clear()
 
                 if self._learning_exp_buffer:
-                    session.bulk_insert_mappings(
-                        LearningExperienceModel, self._learning_exp_buffer
-                    )
+                    session.bulk_insert_mappings(LearningExperienceModel, self._learning_exp_buffer)
                     self._learning_exp_buffer.clear()
 
                 if self._health_incident_buffer:
-                    session.bulk_insert_mappings(
-                        HealthIncident, self._health_incident_buffer
-                    )
+                    session.bulk_insert_mappings(HealthIncident, self._health_incident_buffer)
                     self._health_incident_buffer.clear()
 
                 if self.reproduction_buffer:
-                    session.bulk_insert_mappings(
-                        ReproductionEventModel, self.reproduction_buffer
-                    )
+                    session.bulk_insert_mappings(ReproductionEventModel, self.reproduction_buffer)
                     self.reproduction_buffer.clear()
 
                 if self._step_buffer:
                     session.bulk_insert_mappings(SimulationStepModel, self._step_buffer)
                     self._step_buffer.clear()
+
+                if self._experiment_metric_buffer:
+                    session.bulk_insert_mappings(ExperimentMetric, self._experiment_metric_buffer)
+                    self._experiment_metric_buffer.clear()
+
+                if self._experiment_event_buffer:
+                    session.bulk_insert_mappings(ExperimentEvent, self._experiment_event_buffer)
+                    self._experiment_event_buffer.clear()
 
                 # Commit once for all buffers
                 session.commit()

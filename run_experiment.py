@@ -171,7 +171,7 @@ def main():
     parser.add_argument(
         "--name", 
         type=str, 
-        default="one_of_a_kind",
+        default="one_of_a_kind_50x1000",
         help="Name of the research project"
     )
     parser.add_argument(
@@ -183,13 +183,13 @@ def main():
     parser.add_argument(
         "--iterations", 
         type=int, 
-        default=250,
+        default=50,
         help="Number of iterations per experiment"
     )
     parser.add_argument(
         "--steps", 
         type=int, 
-        default=2000,
+        default=1000,
         help="Number of steps per iteration"
     )
     parser.add_argument(
