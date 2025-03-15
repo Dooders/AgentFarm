@@ -491,6 +491,7 @@ class Environment:
                 "starvation_threshold": agent.starvation_threshold,
                 "genome_id": getattr(agent, "genome_id", None),
                 "generation": getattr(agent, "generation", 0),
+                "action_weights": agent.get_action_weights(),
             }
         ]
 

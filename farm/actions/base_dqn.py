@@ -299,7 +299,7 @@ class BaseDQNModule:
         Returns:
             dict: State dictionary containing network weights and training parameters
         """
-        return {
+        state_dict = {
             "q_network_state": self.q_network.state_dict(),
             "target_network_state": self.target_network.state_dict(),
             "optimizer_state": self.optimizer.state_dict(),
@@ -309,6 +309,12 @@ class BaseDQNModule:
             "episode_rewards": self.episode_rewards,
             "seed": self.config.seed,
         }
+        
+        # Add action weights if this is a module related to action selection
+        if hasattr(self, 'action_weights'):
+            state_dict["action_weights"] = self.action_weights
+            
+        return state_dict
 
     def load_state_dict(self, state_dict: dict[str, Any]) -> None:
         """Load a state dictionary into the DQN module.
@@ -323,6 +329,10 @@ class BaseDQNModule:
         self.steps = state_dict["steps"]
         self.losses = state_dict["losses"]
         self.episode_rewards = state_dict["episode_rewards"]
+        
+        # Load action weights if present
+        if "action_weights" in state_dict and hasattr(self, 'action_weights'):
+            self.action_weights = state_dict["action_weights"]
 
     def cleanup(self):
         """Clean up pending experiences."""
