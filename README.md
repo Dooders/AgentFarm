@@ -18,7 +18,7 @@
    - Define custom parameters, rules, and environments tailored to your research needs.
    - Conduct a wide variety of experiments with unparalleled flexibility.
 
-### 4. **AI Integration**
+### 4. **AI Integration** (in-development)
    - **Interpretation:** Analyze simulation data and uncover actionable insights.
    - **Visualization:** Generate clear, engaging visual summaries of your results.
    - **Automation:** Simplify tasks like parameter sweeps, optimizations, and documentation.
