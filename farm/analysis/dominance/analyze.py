@@ -11,6 +11,7 @@ from sqlalchemy.orm import sessionmaker
 
 from farm.analysis.dominance.compute import (
     compute_comprehensive_dominance,
+    compute_dominance_switch_factors,
     compute_dominance_switches,
     compute_population_dominance,
     compute_survival_dominance,
@@ -170,127 +171,72 @@ def process_dominance_data(experiment_path):
             logging.error(f"Error processing {folder}: {e}")
 
     # Convert to DataFrame
-    return pd.DataFrame(data)
+    df = pd.DataFrame(data)
+
+    # Compute dominance switch factors and add to the DataFrame
+    df = analyze_dominance_switch_factors(df)
+
+    return df
 
 
-def analyze_dominance_switch_factors(df, output_path):
+def analyze_dominance_switch_factors(df):
     """
     Analyze what factors correlate with dominance switching patterns.
+
+    This function calculates various factors that correlate with dominance switching patterns,
+    including:
+    1. Top positive correlations between factors and total switches
+    2. Top negative correlations between factors and total switches
+    3. Average number of switches per dominant type
+    4. Correlations between reproduction metrics and total switches
 
     Parameters
     ----------
     df : pandas.DataFrame
         DataFrame with simulation analysis results
-    output_path : str
-        Directory path where output files will be saved
 
     Returns
     -------
-    dict
-        Dictionary with analysis results
+    pandas.DataFrame
+        The input DataFrame with added dominance switch factor columns
     """
     if df.empty or "total_switches" not in df.columns:
         logging.warning("No dominance switch data available for analysis")
-        return None
+        return df
 
-    #! seperate this into a processing function (calculate_dominance_switch_factors)
-    results = {}
+    # Calculate dominance switch factors
+    results = compute_dominance_switch_factors(df)
 
-    # 1. Correlation between initial conditions and switching frequency
-    initial_condition_cols = [
-        col
-        for col in df.columns
-        if any(x in col for x in ["initial_", "resource_", "proximity"])
-    ]
+    if results is None:
+        return df
 
-    if initial_condition_cols and len(df) > 5:
-        # Calculate correlations with total switches
-        corr_with_switches = (
-            df[initial_condition_cols + ["total_switches"]]
-            .corr()["total_switches"]
-            .drop("total_switches")
-        )
+    # Add dominance switch factors to the DataFrame
+    if results:
+        # Add top positive correlations
+        if "top_positive_correlations" in results:
+            for factor, corr in results["top_positive_correlations"].items():
+                df[f"positive_corr_{factor}"] = corr
 
-        # Get top positive and negative correlations
-        top_positive = corr_with_switches.sort_values(ascending=False).head(5)
-        top_negative = corr_with_switches.sort_values().head(5)
+        # Add top negative correlations
+        if "top_negative_correlations" in results:
+            for factor, corr in results["top_negative_correlations"].items():
+                df[f"negative_corr_{factor}"] = corr
 
-        results["top_positive_correlations"] = top_positive.to_dict()
-        results["top_negative_correlations"] = top_negative.to_dict()
+        # Add switches by dominant type
+        if "switches_by_dominant_type" in results:
+            for agent_type, avg_switches in results[
+                "switches_by_dominant_type"
+            ].items():
+                df[f"{agent_type}_avg_switches"] = avg_switches
 
-        logging.info("\nFactors associated with MORE dominance switching:")
-        for factor, corr in top_positive.items():
-            if abs(corr) > 0.1:  # Only report meaningful correlations
-                logging.info(f"  {factor}: {corr:.3f}")
+        # Add reproduction correlations
+        if "reproduction_correlations" in results:
+            for factor, corr in results["reproduction_correlations"].items():
+                df[f"repro_corr_{factor}"] = corr
 
-        logging.info("\nFactors associated with LESS dominance switching:")
-        for factor, corr in top_negative.items():
-            if abs(corr) > 0.1:  # Only report meaningful correlations
-                logging.info(f"  {factor}: {corr:.3f}")
+        logging.info("Added dominance switch factor analysis to the DataFrame")
 
-    # 2. Relationship between switching and final dominance
-    if "comprehensive_dominance" in df.columns:
-        # Average switches by dominant type
-        switches_by_dominant = df.groupby("comprehensive_dominance")[
-            "total_switches"
-        ].mean()
-        results["switches_by_dominant_type"] = switches_by_dominant.to_dict()
-
-        logging.info("\nAverage dominance switches by final dominant type:")
-        for agent_type, avg_switches in switches_by_dominant.items():
-            logging.info(f"  {agent_type}: {avg_switches:.2f}")
-
-    # 3. Relationship between switching and reproduction metrics
-    reproduction_cols = [col for col in df.columns if "reproduction" in col]
-    if reproduction_cols and len(df) > 5:
-        # Calculate correlations with total switches
-        repro_corr = (
-            df[reproduction_cols + ["total_switches"]]
-            .corr()["total_switches"]
-            .drop("total_switches")
-        )
-
-        # Get top correlations (absolute value)
-        top_repro_corr = repro_corr.abs().sort_values(ascending=False).head(5)
-        top_repro_factors = repro_corr[top_repro_corr.index]
-
-        results["reproduction_correlations"] = top_repro_factors.to_dict()
-
-        logging.info("\nReproduction factors most associated with dominance switching:")
-        for factor, corr in top_repro_factors.items():
-            if abs(corr) > 0.1:  # Only report meaningful correlations
-                direction = "more" if corr > 0 else "fewer"
-                logging.info(f"  {factor}: {corr:.3f} ({direction} switches)")
-
-    #! sperate this into a plot function
-    # 4. Create a plot showing the relationship between switching and dominance stability
-    plt.figure(figsize=(10, 6))
-
-    # Calculate stability metric (inverse of switches per step)
-    df["dominance_stability"] = 1 / (
-        df["switches_per_step"] + 0.01
-    )  # Add small constant to avoid division by zero
-
-    # Plot relationship between stability and dominance score for each agent type
-    for agent_type in ["system", "independent", "control"]:
-        score_col = f"{agent_type}_dominance_score"
-        if score_col in df.columns:
-            plt.scatter(
-                df["dominance_stability"], df[score_col], label=agent_type, alpha=0.7
-            )
-
-    plt.xlabel("Dominance Stability (inverse of switches per step)")
-    plt.ylabel("Dominance Score")
-    plt.title("Relationship Between Dominance Stability and Final Dominance Score")
-    plt.legend()
-    plt.tight_layout()
-
-    output_file = os.path.join(output_path, "dominance_stability_analysis.png")
-    plt.savefig(output_file)
-    plt.close()
-    logging.info(f"Saved dominance stability analysis to {output_file}")
-
-    return results
+    return df
 
 
 def analyze_reproduction_dominance_switching(df, output_path):

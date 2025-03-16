@@ -8,7 +8,6 @@ from analysis_config import (
 )
 
 from farm.analysis.dominance.analyze import (
-    analyze_dominance_switch_factors,
     analyze_reproduction_dominance_switching,
     process_dominance_data,
 )
@@ -18,6 +17,7 @@ from farm.analysis.dominance.plot import (
     plot_correlation_matrix,
     plot_dominance_comparison,
     plot_dominance_distribution,
+    plot_dominance_stability,
     plot_dominance_switches,
     plot_reproduction_vs_dominance,
     plot_resource_proximity_vs_dominance,
@@ -63,9 +63,9 @@ def main():
 
     # Plot dominance switching patterns
     plot_dominance_switches(df, dominance_output_path)
-
-    # Analyze factors related to dominance switching
-    analyze_dominance_switch_factors(df, dominance_output_path)
+    
+    # Plot dominance stability
+    plot_dominance_stability(df, dominance_output_path)
 
     # Analyze relationship between reproduction and dominance switching
     analyze_reproduction_dominance_switching(df, dominance_output_path)

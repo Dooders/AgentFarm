@@ -673,59 +673,43 @@ def plot_dominance_stability(df, output_path):
         DataFrame with simulation analysis results
     output_path : str
         Path to the directory where output files will be saved
+        
+    Returns
+    -------
+    str
+        Path to the saved plot file
     """
     if df.empty or "switches_per_step" not in df.columns:
         logging.warning("No dominance stability data available for plotting")
         return
 
-    plt.figure(figsize=(14, 8))
+    plt.figure(figsize=(10, 6))
 
-    # Calculate dominance stability as inverse of switches per step
-    # Higher values mean more stable (fewer switches)
+    # Calculate stability metric (inverse of switches per step)
     df["dominance_stability"] = 1 / (
         df["switches_per_step"] + 0.01
     )  # Add small constant to avoid division by zero
 
-    agent_types = ["system", "independent", "control"]
-    colors = {"system": "blue", "independent": "orange", "control": "green"}
-
-    # Plot each agent type
-    for agent_type in agent_types:
+    # Plot relationship between stability and dominance score for each agent type
+    for agent_type in ["system", "independent", "control"]:
         score_col = f"{agent_type}_dominance_score"
-
         if score_col in df.columns:
             plt.scatter(
-                df["dominance_stability"],
-                df[score_col],
-                label=agent_type,
-                color=colors[agent_type],
-                alpha=0.6,
+                df["dominance_stability"], df[score_col], label=agent_type, alpha=0.7
             )
 
-    plt.title("Relationship Between Dominance Stability and Final Dominance Score")
     plt.xlabel("Dominance Stability (inverse of switches per step)")
     plt.ylabel("Dominance Score")
+    plt.title("Relationship Between Dominance Stability and Final Dominance Score")
     plt.legend()
+    plt.tight_layout()
 
-    # Add caption
-    caption = (
-        "This scatter plot illustrates the relationship between dominance stability and final dominance scores "
-        "for each agent type. Dominance stability (x-axis) is calculated as the inverse of switches per step, "
-        "where higher values indicate more stable dominance patterns with fewer changes in the dominant agent type. "
-        "The y-axis shows the final dominance score for each agent type. This visualization helps identify "
-        "whether more stable dominance patterns correlate with higher dominance scores for different agent types."
-    )
-    plt.figtext(0.5, 0.01, caption, wrap=True, horizontalalignment="center", fontsize=9)
-
-    # Adjust layout to make room for caption
-    plt.tight_layout(rect=[0, 0.07, 1, 0.95])
     output_file = os.path.join(output_path, "dominance_stability_analysis.png")
     plt.savefig(output_file)
     plt.close()
     logging.info(f"Saved dominance stability analysis to {output_file}")
-
-    # Plot reproduction advantage vs dominance stability
-    plot_reproduction_advantage_stability(df, output_path)
+    
+    return output_file
 
 
 def plot_reproduction_advantage_stability(df, output_path):
