@@ -10,6 +10,8 @@ from analysis_config import (
     check_reproduction_events,
     safe_remove_directory,
     setup_logging,
+    setup_analysis_directory,
+    find_latest_experiment_path,
 )
 
 import numpy as np
@@ -642,35 +644,13 @@ def analyze_cooperative_action_details(df, experiment_path, output_path):
 
 
 def main():
-    # Create cooperation output directory
-    cooperation_output_path = os.path.join(OUTPUT_PATH, "cooperation")
+    # Set up the cooperation analysis directory
+    cooperation_output_path, log_file = setup_analysis_directory("cooperation")
     
-    # Clear the cooperation directory if it exists
-    if os.path.exists(cooperation_output_path):
-        logging.info(f"Clearing existing cooperation directory: {cooperation_output_path}")
-        if not safe_remove_directory(cooperation_output_path):
-            # If we couldn't remove the directory after retries, create a new one with timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            cooperation_output_path = os.path.join(OUTPUT_PATH, f"cooperation_{timestamp}")
-            logging.info(f"Using alternative directory: {cooperation_output_path}")
-    
-    # Create the directory
-    os.makedirs(cooperation_output_path, exist_ok=True)
-    
-    # Set up logging to the cooperation directory
-    log_file = setup_logging(cooperation_output_path)
-    
-    logging.info(f"Saving results to {cooperation_output_path}")
-    
-    # Find the most recent experiment folder in DATA_PATH
-    experiment_folders = glob.glob(os.path.join(DATA_PATH, "*"))
-    if not experiment_folders:
-        logging.error(f"No experiment folders found in {DATA_PATH}")
+    # Find the most recent experiment folder
+    experiment_path = find_latest_experiment_path()
+    if not experiment_path:
         return
-    
-    # Sort by modification time (most recent first)
-    experiment_folders.sort(key=os.path.getmtime, reverse=True)
-    experiment_path = experiment_folders[0]
     
     # Check if reproduction events exist in the databases
     has_reproduction_events = check_reproduction_events(experiment_path)

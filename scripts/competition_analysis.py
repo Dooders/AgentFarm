@@ -14,6 +14,8 @@ from analysis_config import (
     OUTPUT_PATH,
     safe_remove_directory,
     setup_logging,
+    setup_analysis_directory,
+    find_latest_experiment_path,
 )
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker
@@ -1010,39 +1012,13 @@ def validate_data(df):
 
 
 def main():
-    # Create competition output directory
-    competition_output_path = os.path.join(OUTPUT_PATH, "competition")
+    # Set up the competition analysis directory
+    competition_output_path, log_file = setup_analysis_directory("competition")
 
-    # Clear the competition directory if it exists
-    if os.path.exists(competition_output_path):
-        logging.info(
-            f"Clearing existing competition directory: {competition_output_path}"
-        )
-        if not safe_remove_directory(competition_output_path):
-            # If we couldn't remove the directory after retries, create a new one with timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            competition_output_path = os.path.join(
-                OUTPUT_PATH, f"competition_{timestamp}"
-            )
-            logging.info(f"Using alternative directory: {competition_output_path}")
-
-    # Create the directory
-    os.makedirs(competition_output_path, exist_ok=True)
-
-    # Set up logging to the competition directory
-    log_file = setup_logging(competition_output_path)
-
-    logging.info(f"Saving results to {competition_output_path}")
-
-    # Find the most recent experiment folder in DATA_PATH
-    experiment_folders = glob.glob(os.path.join(DATA_PATH, "*"))
-    if not experiment_folders:
-        logging.error(f"No experiment folders found in {DATA_PATH}")
+    # Find the most recent experiment folder
+    experiment_path = find_latest_experiment_path()
+    if not experiment_path:
         return
-
-    # Sort by modification time (most recent first)
-    experiment_folders.sort(key=os.path.getmtime, reverse=True)
-    experiment_path = experiment_folders[0]
 
     logging.info(f"Analyzing competition in simulations in {experiment_path}...")
     df = analyze_competition_metrics(experiment_path)

@@ -12,13 +12,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
+
 from tqdm import tqdm
 
 from farm.analysis.comparative_analysis import compare_simulations
 from farm.core.config import SimulationConfig
+from farm.research.research import ResearchProject
 from farm.runners.experiment_runner import ExperimentRunner
 from farm.runners.parallel_experiment_runner import ParallelExperimentRunner
-from farm.research.research import ResearchProject
 
 logging.basicConfig(level=logging.INFO)
 
@@ -92,19 +93,23 @@ class Research:
 
             # Determine whether to use parallel or sequential execution
             if experiment_config.use_parallel:
-                self.logger.info(f"Using parallel execution with {experiment_config.n_jobs} workers")
-                
+                self.logger.info(
+                    f"Using parallel execution with {experiment_config.n_jobs} workers"
+                )
+
                 # Extract in-memory DB settings from base_config
                 use_in_memory_db = getattr(base_config, "use_in_memory_db", True)
-                in_memory_db_memory_limit_mb = getattr(base_config, "in_memory_db_memory_limit_mb", None)
-                
+                in_memory_db_memory_limit_mb = getattr(
+                    base_config, "in_memory_db_memory_limit_mb", None
+                )
+
                 experiment = ParallelExperimentRunner(
-                    base_config, 
-                    experiment_config.name, 
+                    base_config,
+                    experiment_config.name,
                     n_jobs=experiment_config.n_jobs,
                     db_path=db_path,
                     use_in_memory_db=use_in_memory_db,
-                    in_memory_db_memory_limit_mb=in_memory_db_memory_limit_mb
+                    in_memory_db_memory_limit_mb=in_memory_db_memory_limit_mb,
                 )
             else:
                 self.logger.info("Using sequential execution")
@@ -143,8 +148,10 @@ class Research:
         self.logger.info(f"Starting research batch with {len(experiments)} experiments")
 
         # Create progress bar for experiments
-        progress_bar = tqdm(experiments, desc=f"Research: {self.name}", unit="experiment")
-        
+        progress_bar = tqdm(
+            experiments, desc=f"Research: {self.name}", unit="experiment"
+        )
+
         for experiment in progress_bar:
             progress_bar.set_description(f"Running experiment: {experiment.name}")
             folder_name = experiment.name + "_" + self.timestamp
@@ -169,67 +176,61 @@ def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Run simulation experiments")
     parser.add_argument(
-        "--name", 
-        type=str, 
-        default="one_of_a_kind",
-        help="Name of the research project"
+        "--name",
+        type=str,
+        default="one_of_a_kind_50x1000",
+        help="Name of the research project",
     )
     parser.add_argument(
-        "--description", 
-        type=str, 
+        "--description",
+        type=str,
         default="Experiments with different agent configurations",
-        help="Description of the research project"
+        help="Description of the research project",
     )
     parser.add_argument(
-        "--iterations", 
-        type=int, 
-        default=250,
-        help="Number of iterations per experiment"
+        "--iterations", type=int, default=50, help="Number of iterations per experiment"
     )
     parser.add_argument(
-        "--steps", 
-        type=int, 
-        default=2000,
-        help="Number of steps per iteration"
+        "--steps", type=int, default=1000, help="Number of steps per iteration"
     )
     parser.add_argument(
-        "--in-memory", 
+        "--in-memory",
         action="store_true",
         default=True,
-        help="Use in-memory database for improved performance"
+        help="Use in-memory database for improved performance",
     )
     parser.add_argument(
-        "--memory-limit", 
-        type=int, 
+        "--memory-limit",
+        type=int,
         default=None,
-        help="Memory limit in MB for in-memory database (None = no limit)"
+        help="Memory limit in MB for in-memory database (None = no limit)",
     )
-    
+
     # Add mutually exclusive group for parallel/sequential execution
     parallel_group = parser.add_mutually_exclusive_group()
     parallel_group.add_argument(
-        "--parallel", 
+        "--parallel",
         action="store_true",
         dest="parallel",
         default=True,
-        help="Use parallel execution for experiments (default)"
+        help="Use parallel execution for experiments (default)",
     )
     parallel_group.add_argument(
-        "--no-parallel", 
+        "--no-parallel",
         action="store_false",
         dest="parallel",
-        help="Disable parallel execution and use sequential processing"
+        help="Disable parallel execution and use sequential processing",
     )
-    
+
     parser.add_argument(
-        "--jobs", 
-        type=int, 
+        "--jobs",
+        type=int,
         default=-1,
-        help="Number of parallel jobs to use (-1 = all cores)"
+        help="Number of parallel jobs to use (-1 = all cores)",
     )
-    
+
     args = parser.parse_args()
-    
+
     # Create research project
     research = Research(
         name=args.name,
@@ -242,8 +243,8 @@ def main():
         #     name="single_control_agent",
         #     variations=[
         #         {
-        #             "control_agents": 1, 
-        #             "system_agents": 0, 
+        #             "control_agents": 1,
+        #             "system_agents": 0,
         #             "independent_agents": 0,
         #             "use_in_memory_db": args.in_memory,
         #             "in_memory_db_memory_limit_mb": args.memory_limit,
@@ -258,8 +259,8 @@ def main():
         #     name="single_system_agent",
         #     variations=[
         #         {
-        #             "control_agents": 0, 
-        #             "system_agents": 1, 
+        #             "control_agents": 0,
+        #             "system_agents": 1,
         #             "independent_agents": 0,
         #             "use_in_memory_db": args.in_memory,
         #             "in_memory_db_memory_limit_mb": args.memory_limit,
@@ -274,8 +275,8 @@ def main():
         #     name="single_independent_agent",
         #     variations=[
         #         {
-        #             "control_agents": 0, 
-        #             "system_agents": 0, 
+        #             "control_agents": 0,
+        #             "system_agents": 0,
         #             "independent_agents": 1,
         #             "use_in_memory_db": args.in_memory,
         #             "in_memory_db_memory_limit_mb": args.memory_limit,
@@ -290,8 +291,8 @@ def main():
             name="one_of_a_kind",
             variations=[
                 {
-                    "control_agents": 1, 
-                    "system_agents": 1, 
+                    "control_agents": 1,
+                    "system_agents": 1,
                     "independent_agents": 1,
                     "use_in_memory_db": args.in_memory,
                     "in_memory_db_memory_limit_mb": args.memory_limit,
