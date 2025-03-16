@@ -414,12 +414,13 @@ def get_valid_numeric_columns(df, column_list):
 
 def run_analysis(
     analysis_type: str,
-    data_processor: Callable,
-    analysis_functions: List[Callable],
+    data_processor: Callable = None,
+    analysis_functions: List[Callable] = None,
     db_filename: str = None,
     load_data_function: Callable = None,
     processor_kwargs: Dict[str, Any] = None,
     analysis_kwargs: Dict[str, Dict[str, Any]] = None,
+    function_group: str = "all",
 ):
     """
     Generic function to run any type of analysis module.
@@ -428,18 +429,24 @@ def run_analysis(
     ----------
     analysis_type : str
         Type of analysis (e.g., 'dominance', 'reproduction', etc.)
-    data_processor : Callable
+    data_processor : Callable, optional
         Function to process raw data and return a DataFrame or save to DB
-    analysis_functions : List[Callable]
+        If None, will use the module's data processor
+    analysis_functions : List[Callable], optional
         List of analysis/visualization functions to run on the processed data
+        If None, will use the module's analysis functions for the specified group
     db_filename : str, optional
         Name of the database file if using a database
+        If None, will use the module's database filename
     load_data_function : Callable, optional
         Function to load data from database if data_processor saves to DB
+        If None, will use the module's database loader
     processor_kwargs : Dict[str, Any], optional
         Additional keyword arguments to pass to the data_processor
     analysis_kwargs : Dict[str, Dict[str, Any]], optional
-        Dictionary mapping analysis functions to their keyword arguments
+        Dictionary mapping function names to their keyword arguments
+    function_group : str, optional
+        Name of the function group to run if analysis_functions is None
 
     Returns
     -------
@@ -451,6 +458,37 @@ def run_analysis(
     output_path, log_file = setup_analysis_directory(analysis_type)
     logging.info(f"Saving results to {output_path}")
 
+    # Try to use the module system first
+    try:
+        from farm.analysis.registry import get_module, register_modules
+
+        # Register all modules
+        register_modules()
+
+        # Get the module for this analysis type
+        module = get_module(analysis_type)
+
+        if module:
+            logging.info(f"Using module system for {analysis_type} analysis")
+
+            # Use the module's run_analysis method
+            return module.run_analysis(
+                experiment_path=find_latest_experiment_path(),
+                output_path=output_path,
+                group=function_group,
+                processor_kwargs=processor_kwargs,
+                analysis_kwargs=analysis_kwargs,
+            )
+    except ImportError:
+        logging.warning("Module system not available, falling back to legacy mode")
+    except Exception as e:
+        logging.error(f"Error using module system: {e}")
+        import traceback
+
+        logging.error(traceback.format_exc())
+        logging.warning("Falling back to legacy mode")
+
+    # Legacy mode - use the provided functions
     # Find the most recent experiment folder
     experiment_path = find_latest_experiment_path()
     if not experiment_path:
