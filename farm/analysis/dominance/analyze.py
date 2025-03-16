@@ -838,6 +838,13 @@ def analyze_high_vs_low_switching(df, numeric_repro_cols):
                 "difference": difference,
                 "percent_difference": percent_diff,
             }
+
+            # Add these values to the DataFrame
+            df[f"{col}_high_switching_mean"] = high_mean
+            df[f"{col}_low_switching_mean"] = low_mean
+            df[f"{col}_difference"] = difference
+            df[f"{col}_percent_difference"] = percent_diff
+
         except Exception as e:
             logging.warning(f"Error processing column {col}: {e}")
 
