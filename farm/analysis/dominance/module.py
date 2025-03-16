@@ -49,8 +49,9 @@ class DominanceModule(AnalysisModule):
                 "plot_resource_proximity_vs_dominance": plot_resource_proximity_vs_dominance,
                 "plot_reproduction_vs_dominance": plot_reproduction_vs_dominance,
                 "plot_dominance_comparison": plot_dominance_comparison,
-                "plot_correlation_matrix": plot_correlation_matrix,
-                "plot_feature_importance": plot_feature_importance,
+                "plot_correlation_matrix": lambda df, output_path: plot_correlation_matrix(
+                    df, label_name="comprehensive_dominance", output_path=output_path
+                ),
             }
         )
 
