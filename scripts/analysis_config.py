@@ -8,6 +8,7 @@ import time
 from datetime import datetime
 
 import sqlalchemy
+import pandas as pd
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(project_root)
@@ -375,3 +376,36 @@ def check_db_schema(engine, table_name):
 #     else:
 #         logging.warning("Could not check any databases for reproduction events")
 #         return False
+
+
+def get_valid_numeric_columns(df, column_list):
+    """
+    Filter columns to only include numeric ones with sufficient non-zero values.
+    
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame with simulation analysis results
+    column_list : list
+        List of column names to filter
+        
+    Returns
+    -------
+    list
+        List of valid numeric column names
+    """
+    numeric_cols = []
+    for col in column_list:
+        if col in df.columns:
+            if pd.api.types.is_numeric_dtype(df[col]):
+                # Check if column has enough non-zero values
+                non_zero_count = (df[col] != 0).sum()
+                if non_zero_count > 5:  # Need at least 5 non-zero values for analysis
+                    numeric_cols.append(col)
+                else:
+                    logging.info(
+                        f"Skipping column {col} with only {non_zero_count} non-zero values"
+                    )
+            else:
+                logging.info(f"Skipping non-numeric reproduction column: {col}")
+    return numeric_cols

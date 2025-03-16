@@ -6,10 +6,10 @@ import os
 import numpy as np
 import pandas as pd
 import sqlalchemy
-from matplotlib import pyplot as plt
 from sqlalchemy.orm import sessionmaker
 
 from farm.analysis.dominance.compute import (
+    aggregate_reproduction_analysis_results,
     compute_comprehensive_dominance,
     compute_dominance_switch_factors,
     compute_dominance_switches,
@@ -23,6 +23,7 @@ from farm.analysis.dominance.data import (
     get_reproduction_stats,
 )
 from farm.analysis.dominance.models import DominanceDataModel, dataframe_to_models
+from scripts.analysis_config import get_valid_numeric_columns
 
 
 def process_dominance_data(experiment_path):
@@ -176,6 +177,8 @@ def process_dominance_data(experiment_path):
     # Compute dominance switch factors and add to the DataFrame
     df = analyze_dominance_switch_factors(df)
 
+    df = analyze_reproduction_dominance_switching(df)
+
     return df
 
 
@@ -239,77 +242,82 @@ def analyze_dominance_switch_factors(df):
     return df
 
 
-def analyze_reproduction_dominance_switching(df, output_path):
+def analyze_reproduction_dominance_switching(df):
     """
-    Analyze the relationship between reproduction strategies and dominance switching patterns.
-
-    This function examines how different reproduction metrics correlate with dominance
-    switching patterns, including:
-    1. How reproduction success rates affect dominance stability
-    2. How reproduction timing relates to dominance switches
-    3. Differences in reproduction strategies between simulations with high vs. low switching
-    4. How reproduction efficiency impacts dominance patterns
+    Analyze the relationship between reproduction strategies and dominance switching patterns
+    and add the results to the DataFrame.
 
     Parameters
     ----------
     df : pandas.DataFrame
         DataFrame with simulation analysis results
-    output_path : str
-        Path to the directory where output files will be saved
 
     Returns
     -------
-    dict
-        Dictionary with analysis results
+    pandas.DataFrame
+        The input DataFrame with added reproduction analysis columns
     """
     if df.empty or "total_switches" not in df.columns:
         logging.warning(
             "No dominance switch data available for reproduction-switching analysis"
         )
-        return None
+        return df
 
-    # Check if we have reproduction data
     reproduction_cols = [col for col in df.columns if "reproduction" in col]
 
-    # Log all available columns for debugging
-    logging.info(f"Available columns in dataframe: {', '.join(df.columns)}")
-
-    if not reproduction_cols:
-        logging.warning("No reproduction data columns found in the analysis dataframe")
-        # Check if we have any agent type columns that might indicate reproduction data
-        agent_type_cols = [
-            col
-            for col in df.columns
-            if any(agent in col for agent in ["system", "independent", "control"])
-        ]
-        logging.info(f"Agent-related columns: {', '.join(agent_type_cols)}")
-        return None
-
-    logging.info(f"Found reproduction columns: {', '.join(reproduction_cols)}")
-
     # Filter to only include numeric reproduction columns
-    numeric_repro_cols = []
-    for col in reproduction_cols:
-        if col in df.columns:
-            if pd.api.types.is_numeric_dtype(df[col]):
-                # Check if column has enough non-zero values
-                non_zero_count = (df[col] != 0).sum()
-                if non_zero_count > 5:  # Need at least 5 non-zero values for analysis
-                    numeric_repro_cols.append(col)
-                else:
-                    logging.info(
-                        f"Skipping column {col} with only {non_zero_count} non-zero values"
-                    )
-            else:
-                logging.info(f"Skipping non-numeric reproduction column: {col}")
+    numeric_repro_cols = get_valid_numeric_columns(df, reproduction_cols)
 
     if not numeric_repro_cols:
         logging.warning("No numeric reproduction data columns found")
-        return None
+        return df
 
+    # Use the aggregation function from compute.py to collect all results
+    results = aggregate_reproduction_analysis_results(df, numeric_repro_cols)
+
+    if not results:
+        return df
+
+    # Add results to the DataFrame
+    for category, category_results in results.items():
+        if isinstance(category_results, dict):
+            for key, value in category_results.items():
+                if isinstance(value, dict):
+                    # For nested dictionaries (like high vs low switching comparison)
+                    for subkey, subvalue in value.items():
+                        col_name = f"{category}_{key}_{subkey}"
+                        df[col_name] = subvalue
+                else:
+                    # For simple key-value pairs
+                    col_name = f"{category}_{key}"
+                    df[col_name] = value
+
+    logging.info(
+        f"Added {len(results)} reproduction analysis categories to the DataFrame"
+    )
+
+    return df
+
+
+def analyze_high_vs_low_switching(df, numeric_repro_cols):
+    """
+    Compare reproduction metrics between high and low switching groups.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame with simulation analysis results
+    numeric_repro_cols : list
+        List of numeric reproduction column names
+
+    Returns
+    -------
+    dict
+        Dictionary with high vs low switching analysis results
+    """
     results = {}
 
-    # 1. Divide simulations into high and low switching groups
+    # Divide simulations into high and low switching groups
     median_switches = df["total_switches"].median()
     high_switching = df[df["total_switches"] > median_switches]
     low_switching = df[df["total_switches"] <= median_switches]
@@ -358,7 +366,27 @@ def analyze_reproduction_dominance_switching(df, output_path):
                 f"({abs(stats['percent_difference']):.1f}% {direction} in high-switching simulations)"
             )
 
-    # 2. Analyze how first reproduction timing relates to dominance switching
+    return results
+
+
+def analyze_reproduction_timing(df, numeric_repro_cols):
+    """
+    Analyze how first reproduction timing relates to dominance switching.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame with simulation analysis results
+    numeric_repro_cols : list
+        List of numeric reproduction column names
+
+    Returns
+    -------
+    dict
+        Dictionary with reproduction timing analysis results
+    """
+    results = {}
+
     first_repro_cols = [
         col for col in numeric_repro_cols if "first_reproduction_time" in col
     ]
@@ -393,127 +421,27 @@ def analyze_reproduction_dominance_switching(df, output_path):
     else:
         logging.info("No first reproduction timing data available for analysis")
 
-    # 3. Create visualization showing reproduction success rate vs. dominance switching
-    success_rate_cols = [
-        col for col in numeric_repro_cols if "reproduction_success_rate" in col
-    ]
-    if success_rate_cols:
-        plt.figure(figsize=(12, 8))
+    return results
 
-        for i, col in enumerate(success_rate_cols):
-            try:
-                agent_type = col.split("_reproduction")[0]
 
-                # Filter out NaN values before plotting
-                valid_data = df.dropna(subset=[col, "total_switches"])
+def analyze_reproduction_efficiency(df, numeric_repro_cols):
+    """
+    Analyze if reproduction efficiency correlates with dominance stability.
 
-                if len(valid_data) < 5:  # Skip if not enough valid data
-                    logging.warning(
-                        f"Not enough valid data points for {col} visualization"
-                    )
-                    continue
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame with simulation analysis results
+    numeric_repro_cols : list
+        List of numeric reproduction column names
 
-                plt.subplot(1, len(success_rate_cols), i + 1)
+    Returns
+    -------
+    dict
+        Dictionary with reproduction efficiency analysis results
+    """
+    results = {}
 
-                # Create scatter plot with only valid data
-                plt.scatter(
-                    valid_data[col],
-                    valid_data["total_switches"],
-                    alpha=0.7,
-                    label=agent_type,
-                    c=f"C{i}",
-                )
-
-                # Add trend line - with robust error handling
-                if len(valid_data) > 5:
-                    try:
-                        # Check if we have enough variation in the data
-                        if valid_data[col].std() > 0.001:  # Need some variation
-                            # Try polynomial fit with regularization
-                            from sklearn.linear_model import Ridge
-                            from sklearn.pipeline import make_pipeline
-                            from sklearn.preprocessing import PolynomialFeatures
-
-                            # Create a simple linear model with regularization
-                            X = valid_data[col].values.reshape(-1, 1)
-                            y = valid_data["total_switches"].values
-
-                            # Make sure there are no NaN values
-                            if np.isnan(X).any() or np.isnan(y).any():
-                                logging.warning(
-                                    f"Data for {col} still contains NaN values after filtering"
-                                )
-                                # Fallback to simple mean line
-                                plt.axhline(
-                                    y=valid_data["total_switches"].mean(),
-                                    color=f"C{i}",
-                                    linestyle="--",
-                                    alpha=0.5,
-                                )
-                            else:
-                                # Use Ridge regression which is more stable
-                                model = make_pipeline(
-                                    PolynomialFeatures(degree=1), Ridge(alpha=1.0)
-                                )
-                                model.fit(X, y)
-
-                                # Generate prediction points
-                                x_plot = np.linspace(
-                                    valid_data[col].min(), valid_data[col].max(), 100
-                                ).reshape(-1, 1)
-                                y_plot = model.predict(x_plot)
-
-                                # Plot the trend line
-                                plt.plot(x_plot, y_plot, f"C{i}--", alpha=0.8)
-                        else:
-                            logging.info(
-                                f"Not enough variation in {col} for trend line"
-                            )
-                            # Fallback to simple mean line
-                            plt.axhline(
-                                y=valid_data["total_switches"].mean(),
-                                color=f"C{i}",
-                                linestyle="--",
-                                alpha=0.5,
-                            )
-                    except Exception as e:
-                        logging.warning(f"Error creating trend line for {col}: {e}")
-                        # Fallback to simple mean line if trend calculation fails
-                        plt.axhline(
-                            y=valid_data["total_switches"].mean(),
-                            color=f"C{i}",
-                            linestyle="--",
-                            alpha=0.5,
-                        )
-
-                plt.xlabel(f"{agent_type.capitalize()} Reproduction Success Rate")
-                plt.ylabel("Total Dominance Switches")
-                plt.title(f"{agent_type.capitalize()} Reproduction vs. Switching")
-            except Exception as e:
-                logging.warning(f"Error creating plot for {col}: {e}")
-
-        # Add caption
-        caption = (
-            "This multi-panel figure shows the relationship between reproduction success rates and dominance switching "
-            "for different agent types. Each panel displays a scatter plot of reproduction success rate (x-axis) versus "
-            "the total number of dominance switches (y-axis) for a specific agent type. The dashed trend lines indicate "
-            "the general relationship between reproductive success and dominance stability. This visualization helps identify "
-            "whether higher reproduction success correlates with more or fewer changes in dominance throughout the simulation."
-        )
-        plt.figtext(
-            0.5, 0.01, caption, wrap=True, horizontalalignment="center", fontsize=9
-        )
-
-        # Adjust layout to make room for caption
-        plt.tight_layout(rect=[0, 0.07, 1, 0.95])
-        output_file = os.path.join(output_path, "reproduction_vs_switching.png")
-        plt.savefig(output_file)
-        plt.close()
-        logging.info(f"Saved reproduction vs. switching analysis to {output_file}")
-    else:
-        logging.info("No reproduction success rate data available for visualization")
-
-    # 4. Analyze if reproduction efficiency correlates with dominance stability
     efficiency_cols = [
         col for col in numeric_repro_cols if "reproduction_efficiency" in col
     ]
@@ -551,7 +479,27 @@ def analyze_reproduction_dominance_switching(df, output_path):
                     f"  Higher {agent_type} reproduction efficiency → {direction} stable dominance (r={corr:.3f})"
                 )
 
-    # 5. Analyze reproduction advantage and dominance switching
+    return results
+
+
+def analyze_reproduction_advantage(df, numeric_repro_cols):
+    """
+    Analyze reproduction advantage and dominance switching.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame with simulation analysis results
+    numeric_repro_cols : list
+        List of numeric reproduction column names
+
+    Returns
+    -------
+    dict
+        Dictionary with reproduction advantage analysis results
+    """
+    results = {}
+
     advantage_cols = [
         col
         for col in numeric_repro_cols
@@ -597,121 +545,27 @@ def analyze_reproduction_dominance_switching(df, output_path):
                         f"  {types[0]} advantage over {types[1]} → {direction} stable dominance (r={corr:.3f})"
                     )
 
-        # Create visualization of reproduction advantage vs. stability
-        plt.figure(figsize=(10, 6))
+    return results
 
-        # Count how many valid columns we have for plotting
-        valid_advantage_cols = []
-        for col in advantage_cols:
-            # Check if column has enough non-NaN values
-            valid_count = df[col].notna().sum()
-            if valid_count > 5 and "_vs_" in col:
-                valid_advantage_cols.append(col)
 
-        if valid_advantage_cols:
-            for i, col in enumerate(valid_advantage_cols):
-                try:
-                    if "_vs_" in col:
-                        types = (
-                            col.split("_vs_")[0],
-                            col.split("_vs_")[1].split("_reproduction")[0],
-                        )
-                        label = f"{types[0]} vs {types[1]}"
+def analyze_by_agent_type(df, numeric_repro_cols):
+    """
+    Analyze relationship between reproduction metrics and dominance switching by agent type.
 
-                        # Filter out NaN values
-                        valid_data = df[
-                            df[col].notna() & df["dominance_stability"].notna()
-                        ]
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame with simulation analysis results
+    numeric_repro_cols : list
+        List of numeric reproduction column names
 
-                        if len(valid_data) < 5:  # Skip if not enough valid data
-                            logging.warning(
-                                f"Not enough valid data points for {col} visualization"
-                            )
-                            continue
+    Returns
+    -------
+    dict
+        Dictionary with agent type analysis results
+    """
+    results = {}
 
-                        plt.scatter(
-                            valid_data[col],
-                            valid_data["dominance_stability"],
-                            alpha=0.7,
-                            label=label,
-                        )
-
-                        # Add trend line - with robust error handling
-                        if len(valid_data) > 5:
-                            try:
-                                # Check if we have enough variation in the data
-                                if valid_data[col].std() > 0.001:  # Need some variation
-                                    # Use robust regression
-                                    from sklearn.linear_model import RANSACRegressor
-
-                                    # Create a robust regression model
-                                    X = valid_data[col].values.reshape(-1, 1)
-                                    y = valid_data["dominance_stability"].values
-
-                                    # Double-check for NaN values
-                                    if np.isnan(X).any() or np.isnan(y).any():
-                                        logging.warning(
-                                            f"Data for {col} still contains NaN values after filtering"
-                                        )
-                                        # Fallback to horizontal line at mean
-                                        plt.axhline(
-                                            y=valid_data["dominance_stability"].mean(),
-                                            linestyle="--",
-                                            alpha=0.3,
-                                        )
-                                    else:
-                                        # RANSAC is robust to outliers
-                                        model = RANSACRegressor(random_state=42)
-                                        model.fit(X, y)
-
-                                        # Generate prediction points
-                                        x_sorted = np.sort(X, axis=0)
-                                        y_pred = model.predict(x_sorted)
-
-                                        # Plot the trend line
-                                        plt.plot(x_sorted, y_pred, "--", alpha=0.6)
-                                else:
-                                    logging.info(
-                                        f"Not enough variation in {col} for trend line"
-                                    )
-                                    # Fallback to horizontal line at mean
-                                    plt.axhline(
-                                        y=valid_data["dominance_stability"].mean(),
-                                        linestyle="--",
-                                        alpha=0.3,
-                                    )
-                            except Exception as e:
-                                logging.warning(
-                                    f"Error creating trend line for {col}: {e}"
-                                )
-                                # Fallback to horizontal line at mean
-                                plt.axhline(
-                                    y=valid_data["dominance_stability"].mean(),
-                                    linestyle="--",
-                                    alpha=0.3,
-                                )
-                except Exception as e:
-                    logging.warning(f"Error creating plot for {col}: {e}")
-
-            plt.xlabel("Reproduction Advantage")
-            plt.ylabel("Dominance Stability")
-            plt.title("Reproduction Advantage vs. Dominance Stability")
-            plt.legend()
-            plt.tight_layout()
-
-            output_file = os.path.join(
-                output_path, "reproduction_advantage_stability.png"
-            )
-            plt.savefig(output_file)
-            plt.close()
-            logging.info(
-                f"Saved reproduction advantage vs. stability analysis to {output_file}"
-            )
-        else:
-            logging.warning("No valid advantage columns for plotting")
-            plt.close()
-
-    # 6. Analyze relationship between reproduction metrics and dominance switching by agent type
     if "comprehensive_dominance" in df.columns:
         # Group by dominant agent type
         for agent_type in ["system", "independent", "control"]:

@@ -3,6 +3,14 @@ from farm.analysis.dominance.analyze import (
     analyze_reproduction_dominance_switching,
     process_dominance_data,
 )
+from farm.analysis.dominance.compute import (
+    compute_comprehensive_dominance,
+    compute_dominance_switches,
+    compute_dominance_switch_factors,
+    compute_population_dominance,
+    compute_survival_dominance,
+    aggregate_reproduction_analysis_results,
+)
 from farm.analysis.dominance.ml import (
     prepare_features_for_classification,
     run_dominance_classification,

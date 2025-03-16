@@ -7,10 +7,7 @@ from analysis_config import (
     setup_analysis_directory,
 )
 
-from farm.analysis.dominance.analyze import (
-    analyze_reproduction_dominance_switching,
-    process_dominance_data,
-)
+from farm.analysis.dominance.analyze import process_dominance_data
 from farm.analysis.dominance.ml import run_dominance_classification
 from farm.analysis.dominance.plot import (
     plot_comprehensive_score_breakdown,
@@ -19,6 +16,8 @@ from farm.analysis.dominance.plot import (
     plot_dominance_distribution,
     plot_dominance_stability,
     plot_dominance_switches,
+    plot_reproduction_advantage_vs_stability,
+    plot_reproduction_success_vs_switching,
     plot_reproduction_vs_dominance,
     plot_resource_proximity_vs_dominance,
 )
@@ -63,12 +62,15 @@ def main():
 
     # Plot dominance switching patterns
     plot_dominance_switches(df, dominance_output_path)
-    
+
     # Plot dominance stability
     plot_dominance_stability(df, dominance_output_path)
 
-    # Analyze relationship between reproduction and dominance switching
-    analyze_reproduction_dominance_switching(df, dominance_output_path)
+    # Plot reproduction success vs switching
+    plot_reproduction_success_vs_switching(df, dominance_output_path)
+
+    # Plot reproduction advantage vs stability
+    plot_reproduction_advantage_vs_stability(df, dominance_output_path)
 
     # Plot resource proximity vs dominance
     plot_resource_proximity_vs_dominance(df, dominance_output_path)

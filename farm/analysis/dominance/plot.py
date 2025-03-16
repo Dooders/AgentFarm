@@ -211,30 +211,101 @@ def plot_reproduction_vs_dominance(df, output_path):
     """
     Plot reproduction metrics vs dominance.
     """
-    reproduction_metrics = [
+    # Get all reproduction metrics
+    all_reproduction_metrics = [
         col for col in df.columns if "reproduction" in col or "offspring" in col
     ]
 
-    if not reproduction_metrics:
+    if not all_reproduction_metrics:
         return
+
+    # Filter to only include the most important metrics
+    # Focus on main reproduction rates and success metrics, not derived or complex metrics
+    important_metrics = []
+
+    # Include base reproduction metrics for each agent type
+    for agent_type in ["system", "independent", "control"]:
+        for base_metric in [
+            "reproduction_rate",
+            "reproduction_success_rate",
+            "offspring_count",
+        ]:
+            metric = f"{agent_type}_{base_metric}"
+            if metric in all_reproduction_metrics:
+                important_metrics.append(metric)
+
+    # If we don't have enough basic metrics, add some of the most informative derived metrics
+    if len(important_metrics) < 10:
+        for metric in all_reproduction_metrics:
+            # Add metrics that compare agent types directly
+            if "_vs_" in metric and metric not in important_metrics:
+                if len(important_metrics) < 10:
+                    important_metrics.append(metric)
+
+    # Limit to at most 10 metrics
+    reproduction_metrics = important_metrics[:10]
+
+    logging.info(
+        f"Plotting {len(reproduction_metrics)} out of {len(all_reproduction_metrics)} reproduction metrics"
+    )
 
     # Create a figure with subplots for each metric
     n_metrics = len(reproduction_metrics)
-    fig, axes = plt.subplots(n_metrics, 1, figsize=(12, 5 * n_metrics))
+    fig, axes = plt.subplots(n_metrics, 1, figsize=(12, min(5 * n_metrics, 40)))
 
     if n_metrics == 1:
         axes = [axes]
 
     for i, metric in enumerate(reproduction_metrics):
         if metric in df.columns:
-            sns.boxplot(x="population_dominance", y=metric, data=df, ax=axes[i])
-            axes[i].set_title(f"{metric} vs Population Dominance")
-            axes[i].set_xlabel("Dominant Agent Type")
-            axes[i].set_ylabel(metric)
+            # Check if there's enough data for each category
+            if df["population_dominance"].nunique() > 0 and not df[metric].isna().all():
+                try:
+                    # Check if each category has data
+                    category_counts = df.groupby("population_dominance")[metric].count()
+                    if (category_counts > 0).all():
+                        sns.boxplot(
+                            x="population_dominance", y=metric, data=df, ax=axes[i]
+                        )
+                        axes[i].set_title(f"{metric} vs Population Dominance")
+                        axes[i].set_xlabel("Dominant Agent Type")
+                        axes[i].set_ylabel(metric)
+                    else:
+                        logging.warning(
+                            f"Some categories in population_dominance have no data for {metric}"
+                        )
+                        axes[i].text(
+                            0.5,
+                            0.5,
+                            f"Insufficient data for {metric} boxplot",
+                            ha="center",
+                            va="center",
+                            transform=axes[i].transAxes,
+                        )
+                except Exception as e:
+                    logging.warning(f"Error creating boxplot for {metric}: {str(e)}")
+                    axes[i].text(
+                        0.5,
+                        0.5,
+                        f"Error creating boxplot for {metric}",
+                        ha="center",
+                        va="center",
+                        transform=axes[i].transAxes,
+                    )
+            else:
+                logging.warning(f"Insufficient data for {metric} boxplot")
+                axes[i].text(
+                    0.5,
+                    0.5,
+                    f"Insufficient data for {metric} boxplot",
+                    ha="center",
+                    va="center",
+                    transform=axes[i].transAxes,
+                )
 
     # Add caption
     caption = (
-        "This chart illustrates the relationship between reproduction metrics and population dominance. "
+        "This chart illustrates the relationship between key reproduction metrics and population dominance. "
         "The boxplots show how reproduction rates and offspring counts differ across simulations where "
         "different agent types became dominant, revealing how reproductive success correlates with dominance."
     )
@@ -242,9 +313,11 @@ def plot_reproduction_vs_dominance(df, output_path):
 
     # Adjust layout to make room for caption
     plt.tight_layout(rect=[0, 0.03, 1, 0.97])
+
+    # Save a single figure with the most important metrics
     output_file = os.path.join(output_path, "reproduction_metrics_boxplots.png")
     plt.savefig(output_file)
-    logging.info(f"Saved reproduction metrics boxplots to {output_file}")
+    logging.info(f"Saved key reproduction metrics boxplots to {output_file}")
     plt.close()
 
 
@@ -673,7 +746,7 @@ def plot_dominance_stability(df, output_path):
         DataFrame with simulation analysis results
     output_path : str
         Path to the directory where output files will be saved
-        
+
     Returns
     -------
     str
@@ -708,14 +781,14 @@ def plot_dominance_stability(df, output_path):
     plt.savefig(output_file)
     plt.close()
     logging.info(f"Saved dominance stability analysis to {output_file}")
-    
+
     return output_file
 
 
-def plot_reproduction_advantage_stability(df, output_path):
+def plot_reproduction_advantage_vs_stability(df, output_path):
     """
-    Create a scatter plot showing the relationship between reproduction advantage
-    and dominance stability with trend lines for different agent type comparisons.
+    Create a visualization showing the relationship between reproduction advantage
+    and dominance stability.
 
     Parameters
     ----------
@@ -723,102 +796,154 @@ def plot_reproduction_advantage_stability(df, output_path):
         DataFrame with simulation analysis results
     output_path : str
         Path to the directory where output files will be saved
+
+    Returns
+    -------
+    str
+        Path to the saved plot file
     """
     if df.empty or "switches_per_step" not in df.columns:
         logging.warning("No dominance stability data available for plotting")
-        return
+        return None
 
-    # Check if reproduction advantage columns exist
-    repro_advantage_cols = [
-        col for col in df.columns if "reproduction_advantage" in col
+    # Find reproduction advantage columns
+    advantage_cols = [
+        col
+        for col in df.columns
+        if "reproduction_rate_advantage" in col
+        or "reproduction_efficiency_advantage" in col
     ]
-    if not repro_advantage_cols:
+
+    if not advantage_cols:
         logging.warning("No reproduction advantage data available for plotting")
-        return
+        return None
 
-    plt.figure(figsize=(14, 8))
-
-    # Calculate dominance stability if not already calculated
+    # Calculate stability metric if not already present
     if "dominance_stability" not in df.columns:
-        df["dominance_stability"] = 1 / (
-            df["switches_per_step"] + 0.01
-        )  # Add small constant to avoid division by zero
+        df["dominance_stability"] = 1 / (df["switches_per_step"] + 0.01)
 
-    # Define comparison pairs and their colors
-    comparisons = [
-        ("system", "independent", "blue"),
-        ("system", "control", "orange"),
-        ("independent", "control", "red"),
-    ]
+    plt.figure(figsize=(10, 6))
 
-    # Plot each comparison
-    for type1, type2, color in comparisons:
-        advantage_col = f"{type1}_vs_{type2}_reproduction_advantage"
-        reverse_advantage_col = f"{type2}_vs_{type1}_reproduction_advantage"
+    # Count how many valid columns we have for plotting
+    valid_advantage_cols = []
+    for col in advantage_cols:
+        # Check if column has enough non-NaN values
+        valid_count = df[col].notna().sum()
+        if valid_count > 5 and "_vs_" in col:
+            valid_advantage_cols.append(col)
 
-        if advantage_col in df.columns:
-            plt.scatter(
-                df[advantage_col],
-                df["dominance_stability"],
-                label=f"{type1} vs {type2}",
-                color=color,
-                alpha=0.6,
-            )
+    if not valid_advantage_cols:
+        logging.warning("No valid advantage columns for plotting")
+        plt.close()
+        return None
 
-            # Add trend line
-            mask = ~df[advantage_col].isna()
-            if mask.sum() > 1:  # Need at least 2 points for a line
-                x = df.loc[mask, advantage_col]
-                y = df.loc[mask, "dominance_stability"]
-                z = np.polyfit(x, y, 1)
-                p = np.poly1d(z)
-                x_range = np.linspace(x.min(), x.max(), 100)
-                plt.plot(x_range, p(x_range), f"--{color}")
+    for i, col in enumerate(valid_advantage_cols):
+        try:
+            if "_vs_" in col:
+                types = (
+                    col.split("_vs_")[0],
+                    col.split("_vs_")[1].split("_reproduction")[0],
+                )
+                label = f"{types[0]} vs {types[1]}"
 
-        elif reverse_advantage_col in df.columns:
-            # If we have the reverse comparison, use negative values
-            plt.scatter(
-                -df[reverse_advantage_col],
-                df["dominance_stability"],
-                label=f"{type1} vs {type2}",
-                color=color,
-                alpha=0.6,
-            )
+                # Filter out NaN values
+                valid_data = df[df[col].notna() & df["dominance_stability"].notna()]
 
-            # Add trend line
-            mask = ~df[reverse_advantage_col].isna()
-            if mask.sum() > 1:  # Need at least 2 points for a line
-                x = -df.loc[mask, reverse_advantage_col]
-                y = df.loc[mask, "dominance_stability"]
-                z = np.polyfit(x, y, 1)
-                p = np.poly1d(z)
-                x_range = np.linspace(x.min(), x.max(), 100)
-                plt.plot(x_range, p(x_range), f"--{color}")
+                if len(valid_data) < 5:  # Skip if not enough valid data
+                    logging.warning(
+                        f"Not enough valid data points for {col} visualization"
+                    )
+                    continue
 
-    plt.title("Reproduction Advantage vs. Dominance Stability")
+                plt.scatter(
+                    valid_data[col],
+                    valid_data["dominance_stability"],
+                    alpha=0.7,
+                    label=label,
+                )
+
+                # Add trend line - with robust error handling
+                if len(valid_data) > 5:
+                    try:
+                        # Check if we have enough variation in the data
+                        if valid_data[col].std() > 0.001:  # Need some variation
+                            # Use robust regression
+                            from sklearn.linear_model import RANSACRegressor
+
+                            # Create a robust regression model
+                            X = valid_data[col].values.reshape(-1, 1)
+                            y = valid_data["dominance_stability"].values
+
+                            # Double-check for NaN values
+                            if np.isnan(X).any() or np.isnan(y).any():
+                                logging.warning(
+                                    f"Data for {col} still contains NaN values after filtering"
+                                )
+                                # Fallback to horizontal line at mean
+                                plt.axhline(
+                                    y=valid_data["dominance_stability"].mean(),
+                                    linestyle="--",
+                                    alpha=0.3,
+                                )
+                            else:
+                                # RANSAC is robust to outliers
+                                model = RANSACRegressor(random_state=42)
+                                model.fit(X, y)
+
+                                # Generate prediction points
+                                x_sorted = np.sort(X, axis=0)
+                                y_pred = model.predict(x_sorted)
+
+                                # Plot the trend line
+                                plt.plot(x_sorted, y_pred, "--", alpha=0.6)
+                        else:
+                            logging.info(
+                                f"Not enough variation in {col} for trend line"
+                            )
+                            # Fallback to horizontal line at mean
+                            plt.axhline(
+                                y=valid_data["dominance_stability"].mean(),
+                                linestyle="--",
+                                alpha=0.3,
+                            )
+                    except Exception as e:
+                        logging.warning(f"Error creating trend line for {col}: {e}")
+                        # Fallback to horizontal line at mean
+                        plt.axhline(
+                            y=valid_data["dominance_stability"].mean(),
+                            linestyle="--",
+                            alpha=0.3,
+                        )
+        except Exception as e:
+            logging.warning(f"Error creating plot for {col}: {e}")
+
     plt.xlabel("Reproduction Advantage")
     plt.ylabel("Dominance Stability")
+    plt.title("Reproduction Advantage vs. Dominance Stability")
     plt.legend()
 
     # Add caption
     caption = (
         "This scatter plot shows the relationship between reproduction advantage and dominance stability. "
-        "Reproduction advantage (x-axis) measures the difference in reproduction rates between agent types, "
-        "where positive values indicate the first agent type has a reproductive advantage over the second. "
-        "Dominance stability (y-axis) is calculated as the inverse of switches per step, where higher values "
-        "indicate more stable dominance patterns with fewer changes. The dashed trend lines show the general "
-        "relationship between reproductive advantage and stability for each agent type comparison. "
-        "This visualization helps identify whether reproductive advantages correlate with more stable "
-        "dominance patterns in the simulation."
+        "Each point represents a simulation, with reproduction advantage on the x-axis and dominance stability "
+        "on the y-axis. Higher dominance stability values indicate fewer changes in which agent type is dominant. "
+        "The dashed trend lines show the general relationship between reproductive advantage and stability for "
+        "each agent type comparison. This visualization helps identify whether reproductive advantages correlate "
+        "with more stable dominance patterns in the simulation."
     )
     plt.figtext(0.5, 0.01, caption, wrap=True, horizontalalignment="center", fontsize=9)
 
     # Adjust layout to make room for caption
     plt.tight_layout(rect=[0, 0.07, 1, 0.95])
+
     output_file = os.path.join(output_path, "reproduction_advantage_stability.png")
     plt.savefig(output_file)
-    logging.info(f"Saved reproduction advantage vs stability plot to {output_file}")
     plt.close()
+    logging.info(
+        f"Saved reproduction advantage vs. stability analysis to {output_file}"
+    )
+
+    return output_file
 
 
 def plot_comprehensive_score_breakdown(df, output_path):
@@ -967,3 +1092,143 @@ def plot_comprehensive_score_breakdown(df, output_path):
     logging.info(f"Comprehensive score breakdown data saved to {csv_path}")
 
     return weighted_scores
+
+
+def plot_reproduction_success_vs_switching(df, output_path):
+    """
+    Create a visualization showing the relationship between reproduction success rate and dominance switching.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame with simulation analysis results
+    output_path : str
+        Path to the directory where output files will be saved
+
+    Returns
+    -------
+    str
+        Path to the saved plot file
+    """
+    # Check if we have the necessary data
+    if df.empty or "total_switches" not in df.columns:
+        logging.warning("No dominance switch data available for visualization")
+        return None
+
+    # Find reproduction success rate columns
+    success_rate_cols = [
+        col for col in df.columns if "reproduction_success_rate" in col
+    ]
+
+    if not success_rate_cols:
+        logging.warning("No reproduction success rate data available for visualization")
+        return None
+
+    plt.figure(figsize=(12, 8))
+
+    for i, col in enumerate(success_rate_cols):
+        try:
+            agent_type = col.split("_reproduction")[0]
+
+            # Filter out NaN values before plotting
+            valid_data = df.dropna(subset=[col, "total_switches"])
+
+            if len(valid_data) < 5:  # Skip if not enough valid data
+                logging.warning(f"Not enough valid data points for {col} visualization")
+                continue
+
+            plt.subplot(1, len(success_rate_cols), i + 1)
+
+            # Create scatter plot with only valid data
+            plt.scatter(
+                valid_data[col],
+                valid_data["total_switches"],
+                alpha=0.7,
+                label=agent_type,
+                c=f"C{i}",
+            )
+
+            # Add trend line - with robust error handling
+            if len(valid_data) > 5:
+                try:
+                    # Check if we have enough variation in the data
+                    if valid_data[col].std() > 0.001:  # Need some variation
+                        # Try polynomial fit with regularization
+                        from sklearn.linear_model import Ridge
+                        from sklearn.pipeline import make_pipeline
+                        from sklearn.preprocessing import PolynomialFeatures
+
+                        # Create a simple linear model with regularization
+                        X = valid_data[col].values.reshape(-1, 1)
+                        y = valid_data["total_switches"].values
+
+                        # Make sure there are no NaN values
+                        if np.isnan(X).any() or np.isnan(y).any():
+                            logging.warning(
+                                f"Data for {col} still contains NaN values after filtering"
+                            )
+                            # Fallback to simple mean line
+                            plt.axhline(
+                                y=valid_data["total_switches"].mean(),
+                                color=f"C{i}",
+                                linestyle="--",
+                                alpha=0.5,
+                            )
+                        else:
+                            # Use Ridge regression which is more stable
+                            model = make_pipeline(
+                                PolynomialFeatures(degree=1), Ridge(alpha=1.0)
+                            )
+                            model.fit(X, y)
+
+                            # Generate prediction points
+                            x_plot = np.linspace(
+                                valid_data[col].min(), valid_data[col].max(), 100
+                            ).reshape(-1, 1)
+                            y_plot = model.predict(x_plot)
+
+                            # Plot the trend line
+                            plt.plot(x_plot, y_plot, f"C{i}--", alpha=0.8)
+                    else:
+                        logging.info(f"Not enough variation in {col} for trend line")
+                        # Fallback to simple mean line
+                        plt.axhline(
+                            y=valid_data["total_switches"].mean(),
+                            color=f"C{i}",
+                            linestyle="--",
+                            alpha=0.5,
+                        )
+                except Exception as e:
+                    logging.warning(f"Error creating trend line for {col}: {e}")
+                    # Fallback to simple mean line if trend calculation fails
+                    plt.axhline(
+                        y=valid_data["total_switches"].mean(),
+                        color=f"C{i}",
+                        linestyle="--",
+                        alpha=0.5,
+                    )
+
+            plt.xlabel(f"{agent_type.capitalize()} Reproduction Success Rate")
+            plt.ylabel("Total Dominance Switches")
+            plt.title(f"{agent_type.capitalize()} Reproduction vs. Switching")
+        except Exception as e:
+            logging.warning(f"Error creating plot for {col}: {e}")
+
+    # Add caption
+    caption = (
+        "This multi-panel figure shows the relationship between reproduction success rates and dominance switching "
+        "for different agent types. Each panel displays a scatter plot of reproduction success rate (x-axis) versus "
+        "the total number of dominance switches (y-axis) for a specific agent type. The dashed trend lines indicate "
+        "the general relationship between reproductive success and dominance stability. This visualization helps identify "
+        "whether higher reproduction success correlates with more or fewer changes in dominance throughout the simulation."
+    )
+    plt.figtext(0.5, 0.01, caption, wrap=True, horizontalalignment="center", fontsize=9)
+
+    # Adjust layout to make room for caption
+    plt.tight_layout(rect=[0, 0.07, 1, 0.95])
+    output_file = os.path.join(output_path, "reproduction_vs_switching.png")
+    plt.savefig(output_file)
+    plt.close()
+    logging.info(f"Saved reproduction vs. switching analysis to {output_file}")
+
+    return output_file
