@@ -21,10 +21,10 @@ from farm.analysis.dominance.data import (
     get_initial_positions_and_resources,
     get_reproduction_stats,
 )
+from farm.analysis.dominance.models import DominanceDataModel, dataframe_to_models
 
 
-def analyze_simulations(experiment_path):
-    #! this is more data gathering and processing
+def process_dominance_data(experiment_path):
     """
     Analyze all simulation databases in the experiment folder.
 
@@ -151,7 +151,15 @@ def analyze_simulations(experiment_path):
             sim_data.update(survival_stats)
             sim_data.update(reproduction_stats)
 
-            data.append(sim_data)
+            # Validate data with Pydantic model
+            try:
+                validated_data = DominanceDataModel(**sim_data).dict()
+                data.append(validated_data)
+                logging.debug(f"Successfully validated data for iteration {iteration}")
+            except Exception as e:
+                logging.warning(f"Data validation failed for iteration {iteration}: {e}")
+                # Still include the data even if validation fails
+                data.append(sim_data)
 
             # Close the session
             session.close()
@@ -802,3 +810,49 @@ def analyze_reproduction_dominance_switching(df, output_path):
                             logging.info(f"  {col}: {corr:.3f} ({direction} switches)")
 
     return results
+
+
+def validate_dominance_data(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Validate a dominance data DataFrame using the DominanceDataModel.
+    
+    This function demonstrates how to use the Pydantic model to validate
+    and clean a DataFrame of dominance analysis results.
+    
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame with simulation analysis results
+        
+    Returns
+    -------
+    pandas.DataFrame
+        Validated and cleaned DataFrame
+    """
+    logging.info(f"Validating dominance data DataFrame with {len(df)} rows")
+    
+    # Check for required columns
+    required_fields = [field for field, value in DominanceDataModel.__annotations__.items() 
+                      if not str(value).startswith('Optional')]
+    
+    missing_fields = [field for field in required_fields if field not in df.columns]
+    if missing_fields:
+        logging.warning(f"DataFrame is missing required fields: {', '.join(missing_fields)}")
+        
+    # Convert DataFrame to list of models (only valid rows)
+    valid_models = dataframe_to_models(df)
+    logging.info(f"Successfully validated {len(valid_models)} out of {len(df)} rows")
+    
+    if len(valid_models) == 0:
+        logging.warning("No valid rows found in DataFrame")
+        return df
+    
+    # Convert back to DataFrame
+    validated_df = pd.DataFrame([model.dict() for model in valid_models])
+    
+    # Check for data type consistency
+    for column in validated_df.columns:
+        if column in df.columns and df[column].dtype != validated_df[column].dtype:
+            logging.info(f"Column '{column}' type changed from {df[column].dtype} to {validated_df[column].dtype}")
+    
+    return validated_df

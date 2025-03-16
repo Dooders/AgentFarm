@@ -67,6 +67,35 @@ def find_latest_experiment_path():
     return experiment_path
 
 
+def save_analysis_data(df, output_path, filename):
+    """
+    Save analysis dataframe to CSV file.
+    
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame containing analysis data
+    output_path : str
+        Directory path where the CSV file will be saved
+    filename : str
+        Name of the CSV file (without extension)
+        
+    Returns
+    -------
+    str
+        Full path to the saved CSV file
+    """
+    # Ensure filename has .csv extension
+    if not filename.endswith('.csv'):
+        filename = f"{filename}.csv"
+        
+    output_csv = os.path.join(output_path, filename)
+    df.to_csv(output_csv, index=False)
+    logging.info(f"Saved analysis data to {output_csv}")
+    
+    return output_csv
+
+
 def setup_analysis_directory(analysis_type):
     """
     Set up an analysis output directory for a specific analysis type.
@@ -231,116 +260,116 @@ def check_db_schema(engine, table_name):
         return {"exists": False, "error": str(e)}
 
 
-def check_reproduction_events(experiment_path):
-    #! probably deleting this
-    """
-    Check if reproduction events exist in the simulation databases.
+# def check_reproduction_events(experiment_path):
+#     #! probably deleting this
+#     """
+#     Check if reproduction events exist in the simulation databases.
 
-    Parameters
-    ----------
-    experiment_path : str
-        Path to the experiment folder containing simulation databases
+#     Parameters
+#     ----------
+#     experiment_path : str
+#         Path to the experiment folder containing simulation databases
 
-    Returns
-    -------
-    bool
-        True if any reproduction events are found, False otherwise
-    """
-    logging.info("Checking for reproduction events in databases...")
+#     Returns
+#     -------
+#     bool
+#         True if any reproduction events are found, False otherwise
+#     """
+#     logging.info("Checking for reproduction events in databases...")
 
-    # Find all simulation folders
-    sim_folders = glob.glob(os.path.join(experiment_path, "iteration_*"))
-    total_events = 0
-    checked_dbs = 0
+#     # Find all simulation folders
+#     sim_folders = glob.glob(os.path.join(experiment_path, "iteration_*"))
+#     total_events = 0
+#     checked_dbs = 0
 
-    for folder in sim_folders[:5]:  # Check first 5 databases
-        # Check if this is a simulation folder with a database
-        db_path = os.path.join(folder, "simulation.db")
+#     for folder in sim_folders[:5]:  # Check first 5 databases
+#         # Check if this is a simulation folder with a database
+#         db_path = os.path.join(folder, "simulation.db")
 
-        if not os.path.exists(db_path):
-            continue
+#         if not os.path.exists(db_path):
+#             continue
 
-        try:
-            # Connect to the database
-            engine = sqlalchemy.create_engine(f"sqlite:///{db_path}")
-            Session = sessionmaker(bind=engine)
-            session = Session()
+#         try:
+#             # Connect to the database
+#             engine = sqlalchemy.create_engine(f"sqlite:///{db_path}")
+#             Session = sessionmaker(bind=engine)
+#             session = Session()
 
-            # Check if ReproductionEventModel table exists
-            inspector = sqlalchemy.inspect(engine)
-            if "reproduction_events" not in inspector.get_table_names():
-                logging.warning(
-                    f"Database {db_path} does not have a reproduction_events table"
-                )
+#             # Check if ReproductionEventModel table exists
+#             inspector = sqlalchemy.inspect(engine)
+#             if "reproduction_events" not in inspector.get_table_names():
+#                 logging.warning(
+#                     f"Database {db_path} does not have a reproduction_events table"
+#                 )
 
-                # Check what tables do exist
-                tables = inspector.get_table_names()
-                logging.info(f"Available tables: {', '.join(tables)}")
+#                 # Check what tables do exist
+#                 tables = inspector.get_table_names()
+#                 logging.info(f"Available tables: {', '.join(tables)}")
 
-                session.close()
-                continue
+#                 session.close()
+#                 continue
 
-            # Check the schema of the reproduction_events table
-            schema_info = check_db_schema(engine, "reproduction_events")
-            if schema_info["exists"]:
-                logging.info(
-                    f"reproduction_events table schema: {len(schema_info['columns'])} columns"
-                )
-                required_columns = [
-                    "event_id",
-                    "step_number",
-                    "parent_id",
-                    "offspring_id",
-                    "success",
-                    "parent_resources_before",
-                    "parent_resources_after",
-                ]
-                missing_columns = [
-                    col for col in required_columns if col not in schema_info["columns"]
-                ]
-                if missing_columns:
-                    logging.warning(
-                        f"Missing required columns in reproduction_events: {', '.join(missing_columns)}"
-                    )
+#             # Check the schema of the reproduction_events table
+#             schema_info = check_db_schema(engine, "reproduction_events")
+#             if schema_info["exists"]:
+#                 logging.info(
+#                     f"reproduction_events table schema: {len(schema_info['columns'])} columns"
+#                 )
+#                 required_columns = [
+#                     "event_id",
+#                     "step_number",
+#                     "parent_id",
+#                     "offspring_id",
+#                     "success",
+#                     "parent_resources_before",
+#                     "parent_resources_after",
+#                 ]
+#                 missing_columns = [
+#                     col for col in required_columns if col not in schema_info["columns"]
+#                 ]
+#                 if missing_columns:
+#                     logging.warning(
+#                         f"Missing required columns in reproduction_events: {', '.join(missing_columns)}"
+#                     )
 
-            # Count reproduction events
-            event_count = session.query(ReproductionEventModel).count()
-            total_events += event_count
-            checked_dbs += 1
+#             # Count reproduction events
+#             event_count = session.query(ReproductionEventModel).count()
+#             total_events += event_count
+#             checked_dbs += 1
 
-            logging.info(
-                f"Database {os.path.basename(folder)}: {event_count} reproduction events"
-            )
+#             logging.info(
+#                 f"Database {os.path.basename(folder)}: {event_count} reproduction events"
+#             )
 
-            # If we have events, check a sample
-            if event_count > 0:
-                sample_event = session.query(ReproductionEventModel).first()
-                logging.info(
-                    f"Sample event: parent_id={sample_event.parent_id}, success={sample_event.success}"
-                )
+#             # If we have events, check a sample
+#             if event_count > 0:
+#                 sample_event = session.query(ReproductionEventModel).first()
+#                 logging.info(
+#                     f"Sample event: parent_id={sample_event.parent_id}, success={sample_event.success}"
+#                 )
 
-                # Check if we have resource data
-                has_resource_data = (
-                    hasattr(sample_event, "parent_resources_before")
-                    and sample_event.parent_resources_before is not None
-                )
-                if not has_resource_data:
-                    logging.warning("Sample event is missing resource data")
+#                 # Check if we have resource data
+#                 has_resource_data = (
+#                     hasattr(sample_event, "parent_resources_before")
+#                     and sample_event.parent_resources_before is not None
+#                 )
+#                 if not has_resource_data:
+#                     logging.warning("Sample event is missing resource data")
 
-            # Close the session
-            session.close()
+#             # Close the session
+#             session.close()
 
-        except Exception as e:
-            logging.error(f"Error checking reproduction events in {folder}: {e}")
-            import traceback
+#         except Exception as e:
+#             logging.error(f"Error checking reproduction events in {folder}: {e}")
+#             import traceback
 
-            logging.error(traceback.format_exc())
+#             logging.error(traceback.format_exc())
 
-    if checked_dbs > 0:
-        logging.info(
-            f"Found {total_events} total reproduction events in {checked_dbs} checked databases"
-        )
-        return total_events > 0
-    else:
-        logging.warning("Could not check any databases for reproduction events")
-        return False
+#     if checked_dbs > 0:
+#         logging.info(
+#             f"Found {total_events} total reproduction events in {checked_dbs} checked databases"
+#         )
+#         return total_events > 0
+#     else:
+#         logging.warning("Could not check any databases for reproduction events")
+#         return False
