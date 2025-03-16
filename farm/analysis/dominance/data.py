@@ -36,56 +36,77 @@ def get_agent_survival_stats(sim_session):
     """
     Get detailed survival statistics for each agent type.
     """
-    agents = sim_session.query(AgentModel).all()
+    try:
+        logging.info("Calculating agent survival statistics...")
+        agents = sim_session.query(AgentModel).all()
+        logging.info(f"Found {len(agents)} agents")
 
-    # Initialize counters and accumulators
-    stats = {
-        "system": {"count": 0, "alive": 0, "dead": 0, "total_survival": 0},
-        "independent": {"count": 0, "alive": 0, "dead": 0, "total_survival": 0},
-        "control": {"count": 0, "alive": 0, "dead": 0, "total_survival": 0},
-    }
+        # Initialize counters and accumulators
+        stats = {
+            "system": {"count": 0, "alive": 0, "dead": 0, "total_survival": 0},
+            "independent": {"count": 0, "alive": 0, "dead": 0, "total_survival": 0},
+            "control": {"count": 0, "alive": 0, "dead": 0, "total_survival": 0},
+        }
 
-    # Get the final step number for calculating survival of still-alive agents
-    final_step = (
-        sim_session.query(SimulationStepModel)
-        .order_by(SimulationStepModel.step_number.desc())
-        .first()
-    )
-    final_step_number = final_step.step_number if final_step else 0
+        # Map from database agent types to our internal types
+        agent_type_map = {
+            "SystemAgent": "system",
+            "IndependentAgent": "independent",
+            "ControlAgent": "control",
+        }
 
-    for agent in agents:
-        agent_type = agent.agent_type.lower()
-        if agent_type not in stats:
-            continue
+        # Get the final step number for calculating survival of still-alive agents
+        final_step = (
+            sim_session.query(SimulationStepModel)
+            .order_by(SimulationStepModel.step_number.desc())
+            .first()
+        )
+        final_step_number = final_step.step_number if final_step else 0
+        logging.info(f"Final step number: {final_step_number}")
 
-        stats[agent_type]["count"] += 1
-
-        if agent.death_time is not None:
-            stats[agent_type]["dead"] += 1
-            survival = agent.death_time - agent.birth_time
-        else:
-            stats[agent_type]["alive"] += 1
-            # For alive agents, use the final step as the death time
-            survival = final_step_number - agent.birth_time
-
-        stats[agent_type]["total_survival"] += survival
-
-    # Calculate averages
-    result = {}
-    for agent_type, data in stats.items():
-        if data["count"] > 0:
-            result[f"{agent_type}_count"] = data["count"]
-            result[f"{agent_type}_alive"] = data["alive"]
-            result[f"{agent_type}_dead"] = data["dead"]
-            result[f"{agent_type}_avg_survival"] = (
-                data["total_survival"] / data["count"]
-            )
-            if data["dead"] > 0:
-                result[f"{agent_type}_dead_ratio"] = data["dead"] / data["count"]
+        for agent in agents:
+            # Map the agent type from the database to our internal type
+            if agent.agent_type in agent_type_map:
+                agent_type = agent_type_map[agent.agent_type]
             else:
-                result[f"{agent_type}_dead_ratio"] = 0
+                agent_type = agent.agent_type.lower()
 
-    return result
+            if agent_type not in stats:
+                logging.warning(f"Unknown agent type: {agent.agent_type}")
+                continue
+
+            stats[agent_type]["count"] += 1
+
+            if agent.death_time is not None:
+                stats[agent_type]["dead"] += 1
+                survival = agent.death_time - agent.birth_time
+            else:
+                stats[agent_type]["alive"] += 1
+                # For alive agents, use the final step as the death time
+                survival = final_step_number - agent.birth_time
+
+            stats[agent_type]["total_survival"] += survival
+
+        # Calculate averages
+        result = {}
+        for agent_type, data in stats.items():
+            if data["count"] > 0:
+                result[f"{agent_type}_count"] = data["count"]
+                result[f"{agent_type}_alive"] = data["alive"]
+                result[f"{agent_type}_dead"] = data["dead"]
+                result[f"{agent_type}_avg_survival"] = (
+                    data["total_survival"] / data["count"]
+                )
+                if data["dead"] > 0:
+                    result[f"{agent_type}_dead_ratio"] = data["dead"] / data["count"]
+                else:
+                    result[f"{agent_type}_dead_ratio"] = 0
+
+        logging.info(f"Agent survival statistics: {result}")
+        return result
+    except Exception as e:
+        logging.error(f"Error calculating agent survival statistics: {e}")
+        return {}
 
 
 def get_initial_positions_and_resources(sim_session, config):
@@ -106,6 +127,21 @@ def get_initial_positions_and_resources(sim_session, config):
     if not initial_agents or not initial_resources:
         return {}
 
+    # Count initial agents by type
+    system_count = sum(
+        1 for agent in initial_agents if agent.agent_type == "SystemAgent"
+    )
+    independent_count = sum(
+        1 for agent in initial_agents if agent.agent_type == "IndependentAgent"
+    )
+    control_count = sum(
+        1 for agent in initial_agents if agent.agent_type == "ControlAgent"
+    )
+
+    # Count resources and total resource amount
+    resource_count = len(initial_resources)
+    resource_amount = sum(resource.amount for resource in initial_resources)
+
     # Extract positions
     agent_positions = {
         agent.agent_type.lower(): (agent.position_x, agent.position_y)
@@ -117,8 +153,16 @@ def get_initial_positions_and_resources(sim_session, config):
         for resource in initial_resources
     ]
 
+    # Set initial count values
+    result = {
+        "initial_system_count": system_count,
+        "initial_independent_count": independent_count,
+        "initial_control_count": control_count,
+        "initial_resource_count": resource_count,
+        "initial_resource_amount": resource_amount,
+    }
+
     # Calculate distances to resources
-    result = {}
     for agent_type, pos in agent_positions.items():
         # Calculate distances to all resources
         distances = [

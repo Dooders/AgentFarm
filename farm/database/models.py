@@ -21,7 +21,7 @@ between related tables.
 import logging
 import statistics
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from deepdiff import DeepDiff
 from sqlalchemy import (
@@ -640,11 +640,11 @@ class ReproductionEventModel(Base):
 
 class SocialInteractionModel(Base):
     """Records social interactions between agents in the simulation.
-    
+
     This model tracks various types of social interactions between agents,
     including cooperation, competition, resource sharing, territory defense,
     and group formation behaviors.
-    
+
     Attributes
     ----------
     interaction_id : int
@@ -679,7 +679,7 @@ class SocialInteractionModel(Base):
         Additional interaction-specific details stored as JSON
     timestamp : DateTime
         When the interaction occurred
-        
+
     Relationships
     ------------
     initiator : Agent
@@ -687,7 +687,7 @@ class SocialInteractionModel(Base):
     recipient : Agent
         The agent that received/responded to the interaction
     """
-    
+
     __tablename__ = "social_interactions"
     __table_args__ = (
         Index("idx_social_interactions_step_number", "step_number"),
@@ -695,7 +695,7 @@ class SocialInteractionModel(Base):
         Index("idx_social_interactions_recipient_id", "recipient_id"),
         Index("idx_social_interactions_interaction_type", "interaction_type"),
     )
-    
+
     interaction_id = Column(Integer, primary_key=True)
     step_number = Column(Integer, nullable=False)
     initiator_id = Column(String(64), ForeignKey("agents.agent_id"), nullable=False)
@@ -712,7 +712,7 @@ class SocialInteractionModel(Base):
     group_id = Column(String(64), nullable=True)
     details = Column(JSON, nullable=True)
     timestamp = Column(DateTime, default=func.now(), nullable=False)
-    
+
     # Relationships
     initiator = relationship(
         "AgentModel", foreign_keys=[initiator_id], backref="initiated_interactions"
@@ -720,7 +720,7 @@ class SocialInteractionModel(Base):
     recipient = relationship(
         "AgentModel", foreign_keys=[recipient_id], backref="received_interactions"
     )
-    
+
     def as_dict(self) -> Dict[str, Any]:
         """Convert social interaction to dictionary format."""
         return {

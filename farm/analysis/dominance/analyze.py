@@ -2,6 +2,7 @@ import glob
 import json
 import logging
 import os
+import traceback
 
 import numpy as np
 import pandas as pd
@@ -63,6 +64,7 @@ def process_dominance_data(
 
     # Find all simulation folders
     sim_folders: list[str] = glob.glob(os.path.join(experiment_path, "iteration_*"))
+    logging.info(f"Found {len(sim_folders)} simulation folders")
 
     for folder in sim_folders:
         # Check if this is a simulation folder with a database
@@ -81,6 +83,8 @@ def process_dominance_data(
             else:
                 logging.warning(f"Skipping {folder}: Invalid folder name format")
                 continue
+
+            logging.info(f"Processing iteration {iteration}")
 
             # Load the configuration
             with open(config_path, "r") as f:
@@ -107,6 +111,7 @@ def process_dominance_data(
 
             # Get agent survival statistics
             survival_stats = get_agent_survival_stats(session)
+            logging.info(f"Survival stats for iteration {iteration}: {survival_stats}")
 
             # Get reproduction statistics
             reproduction_stats = get_reproduction_stats(session)
@@ -172,6 +177,20 @@ def process_dominance_data(
             sim_data.update(survival_stats)
             sim_data.update(reproduction_stats)
 
+            # Check if survival stats were added
+            survival_keys = [
+                "system_count",
+                "system_alive",
+                "system_dead",
+                "system_avg_survival",
+                "system_dead_ratio",
+            ]
+            missing_keys = [key for key in survival_keys if key not in sim_data]
+            if missing_keys:
+                logging.warning(
+                    f"Missing survival stats keys for iteration {iteration}: {missing_keys}"
+                )
+
             # Validate data with Pydantic model
             try:
                 validated_data = DominanceDataModel(**sim_data).dict()
@@ -189,6 +208,7 @@ def process_dominance_data(
 
         except Exception as e:
             logging.error(f"Error processing {folder}: {e}")
+            logging.error(traceback.format_exc())
 
     # Convert to DataFrame
     df = pd.DataFrame(data)
@@ -231,34 +251,53 @@ def process_dominance_data(
 
 def save_dominance_data_to_db(df, db_path="sqlite:///dominance.db"):
     """
-    Save dominance analysis data directly to the SQLAlchemy database.
+    Save the dominance analysis data to a SQLite database.
 
     Parameters
     ----------
     df : pandas.DataFrame
-        DataFrame containing the dominance analysis data
+        DataFrame with dominance analysis results
     db_path : str, optional
-        Path to the SQLAlchemy database, defaults to 'sqlite:///dominance.db'
+        Path to the database to save the data to, defaults to 'sqlite:///dominance.db'
 
     Returns
     -------
     bool
-        True if data was saved successfully, False otherwise
+        True if the data was successfully saved, False otherwise
     """
-    logging.info(f"Saving dominance data directly to database: {db_path}")
+    if df.empty:
+        logging.warning("No data to save to database")
+        return False
 
     try:
         # Initialize database
         engine = init_db(db_path)
         session = get_session(engine)
 
+        logging.info(f"DataFrame columns: {df.columns.tolist()}")
+        logging.info(f"Sample data: {df.iloc[0].to_dict()}")
+        print(df.head())
+
         # Import data row by row
         logging.info(f"Importing {len(df)} simulations into database...")
-        for _, row in df.iterrows():
+        for idx, row in df.iterrows():
             # Create Simulation record
             sim = Simulation(iteration=row["iteration"])
             session.add(sim)
             session.flush()  # Flush to get the ID
+
+            # Log survival stats for this row
+            survival_keys = [
+                "system_count",
+                "system_alive",
+                "system_dead",
+                "system_avg_survival",
+                "system_dead_ratio",
+            ]
+            survival_values = {key: row.get(key) for key in survival_keys}
+            logging.info(
+                f"Survival stats for iteration {row['iteration']}: {survival_values}"
+            )
 
             # Create DominanceMetrics record
             dominance_metrics = DominanceMetrics(
