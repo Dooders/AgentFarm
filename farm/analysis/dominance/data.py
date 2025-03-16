@@ -52,7 +52,7 @@ def get_agent_survival_stats(sim_session):
         agent_type_map = {
             "SystemAgent": "system",
             "IndependentAgent": "independent",
-            "ControlAgent": "control"
+            "ControlAgent": "control",
         }
 
         # Get the final step number for calculating survival of still-alive agents
@@ -70,7 +70,7 @@ def get_agent_survival_stats(sim_session):
                 agent_type = agent_type_map[agent.agent_type]
             else:
                 agent_type = agent.agent_type.lower()
-                
+
             if agent_type not in stats:
                 logging.warning(f"Unknown agent type: {agent.agent_type}")
                 continue
@@ -127,6 +127,21 @@ def get_initial_positions_and_resources(sim_session, config):
     if not initial_agents or not initial_resources:
         return {}
 
+    # Count initial agents by type
+    system_count = sum(
+        1 for agent in initial_agents if agent.agent_type == "SystemAgent"
+    )
+    independent_count = sum(
+        1 for agent in initial_agents if agent.agent_type == "IndependentAgent"
+    )
+    control_count = sum(
+        1 for agent in initial_agents if agent.agent_type == "ControlAgent"
+    )
+
+    # Count resources and total resource amount
+    resource_count = len(initial_resources)
+    resource_amount = sum(resource.amount for resource in initial_resources)
+
     # Extract positions
     agent_positions = {
         agent.agent_type.lower(): (agent.position_x, agent.position_y)
@@ -138,8 +153,16 @@ def get_initial_positions_and_resources(sim_session, config):
         for resource in initial_resources
     ]
 
+    # Set initial count values
+    result = {
+        "initial_system_count": system_count,
+        "initial_independent_count": independent_count,
+        "initial_control_count": control_count,
+        "initial_resource_count": resource_count,
+        "initial_resource_amount": resource_amount,
+    }
+
     # Calculate distances to resources
-    result = {}
     for agent_type, pos in agent_positions.items():
         # Calculate distances to all resources
         distances = [

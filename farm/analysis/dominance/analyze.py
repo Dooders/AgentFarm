@@ -178,10 +178,18 @@ def process_dominance_data(
             sim_data.update(reproduction_stats)
 
             # Check if survival stats were added
-            survival_keys = ["system_count", "system_alive", "system_dead", "system_avg_survival", "system_dead_ratio"]
+            survival_keys = [
+                "system_count",
+                "system_alive",
+                "system_dead",
+                "system_avg_survival",
+                "system_dead_ratio",
+            ]
             missing_keys = [key for key in survival_keys if key not in sim_data]
             if missing_keys:
-                logging.warning(f"Missing survival stats keys for iteration {iteration}: {missing_keys}")
+                logging.warning(
+                    f"Missing survival stats keys for iteration {iteration}: {missing_keys}"
+                )
 
             # Validate data with Pydantic model
             try:
@@ -265,7 +273,7 @@ def save_dominance_data_to_db(df, db_path="sqlite:///dominance.db"):
         # Initialize database
         engine = init_db(db_path)
         session = get_session(engine)
-        
+
         logging.info(f"DataFrame columns: {df.columns.tolist()}")
         logging.info(f"Sample data: {df.iloc[0].to_dict()}")
         print(df.head())
@@ -277,11 +285,19 @@ def save_dominance_data_to_db(df, db_path="sqlite:///dominance.db"):
             sim = Simulation(iteration=row["iteration"])
             session.add(sim)
             session.flush()  # Flush to get the ID
-            
+
             # Log survival stats for this row
-            survival_keys = ["system_count", "system_alive", "system_dead", "system_avg_survival", "system_dead_ratio"]
+            survival_keys = [
+                "system_count",
+                "system_alive",
+                "system_dead",
+                "system_avg_survival",
+                "system_dead_ratio",
+            ]
             survival_values = {key: row.get(key) for key in survival_keys}
-            logging.info(f"Survival stats for iteration {row['iteration']}: {survival_values}")
+            logging.info(
+                f"Survival stats for iteration {row['iteration']}: {survival_values}"
+            )
 
             # Create DominanceMetrics record
             dominance_metrics = DominanceMetrics(
