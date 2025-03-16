@@ -355,3 +355,161 @@ def compute_comprehensive_dominance(sim_session):
         },
         "normalized_metrics": normalized_metrics,
     }
+
+
+def compute_dominance_switch_factors(df):
+    """
+    Calculate factors that correlate with dominance switching patterns.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame with simulation analysis results
+
+    Returns
+    -------
+    dict
+        Dictionary with analysis results
+    """
+    import logging
+
+    import pandas as pd
+
+    if df.empty or "total_switches" not in df.columns:
+        logging.warning("No dominance switch data available for analysis")
+        return None
+
+    results = {}
+
+    # 1. Correlation between initial conditions and switching frequency
+    initial_condition_cols = [
+        col
+        for col in df.columns
+        if any(x in col for x in ["initial_", "resource_", "proximity"])
+    ]
+
+    if initial_condition_cols and len(df) > 5:
+        # Calculate correlations with total switches
+        corr_with_switches = (
+            df[initial_condition_cols + ["total_switches"]]
+            .corr()["total_switches"]
+            .drop("total_switches")
+        )
+
+        # Get top positive and negative correlations
+        top_positive = corr_with_switches.sort_values(ascending=False).head(5)
+        top_negative = corr_with_switches.sort_values().head(5)
+
+        results["top_positive_correlations"] = top_positive.to_dict()
+        results["top_negative_correlations"] = top_negative.to_dict()
+
+        logging.info("\nFactors associated with MORE dominance switching:")
+        for factor, corr in top_positive.items():
+            if abs(corr) > 0.1:  # Only report meaningful correlations
+                logging.info(f"  {factor}: {corr:.3f}")
+
+        logging.info("\nFactors associated with LESS dominance switching:")
+        for factor, corr in top_negative.items():
+            if abs(corr) > 0.1:  # Only report meaningful correlations
+                logging.info(f"  {factor}: {corr:.3f}")
+
+    # 2. Relationship between switching and final dominance
+    if "comprehensive_dominance" in df.columns:
+        # Average switches by dominant type
+        switches_by_dominant = df.groupby("comprehensive_dominance")[
+            "total_switches"
+        ].mean()
+        results["switches_by_dominant_type"] = switches_by_dominant.to_dict()
+
+        logging.info("\nAverage dominance switches by final dominant type:")
+        for agent_type, avg_switches in switches_by_dominant.items():
+            logging.info(f"  {agent_type}: {avg_switches:.2f}")
+
+    # 3. Relationship between switching and reproduction metrics
+    reproduction_cols = [col for col in df.columns if "reproduction" in col]
+    if reproduction_cols and len(df) > 5:
+        # Calculate correlations with total switches
+        repro_corr = (
+            df[reproduction_cols + ["total_switches"]]
+            .corr()["total_switches"]
+            .drop("total_switches")
+        )
+
+        # Get top correlations (absolute value)
+        top_repro_corr = repro_corr.abs().sort_values(ascending=False).head(5)
+        top_repro_factors = repro_corr[top_repro_corr.index]
+
+        results["reproduction_correlations"] = top_repro_factors.to_dict()
+
+        logging.info("\nReproduction factors most associated with dominance switching:")
+        for factor, corr in top_repro_factors.items():
+            if abs(corr) > 0.1:  # Only report meaningful correlations
+                direction = "more" if corr > 0 else "fewer"
+                logging.info(f"  {factor}: {corr:.3f} ({direction} switches)")
+
+    return results
+
+
+def aggregate_reproduction_analysis_results(df, numeric_repro_cols):
+    """
+    Aggregate results from multiple reproduction analysis functions.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame with simulation analysis results
+    numeric_repro_cols : list
+        List of numeric reproduction column names
+
+    Returns
+    -------
+    dict
+        Dictionary with aggregated reproduction analysis results
+    """
+    import logging
+
+    import pandas as pd
+
+    from farm.analysis.dominance.analyze import (
+        analyze_by_agent_type,
+        analyze_high_vs_low_switching,
+        analyze_reproduction_advantage,
+        analyze_reproduction_efficiency,
+        analyze_reproduction_timing,
+    )
+
+    # Check if df is a DataFrame
+    if not isinstance(df, pd.DataFrame):
+        logging.warning(
+            "Input to aggregate_reproduction_analysis_results is not a DataFrame"
+        )
+        return {}
+
+    results = {}
+
+    # Analyze high vs low switching groups
+    high_low_results = analyze_high_vs_low_switching(df, numeric_repro_cols)
+    if isinstance(high_low_results, dict) and high_low_results:
+        results.update(high_low_results)
+
+    # Analyze first reproduction timing
+    timing_results = analyze_reproduction_timing(df, numeric_repro_cols)
+    if isinstance(timing_results, dict) and timing_results:
+        results.update(timing_results)
+
+    # Analyze reproduction efficiency
+    efficiency_results = analyze_reproduction_efficiency(df, numeric_repro_cols)
+    if isinstance(efficiency_results, dict) and efficiency_results:
+        results.update(efficiency_results)
+
+    # Analyze reproduction advantage
+    advantage_results = analyze_reproduction_advantage(df, numeric_repro_cols)
+    if isinstance(advantage_results, dict) and advantage_results:
+        results.update(advantage_results)
+
+    # Analyze by agent type
+    agent_type_results = analyze_by_agent_type(df, numeric_repro_cols)
+    if isinstance(agent_type_results, dict) and agent_type_results:
+        results.update(agent_type_results)
+
+    return results
