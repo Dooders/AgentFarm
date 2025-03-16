@@ -6,9 +6,10 @@ import shutil
 import sys
 import time
 from datetime import datetime
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-import sqlalchemy
 import pandas as pd
+import sqlalchemy
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(project_root)
@@ -381,14 +382,14 @@ def check_db_schema(engine, table_name):
 def get_valid_numeric_columns(df, column_list):
     """
     Filter columns to only include numeric ones with sufficient non-zero values.
-    
+
     Parameters
     ----------
     df : pandas.DataFrame
         DataFrame with simulation analysis results
     column_list : list
         List of column names to filter
-        
+
     Returns
     -------
     list
@@ -409,3 +410,117 @@ def get_valid_numeric_columns(df, column_list):
             else:
                 logging.info(f"Skipping non-numeric reproduction column: {col}")
     return numeric_cols
+
+
+def run_analysis(
+    analysis_type: str,
+    data_processor: Callable,
+    analysis_functions: List[Callable],
+    db_filename: str = None,
+    load_data_function: Callable = None,
+    processor_kwargs: Dict[str, Any] = None,
+    analysis_kwargs: Dict[str, Dict[str, Any]] = None,
+):
+    """
+    Generic function to run any type of analysis module.
+
+    Parameters
+    ----------
+    analysis_type : str
+        Type of analysis (e.g., 'dominance', 'reproduction', etc.)
+    data_processor : Callable
+        Function to process raw data and return a DataFrame or save to DB
+    analysis_functions : List[Callable]
+        List of analysis/visualization functions to run on the processed data
+    db_filename : str, optional
+        Name of the database file if using a database
+    load_data_function : Callable, optional
+        Function to load data from database if data_processor saves to DB
+    processor_kwargs : Dict[str, Any], optional
+        Additional keyword arguments to pass to the data_processor
+    analysis_kwargs : Dict[str, Dict[str, Any]], optional
+        Dictionary mapping analysis functions to their keyword arguments
+
+    Returns
+    -------
+    Tuple
+        (output_path, df) where output_path is the path to the analysis directory
+        and df is the processed DataFrame
+    """
+    # Set up the analysis directory
+    output_path, log_file = setup_analysis_directory(analysis_type)
+    logging.info(f"Saving results to {output_path}")
+
+    # Find the most recent experiment folder
+    experiment_path = find_latest_experiment_path()
+    if not experiment_path:
+        return output_path, None
+
+    logging.info(f"Analyzing simulations in {experiment_path}...")
+
+    # Initialize default kwargs if not provided
+    if processor_kwargs is None:
+        processor_kwargs = {}
+
+    if analysis_kwargs is None:
+        analysis_kwargs = {}
+
+    # Process data
+    if db_filename:
+        # If using a database, set up the database path
+        db_path = os.path.join(output_path, db_filename)
+        db_uri = f"sqlite:///{db_path}"
+        logging.info(f"Processing data and inserting directly into {db_uri}")
+
+        # Add database parameters to processor kwargs
+        db_processor_kwargs = {
+            "save_to_db": True,
+            "db_path": db_uri,
+            **processor_kwargs,
+        }
+
+        # Process data and save to database
+        df = data_processor(experiment_path, **db_processor_kwargs)
+
+        # Load data from database if processor doesn't return it
+        if df is None and load_data_function:
+            logging.info("Loading data from database for visualization...")
+            df = load_data_function(db_uri)
+    else:
+        # Process data without database
+        df = data_processor(experiment_path, **processor_kwargs)
+
+    if df is None or df.empty:
+        logging.warning("No simulation data found.")
+        return output_path, None
+
+    # Log summary statistics
+    logging.info(f"Analyzed {len(df)} simulations.")
+    logging.info("\nSummary statistics:")
+    logging.info(df.describe().to_string())
+
+    # Run each analysis function
+    for func in analysis_functions:
+        try:
+            # Get function name for logging
+            func_name = func.__name__
+
+            # Get kwargs for this function if available
+            func_kwargs = analysis_kwargs.get(func_name, {})
+
+            logging.info(f"Running {func_name}...")
+            func(df, output_path, **func_kwargs)
+        except Exception as e:
+            logging.error(f"Error running {func.__name__}: {e}")
+            import traceback
+
+            logging.error(traceback.format_exc())
+
+    # Log completion
+    logging.info("\nAnalysis complete. Results saved.")
+    if db_filename:
+        logging.info(f"Database saved to: {db_path}")
+    logging.info(f"Log file saved to: {log_file}")
+    logging.info(f"All analysis files saved to: {output_path}")
+
+    return output_path, df
