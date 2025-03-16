@@ -133,10 +133,27 @@ def plot_dominance_distribution(df, output_path):
     plt.close()
 
 
-def plot_feature_importance(feat_imp, label_name, output_path):
+def plot_feature_importance(df=None, output_path=None, feat_imp=None, label_name=None):
     """
     Plot feature importance for a classifier.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame, optional
+        DataFrame with analysis results (not used directly but required for compatibility)
+    output_path : str, optional
+        Directory to save the plot to. If None, the plot will be displayed but not saved.
+    feat_imp : list or array, optional
+        Feature importance values
+    label_name : str, optional
+        Name of the target label
     """
+    # Check required parameters
+    if feat_imp is None:
+        raise ValueError("feat_imp parameter is required")
+    if label_name is None:
+        raise ValueError("label_name parameter is required")
+
     top_features = feat_imp[:15]
     features = [f[0] for f in top_features]
     importances = [f[1] for f in top_features]
@@ -321,10 +338,24 @@ def plot_reproduction_vs_dominance(df, output_path):
     plt.close()
 
 
-def plot_correlation_matrix(df, label_name, output_path):
+def plot_correlation_matrix(df, label_name, output_path=None):
     """
     Plot correlation matrix between features and the target label.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame with analysis results
+    label_name : str
+        Column name of the target label
+    output_path : str, optional
+        Directory to save the plot to. If None, the plot will be displayed but not saved.
     """
+    if label_name is None or label_name not in df.columns:
+        raise ValueError(
+            f"label_name parameter must be a valid column name. Provided: {label_name}"
+        )
+
     # Convert categorical target to numeric for correlation
     target_numeric = pd.get_dummies(df[label_name])
 

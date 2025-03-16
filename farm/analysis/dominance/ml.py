@@ -109,14 +109,20 @@ def prepare_features_for_classification(df):
     return X, feature_cols, exclude_cols
 
 
-def run_dominance_classification(df, dominance_output_path):
+def run_dominance_classification(df, output_path):
     """
     Run classification analysis for dominance types.
 
-    Args:
-        df: DataFrame containing the data
-        dominance_output_path: Path to save output files
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame containing the data
+    output_path : str
+        Path to save output files
     """
+    # Use output_path as dominance_output_path for backward compatibility
+    dominance_output_path = output_path
+
     # Check if we have enough data for classification
     if len(df) <= 10:
         logging.info("Not enough data for classification (need > 10 samples)")
@@ -138,4 +144,6 @@ def run_dominance_classification(df, dominance_output_path):
             # Plot feature importance
             from farm.analysis.dominance.plot import plot_feature_importance
 
-            plot_feature_importance(feat_imp, label, dominance_output_path)
+            plot_feature_importance(
+                feat_imp=feat_imp, label_name=label, output_path=dominance_output_path
+            )

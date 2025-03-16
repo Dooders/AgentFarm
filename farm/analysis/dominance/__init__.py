@@ -7,7 +7,6 @@ from farm.analysis.dominance.plot import (
     plot_dominance_distribution,
     plot_dominance_stability,
     plot_dominance_switches,
-    plot_feature_importance,
     plot_reproduction_advantage_vs_stability,
     plot_reproduction_success_vs_switching,
     plot_reproduction_vs_dominance,
@@ -39,8 +38,9 @@ def register_analysis():
             "plot_resource_proximity_vs_dominance": plot_resource_proximity_vs_dominance,
             "plot_reproduction_vs_dominance": plot_reproduction_vs_dominance,
             "plot_dominance_comparison": plot_dominance_comparison,
-            "plot_correlation_matrix": plot_correlation_matrix,
-            "plot_feature_importance": plot_feature_importance,
+            "plot_correlation_matrix": lambda df, output_path: plot_correlation_matrix(
+                df, label_name="comprehensive_dominance", output_path=output_path
+            ),
         }
     )
 
@@ -66,7 +66,7 @@ def register_analysis():
             plot_dominance_comparison,
         ],
         "ml": [run_dominance_classification],
-        "correlation": [plot_correlation_matrix],
+        "correlation": [_ANALYSIS_FUNCTIONS["plot_correlation_matrix"]],
         "basic": [
             plot_dominance_distribution,
             plot_comprehensive_score_breakdown,
