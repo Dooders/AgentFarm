@@ -8,12 +8,10 @@ import time
 from datetime import datetime
 
 import sqlalchemy
-from sqlalchemy.orm import sessionmaker
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(project_root)
 
-from farm.database.models import ReproductionEventModel
 
 EXPERIMENT_PATH = "results/one_of_a_kind_50x1000/"
 DATA_PATH = EXPERIMENT_PATH + "experiments/data/"
@@ -23,7 +21,7 @@ OUTPUT_PATH = EXPERIMENT_PATH + "experiments/analysis/"
 def find_latest_experiment_path():
     """
     Find the most recent experiment folder and verify it contains iteration folders.
-    
+
     Returns
     -------
     str
@@ -70,7 +68,7 @@ def find_latest_experiment_path():
 def save_analysis_data(df, output_path, filename):
     """
     Save analysis dataframe to CSV file.
-    
+
     Parameters
     ----------
     df : pandas.DataFrame
@@ -79,32 +77,32 @@ def save_analysis_data(df, output_path, filename):
         Directory path where the CSV file will be saved
     filename : str
         Name of the CSV file (without extension)
-        
+
     Returns
     -------
     str
         Full path to the saved CSV file
     """
     # Ensure filename has .csv extension
-    if not filename.endswith('.csv'):
+    if not filename.endswith(".csv"):
         filename = f"{filename}.csv"
-        
+
     output_csv = os.path.join(output_path, filename)
     df.to_csv(output_csv, index=False)
     logging.info(f"Saved analysis data to {output_csv}")
-    
+
     return output_csv
 
 
 def setup_analysis_directory(analysis_type):
     """
     Set up an analysis output directory for a specific analysis type.
-    
+
     Parameters
     ----------
     analysis_type : str
         Type of analysis (e.g., 'dominance', 'reproduction', etc.)
-        
+
     Returns
     -------
     tuple
@@ -113,24 +111,28 @@ def setup_analysis_directory(analysis_type):
     """
     # Create analysis output directory
     analysis_output_path = os.path.join(OUTPUT_PATH, analysis_type)
-    
+
     # Clear the directory if it exists
     if os.path.exists(analysis_output_path):
-        logging.info(f"Clearing existing {analysis_type} directory: {analysis_output_path}")
+        logging.info(
+            f"Clearing existing {analysis_type} directory: {analysis_output_path}"
+        )
         if not safe_remove_directory(analysis_output_path):
             # If we couldn't remove the directory after retries, create a new one with timestamp
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            analysis_output_path = os.path.join(OUTPUT_PATH, f"{analysis_type}_{timestamp}")
+            analysis_output_path = os.path.join(
+                OUTPUT_PATH, f"{analysis_type}_{timestamp}"
+            )
             logging.info(f"Using alternative directory: {analysis_output_path}")
-    
+
     # Create the directory
     os.makedirs(analysis_output_path, exist_ok=True)
-    
+
     # Set up logging to the analysis directory
     log_file = setup_logging(analysis_output_path)
-    
+
     logging.info(f"Saving {analysis_type} analysis results to {analysis_output_path}")
-    
+
     return analysis_output_path, log_file
 
 

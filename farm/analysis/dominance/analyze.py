@@ -157,7 +157,9 @@ def process_dominance_data(experiment_path):
                 data.append(validated_data)
                 logging.debug(f"Successfully validated data for iteration {iteration}")
             except Exception as e:
-                logging.warning(f"Data validation failed for iteration {iteration}: {e}")
+                logging.warning(
+                    f"Data validation failed for iteration {iteration}: {e}"
+                )
                 # Still include the data even if validation fails
                 data.append(sim_data)
 
@@ -815,44 +817,51 @@ def analyze_reproduction_dominance_switching(df, output_path):
 def validate_dominance_data(df: pd.DataFrame) -> pd.DataFrame:
     """
     Validate a dominance data DataFrame using the DominanceDataModel.
-    
+
     This function demonstrates how to use the Pydantic model to validate
     and clean a DataFrame of dominance analysis results.
-    
+
     Parameters
     ----------
     df : pandas.DataFrame
         DataFrame with simulation analysis results
-        
+
     Returns
     -------
     pandas.DataFrame
         Validated and cleaned DataFrame
     """
     logging.info(f"Validating dominance data DataFrame with {len(df)} rows")
-    
+
     # Check for required columns
-    required_fields = [field for field, value in DominanceDataModel.__annotations__.items() 
-                      if not str(value).startswith('Optional')]
-    
+    required_fields = [
+        field
+        for field, value in DominanceDataModel.__annotations__.items()
+        if not str(value).startswith("Optional")
+    ]
+
     missing_fields = [field for field in required_fields if field not in df.columns]
     if missing_fields:
-        logging.warning(f"DataFrame is missing required fields: {', '.join(missing_fields)}")
-        
+        logging.warning(
+            f"DataFrame is missing required fields: {', '.join(missing_fields)}"
+        )
+
     # Convert DataFrame to list of models (only valid rows)
     valid_models = dataframe_to_models(df)
     logging.info(f"Successfully validated {len(valid_models)} out of {len(df)} rows")
-    
+
     if len(valid_models) == 0:
         logging.warning("No valid rows found in DataFrame")
         return df
-    
+
     # Convert back to DataFrame
     validated_df = pd.DataFrame([model.dict() for model in valid_models])
-    
+
     # Check for data type consistency
     for column in validated_df.columns:
         if column in df.columns and df[column].dtype != validated_df[column].dtype:
-            logging.info(f"Column '{column}' type changed from {df[column].dtype} to {validated_df[column].dtype}")
-    
+            logging.info(
+                f"Column '{column}' type changed from {df[column].dtype} to {validated_df[column].dtype}"
+            )
+
     return validated_df
