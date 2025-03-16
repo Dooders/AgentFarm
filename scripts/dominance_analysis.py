@@ -1,4 +1,5 @@
 import logging
+import os
 
 # Import analysis configuration
 from analysis_config import (
@@ -36,16 +37,27 @@ def main():
 
     logging.info(f"Analyzing simulations in {experiment_path}...")
 
-    df = process_dominance_data(experiment_path)
+    # Process data and directly insert it into the database in the dominance output path
+    db_filename = "dominance.db"
+    db_path = os.path.join(dominance_output_path, db_filename)
+    db_uri = f"sqlite:///{db_path}"
+    logging.info(f"Processing data and inserting directly into {db_uri}")
+    df = process_dominance_data(experiment_path, save_to_db=True, db_path=db_uri)
+
+    # For visualization and plotting, we still need the DataFrame
+    # We'll retrieve it if it's not returned (save_to_db=True returns None)
+    if df is None:
+        from farm.analysis.dominance.query_dominance_db import load_data_from_db
+
+        logging.info("Loading data from database for visualization...")
+        df = load_data_from_db(db_uri)
 
     if df.empty:
         logging.warning("No simulation data found.")
         return
 
-    # Save the raw data
-    save_analysis_data(df, dominance_output_path, "dominance_analysis")
-
-    # Continue with the rest of the analysis
+    # Continue with visualization but skip saving the raw data
+    # since it's already in the database
     logging.info(f"Analyzed {len(df)} simulations.")
     logging.info("\nSummary statistics:")
     logging.info(df.describe().to_string())
@@ -89,7 +101,8 @@ def main():
     # Run ML classification analysis
     run_dominance_classification(df, dominance_output_path)
 
-    logging.info("\nAnalysis complete. Results saved to CSV and PNG files.")
+    logging.info("\nAnalysis complete. Results saved to database and PNG files.")
+    logging.info(f"Database saved to: {db_path}")
     logging.info(f"Log file saved to: {log_file}")
     logging.info(f"All analysis files saved to: {dominance_output_path}")
 

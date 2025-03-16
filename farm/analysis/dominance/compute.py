@@ -452,10 +452,7 @@ def compute_dominance_switch_factors(df):
 
 def aggregate_reproduction_analysis_results(df, numeric_repro_cols):
     """
-    Aggregate results from various reproduction analysis functions.
-
-    This function coordinates the execution of different reproduction analysis
-    functions and combines their results into a single dictionary.
+    Aggregate results from multiple reproduction analysis functions.
 
     Parameters
     ----------
@@ -463,14 +460,16 @@ def aggregate_reproduction_analysis_results(df, numeric_repro_cols):
         DataFrame with simulation analysis results
     numeric_repro_cols : list
         List of numeric reproduction column names
-    output_path : str
-        Path to the directory where output files will be saved
 
     Returns
     -------
     dict
-        Combined dictionary with all reproduction analysis results
+        Dictionary with aggregated reproduction analysis results
     """
+    import logging
+
+    import pandas as pd
+
     from farm.analysis.dominance.analyze import (
         analyze_by_agent_type,
         analyze_high_vs_low_switching,
@@ -479,31 +478,38 @@ def aggregate_reproduction_analysis_results(df, numeric_repro_cols):
         analyze_reproduction_timing,
     )
 
+    # Check if df is a DataFrame
+    if not isinstance(df, pd.DataFrame):
+        logging.warning(
+            "Input to aggregate_reproduction_analysis_results is not a DataFrame"
+        )
+        return {}
+
     results = {}
 
     # Analyze high vs low switching groups
     high_low_results = analyze_high_vs_low_switching(df, numeric_repro_cols)
-    if high_low_results:
+    if isinstance(high_low_results, dict) and high_low_results:
         results.update(high_low_results)
 
     # Analyze first reproduction timing
     timing_results = analyze_reproduction_timing(df, numeric_repro_cols)
-    if timing_results:
+    if isinstance(timing_results, dict) and timing_results:
         results.update(timing_results)
 
     # Analyze reproduction efficiency
     efficiency_results = analyze_reproduction_efficiency(df, numeric_repro_cols)
-    if efficiency_results:
+    if isinstance(efficiency_results, dict) and efficiency_results:
         results.update(efficiency_results)
 
     # Analyze reproduction advantage
     advantage_results = analyze_reproduction_advantage(df, numeric_repro_cols)
-    if advantage_results:
+    if isinstance(advantage_results, dict) and advantage_results:
         results.update(advantage_results)
 
     # Analyze by agent type
     agent_type_results = analyze_by_agent_type(df, numeric_repro_cols)
-    if agent_type_results:
+    if isinstance(agent_type_results, dict) and agent_type_results:
         results.update(agent_type_results)
 
     return results

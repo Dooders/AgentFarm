@@ -48,33 +48,35 @@ def train_classifier(X, y, label_name):
 
 def prepare_features_for_classification(df):
     """
-    Prepare features for classification by excluding non-feature columns and handling missing values.
+    Prepare features for classification by handling missing values and selecting relevant columns.
 
     Args:
         df: DataFrame containing the data
 
     Returns:
-        X: DataFrame containing only feature columns with missing values handled
+        X: Feature matrix
         feature_cols: List of feature column names
         exclude_cols: List of excluded column names
     """
-    # Exclude non-feature columns and outcome variables
+    # Check for duplicate columns
+    if len(df.columns) != len(set(df.columns)):
+        logging.warning("Duplicate column names detected in DataFrame")
+        # Get list of duplicate columns
+        duplicates = df.columns[df.columns.duplicated()].tolist()
+        logging.warning(f"Duplicate columns: {duplicates}")
+        # Drop duplicate columns
+        df = df.loc[:, ~df.columns.duplicated()]
+        logging.info(f"Dropped duplicate columns, new shape: {df.shape}")
+
+    # Columns to exclude from features
     exclude_cols = [
         "iteration",
         "population_dominance",
         "survival_dominance",
-        "system_agents",
-        "independent_agents",
-        "control_agents",
-        "total_agents",
-        "final_step",
+        "comprehensive_dominance",
     ]
 
-    # Also exclude derived statistics columns that are outcomes, not predictors
-    for prefix in ["system_", "independent_", "control_"]:
-        for suffix in ["count", "alive", "dead", "avg_survival", "dead_ratio"]:
-            exclude_cols.append(f"{prefix}{suffix}")
-
+    # Get feature columns (all except excluded ones)
     feature_cols = [col for col in df.columns if col not in exclude_cols]
 
     # Create an explicit copy to avoid SettingWithCopyWarning
@@ -87,14 +89,22 @@ def prepare_features_for_classification(df):
     # Fill numeric columns with mean
     if not numeric_cols.empty:
         for col in numeric_cols:
-            X.loc[:, col] = X[col].fillna(X[col].mean())
+            if X[col].isna().any():  # Only fill if there are NaN values
+                mean_val = X[col].mean()
+                if pd.isna(mean_val):  # If mean is also NaN, use 0
+                    X.loc[:, col] = X[col].fillna(0)
+                else:
+                    X.loc[:, col] = X[col].fillna(mean_val)
 
     # Fill categorical columns with mode (most frequent value)
     if not categorical_cols.empty:
         for col in categorical_cols:
-            X.loc[:, col] = X[col].fillna(
-                X[col].mode()[0] if not X[col].mode().empty else "unknown"
-            )
+            if X[col].isna().any():  # Only fill if there are NaN values
+                mode_vals = X[col].mode()
+                if not mode_vals.empty:
+                    X.loc[:, col] = X[col].fillna(mode_vals[0])
+                else:
+                    X.loc[:, col] = X[col].fillna("unknown")
 
     return X, feature_cols, exclude_cols
 
