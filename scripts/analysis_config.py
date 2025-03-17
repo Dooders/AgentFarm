@@ -1,5 +1,6 @@
 # Add the project root to the Python path
 import glob
+import json
 import logging
 import os
 import shutil
@@ -10,6 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 import sqlalchemy
+from sqlalchemy.orm import sessionmaker
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(project_root)
@@ -562,3 +564,151 @@ def run_analysis(
     logging.info(f"All analysis files saved to: {output_path}")
 
     return output_path, df
+
+
+def setup_and_process_simulations(
+    experiment_path: str,
+    process_simulation_func: Callable,
+    process_kwargs: Dict[str, Any] = None,
+    show_progress: bool = True,
+    progress_interval: int = 10,
+) -> List[Dict[str, Any]]:
+    """
+    Find all simulation folders, set up database connections, and process each simulation.
+
+    Parameters
+    ----------
+    experiment_path : str
+        Path to the experiment directory containing simulation data
+    process_simulation_func : Callable
+        Function that processes a single simulation. Should accept:
+        - session: SQLAlchemy session
+        - iteration: int
+        - config: dict
+        - **process_kwargs
+        And return a dict of data for the simulation or None on error
+    process_kwargs : Dict[str, Any], optional
+        Additional keyword arguments to pass to the process_simulation_func
+    show_progress : bool, optional
+        Whether to show progress information, defaults to True
+    progress_interval : int, optional
+        Interval (number of simulations) at which to log progress, defaults to 10
+
+    Returns
+    -------
+    List[Dict[str, Any]]
+        List of data dictionaries for all successfully processed simulations
+    """
+    if process_kwargs is None:
+        process_kwargs = {}
+
+    data = []
+
+    # Find all simulation folders
+    sim_folders = glob.glob(os.path.join(experiment_path, "iteration_*"))
+    total_simulations = len(sim_folders)
+    logging.info(f"Found {total_simulations} simulation folders to analyze")
+
+    # Track progress
+    processed_count = 0
+    successful_count = 0
+    error_count = 0
+    start_time = time.time()
+
+    for folder in sim_folders:
+        folder_start_time = time.time()
+        processed_count += 1
+
+        # Log progress based on specified interval
+        if show_progress and (
+            processed_count <= 5
+            or processed_count % progress_interval == 0
+            or processed_count == total_simulations
+        ):
+            elapsed_time = time.time() - start_time
+            avg_time_per_sim = (
+                elapsed_time / processed_count if processed_count > 0 else 0
+            )
+            estimated_remaining = avg_time_per_sim * (
+                total_simulations - processed_count
+            )
+
+            logging.info(
+                f"Processing simulation {processed_count}/{total_simulations} "
+                f"({(processed_count/total_simulations)*100:.1f}%) - "
+                f"Elapsed: {elapsed_time:.1f}s, "
+                f"Est. remaining: {estimated_remaining:.1f}s"
+            )
+
+        # Check if this is a simulation folder with a database
+        db_path = os.path.join(folder, "simulation.db")
+        config_path = os.path.join(folder, "config.json")
+
+        if not (os.path.exists(db_path) and os.path.exists(config_path)):
+            logging.warning(f"Skipping {folder}: Missing database or config file")
+            error_count += 1
+            continue
+
+        try:
+            # Extract the iteration number from the folder name
+            folder_name = os.path.basename(folder)
+            if folder_name.startswith("iteration_"):
+                iteration = int(folder_name.split("_")[1])
+                if show_progress:
+                    logging.debug(f"Processing iteration {iteration}")
+            else:
+                logging.warning(f"Skipping {folder}: Invalid folder name format")
+                error_count += 1
+                continue
+
+            # Load the configuration
+            with open(config_path, "r") as f:
+                config = json.load(f)
+
+            # Connect to the database
+            if show_progress:
+                logging.debug(f"Connecting to database: {db_path}")
+            engine = sqlalchemy.create_engine(f"sqlite:///{db_path}")
+            Session = sessionmaker(bind=engine)
+            session = Session()
+
+            # Process the simulation using the provided function
+            try:
+                sim_data = process_simulation_func(
+                    session=session,
+                    iteration=iteration,
+                    config=config,
+                    **process_kwargs,
+                )
+
+                if sim_data:
+                    data.append(sim_data)
+                    successful_count += 1
+                else:
+                    logging.warning(f"No data returned for iteration {iteration}")
+                    error_count += 1
+            finally:
+                # Ensure session is closed even if processing fails
+                session.close()
+
+            # Log time taken for this simulation
+            if show_progress:
+                sim_duration = time.time() - folder_start_time
+                logging.debug(f"Completed iteration {iteration} in {sim_duration:.2f}s")
+
+        except Exception as e:
+            logging.error(f"Error processing {folder}: {e}")
+            import traceback
+
+            logging.error(traceback.format_exc())
+            error_count += 1
+
+    # Log final results
+    total_duration = time.time() - start_time
+    logging.info(
+        f"Completed analysis of {successful_count} simulations "
+        f"({error_count} errors) in {total_duration:.2f}s "
+        f"(avg: {total_duration/max(successful_count, 1):.2f}s per simulation)"
+    )
+
+    return data

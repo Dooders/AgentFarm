@@ -1,7 +1,7 @@
 """
-Relative Advantage Computation Module
+Advantage Computation Module
 
-This module provides functions to compute various relative advantages between agent types
+This module provides functions to compute various advantages between agent types
 throughout the simulation history. It analyzes multiple dimensions of advantage including
 resource acquisition, reproduction, survival, population growth, and combat.
 """
@@ -13,10 +13,10 @@ import time
 from sqlalchemy import func
 
 
-def compute_relative_advantages(sim_session, focus_agent_type=None):
-    """Calculate comprehensive relative advantages between agent types.
+def compute_advantages(sim_session, focus_agent_type=None):
+    """Calculate comprehensive advantages between agent types.
     
-    This function analyzes various dimensions of relative advantage between agent types
+    This function analyzes various dimensions of advantage between agent types
     and returns a detailed breakdown of advantages in different categories.
     
     Parameters
@@ -24,21 +24,20 @@ def compute_relative_advantages(sim_session, focus_agent_type=None):
     sim_session : SQLAlchemy session
         Database session for the simulation
     focus_agent_type : str, optional
-        If provided, calculate advantages relative to this specific agent type
+        If provided, calculate advantages to this specific agent type
         
     Returns
     -------
     dict
-        Dictionary containing relative advantage metrics
+        Dictionary containing advantage metrics
     """
     start_time = time.time()
-    logging.debug("Starting compute_relative_advantages")
+    logging.debug("Starting compute_advantages")
     
     from farm.database.models import (
         AgentModel, 
         AgentStateModel, 
         SimulationStepModel,
-        ResourceModel,
         ActionModel,
         ReproductionEventModel
     )
@@ -511,7 +510,7 @@ def compute_relative_advantages(sim_session, focus_agent_type=None):
     category_duration = time.time() - category_start_time
     logging.debug(f"Completed initial positioning advantages in {category_duration:.2f}s")
     
-    # 7. Composite Relative Advantage Score
+    # 7. Composite Advantage Score
     # ------------------------------------
     logging.debug("Calculating composite advantage scores")
     category_start_time = time.time()
@@ -620,16 +619,16 @@ def compute_relative_advantages(sim_session, focus_agent_type=None):
     logging.debug(f"Completed composite advantage calculation in {category_duration:.2f}s")
     
     total_duration = time.time() - start_time
-    logging.debug(f"Completed compute_relative_advantages in {total_duration:.2f}s")
+    logging.debug(f"Completed compute_advantages in {total_duration:.2f}s")
     
     return results
 
 
 def compute_advantage_dominance_correlation(sim_session):
     """
-    Compute correlation between relative advantages and ultimate dominance.
+    Compute correlation between advantages and ultimate dominance.
     
-    This function analyzes how strongly different types of relative advantage
+    This function analyzes how strongly different types of advantage
     correlate with which agent type achieves dominance by the end of the simulation.
     
     Parameters
@@ -660,9 +659,9 @@ def compute_advantage_dominance_correlation(sim_session):
     dominant_type = dominance_result["dominant_type"]
     logging.debug(f"Dominant type: {dominant_type}")
     
-    # Calculate relative advantages
-    logging.debug("Computing relative advantages for correlation analysis")
-    advantages = compute_relative_advantages(sim_session, focus_agent_type=dominant_type)
+    # Calculate advantages
+    logging.debug("Computing advantages for correlation analysis")
+    advantages = compute_advantages(sim_session, focus_agent_type=dominant_type)
     
     # Initialize results
     results = {

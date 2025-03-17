@@ -4,7 +4,6 @@ import logging
 import os
 import traceback
 
-import numpy as np
 import pandas as pd
 import sqlalchemy
 from sqlalchemy.orm import sessionmaker
@@ -12,7 +11,6 @@ from sqlalchemy.orm import sessionmaker
 from farm.analysis.base_module import (
     BaseAnalysisModule,
     analyze_correlations,
-    find_top_correlations,
     get_valid_numeric_columns,
     group_and_analyze,
     split_and_compare_groups,
@@ -31,7 +29,7 @@ from farm.analysis.dominance.data import (
     get_initial_positions_and_resources,
     get_reproduction_stats,
 )
-from farm.analysis.dominance.models import DominanceDataModel, dataframe_to_models
+from farm.analysis.dominance.models import DominanceDataModel
 from farm.analysis.dominance.sqlalchemy_models import (
     AgentPopulation,
     CorrelationAnalysis,
@@ -44,7 +42,144 @@ from farm.analysis.dominance.sqlalchemy_models import (
     get_session,
     init_db,
 )
-from scripts.analysis_config import get_valid_numeric_columns
+from scripts.analysis_config import (
+    get_valid_numeric_columns,
+    setup_and_process_simulations,
+)
+
+
+def process_single_simulation(session, iteration, config, **kwargs):
+    """
+    Process a single simulation database for dominance analysis.
+
+    Parameters
+    ----------
+    session : SQLAlchemy session
+        Session connected to the simulation database
+    iteration : int
+        Iteration number of the simulation
+    config : dict
+        Configuration dictionary for the simulation
+    **kwargs : dict
+        Additional keyword arguments
+
+    Returns
+    -------
+    dict or None
+        Dictionary containing processed data for this simulation,
+        or None if processing failed
+    """
+    try:
+        logging.info(f"Processing iteration {iteration}")
+
+        # Compute dominance metrics
+        population_dominance = compute_population_dominance(session)
+        survival_dominance = compute_survival_dominance(session)
+        comprehensive_dominance = compute_comprehensive_dominance(session)
+
+        # Compute dominance switching metrics
+        dominance_switches = compute_dominance_switches(session)
+
+        # Get initial positions and resource data
+        initial_data = get_initial_positions_and_resources(session, config)
+
+        # Get final population counts
+        final_counts = get_final_population_counts(session)
+
+        # Get agent survival statistics
+        survival_stats = get_agent_survival_stats(session)
+        logging.info(f"Survival stats for iteration {iteration}: {survival_stats}")
+
+        # Get reproduction statistics
+        reproduction_stats = get_reproduction_stats(session)
+
+        # Combine all data
+        sim_data = {
+            "iteration": iteration,
+            "population_dominance": population_dominance,
+            "survival_dominance": survival_dominance,
+            "comprehensive_dominance": comprehensive_dominance["dominant_type"],
+        }
+
+        # Add dominance scores
+        for agent_type in ["system", "independent", "control"]:
+            sim_data[f"{agent_type}_dominance_score"] = comprehensive_dominance[
+                "scores"
+            ][agent_type]
+            sim_data[f"{agent_type}_auc"] = comprehensive_dominance["metrics"]["auc"][
+                agent_type
+            ]
+            sim_data[f"{agent_type}_recency_weighted_auc"] = comprehensive_dominance[
+                "metrics"
+            ]["recency_weighted_auc"][agent_type]
+            sim_data[f"{agent_type}_dominance_duration"] = comprehensive_dominance[
+                "metrics"
+            ]["dominance_duration"][agent_type]
+            sim_data[f"{agent_type}_growth_trend"] = comprehensive_dominance["metrics"][
+                "growth_trends"
+            ][agent_type]
+            sim_data[f"{agent_type}_final_ratio"] = comprehensive_dominance["metrics"][
+                "final_ratios"
+            ][agent_type]
+
+        # Add dominance switching data
+        if dominance_switches:
+            sim_data["total_switches"] = dominance_switches["total_switches"]
+            sim_data["switches_per_step"] = dominance_switches["switches_per_step"]
+
+            # Add average dominance periods
+            for agent_type in ["system", "independent", "control"]:
+                sim_data[f"{agent_type}_avg_dominance_period"] = dominance_switches[
+                    "avg_dominance_periods"
+                ][agent_type]
+
+            # Add phase-specific switch counts
+            for phase in ["early", "middle", "late"]:
+                sim_data[f"{phase}_phase_switches"] = dominance_switches[
+                    "phase_switches"
+                ][phase]
+
+            # Add transition matrix data
+            for from_type in ["system", "independent", "control"]:
+                for to_type in ["system", "independent", "control"]:
+                    sim_data[f"{from_type}_to_{to_type}"] = dominance_switches[
+                        "transition_probabilities"
+                    ][from_type][to_type]
+
+        # Add all other data
+        sim_data.update(initial_data)
+        sim_data.update(final_counts)
+        sim_data.update(survival_stats)
+        sim_data.update(reproduction_stats)
+
+        # Check if survival stats were added
+        survival_keys = [
+            "system_count",
+            "system_alive",
+            "system_dead",
+            "system_avg_survival",
+            "system_dead_ratio",
+        ]
+        missing_keys = [key for key in survival_keys if key not in sim_data]
+        if missing_keys:
+            logging.warning(
+                f"Missing survival stats keys for iteration {iteration}: {missing_keys}"
+            )
+
+        # Validate data with Pydantic model
+        try:
+            validated_data = DominanceDataModel(**sim_data).dict()
+            logging.debug(f"Successfully validated data for iteration {iteration}")
+            return validated_data
+        except Exception as e:
+            logging.warning(f"Data validation failed for iteration {iteration}: {e}")
+            # Still return the data even if validation fails
+            return sim_data
+
+    except Exception as e:
+        logging.error(f"Error processing iteration {iteration}: {e}")
+        logging.error(traceback.format_exc())
+        return None
 
 
 def process_dominance_data(
@@ -68,155 +203,11 @@ def process_dominance_data(
         DataFrame with analysis results for each simulation if save_to_db is False,
         otherwise None
     """
-    data = []
-
-    # Find all simulation folders
-    sim_folders: list[str] = glob.glob(os.path.join(experiment_path, "iteration_*"))
-    logging.info(f"Found {len(sim_folders)} simulation folders")
-
-    for folder in sim_folders:
-        # Check if this is a simulation folder with a database
-        db_path_sim = os.path.join(folder, "simulation.db")
-        config_path = os.path.join(folder, "config.json")
-
-        if not (os.path.exists(db_path_sim) and os.path.exists(config_path)):
-            logging.warning(f"Skipping {folder}: Missing database or config file")
-            continue
-
-        try:
-            # Extract the iteration number from the folder name
-            folder_name = os.path.basename(folder)
-            if folder_name.startswith("iteration_"):
-                iteration = int(folder_name.split("_")[1])
-            else:
-                logging.warning(f"Skipping {folder}: Invalid folder name format")
-                continue
-
-            logging.info(f"Processing iteration {iteration}")
-
-            # Load the configuration
-            with open(config_path, "r") as f:
-                config = json.load(f)
-
-            # Connect to the database
-            engine = sqlalchemy.create_engine(f"sqlite:///{db_path_sim}")
-            Session = sessionmaker(bind=engine)
-            session = Session()
-
-            # Compute dominance metrics
-            population_dominance = compute_population_dominance(session)
-            survival_dominance = compute_survival_dominance(session)
-            comprehensive_dominance = compute_comprehensive_dominance(session)
-
-            # Compute dominance switching metrics
-            dominance_switches = compute_dominance_switches(session)
-
-            # Get initial positions and resource data
-            initial_data = get_initial_positions_and_resources(session, config)
-
-            # Get final population counts
-            final_counts = get_final_population_counts(session)
-
-            # Get agent survival statistics
-            survival_stats = get_agent_survival_stats(session)
-            logging.info(f"Survival stats for iteration {iteration}: {survival_stats}")
-
-            # Get reproduction statistics
-            reproduction_stats = get_reproduction_stats(session)
-
-            # Combine all data
-            sim_data = {
-                "iteration": iteration,
-                "population_dominance": population_dominance,
-                "survival_dominance": survival_dominance,
-                "comprehensive_dominance": comprehensive_dominance["dominant_type"],
-            }
-
-            # Add dominance scores
-            for agent_type in ["system", "independent", "control"]:
-                sim_data[f"{agent_type}_dominance_score"] = comprehensive_dominance[
-                    "scores"
-                ][agent_type]
-                sim_data[f"{agent_type}_auc"] = comprehensive_dominance["metrics"][
-                    "auc"
-                ][agent_type]
-                sim_data[f"{agent_type}_recency_weighted_auc"] = (
-                    comprehensive_dominance["metrics"]["recency_weighted_auc"][
-                        agent_type
-                    ]
-                )
-                sim_data[f"{agent_type}_dominance_duration"] = comprehensive_dominance[
-                    "metrics"
-                ]["dominance_duration"][agent_type]
-                sim_data[f"{agent_type}_growth_trend"] = comprehensive_dominance[
-                    "metrics"
-                ]["growth_trends"][agent_type]
-                sim_data[f"{agent_type}_final_ratio"] = comprehensive_dominance[
-                    "metrics"
-                ]["final_ratios"][agent_type]
-
-            # Add dominance switching data
-            if dominance_switches:
-                sim_data["total_switches"] = dominance_switches["total_switches"]
-                sim_data["switches_per_step"] = dominance_switches["switches_per_step"]
-
-                # Add average dominance periods
-                for agent_type in ["system", "independent", "control"]:
-                    sim_data[f"{agent_type}_avg_dominance_period"] = dominance_switches[
-                        "avg_dominance_periods"
-                    ][agent_type]
-
-                # Add phase-specific switch counts
-                for phase in ["early", "middle", "late"]:
-                    sim_data[f"{phase}_phase_switches"] = dominance_switches[
-                        "phase_switches"
-                    ][phase]
-
-                # Add transition matrix data
-                for from_type in ["system", "independent", "control"]:
-                    for to_type in ["system", "independent", "control"]:
-                        sim_data[f"{from_type}_to_{to_type}"] = dominance_switches[
-                            "transition_probabilities"
-                        ][from_type][to_type]
-
-            # Add all other data
-            sim_data.update(initial_data)
-            sim_data.update(final_counts)
-            sim_data.update(survival_stats)
-            sim_data.update(reproduction_stats)
-
-            # Check if survival stats were added
-            survival_keys = [
-                "system_count",
-                "system_alive",
-                "system_dead",
-                "system_avg_survival",
-                "system_dead_ratio",
-            ]
-            missing_keys = [key for key in survival_keys if key not in sim_data]
-            if missing_keys:
-                logging.warning(
-                    f"Missing survival stats keys for iteration {iteration}: {missing_keys}"
-                )
-
-            # Validate data with Pydantic model
-            try:
-                validated_data = DominanceDataModel(**sim_data).dict()
-                data.append(validated_data)
-                logging.debug(f"Successfully validated data for iteration {iteration}")
-            except Exception as e:
-                logging.warning(
-                    f"Data validation failed for iteration {iteration}: {e}"
-                )
-                # Still include the data even if validation fails
-                data.append(sim_data)
-
-            # Close the session
-            session.close()
-
-        except Exception as e:
-            logging.error(f"Error processing {folder}: {e}")
-            logging.error(traceback.format_exc())
+    # Use the helper function to process all simulations
+    data = setup_and_process_simulations(
+        experiment_path=experiment_path,
+        process_simulation_func=process_single_simulation,
+    )
 
     # Convert to DataFrame
     df = pd.DataFrame(data)
