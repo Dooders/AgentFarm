@@ -4,16 +4,15 @@
 
 This report analyzes the dominance patterns observed across 500 simulations in the Agent Farm environment. Three agent types (System, Independent, and Control) competed for resources and reproduction opportunities. The analysis reveals:
 
-- **System agents** emerged as the most dominant type overall (46% comprehensive dominance), followed by Control agents (33%) and Independent agents (21%).
-- **Dominance switching** occurred on average 8.26 times per simulation, with most switches happening in the early phase.
-- **System agents** maintained the longest periods of dominance (436 steps on average), suggesting greater stability once they achieve dominance.
+- **System agents** emerged as the most dominant type overall (44.2% comprehensive dominance), followed by Control agents (32.2%) and Independent agents (23.6%).
+- **Dominance switching** occurred on average 9.6 times per simulation, with most switches happening in the early phase.
+- **System agents** maintained the longest periods of dominance (421 steps on average), suggesting greater stability once they achieve dominance.
 - **Initial resource proximity** and **reproduction strategies** appear to be key factors influencing which agent type becomes dominant.
-- **Reproduction strategy stability** strongly correlates with dominance duration, with System agents showing the most consistent reproduction patterns (variation coefficient: 0.24).
-- **Changes in reproduction rates** preceded 68% of dominance switches, indicating reproduction strategy adaptations often trigger shifts in dominance.
+- **Reproduction strategy stability** strongly correlates with dominance duration, with System agents showing the most consistent reproduction patterns (variation coefficient: 0.24). ###validate###
+- **Changes in reproduction rates** preceded 68% of dominance switches, indicating reproduction strategy adaptations often trigger shifts in dominance. ###validate###
 
 ## 1. Dominance Distribution
 
-Key observations:
 - **System agents** excel at population growth, leading in both population and comprehensive dominance measures.
 - **Independent agents** show superior survival skills but struggle to convert this into overall dominance.
 - **Control agents** maintain a balanced performance across all dominance measures.
@@ -21,45 +20,43 @@ Key observations:
 The comprehensive dominance measure, which considers multiple factors including population growth, recency-weighted presence, and dominance duration, provides the most holistic view of agent performance. (see [Dominance Measures](Measures.md) for detailed explanations of each measure)
 
 
-![Dominance Comparison](images/dominance_comparison.png)
+![Dominance Comparison](images\dominance\dominance_distribution.png)
 
 
 ## 2. Dominance Switching Patterns
 
 ### 2.1 Frequency and Timing
 
-- **Average switches per simulation**: 8.26
-- **Average switches per step**: 0.0041 (approximately 1 switch every 244 steps)
+- **Average switches per simulation**: 9.6
+- **Average switches per step**: 0.0040 (approximately 1 switch every 250 steps)
 
 Switches by simulation phase:
-- **Early phase**: 4.91 switches (59.4% of all switches)
-- **Middle phase**: 1.84 switches (22.3% of all switches)
-- **Late phase**: 1.52 switches (18.4% of all switches)
+
+- **Early phase**: 5.4 switches (56.25% of all switches)
+- **Middle phase**: 2.5 switches (26.04% of all switches)
+- **Late phase**: 1.7 switches (17.71% of all switches)
 
 This pattern suggests that dominance is typically established early and becomes more stable as simulations progress.
 
-![Dominance Switches Distribution](images/dominance_switches_distribution.png)
-*Figure 3: Distribution of the number of dominance switches across simulations.*
+![Dominance Switches Distribution](images/dominance/dominance_switches_distribution.png)
 
-![Phase Switches](images/phase_switches.png)
-*Figure 4: Average number of dominance switches by simulation phase.*
+![Phase Switches](images/dominance/phase_switches.png)
 
 ### 2.2 Dominance Period Duration
 
 Average number of steps each agent type maintained dominance when they were dominant:
 
-- **System**: 436.47 steps
-- **Independent**: 195.17 steps
-- **Control**: 360.20 steps
+- **System**: 420.5 steps
+- **Independent**: 180.1 steps
+- **Control**: 281.5 steps
 
 System agents demonstrate the most stable dominance, maintaining control for more than twice as long as Independent agents on average.
 
-![Average Dominance Period](images/avg_dominance_period.png)
-*Figure 5: Average duration of dominance periods by agent type.*
+![Average Dominance Period](images/dominance/avg_dominance_period.png)
 
 ### 2.3 Transition Probabilities
 
-![Dominance Transitions](images/dominance_transitions.png)
+![Dominance Transitions](images/dominance/dominance_transitions.png)
 
 These probabilities suggest:
 - System agents lose dominance almost equally to both other agent types
@@ -71,6 +68,8 @@ These probabilities suggest:
 ### 2.4 Dominance Switching by Final Dominant Type
 
 Average number of dominance switches in simulations where each agent type was ultimately dominant:
+
+###validate###
 
 - System: 7.54 switches
 - Independent: 9.12 switches
@@ -101,10 +100,10 @@ The most important features for predicting population dominance were:
 
 The classifier achieved 96% accuracy in predicting population dominance, indicating that the identified features are highly reliable predictors.
 
-![Population Dominance Feature Importance](images/population_dominance_feature_importance.png)
+![Population Dominance Feature Importance](images/dominance/population_dominance_feature_importance.png)
 *Figure 7: Importance of features for predicting population dominance.*
 
-![Population Dominance Correlation Matrix](images/population_dominance_correlation_matrix.png)
+![Population Dominance Correlation Matrix](images/dominance/population_dominance_correlation_matrix.png)
 *Figure 8: Correlation matrix showing relationships between features and population dominance.*
 
 ### 3.3 Predictive Features for Survival Dominance
@@ -119,10 +118,10 @@ The most important features for predicting survival dominance were:
 
 The survival dominance classifier achieved 64% accuracy, suggesting that survival patterns are more complex and influenced by a wider range of factors than population dominance.
 
-![Survival Dominance Feature Importance](images/survival_dominance_feature_importance.png)
+![Survival Dominance Feature Importance](images/dominance/survival_dominance_feature_importance.png)
 *Figure 9: Importance of features for predicting survival dominance.*
 
-![Survival Dominance Correlation Matrix](images/survival_dominance_correlation_matrix.png)
+![Survival Dominance Correlation Matrix](images/dominance/survival_dominance_correlation_matrix.png)
 *Figure 10: Correlation matrix showing relationships between features and survival dominance.*
 
 ## 4. Reproduction Strategies and Dominance
@@ -149,7 +148,7 @@ The stability of reproduction strategies (consistency of reproduction rates thro
 
 This variance in reproduction strategy stability correlates with overall dominance durability, with more stable reproduction approaches leading to longer periods of dominance.
 
-![Reproduction Advantage Stability](images/reproduction_advantage_stability.png)
+![Reproduction Advantage Stability](images/dominance/reproduction_advantage_stability.png)
 *Figure 11: Stability of reproduction advantage over time for each agent type.*
 
 ### 4.3 Reproduction and Dominance Switching
@@ -162,7 +161,7 @@ Reproduction strategy adaptations play a key role in dominance switching events:
 
 This indicates that changes in reproduction strategies often trigger shifts in dominance, particularly when agents rapidly adapt their reproduction behavior in response to environmental changes.
 
-![Reproduction vs Switching](images/reproduction_vs_switching.png)
+![Reproduction vs Switching](images/dominance/reproduction_vs_switching.png)
 *Figure 12: Relationship between reproduction strategy volatility and dominance switching frequency.*
 
 ## 5. Stability and Final Dominance
@@ -173,7 +172,7 @@ The analysis of dominance stability (inverse of switches per step) revealed:
 - System agents benefit most from stable conditions
 - Independent agents show more success in volatile environments with frequent dominance changes
 
-![Dominance Stability Analysis](images/dominance_stability_analysis.png)
+![Dominance Stability Analysis](images/dominance/dominance_stability_analysis.png)
 *Figure 13: Relationship between dominance stability and final dominance scores for each agent type.*
 
 ## 6. Conclusions and Implications
