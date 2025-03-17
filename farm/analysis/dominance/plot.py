@@ -167,7 +167,7 @@ def plot_feature_importance(df=None, output_path=None, feat_imp=None, label_name
 
     # Add caption
     caption = (
-        f"This chart displays the top 15 most important features that predict {label_name}. "
+        f"Top 15 most important features that predict {label_name}. "
         f"Features with higher importance values have a stronger influence on determining "
         f"which agent type becomes dominant in the simulation."
     )
@@ -210,7 +210,7 @@ def plot_resource_proximity_vs_dominance(df, output_path):
 
     # Add caption
     caption = (
-        "This chart shows the relationship between initial resource proximity/distance and which agent type "
+        "Relationship between initial resource proximity/distance and which agent type "
         "becomes dominant. The boxplots display the distribution of resource metrics for each dominant agent type, "
         "helping identify if certain agent types tend to dominate when resources are closer or further away."
     )
@@ -322,7 +322,7 @@ def plot_reproduction_vs_dominance(df, output_path):
 
     # Add caption
     caption = (
-        "This chart illustrates the relationship between key reproduction metrics and population dominance. "
+        "Relationship between key reproduction metrics and population dominance. "
         "The boxplots show how reproduction rates and offspring counts differ across simulations where "
         "different agent types became dominant, revealing how reproductive success correlates with dominance."
     )
@@ -414,7 +414,7 @@ def plot_correlation_matrix(df, label_name, output_path=None):
 
     # Add caption
     caption = (
-        f"This heatmap shows the top {top_n} features most correlated with {label_name}. "
+        f"Top {top_n} features most correlated with {label_name}. "
         f"Red cells indicate positive correlation (as the feature increases, the likelihood of that agent type "
         f"being dominant increases), while blue cells indicate negative correlation. "
         f"The intensity of color represents the strength of correlation."
@@ -622,7 +622,7 @@ def plot_dominance_switches(df, output_path):
 
     # Add caption for the first plot
     caption = (
-        "This histogram shows how many dominance switches occurred in each simulation. "
+        "How many dominance switches occurred in each simulation. "
         "A dominance switch happens when the dominant agent type changes during the simulation. "
         "The distribution reveals whether simulations typically have few or many switches in dominance."
     )
@@ -660,7 +660,7 @@ def plot_dominance_switches(df, output_path):
 
     # Add caption for the second plot
     caption = (
-        "This bar chart shows how long each agent type typically remains dominant before being "
+        "How long each agent type typically remains dominant before being "
         "replaced by another type. Longer bars indicate that when this agent type becomes dominant, "
         "it tends to maintain dominance for more simulation steps."
     )
@@ -697,7 +697,7 @@ def plot_dominance_switches(df, output_path):
 
         # Add caption for the third plot
         caption = (
-            "This chart shows how dominance switching behavior changes throughout the simulation. "
+            "How dominance switching behavior changes throughout the simulation. "
             "It displays the average number of dominance switches that occur during each phase "
             "(early, middle, and late) of the simulations, revealing when dominance is most volatile."
         )
@@ -747,7 +747,7 @@ def plot_dominance_switches(df, output_path):
 
         # Add caption for the fourth plot
         caption = (
-            "This heatmap shows the probability of transitioning from one dominant agent type to another. "
+            "Probability of transitioning from one dominant agent type to another. "
             "Each cell represents the probability that when the row agent type loses dominance, "
             "it will be replaced by the column agent type. Higher values (darker colors) indicate "
             "more common transitions between those agent types."
@@ -955,7 +955,7 @@ def plot_reproduction_advantage_vs_stability(df, output_path):
 
     # Add caption
     caption = (
-        "This scatter plot shows the relationship between reproduction advantage and dominance stability. "
+        "Relationship between reproduction advantage and dominance stability. "
         "Each point represents a simulation, with reproduction advantage on the x-axis and dominance stability "
         "on the y-axis. Higher dominance stability values indicate fewer changes in which agent type is dominant. "
         "The dashed trend lines show the general relationship between reproductive advantage and stability for "
@@ -1093,7 +1093,7 @@ def plot_comprehensive_score_breakdown(df, output_path):
 
     # Add caption
     caption = (
-        "This chart shows the breakdown of the comprehensive dominance score for each agent type. "
+        "Breakdown of the comprehensive dominance score for each agent type. "
         "The comprehensive score is calculated using five weighted components: Area Under the Curve (AUC), "
         "Recency-weighted AUC, Dominance Duration, Growth Trend, and Final Population Ratio. "
         "Each component is normalized across agent types before applying weights. "
@@ -1247,7 +1247,7 @@ def plot_reproduction_success_vs_switching(df, output_path):
 
     # Add caption
     caption = (
-        "This multi-panel figure shows the relationship between reproduction success rates and dominance switching "
+        "Relationship between reproduction success rates and dominance switching "
         "for different agent types. Each panel displays a scatter plot of reproduction success rate (x-axis) versus "
         "the total number of dominance switches (y-axis) for a specific agent type. The dashed trend lines indicate "
         "the general relationship between reproductive success and dominance stability. This visualization helps identify "

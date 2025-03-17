@@ -27,7 +27,6 @@ import pandas as pd
 from analysis_config import (
     DATA_PATH,
     OUTPUT_PATH,
-    check_reproduction_events,
     safe_remove_directory,
     setup_logging,
 )
@@ -186,17 +185,6 @@ def main():
 
         logging.info(f"Found {len(iteration_folders)} iteration folders")
 
-        # Check if reproduction events exist in the databases
-        logging.info("Checking for reproduction events in databases...")
-        has_reproduction_events = check_reproduction_events(experiment_path)
-        if not has_reproduction_events:
-            logging.warning(
-                "No reproduction events found in databases. Reproduction advantage analysis may be limited."
-            )
-
-        logging.info(
-            f"Analyzing relative advantages in simulations in {experiment_path}..."
-        )
 
         # Step 1: Collect relative advantage data from all simulations
         try:
