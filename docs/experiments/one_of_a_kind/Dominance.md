@@ -1,8 +1,8 @@
-# Agent Dominance Analysis Report
+# Agent Dominance Analysis
 
 ## Executive Summary
 
-This report analyzes the dominance patterns observed across 250 simulations in the Agent Farm environment. Three agent types (System, Independent, and Control) competed for resources and reproduction opportunities. The analysis reveals:
+This report analyzes the dominance patterns observed across 500 simulations in the Agent Farm environment. Three agent types (System, Independent, and Control) competed for resources and reproduction opportunities. The analysis reveals:
 
 - **System agents** emerged as the most dominant type overall (46% comprehensive dominance), followed by Control agents (33%) and Independent agents (21%).
 - **Dominance switching** occurred on average 8.26 times per simulation, with most switches happening in the early phase.
@@ -59,27 +59,14 @@ System agents demonstrate the most stable dominance, maintaining control for mor
 
 ### 2.3 Transition Probabilities
 
-When dominance switches occur, the following transition patterns were observed:
-
-From System agents:
-- To Independent agents: 42%
-- To Control agents: 44%
-
-From Independent agents:
-- To System agents: 29%
-- To Control agents: 22%
-
-From Control agents:
-- To System agents: 32%
-- To Independent agents: 19%
+![Dominance Transitions](images/dominance_transitions.png)
 
 These probabilities suggest:
 - System agents lose dominance almost equally to both other agent types
 - Independent agents are more likely to lose dominance to System agents
 - Control agents are more likely to lose dominance to System agents
 
-![Dominance Transitions](images/dominance_transitions.png)
-*Figure 6: Transition probabilities between agent types when dominance switches occur.*
+
 
 ### 2.4 Dominance Switching by Final Dominant Type
 
@@ -199,7 +186,7 @@ The analysis of dominance stability (inverse of switches per step) revealed:
 
 4. **Early simulation dynamics** are critical in determining the ultimate dominant agent type, with most dominance switches occurring in the early phase.
 
-5. **Resource proximity** at simulation start significantly influences competitive dynamics and the frequency of dominance switches.
+5. **Resource proximity** at simulation start influences competitive dynamics and the frequency of dominance switches.
 
 6. **Stability favors System agents**, while volatility creates opportunities for Independent agents to temporarily gain dominance.
 
@@ -212,7 +199,7 @@ The analysis of dominance stability (inverse of switches per step) revealed:
 
 These findings suggest that in competitive multi-agent environments:
 
-- Early advantage is crucial for long-term dominance
+- Early advantage is important for long-term dominance
 - Balanced resource allocation strategies outperform purely survival-focused approaches
 - The ability to maintain dominance once achieved is as important as the ability to achieve it initially
 - Consistent reproduction strategies outperform highly variable ones for long-term dominance
