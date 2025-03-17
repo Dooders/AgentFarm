@@ -21,97 +21,14 @@ import time
 from datetime import datetime
 
 import numpy as np
-import pandas as pd
-
 # Import analysis configuration
-from analysis_config import DATA_PATH, OUTPUT_PATH, safe_remove_directory, setup_logging
+from analysis_config import (DATA_PATH, OUTPUT_PATH, safe_remove_directory,
+                             setup_logging)
 
-from farm.analysis.advantage.analyze import (
-    analyze_advantage_patterns,
-    analyze_advantages,
-    get_advantage_recommendations,
-)
+from farm.analysis.advantage.analyze import (analyze_advantage_patterns,
+                                             analyze_advantages,
+                                             get_advantage_recommendations)
 from farm.analysis.advantage.plot import plot_advantage_results
-
-
-def validate_dataframe(df):
-    """
-    Validate dataframe by replacing NaN and Infinity values with appropriate defaults.
-    Returns a cleaned dataframe and a report of issues found.
-    """
-    if df is None or df.empty:
-        return df, "Empty dataframe"
-
-    original_shape = df.shape
-
-    # Check for NaN values
-    nan_count = df.isna().sum().sum()
-
-    # Check for infinite values
-    inf_mask = np.isinf(df.select_dtypes(include=["float", "int"]).values)
-    inf_count = np.sum(inf_mask)
-
-    # Replace NaN with 0 and Inf with large value (data dependent)
-    df_clean = df.copy()
-
-    # For each column, determine an appropriate replacement value
-    for col in df_clean.columns:
-        if df_clean[col].dtype in ["float64", "float32", "int64", "int32"]:
-            # Replace inf with column max or 0 if all inf
-            max_val = df_clean[col].replace([np.inf, -np.inf], np.nan).max()
-            if pd.isna(max_val):
-                max_val = 0
-
-            # Replace -inf with column min or 0 if all inf
-            min_val = df_clean[col].replace([np.inf, -np.inf], np.nan).min()
-            if pd.isna(min_val):
-                min_val = 0
-
-            # Replace inf and -inf
-            df_clean[col] = df_clean[col].replace(np.inf, max_val)
-            df_clean[col] = df_clean[col].replace(-np.inf, min_val)
-
-            # Replace NaN with 0 or column median
-            median_val = df_clean[col].median()
-            if pd.isna(median_val):
-                df_clean[col] = df_clean[col].fillna(0)
-            else:
-                df_clean[col] = df_clean[col].fillna(median_val)
-
-    report = f"Data validation: Found {nan_count} NaN values and {inf_count} infinite values in dataframe of shape {original_shape}. All problematic values have been replaced."
-
-    return df_clean, report
-
-
-def validate_analysis_results(results):
-    """
-    Validate analysis results by replacing NaN and Infinity values with appropriate defaults.
-    """
-    if not results:
-        return results, "Empty results"
-
-    def clean_value(v):
-        if isinstance(v, float):
-            if np.isnan(v):
-                return 0.0
-            elif np.isinf(v):
-                return 1.0 if v > 0 else -1.0
-        return v
-
-    def recursively_clean_dict(d):
-        if isinstance(d, dict):
-            return {k: recursively_clean_dict(v) for k, v in d.items()}
-        elif isinstance(d, list):
-            return [recursively_clean_dict(item) for item in d]
-        else:
-            return clean_value(d)
-
-    results_clean = recursively_clean_dict(results)
-
-    return (
-        results_clean,
-        "Analysis results have been cleaned of NaN and Infinity values.",
-    )
 
 
 def main():
@@ -189,10 +106,10 @@ def main():
         try:
             logging.info("Starting advantage data collection")
             analysis_start_time = time.time()
-            
+
             # First collect the advantage data from simulations
             df_original = analyze_advantages(experiment_path)
-            
+
             analysis_duration = time.time() - analysis_start_time
             logging.info(
                 f"Completed advantage data collection in {analysis_duration:.2f} seconds"
@@ -201,10 +118,6 @@ def main():
             if df_original.empty:
                 logging.warning("No simulation data found.")
                 return
-
-            # # Validate and clean the dataframe
-            # df, validation_report = validate_dataframe(df_original)
-            # logging.info(validation_report)
 
             logging.info(f"Collected data from {len(df_original)} simulations")
 
@@ -225,15 +138,9 @@ def main():
         try:
             logging.info("Starting to analyze patterns in advantages...")
             patterns_start_time = time.time()
-            
-            # Now analyze patterns in the collected data
-            analysis_results_original = analyze_advantage_patterns(df_original)
 
-            # Clean the analysis results
-            analysis_results, cleaning_report = validate_analysis_results(
-                analysis_results_original
-            )
-            logging.info(cleaning_report)
+            # Now analyze patterns in the collected data
+            analysis_results = analyze_advantage_patterns(df_original)
 
             patterns_duration = time.time() - patterns_start_time
             logging.info(
@@ -375,13 +282,7 @@ def main():
                 "Starting to generate recommendations based on advantage analysis..."
             )
             rec_start_time = time.time()
-            recommendations_original = get_advantage_recommendations(analysis_results)
-
-            # Clean recommendations
-            recommendations, rec_cleaning_report = validate_analysis_results(
-                recommendations_original
-            )
-            logging.info(rec_cleaning_report)
+            recommendations = get_advantage_recommendations(analysis_results)
 
             rec_duration = time.time() - rec_start_time
             logging.info(
