@@ -4,7 +4,6 @@ import logging
 import os
 import traceback
 
-import numpy as np
 import pandas as pd
 import sqlalchemy
 from sqlalchemy.orm import sessionmaker
@@ -12,7 +11,6 @@ from sqlalchemy.orm import sessionmaker
 from farm.analysis.base_module import (
     BaseAnalysisModule,
     analyze_correlations,
-    find_top_correlations,
     get_valid_numeric_columns,
     group_and_analyze,
     split_and_compare_groups,
@@ -31,7 +29,7 @@ from farm.analysis.dominance.data import (
     get_initial_positions_and_resources,
     get_reproduction_stats,
 )
-from farm.analysis.dominance.models import DominanceDataModel, dataframe_to_models
+from farm.analysis.dominance.models import DominanceDataModel
 from farm.analysis.dominance.sqlalchemy_models import (
     AgentPopulation,
     CorrelationAnalysis,

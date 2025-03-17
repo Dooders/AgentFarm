@@ -198,16 +198,16 @@ def main():
                 logging.warning("No simulation data found.")
                 return
 
-            # Validate and clean the dataframe
-            df, validation_report = validate_dataframe(df_original)
-            logging.info(validation_report)
+            # # Validate and clean the dataframe
+            # df, validation_report = validate_dataframe(df_original)
+            # logging.info(validation_report)
 
-            logging.info(f"Collected data from {len(df)} simulations")
+            logging.info(f"Collected data from {len(df_original)} simulations")
 
             # Save the raw data
             logging.info("Saving raw analysis data to CSV")
             output_csv = os.path.join(rel_adv_output_path, "relative_advantage_analysis.csv")
-            df.to_csv(output_csv, index=False)
+            df_original.to_csv(output_csv, index=False)
             logging.info(f"Saved analysis data to {output_csv}")
             
             # Also save the original data for debugging
@@ -224,7 +224,7 @@ def main():
         try:
             logging.info("Starting to analyze patterns in relative advantages...")
             patterns_start_time = time.time()
-            analysis_results_original = analyze_advantage_patterns(df)
+            analysis_results_original = analyze_advantage_patterns(df_original)
             
             # Clean the analysis results
             analysis_results, cleaning_report = validate_analysis_results(analysis_results_original)
@@ -341,7 +341,7 @@ def main():
             viz_start_time = time.time()
             
             # Modify the plot function call to include a flag indicating data has been cleaned
-            plot_relative_advantage_results(df, analysis_results, rel_adv_output_path, data_cleaned=True)
+            plot_relative_advantage_results(df_original, analysis_results, rel_adv_output_path, data_cleaned=True)
             
             viz_duration = time.time() - viz_start_time
             logging.info(f"Completed visualization generation in {viz_duration:.2f} seconds")
@@ -400,7 +400,7 @@ def main():
         try:
             logging.info("Generating summary report")
             report_start_time = time.time()
-            generate_summary_report(df, analysis_results, recommendations, rel_adv_output_path)
+            generate_summary_report(df_original, analysis_results, recommendations, rel_adv_output_path)
             report_duration = time.time() - report_start_time
             logging.info(f"Completed summary report generation in {report_duration:.2f} seconds")
         except Exception as e:
