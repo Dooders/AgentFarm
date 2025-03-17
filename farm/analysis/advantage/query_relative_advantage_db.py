@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Query utility for the Relative Advantage database.
+Query utility for the Advantage database.
 
-This script provides functions to query the Relative Advantage database
+This script provides functions to query the Advantage database
 and export results to CSV files.
 """
 
@@ -16,7 +16,7 @@ import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from farm.analysis.relative_advantage.sqlalchemy_models import (
+from farm.analysis.advantage.sqlalchemy_models import (
     AdvantageDominanceCorrelation,
     CompositeAdvantage,
     PopulationGrowth,
@@ -388,12 +388,12 @@ def run_custom_query(
 def main():
     """Main function to query the database."""
     parser = argparse.ArgumentParser(
-        description="Query the Relative Advantage database"
+        description="Query the Advantage database"
     )
     parser.add_argument(
         "--db-path",
         type=str,
-        default="sqlite:///relative_advantage.db",
+        default="sqlite:///advantage.db",
         help="Path to the SQLite database",
     )
     parser.add_argument(

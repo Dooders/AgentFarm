@@ -400,7 +400,7 @@ class AdvantageDominanceCorrelation(Base):
 
 
 # Database initialization function
-def init_db(db_path="sqlite:///relative_advantage.db"):
+def init_db(db_path="sqlite:///advantage.db"):
     """Initialize the database and create tables"""
     engine = create_engine(db_path)
     Base.metadata.create_all(engine)

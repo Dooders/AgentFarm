@@ -14,7 +14,7 @@ from typing import Dict
 import pandas as pd
 from sqlalchemy.exc import SQLAlchemyError
 
-from farm.analysis.relative_advantage.sqlalchemy_models import (
+from farm.analysis.advantage.sqlalchemy_models import (
     AdvantageDominanceCorrelation,
     CompositeAdvantage,
     ReproductionAdvantage,
