@@ -5,10 +5,10 @@ import random
 from collections import deque
 from typing import TYPE_CHECKING, Any, Deque, Optional
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ class BaseDQNModule:
         output_dim: int,
         config: BaseDQNConfig,
         device: torch.device = DEVICE,
-        db: Optional["SimulationDatabase"] = None
+        db: Optional["SimulationDatabase"] = None,
     ) -> None:
         self.device = device
         self.config = config
@@ -85,11 +85,11 @@ class BaseDQNModule:
         self.module_id = id(self.__class__)
         self.logger = db.logger if db is not None else None
         self.output_dim = output_dim
-        
+
         # Set seed if provided for reproducibility
         if config.seed is not None:
             self._set_seed(config.seed)
-            
+
         self._setup_networks(input_dim, output_dim, config)
         self._setup_training(config)
         self.losses = []
@@ -102,7 +102,7 @@ class BaseDQNModule:
 
     def _set_seed(self, seed: int) -> None:
         """Set seeds for all random number generators to ensure reproducibility.
-        
+
         Parameters
         ----------
         seed : int
@@ -309,11 +309,11 @@ class BaseDQNModule:
             "episode_rewards": self.episode_rewards,
             "seed": self.config.seed,
         }
-        
+
         # Add action weights if this is a module related to action selection
-        if hasattr(self, 'action_weights'):
+        if hasattr(self, "action_weights"):
             state_dict["action_weights"] = self.action_weights
-            
+
         return state_dict
 
     def load_state_dict(self, state_dict: dict[str, Any]) -> None:
@@ -329,9 +329,9 @@ class BaseDQNModule:
         self.steps = state_dict["steps"]
         self.losses = state_dict["losses"]
         self.episode_rewards = state_dict["episode_rewards"]
-        
+
         # Load action weights if present
-        if "action_weights" in state_dict and hasattr(self, 'action_weights'):
+        if "action_weights" in state_dict and hasattr(self, "action_weights"):
             self.action_weights = state_dict["action_weights"]
 
     def cleanup(self):

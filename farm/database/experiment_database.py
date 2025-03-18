@@ -143,7 +143,7 @@ class ExperimentDataLogger(DataLogger):
         uniqueness across simulations.
         """
         # Prefix agent_id with simulation_id to ensure uniqueness
-        unique_agent_id = f"{self.simulation_id}_{agent_id}"
+        unique_agent_id = agent_id
 
         return super().log_agent(
             agent_id=unique_agent_id,
@@ -173,12 +173,12 @@ class ExperimentDataLogger(DataLogger):
     ):
         """Log an agent action with the correct simulation_id and prefixed agent_ids."""
         # Prefix agent_ids with simulation_id
-        unique_agent_id = f"{self.simulation_id}_{agent_id}"
+        unique_agent_id = agent_id
 
         # Also prefix target_id if it exists
         unique_target_id = None
         if action_target_id:
-            unique_target_id = f"{self.simulation_id}_{action_target_id}"
+            unique_target_id = action_target_id
 
         return super().log_agent_action(
             step_number=step_number,
@@ -198,7 +198,7 @@ class ExperimentDataLogger(DataLogger):
     ):
         """Log a health incident with the correct simulation_id and prefixed agent_id."""
         # Prefix agent_id with simulation_id
-        unique_agent_id = f"{self.simulation_id}_{agent_id}"
+        unique_agent_id = agent_id
 
         return super().log_health_incident(
             step_number=step_number,
@@ -225,12 +225,12 @@ class ExperimentDataLogger(DataLogger):
     ):
         """Log a reproduction event with the correct simulation_id and prefixed agent_ids."""
         # Prefix agent_ids with simulation_id
-        unique_parent_id = f"{self.simulation_id}_{parent_id}"
+        unique_parent_id = parent_id
 
         # Also prefix offspring_id if it exists
         unique_offspring_id = None
         if offspring_id:
-            unique_offspring_id = f"{self.simulation_id}_{offspring_id}"
+            unique_offspring_id = offspring_id
 
         return super().log_reproduction_event(
             step_number=step_number,
@@ -257,12 +257,10 @@ class ExperimentDataLogger(DataLogger):
         reward,
     ):
         """Log a learning experience with the correct simulation_id and prefixed agent_id."""
-        # Prefix agent_id with simulation_id
-        unique_agent_id = f"{self.simulation_id}_{agent_id}"
 
         return super().log_learning_experience(
             step_number=step_number,
-            agent_id=unique_agent_id,
+            agent_id=agent_id,
             module_type=module_type,
             module_id=module_id,
             action_taken=action_taken,
@@ -280,7 +278,7 @@ class ExperimentDataLogger(DataLogger):
         modified_agent_states = []
         for state in agent_states:
             agent_id = state[0]
-            unique_agent_id = f"{self.simulation_id}_{agent_id}"
+            unique_agent_id = agent_id
             modified_state = (unique_agent_id,) + state[1:]
             modified_agent_states.append(modified_state)
 
