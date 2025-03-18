@@ -12,6 +12,7 @@ from farm.agents import IndependentAgent, SystemAgent
 from farm.agents.control_agent import ControlAgent
 from farm.core.config import SimulationConfig
 from farm.core.environment import Environment
+from farm.utils.short_id import generate_simulation_id
 
 
 def setup_logging(log_dir: str = "logs") -> None:
@@ -66,6 +67,9 @@ def create_initial_agents(
         List of initial agent positions
     """
     positions = []
+    logging.info(
+        f"Creating initial agents - System: {num_system_agents}, Independent: {num_independent_agents}, Control: {num_control_agents}"
+    )
 
     # Create system agents
     for _ in range(num_system_agents):
@@ -83,6 +87,8 @@ def create_initial_agents(
         environment.add_agent(agent)
         positions.append(position)
 
+    logging.info(f"Created {num_system_agents} SystemAgents")
+
     # Create independent agents
     for _ in range(num_independent_agents):
         position = (
@@ -98,6 +104,8 @@ def create_initial_agents(
         )
         environment.add_agent(agent)
         positions.append(position)
+
+    logging.info(f"Created {num_independent_agents} IndependentAgents")
 
     # Create control agents
     for _ in range(num_control_agents):
@@ -115,6 +123,9 @@ def create_initial_agents(
         environment.add_agent(agent)
         positions.append(position)
 
+    logging.info(f"Created {num_control_agents} ControlAgents")
+    logging.info(f"Total initial agents: {len(environment.agents)}")
+
     return positions
 
 
@@ -124,18 +135,50 @@ def run_simulation(
     path: Optional[str] = None,
     save_config: bool = True,
     seed: Optional[int] = None,
+    simulation_id: Optional[str] = None,
 ) -> Environment:
     """
     Run the main simulation loop.
+
+    Parameters
+    ----------
+    num_steps : int
+        Number of simulation steps to run
+    config : SimulationConfig
+        Configuration for the simulation
+    path : Optional[str], optional
+        Path where to save simulation data, by default None
+    save_config : bool, optional
+        Whether to save configuration to disk, by default True
+    seed : Optional[int], optional
+        Random seed for reproducibility, by default None
+    simulation_id : Optional[str], optional
+        Unique ID for this simulation run. If None, one will be generated.
+
+    Returns
+    -------
+    Environment
+        The simulation environment after completion
     """
+    # Generate simulation_id if not provided
+    if simulation_id is None:
+        simulation_id = generate_simulation_id()
+
     # Setup logging
     setup_logging()
-    logging.info("Starting simulation")
+    logging.info(f"Starting simulation with ID: {simulation_id}")
     logging.info(f"Configuration: {config}")
+
+    # Initialize start_time here so it's available in both code paths
+    start_time = datetime.now()
 
     try:
         # Set up database path (None if path is None)
         db_path = f"{path}/simulation.db" if path is not None else None
+
+        # Ensure the database directory exists
+        if db_path is not None:
+            os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
         # Handle in-memory database configuration
         if config.use_in_memory_db:
@@ -152,6 +195,7 @@ def run_simulation(
                 },
                 db_path=None,  # Will be ignored for in-memory DB
                 config=config,
+                simulation_id=simulation_id,
             )
 
             # Replace the default database with in-memory database
@@ -160,7 +204,19 @@ def run_simulation(
 
             # Initialize in-memory database with optional memory limit
             environment.db = InMemorySimulationDatabase(
-                memory_limit_mb=config.in_memory_db_memory_limit_mb
+                memory_limit_mb=config.in_memory_db_memory_limit_mb,
+                simulation_id=simulation_id,
+            )
+
+            # Create a simulation record in the in-memory database
+            from farm.database.models import Simulation
+
+            # Add simulation record to the in-memory database
+            environment.db.add_simulation_record(
+                simulation_id=simulation_id,
+                start_time=datetime.now(),
+                status="running",
+                parameters=config.to_dict(),
             )
 
         else:
@@ -174,6 +230,35 @@ def run_simulation(
                     db_path = f"{base}_{int(time.time())}{ext}"
                     logging.warning(f"Using alternative database path: {db_path}")
 
+            # Initialize the database schema before creating the Environment
+            from sqlalchemy import create_engine
+            from sqlalchemy.orm import sessionmaker
+
+            from farm.database.models import Base, Simulation
+
+            # Create parent directory if it doesn't exist
+            os.makedirs(os.path.dirname(db_path), exist_ok=True)
+
+            # Create database engine and initialize tables using SQLAlchemy
+            engine = create_engine(
+                f"sqlite:///{db_path}", connect_args={"check_same_thread": False}
+            )
+            Base.metadata.create_all(engine)
+
+            # Create a session and add the simulation record
+            Session = sessionmaker(bind=engine)
+            session = Session()
+            sim_record = Simulation(
+                simulation_id=simulation_id,
+                start_time=datetime.now(),
+                status="running",
+                parameters=config.to_dict(),
+                simulation_db_path=db_path,
+            )
+            session.add(sim_record)
+            session.commit()
+            session.close()
+
             # Create environment with disk-based database
             environment = Environment(
                 width=config.width,
@@ -184,6 +269,7 @@ def run_simulation(
                 },
                 db_path=db_path,
                 config=config,
+                simulation_id=simulation_id,
             )
 
         # Set seed if provided
@@ -208,7 +294,6 @@ def run_simulation(
         )
 
         # Main simulation loop
-        start_time = datetime.now()
         for step in tqdm(range(num_steps), desc="Simulation progress", unit="step"):
             logging.info(f"Starting step {step}/{num_steps}")
 

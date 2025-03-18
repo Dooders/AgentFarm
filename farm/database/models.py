@@ -12,6 +12,7 @@ Main Models:
 - LearningExperience: Stores agent learning data
 - HealthIncident: Tracks changes in agent health
 - SimulationConfig: Stores simulation configuration data
+- ExperimentModel: Stores experiment metadata and groups related simulations
 - Simulation: Stores simulation metadata
 
 Each model includes appropriate indexes for query optimization and relationships
@@ -99,6 +100,7 @@ class AgentModel(Base):
         Index("idx_agents_death_time", "death_time"),
     )
 
+    simulation_id = Column(String(64), ForeignKey("simulations.simulation_id"))
     agent_id = Column(String(64), primary_key=True)
     birth_time = Column(Integer)
     death_time = Column(Integer)
@@ -190,6 +192,7 @@ class AgentStateModel(Base):
     id = Column(
         String(128), primary_key=True, nullable=False
     )  # Will store "agent_id-step_number"
+    simulation_id = Column(String(64), ForeignKey("simulations.simulation_id"))
     step_number = Column(Integer)
     agent_id = Column(String(64), ForeignKey("agents.agent_id"))
     position_x = Column(Float)
@@ -268,6 +271,7 @@ class ResourceModel(Base):
     )
 
     id = Column(Integer, primary_key=True)
+    simulation_id = Column(String(64), ForeignKey("simulations.simulation_id"))
     step_number = Column(Integer)
     resource_id = Column(Integer)
     amount = Column(Float)
@@ -351,6 +355,7 @@ class SimulationStepModel(Base):
     __table_args__ = (Index("idx_simulation_steps_step_number", "step_number"),)
 
     step_number = Column(Integer, primary_key=True)
+    simulation_id = Column(String(64), ForeignKey("simulations.simulation_id"))
     total_agents = Column(Integer)
     system_agents = Column(Integer)
     independent_agents = Column(Integer)
@@ -453,6 +458,7 @@ class ActionModel(Base):
     )
 
     action_id = Column(Integer, primary_key=True)
+    simulation_id = Column(String(64), ForeignKey("simulations.simulation_id"))
     step_number = Column(Integer, nullable=False)
     agent_id = Column(String(64), ForeignKey("agents.agent_id"), nullable=False)
     action_type = Column(String(20), nullable=False)
@@ -482,6 +488,7 @@ class LearningExperienceModel(Base):
     )
 
     experience_id = Column(Integer, primary_key=True)
+    simulation_id = Column(String(64), ForeignKey("simulations.simulation_id"))
     step_number = Column(Integer)
     agent_id = Column(String(64), ForeignKey("agents.agent_id"))
     module_type = Column(String(50))
@@ -503,6 +510,7 @@ class HealthIncident(Base):
     )
 
     incident_id = Column(Integer, primary_key=True)
+    simulation_id = Column(String(64), ForeignKey("simulations.simulation_id"))
     step_number = Column(Integer, nullable=False)
     agent_id = Column(String(64), ForeignKey("agents.agent_id"), nullable=False)
     health_before = Column(Float(precision=4))
@@ -518,9 +526,68 @@ class SimulationConfig(Base):
 
     __tablename__ = "simulation_config"
 
+    simulation_id = Column(String(64), ForeignKey("simulations.simulation_id"))
     config_id = Column(Integer, primary_key=True)
     timestamp = Column(Integer, nullable=False)
     config_data = Column(String(4096), nullable=False)
+
+
+class ExperimentModel(Base):
+    """Represents a research experiment that groups related simulations.
+
+    This model stores metadata about an experiment, including its purpose,
+    hypothesis, and parameters varied across simulations.
+
+    Attributes
+    ----------
+    experiment_id : str
+        Unique identifier for the experiment
+    name : str
+        Human-readable name of the experiment
+    description : str
+        Detailed description of the experiment's purpose
+    hypothesis : str
+        The research hypothesis being tested
+    creation_date : DateTime
+        When the experiment was created
+    last_updated : DateTime
+        When the experiment was last modified
+    status : str
+        Current status (e.g., 'planned', 'running', 'completed', 'analyzed')
+    tags : list
+        List of keywords/tags for categorization
+    variables : dict
+        Dictionary of variables being manipulated across simulations
+    results_summary : dict
+        High-level findings from the experiment
+    notes : str
+        Additional research notes or observations
+
+    Relationships
+    ------------
+    simulations : List[Simulation]
+        All simulations that are part of this experiment
+    """
+
+    __tablename__ = "experiments"
+
+    experiment_id = Column(String(64), primary_key=True)
+    name = Column(String(255), nullable=False)
+    description = Column(String(4096), nullable=True)
+    hypothesis = Column(String(2048), nullable=True)
+    creation_date = Column(DateTime, default=func.now())
+    last_updated = Column(DateTime, default=func.now(), onupdate=func.now())
+    status = Column(String(50), default="planned")
+    tags = Column(JSON, nullable=True)
+    variables = Column(JSON, nullable=True)
+    results_summary = Column(JSON, nullable=True)
+    notes = Column(String(4096), nullable=True)
+
+    # Relationships
+    simulations = relationship("Simulation", back_populates="experiment")
+
+    def __repr__(self):
+        return f"<Experiment(experiment_id={self.experiment_id}, name={self.name}, status={self.status})>"
 
 
 class Simulation(Base):
@@ -528,7 +595,10 @@ class Simulation(Base):
 
     __tablename__ = "simulations"
 
-    simulation_id = Column(Integer, primary_key=True, autoincrement=True)
+    simulation_id = Column(String(64), primary_key=True)
+    experiment_id = Column(
+        String(64), ForeignKey("experiments.experiment_id"), nullable=True
+    )
     start_time = Column(DateTime, default=func.now())
     end_time = Column(DateTime, nullable=True)
     status = Column(String(50), default="pending")
@@ -536,9 +606,8 @@ class Simulation(Base):
     results_summary = Column(JSON, nullable=True)
     simulation_db_path = Column(String(255), nullable=False)
 
-    # Relationships (optional, for future extensions)
-    # e.g., could relate to logs, individual agent data, etc.
-    # logs = relationship("Log", back_populates="simulation")
+    # Relationships
+    experiment = relationship("ExperimentModel", back_populates="simulations")
 
     def __repr__(self):
         return f"<Simulation(simulation_id={self.simulation_id}, status={self.status})>"
@@ -598,6 +667,7 @@ class ReproductionEventModel(Base):
     )
 
     event_id = Column(Integer, primary_key=True)
+    simulation_id = Column(String(64), ForeignKey("simulations.simulation_id"))
     step_number = Column(Integer, nullable=False)
     parent_id = Column(String(64), ForeignKey("agents.agent_id"), nullable=False)
     offspring_id = Column(String(64), ForeignKey("agents.agent_id"), nullable=True)
@@ -697,6 +767,7 @@ class SocialInteractionModel(Base):
     )
 
     interaction_id = Column(Integer, primary_key=True)
+    simulation_id = Column(String(64), ForeignKey("simulations.simulation_id"))
     step_number = Column(Integer, nullable=False)
     initiator_id = Column(String(64), ForeignKey("agents.agent_id"), nullable=False)
     recipient_id = Column(String(64), ForeignKey("agents.agent_id"), nullable=False)

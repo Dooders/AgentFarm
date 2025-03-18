@@ -23,7 +23,7 @@ def setup_db(db_path):
     # Skip setup for in-memory database (when db_path is None)
     if db_path is None:
         return
-        
+
     # Try to clean up any existing database connections first
     try:
         import sqlite3
@@ -53,6 +53,7 @@ class Environment:
         db_path="simulation.db",
         max_resource=None,
         config=None,
+        simulation_id=None,
     ):
         setup_db(db_path)
 
@@ -62,14 +63,17 @@ class Environment:
         self.agents = []
         self.resources = []
         self.time = 0
-        
+
+        # Store simulation ID
+        self.simulation_id = simulation_id or ShortUUID().uuid()
+
         # Only initialize database if db_path is provided (not for in-memory DB)
         if db_path is not None:
-            self.db = SimulationDatabase(db_path)
+            self.db = SimulationDatabase(db_path, simulation_id=self.simulation_id)
         else:
             # Will be set to InMemorySimulationDatabase later
             self.db = None
-            
+
         self.seed = ShortUUID()
         self.next_resource_id = 0
         # self.max_resource = max_resource or (config.max_resource_amount if config else None)
@@ -87,11 +91,11 @@ class Environment:
         # Add tracking for births and deaths
         self.births_this_step = 0
         self.deaths_this_step = 0
-        
+
         # Add tracking for resources shared
         self.resources_shared = 0
         self.resources_shared_this_step = 0
-        
+
         # Add tracking for combat metrics
         self.combat_encounters = 0
         self.successful_attacks = 0
@@ -265,7 +269,7 @@ class Environment:
 
             # Update KD trees
             self._update_kdtrees()
-            
+
             # Reset counters for next step
             self.resources_shared_this_step = 0
             self.combat_encounters_this_step = 0
@@ -353,8 +357,12 @@ class Environment:
             successful_attacks = getattr(self, "successful_attacks", 0)
             resources_shared = getattr(self, "resources_shared", 0)
             resources_shared_this_step = getattr(self, "resources_shared_this_step", 0)
-            combat_encounters_this_step = getattr(self, "combat_encounters_this_step", 0)
-            successful_attacks_this_step = getattr(self, "successful_attacks_this_step", 0)
+            combat_encounters_this_step = getattr(
+                self, "combat_encounters_this_step", 0
+            )
+            successful_attacks_this_step = getattr(
+                self, "successful_attacks_this_step", 0
+            )
 
             # Calculate resource distribution entropy
             resource_amounts = [r.amount for r in self.resources]
@@ -482,6 +490,7 @@ class Environment:
         """Add an agent to the environment with efficient database logging."""
         agent_data = [
             {
+                "simulation_id": self.simulation_id,
                 "agent_id": agent.agent_id,
                 "birth_time": self.time,
                 "agent_type": agent.__class__.__name__,
@@ -507,7 +516,7 @@ class Environment:
     def cleanup(self):
         """Clean up environment resources."""
         try:
-            if hasattr(self, 'db') and self.db is not None:
+            if hasattr(self, "db") and self.db is not None:
                 # Use logger for buffer flushing
                 if hasattr(self.db, "logger"):
                     self.db.logger.flush_all_buffers()

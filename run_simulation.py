@@ -95,6 +95,9 @@ def main():
     # Run simulation
     print(f"Starting simulation with {args.steps} steps")
     print(f"Output will be saved to {output_dir}")
+    print(
+        f"Agent configuration - System: {config.system_agents}, Independent: {config.independent_agents}, Control: {config.control_agents}"
+    )
 
     try:
         start_time = time.time()
@@ -157,6 +160,19 @@ def main():
         elapsed_time = time.time() - start_time
         print(f"\nSimulation completed in {elapsed_time:.2f} seconds")
         print(f"Final agent count: {len(environment.agents)}")
+        if len(environment.agents) == 0:
+            print(
+                "WARNING: No agents were created or all agents died during simulation"
+            )
+        else:
+            agent_types = {}
+            for agent in environment.agents:
+                agent_type = agent.__class__.__name__
+                if agent_type in agent_types:
+                    agent_types[agent_type] += 1
+                else:
+                    agent_types[agent_type] = 1
+            print(f"Agent types: {agent_types}")
         print(f"Results saved to {output_dir}")
     except Exception as e:
         print(f"Simulation failed: {e}")
