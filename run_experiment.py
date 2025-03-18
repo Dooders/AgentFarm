@@ -334,7 +334,7 @@ def main():
         #     use_parallel=args.parallel,
         # ),
         ExperimentConfig(
-            name=f"one_of_a_kind_{args.iterations}x{args.steps}",
+            name=f"one_of_a_kind",
             variations=[
                 {
                     "control_agents": 1,
