@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 class DataLogger:
     """Handles data logging operations for the simulation database."""
 
-    def __init__(self, database, buffer_size: int = 1000, commit_interval: int = 30):
+    def __init__(self, database, buffer_size: int = 1000, commit_interval: int = 30, simulation_id: Optional[str] = None):
         """Initialize the data logger.
 
         Parameters
@@ -47,6 +47,8 @@ class DataLogger:
             Maximum size of buffers before auto-flush, by default 1000
         commit_interval : int, optional
             Maximum time (in seconds) between commits, by default 30
+        simulation_id : Optional[str], optional
+            Unique identifier for this simulation, by default None
         """
         self.db = database
         self._buffer_size = buffer_size
@@ -58,6 +60,7 @@ class DataLogger:
         self._resource_buffer = []
         self.reproduction_buffer = []
         self._step_buffer = []
+        self.simulation_id = simulation_id
 
     def _check_time_based_flush(self):
         """Check if we should flush based on time interval."""
@@ -88,6 +91,7 @@ class DataLogger:
                 action_type = str(action_type)
 
             action_data = {
+                "simulation_id": self.simulation_id,
                 "step_number": step_number,
                 "agent_id": agent_id,
                 "action_type": action_type,
@@ -128,6 +132,7 @@ class DataLogger:
         """Buffer a learning experience."""
         try:
             exp_data = {
+                "simulation_id": self.simulation_id,
                 "step_number": step_number,
                 "agent_id": agent_id,
                 "module_type": module_type,
@@ -158,6 +163,7 @@ class DataLogger:
         """Buffer a health incident."""
         try:
             incident_data = {
+                "simulation_id": self.simulation_id,
                 "step_number": step_number,
                 "agent_id": agent_id,
                 "health_before": health_before,
@@ -191,6 +197,7 @@ class DataLogger:
     ) -> None:
         """Buffer a reproduction event for batch processing."""
         event = {
+            "simulation_id": self.simulation_id,
             "step_number": step_number,
             "parent_id": parent_id,
             "offspring_id": offspring_id,
@@ -380,6 +387,7 @@ class DataLogger:
                 serialized_action_weights = str(action_weights)
         
         agent_data = {
+            "simulation_id": self.simulation_id,
             "agent_id": agent_id,
             "birth_time": birth_time,
             "agent_type": agent_type,
@@ -437,6 +445,7 @@ class DataLogger:
                     
                     # Create the mapping
                     mapping = {
+                        "simulation_id": data["simulation_id"],
                         "agent_id": data["agent_id"],
                         "birth_time": data["birth_time"],
                         "agent_type": data["agent_type"],
@@ -492,6 +501,7 @@ class DataLogger:
                 if agent_states:
                     agent_state_mappings = [
                         {
+                            "simulation_id": self.simulation_id,
                             "step_number": step_number,
                             "agent_id": state[0],
                             "position_x": state[1],
@@ -523,6 +533,7 @@ class DataLogger:
                 if resource_states:
                     resource_state_mappings = [
                         {
+                            "simulation_id": self.simulation_id,
                             "step_number": step_number,
                             "resource_id": state[0],
                             "amount": state[1],
@@ -535,7 +546,9 @@ class DataLogger:
 
                 # Insert metrics
                 simulation_step = SimulationStepModel(
-                    step_number=step_number, **metrics
+                    simulation_id=self.simulation_id,
+                    step_number=step_number, 
+                    **metrics
                 )
                 session.add(simulation_step)
 
@@ -565,6 +578,7 @@ class DataLogger:
         try:
             resource_data = [
                 {  # Changed to list for bulk_insert_mappings
+                    "simulation_id": self.simulation_id,
                     "step_number": 0,  # Initial state
                     "resource_id": resource_id,
                     "amount": initial_amount,
@@ -593,40 +607,46 @@ class DataLogger:
 class ShardedDataLogger:
     """Data logger that routes data to appropriate database shards."""
 
-    def __init__(self, sharded_db):
+    def __init__(self, sharded_db, simulation_id=None):
         """Initialize the sharded data logger.
 
         Parameters
         ----------
         sharded_db : ShardedSimulationDatabase
             The sharded database instance
+        simulation_id : str, optional
+            Unique identifier for this simulation, by default None
         """
         self.sharded_db = sharded_db
+        self.simulation_id = simulation_id
 
     def log_agent_states(self, step_number, agent_states):
         """Log agent states to the appropriate shard."""
         shard_id = self.sharded_db._get_shard_for_step(step_number)
         self.sharded_db.shards[shard_id]["agents"].logger.log_agent_states(
-            step_number, agent_states
+            step_number, agent_states, simulation_id=self.simulation_id
         )
 
     def log_resources(self, step_number, resource_states):
         """Log resource states to the appropriate shard."""
         shard_id = self.sharded_db._get_shard_for_step(step_number)
         self.sharded_db.shards[shard_id]["resources"].logger.log_resources(
-            step_number, resource_states
+            step_number, resource_states, simulation_id=self.simulation_id
         )
 
     def log_metrics(self, step_number, metrics):
         """Log metrics to the appropriate shard."""
         shard_id = self.sharded_db._get_shard_for_step(step_number)
         self.sharded_db.shards[shard_id]["metrics"].logger.log_metrics(
-            step_number, metrics
+            step_number, metrics, simulation_id=self.simulation_id
         )
 
     def log_action(self, step_number, action_data):
         """Log an action to the appropriate shard."""
         shard_id = self.sharded_db._get_shard_for_step(step_number)
+        # Ensure simulation_id is included in action_data
+        if self.simulation_id and "simulation_id" not in action_data:
+            action_data["simulation_id"] = self.simulation_id
         self.sharded_db.shards[shard_id]["actions"].logger.log_agent_action(
             **action_data
         )

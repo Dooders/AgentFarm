@@ -129,3 +129,19 @@ class ShortUUID:
 
 
 seed = ShortUUID()
+
+def generate_simulation_id(prefix: str = "sim") -> str:
+    """Generate a unique simulation ID with an optional prefix.
+    
+    Parameters
+    ----------
+    prefix : str, optional
+        Prefix for the simulation ID, by default "sim"
+        
+    Returns
+    -------
+    str
+        A unique simulation ID like "sim_4jHB7kLP2x"
+    """
+    unique_id = seed.uuid()[:10]  # Using first 10 chars for readability
+    return f"{prefix}_{unique_id}"
