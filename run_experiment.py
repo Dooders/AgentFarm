@@ -7,6 +7,7 @@ Script to run simulation experiments with different configurations.
 import argparse
 import logging
 import os
+import random
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -21,7 +22,124 @@ from farm.research.research import ResearchProject
 from farm.runners.experiment_runner import ExperimentRunner
 from farm.runners.parallel_experiment_runner import ParallelExperimentRunner
 
+# Add faker for generating funny names
+try:
+    from faker import Faker
+
+    FAKER_AVAILABLE = True
+except ImportError:
+    FAKER_AVAILABLE = False
+
+# Fallback funny word lists in case Faker is not installed
+FUNNY_ADJECTIVES = [
+    "silly",
+    "wacky",
+    "zany",
+    "quirky",
+    "fuzzy",
+    "fluffy",
+    "wobbly",
+    "wiggly",
+    "bouncy",
+    "bubbly",
+    "giggly",
+    "zippy",
+    "zesty",
+    "sassy",
+    "snazzy",
+    "jazzy",
+    "jumpy",
+    "jiggly",
+    "jolly",
+    "juicy",
+    "loopy",
+    "lumpy",
+    "nutty",
+    "nerdy",
+    "peppy",
+    "perky",
+    "plucky",
+    "prancy",
+    "frisky",
+    "frothy",
+    "funky",
+    "goofy",
+]
+
+FUNNY_NOUNS = [
+    "banana",
+    "pickle",
+    "noodle",
+    "muffin",
+    "waffle",
+    "pancake",
+    "llama",
+    "flamingo",
+    "penguin",
+    "walrus",
+    "sloth",
+    "panda",
+    "monkey",
+    "potato",
+    "tomato",
+    "unicorn",
+    "dragon",
+    "zombie",
+    "ninja",
+    "pirate",
+    "robot",
+    "wizard",
+    "goblin",
+    "hippo",
+    "ferret",
+    "wombat",
+    "lemur",
+    "hamster",
+    "platypus",
+    "narwhal",
+    "axolotl",
+    "capybara",
+]
+
 logging.basicConfig(level=logging.INFO)
+
+
+def generate_funny_name(iterations=None, steps=None) -> str:
+    """Generate a funny two-word name for an experiment."""
+    base_name = ""
+
+    if FAKER_AVAILABLE:
+        fake = Faker()
+        # Use different options to generate funny names
+        name_type = random.randint(1, 5)
+
+        if name_type == 1:
+            # Color + object
+            base_name = f"{fake.color_name().lower()}_{fake.word().lower()}"
+        elif name_type == 2:
+            # Adjective + job title
+            adjectives = ["super", "mega", "ultra", "hyper", "epic", "legendary"]
+            base_name = f"{random.choice(adjectives)}_{fake.job().split()[0].lower()}"
+        elif name_type == 3:
+            # First name + last name
+            base_name = f"{fake.first_name().lower()}_{fake.last_name().lower()}"
+        elif name_type == 4:
+            # Emotion + element
+            emotions = ["happy", "grumpy", "sneaky", "sleepy", "jumpy", "dizzy"]
+            elements = ["fire", "water", "earth", "air", "metal", "wood", "lightning"]
+            base_name = f"{random.choice(emotions)}_{random.choice(elements)}"
+        else:
+            # Random word combinations
+            base_name = f"{fake.word().lower()}_{fake.word().lower()}"
+    else:
+        # Fallback if faker not installed
+        base_name = f"{random.choice(FUNNY_ADJECTIVES)}_{random.choice(FUNNY_NOUNS)}"
+
+    # Append iterations and steps if provided
+    if iterations is not None and steps is not None:
+        return f"{base_name}_{iterations}x{steps}"
+
+    return base_name
 
 
 @dataclass
@@ -178,7 +296,7 @@ def main():
     parser.add_argument(
         "--name",
         type=str,
-        default="one_of_a_kind_5x300",
+        default=generate_funny_name(),
         help="Name of the research project",
     )
     parser.add_argument(
@@ -230,6 +348,13 @@ def main():
     )
 
     args = parser.parse_args()
+
+    # Generate a default name with iterations and steps if no name is provided
+    if args.name == parser.get_default("name"):
+        args.name = generate_funny_name(args.iterations, args.steps)
+
+    # Log the research project name
+    logging.warning(f"🚀 Starting research project: {args.name} 🚀")
 
     # Create research project
     research = Research(
@@ -288,7 +413,7 @@ def main():
         #     use_parallel=args.parallel,
         # ),
         ExperimentConfig(
-            name="one_of_a_kind",
+            name=f"one_of_a_kind_{args.iterations}x{args.steps}",
             variations=[
                 {
                     "control_agents": 1,
