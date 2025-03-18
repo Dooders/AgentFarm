@@ -8,6 +8,8 @@ Classes
 SimulationDatabase : Main database interface for disk-based storage
 InMemorySimulationDatabase : High-performance in-memory database
 ShardedSimulationDatabase : Database implementation for large-scale simulations
+ExperimentDatabase : Database for managing multiple simulations in a single file
+SimulationContext : Context for a specific simulation within an experiment
 
 Functions
 ---------
@@ -29,6 +31,11 @@ from .database import (
     ShardedSimulationDatabase,
     AsyncDataLogger,
 )
+from .experiment_database import (
+    ExperimentDatabase,
+    SimulationContext,
+    ExperimentDataLogger,
+)
 from .pragma_docs import (
     get_pragma_profile,
     get_pragma_info,
@@ -42,6 +49,9 @@ __all__ = [
     "InMemorySimulationDatabase",
     "ShardedSimulationDatabase",
     "AsyncDataLogger",
+    "ExperimentDatabase",
+    "SimulationContext",
+    "ExperimentDataLogger",
     "get_pragma_profile",
     "get_pragma_info",
     "analyze_pragma_value",
