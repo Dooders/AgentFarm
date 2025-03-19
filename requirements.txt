@@ -6,14 +6,17 @@ pyyaml>=6.0
 sqlalchemy>=1.4.0
 deepdiff>=5.8.0
 
-# Database
-sqlite3>=3.35.0
+# Database 
+# Note: sqlite3 is part of Python standard library, no need to install separately
 
 # GUI
-tkinter>=8.6
+# Note: tkinter is part of Python standard library, no need to install separately
+pillow>=9.0.0  # For PIL/Image processing in GUI
+pywin32>=228  # For Windows clipboard operations
 
 # Visualization
 snakeviz>=2.1.0  # For profiling visualization
+seaborn>=0.11.0  # Statistical visualizations
 
 # Testing
 pytest>=6.2.5
@@ -23,13 +26,18 @@ tqdm>=4.62.0  # Progress bars
 colorama>=0.4.4  # Terminal colors
 python-dotenv>=0.19.0  # Environment variables
 
-torch>=1.10.0  # For deep learning components
-tensorflow>=2.7.0  # Alternative deep learning framework
+# Machine Learning
+# For PyTorch, choose one of:
+# torch>=1.10.0  # Default PyTorch with CUDA support if available
+torch>=1.10.0+cpu  # CPU-only PyTorch (smaller, no CUDA)
+# Install PyTorch CPU with: pip install torch>=1.10.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
 scikit-learn>=1.0.0  # For machine learning utilities
+
+# Data Analysis
 networkx>=2.6.0  # For network analysis
 plotly>=5.3.0  # Interactive visualizations
 dash>=2.0.0  # Dashboard for visualization
 
-# Additional dependencies
-moviepy>=1.0.3
-seaborn>=0.11.0 
+# Optional dependencies
+# tensorflow>=2.7.0  # Uncomment if needed for specific implementations
+moviepy>=1.0.3  # For video generation and processing 
