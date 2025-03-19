@@ -155,10 +155,12 @@ class ShareModule(BaseDQNModule):
 
     def _get_nearby_agents(self, agent: "BaseAgent") -> List["BaseAgent"]:
         """Find agents within sharing range."""
-        return agent.environment.get_nearby_agents(
+        nearby_agents = agent.environment.get_nearby_agents(
             agent.position, 
             self.config.share_range
         )
+        # Filter out self to prevent agents from sharing with themselves
+        return [a for a in nearby_agents if a.agent_id != agent.agent_id]
 
     def _select_target(
         self, agent: "BaseAgent", nearby_agents: List["BaseAgent"]
