@@ -41,3 +41,4 @@ dash>=2.0.0  # Dashboard for visualization
 # Optional dependencies
 # tensorflow>=2.7.0  # Uncomment if needed for specific implementations
 moviepy>=1.0.3  # For video generation and processing 
+tkinter>=8.6.10  # For GUI  
