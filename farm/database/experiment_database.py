@@ -20,29 +20,15 @@ Features
 """
 
 import logging
-import time
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Dict
 
-from sqlalchemy import (
-    Column,
-    Float,
-    ForeignKey,
-    Index,
-    Integer,
-    PrimaryKeyConstraint,
-    String,
-    create_engine,
-    event,
-)
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import scoped_session, sessionmaker
+from sqlalchemy import Index
 
-from farm.database.data_logging import DataLogger
+from farm.database.data_logging import DataLogger, DataLoggingConfig
 from farm.database.database import SimulationDatabase
 from farm.database.models import (
     AgentStateModel,
-    Base,
     ExperimentModel,
     ResourceModel,
     Simulation,
@@ -52,49 +38,8 @@ from farm.database.models import (
 logger = logging.getLogger(__name__)
 
 
-# Define a custom SimulationStepModel for experiment database
-class MultiSimStepModel(Base):
-    """Custom SimulationStepModel with simulation_id as part of the primary key."""
-
-    __tablename__ = "multi_sim_steps"
-    __table_args__ = (
-        # Make step_number and simulation_id combined the primary key
-        PrimaryKeyConstraint("step_number", "simulation_id"),
-        Index("idx_multi_sim_steps_step_number", "step_number"),
-        Index("idx_multi_sim_steps_simulation_id", "simulation_id"),
-    )
-
-    # Copy all columns from SimulationStepModel
-    step_number = Column(Integer, nullable=False)
-    simulation_id = Column(
-        String(64), ForeignKey("simulations.simulation_id"), nullable=False
-    )
-    total_agents = Column(Integer)
-    system_agents = Column(Integer)
-    independent_agents = Column(Integer)
-    control_agents = Column(Integer)
-    total_resources = Column(Float)
-    average_agent_resources = Column(Float)
-    births = Column(Integer)
-    deaths = Column(Integer)
-    current_max_generation = Column(Integer)
-    resource_efficiency = Column(Float)
-    resource_distribution_entropy = Column(Float)
-    average_agent_health = Column(Float)
-    average_agent_age = Column(Integer)
-    average_reward = Column(Float)
-    combat_encounters = Column(Integer)
-    successful_attacks = Column(Integer)
-    resources_shared = Column(Float)
-    resources_shared_this_step = Column(Float, default=0.0)
-    combat_encounters_this_step = Column(Integer, default=0)
-    successful_attacks_this_step = Column(Integer, default=0)
-    genetic_diversity = Column(Float)
-    dominant_genome_ratio = Column(Float)
-    resources_consumed = Column(Float, default=0.0)
-
-
 class ExperimentDataLogger(DataLogger):
+    #! Just update data logger
     """Data logger that tags all data with simulation_id.
 
     This extends the standard DataLogger to ensure all data is tagged
@@ -102,7 +47,12 @@ class ExperimentDataLogger(DataLogger):
     stored in a single database file.
     """
 
-    def __init__(self, database, simulation_id, buffer_size=1000, commit_interval=30):
+    def __init__(
+        self, 
+        database, 
+        simulation_id, 
+        config: DataLoggingConfig = None
+    ):
         """Initialize the experiment data logger.
 
         Parameters
@@ -111,12 +61,10 @@ class ExperimentDataLogger(DataLogger):
             Database instance to use for logging
         simulation_id : str
             Unique identifier for this simulation
-        buffer_size : int, optional
-            Maximum size of buffers before auto-flush, by default 1000
-        commit_interval : int, optional
-            Maximum time (in seconds) between commits, by default 30
+        config : DataLoggingConfig, optional
+            Configuration for data logging, by default None
         """
-        super().__init__(database, buffer_size, commit_interval, simulation_id)
+        super().__init__(database, simulation_id, config)
 
         # Ensure simulation_id is always set
         if not simulation_id:
@@ -164,8 +112,6 @@ class ExperimentDataLogger(DataLogger):
         agent_id,
         action_type,
         action_target_id=None,
-        position_before=None,
-        position_after=None,
         resources_before=None,
         resources_after=None,
         reward=None,
@@ -185,8 +131,6 @@ class ExperimentDataLogger(DataLogger):
             agent_id=unique_agent_id,
             action_type=action_type,
             action_target_id=unique_target_id,
-            position_before=position_before,
-            position_after=position_after,
             resources_before=resources_before,
             resources_after=resources_after,
             reward=reward,
@@ -386,7 +330,7 @@ class SimulationContext:
     ensuring all data is tagged with the correct simulation_id.
     """
 
-    def __init__(self, parent_db, simulation_id):
+    def __init__(self, parent_db, simulation_id, config: DataLoggingConfig = None):
         """Initialize the simulation context.
 
         Parameters
@@ -395,10 +339,12 @@ class SimulationContext:
             The parent experiment database
         simulation_id : str
             Unique identifier for this simulation
+        config : DataLoggingConfig, optional
+            Configuration for data logging, by default None
         """
         self.parent_db = parent_db
         self.simulation_id = simulation_id
-        self.logger = ExperimentDataLogger(parent_db, simulation_id)
+        self.logger = ExperimentDataLogger(parent_db, simulation_id, config)
 
     def log_step(self, step_number, agent_states, resource_states, metrics):
         """Log a simulation step with the correct simulation_id."""
@@ -533,7 +479,12 @@ class ExperimentDatabase(SimulationDatabase):
 
         self._execute_in_transaction(_create)
 
-    def create_simulation_context(self, simulation_id: str, parameters: Dict = None):
+    def create_simulation_context(
+        self, 
+        simulation_id: str, 
+        parameters: Dict = None,
+        logging_config: DataLoggingConfig = None
+    ):
         """Create a simulation-specific context.
 
         This method creates a simulation-specific context that tags all data
@@ -546,6 +497,8 @@ class ExperimentDatabase(SimulationDatabase):
             Unique identifier for this simulation
         parameters : Dict, optional
             Simulation parameters, by default None
+        logging_config : DataLoggingConfig, optional
+            Configuration for data logging, by default None
 
         Returns
         -------
@@ -556,7 +509,7 @@ class ExperimentDatabase(SimulationDatabase):
         self._create_simulation_record(simulation_id, parameters)
 
         # Return a context for this simulation
-        return SimulationContext(self, simulation_id)
+        return SimulationContext(self, simulation_id, logging_config)
 
     def _create_simulation_record(self, simulation_id: str, parameters: Dict = None):
         """Create a simulation record in the database.

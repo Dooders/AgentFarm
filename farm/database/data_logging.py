@@ -15,7 +15,8 @@ Features:
 import json
 import logging
 import time
-from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -30,37 +31,57 @@ from farm.database.models import (
     SimulationStepModel,
 )
 
+if TYPE_CHECKING:
+    from farm.database.database import SimulationDatabase
+
 logger = logging.getLogger(__name__)
+
+@dataclass
+class DataLoggingConfig:
+    """Configuration for data logging."""
+    buffer_size: int = 1000  # Maximum size of buffers before auto-flush
+    commit_interval: int = 30  # Maximum time (in seconds) between commits
 
 
 class DataLogger:
     """Handles data logging operations for the simulation database."""
 
-    def __init__(self, database, buffer_size: int = 1000, commit_interval: int = 30, simulation_id: Optional[str] = None):
+    def __init__(
+        self,
+        database: SimulationDatabase,
+        simulation_id: Optional[str] = None,
+        config: Optional[DataLoggingConfig] = None,
+    ):
         """Initialize the data logger.
 
         Parameters
         ----------
         database : SimulationDatabase
             Database instance to use for logging
-        buffer_size : int, optional
-            Maximum size of buffers before auto-flush, by default 1000
-        commit_interval : int, optional
-            Maximum time (in seconds) between commits, by default 30
         simulation_id : Optional[str], optional
             Unique identifier for this simulation, by default None
+        config : Optional[DataLoggingConfig], optional
+            Configuration for data logging, by default None
         """
+        if not simulation_id:
+            raise ValueError("simulation_id is required for DataLogger")
+
+        self.simulation_id = simulation_id
         self.db = database
-        self._buffer_size = buffer_size
-        self._commit_interval = commit_interval
+        
+        # Use provided config or create default
+        config = config or DataLoggingConfig()
+        self._buffer_size = config.buffer_size
+        self._commit_interval = config.commit_interval
+        
         self._last_commit_time = time.time()
+        #! Is there a better way to manage all these buffers?
         self._action_buffer = []
         self._learning_exp_buffer = []
         self._health_incident_buffer = []
         self._resource_buffer = []
         self.reproduction_buffer = []
         self._step_buffer = []
-        self.simulation_id = simulation_id
 
     def _check_time_based_flush(self):
         """Check if we should flush based on time interval."""
@@ -75,8 +96,6 @@ class DataLogger:
         agent_id: str,
         action_type: str,
         action_target_id: Optional[int] = None,
-        position_before: Optional[Tuple[float, float]] = None,
-        position_after: Optional[Tuple[float, float]] = None,
         resources_before: Optional[float] = None,
         resources_after: Optional[float] = None,
         reward: Optional[float] = None,
@@ -90,14 +109,13 @@ class DataLogger:
             if not isinstance(action_type, str):
                 action_type = str(action_type)
 
+            #! Shouldnt this be a dataclass?
             action_data = {
                 "simulation_id": self.simulation_id,
                 "step_number": step_number,
                 "agent_id": agent_id,
                 "action_type": action_type,
                 "action_target_id": action_target_id,
-                "position_before": str(position_before) if position_before else None,
-                "position_after": str(position_after) if position_after else None,
                 "resources_before": resources_before,
                 "resources_after": resources_after,
                 "reward": reward,
@@ -374,18 +392,26 @@ class DataLogger:
         if action_weights is not None:
             try:
                 # Convert action_weights to a serializable format
-                serialized_action_weights = {str(k): float(v) for k, v in action_weights.items()}
-                
+                serialized_action_weights = {
+                    str(k): float(v) for k, v in action_weights.items()
+                }
+
                 # Verify serialization by doing a round-trip through JSON
                 json_test = json.dumps(serialized_action_weights)
-                json.loads(json_test)  # This will raise an exception if not properly serializable
-                
-                logger.debug(f"Serialized action_weights for agent {agent_id}: {serialized_action_weights}")
+                json.loads(
+                    json_test
+                )  # This will raise an exception if not properly serializable
+
+                logger.debug(
+                    f"Serialized action_weights for agent {agent_id}: {serialized_action_weights}"
+                )
             except Exception as e:
-                logger.warning(f"Failed to serialize action_weights for agent {agent_id}: {e}")
+                logger.warning(
+                    f"Failed to serialize action_weights for agent {agent_id}: {e}"
+                )
                 # Fall back to string representation if serialization fails
                 serialized_action_weights = str(action_weights)
-        
+
         agent_data = {
             "simulation_id": self.simulation_id,
             "agent_id": agent_id,
@@ -427,22 +453,36 @@ class DataLogger:
             If database operation fails
         """
         try:
+
             def _batch_insert(session):
                 mappings = []
                 for data in agent_data_list:
                     # Validate that the required fields are present
-                    required_fields = ["agent_id", "birth_time", "agent_type", "position", 
-                                       "initial_resources", "starting_health", "starvation_threshold"]
+                    required_fields = [
+                        "agent_id",
+                        "birth_time",
+                        "agent_type",
+                        "position",
+                        "initial_resources",
+                        "starting_health",
+                        "starvation_threshold",
+                    ]
                     for field in required_fields:
                         if field not in data:
-                            raise ValueError(f"Missing required field '{field}' in agent data")
-                    
+                            raise ValueError(
+                                f"Missing required field '{field}' in agent data"
+                            )
+
                     # Process action_weights if present
                     action_weights = data.get("action_weights")
-                    if action_weights is not None and not isinstance(action_weights, (dict, str)):
-                        logger.warning(f"Invalid action_weights format for agent {data['agent_id']}: {type(action_weights)}")
+                    if action_weights is not None and not isinstance(
+                        action_weights, (dict, str)
+                    ):
+                        logger.warning(
+                            f"Invalid action_weights format for agent {data['agent_id']}: {type(action_weights)}"
+                        )
                         action_weights = str(action_weights)
-                    
+
                     # Create the mapping
                     mapping = {
                         "simulation_id": data["simulation_id"],
@@ -459,10 +499,10 @@ class DataLogger:
                         "action_weights": action_weights,
                     }
                     mappings.append(mapping)
-                
+
                 # Log the mappings for debugging
                 logger.debug(f"Inserting {len(mappings)} agents into database")
-                
+
                 # Bulk insert the mappings
                 session.bulk_insert_mappings(AgentModel, mappings)
 
@@ -546,9 +586,7 @@ class DataLogger:
 
                 # Insert metrics
                 simulation_step = SimulationStepModel(
-                    simulation_id=self.simulation_id,
-                    step_number=step_number, 
-                    **metrics
+                    simulation_id=self.simulation_id, step_number=step_number, **metrics
                 )
                 session.add(simulation_step)
 
