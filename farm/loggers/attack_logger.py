@@ -35,8 +35,6 @@ class AttackLogger:
             step_number=step_number,
             agent_id=agent.agent_id,
             action_type="defend",
-            position_before=agent.position,
-            position_after=agent.position,
             resources_before=resources_before,
             resources_after=resources_after,
             reward=0,
@@ -80,8 +78,6 @@ class AttackLogger:
             agent_id=agent.agent_id,
             action_type="attack",
             action_target_id=action_target_id,
-            position_before=agent.position,
-            position_after=agent.position,
             resources_before=resources_before,
             resources_after=resources_after,
             reward=0,  # Reward will be handled separately by the learning system

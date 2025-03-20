@@ -221,8 +221,6 @@ def move_action(agent: "BaseAgent") -> None:
             step_number=agent.environment.time,
             agent_id=agent.agent_id,
             action_type="move",
-            position_before=initial_position,
-            position_after=new_position,
             resources_before=agent.resource_level,
             resources_after=agent.resource_level - DEFAULT_MOVE_CONFIG.move_base_cost,
             reward=reward,

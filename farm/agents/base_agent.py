@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Tuple, Optional
 
 import numpy as np
 import torch
@@ -16,6 +16,7 @@ from farm.core.perception import PerceptionData
 from farm.core.state import AgentState
 from farm.database.data_types import GenomeId
 from farm.database.models import ReproductionEventModel
+from farm.memory.redis_memory import AgentMemory, AgentMemoryManager, RedisMemoryConfig
 
 if TYPE_CHECKING:
     from farm.core.environment import Environment
@@ -62,6 +63,8 @@ class BaseAgent:
         action_set: list[Action] = BASE_ACTION_SET,
         parent_ids: list[str] = [],
         generation: int = 0,
+        use_memory: bool = False,
+        memory_config: Optional[dict] = None,
     ):
         """Initialize a new agent with given parameters."""
         # Add default actions
@@ -110,6 +113,11 @@ class BaseAgent:
         self.select_module = SelectModule(
             num_actions=len(self.actions), config=SelectConfig(), device=self.device
         )
+
+        # Initialize Redis memory if requested
+        self.memory = None
+        if use_memory:
+            self._init_memory(memory_config)
 
         # self.environment.batch_add_agents([self])
         self.environment.record_birth()
@@ -735,6 +743,116 @@ class BaseAgent:
             dict: A dictionary mapping action names to their weights
         """
         return {action.name: action.weight for action in self.actions}
+
+    def _init_memory(self, memory_config: Optional[dict] = None):
+        """Initialize the Redis-based memory system for this agent.
+        
+        Args:
+            memory_config (dict, optional): Configuration parameters for memory
+        """
+        try:
+            # Create memory configuration
+            redis_config = RedisMemoryConfig(
+                host=getattr(self.config, "redis_host", "localhost"),
+                port=getattr(self.config, "redis_port", 6379),
+                memory_limit=getattr(self.config, "memory_limit", 1000),
+            )
+            
+            # Override with custom config if provided
+            if memory_config:
+                for key, value in memory_config.items():
+                    if hasattr(redis_config, key):
+                        setattr(redis_config, key, value)
+            
+            # Get memory manager instance
+            memory_manager = AgentMemoryManager.get_instance(redis_config)
+            
+            # Get this agent's memory
+            self.memory = memory_manager.get_memory(self.agent_id)
+            logger.info(f"Initialized Redis memory for agent {self.agent_id}")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize Redis memory for agent {self.agent_id}: {e}")
+            # Memory remains None, agent will function without memory
+
+    def remember_experience(self, 
+                           action_name: str, 
+                           reward: float, 
+                           perception_data: Optional[PerceptionData] = None,
+                           metadata: Optional[dict] = None) -> bool:
+        """Record current experience in agent memory.
+        
+        Args:
+            action_name (str): Name of the action taken
+            reward (float): Reward received for the action
+            perception_data (PerceptionData, optional): Agent's perception data
+            metadata (dict, optional): Additional information to store
+            
+        Returns:
+            bool: True if successfully recorded, False otherwise
+        """
+        if not self.memory:
+            return False
+            
+        try:
+            # Create state representation
+            current_state = AgentState(
+                agent_id=self.agent_id,
+                position_x=self.position[0],
+                position_y=self.position[1],
+                resource_level=self.resource_level,
+                current_health=self.current_health,
+                is_defending=self.is_defending,
+                total_reward=self.total_reward,
+                age=self.environment.time - self.birth_time,
+            )
+            
+            # Add default metadata if not provided
+            if metadata is None:
+                metadata = {}
+                
+            metadata.update({
+                "health_percent": self.current_health / self.starting_health,
+                "genome_id": self.genome_id
+            })
+            
+            # Remember in Redis
+            return self.memory.remember_state(
+                step=self.environment.time,
+                state=current_state,
+                action=action_name,
+                reward=reward,
+                perception=perception_data,
+                metadata=metadata
+            )
+            
+        except Exception as e:
+            logger.error(f"Failed to remember experience for agent {self.agent_id}: {e}")
+            return False
+            
+    def recall_similar_situations(self, position=None, limit=5):
+        """Retrieve memories similar to current situation.
+        
+        Args:
+            position (tuple, optional): Position to search around, or current position if None
+            limit (int): Maximum number of memories to retrieve
+            
+        Returns:
+            list: List of similar memories, or empty list if memory not available
+        """
+        if not self.memory:
+            return []
+            
+        try:
+            # Use provided position or current position
+            pos = position or self.position
+            
+            # Search memories by position
+            return self.memory.search_by_position(pos, radius=10.0, limit=limit)
+            
+        except Exception as e:
+            logger.error(f"Failed to recall memories for agent {self.agent_id}: {e}")
+            return []
 
     #! part of context manager, commented out for now
     # def __enter__(self):

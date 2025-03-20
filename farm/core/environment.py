@@ -239,8 +239,6 @@ class Environment:
                 agent_id=action_data["agent_id"],
                 action_type=action_data["action_type"],
                 action_target_id=action_data.get("action_target_id"),
-                position_before=action_data.get("position_before"),
-                position_after=action_data.get("position_after"),
                 resources_before=action_data.get("resources_before"),
                 resources_after=action_data.get("resources_after"),
                 reward=action_data.get("reward"),

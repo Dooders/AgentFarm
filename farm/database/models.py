@@ -34,6 +34,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    PrimaryKeyConstraint,
     String,
     func,
 )
@@ -352,9 +353,14 @@ class SimulationStepModel(Base):
     """
 
     __tablename__ = "simulation_steps"
-    __table_args__ = (Index("idx_simulation_steps_step_number", "step_number"),)
 
-    step_number = Column(Integer, primary_key=True)
+    __table_args__ = (
+        PrimaryKeyConstraint("step_number", "simulation_id"),
+        Index("idx_simulation_steps_step_number", "step_number"),
+        Index("idx_simulation_steps_simulation_id", "simulation_id"),
+    )
+
+    step_number = Column(Integer, primary_key=False)
     simulation_id = Column(String(64), ForeignKey("simulations.simulation_id"))
     total_agents = Column(Integer)
     system_agents = Column(Integer)
