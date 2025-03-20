@@ -1,10 +1,10 @@
-# Random Action Weight Distribution Experiments
+# **Proposal: Random Action Weight Distribution Experiments**
 
-## Overview
+## **Overview**
 
 This proposal outlines a framework for conducting experiments with random action weight distributions in the AgentFarm simulation. By enabling agents to start with randomized action preferences, we can study how different behavioral tendencies evolve over time and identify optimal strategies that emerge through natural selection.
 
-## Background
+## **Background**
 
 Currently, agents in the simulation have predefined action weights that determine their likelihood of choosing different actions (move, gather, share, attack, reproduce). These weights are part of the agent's genomic code and can evolve through mutation and crossover during reproduction.
 
