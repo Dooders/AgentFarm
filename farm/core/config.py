@@ -53,6 +53,16 @@ class VisualizationConfig:
 
 
 @dataclass
+class RedisMemoryConfig:
+    host: str = "localhost"
+    port: int = 6379
+    db: int = 0
+    password: Optional[str] = None
+    decode_responses: bool = True
+    environment: str = "default"
+
+
+@dataclass
 class SimulationConfig:
     # Environment settings
     width: int = 100
@@ -179,6 +189,9 @@ class SimulationConfig:
     db_journal_mode: str = "WAL"  # Options: "DELETE", "TRUNCATE", "PERSIST", "MEMORY", "WAL", "OFF"
     db_custom_pragmas: Dict[str, str] = field(default_factory=dict)  # Custom pragma overrides
 
+    # Redis configuration
+    redis: RedisMemoryConfig = field(default_factory=RedisMemoryConfig)
+
     # Gathering Module Parameters
     gather_target_update_freq: int = 100
     gather_memory_size: int = 10000
@@ -280,7 +293,7 @@ class SimulationConfig:
         """Save configuration to a YAML file."""
         # Convert to dictionary, handling visualization config specially
         config_dict = self.__dict__.copy()
-        config_dict["visualization"] = self.visualization.__dict__
+        config_dict["visualization"] = self.visualization.to_dict()
 
         with open(file_path, "w") as f:
             yaml.dump(config_dict, f, default_flow_style=False)

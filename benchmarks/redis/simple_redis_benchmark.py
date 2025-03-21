@@ -13,12 +13,22 @@ import sys
 import time
 from typing import Any, Dict, List, Optional
 
-try:
-    import redis
-except ImportError:
-    print("ERROR: Redis package not installed.")
-    print("Install it with: pip install redis")
+# Check for required dependencies
+required_packages = ["redis", "matplotlib", "numpy", "pandas"]
+missing_packages = []
+
+for package in required_packages:
+    try:
+        __import__(package)
+    except ImportError:
+        missing_packages.append(package)
+
+if missing_packages:
+    print("ERROR: Required packages not installed:")
+    print(f"Please install them with: pip install {' '.join(missing_packages)}")
     exit(1)
+
+import redis
 
 # Try to import our config module
 try:
@@ -90,10 +100,15 @@ def check_redis_connection(redis_config: Dict[str, Any]) -> bool:
     """Check if Redis server is running."""
     try:
         client = redis.Redis(**redis_config, socket_connect_timeout=1)
-        client.ping()
+        result = client.ping()
         print(
-            f"✅ Redis server is running at {redis_config['host']}:{redis_config['port']}"
+            f"✅ Redis server is running at {redis_config['host']}:{redis_config['port']} (Ping result: {result})"
         )
+        # Debug: show connection info
+        info = client.info()
+        print(f"Redis version: {info.get('redis_version', 'unknown')}")
+        print(f"Redis mode: {info.get('redis_mode', 'unknown')}")
+        print(f"Clients connected: {info.get('connected_clients', 'unknown')}")
         return True
     except Exception as e:
         print("❌ Could not connect to Redis server:")
