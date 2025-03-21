@@ -273,8 +273,10 @@ class SimulationDatabase:
         self._create_tables()
 
         # Initialize data logger with simulation_id
+        from farm.database.data_logging import DataLoggingConfig
         self.logger = DataLogger(
-            self, buffer_size=1000, simulation_id=self.simulation_id
+            self, simulation_id=self.simulation_id,
+            config=DataLoggingConfig(buffer_size=1000)
         )
         self.query = DataRetriever(self)
 
@@ -1412,8 +1414,10 @@ class InMemorySimulationDatabase(SimulationDatabase):
         self._create_tables()
 
         # Initialize data logger with simulation_id
+        from farm.database.data_logging import DataLoggingConfig
         self.logger = DataLogger(
-            self, buffer_size=1000, simulation_id=self.simulation_id
+            self, simulation_id=self.simulation_id,
+            config=DataLoggingConfig(buffer_size=1000)
         )
 
         # Initialize data retriever

@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Union
 import joblib
 import psutil
 from joblib import Parallel, delayed
+from tqdm.auto import tqdm
 
 from farm.core.config import SimulationConfig
 from farm.core.simulation import run_simulation
@@ -389,12 +390,24 @@ class ParallelExperimentRunner:
             # Configure process pool
             pool_config = self._configure_process_pool()
             n_jobs = pool_config.pop("n_jobs")
-
-            # Run simulations in parallel with optimized pool
+            
+            # Remove the callback parameter if it exists in pool_config
+            if "callback" in pool_config:
+                del pool_config["callback"]
+            
+            # Create a progress bar but don't use it in the Parallel call
+            pbar = tqdm(total=num_iterations, desc=f"Running {self.experiment_name} iterations", 
+                      position=0, leave=True, unit="iter")
+            
+            # Run simulations in parallel without the callback
             results = Parallel(n_jobs=n_jobs, **pool_config)(
                 delayed(self._run_with_error_handling)(config, steps, path, seed)
                 for config, steps, path, seed in configs
             )
+            
+            # Update the progress bar to show completion
+            pbar.update(num_iterations)
+            pbar.close()
 
             # Log final resource usage
             self._log_resource_usage()
