@@ -1,12 +1,12 @@
 # Redis Memory Benchmark Results
-Last updated: Fri Mar 21 01:36:43 UTC 2025
+Last updated: Fri Mar 21 04:21:11 UTC 2025
 
 ## Performance Summary
 Here are the latest benchmark results:
 
-- Batch Size 10: 15916.333361161496
-- Batch Size 100: 25352.724283417352
-- Batch Size 500: 27698.704317620486
+- Batch Size 10: 16737.714992617424
+- Batch Size 100: 26355.732616154128
+- Batch Size 500: 27493.897242943483
 
 ## Charts
 ![Batch Size Comparison](charts/batch_size_throughput.png)
