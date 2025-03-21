@@ -1,5 +1,5 @@
 
-# **Proposal: Implementing Redis for High-Performance Simulation Data Logging**
+# **Implementing Redis for High-Performance Simulation Data Logging**
 
 ## **1. Executive Summary**
 

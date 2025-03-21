@@ -1,4 +1,4 @@
-# **Proposal: Memory Agent and Hierarchical Memory Compression in Agent-Based Systems**  
+# **Memory Agent and Hierarchical Memory Compression in Agent-Based Systems**  
 
 ## **1. Introduction**  
 Memory plays a crucial role in decision-making for intelligent agents. Traditional agent memory models either store all past experiences (resulting in inefficiency) or rely on short-term memory buffers (leading to loss of long-term patterns). This research proposes a **hierarchical memory model** where recent memories exist in high-dimensional space and are gradually compressed into lower-dimensional representations over time.  

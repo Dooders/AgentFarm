@@ -1,4 +1,4 @@
-# **Proposal: Optimized Agent State Storage with Hierarchical Memory Architecture**
+# **Optimized Agent State Storage with Hierarchical Memory Architecture**
 
 ## **1. Executive Summary**
 
