@@ -381,6 +381,7 @@ def benchmark_memory_usage(
         "entries": len(test_data),
         "bytes_per_entry": bytes_per_entry,
         "memory_samples": memory_samples,
+        "total_time": 0
     }
 
 
