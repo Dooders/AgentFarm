@@ -192,14 +192,12 @@ agent_parameters:
     share_weight: 0.15
     attack_weight: 0.15
 
-# Redis Memory Configuration
+# Redis configuration
 redis:
   host: localhost
   port: 6379
   db: 0
   password: null
   decode_responses: true
-  # Redis environments - options: default, docker, remote
   environment: default
-  # For remote Redis, set these environment variables:
-  # REDIS_HOST, REDIS_PORT, REDIS_PASSWORD, REDIS_DB
+
