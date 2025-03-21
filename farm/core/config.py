@@ -72,6 +72,20 @@ class SimulationConfig:
     perception_radius: int = 2
     base_attack_strength: int = 2
     base_defense_strength: int = 2
+    
+    # Environment temperature settings
+    enable_temperature: bool = False  # Whether to enable temperature system
+    baseline_temperature: float = 20.0  # Baseline temperature (°C)
+    temperature_range: float = 30.0  # Max deviation from baseline (±°C)
+    temperature_cycle_length: int = 1000  # Steps in a temperature cycle
+    temperature_gradient_x: bool = True  # Enable horizontal temperature gradient
+    temperature_gradient_y: bool = False  # Enable vertical temperature gradient
+    
+    # Temperature effects on agents
+    optimal_temperature: float = 20.0  # Temperature where agents perform optimally (°C)
+    critical_temperature_range: tuple = (5.0, 35.0)  # Range outside which health deteriorates
+    temperature_adaptation_rate: float = 0.01  # How quickly agents adapt to temperatures
+    
     # Agent type ratios
     agent_type_ratios: Dict[str, float] = field(
         default_factory=lambda: {
@@ -87,6 +101,10 @@ class SimulationConfig:
     resource_regen_rate: float = 0.1
     resource_regen_amount: int = 2
     max_resource_amount: int = 30
+    
+    # Temperature effects on resources
+    resource_optimal_temperature: float = 22.0  # Temperature for optimal resource growth
+    resource_temperature_sensitivity: float = 0.05  # How much temperature affects resources
 
     # Agent behavior settings
     base_consumption_rate: float = 0.15

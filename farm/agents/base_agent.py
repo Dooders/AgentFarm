@@ -12,6 +12,7 @@ from farm.actions.select import SelectConfig, SelectModule, create_selection_sta
 from farm.actions.share import ShareModule, share_action
 from farm.core.action import *
 from farm.core.genome import Genome
+from farm.core.health import BiomimeticHealthSystem, HealthDimension
 from farm.core.perception import PerceptionData
 from farm.core.state import AgentState
 from farm.database.data_types import GenomeId
@@ -65,6 +66,7 @@ class BaseAgent:
         generation: int = 0,
         use_memory: bool = False,
         memory_config: Optional[dict] = None,
+        use_biomimetic_health: bool = None,  # New parameter for health system
     ):
         """Initialize a new agent with given parameters."""
         # Add default actions
@@ -93,9 +95,23 @@ class BaseAgent:
         self.max_starvation = self.config.max_starvation_time
         self.birth_time = environment.time
 
-        # Initialize health tracking first
+        # Determine whether to use biomimetic health system
+        if use_biomimetic_health is None:
+            # Default to config value if exists, otherwise false
+            use_biomimetic_health = getattr(self.config, 'enable_temperature', False)
+
+        # Initialize health tracking
         self.starting_health = self.config.starting_health
-        self.current_health = self.starting_health
+        
+        if use_biomimetic_health:
+            # Initialize biomimetic health system
+            self.health_system = BiomimeticHealthSystem(starting_health=self.starting_health)
+            self.current_health = self.health_system.health_vector.get_overall_health()
+        else:
+            # Use legacy health system
+            self.health_system = None
+            self.current_health = self.starting_health
+            
         self.is_defending = False
 
         # Generate genome info
@@ -121,6 +137,12 @@ class BaseAgent:
 
         # self.environment.batch_add_agents([self])
         self.environment.record_birth()
+
+        # Store temperature adaptation if using biomimetic health
+        if self.health_system:
+            # Start with adaptation to environment's optimal temperature
+            optimal_temp = getattr(self.config, 'optimal_temperature', 20.0)
+            self.health_system.adapted_temperature = optimal_temp
 
         #! part of context manager, commented out for now
         # Context management
@@ -158,6 +180,14 @@ class BaseAgent:
         - 1: Resource
         - 2: Other agent
         - 3: Boundary/obstacle
+        
+        Example:
+        [
+            [0, 0, 0, 0, 0],
+            [0, 0, 1, 0, 0],
+            [0, 2, 0, 3, 0],
+            [0, 0, 0, 0, 0],
+        ]
 
         Returns:
             PerceptionData: Structured perception data centered on agent, with dimensions
@@ -307,6 +337,38 @@ class BaseAgent:
         # Check starvation state - exit early if agent dies
         if self.check_starvation():
             return
+            
+        # Update biomimetic health system if enabled
+        if self.health_system:
+            # Get environmental temperature
+            env_temp = self.environment.get_temperature(self.position)
+            
+            # Update health state based on environment (not resting while acting)
+            health_metrics = self.health_system.update(env_temp, is_resting=False)
+            
+            # Update current health for legacy compatibility
+            self.current_health = self.health_system.health_vector.get_overall_health()
+            
+            # Check if agent died from health issues
+            if not self.health_system.is_alive():
+                self.die()
+                return
+                
+            # Apply behavior modifiers from health state (e.g., movement speed, attack strength)
+            behavior_modifiers = health_metrics.get("behavior_modifiers", {})
+            
+            # Remember temperature experience if memory enabled
+            if self.memory:
+                self.remember_experience(
+                    action_name="environment_response",
+                    reward=-health_metrics.get("temperature_stress", 0) * 2,
+                    metadata={
+                        "temperature": env_temp,
+                        "body_temperature": health_metrics.get("temperature", 37.0),
+                        "stress": health_metrics.get("temperature_stress", 0),
+                        "allostatic_load": health_metrics.get("allostatic_load", 0),
+                    }
+                )
 
         # Get current state before action
         current_state = self.get_state()
@@ -704,37 +766,54 @@ class BaseAgent:
         if damage <= 0:
             return False
 
-        self.current_health -= damage
-        if self.current_health < 0:
-            self.current_health = 0
+        if self.health_system:
+            # Use biomimetic health system
+            damage_applied = self.health_system.take_damage(damage)
+            self.current_health = self.health_system.health_vector.get_overall_health()
+            
+            # Apply stress from combat to allostatic system
+            self.health_system.allostatic_system.add_stress("combat", damage / self.starting_health)
+            
+            # Check if health indicates death
+            if not self.health_system.is_alive():
+                self.die()
+        else:
+            # Use legacy health system
+            self.current_health -= damage
+            if self.current_health < 0:
+                self.current_health = 0
+                self.die()
+                
         return True
-
-    def calculate_attack_position(self, action: int) -> Tuple[float, float]:
-        """Calculate the target position for an attack based on action.
-
-        Args:
-            action: Attack action index
-
-        Returns:
-            Tuple[float, float]: Target position coordinates
-        """
-        dx, dy = self.attack_module.action_space[action]
-        return (
-            self.position[0] + dx * self.config.attack_range,
-            self.position[1] + dy * self.config.attack_range,
-        )
 
     @property
     def attack_strength(self) -> float:
         """Calculate the agent's current attack strength."""
-        return self.config.base_attack_strength * (
-            self.current_health / self.starting_health
-        )
+        base_strength = self.config.base_attack_strength
+        
+        if self.health_system:
+            # Use biomimetic modifiers if available
+            attack_modifier = self.health_system.behavior_modifiers.get("attack_strength", 1.0)
+            return base_strength * attack_modifier
+        else:
+            # Legacy calculation
+            return base_strength * (self.current_health / self.starting_health)
 
     @property
     def defense_strength(self) -> float:
         """Calculate the agent's current defense strength."""
-        return self.config.base_defense_strength if self.is_defending else 0.0
+        if not self.is_defending:
+            return 0.0
+            
+        base_defense = self.config.base_defense_strength
+        
+        if self.health_system:
+            # Modify defense based on physical integrity
+            physical_health = self.health_system.health_vector.physical_integrity / 100.0
+            return base_defense * physical_health
+        else:
+            # Legacy calculation
+            return base_defense
 
     def get_action_weights(self) -> dict:
         """Get a dictionary of action weights.
@@ -853,6 +932,40 @@ class BaseAgent:
         except Exception as e:
             logger.error(f"Failed to recall memories for agent {self.agent_id}: {e}")
             return []
+
+    def rest(self) -> float:
+        """Have the agent rest to recover health.
+        
+        Returns:
+            float: Amount of health recovered
+        """
+        if not self.alive or self.resource_level <= 0:
+            return 0.0
+            
+        # Rest consumes resources but at a reduced rate
+        resource_cost = self.config.base_consumption_rate * 0.5
+        self.resource_level = max(0, self.resource_level - resource_cost)
+        
+        if self.health_system:
+            # Get environmental temperature
+            env_temp = self.environment.get_temperature(self.position)
+            
+            # Update with rest state
+            health_metrics = self.health_system.update(env_temp, is_resting=True)
+            
+            # Update current health for legacy compatibility
+            old_health = self.current_health
+            self.current_health = self.health_system.health_vector.get_overall_health()
+            
+            return self.current_health - old_health
+        else:
+            # Simple healing for legacy system
+            heal_amount = min(
+                self.starting_health - self.current_health,
+                self.starting_health * 0.05
+            )
+            self.current_health += heal_amount
+            return heal_amount
 
     #! part of context manager, commented out for now
     # def __enter__(self):
