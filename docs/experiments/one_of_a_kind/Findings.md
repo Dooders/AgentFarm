@@ -1,5 +1,7 @@
 # The Impact of Initial Conditions on Agent Dominance in Multi-Agent Simulations
 
+> **NOTICE: This document represents ongoing research that is still in progress. Findings are preliminary and subject to change as additional data and analyses are completed.**
+
 ## **Introduction**
 
 In complex multi-agent systems, understanding the determinants of agent success is crucial for designing effective artificial intelligence architectures. This report presents findings from the "One of a Kind" experiment, which investigated how initial conditions and agent characteristics influence dominance patterns in resource-constrained environments.
@@ -134,6 +136,8 @@ This research demonstrates that in multi-agent simulations with resource competi
 The distinction between population dominance, survival dominance, and comprehensive dominance highlights divergent evolutionary strategies in multi-agent environments. System Agents excel at population growth and overall performance across multiple metrics when resources are accessible, while Independent Agents demonstrate superior individual resilience, particularly in resource-constrained scenarios. The comprehensive dominance measure reveals that System Agents' ability to maintain consistent population advantages and demonstrate sustainable growth patterns throughout simulations gives them an edge in overall effectiveness despite their lower survival efficiency. Notably, the close alignment between population dominance and comprehensive dominance results suggests that simple end-state measurements can often serve as reliable proxies for more complex performance metrics in these environments.
 
 These findings emphasize the importance of carefully considering initial conditions when designing and evaluating multi-agent systems. Future research could explore adaptive strategies enabling agents to overcome initial disadvantages and investigate how different resource regeneration patterns might affect long-term dominance outcomes.
+
+**Note: As this represents ongoing research, additional experiments are being conducted to further validate these findings. Conclusions may evolve as more data becomes available and analyses are refined.**
 
 ---
 
