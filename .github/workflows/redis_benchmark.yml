@@ -43,25 +43,29 @@ jobs:
       - name: Run benchmark with different batch sizes
         run: |
           mkdir -p benchmark_results
+          mkdir -p charts
+          
+          # Verify Redis connection
+          python -c "import redis; r = redis.Redis(host='localhost', port=6379); r.ping()" || { echo "Redis connection failed"; exit 1; }
           
           # Run benchmarks with different batch sizes
           python benchmarks/redis/simple_redis_benchmark.py --memory-entries 500 --batch-size 10 --output benchmark_results/batch_10.json
           python benchmarks/redis/simple_redis_benchmark.py --memory-entries 500 --batch-size 100 --output benchmark_results/batch_100.json
           python benchmarks/redis/simple_redis_benchmark.py --memory-entries 500 --batch-size 500 --output benchmark_results/batch_500.json
           
-          # Generate visualizations
-          python benchmarks/redis/advanced_charts.py benchmark_results/batch_10.json benchmark_results/batch_100.json benchmark_results/batch_500.json
+          # Generate visualizations - add error handling
+          python benchmarks/redis/advanced_charts.py benchmark_results/batch_10.json benchmark_results/batch_100.json benchmark_results/batch_500.json || echo "Chart generation encountered issues but continuing"
           
-          # Generate comparison visualizations
-          python benchmarks/redis/compare_results.py benchmark_results/batch_10.json benchmark_results/batch_100.json benchmark_results/batch_500.json
+          # Generate comparison visualizations - add error handling
+          python benchmarks/redis/compare_results.py benchmark_results/batch_10.json benchmark_results/batch_100.json benchmark_results/batch_500.json || echo "Comparison chart generation encountered issues but continuing"
       
       - name: Track performance changes
         run: |
           # Create a history entry in case there's no history file yet
-          python benchmarks/redis/track_performance.py add benchmark_results/batch_100.json --note "Auto benchmark from GitHub Actions"
+          python benchmarks/redis/track_performance.py add benchmark_results/batch_100.json --note "Auto benchmark from GitHub Actions" || echo "Performance tracking add encountered issues but continuing"
           
           # Generate performance history chart
-          python benchmarks/redis/track_performance.py plot
+          python benchmarks/redis/track_performance.py plot || echo "Performance history plotting encountered issues but continuing"
       
       - name: Archive benchmark results
         uses: actions/upload-artifact@v4
@@ -82,10 +86,11 @@ jobs:
           
           # Create benchmark results directory if it doesn't exist
           mkdir -p benchmarks/redis/results
+          mkdir -p benchmarks/redis/results/charts
           
           # Copy the latest results
-          cp benchmark_results/*.json benchmarks/redis/results/
-          cp -r charts benchmarks/redis/results/ || mkdir -p benchmarks/redis/results/charts
+          cp benchmark_results/*.json benchmarks/redis/results/ || echo "No JSON results to copy"
+          cp -r charts/* benchmarks/redis/results/charts/ || echo "No charts to copy"
           cp performance_history.png benchmarks/redis/results/ || echo "No performance history chart found"
           cp redis_performance_history.json benchmarks/redis/results/ || echo "No performance history file found"
           
@@ -96,17 +101,31 @@ jobs:
           echo "## Performance Summary" >> benchmarks/redis/results/README.md
           echo "Here are the latest benchmark results:" >> benchmarks/redis/results/README.md
           echo "" >> benchmarks/redis/results/README.md
-          echo "- Batch Size 10: $(python -c "import json; print(json.load(open('benchmark_results/batch_10.json'))['overall']['batch_throughput'])")" >> benchmarks/redis/results/README.md
-          echo "- Batch Size 100: $(python -c "import json; print(json.load(open('benchmark_results/batch_100.json'))['overall']['batch_throughput'])")" >> benchmarks/redis/results/README.md
-          echo "- Batch Size 500: $(python -c "import json; print(json.load(open('benchmark_results/batch_500.json'))['overall']['batch_throughput'])")" >> benchmarks/redis/results/README.md
+          
+          # Safely extract values from JSON files with fallbacks
+          BATCH_10_THROUGHPUT=$(python -c "import json; import os; print(json.load(open('benchmark_results/batch_10.json'))['overall']['batch_throughput'] if os.path.exists('benchmark_results/batch_10.json') else 'N/A')" 2>/dev/null || echo "N/A")
+          BATCH_100_THROUGHPUT=$(python -c "import json; import os; print(json.load(open('benchmark_results/batch_100.json'))['overall']['batch_throughput'] if os.path.exists('benchmark_results/batch_100.json') else 'N/A')" 2>/dev/null || echo "N/A")  
+          BATCH_500_THROUGHPUT=$(python -c "import json; import os; print(json.load(open('benchmark_results/batch_500.json'))['overall']['batch_throughput'] if os.path.exists('benchmark_results/batch_500.json') else 'N/A')" 2>/dev/null || echo "N/A")
+          
+          echo "- Batch Size 10: ${BATCH_10_THROUGHPUT}" >> benchmarks/redis/results/README.md
+          echo "- Batch Size 100: ${BATCH_100_THROUGHPUT}" >> benchmarks/redis/results/README.md
+          echo "- Batch Size 500: ${BATCH_500_THROUGHPUT}" >> benchmarks/redis/results/README.md
           echo "" >> benchmarks/redis/results/README.md
           echo "## Charts" >> benchmarks/redis/results/README.md
-          echo "![Batch Size Comparison](charts/batch_size_throughput.png)" >> benchmarks/redis/results/README.md
-          echo "![Operation Comparison](charts/comparison_bar.png)" >> benchmarks/redis/results/README.md
-          echo "![Performance History](performance_history.png)" >> benchmarks/redis/results/README.md
           
-          # Commit and push
-          git add benchmarks/redis/results
+          # Only include charts if they exist
+          if [ -f "charts/batch_size_throughput.png" ]; then
+            echo "![Batch Size Comparison](charts/batch_size_throughput.png)" >> benchmarks/redis/results/README.md
+          fi
+          if [ -f "charts/comparison_bar.png" ]; then
+            echo "![Operation Comparison](charts/comparison_bar.png)" >> benchmarks/redis/results/README.md
+          fi
+          if [ -f "performance_history.png" ]; then
+            echo "![Performance History](performance_history.png)" >> benchmarks/redis/results/README.md
+          fi
+          
+          # Commit and push - Use -f to force add ignored files
+          git add -f benchmarks/redis/results
           git commit -m "Update benchmark results [skip ci]" || echo "No changes to commit"
           git push
         env:

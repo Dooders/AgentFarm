@@ -126,6 +126,9 @@ last_config.json
 *.pdf
 
 results/
+# Allow benchmark results to be committed
+!benchmarks/redis/results/**
+
 # Allow MP4s in docs directory, but ignore them elsewhere
 *.mp4
 !docs/**/*.mp4

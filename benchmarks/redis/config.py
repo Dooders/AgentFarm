@@ -39,10 +39,10 @@ REDIS_CONFIG = {
 
 # Benchmark Default Settings
 BENCHMARK_CONFIG = {
-    "memory_entries": 1000,
+    "memory_entries": 500,
     "batch_size": 100,
     "iterations": 3,
-    "output_dir": "results",
+    "output_dir": "benchmark_results",
 }
 
 

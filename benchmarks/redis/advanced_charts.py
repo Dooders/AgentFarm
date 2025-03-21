@@ -242,12 +242,13 @@ def plot_memory_usage_over_entries(results: List[Dict[str, Any]], output_file: s
     """Plot memory usage as entries increase."""
     # Only use the first result for simplicity
     if not results:
+        print("No results available for memory usage chart")
         return
     
     result = results[0]
     
-    if 'memory' not in result or 'memory_samples' not in result['memory']:
-        print("Memory samples data not available")
+    if 'memory' not in result or 'memory_samples' not in result.get('memory', {}):
+        print("Memory samples data not available, skipping memory usage chart")
         return
     
     samples = result['memory']['memory_samples']
