@@ -6,6 +6,7 @@ on:
     paths:
       - 'farm/memory/redis_memory.py'
       - 'farm/database/memory.py'
+      - 'benchmarks/redis/**'
       - '.github/workflows/redis_benchmark.yml'
   workflow_dispatch:  # Allow manual triggering
   
@@ -44,20 +45,23 @@ jobs:
           mkdir -p benchmark_results
           
           # Run benchmarks with different batch sizes
-          python simple_redis_benchmark.py --memory-entries 500 --batch-size 10 --output benchmark_results/batch_10.json
-          python simple_redis_benchmark.py --memory-entries 500 --batch-size 100 --output benchmark_results/batch_100.json
-          python simple_redis_benchmark.py --memory-entries 500 --batch-size 500 --output benchmark_results/batch_500.json
+          python benchmarks/redis/simple_redis_benchmark.py --memory-entries 500 --batch-size 10 --output benchmark_results/batch_10.json
+          python benchmarks/redis/simple_redis_benchmark.py --memory-entries 500 --batch-size 100 --output benchmark_results/batch_100.json
+          python benchmarks/redis/simple_redis_benchmark.py --memory-entries 500 --batch-size 500 --output benchmark_results/batch_500.json
           
           # Generate visualizations
-          python advanced_charts.py benchmark_results/batch_10.json benchmark_results/batch_100.json benchmark_results/batch_500.json
+          python benchmarks/redis/advanced_charts.py benchmark_results/batch_10.json benchmark_results/batch_100.json benchmark_results/batch_500.json
+          
+          # Generate comparison visualizations
+          python benchmarks/redis/compare_results.py benchmark_results/batch_10.json benchmark_results/batch_100.json benchmark_results/batch_500.json
       
       - name: Track performance changes
         run: |
           # Create a history entry in case there's no history file yet
-          python track_performance.py add benchmark_results/batch_100.json --note "Auto benchmark from GitHub Actions"
+          python benchmarks/redis/track_performance.py add benchmark_results/batch_100.json --note "Auto benchmark from GitHub Actions"
           
           # Generate performance history chart
-          python track_performance.py plot
+          python benchmarks/redis/track_performance.py plot
       
       - name: Archive benchmark results
         uses: actions/upload-artifact@v4
@@ -77,32 +81,32 @@ jobs:
           git config --global user.email "action@github.com"
           
           # Create benchmark results directory if it doesn't exist
-          mkdir -p benchmark_data
+          mkdir -p benchmarks/redis/results
           
           # Copy the latest results
-          cp benchmark_results/*.json benchmark_data/
-          cp -r charts benchmark_data/ || mkdir -p benchmark_data/charts
-          cp performance_history.png benchmark_data/ || echo "No performance history chart found"
-          cp redis_performance_history.json benchmark_data/ || echo "No performance history file found"
+          cp benchmark_results/*.json benchmarks/redis/results/
+          cp -r charts benchmarks/redis/results/ || mkdir -p benchmarks/redis/results/charts
+          cp performance_history.png benchmarks/redis/results/ || echo "No performance history chart found"
+          cp redis_performance_history.json benchmarks/redis/results/ || echo "No performance history file found"
           
           # Create summary markdown file
-          echo "# Redis Memory Benchmark Results" > benchmark_data/README.md
-          echo "Last updated: $(date)" >> benchmark_data/README.md
-          echo "" >> benchmark_data/README.md
-          echo "## Performance Summary" >> benchmark_data/README.md
-          echo "Here are the latest benchmark results:" >> benchmark_data/README.md
-          echo "" >> benchmark_data/README.md
-          echo "- Batch Size 10: $(python -c "import json; print(json.load(open('benchmark_results/batch_10.json'))['overall']['batch_throughput'])")" >> benchmark_data/README.md
-          echo "- Batch Size 100: $(python -c "import json; print(json.load(open('benchmark_results/batch_100.json'))['overall']['batch_throughput'])")" >> benchmark_data/README.md
-          echo "- Batch Size 500: $(python -c "import json; print(json.load(open('benchmark_results/batch_500.json'))['overall']['batch_throughput'])")" >> benchmark_data/README.md
-          echo "" >> benchmark_data/README.md
-          echo "## Charts" >> benchmark_data/README.md
-          echo "![Batch Size Comparison](charts/batch_size_throughput.png)" >> benchmark_data/README.md
-          echo "![Operation Comparison](charts/comparison_bar.png)" >> benchmark_data/README.md
-          echo "![Performance History](performance_history.png)" >> benchmark_data/README.md
+          echo "# Redis Memory Benchmark Results" > benchmarks/redis/results/README.md
+          echo "Last updated: $(date)" >> benchmarks/redis/results/README.md
+          echo "" >> benchmarks/redis/results/README.md
+          echo "## Performance Summary" >> benchmarks/redis/results/README.md
+          echo "Here are the latest benchmark results:" >> benchmarks/redis/results/README.md
+          echo "" >> benchmarks/redis/results/README.md
+          echo "- Batch Size 10: $(python -c "import json; print(json.load(open('benchmark_results/batch_10.json'))['overall']['batch_throughput'])")" >> benchmarks/redis/results/README.md
+          echo "- Batch Size 100: $(python -c "import json; print(json.load(open('benchmark_results/batch_100.json'))['overall']['batch_throughput'])")" >> benchmarks/redis/results/README.md
+          echo "- Batch Size 500: $(python -c "import json; print(json.load(open('benchmark_results/batch_500.json'))['overall']['batch_throughput'])")" >> benchmarks/redis/results/README.md
+          echo "" >> benchmarks/redis/results/README.md
+          echo "## Charts" >> benchmarks/redis/results/README.md
+          echo "![Batch Size Comparison](charts/batch_size_throughput.png)" >> benchmarks/redis/results/README.md
+          echo "![Operation Comparison](charts/comparison_bar.png)" >> benchmarks/redis/results/README.md
+          echo "![Performance History](performance_history.png)" >> benchmarks/redis/results/README.md
           
           # Commit and push
-          git add benchmark_data
+          git add benchmarks/redis/results
           git commit -m "Update benchmark results [skip ci]" || echo "No changes to commit"
           git push
         env:

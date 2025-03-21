@@ -238,8 +238,6 @@ class TestDatabasePerformance(unittest.TestCase):
                 agent_id=random.choice(agent_ids),  # Use existing agent IDs
                 action_type=random.choice(["move", "attack", "defend", "share"]),
                 action_target_id=random.choice(agent_ids),  # Use existing agent IDs
-                position_before=(random.uniform(0, 100), random.uniform(0, 100)),
-                position_after=(random.uniform(0, 100), random.uniform(0, 100)),
                 resources_before=random.uniform(0, 100),
                 resources_after=random.uniform(0, 100),
                 reward=random.uniform(-10, 10)

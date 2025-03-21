@@ -48,7 +48,7 @@ class DataLogger:
 
     def __init__(
         self,
-        database: SimulationDatabase,
+        database: "SimulationDatabase",
         simulation_id: Optional[str] = None,
         config: Optional[DataLoggingConfig] = None,
     ):

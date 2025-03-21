@@ -251,7 +251,8 @@ def get_columns_data(
     db = None
     session = None
     try:
-        db = SimulationDatabase(experiment_db_path)
+        # Pass a default simulation_id of 1
+        db = SimulationDatabase(experiment_db_path, simulation_id=1)
         session = db.Session()
 
         # Validate requested columns exist
@@ -409,7 +410,8 @@ def get_action_distribution_data(experiment_db_path: str) -> Dict[str, Dict[str,
     db = None
     session = None
     try:
-        db = SimulationDatabase(experiment_db_path)
+        # Add simulation_id parameter
+        db = SimulationDatabase(experiment_db_path, simulation_id=1)
         session = db.Session()
 
         # Query to get agent types
@@ -490,7 +492,8 @@ def get_rewards_by_generation(experiment_db_path: str) -> Dict[int, float]:
     db = None
     session = None
     try:
-        db = SimulationDatabase(experiment_db_path)
+        # Add simulation_id parameter
+        db = SimulationDatabase(experiment_db_path, simulation_id=1)
         session = db.Session()
 
         # Query to get average reward by generation
@@ -1424,7 +1427,7 @@ def process_experiment_rewards_by_generation(
                     continue
 
                 # Get agent types for each generation
-                db = SimulationDatabase(db_path)
+                db = SimulationDatabase(db_path, simulation_id=1)
                 session = db.Session()
 
                 # Query to get generations and their agent types
