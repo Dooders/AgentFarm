@@ -52,7 +52,7 @@ We provide Docker support to easily run Redis in a container:
 cd benchmarks/redis
 
 # Start Redis using Docker
-docker-compose up -d
+docker-compose -f ../../docker-compose.yml up -d
 
 # Run benchmarks with Docker Redis
 ./run_redis_benchmark.sh --docker
@@ -158,4 +158,4 @@ This benchmark is integrated with GitHub Actions. See `WORKFLOW.md` for details 
 - If Redis connection fails, make sure Redis server is running on localhost:6379
 - For Windows: Start Redis server from the Redis installation
 - For Linux/macOS: Run `redis-server` in terminal
-- Using Docker: Run `docker-compose up -d` in the benchmarks/redis directory 
+- Using Docker: Run `docker-compose -f ../../docker-compose.yml up -d` from the benchmarks/redis directory 

@@ -4,6 +4,10 @@ This file contains settings for the Redis connection and benchmark parameters.
 """
 
 import os
+import pathlib
+
+# Path to the docker-compose.yml file
+DOCKER_COMPOSE_PATH = os.path.join(pathlib.Path(__file__).parent.parent.parent, "docker-compose.yml")
 
 # Redis Connection Settings
 REDIS_CONFIG = {

@@ -10,6 +10,7 @@ COMPARE=false
 BATCH_SIZES="10 100 500"
 USE_DOCKER=false
 START_REDIS=false
+CLEANUP=false
 
 print_usage() {
     echo "Usage: $0 [options]"
@@ -84,7 +85,7 @@ if [ "$USE_DOCKER" = true ]; then
     
     if [ "$START_REDIS" = true ]; then
         echo "🐳 Starting Redis using Docker..."
-        docker-compose up -d
+        docker-compose -f ../../docker-compose.yml up -d
         
         # Wait a moment for Redis to start
         sleep 3
@@ -97,7 +98,7 @@ if ! redis-cli ping > /dev/null 2>&1; then
         # Try with Docker exec if using Docker
         if ! docker exec -i redis-benchmark redis-cli ping > /dev/null 2>&1; then
             echo "⚠️  Redis server doesn't appear to be running in Docker"
-            echo "Please start Redis with: docker-compose up -d"
+            echo "Please start Redis with: docker-compose -f ../../docker-compose.yml up -d"
             exit 1
         fi
     else
@@ -201,6 +202,12 @@ if [ "$USE_DOCKER" = true ] && [ "$START_REDIS" = true ]; then
     read -r stop_docker
     if [[ "$stop_docker" =~ ^[Yy]$ ]]; then
         echo "Stopping Redis Docker container..."
-        docker-compose down
+        docker-compose -f ../../docker-compose.yml down
     fi
+fi
+
+# Cleanup if specified
+if [ "$CLEANUP" = true ]; then
+    echo "🧹 Cleaning up Redis Docker container..."
+    docker-compose -f ../../docker-compose.yml down
 fi 

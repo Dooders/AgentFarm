@@ -100,7 +100,7 @@ IF "%USE_DOCKER%"=="true" (
     
     IF "%START_REDIS%"=="true" (
         echo 🐳 Starting Redis using Docker...
-        docker-compose up -d
+        docker-compose -f ..\..\docker-compose.yml up -d
         
         REM Wait a moment for Redis to start
         timeout /t 3 /nobreak > nul
@@ -115,7 +115,7 @@ IF %ERRORLEVEL% NEQ 0 (
         docker exec -i redis-benchmark redis-cli ping > nul 2>&1
         IF %ERRORLEVEL% NEQ 0 (
             echo ⚠️  Redis server doesn't appear to be running in Docker
-            echo Please start Redis with: docker-compose up -d
+            echo Please start Redis with: docker-compose -f ..\..\docker-compose.yml up -d
             exit /b 1
         )
     ) ELSE (
@@ -214,7 +214,7 @@ IF "%USE_DOCKER%"=="true" IF "%START_REDIS%"=="true" (
     set /p stop_docker=
     if /i "!stop_docker!"=="y" (
         echo Stopping Redis Docker container...
-        docker-compose down
+        docker-compose -f ..\..\docker-compose.yml down
     )
 )
 

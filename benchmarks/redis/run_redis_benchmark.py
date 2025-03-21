@@ -14,6 +14,8 @@ from pathlib import Path
 
 # Ensure the script can be run from any directory
 SCRIPT_DIR = Path(__file__).resolve().parent
+ROOT_DIR = SCRIPT_DIR.parent.parent
+DOCKER_COMPOSE_PATH = ROOT_DIR / "docker-compose.yml"
 BENCHMARK_DIRS = [
     SCRIPT_DIR,
     SCRIPT_DIR / "benchmarks"
@@ -118,7 +120,7 @@ def check_redis_server():
         print("\nPlease ensure Redis server is running:")
         print("  - Windows: Start Redis server from the Redis installation")
         print("  - Linux/macOS: Run 'redis-server' in terminal")
-        print("  - Docker: Run 'docker run --name redis -p 6379:6379 -d redis'")
+        print(f"  - Docker: Run 'docker-compose -f {DOCKER_COMPOSE_PATH} up -d'")
         return False
 
 
