@@ -1,0 +1,81 @@
+{
+  "metadata": {
+    "timestamp": 1742520996.7574275,
+    "entries": 500,
+    "batch_size": 10,
+    "redis_server": "localhost:6379",
+    "redis_environment": "DEFAULT"
+  },
+  "writes": {
+    "total_operations": 500,
+    "total_time": 0.1697070598602295,
+    "operations_per_second": 2946.253387524357,
+    "avg_operation_time": 0.00033872079849243166,
+    "min_operation_time": 0.0003082752227783203,
+    "max_operation_time": 0.0005280971527099609,
+    "std_operation_time": 2.1901946897092076e-05
+  },
+  "reads": {
+    "total_operations": 500,
+    "total_time": 0.09097123146057129,
+    "operations_per_second": 5496.2430646738,
+    "avg_operation_time": 0.00018122243881225585,
+    "min_operation_time": 0.0001430511474609375,
+    "max_operation_time": 0.00040459632873535156,
+    "std_operation_time": 2.310869228960721e-05
+  },
+  "batch_operations": {
+    "total_operations": 500,
+    "total_batches": 50,
+    "batch_size": 10,
+    "total_time": 0.03141427040100098,
+    "operations_per_second": 15916.333361161496,
+    "batches_per_second": 1591.6333361161496,
+    "avg_batch_time": 0.0006276082992553711,
+    "min_batch_time": 0.0005965232849121094,
+    "max_batch_time": 0.0007343292236328125,
+    "std_batch_time": 2.6707437271795406e-05
+  },
+  "memory": {
+    "initial_memory": 1243824,
+    "final_memory": 1557392,
+    "total_memory_used": 313568,
+    "entries": 500,
+    "bytes_per_entry": 627.136,
+    "memory_samples": [
+      {
+        "entries": 100,
+        "total_memory": 52944,
+        "memory_per_entry": 529.44
+      },
+      {
+        "entries": 200,
+        "total_memory": 125640,
+        "memory_per_entry": 628.2
+      },
+      {
+        "entries": 300,
+        "total_memory": 194336,
+        "memory_per_entry": 647.7866666666666
+      },
+      {
+        "entries": 400,
+        "total_memory": 250920,
+        "memory_per_entry": 627.3
+      },
+      {
+        "entries": 500,
+        "total_memory": 313568,
+        "memory_per_entry": 627.136
+      }
+    ],
+    "total_time": 0
+  },
+  "overall": {
+    "writes_per_second": 2946.253387524357,
+    "reads_per_second": 5496.2430646738,
+    "batch_throughput": 15916.333361161496,
+    "memory_per_entry": 627.136,
+    "total_duration": 0.29209256172180176
+  }
+}
