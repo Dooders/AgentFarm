@@ -101,10 +101,11 @@ class Environment:
         self.successful_attacks = 0
         self.combat_encounters_this_step = 0
         self.successful_attacks_this_step = 0
-
-        # Context tracking
-        # self._active_contexts: Set[BaseAgent] = set()
-        # self._context_lock = threading.Lock()
+        
+        # Temperature-related attributes
+        self.temperature_map = None
+        if hasattr(self.config, 'enable_temperature') and self.config.enable_temperature:
+            self._initialize_temperature_map()
 
         # Initialize environment
         self.initialize_resources(resource_distribution)
@@ -245,9 +246,114 @@ class Environment:
                 details=action_data.get("details"),
             )
 
+    def _initialize_temperature_map(self):
+        """Initialize the temperature map for the environment."""
+        if not hasattr(self.config, 'enable_temperature') or not self.config.enable_temperature:
+            return
+            
+        # Create a temperature map with dimensions matching the environment
+        self.temperature_map = np.ones((self.height, self.width)) * self.config.baseline_temperature
+        
+        # Apply temperature gradients if enabled
+        if self.config.temperature_gradient_x:
+            # Horizontal gradient from left to right
+            x_gradient = np.linspace(-self.config.temperature_range/2, 
+                                     self.config.temperature_range/2, 
+                                     self.width)
+            self.temperature_map += np.tile(x_gradient, (self.height, 1))
+            
+        if self.config.temperature_gradient_y:
+            # Vertical gradient from bottom to top
+            y_gradient = np.linspace(-self.config.temperature_range/2, 
+                                     self.config.temperature_range/2, 
+                                     self.height)
+            self.temperature_map += np.tile(y_gradient.reshape(-1, 1), (1, self.width))
+    
+    def get_temperature(self, position):
+        """Get temperature at a specific position.
+        
+        Parameters
+        ----------
+        position : tuple
+            (x, y) coordinates
+            
+        Returns
+        -------
+        float
+            Temperature at the specified position
+        """
+        if not hasattr(self.config, 'enable_temperature') or not self.config.enable_temperature:
+            return self.config.optimal_temperature if hasattr(self.config, 'optimal_temperature') else 20.0
+            
+        # Apply cyclic temperature variation if enabled
+        if self.config.temperature_cycle_length > 0:
+            cycle_phase = (self.time % self.config.temperature_cycle_length) / self.config.temperature_cycle_length
+            cycle_modifier = np.sin(2 * np.pi * cycle_phase) * (self.config.temperature_range / 4)
+        else:
+            cycle_modifier = 0
+            
+        # Get base temperature from map
+        x, y = int(min(max(0, position[0]), self.width-1)), int(min(max(0, position[1]), self.height-1))
+        base_temp = self.temperature_map[y, x]
+        
+        # Apply cycle modifier
+        temperature = base_temp + cycle_modifier
+        
+        return temperature
+    
+    def update_temperature_effects(self):
+        """Update temperature effects on agents and resources."""
+        if not hasattr(self.config, 'enable_temperature') or not self.config.enable_temperature:
+            return
+            
+        # Update resources based on temperature
+        for resource in self.resources:
+            pos_temp = self.get_temperature(resource.position)
+            temp_diff = abs(pos_temp - self.config.resource_optimal_temperature)
+            
+            # Temperature affects resource regeneration
+            if temp_diff > 10:  # Beyond 10°C from optimal
+                resource.regeneration_rate = max(0, self.config.resource_regen_rate * 
+                                             (1 - temp_diff * self.config.resource_temperature_sensitivity))
+            else:
+                resource.regeneration_rate = self.config.resource_regen_rate
+                
+        # Update agents based on temperature
+        for agent in self.agents:
+            if not agent.alive:
+                continue
+                
+            pos_temp = self.get_temperature(agent.position)
+            
+            # Check if temperature is outside critical range
+            if (pos_temp < self.config.critical_temperature_range[0] or 
+                pos_temp > self.config.critical_temperature_range[1]):
+                
+                # Calculate damage based on how far outside critical range
+                if pos_temp < self.config.critical_temperature_range[0]:
+                    temp_diff = self.config.critical_temperature_range[0] - pos_temp
+                else:
+                    temp_diff = pos_temp - self.config.critical_temperature_range[1]
+                    
+                # Apply damage to agent health
+                damage = temp_diff * 0.5  # 0.5 health points per degree outside critical range
+                agent.take_damage(damage)
+                
+                # Record temperature stress if memory is available
+                if hasattr(agent, 'memory') and agent.memory is not None:
+                    agent.remember_experience(
+                        action_name="temperature_stress",
+                        reward=-damage/10,  # Negative reward proportional to damage
+                        metadata={"temperature": pos_temp, "damage": damage}
+                    )
+    
     def update(self):
         """Update environment state for current time step."""
         try:
+            # Update temperature effects if enabled
+            if hasattr(self.config, 'enable_temperature') and self.config.enable_temperature:
+                self.update_temperature_effects()
+                
             # Update resources with proper regeneration
             regen_mask = (
                 np.random.random(len(self.resources)) < self.config.resource_regen_rate
