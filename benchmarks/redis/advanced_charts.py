@@ -105,33 +105,60 @@ def plot_operation_time_distribution(results: List[Dict[str, Any]], output_file:
         axes = np.array([axes])
     
     for i, result in enumerate(results):
-        # Get operation times data
-        write_data = {
-            'times': [
-                result['write']['min_operation_time'],
-                result['write']['avg_operation_time'],
-                result['write']['max_operation_time']
-            ],
-            'labels': ['Min', 'Avg', 'Max']
-        }
+        # Get operation times data with fallbacks for missing keys
+        # Check if the 'write' key exists in the result dictionary
+        if 'write' in result:
+            write_data = {
+                'times': [
+                    result['write']['min_operation_time'],
+                    result['write']['avg_operation_time'],
+                    result['write']['max_operation_time']
+                ],
+                'labels': ['Min', 'Avg', 'Max']
+            }
+        else:
+            # Provide default values if 'write' key is missing
+            write_data = {
+                'times': [0, 0, 0],
+                'labels': ['Min', 'Avg', 'Max']
+            }
+            print(f"Warning: 'write' data missing in result {result.get('label', i)}")
         
-        read_data = {
-            'times': [
-                result['read']['min_operation_time'],
-                result['read']['avg_operation_time'],
-                result['read']['max_operation_time']
-            ],
-            'labels': ['Min', 'Avg', 'Max']
-        }
+        # Check if the 'read' key exists in the result dictionary
+        if 'read' in result:
+            read_data = {
+                'times': [
+                    result['read']['min_operation_time'],
+                    result['read']['avg_operation_time'],
+                    result['read']['max_operation_time']
+                ],
+                'labels': ['Min', 'Avg', 'Max']
+            }
+        else:
+            # Provide default values if 'read' key is missing
+            read_data = {
+                'times': [0, 0, 0],
+                'labels': ['Min', 'Avg', 'Max']
+            }
+            print(f"Warning: 'read' data missing in result {result.get('label', i)}")
         
-        batch_data = {
-            'times': [
-                result['batch'].get('min_batch_time', 0),
-                result['batch'].get('avg_batch_time', 0),
-                result['batch'].get('max_batch_time', 0)
-            ],
-            'labels': ['Min', 'Avg', 'Max']
-        }
+        # Check if the 'batch' key exists in the result dictionary
+        if 'batch' in result:
+            batch_data = {
+                'times': [
+                    result['batch'].get('min_batch_time', 0),
+                    result['batch'].get('avg_batch_time', 0),
+                    result['batch'].get('max_batch_time', 0)
+                ],
+                'labels': ['Min', 'Avg', 'Max']
+            }
+        else:
+            # Provide default values if 'batch' key is missing
+            batch_data = {
+                'times': [0, 0, 0],
+                'labels': ['Min', 'Avg', 'Max']
+            }
+            print(f"Warning: 'batch' data missing in result {result.get('label', i)}")
         
         # Convert to milliseconds for better readability
         write_times_ms = [t * 1000 for t in write_data['times']]
@@ -254,9 +281,9 @@ def main():
     """Main entry point."""
     # Default result files
     default_files = [
-        'redis_benchmark_results.json',  # Default (batch size 100)
-        'results_batch_10.json',         # Batch size 10
-        'results_batch_500.json'         # Batch size 500
+        'results/redis_benchmark_results.json',  # Default (batch size 100)
+        'results/results_batch_10.json',         # Batch size 10
+        'results/results_batch_500.json'         # Batch size 500
     ]
     
     # Use provided files or defaults
