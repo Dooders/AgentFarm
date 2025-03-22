@@ -187,6 +187,8 @@ def _transition_to_im(self, agent_id, memory_id):
     self._remove_from_index(agent_id, memory_id)
 ```
 
+For a detailed implementation of neural network-based compression using autoencoders, see [Custom Autoencoder](custom_autoencoder.md). The autoencoder approach enables more sophisticated dimensionality reduction while preserving semantic relationships between states.
+
 ## **5. Retrieval Methods**
 
 The implementation provides several methods for retrieving agent state memories, using the retrieval concepts defined in [Core Concepts](core_concepts.md#5-memory-retrieval-methods).

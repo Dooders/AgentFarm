@@ -1,12 +1,8 @@
 # **Agent State Memory: Core Concepts**
 
-## **1. Introduction**
+## **1. Hierarchical Memory Architecture**
 
-This document serves as the primary reference for core concepts used throughout the Agent State Memory system. Rather than duplicating these concepts across multiple documents, other documentation files will reference this central source of truth.
-
-## **2. Hierarchical Memory Architecture**
-
-### **2.1 Memory Tiers**
+### **1.1 Memory Tiers**
 
 The system employs a three-tier hierarchical memory architecture that mimics cognitive processes:
 
@@ -16,7 +12,7 @@ The system employs a three-tier hierarchical memory architecture that mimics cog
 | **Intermediate Memory (IM)** | Redis with TTL + compression | Medium resolution | Medium-term trends | Last ~10,000 steps |
 | **Long-Term Memory (LTM)** | SQLite with high compression | Low resolution | Historical patterns | Entire simulation history |
 
-### **2.2 Memory Transition Flow**
+### **1.2 Memory Transition Flow**
 
 ```
 Agent State → Redis STM → Redis IM → SQLite LTM
@@ -25,7 +21,7 @@ Agent State → Redis STM → Redis IM → SQLite LTM
 
 As memory ages or as capacity limits are reached, information transitions between tiers with progressive compression applied to reduce storage requirements while preserving essential patterns.
 
-## **3. Memory Entry Structure**
+## **2. Memory Entry Structure**
 
 Each memory record contains the following standardized structure:
 
@@ -51,7 +47,7 @@ Each memory record contains the following standardized structure:
     "compression_level": 0,
     "importance_score": 0.75,
     "retrieval_count": 3,
-    "memory_type": "state" // or "interaction" or "action"
+    "memory_type": "state" // "interaction", "action", etc.
   },
   
   "embeddings": {
@@ -62,7 +58,7 @@ Each memory record contains the following standardized structure:
 }
 ```
 
-## **4. Memory Compression Techniques**
+## **3. Memory Compression Techniques**
 
 The system uses several techniques to compress memories while preserving semantic meaning:
 
@@ -76,9 +72,11 @@ Compression levels vary by memory tier:
 - **IM**: Moderate compression (level 1)
 - **LTM**: High compression (level 2)
 
-## **5. Memory Retrieval Methods**
+For detailed implementation of the autoencoder-based compression approach, see [Custom Autoencoder](custom_autoencoder.md).
 
-### **5.1 Similarity-Based Retrieval**
+## **4. Memory Retrieval Methods**
+
+### **4.1 Similarity-Based Retrieval**
 
 Retrieval of memories based on semantic similarity to a query state:
 
@@ -86,7 +84,7 @@ Retrieval of memories based on semantic similarity to a query state:
 2. **KNN Search**: Finding k-nearest neighbors in the embedding space
 3. **Contextual Relevance**: Weighting by relevance to current context
 
-### **5.2 Attribute-Based Retrieval**
+### **4.2 Attribute-Based Retrieval**
 
 Retrieval based on specific attributes or conditions:
 
@@ -94,7 +92,7 @@ Retrieval based on specific attributes or conditions:
 2. **Range Queries**: Finding memories with attributes in specified ranges
 3. **Compound Queries**: Combining multiple attribute conditions
 
-### **5.3 Temporal Retrieval**
+### **4.3 Temporal Retrieval**
 
 Retrieval based on time or sequence:
 
@@ -102,7 +100,7 @@ Retrieval based on time or sequence:
 2. **Recency**: Most recent memories first
 3. **Sequential**: Memories in chronological order
 
-## **6. System Architecture Components**
+## **5. System Architecture Components**
 
 The system consists of these primary components:
 
@@ -113,7 +111,7 @@ The system consists of these primary components:
 
 These components work together to provide a unified memory system that efficiently stores, manages, and retrieves agent state information.
 
-## **7. Key Performance Metrics**
+## **6. Key Performance Metrics**
 
 The system's performance is evaluated using:
 

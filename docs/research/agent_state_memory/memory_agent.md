@@ -39,6 +39,17 @@ class MemoryAgent:
         self.ltm_store = SQLiteLTMStore(agent_id, config.ltm_settings)
         self.compression_engine = CompressionEngine(config.compression_settings)
         
+        # Optional: Initialize neural embedding engine for advanced vectorization
+        # See custom_autoencoder.md for implementation details
+        if config.use_neural_embeddings:
+            self.embedding_engine = AutoencoderEmbeddingEngine(
+                model_path=config.autoencoder_model_path,
+                input_dim=config.input_dim,
+                stm_dim=config.stm_dim,
+                im_dim=config.im_dim,
+                ltm_dim=config.ltm_dim
+            )
+        
     def store_experience(self, experience_data, importance=None):
         """Store a new experience in STM."""
         # Calculate importance if not provided

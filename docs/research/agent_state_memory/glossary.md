@@ -17,7 +17,7 @@ Persistent storage tier implemented in SQLite with high compression. Contains hi
 The process of moving memories between tiers (STM → IM → LTM) with increasing compression as they age or become less important.
 
 ### **Memory Embedding**
-Vector representation of agent states that enables semantic similarity comparisons and efficient retrieval.
+Vector representation of agent states that enables semantic similarity comparisons and efficient retrieval. Implemented using neural network autoencoders for optimized dimensionality reduction while preserving meaningful relationships between states. See [Custom Autoencoder](custom_autoencoder.md) for implementation details.
 
 ## **Data Structure Terms**
 

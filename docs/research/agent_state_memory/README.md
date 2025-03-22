@@ -16,6 +16,7 @@ This documentation is organized to minimize duplication and provide clear naviga
 | [Glossary](glossary.md) | Definitions of key terminology used across documents |
 | [Future Enhancements](future_enhancements.md) | Planned improvements and extensions |
 | [Documentation Map](diagrams/documentation_map.md) | Visual guide to documentation organization |
+| [Custom Autoencoder](custom_autoencoder.md) | Neural network-based embeddings and compression for agent states |
 
 For a visual representation of how these documents relate to each other, see the [Documentation Map](diagrams/documentation_map.md).
 
