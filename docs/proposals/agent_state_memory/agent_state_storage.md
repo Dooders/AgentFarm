@@ -2,7 +2,8 @@
 
 ## **1. Executive Summary**
 
-This proposal outlines a hybrid data storage architecture for agent states in simulation environments, combining the high-performance benefits of Redis with hierarchical memory compression techniques. The proposed system addresses key challenges in agent-based simulations: performance bottlenecks during high-throughput runs, efficient storage of historical agent states, and rapid retrieval of relevant past experiences for decision-making.
+This proposal outlines a hybrid data storage architecture for agent states and interaction data in simulation environments, combining the high-performance benefits of Redis with hierarchical memory compression techniques. The proposed system addresses key challenges in agent-based simulations: performance bottlenecks during high-throughput runs, efficient storage of historical agent states and interactions, and rapid retrieval of relevant past experiences for decision-making.
+
 
 ## **2. Current Challenges**
 
@@ -30,7 +31,7 @@ Agent State → Redis STM → Redis IM → SQLite LTM
 
 ### **3.3 Memory Entry Structure**
 
-Each agent state record will contain:
+Each memory record will contain:
 
 ```json
 {
@@ -40,7 +41,7 @@ Each agent state record will contain:
   "step_number": 1234,
   "timestamp": 1679233344,
   
-  "state_data": {
+  "contents": {
     "position": [x, y],
     "resources": 42,
     "health": 0.85,
@@ -54,7 +55,8 @@ Each agent state record will contain:
     "last_access_time": 1679233400,
     "compression_level": 0,
     "importance_score": 0.75,
-    "retrieval_count": 3
+    "retrieval_count": 3,
+    "memory_type": "state" // or "interaction"
   },
   
   "embeddings": {
@@ -67,13 +69,13 @@ Each agent state record will contain:
 
 ## **4. Implementation Components**
 
-### **4.1 RedisAgentStateLogger**
+### **4.1 RedisAgentMemoryLogger**
 
-Extended data logger that writes agent states to Redis with tiered storage:
+Extended data logger that writes agent states and interaction data to Redis with tiered storage:
 
 ```python
-class RedisAgentStateLogger:
-    """Manages agent state storage with tiered memory system."""
+class RedisAgentMemoryLogger:
+    """Manages agent memory storage with tiered memory system."""
     
     def log_agent_state(self, agent_id, state_data, step_number):
         """Log agent state to STM (Redis)"""
@@ -87,13 +89,14 @@ class RedisAgentStateLogger:
             "simulation_id": self.simulation_id,
             "step_number": step_number,
             "timestamp": int(time.time()),
-            "state_data": state_data,
+            "contents": state_data,
             "metadata": {
                 "creation_time": int(time.time()),
                 "last_access_time": int(time.time()),
                 "compression_level": 0,  # STM = 0
                 "importance_score": self._calculate_importance(state_data),
-                "retrieval_count": 0
+                "retrieval_count": 0,
+                "memory_type": "state"
             },
             "embeddings": {
                 "full_vector": embedding.tolist(),
@@ -118,6 +121,65 @@ class RedisAgentStateLogger:
         # Add to vector similarity index
         self._index_embedding(agent_id, memory_entry["memory_id"], embedding)
         
+        # Add to type-specific index
+        self.redis_client.sadd(
+            f"agent:{agent_id}:stm:type:state",
+            memory_entry["memory_id"]
+        )
+        
+        # Check STM capacity and transition if needed
+        self._check_and_transition_memories(agent_id)
+        
+    def log_agent_interaction(self, agent_id, interaction_data, step_number):
+        """Log agent interaction to STM (Redis)"""
+        # Generate full embedding vector for interaction
+        embedding = self._create_interaction_embedding(interaction_data)
+        
+        # Create structured memory entry
+        memory_entry = {
+            "memory_id": str(uuid.uuid4()),
+            "agent_id": agent_id,
+            "simulation_id": self.simulation_id,
+            "step_number": step_number,
+            "timestamp": int(time.time()),
+            "contents": interaction_data,  # Use same field for consistency
+            "metadata": {
+                "creation_time": int(time.time()),
+                "last_access_time": int(time.time()),
+                "compression_level": 0,  # STM = 0
+                "importance_score": self._calculate_interaction_importance(interaction_data),
+                "retrieval_count": 0,
+                "memory_type": "interaction"
+            },
+            "embeddings": {
+                "full_vector": embedding.tolist(),
+                "compressed_vector": None,
+                "abstract_vector": None
+            }
+        }
+        
+        # Store in Redis STM
+        self.redis_client.hset(
+            f"agent:{agent_id}:stm", 
+            memory_entry["memory_id"],
+            json.dumps(memory_entry)
+        )
+        
+        # Add to temporal index
+        self.redis_client.zadd(
+            f"agent:{agent_id}:stm:timeline",
+            {memory_entry["memory_id"]: step_number}
+        )
+        
+        # Add to vector similarity index
+        self._index_embedding(agent_id, memory_entry["memory_id"], embedding)
+        
+        # Add to type-specific index
+        self.redis_client.sadd(
+            f"agent:{agent_id}:stm:type:interaction",
+            memory_entry["memory_id"]
+        )
+        
         # Check STM capacity and transition if needed
         self._check_and_transition_memories(agent_id)
 ```
@@ -141,7 +203,7 @@ def _compress_for_intermediate_memory(self, memory_entry):
     compressed_entry["embeddings"]["compressed_vector"] = compressed_vector.tolist()
     
     # Optionally reduce state data detail
-    compressed_entry["state_data"] = self._reduce_state_detail(memory_entry["state_data"])
+    compressed_entry["contents"] = self._reduce_state_detail(memory_entry["contents"])
     
     return compressed_entry
 
@@ -162,34 +224,41 @@ def _compress_for_long_term_memory(self, memory_entry):
     ltm_entry["embeddings"]["abstract_vector"] = abstract_vector.tolist()
     
     # Significantly reduce state data detail
-    ltm_entry["state_data"] = self._abstract_state_data(memory_entry["state_data"])
+    ltm_entry["contents"] = self._abstract_state_data(memory_entry["contents"])
     
     return ltm_entry
 ```
 
 ### **4.3 Memory Retrieval System**
 
-Enables efficient retrieval of relevant past agent states:
+Enables efficient retrieval of relevant past agent states and interactions:
 
 ```python
-def retrieve_similar_states(self, agent_id, query_state, k=5):
-    """Retrieve most similar past states to the query state."""
+def retrieve_similar_states(self, agent_id, query_state, k=5, memory_type=None):
+    """Retrieve most similar past states to the query state.
+    
+    Args:
+        agent_id: The ID of the agent
+        query_state: The state to find similar states for
+        k: Number of results to return
+        memory_type: Optional filter for "state" or "interaction" memories
+    """
     # Generate query embedding
     query_embedding = self._create_state_embedding(query_state)
     
     # Search STM (exact vectors, most detailed)
     stm_results = self._search_memory_tier(
-        agent_id, "stm", query_embedding, k
+        agent_id, "stm", query_embedding, k, memory_type
     )
     
     # Search IM (compressed vectors, medium detail)
     im_results = self._search_memory_tier(
-        agent_id, "im", self.im_compressor.compress(query_embedding), k
+        agent_id, "im", self.im_compressor.compress(query_embedding), k, memory_type
     )
     
     # Search LTM (abstract vectors, low detail)
     ltm_results = self._search_memory_tier(
-        agent_id, "ltm", self.ltm_compressor.compress(query_embedding), k
+        agent_id, "ltm", self.ltm_compressor.compress(query_embedding), k, memory_type
     )
     
     # Merge results with preference for more detailed memories
@@ -200,6 +269,21 @@ def retrieve_similar_states(self, agent_id, query_state, k=5):
         self._increment_retrieval_count(agent_id, mem_id)
     
     return combined_results
+    
+def _search_memory_tier(self, agent_id, tier, query_vector, k, memory_type=None):
+    """Search a specific memory tier with optional type filtering."""
+    # Get initial candidate memories by vector similarity
+    candidates = self.index_manager.search_by_similarity(
+        agent_id, query_vector, tier, k=k*2  # Get more for filtering
+    )
+    
+    # Filter by memory type if requested
+    if memory_type:
+        candidates = [mem for mem in candidates 
+                     if mem["metadata"]["memory_type"] == memory_type]
+    
+    # Return top k candidates
+    return candidates[:k]
 ```
 
 ### **4.4 Indexed Retrieval Mechanisms**
@@ -248,6 +332,69 @@ class MemoryIndexManager:
                 f"agent:{agent_id}:{tier}:memory:{memory_id}:indices",
                 index_key
             )
+
+    def search_composite(self, agent_id, vector=None, time_range=None, attributes=None, memory_type=None, tier="stm", k=20):
+        """Complex search combining vector similarity, time, attributes, and memory type."""
+        candidate_memories = []
+        
+        # Get initial candidates based on availability of query parameters
+        if vector is not None:
+            # Vector search gives us ranked results
+            candidate_memories = self.search_by_similarity(agent_id, vector, tier, k=k*2)  # Get more for filtering
+        elif time_range is not None:
+            # Time-based search
+            start_step, end_step = time_range
+            candidate_memories = self.search_by_time_range(agent_id, start_step, end_step, tier)
+        elif attributes is not None:
+            # Attribute-based search
+            candidate_memories = self.search_by_attributes(agent_id, attributes, tier)
+        elif memory_type is not None:
+            # Memory type based search
+            candidate_memories = self.search_by_memory_type(agent_id, memory_type, tier)
+        else:
+            # No search criteria, return empty
+            return []
+            
+        # Apply additional filters if needed
+        final_candidates = candidate_memories
+        
+        if vector is not None and time_range is not None:
+            # Filter by time range
+            start_step, end_step = time_range
+            final_candidates = [mem for mem in final_candidates 
+                              if start_step <= mem["step_number"] <= end_step]
+                              
+        if attributes is not None and (vector is not None or time_range is not None):
+            # Filter by attributes
+            final_candidates = [mem for mem in final_candidates 
+                              if self._matches_attributes(mem, attributes)]
+        
+        # Filter by memory type if provided
+        if memory_type is not None:
+            final_candidates = [mem for mem in final_candidates 
+                              if mem["metadata"]["memory_type"] == memory_type]
+        
+        # Sort by similarity if vector was provided
+        if vector is not None:
+            final_candidates = self._rank_by_similarity(final_candidates, vector, tier)
+            
+        # Limit results
+        return final_candidates[:k]
+
+    def search_by_memory_type(self, agent_id, memory_type, tier="stm"):
+        """Find memories of a specific type."""
+        memory_ids = self.redis_client.smembers(
+            f"agent:{agent_id}:{tier}:type:{memory_type}"
+        )
+        
+        # Fetch memories by IDs
+        memories = []
+        for mem_id in memory_ids:
+            memory_data = self.redis_client.hget(f"agent:{agent_id}:{tier}", mem_id)
+            if memory_data:
+                memories.append(json.loads(memory_data))
+                
+        return memories
 ```
 
 Key indexing strategies implemented:
@@ -331,8 +478,8 @@ Key indexing strategies implemented:
 
 4. **Composite Querying**: Combining multiple index types
    ```python
-   def search_composite(self, agent_id, vector=None, time_range=None, attributes=None, tier="stm", k=20):
-       """Complex search combining vector similarity, time, and attributes."""
+   def search_composite(self, agent_id, vector=None, time_range=None, attributes=None, memory_type=None, tier="stm", k=20):
+       """Complex search combining vector similarity, time, attributes, and memory type."""
        candidate_memories = []
        
        # Get initial candidates based on availability of query parameters
@@ -346,6 +493,9 @@ Key indexing strategies implemented:
        elif attributes is not None:
            # Attribute-based search
            candidate_memories = self.search_by_attributes(agent_id, attributes, tier)
+       elif memory_type is not None:
+           # Memory type based search
+           candidate_memories = self.search_by_memory_type(agent_id, memory_type, tier)
        else:
            # No search criteria, return empty
            return []
@@ -363,6 +513,11 @@ Key indexing strategies implemented:
            # Filter by attributes
            final_candidates = [mem for mem in final_candidates 
                              if self._matches_attributes(mem, attributes)]
+       
+       # Filter by memory type if provided
+       if memory_type is not None:
+           final_candidates = [mem for mem in final_candidates 
+                             if mem["metadata"]["memory_type"] == memory_type]
        
        # Sort by similarity if vector was provided
        if vector is not None:
@@ -430,7 +585,7 @@ A key feature is the dynamic calculation of memory importance:
 
 ```python
 def _calculate_importance(self, state_data):
-    """Calculate importance of a memory for transition decisions."""
+    """Calculate importance of a state memory for transition decisions."""
     # Base importance from state significance
     base_importance = self._calculate_state_significance(state_data)
     
@@ -479,6 +634,24 @@ def _get_transition_candidates(self, agent_id, tier, count):
     
     # Return the top candidates
     return {mem_id: memory for mem_id, memory, _ in scored_memories[:count]}
+
+def _calculate_interaction_importance(self, interaction_data):
+    """Calculate importance of an interaction memory for transition decisions."""
+    # Base importance from interaction significance
+    base_importance = self._calculate_interaction_significance(interaction_data)
+    
+    # Adjust for novelty of interaction
+    novelty_score = self._calculate_interaction_novelty(interaction_data)
+    
+    # Adjust for emotional impact or outcome significance
+    impact_score = self._calculate_interaction_impact(interaction_data)
+    
+    # Combined score
+    importance = (0.4 * base_importance + 
+                 0.3 * novelty_score + 
+                 0.3 * impact_score)
+    
+    return min(1.0, max(0.0, importance))
 ```
 
 ## **6. Performance & Benefits**
@@ -487,7 +660,7 @@ def _get_transition_candidates(self, agent_id, tier, count):
 
 | Metric | Current System | Proposed System | Improvement |
 |--------|----------------|----------------|-------------|
-| Write throughput | ~500 states/sec | ~50,000 states/sec | 100x |
+| Write throughput | ~500 entries/sec | ~50,000 entries/sec | 100x |
 | Storage efficiency | 100% full size | ~20% of full size | 5x |
 | Retrieval speed | Linear search | Vector similarity | 10-50x |
 | Memory capacity | Limited by RAM | Limited by disk | 100x+ |
@@ -496,7 +669,7 @@ def _get_transition_candidates(self, agent_id, tier, count):
 
 1. **Enhanced Agent Intelligence**:
    - Access to longer history enables recognition of long-term patterns
-   - More nuanced decision-making based on extensive past experiences
+   - More nuanced decision-making based on extensive past experiences and interactions
    
 2. **Simulation Performance**:
    - Reduced database bottlenecks during high-throughput simulations
@@ -510,10 +683,14 @@ def _get_transition_candidates(self, agent_id, tier, count):
    - Graceful handling of increasing agent populations
    - Efficient management of long-running simulations
 
+5. **Unified Access Patterns**:
+   - Consistent API for retrieving both state and interaction data
+   - Simplified development with a single system
+
 ## **7. Implementation Roadmap**
 
 1. **Phase 1: Core Redis Integration (1-2 weeks)**
-   - Implement RedisAgentStateLogger
+   - Implement RedisAgentMemoryLogger
    - Set up Redis server and connection handling
    - Create basic STM storage functions
 
@@ -590,6 +767,6 @@ The proposed agent state storage system provides a solid foundation, but several
 
 ## **9. Conclusion**
 
-This hierarchical agent state storage system combines the high-performance benefits of Redis with sophisticated memory compression techniques to create a scalable, efficient solution for agent-based simulations. By automatically transitioning memories between tiers with appropriate compression, the system maintains both recent detailed states and long-term historical patterns.
+This hierarchical memory storage system combines the high-performance benefits of Redis with sophisticated memory compression techniques to create a scalable, efficient solution for agent-based simulations. By automatically transitioning memories between tiers with appropriate compression, the system maintains both recent detailed information and long-term historical patterns for both agent states and interactions.
 
-This approach will significantly improve simulation performance while enabling more intelligent agent behavior through access to a richer history of experiences. 
+This unified approach will significantly improve simulation performance while enabling more intelligent agent behavior through access to a richer history of experiences and interactions. 
