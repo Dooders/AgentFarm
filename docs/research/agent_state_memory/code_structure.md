@@ -568,27 +568,51 @@ class MemoryAgent:
     def _check_memory_transition(self) -> None:
         """Check if memories need to be transitioned between tiers.
         
-        This method handles the movement of memories from STM to IM
-        and from IM to LTM based on capacity and age.
+        This method implements a hybrid age-importance based memory transition
+        mechanism that determines when memories should move between tiers
+        based on both capacity constraints and importance scores.
         """
+        current_time = time.time()
+        
         # Check if STM is at capacity
         stm_count = self.stm_store.count()
         if stm_count > self.config.stm_config.memory_limit:
-            # Get oldest entries to transition to IM
-            overflow = stm_count - self.config.stm_config.memory_limit
-            oldest_entries = self.stm_store.get_oldest(overflow)
+            # Calculate transition scores for all STM memories
+            stm_memories = self.stm_store.get_all()
+            transition_candidates = []
             
-            # Compress and store in IM
-            for entry in oldest_entries:
+            for memory in stm_memories:
+                # Calculate memory importance
+                importance_score = self._calculate_importance(memory)
+                
+                # Calculate age factor (normalized by TTL)
+                age = (current_time - memory["metadata"]["creation_time"]) / self.config.stm_config.ttl
+                age_factor = min(1.0, max(0.0, age))
+                
+                # Calculate transition score: higher means more likely to transition
+                transition_score = age_factor * (1.0 - importance_score)
+                
+                transition_candidates.append((memory, transition_score))
+            
+            # Sort by transition score (highest first)
+            transition_candidates.sort(key=lambda x: x[1], reverse=True)
+            
+            # Get overflow count memories with highest transition scores
+            overflow = stm_count - self.config.stm_config.memory_limit
+            to_transition = transition_candidates[:overflow]
+            
+            # Compress and move to IM
+            for memory, _ in to_transition:
                 # Apply level 1 compression
-                compressed_entry = self.compression_engine.compress(entry, level=1)
+                compressed_entry = self.compression_engine.compress(memory, level=1)
                 compressed_entry["metadata"]["compression_level"] = 1
+                compressed_entry["metadata"]["last_transition_time"] = current_time
                 
                 # Store in IM
                 self.im_store.store(compressed_entry)
                 
                 # Remove from STM
-                self.stm_store.delete(entry["memory_id"])
+                self.stm_store.delete(memory["memory_id"])
             
             logger.debug("Transitioned %d memories from STM to IM for agent %s", 
                         overflow, self.agent_id)
@@ -596,22 +620,43 @@ class MemoryAgent:
         # Check if IM is at capacity
         im_count = self.im_store.count()
         if im_count > self.config.im_config.memory_limit:
-            # Get oldest entries to transition to LTM
-            overflow = im_count - self.config.im_config.memory_limit
-            oldest_entries = self.im_store.get_oldest(overflow)
+            # Calculate transition scores for all IM memories
+            im_memories = self.im_store.get_all()
+            transition_candidates = []
             
-            # Compress and store in LTM
+            for memory in im_memories:
+                # Calculate memory importance
+                importance_score = self._calculate_importance(memory)
+                
+                # Calculate age factor (normalized by TTL)
+                age = (current_time - memory["metadata"]["creation_time"]) / self.config.im_config.ttl
+                age_factor = min(1.0, max(0.0, age))
+                
+                # Calculate transition score: higher means more likely to transition
+                transition_score = age_factor * (1.0 - importance_score)
+                
+                transition_candidates.append((memory, transition_score))
+            
+            # Sort by transition score (highest first)
+            transition_candidates.sort(key=lambda x: x[1], reverse=True)
+            
+            # Get overflow count memories with highest transition scores
+            overflow = im_count - self.config.im_config.memory_limit
+            to_transition = transition_candidates[:overflow]
+            
+            # Compress and move to LTM
             batch = []
-            for entry in oldest_entries:
+            for memory, _ in to_transition:
                 # Apply level 2 compression
-                compressed_entry = self.compression_engine.compress(entry, level=2)
+                compressed_entry = self.compression_engine.compress(memory, level=2)
                 compressed_entry["metadata"]["compression_level"] = 2
+                compressed_entry["metadata"]["last_transition_time"] = current_time
                 
                 # Add to batch
                 batch.append(compressed_entry)
                 
                 # Remove from IM
-                self.im_store.delete(entry["memory_id"])
+                self.im_store.delete(memory["memory_id"])
                 
                 # Process in batches
                 if len(batch) >= self.config.ltm_config.batch_size:
@@ -624,6 +669,42 @@ class MemoryAgent:
             
             logger.debug("Transitioned %d memories from IM to LTM for agent %s", 
                         overflow, self.agent_id)
+    
+    def _calculate_importance(self, memory: Dict[str, Any]) -> float:
+        """Calculate importance score for a memory entry.
+        
+        The importance score determines how likely a memory is to be retained
+        in its current tier versus being transitioned to a lower tier.
+        
+        Args:
+            memory: Memory entry to calculate importance for
+            
+        Returns:
+            Importance score between 0.0 and 1.0
+        """
+        # Reward magnitude component (40%)
+        reward = memory.get("contents", {}).get("reward", 0)
+        reward_importance = min(1.0, abs(reward) / 10.0) * 0.4
+        
+        # Retrieval frequency component (30%)
+        retrieval_count = memory["metadata"].get("retrieval_count", 0)
+        retrieval_factor = min(1.0, retrieval_count / 5.0) * 0.3
+        
+        # Recency component (20%)
+        current_time = time.time()
+        creation_time = memory["metadata"].get("creation_time", current_time)
+        time_diff = current_time - creation_time
+        recency = max(0.0, 1.0 - (time_diff / 1000)) * 0.2
+        
+        # Surprise factor component (10%)
+        # This measures how different the outcome was from the expected outcome
+        # For now, we use a simplified placeholder implementation
+        surprise = memory["metadata"].get("surprise_factor", 0.5) * 0.1
+        
+        # Combine all factors
+        importance = reward_importance + retrieval_factor + recency + surprise
+        
+        return min(1.0, max(0.0, importance))
     
     def clear_memory(self) -> bool:
         """Clear all memory data for this agent.
@@ -653,6 +734,12 @@ from typing import Dict, Any, List, Optional, Union
 import redis
 
 from farm.memory.agent_memory.config import RedisSTMConfig
+from farm.memory.utils.redis_utils import (
+    serialize_memory_entry,
+    deserialize_memory_entry,
+    serialize_vector,
+    deserialize_vector
+)
 
 logger = logging.getLogger(__name__)
 
@@ -715,7 +802,7 @@ class RedisSTMStore:
             key = f"{self._key_prefix}:memory:{memory_id}"
             self.redis.set(
                 key,
-                json.dumps(memory_entry),
+                serialize_memory_entry(memory_entry),
                 ex=self.config.ttl
             )
             
@@ -746,7 +833,7 @@ class RedisSTMStore:
                 vector = memory_entry["embeddings"]["full_vector"]
                 self.redis.set(
                     vector_key,
-                    json.dumps(vector),
+                    serialize_vector(vector),
                     ex=self.config.ttl
                 )
             
@@ -770,16 +857,22 @@ class RedisSTMStore:
             
             if data:
                 # Update access time
-                memory_entry = json.loads(data)
+                memory_entry = deserialize_memory_entry(data)
                 memory_entry["metadata"]["last_access_time"] = int(time.time())
                 memory_entry["metadata"]["retrieval_count"] += 1
                 
                 # Update in Redis
                 self.redis.set(
                     key,
-                    json.dumps(memory_entry),
+                    serialize_memory_entry(memory_entry),
                     ex=self.config.ttl
                 )
+                
+                # Check for separately stored vector data
+                vector_key = f"{self._key_prefix}:vector:{memory_id}"
+                vector_data = self.redis.get(vector_key)
+                if vector_data and "embeddings" in memory_entry:
+                    memory_entry["embeddings"]["full_vector"] = deserialize_vector(vector_data)
                 
                 return memory_entry
             
@@ -1764,3 +1857,150 @@ The implementation uses the singleton pattern for the `AgentMemorySystem` to ens
 You can start with minimal integration by just using the API, and then gradually adopt the hooks for deeper integration.
 
 This implementation plan follows the architecture in the documentation and provides a flexible, extensible foundation for the AgentMemory system.
+
+### Create `farm/memory/utils/redis_utils.py`:
+
+```python
+"""Utility functions for Redis operations in the agent memory system."""
+
+import json
+import logging
+from typing import Dict, Any, List, Optional, Union
+
+logger = logging.getLogger(__name__)
+
+
+def serialize_memory_entry(memory_entry: Dict[str, Any]) -> str:
+    """Serialize a memory entry for Redis storage.
+    
+    Consistently handles serialization of memory entries to JSON strings
+    for storage in Redis.
+    
+    Args:
+        memory_entry: Memory entry to serialize
+        
+    Returns:
+        JSON string representation of the memory entry
+    
+    Raises:
+        ValueError: If serialization fails
+    """
+    try:
+        # Handle any special serialization needs before converting to JSON
+        # For example, converting non-serializable objects to serializable form
+        serializable_entry = _prepare_for_serialization(memory_entry)
+        return json.dumps(serializable_entry)
+    except Exception as e:
+        logger.error("Failed to serialize memory entry: %s", str(e))
+        raise ValueError(f"Memory entry serialization failed: {str(e)}")
+
+
+def deserialize_memory_entry(data_str: str) -> Dict[str, Any]:
+    """Deserialize a memory entry from Redis storage.
+    
+    Consistently handles deserialization of JSON strings from Redis
+    back into memory entry dictionaries.
+    
+    Args:
+        data_str: JSON string from Redis
+        
+    Returns:
+        Memory entry dictionary
+    
+    Raises:
+        ValueError: If deserialization fails
+    """
+    try:
+        memory_entry = json.loads(data_str)
+        return _process_after_deserialization(memory_entry)
+    except Exception as e:
+        logger.error("Failed to deserialize memory entry: %s", str(e))
+        raise ValueError(f"Memory entry deserialization failed: {str(e)}")
+
+
+def serialize_vector(vector: List[float]) -> str:
+    """Serialize an embedding vector for Redis storage.
+    
+    Specialized handling for embedding vectors to ensure consistent
+    serialization across the codebase.
+    
+    Args:
+        vector: List of float values representing an embedding
+        
+    Returns:
+        JSON string representation of the vector
+    
+    Raises:
+        ValueError: If serialization fails
+    """
+    try:
+        return json.dumps(vector)
+    except Exception as e:
+        logger.error("Failed to serialize vector: %s", str(e))
+        raise ValueError(f"Vector serialization failed: {str(e)}")
+
+
+def deserialize_vector(vector_str: str) -> List[float]:
+    """Deserialize an embedding vector from Redis storage.
+    
+    Specialized handling for embedding vectors to ensure consistent
+    deserialization across the codebase.
+    
+    Args:
+        vector_str: JSON string from Redis
+        
+    Returns:
+        List of float values representing an embedding
+    
+    Raises:
+        ValueError: If deserialization fails
+    """
+    try:
+        return json.loads(vector_str)
+    except Exception as e:
+        logger.error("Failed to deserialize vector: %s", str(e))
+        raise ValueError(f"Vector deserialization failed: {str(e)}")
+
+
+def _prepare_for_serialization(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Prepare data for serialization by handling non-serializable types.
+    
+    Args:
+        data: Data to prepare
+        
+    Returns:
+        Serializable version of the data
+    """
+    # Create a copy of the data to avoid modifying the original
+    result = {}
+    
+    for key, value in data.items():
+        if isinstance(value, dict):
+            # Recursively handle nested dictionaries
+            result[key] = _prepare_for_serialization(value)
+        elif isinstance(value, (list, tuple)):
+            # Handle lists and tuples
+            result[key] = [
+                _prepare_for_serialization(item) if isinstance(item, dict) else item
+                for item in value
+            ]
+        else:
+            # Handle other types
+            result[key] = value
+    
+    return result
+
+
+def _process_after_deserialization(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Process data after deserialization to handle any special types.
+    
+    Args:
+        data: Deserialized data
+        
+    Returns:
+        Processed version of the data
+    """
+    # This is a placeholder for any special post-processing needed
+    # For example, converting string dates back to datetime objects
+    return data
+```

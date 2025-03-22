@@ -51,9 +51,9 @@ Each memory record contains the following standardized structure:
   },
   
   "embeddings": {
-    "full_vector": [...],  // 300-500d for STM
-    "compressed_vector": [...],  // 100d for IM
-    "abstract_vector": [...]  // 20-30d for LTM
+    "full_vector": [...],  // 384d for STM
+    "compressed_vector": [...],  // 128d for IM
+    "abstract_vector": [...]  // 32d for LTM
   }
 }
 ```
