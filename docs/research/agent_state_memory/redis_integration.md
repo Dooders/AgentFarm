@@ -238,6 +238,8 @@ For optimal performance in the agent memory system:
 
 ### **6.2 Benchmarks**
 
+**[ ! ]** ***need to replace with actual results*** **[ ! ]**
+
 Performance testing shows significant improvements with Redis integration:
 
 | Operation | Direct SQLite | Redis Buffered | Improvement |

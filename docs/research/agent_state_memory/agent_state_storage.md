@@ -187,6 +187,8 @@ def _transition_to_im(self, agent_id, memory_id):
     self._remove_from_index(agent_id, memory_id)
 ```
 
+For a detailed implementation of neural network-based compression using autoencoders, see [Custom Autoencoder](custom_autoencoder.md). The autoencoder approach enables more sophisticated dimensionality reduction while preserving semantic relationships between states.
+
 ## **5. Retrieval Methods**
 
 The implementation provides several methods for retrieving agent state memories, using the retrieval concepts defined in [Core Concepts](core_concepts.md#5-memory-retrieval-methods).
@@ -353,6 +355,34 @@ Planned improvements to the agent state storage component:
 3. **Custom Vector Index**: Implement specialized vector index for agent state embeddings
 
 For more details on planned enhancements, see [Future Enhancements](future_enhancements.md).
+
+## **9. References**
+
+### Academic References
+
+1. Schacter, D. L., & Tulving, E. (1994). "Memory Systems." MIT Press. (Foundational work on memory systems categorization)
+
+2. Baddeley, A. D. (2000). "The episodic buffer: A new component of working memory?" *Trends in Cognitive Sciences, 4(11)*, 417-423. (Multi-component model of working memory)
+
+3. Graves, A., Wayne, G., & Danihelka, I. (2014). "Neural Turing Machines." *arXiv preprint arXiv:1410.5401*. (External memory architectures for neural networks)
+
+4. Johnson, M., Hofmann, K., Hutton, T., & Bignell, D. (2016). "The Malmo Platform for Artificial Intelligence Experimentation." *IJCAI*, 4246-4247. (Agent state representation in simulated environments)
+
+5. Parisotto, E., & Salakhutdinov, R. (2017). "Neural Map: Structured Memory for Deep Reinforcement Learning." *arXiv preprint arXiv:1702.08360*. (Structured memory representations for agents)
+
+### Technical References
+
+1. Redis Labs (2021). "Redis Persistence and Redis Modules." Redis Documentation. https://redis.io/topics/persistence
+
+2. Johnson, J., Douze, M., & Jégou, H. (2019). "Billion-scale similarity search with GPUs." *IEEE Transactions on Big Data, 7(3)*, 535-547. (FAISS library for efficient similarity search)
+
+3. Steinbach, M., Karypis, G., & Kumar, V. (2000). "A comparison of document clustering techniques." *KDD Workshop on Text Mining, 400(1)*, 525-526. (Vector embedding storage techniques)
+
+4. Wang, J., Shen, H. T., Song, J., & Ji, J. (2014). "Hashing for similarity search: A survey." *arXiv preprint arXiv:1408.2927*. (Efficient similarity search methods)
+
+5. Rakthanmanon, T., Campana, B., Mueen, A., Batista, G., Westover, B., Zhu, Q., ... & Keogh, E. (2012). "Searching and mining trillions of time series subsequences under dynamic time warping." *Proceedings of the 18th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining*, 262-270. (Time series retrieval techniques)
+
+6. Devlin, J., Chang, M. W., Lee, K., & Toutanova, K. (2018). "BERT: Pre-training of deep bidirectional transformers for language understanding." *arXiv preprint arXiv:1810.04805*. (Embedding techniques for semantic representation)
 
 ---
 
