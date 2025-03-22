@@ -15,10 +15,29 @@ This documentation is organized to minimize duplication and provide clear naviga
 | [API Specification](agent_memory_api.md) | Formal API definitions for the memory system |
 | [Glossary](glossary.md) | Definitions of key terminology used across documents |
 | [Future Enhancements](future_enhancements.md) | Planned improvements and extensions |
-| [Documentation Map](diagrams/documentation_map.md) | Visual guide to documentation organization |
 | [Custom Autoencoder](custom_autoencoder.md) | Neural network-based embeddings and compression for agent states |
+| [Implementation Plan](implementation_plan.md) | Phased approach for development with milestones |
+| [Dev Setup](dev_setup.md) | Environment setup for development and testing |
+| [Testing Strategy](testing_strategy.md) | Comprehensive testing plan with unit and integration tests |
+| [Integration Notes](integration_notes.md) | Guidelines for integrating with existing codebase |
+| [Code Structure](CODE_STRUCTURE.MD) | Detailed module structure and code organization |
 
-For a visual representation of how these documents relate to each other, see the [Documentation Map](diagrams/documentation_map.md).
+### **Redis Schema Documentation**
+| Document | Purpose |
+|----------|---------|
+| [Agent State Redis Schema](agent_state_redis_schema.md) | Schema design for agent state storage in Redis |
+| [Agent Action Redis Schema](agent_action_redis_schema.md) | Schema design for agent action recording in Redis |
+| [Agent Interaction Redis Schema](agent_interaction_redis_schema.md) | Schema design for agent interaction tracking in Redis |
+| [Redis Index Schema](redis_index_schema.md) | Index design for efficient Redis retrieval |
+| [Index Optimization Strategies](index_optimization_strategies.md) | Performance techniques for Redis indices |
+
+### **Diagram Documentation**
+| Document | Purpose |
+|----------|---------|
+| [Documentation Map](diagrams/documentation_map.md) | Visual guide to documentation organization |
+| [Unified Memory Architecture](diagrams/unified_memory_architecture.md) | Comprehensive system architecture and data flows |
+| [Redis Implementation](diagrams/redis_implementation.md) | Redis-specific implementation details |
+| [Memory Entry Lifecycle](diagrams/memory_entry_lifecycle.md) | How memories flow through the system |
 
 ## **System Components**
 
@@ -41,40 +60,57 @@ High-performance caching to reduce latency and improve throughput.
 - **Contextual Retrieval**: Semantic similarity and attribute-based lookups
 - **Flexible API**: Comprehensive interfaces for memory operations
 - **Action State Memory**: Records of agent actions with context and outcomes for improved decision-making
+- **Error Handling**: Robust error recovery and graceful degradation strategies
+- **Optimized Indices**: Specialized Redis index structures for efficient retrieval
 
 For detailed explanations of these features, see the [Core Concepts](core_concepts.md) document.
 
 ## **Implementation Roadmap**
 
-### **Phase 1: Foundation** *(Completed)*
-- System architecture design
-- Core API specification
-- Data structure definitions
+### **Phase 1: Foundation**
+- Redis client setup with connection pooling
+- Base data structures and storage classes implementation
+- Key management and naming conventions
 
-### **Phase 2: Development** *(In Progress)*
-- State storage implementation
-- Memory agent development
-- Redis integration and optimization
+### **Phase 2: Core Memory Operations**
+- Core Memory Agent implementation
+- Simple embedding generation with similarity search
+- Intermediate Memory Store with TTL configuration
 
-### **Phase 3: Integration & Testing**
-- System-wide integration
-- Performance benchmarking
-- Documentation and examples
+### **Phase 3: Long-Term Storage**
+- SQLite integration for long-term memory
+- Advanced compression with importance-based filtering
+- Background workers for batch operations
 
-### **Phase 4: Deployment**
-- Staged rollout
-- Monitoring and optimization
-- Feedback collection
+### **Phase 4: Advanced Retrieval**
+- Complex query support with attribute-based filtering
+- Memory relevance ranking with context-aware results
+- API refinement and comprehensive documentation
+
+### **Phase 5: ML Integration**
+- Autoencoder embedding engine implementation
+- Multi-resolution compression for different memory tiers
+- Production optimization for inference performance
+
+### **Phase 6: Integration & Optimization**
+- Agent integration with memory hooks
+- Performance optimization for identified bottlenecks
+- Error recovery and monitoring implementation
+
+See the complete [Implementation Plan](implementation_plan.md) for detailed milestones and feature prioritization.
 
 ## **Getting Started**
 
 For developers looking to use or contribute to this system:
 
 1. Review the [Core Concepts](core_concepts.md) document first
-2. Explore the [API Specification](agent_memory_api.md) for integration details
-3. Check implementation specifics in relevant component documents
-4. Refer to the [Glossary](glossary.md) for term definitions
-5. See the [Documentation Map](diagrams/documentation_map.md) for navigation assistance
+2. Follow the [Dev Setup](dev_setup.md) guide to set up your development environment
+3. Explore the [API Specification](agent_memory_api.md) for integration details
+4. Check implementation specifics in relevant component documents
+5. Review the [Testing Strategy](testing_strategy.md) for quality assurance guidelines
+6. Refer to the [Glossary](glossary.md) for term definitions
+7. See the [Documentation Map](diagrams/documentation_map.md) for navigation assistance
+8. Understand the [Code Structure](CODE_STRUCTURE.MD) for module organization
 
 ## **Architectural Diagram**
 

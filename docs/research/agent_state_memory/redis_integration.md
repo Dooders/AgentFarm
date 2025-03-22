@@ -47,11 +47,15 @@ class RedisBufferedDataLogger(DataLogger):
         database: 'SimulationDatabase',
         simulation_id: Optional[str] = None,
         config: Optional[DataLoggingConfig] = None,
-        redis_config: Optional[RedisConfig] = None,
+        redis_stm_config: Optional[RedisSTMConfig] = None,
     ):
         super().__init__(database, simulation_id, config)
-        self.redis_client = redis.Redis(**redis_config.connection_params)
-        self.redis_config = redis_config
+        
+        # Use STM configuration for buffered writes since STM is
+        # the most recent, high-frequency memory tier
+        self.redis_stm_config = redis_stm_config or RedisSTMConfig()
+        self.redis_client = redis.Redis(**self.redis_stm_config.connection_params)
+        self.namespace = self.redis_stm_config.namespace
         
         # Maintain existing buffer structure for fallback
         self._action_buffer = []
@@ -76,7 +80,7 @@ def log_agent_action(self, step_number, agent_id, action_type, ...):
     try:
         # Serialize and push to Redis list
         self.redis_client.rpush(
-            f"{self.simulation_id}:actions", 
+            f"{self.namespace}:{self.simulation_id}:actions", 
             json.dumps(action_data)
         )
     except redis.exceptions.RedisError as e:
@@ -100,12 +104,25 @@ class SQLitePersistenceWorker:
     def __init__(
         self, 
         database: 'SimulationDatabase',
-        redis_config: RedisConfig,
+        redis_stm_config: RedisSTMConfig,
+        redis_im_config: Optional[RedisIMConfig] = None,
         batch_size: int = 1000,
         flush_interval: int = 5,
     ):
         self.db = database
-        self.redis_client = redis.Redis(**redis_config.connection_params)
+        self.redis_stm_config = redis_stm_config
+        self.stm_client = redis.Redis(**redis_stm_config.connection_params)
+        self.stm_namespace = redis_stm_config.namespace
+        
+        # Optional IM client for memory transition
+        self.redis_im_config = redis_im_config
+        if redis_im_config:
+            self.im_client = redis.Redis(**redis_im_config.connection_params)
+            self.im_namespace = redis_im_config.namespace
+        else:
+            self.im_client = None
+            self.im_namespace = None
+            
         self.batch_size = batch_size
         self.flush_interval = flush_interval
         self._stop_event = threading.Event()
@@ -133,7 +150,7 @@ class SQLitePersistenceWorker:
     def _flush_all_keys(self):
         """Flush all Redis keys for all simulations."""
         # Find all simulation keys
-        simulation_keys = self.redis_client.keys("*:actions")
+        simulation_keys = self.stm_client.keys(f"{self.stm_namespace}:*:actions")
         for key in simulation_keys:
             self._flush_key(key)
             
@@ -148,19 +165,43 @@ class RedisConfig:
     """Configuration for Redis connection and behavior."""
     host: str = "localhost"
     port: int = 6379
-    db: int = 0
+    db: int = 0  # Default database
     password: Optional[str] = None
     
     @property
-    def connection_params(self) -> Dict[str, Any]:
-        """Get Redis connection parameters as a dictionary."""
+    def connection_params(self):
+        """Return connection parameters for Redis client."""
         return {
             "host": self.host,
             "port": self.port,
             "db": self.db,
-            "password": self.password,
+            "password": self.password if self.password else None,
         }
 ```
+
+### **4.5 Memory Tier-Specific Redis Configurations**
+
+```python
+@dataclass
+class RedisSTMConfig(RedisConfig):
+    """Configuration for Short-Term Memory Redis."""
+    db: int = 0  # STM uses database 0
+    namespace: str = "agent_memory:stm"
+    ttl: int = 86400  # 24 hours
+    memory_limit: int = 1000  # Max entries per agent
+
+
+@dataclass
+class RedisIMConfig(RedisConfig):
+    """Configuration for Intermediate Memory Redis."""
+    db: int = 1  # IM uses database 1
+    namespace: str = "agent_memory:im"
+    ttl: int = 604800  # 7 days
+    memory_limit: int = 10000  # Max entries per agent
+    compression_level: int = 1  # Level 1 compression
+```
+
+This configuration structure aligns with the memory tier separation described in our architecture, ensuring that the Short-Term Memory (STM) and Intermediate Memory (IM) are stored in separate Redis databases to prevent data conflicts.
 
 ## **5. Redis Memory Tier Implementation**
 
@@ -172,10 +213,11 @@ This implementation provides the Redis-based storage for the STM and IM memory t
 class RedisSTMStore:
     """Redis-based implementation of Short-Term Memory store."""
     
-    def __init__(self, agent_id, config):
+    def __init__(self, agent_id, config: RedisSTMConfig):
         self.agent_id = agent_id
         self.config = config
         self.redis_client = redis.Redis(**config.connection_params)
+        self.namespace = config.namespace
         
     def store(self, memory_entry):
         """Store a memory entry in STM."""
@@ -183,15 +225,25 @@ class RedisSTMStore:
         
         # Store the full entry
         self.redis_client.hset(
-            f"agent:{self.agent_id}:stm", 
+            f"{self.namespace}:agent:{self.agent_id}", 
             memory_id,
             json.dumps(memory_entry)
         )
         
         # Add to timeline index
         self.redis_client.zadd(
-            f"agent:{self.agent_id}:stm:timeline",
+            f"{self.namespace}:agent:{self.agent_id}:timeline",
             {memory_id: memory_entry["step_number"]}
+        )
+        
+        # Set TTL on keys
+        self.redis_client.expire(
+            f"{self.namespace}:agent:{self.agent_id}",
+            self.config.ttl
+        )
+        self.redis_client.expire(
+            f"{self.namespace}:agent:{self.agent_id}:timeline",
+            self.config.ttl
         )
 ```
 
@@ -201,11 +253,12 @@ class RedisSTMStore:
 class RedisIMStore:
     """Redis-based implementation of Intermediate Memory store with TTL."""
     
-    def __init__(self, agent_id, config):
+    def __init__(self, agent_id, config: RedisIMConfig):
         self.agent_id = agent_id
         self.config = config
         self.redis_client = redis.Redis(**config.connection_params)
         self.ttl = config.ttl  # Time-to-live in seconds
+        self.namespace = config.namespace
         
     def store(self, memory_entry):
         """Store a compressed memory entry in IM with TTL."""
@@ -213,14 +266,24 @@ class RedisIMStore:
         
         # Store the compressed entry
         self.redis_client.hset(
-            f"agent:{self.agent_id}:im", 
+            f"{self.namespace}:agent:{self.agent_id}", 
             memory_id,
             json.dumps(memory_entry)
         )
         
+        # Add to timeline index
+        self.redis_client.zadd(
+            f"{self.namespace}:agent:{self.agent_id}:timeline",
+            {memory_id: memory_entry["step_number"]}
+        )
+        
         # Set expiration for automatic cleanup
         self.redis_client.expire(
-            f"agent:{self.agent_id}:im",
+            f"{self.namespace}:agent:{self.agent_id}",
+            self.ttl
+        )
+        self.redis_client.expire(
+            f"{self.namespace}:agent:{self.agent_id}:timeline",
             self.ttl
         )
 ```
