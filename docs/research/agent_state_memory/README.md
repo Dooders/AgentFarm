@@ -1,4 +1,4 @@
-# **Unified Agent State & Memory System**
+# **AgentMemory**
 
 ## **Overview**
 This project implements a comprehensive system for agent state persistence, memory management, and high-performance caching. It provides autonomous agents with reliable state tracking, context-aware memory, and efficient data retrieval capabilities.
@@ -12,7 +12,7 @@ This documentation is organized to minimize duplication and provide clear naviga
 | [Agent State Storage](agent_state_storage.md) | Implementation of persistent state management |
 | [Memory Agent](memory_agent.md) | Dynamic memory system with human-like recall capabilities |
 | [Redis Integration](redis_integration.md) | High-performance caching implementation |
-| [API Specification](agent_state_memory_api.md) | Formal API definitions for the memory system |
+| [API Specification](agent_memory_api.md) | Formal API definitions for the memory system |
 | [Glossary](glossary.md) | Definitions of key terminology used across documents |
 | [Future Enhancements](future_enhancements.md) | Planned improvements and extensions |
 | [Documentation Map](diagrams/documentation_map.md) | Visual guide to documentation organization |
@@ -71,7 +71,7 @@ For detailed explanations of these features, see the [Core Concepts](core_concep
 For developers looking to use or contribute to this system:
 
 1. Review the [Core Concepts](core_concepts.md) document first
-2. Explore the [API Specification](agent_state_memory_api.md) for integration details
+2. Explore the [API Specification](agent_memory_api.md) for integration details
 3. Check implementation specifics in relevant component documents
 4. Refer to the [Glossary](glossary.md) for term definitions
 5. See the [Documentation Map](diagrams/documentation_map.md) for navigation assistance
@@ -84,7 +84,7 @@ For developers looking to use or contribute to this system:
 └───────────────────────┬─────────────────────────┘
                         │
 ┌───────────────────────▼─────────────────────────┐
-│            Unified Memory System                │
+│               AgentMemory                       │
 ├─────────────┬─────────────────────┬─────────────┤
 │  Memory     │   State Storage     │    Redis    │
 │   Agent     │                     │   Cache     │

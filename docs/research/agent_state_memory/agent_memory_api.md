@@ -1,8 +1,8 @@
-# **Agent State Memory API Specification**
+# **AgentMemory API Specification**
 
 ## **1. Introduction**
 
-This document formalizes the API for the Agent State Memory system, providing interfaces for storing, retrieving, and managing agent states. The API is designed to work with the hierarchical memory architecture described in [Core Concepts](core_concepts.md).
+This document formalizes the API for the AgentMemory system, providing interfaces for storing, retrieving, and managing agent states. The API is designed to work with the hierarchical memory architecture described in [Core Concepts](core_concepts.md).
 
 For details on memory structure, data formats, and architectural concepts, please refer to:
 - [Hierarchical Memory Architecture](core_concepts.md#2-hierarchical-memory-architecture)
@@ -14,7 +14,7 @@ For details on memory structure, data formats, and architectural concepts, pleas
 The primary interface for storing and retrieving agent memory states:
 
 ```python
-class AgentStateMemoryAPI:
+class AgentMemoryAPI:
     """Interface for storing and retrieving agent states in the hierarchical memory system."""
     
     def store_agent_state(self, agent_id, state_data, step_number):
@@ -267,8 +267,8 @@ The API interfaces are implemented by the following classes:
 Primary implementation class that leverages Redis for STM and IM tiers:
 
 ```python
-class RedisAgentMemoryManager(AgentStateMemoryAPI, StateChangeTrackingAPI, MemoryManagementAPI, MemoryQueryAPI):
-    """Redis-based implementation of the Agent State Memory API."""
+class RedisAgentMemoryManager(AgentMemoryAPI, StateChangeTrackingAPI, MemoryManagementAPI, MemoryQueryAPI):
+    """Redis-based implementation of the Agent Memory API."""
     
     def __init__(self, config=None):
         self.config = config or DefaultMemoryConfig()

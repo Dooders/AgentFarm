@@ -1,8 +1,8 @@
-# **Redis Integration for Agent State Memory**
+# **Redis Integration for AgentMemory**
 
 ## **1. Introduction**
 
-This document details the Redis integration component of the Agent State Memory system. It focuses on implementation details for using Redis as a high-performance caching and buffering layer. For core concepts and architecture information, please refer to the [Core Concepts](core_concepts.md) document.
+This document outlines how Redis is integrated with the AgentMemory system to provide efficient storage and retrieval of agent states. We leverage Redis data structures to optimize for the most common access patterns in agent simulations. For specifics on the Redis schema for agent state storage, please see the [Redis Index Schema](redis_index_schema.md) document. For action storage details, see the [Agent Action Redis Schema](agent_action_redis_schema.md), and for social interaction storage, see the [Agent Interaction Redis Schema](agent_interaction_redis_schema.md).
 
 ## **2. Current Architecture Analysis**
 
@@ -262,5 +262,10 @@ The Redis implementation serves as the foundation for both STM and IM tiers in t
 - [Core Concepts](core_concepts.md) - Fundamental architecture and data structures
 - [Memory Agent](memory_agent.md) - Memory agent implementation
 - [Agent State Storage](agent_state_storage.md) - State storage implementation
-- [API Specification](agent_state_memory_api.md) - API documentation
+- [API Specification](agent_memory_api.md) - API documentation
+- [Redis Index Schema](redis_index_schema.md) - Redis key structure and index design
+- [Agent State Redis Schema](agent_state_redis_schema.md) - Specific Redis schema for agent state storage
 - [Glossary](glossary.md) - Terminology reference
+- [Agent Action Redis Schema](agent_action_redis_schema.md) - Redis schema for agent action storage
+- [Agent Interaction Redis Schema](agent_interaction_redis_schema.md) - Redis schema for agent interaction storage
+- [Index Optimization Strategies](index_optimization_strategies.md) - Strategies for optimizing Redis indices

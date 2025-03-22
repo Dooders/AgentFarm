@@ -1,4 +1,4 @@
-# Unified Memory Architecture Diagrams
+# AgentMemory Architecture Diagrams
 
 ## High-Level System Architecture
 
@@ -6,7 +6,7 @@
 graph TD
     Agent[Agent] --> |Interacts with| MS[Memory System]
     
-    subgraph "Unified Memory Architecture"
+    subgraph "AgentMemory Architecture"
         MS --> |Stores/Retrieves| STM[Short-Term Memory]
         MS --> |Stores/Retrieves| IM[Intermediate Memory]
         MS --> |Stores/Retrieves| LTM[Long-Term Memory]
@@ -21,7 +21,7 @@ graph TD
     Redis --> |Syncs with| DB
 ```
 
-This diagram illustrates the high-level architecture of the unified memory system. It shows how agents interact with the memory system, which manages three tiers of memory: Short-Term Memory (STM), Intermediate Memory (IM), and Long-Term Memory (LTM). The memory system uses Redis for high-performance caching and persists data to a database. Information flows between memory tiers based on importance and age, with Redis syncing to persistent storage to ensure data durability.
+This diagram illustrates the high-level architecture of the AgentMemory system. It shows how agents interact with the memory system, which manages three tiers of memory: Short-Term Memory (STM), Intermediate Memory (IM), and Long-Term Memory (LTM). The memory system uses Redis for high-performance caching and persists data to a database. Information flows between memory tiers based on importance and age, with Redis syncing to persistent storage to ensure data durability.
 
 ## Memory Entry Structure
 

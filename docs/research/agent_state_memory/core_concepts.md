@@ -1,4 +1,4 @@
-# **Agent State Memory: Core Concepts**
+# **AgentMemory: Core Concepts**
 
 ## **1. Hierarchical Memory Architecture**
 
@@ -127,4 +127,4 @@ The system's performance is evaluated using:
 - For implementation details, see [Agent State Storage](agent_state_storage.md)
 - For memory agent functionality, see [Memory Agent](memory_agent.md)
 - For Redis integration, see [Redis Integration](redis_integration.md)
-- For API specifications, see [Agent State Memory API](agent_state_memory_api.md) 
+- For API specifications, see [AgentMemory API](agent_memory_api.md) 
