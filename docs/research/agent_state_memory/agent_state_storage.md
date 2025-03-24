@@ -1,8 +1,8 @@
-# **Optimized Agent State Storage Implementation**
+# **Agent State Storage Implementation**
 
 ## **1. Introduction**
 
-This document details the implementation of the agent state storage component within the unified Agent State Memory System. For core concepts, data structures, and architectural overview, please refer to the [Core Concepts](core_concepts.md) document.
+This document details the implementation of the agent state storage component within the AgentMemory system. For core concepts, data structures, and architectural overview, please refer to the [Core Concepts](core_concepts.md) document.
 
 ## **2. Implementation Goals**
 
@@ -24,24 +24,13 @@ For details on memory tiers, data flow, and memory entry structure, please see:
 - [Memory Transition Flow](core_concepts.md#22-memory-transition-flow)
 - [Memory Entry Structure](core_concepts.md#3-memory-entry-structure)
 
-### **3.2 Implementation Components**
 
-The storage implementation consists of the following components:
-
-```
-┌─────────────────────────────────────────────┐
-│          AgentStateStorageManager           │
-├─────────────┬─────────────────┬─────────────┤
-│  STM Store  │    IM Store     │  LTM Store  │
-│  (Redis)    │ (Redis+Compress)│  (SQLite)   │
-└─────────────┴─────────────────┴─────────────┘
-```
 
 ## **4. Implementation Details**
 
 ### **4.1 Data API Interface**
 
-For a comprehensive formalization of the data API interfaces, please refer to the [Agent State Memory API Specification](agent_state_memory_api.md) document.
+For a comprehensive formalization of the data API interfaces, please refer to the [AgentMemory API Specification](agent_memory_api.md) document.
 
 ### **4.2 RedisAgentMemoryLogger**
 
@@ -390,4 +379,4 @@ For more details on planned enhancements, see [Future Enhancements](future_enhan
 - [Core Concepts](core_concepts.md) - Fundamental architecture and data structures
 - [Memory Agent](memory_agent.md) - Memory agent implementation
 - [Redis Integration](redis_integration.md) - Redis configuration details
-- [API Specification](agent_state_memory_api.md) - API documentation 
+- [API Specification](agent_memory_api.md) - API documentation 

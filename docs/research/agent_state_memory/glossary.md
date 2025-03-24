@@ -1,6 +1,6 @@
-# **Agent State Memory: Glossary of Terms**
+# **AgentMemory: Glossary of Terms**
 
-This document provides definitions for terminology used throughout the Agent State Memory documentation. Consistent terminology helps maintain clarity across all documentation files.
+This document provides definitions for terminology used throughout the AgentMemory documentation. Consistent terminology helps maintain clarity across all documentation files.
 
 ## **Memory Architecture Terms**
 
@@ -72,7 +72,7 @@ Implementation class that handles logging of agent states to the Redis-based STM
 ### **SQLitePersistenceWorker**
 Background process responsible for moving data from Redis to SQLite for long-term storage.
 
-### **AgentStateMemoryAPI**
+### **AgentMemoryAPI**
 Interface for interacting with the memory system, providing methods for storing and retrieving agent states.
 
 ## **Performance Metrics**

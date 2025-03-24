@@ -1,6 +1,6 @@
-# **Agent State Memory Documentation Map**
+# **AgentMemory Documentation Map**
 
-The following diagram illustrates the relationships between the various documentation files in the Agent State Memory system. Use this map to navigate the documentation more effectively.
+The following diagram illustrates the relationships between the various documentation files in the AgentMemory system. Use this map to navigate the documentation more effectively.
 
 ```
 ┌───────────────────────────────────────────────────────────┐
@@ -22,7 +22,7 @@ The following diagram illustrates the relationships between the various document
 ┌────────┐  ┌────────┐  ┌─────────┐  ┌──────────┐  ┌──────────┐
 │        │  │        │  │         │  │          │  │          │
 │ agent_ │  │ memory │  │ redis_  │  │ agent_   │  │ future_  │
-│ state_ │  │ agent  │  │ integra │  │ state_   │  │ enhance  │
+│ state_ │  │ agent  │  │ integra │  │ memory_  │  │ enhance  │
 │ storage│  │  .md   │  │ tion.md │  │ api.md   │  │ ments.md │
 │  .md   │  │        │  │         │  │          │  │          │
 │        │  │        │  │         │  │          │  │          │
@@ -52,7 +52,7 @@ The following diagram illustrates the relationships between the various document
 - **agent_state_storage.md**: State persistence implementation
 - **memory_agent.md**: Memory management implementation
 - **redis_integration.md**: Redis caching implementation
-- **agent_state_memory_api.md**: API specification
+- **agent_memory_api.md**: API specification
 
 ### **Supporting Documents**
 

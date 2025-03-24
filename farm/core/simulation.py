@@ -3,6 +3,8 @@ import logging
 import os
 import random
 import time
+import numpy as np
+import torch
 from datetime import datetime
 from typing import List, Optional, Tuple
 
@@ -70,13 +72,23 @@ def create_initial_agents(
     logging.info(
         f"Creating initial agents - System: {num_system_agents}, Independent: {num_independent_agents}, Control: {num_control_agents}"
     )
+    
+    # Use a seeded random number generator for deterministic agent creation
+    if hasattr(environment, 'seed_value') and environment.seed_value is not None:
+        rng = random.Random(environment.seed_value)
+    else:
+        rng = random
+    
+    # Helper function to generate deterministic positions
+    def get_random_position():
+        return (
+            rng.uniform(0, environment.width),
+            rng.uniform(0, environment.height),
+        )
 
     # Create system agents
     for _ in range(num_system_agents):
-        position = (
-            random.uniform(0, environment.width),
-            random.uniform(0, environment.height),
-        )
+        position = get_random_position()
         agent = SystemAgent(
             agent_id=environment.get_next_agent_id(),
             position=position,
@@ -91,10 +103,7 @@ def create_initial_agents(
 
     # Create independent agents
     for _ in range(num_independent_agents):
-        position = (
-            random.uniform(0, environment.width),
-            random.uniform(0, environment.height),
-        )
+        position = get_random_position()
         agent = IndependentAgent(
             agent_id=environment.get_next_agent_id(),
             position=position,
@@ -109,10 +118,7 @@ def create_initial_agents(
 
     # Create control agents
     for _ in range(num_control_agents):
-        position = (
-            random.uniform(0, environment.width),
-            random.uniform(0, environment.height),
-        )
+        position = get_random_position()
         agent = ControlAgent(
             agent_id=environment.get_next_agent_id(),
             position=position,
@@ -127,6 +133,37 @@ def create_initial_agents(
     logging.info(f"Total initial agents: {len(environment.agents)}")
 
     return positions
+
+
+def init_random_seeds(seed=None):
+    """
+    Initialize all random number generators with a seed for deterministic behavior.
+    
+    Parameters
+    ----------
+    seed : int, optional
+        The seed value to use, by default None
+    """
+    if seed is not None:
+        # Set the Python random module seed
+        random.seed(seed)
+        
+        # Set NumPy random seed
+        np.random.seed(seed)
+        
+        # Set PyTorch seeds if available
+        try:
+            torch.manual_seed(seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed(seed)
+                torch.cuda.manual_seed_all(seed)
+                # Uncomment for full determinism (may affect performance)
+                # torch.backends.cudnn.deterministic = True
+                # torch.backends.cudnn.benchmark = False
+        except ImportError:
+            logging.info("PyTorch not available, skipping torch seed initialization")
+        
+        logging.info(f"Random seeds initialized with seed {seed}")
 
 
 def run_simulation(
@@ -163,11 +200,21 @@ def run_simulation(
     # Generate simulation_id if not provided
     if simulation_id is None:
         simulation_id = generate_simulation_id()
+        
+    # Set seed for reproducibility if provided
+    if seed is not None:
+        # Store seed in config for future reference
+        config.seed = seed
+        
+        # Initialize all random seeds
+        init_random_seeds(seed)
 
     # Setup logging
     setup_logging()
     logging.info(f"Starting simulation with ID: {simulation_id}")
     logging.info(f"Configuration: {config}")
+    if seed is not None:
+        logging.info(f"Using random seed: {seed}")
 
     # Initialize start_time here so it's available in both code paths
     start_time = datetime.now()
@@ -196,6 +243,7 @@ def run_simulation(
                 db_path=None,  # Will be ignored for in-memory DB
                 config=config,
                 simulation_id=simulation_id,
+                seed=seed,  # Pass seed to Environment
             )
 
             # Replace the default database with in-memory database
@@ -270,10 +318,8 @@ def run_simulation(
                 db_path=db_path,
                 config=config,
                 simulation_id=simulation_id,
+                seed=seed,  # Pass seed to Environment
             )
-
-        # Set seed if provided
-        config.seed = seed
 
         # Save configuration if requested and path is provided
         if save_config and path is not None:

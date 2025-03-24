@@ -1,4 +1,4 @@
-# **Agent State Memory: Core Concepts**
+# **AgentMemory: Core Concepts**
 
 ## **1. Hierarchical Memory Architecture**
 
@@ -51,9 +51,9 @@ Each memory record contains the following standardized structure:
   },
   
   "embeddings": {
-    "full_vector": [...],  // 300-500d for STM
-    "compressed_vector": [...],  // 100d for IM
-    "abstract_vector": [...]  // 20-30d for LTM
+    "full_vector": [...],  // 384d for STM
+    "compressed_vector": [...],  // 128d for IM
+    "abstract_vector": [...]  // 32d for LTM
   }
 }
 ```
@@ -127,4 +127,4 @@ The system's performance is evaluated using:
 - For implementation details, see [Agent State Storage](agent_state_storage.md)
 - For memory agent functionality, see [Memory Agent](memory_agent.md)
 - For Redis integration, see [Redis Integration](redis_integration.md)
-- For API specifications, see [Agent State Memory API](agent_state_memory_api.md) 
+- For API specifications, see [AgentMemory API](agent_memory_api.md) 

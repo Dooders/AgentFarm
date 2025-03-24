@@ -1,4 +1,4 @@
-# Custom Autoencoder for Agent State Memory Embeddings
+# Custom Autoencoder for AgentMemory Embeddings
 
 ## Overview
 
@@ -607,7 +607,7 @@ def initialize_memory_system(agent_id):
 - [Memory Agent](memory_agent.md): Integration of the autoencoder with memory management
 - [Agent State Storage](agent_state_storage.md): Using embeddings for memory indexing and retrieval
 - [Redis Integration](redis_integration.md): Storage of embeddings in the Redis backend
-- [Agent State Memory API](agent_state_memory_api.md): API methods for working with embeddings
+- [AgentMemory API](agent_memory_api.md): API methods for working with embeddings
 - [Glossary](glossary.md): Definition of memory embedding and related terms
 
 ### Academic References

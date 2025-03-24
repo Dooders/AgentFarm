@@ -1,7 +1,7 @@
 # **Memory Agent Implementation**  
 
 ## **1. Introduction**  
-This document describes the implementation details of the Memory Agent component within the Agent State Memory system. The Memory Agent is responsible for managing how agents store, retrieve, and use their memory to make decisions.
+This document describes the implementation details of the Memory Agent component within the AgentMemory system. The Memory Agent is responsible for managing how agents store, retrieve, and use their memory to make decisions.
 
 For a comprehensive overview of the hierarchical memory architecture and core concepts used in this document, please refer to the [Core Concepts](core_concepts.md) document.
 
