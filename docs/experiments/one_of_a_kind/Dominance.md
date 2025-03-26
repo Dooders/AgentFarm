@@ -4,18 +4,20 @@
 
 This report analyzes the dominance patterns observed across 500 simulations in the Agent Farm environment. Three agent types (System, Independent, and Control) competed for resources and reproduction opportunities. The analysis reveals:
 
-- **System agents** emerged as the most dominant type overall (44.2% comprehensive dominance), followed by Control agents (32.2%) and Independent agents (23.6%).
+- **Independent agents** emerged as the most dominant type overall (47.0% comprehensive dominance), followed by Control agents (28.6%) and System agents (24.4%).
 - **Dominance switching** occurred on average 9.6 times per simulation, with most switches happening in the early phase.
-- **System agents** maintained the longest periods of dominance (421 steps on average), suggesting greater stability once they achieve dominance.
+- **Independent agents** maintained the longest periods of dominance (421 steps on average), suggesting greater stability once they achieve dominance.
 - **Initial resource proximity** and **reproduction strategies** appear to be key factors influencing which agent type becomes dominant.
 - **Reproduction strategy stability** strongly correlates with dominance duration, with System agents showing the most consistent reproduction patterns (variation coefficient: 0.24). ###validate###
 - **Changes in reproduction rates** preceded 68% of dominance switches, indicating reproduction strategy adaptations often trigger shifts in dominance. ###validate###
 
 ## 1. Dominance Distribution
 
-- **System agents** excel at population growth, leading in both population and comprehensive dominance measures.
-- **Independent agents** show superior survival skills but struggle to convert this into overall dominance.
-- **Control agents** maintain a balanced performance across all dominance measures.
+- **Population Dominance**: Independent agents dominated in 49.2% of simulations, followed by Control agents (27.8%) and System agents (23.0%).
+- **Survival Dominance**: Independent agents showed the highest survival dominance (49.8%), with Control agents (30.8%) and System agents (19.4%) following.
+- **Comprehensive Dominance**: Independent agents maintained overall dominance (47.0%), with Control agents (28.6%) and System agents (24.4%) showing similar performance levels.
+- **Consistent Pattern**: Independent agents consistently outperformed other agent types across all three dominance measures.
+- **Measure Variation**: System agents performed slightly better in comprehensive dominance than in survival dominance, suggesting they excel in factors beyond mere survival.
 
 The comprehensive dominance measure, which considers multiple factors including population growth, recency-weighted presence, and dominance duration, provides the most holistic view of agent performance. (see [Dominance Measures](Measures.md) for detailed explanations of each measure)
 
