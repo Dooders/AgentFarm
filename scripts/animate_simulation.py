@@ -6,7 +6,7 @@ This script creates an animation of the simulation steps, showing how agents and
 move and interact over time. The output is an MP4 video that can be easily served in a web app.
 
 Usage:
-    python animate_simulation.py [iteration_number]
+    python animate_simulation.py [iteration_number] [--gif]
 """
 
 import json
@@ -15,14 +15,15 @@ import os
 import sqlite3
 import sys
 import tempfile
+import argparse
 from functools import partial
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+from moviepy import ImageSequenceClip
 import numpy as np
 import pandas as pd
 from matplotlib.patches import Circle
-from moviepy.editor import ImageSequenceClip
 from tqdm import tqdm  # Import tqdm for better progress tracking if available
 
 
@@ -228,6 +229,7 @@ def create_simulation_video(
     parallel=True,
     num_processes=None,
     skip_frames=1,  # Process every nth frame
+    create_gif=False,  # Option to create a GIF
 ):
     """
     Create a video of the simulation for a specific iteration.
@@ -242,6 +244,7 @@ def create_simulation_video(
         parallel: Whether to use parallel processing (default: True)
         num_processes: Number of processes to use (default: number of CPU cores)
         skip_frames: Process every nth frame to reduce workload (default: 1, process all frames)
+        create_gif: Whether to also create a GIF version (default: False)
     """
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
@@ -342,31 +345,45 @@ def create_simulation_video(
         # Save as MP4
         output_path = os.path.join(output_dir, f"simulation_{iteration}.mp4")
         clip.write_videofile(
-            output_path, codec="libx264", fps=fps, threads=4, verbose=False, logger=None
+            output_path, codec="libx264", fps=fps, threads=4, logger=None
         )
         print(f"Video saved to: {output_path}")
+        
+        # Also create a GIF if requested
+        if create_gif:
+            gif_output_path = os.path.join(output_dir, f"simulation_{iteration}.gif")
+            print(f"Creating GIF animation...")
+            
+            # For GIFs, we might want to reduce the size to keep file size reasonable
+            clip.resize(width=480)  # Resize to smaller width for GIF
+            
+            # Write GIF with a reasonable fps for GIF animations
+            clip.write_gif(gif_output_path, fps=10, opt="OptimizePlus", logger=None)
+            print(f"GIF saved to: {gif_output_path}")
 
 
 def main():
-    if len(sys.argv) != 2:
-        print("Usage: python animate_simulation.py <iteration_number>")
-        sys.exit(1)
-
-    iteration = int(sys.argv[1])
-    experiment_path = (
-        "results/one_of_a_kind/experiments/data/one_of_a_kind_20250302_193353"
-    )
+    # Create argument parser
+    parser = argparse.ArgumentParser(description="Animate simulation results.")
+    parser.add_argument("iteration", type=int, help="Iteration number to animate")
+    parser.add_argument("--gif", action="store_true", help="Also create a GIF version")
+    parser.add_argument("--experiment-path", type=str, 
+                      default="results/one_of_a_kind_500x3000/experiments/data/one_of_a_kind_20250320_192845",
+                      help="Path to experiment directory")
+    
+    args = parser.parse_args()
 
     # Create video with optimized parameters
     create_simulation_video(
-        iteration,
-        experiment_path,
-        max_steps=2000,
+        args.iteration,
+        args.experiment_path,
+        max_steps=3000,
         show_gathering_range=False,
         parallel=True,  # Enable parallel processing
         num_processes=None,  # Auto-detect CPU cores
-        skip_frames=1,  # Process every frame
-        fps=15,  # Increase FPS to compensate for skipped frames
+        skip_frames=2,  # Process every frame
+        fps=30,  # Increase FPS to compensate for skipped frames
+        create_gif=args.gif,  # Create GIF if requested
     )
 
 
