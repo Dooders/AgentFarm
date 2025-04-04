@@ -231,10 +231,10 @@ def main():
         help="Description of the research project",
     )
     parser.add_argument(
-        "--iterations", type=int, default=500, help="Number of iterations per experiment"
+        "--iterations", type=int, default=5, help="Number of iterations per experiment"
     )
     parser.add_argument(
-        "--steps", type=int, default=2000, help="Number of steps per iteration"
+        "--steps", type=int, default=200, help="Number of steps per iteration"
     )
     parser.add_argument(
         "--in-memory",
