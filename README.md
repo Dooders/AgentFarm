@@ -38,6 +38,13 @@ This repository is being developed to support research in the [Dooders](https://
 - Experiment replication tools
 - Detailed logging and tracking
 
+### Data System
+- **Comprehensive Data Architecture**: Layered system with database, repositories, analyzers, and services
+- **Advanced Analytics**: Action statistics, behavioral clustering, causal analysis, and pattern recognition
+- **Flexible Data Access**: Repository pattern for efficient data retrieval and querying
+- **High-Level Services**: Coordinated analysis operations with built-in error handling
+- **Multi-Simulation Support**: Experiment database for comparing multiple simulation runs
+
 ## Quick Start
 
 ### Prerequisites
@@ -81,6 +88,7 @@ Results will be saved in the `results` directory.
 For detailed documentation and advanced usage:
 - [Simulation Guide](docs/SimulationQuickStart.md)
 - [Experiment Guide](docs/ExperimentQuickStart.md)
+- [Data System Architecture](docs/data/data_api.md)
 - [Full Documentation](docs/README.md)
 
 ## Contributing
