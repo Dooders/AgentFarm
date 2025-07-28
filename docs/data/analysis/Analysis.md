@@ -14,9 +14,9 @@ The analysis system provides modular, extensible tools for processing simulation
 - Provides detailed statistical measures of reward distributions
 - Computes temporal, resource, and decision-making patterns
 
-**Detailed Documentation**: [Action Analyzer](Action.md)
+**Detailed Documentation**: [Action Stats Analyzer](Action.md)
 
-### 2. Agent Analyzer
+### 2. Agent Analysis
 - Basic agent information and metrics
 - Exploration vs exploitation behavior analysis
 - Adversarial interaction analysis
@@ -25,8 +25,10 @@ The analysis system provides modular, extensible tools for processing simulation
 - Risk-reward analysis
 - Resilience and adaptation metrics
 - Environmental impact assessment
+- Conflict analysis
+- Counterfactual analysis
 
-**Detailed Documentation**: [Agent Analyzer](Agent.md)
+**Detailed Documentation**: [Agent Analysis](Agent.md)
 
 ### 3. Behavior Clustering Analyzer
 - Groups agents based on behavioral patterns
@@ -72,26 +74,31 @@ The analysis system provides modular, extensible tools for processing simulation
 - Identifies resource hotspots
 - Calculates efficiency metrics
 
+### 10. Resource Impact Analyzer
+- Analyzes how actions affect resource availability
+- Calculates resource efficiency metrics
+- Identifies resource optimization opportunities
+
 ## Spatial Analysis
 
-### 10. Spatial Analyzer
+### 11. Spatial Analyzer
 - Integrates location and movement analysis
 - Identifies clustering patterns
 - Analyzes position effects on performance
 
-### 11. Location Analyzer
+### 12. Location Analyzer
 - Analyzes position-specific patterns
 - Calculates location-based performance metrics
 - Identifies popular areas and bottlenecks
 
-### 12. Movement Analyzer
+### 13. Movement Analyzer
 - Tracks movement patterns and trajectories
 - Calculates path statistics
 - Analyzes directional preferences
 
 ## Learning Analysis
 
-### 13. Learning Analyzer
+### 14. Learning Analyzer
 - Tracks learning progress metrics
 - Analyzes module performance
 - Calculates learning efficiency
@@ -128,7 +135,9 @@ def analyze(
 ### Basic Action Analysis
 ```python
 from farm.database.analyzers.action_stats_analyzer import ActionStatsAnalyzer
+from farm.database.repositories.action_repository import ActionRepository
 
+repository = ActionRepository(session)
 analyzer = ActionStatsAnalyzer(repository)
 stats = analyzer.analyze(scope="SIMULATION")
 for metric in stats:
@@ -138,7 +147,9 @@ for metric in stats:
 ### Population Analysis
 ```python
 from farm.database.analyzers.population_analyzer import PopulationAnalyzer
+from farm.database.repositories.population_repository import PopulationRepository
 
+repository = PopulationRepository(session)
 analyzer = PopulationAnalyzer(repository)
 stats = analyzer.analyze_comprehensive_statistics()
 print(f"Peak population: {stats.population_metrics.total_agents}")
@@ -147,7 +158,9 @@ print(f"Peak population: {stats.population_metrics.total_agents}")
 ### Behavioral Clustering
 ```python
 from farm.database.analyzers.behavior_clustering_analyzer import BehaviorClusteringAnalyzer
+from farm.database.repositories.action_repository import ActionRepository
 
+repository = ActionRepository(session)
 analyzer = BehaviorClusteringAnalyzer(repository)
 clusters = analyzer.analyze()
 for cluster_name, agents in clusters.clusters.items():
@@ -156,9 +169,11 @@ for cluster_name, agents in clusters.clusters.items():
 
 ### Comprehensive Agent Analysis
 ```python
-from farm.database.analyzers.agent_analyzer import AgentAnalyzer
+from farm.database.analyzers.agent_analyzer import AgentAnalysis
+from farm.database.repositories.agent_repository import AgentRepository
 
-analyzer = AgentAnalyzer(repository)
+repository = AgentRepository(session)
+analyzer = AgentAnalysis(repository)
 
 # Basic agent information
 basic_info = analyzer.analyze(agent_id="agent_1")
@@ -180,8 +195,10 @@ Analyzers are typically used through high-level services that coordinate multipl
 
 ```python
 from farm.database.services.actions_service import ActionsService
+from farm.database.repositories.action_repository import ActionRepository
 
-actions_service = ActionsService(action_repository)
+repository = ActionRepository(session)
+actions_service = ActionsService(repository)
 results = actions_service.analyze_actions(
     scope="SIMULATION",
     analysis_types=['stats', 'behavior', 'causal']
@@ -232,7 +249,7 @@ results = actions_service.analyze_actions(
 For detailed information on specific analyzers:
 
 - **Action Analysis**: [Action Stats Analyzer](Action.md)
-- **Agent Analysis**: [Agent Analyzer](Agent.md)
+- **Agent Analysis**: [Agent Analysis](Agent.md)
 - **Services**: [Services Documentation](../data_services.md)
 - **Data API**: [Data API Overview](../data_api.md)
 

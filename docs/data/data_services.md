@@ -1,204 +1,422 @@
 # Services Documentation
 
-This document provides a comprehensive overview of all available services and their capabilities. Services act as high-level coordinators that orchestrate complex operations between different components of the system.
+This document provides comprehensive documentation for all service classes in the AgentFarm data layer. Services act as high-level orchestrators that coordinate complex operations between repositories, analyzers, and other components.
 
 ## Overview
 
-The service system provides high-level interfaces for complex operations by coordinating between multiple components. Each service focuses on a specific domain area and follows key design principles:
+Services provide a clean abstraction layer between application logic and underlying implementation details. They coordinate multiple components to perform complex operations while maintaining separation of concerns.
+
+### Service Design Principles
 
 1. **Separation of Concerns**
-   - Services coordinate between different components
-   - Each service focuses on a specific domain area
+   - Services coordinate between different components but don't implement core logic
+   - Each service focuses on a specific domain area (e.g., actions, population)
 
 2. **Dependency Injection**
-   - Services receive dependencies through constructor injection
-   - Makes services testable and loosely coupled
+   - Services receive their dependencies through constructor injection
+   - Makes services more testable and loosely coupled
 
 3. **High-Level Interface**
-   - Simple, intuitive interfaces for complex operations
-   - Hide implementation details
+   - Services provide simple, intuitive interfaces for complex operations
+   - Hide implementation details and coordinate between multiple components
 
 4. **Stateless Operation**
-   - Services don't maintain state between operations
-   - Each method call is independent
+   - Services generally don't maintain state between operations
+   - Each method call is independent and self-contained
 
-## Available Services
+## Service Classes
 
 ### 1. ActionsService
-Orchestrates analysis of agent actions using various analyzers.
+
+**Purpose**: High-level service for analyzing agent actions using various analyzers.
+
+**Location**: `farm/database/services/actions_service.py`
+
+**Key Features**:
+- Orchestrates different types of analysis on agent actions
+- Coordinates multiple analyzers for comprehensive analysis
+- Provides unified interface for action analysis
+- Supports selective analysis types
+
+**Available Analysis Types**:
+- `stats`: Basic action statistics and metrics
+- `behavior`: Behavioral patterns and clustering
+- `causal`: Causal relationships between actions
+- `decision`: Decision patterns and trends
+- `resource`: Resource impacts of actions
+- `sequence`: Action sequence analysis
+- `temporal`: Temporal patterns and trends
+
+**Key Methods**:
 
 ```python
-from farm.database.services import ActionsService
-from farm.database.repositories import ActionRepository
+class ActionsService:
+    def __init__(self, action_repository: ActionRepository)
+    
+    def analyze_actions(
+        self,
+        scope: Union[str, AnalysisScope] = AnalysisScope.SIMULATION,
+        agent_id: Optional[int] = None,
+        step: Optional[int] = None,
+        step_range: Optional[Tuple[int, int]] = None,
+        analysis_types: Optional[List[str]] = None,
+    ) -> Dict[str, Union[List[ActionMetrics], BehaviorClustering, ...]]
+    
+    def get_action_summary(
+        self,
+        scope: Union[str, AnalysisScope] = AnalysisScope.SIMULATION,
+        agent_id: Optional[int] = None,
+    ) -> Dict[str, Dict[str, float]]
+```
 
-# Initialize
+**Usage Example**:
+```python
+from farm.database.services.actions_service import ActionsService
+from farm.database.repositories.action_repository import ActionRepository
+
+# Initialize repository and service
 action_repo = ActionRepository(session_manager)
 actions_service = ActionsService(action_repo)
 
-# Comprehensive analysis
+# Perform comprehensive analysis
 results = actions_service.analyze_actions(
-    scope="EPISODE",
+    scope="SIMULATION",
     agent_id=123,
-    step=100,    # optional
-    step_range=(0, 100),  # optional
     analysis_types=['stats', 'behavior', 'causal']
 )
 
-# Get action summary
+# Get high-level summary
 summary = actions_service.get_action_summary(
     scope="SIMULATION",
     agent_id=123
 )
+
+# Access specific analysis results
+action_stats = results['action_stats']
+behavior_clusters = results['behavior_clusters']
+causal_analysis = results['causal_analysis']
 ```
 
-**Available Analysis Types:**
-- `stats`: Basic action statistics and metrics
-- `behavior`: Behavioral patterns and clustering
-- `causal`: Causal relationships
-- `decision`: Decision patterns
-- `resource`: Resource impacts
-- `sequence`: Action sequences
-- `temporal`: Temporal patterns
+**Analysis Results Structure**:
 
-**Available Data:**
-- Action statistics
-- Behavior clusters
-- Causal analysis
-- Decision patterns
-- Resource impacts
-- Sequence patterns
-- Temporal patterns
-- Action summaries
+```python
+{
+    'action_stats': List[ActionMetrics],           # Basic statistics
+    'behavior_clusters': BehaviorClustering,       # Behavioral patterns
+    'causal_analysis': List[CausalAnalysis],      # Causal relationships
+    'decision_patterns': DecisionPatterns,         # Decision patterns
+    'resource_impacts': List[ResourceImpact],     # Resource effects
+    'sequence_patterns': List[SequencePattern],   # Action sequences
+    'temporal_patterns': List[TimePattern]        # Temporal patterns
+}
+```
+
+**Action Summary Structure**:
+
+```python
+{
+    'move': {
+        'success_rate': 0.85,        # Percentage of successful actions
+        'avg_reward': 0.5,           # Average reward per action
+        'frequency': 0.3,            # Relative frequency
+        'resource_efficiency': 0.8   # Resource gain/loss efficiency
+    },
+    'gather': {
+        'success_rate': 0.92,
+        'avg_reward': 1.2,
+        'frequency': 0.25,
+        'resource_efficiency': 0.9
+    }
+    # ... other action types
+}
+```
 
 ### 2. PopulationService
-Manages population-level analysis and statistics.
+
+**Purpose**: Population-level analysis and statistics coordination.
+
+**Location**: `farm/database/services/population_service.py`
+
+**Key Features**:
+- Comprehensive population statistics calculation
+- Resource consumption analysis
+- Population variance and distribution metrics
+- Agent type distribution analysis
+- Survival metrics calculation
+
+**Key Methods**:
 
 ```python
-from farm.database.services import PopulationService
-
-pop_service = PopulationService(session_manager)
-
-# Get comprehensive statistics
-stats = pop_service.execute()
-
-# Get basic statistics
-basic_stats = pop_service.basic_population_statistics()
+class PopulationService:
+    def execute(self, session) -> PopulationStatistics
+    
+    def basic_population_statistics(
+        self, 
+        session, 
+        pop_data: Optional[List[Population]] = None
+    ) -> BasicPopulationStatistics
 ```
 
-**Available Data:**
-- Population metrics
-  - Total agents
-  - System agents
-  - Independent agents
-  - Control agents
-- Population variance
-  - Variance
-  - Standard deviation
-  - Coefficient of variation
-- Basic statistics
-  - Average population
-  - Death step
-  - Peak population
-  - Resources consumed
-  - Resources available
-  - Statistical measures
-
-### 3. AgentService
-Manages individual agent analysis and tracking.
-
+**Usage Example**:
 ```python
-from farm.database.services import AgentService
+from farm.database.services.population_service import PopulationService
+from farm.database.repositories.population_repository import PopulationRepository
 
-agent_service = AgentService(session_manager)
+# Initialize repository and service
+pop_repo = PopulationRepository(session_manager)
+pop_service = PopulationService(pop_repo)
 
-# Get agent analysis
-analysis = agent_service.analyze_agent(agent_id=123)
+# Get comprehensive population statistics
+stats = pop_service.execute(session)
 
-# Get agent history
-history = agent_service.get_agent_history(agent_id=123)
+# Access specific metrics
+population_metrics = stats.population_metrics
+population_variance = stats.population_variance
+
+print(f"Total agents: {population_metrics.total_agents}")
+print(f"Peak population: {population_metrics.peak_population}")
+print(f"Population variance: {population_variance.variance}")
 ```
 
-**Available Data:**
-- Agent metrics
-- Performance history
-- Behavior analysis
-- Learning progress
-- Resource usage
-- Interaction patterns
+**Population Statistics Structure**:
 
-## Common Usage Patterns
-
-### 1. Comprehensive Agent Analysis
 ```python
-# Get complete agent analysis
-agent_id = 123
-analysis = {
-    "actions": actions_service.analyze_actions(
-        agent_id=agent_id,
-        analysis_types=['stats', 'behavior', 'causal']
+PopulationStatistics(
+    population_metrics=PopulationMetrics(
+        total_agents=150,
+        system_agents=50,
+        independent_agents=60,
+        control_agents=40
     ),
-    "summary": actions_service.get_action_summary(agent_id=agent_id),
-    "history": agent_service.get_agent_history(agent_id=agent_id)
-}
+    population_variance=PopulationVariance(
+        variance=25.5,
+        standard_deviation=5.05,
+        coefficient_variation=0.34
+    )
+)
 ```
 
-### 2. Population Analysis
+**Basic Population Statistics Structure**:
+
 ```python
-# Get population analysis
-population_analysis = {
-    "stats": pop_service.execute(),
-    "basic_stats": pop_service.basic_population_statistics()
-}
+BasicPopulationStatistics(
+    avg_population=125.5,      # Average population across steps
+    death_step=1000,           # Final step with agents
+    peak_population=200,       # Maximum population reached
+    resources_consumed=5000.0, # Total resources consumed
+    resources_available=8000.0, # Total resources available
+    sum_squared=15750.0,       # Sum of squared populations
+    step_count=800             # Number of active steps
+)
+```
+
+## Service Architecture
+
+### Component Coordination
+
+Services coordinate between multiple components:
+
+```
+┌─────────────────┐
+│   Services      │  ← High-level orchestration
+├─────────────────┤
+│  Repositories   │  ← Data access
+├─────────────────┤
+│   Analyzers     │  ← Analysis logic
+├─────────────────┤
+│   Database      │  ← Data storage
+└─────────────────┘
+```
+
+### Data Flow
+
+1. **Service Initialization**
+   ```python
+   # Services receive repositories through dependency injection
+   service = ActionsService(action_repository)
+   ```
+
+2. **Method Execution**
+   ```python
+   # Services coordinate multiple analyzers
+   results = service.analyze_actions(scope="SIMULATION")
+   ```
+
+3. **Result Aggregation**
+   ```python
+   # Services aggregate results from multiple components
+   summary = service.get_action_summary(scope="SIMULATION")
+   ```
+
+## Analysis Scopes
+
+Services support different analysis scopes:
+
+- **SIMULATION**: Complete simulation data
+- **EPISODE**: Specific episode or time period
+- **AGENT**: Individual agent analysis
+- **STEP**: Single simulation step
+
+## Filtering Options
+
+Services support various filtering mechanisms:
+
+- **agent_id**: Filter for specific agent
+- **step**: Analyze specific timestep
+- **step_range**: Analyze range of timesteps
+- **analysis_types**: Select specific analysis types
+
+## Error Handling
+
+Services provide robust error handling:
+
+```python
+try:
+    results = actions_service.analyze_actions(
+        scope="SIMULATION",
+        analysis_types=['stats', 'behavior']
+    )
+except Exception as e:
+    logger.error(f"Analysis failed: {e}")
+    # Handle error appropriately
+```
+
+## Performance Considerations
+
+### Analysis Type Selection
+
+```python
+# Only perform needed analysis types for performance
+results = actions_service.analyze_actions(
+    scope="SIMULATION",
+    analysis_types=['stats', 'behavior']  # Skip other types
+)
+```
+
+### Scope Optimization
+
+```python
+# Use appropriate scopes to limit data processing
+results = actions_service.analyze_actions(
+    scope="EPISODE",  # Instead of "SIMULATION"
+    step_range=(100, 200)  # Limit time range
+)
+```
+
+### Caching
+
+```python
+# Services can cache results for repeated queries
+# Consider data freshness requirements
 ```
 
 ## Best Practices
 
-1. **Service Initialization**
-   - Initialize services with proper repositories
-   - Use dependency injection
-   - Keep services stateless
+### 1. Use Services for High-Level Operations
 
-2. **Analysis Scoping**
-   - Use appropriate scopes for analysis
-   - Combine with step ranges for temporal analysis
-   - Filter by agent ID when needed
+```python
+# Prefer services over direct analyzer usage
+actions_service = ActionsService(action_repo)
+results = actions_service.analyze_actions(scope="SIMULATION")
 
-3. **Performance**
-   - Request only needed analysis types
-   - Use specific queries rather than full analysis
-   - Consider data volume when requesting histories
+# Instead of coordinating analyzers manually
+```
 
-4. **Error Handling**
-   - Services include built-in error handling
-   - Check return values for None/empty results
-   - Handle exceptions appropriately
+### 2. Select Appropriate Analysis Types
 
-## Dependencies
+```python
+# Only request needed analysis types
+results = actions_service.analyze_actions(
+    analysis_types=['stats', 'behavior']  # Skip unused types
+)
+```
 
-- SQLAlchemy: Database ORM
-- Pandas: Data processing
-- NumPy: Numerical operations
-- PyTorch: Machine learning operations (for some services)
+### 3. Handle Results Appropriately
 
-## Service Architecture
+```python
+# Check for expected result types
+if 'action_stats' in results:
+    stats = results['action_stats']
+    for stat in stats:
+        print(f"{stat.action_type}: {stat.avg_reward}")
+```
 
-Services follow a layered architecture:
-1. **Service Layer**: High-level coordination
-2. **Repository Layer**: Data access
-3. **Analyzer Layer**: Specific analysis implementations
-4. **Data Layer**: Raw data storage
+### 4. Use Proper Error Handling
 
-## Error Handling
+```python
+try:
+    summary = actions_service.get_action_summary(scope="SIMULATION")
+except Exception as e:
+    logger.error(f"Failed to get action summary: {e}")
+    # Provide fallback or error handling
+```
 
-All services include built-in error handling and will:
-- Log errors appropriately
-- Return meaningful error messages
-- Handle missing data gracefully
-- Maintain data consistency
+## Integration Examples
 
-## Further Reading
+### Comprehensive Action Analysis
 
-- **Data API Overview**: [Data API Documentation](data_api.md)
-- **Database Schema**: [Database Schema Documentation](database_schema.md)
-- **Analysis Capabilities**: [Analysis Overview](analysis/Analysis.md)
-- **Data Retrieval**: [Data Retrieval Documentation](data_retrieval.md) 
+```python
+from farm.database.services.actions_service import ActionsService
+from farm.database.repositories.action_repository import ActionRepository
+
+# Setup
+action_repo = ActionRepository(session_manager)
+actions_service = ActionsService(action_repo)
+
+# Perform comprehensive analysis
+results = actions_service.analyze_actions(
+    scope="SIMULATION",
+    analysis_types=['stats', 'behavior', 'causal', 'resource']
+)
+
+# Process results
+for action_type, metrics in results['action_stats'].items():
+    print(f"{action_type}: {metrics.avg_reward:.2f} avg reward")
+
+# Get behavioral insights
+clusters = results['behavior_clusters']
+print(f"Found {len(clusters.clusters)} behavioral clusters")
+
+# Analyze resource impacts
+for impact in results['resource_impacts']:
+    print(f"{impact.action_type}: {impact.resource_efficiency:.2f} efficiency")
+```
+
+### Population Analysis
+
+```python
+from farm.database.services.population_service import PopulationService
+from farm.database.repositories.population_repository import PopulationRepository
+
+# Setup
+pop_repo = PopulationRepository(session_manager)
+pop_service = PopulationService(pop_repo)
+
+# Get population statistics
+stats = pop_service.execute(session)
+
+# Analyze population dynamics
+print(f"Total agents: {stats.population_metrics.total_agents}")
+print(f"Peak population: {stats.population_metrics.peak_population}")
+print(f"Population variance: {stats.population_variance.variance:.2f}")
+print(f"Coefficient of variation: {stats.population_variance.coefficient_variation:.2f}")
+```
+
+## Cross-References
+
+For related documentation:
+
+- **Repositories**: [Repository Documentation](repositories.md)
+- **Analyzers**: [Analysis Overview](analysis/Analysis.md)
+- **Data API**: [Data API Overview](data_api.md)
+- **Database Schema**: [Database Schema](database_schema.md)
+
+## Notes
+
+- Services use dependency injection for testability
+- All services support multi-simulation databases
+- Services provide high-level interfaces for complex operations
+- Error handling is consistent across all services
+- Performance optimizations are built into service patterns
+- Services coordinate between repositories and analyzers
+- Type hints are provided for all public methods 

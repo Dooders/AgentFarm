@@ -45,7 +45,7 @@ from farm.database.analyzers.action_stats_analyzer import ActionStatsAnalyzer
 from farm.database.repositories.action_repository import ActionRepository
 
 # Initialize analyzer
-repository = ActionRepository(session_manager)
+repository = ActionRepository(session)
 analyzer = ActionStatsAnalyzer(repository)
 
 # Get comprehensive action statistics

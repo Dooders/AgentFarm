@@ -1,6 +1,6 @@
-# Agent Analyzer
+# Agent Analysis
 
-The `AgentAnalyzer` provides comprehensive analysis of individual agent behavior, learning patterns, and performance metrics in the Farm simulation. This analyzer examines multiple aspects of agent behavior including exploration/exploitation balance, interactions, learning efficiency, and environmental adaptation.
+The `AgentAnalysis` class provides comprehensive analysis of individual agent behavior, learning patterns, and performance metrics in the Farm simulation. This analyzer examines multiple aspects of agent behavior including exploration/exploitation balance, interactions, learning efficiency, and environmental adaptation.
 
 ## Overview
 
@@ -95,6 +95,26 @@ Measures:
 - Adaptation speed
 - Impact assessment
 - Stability metrics
+
+### 8. Conflict Analysis
+```python
+conflicts = analyzer.analyze_conflicts(agent_id="agent_1")
+```
+Analyzes:
+- Conflict frequency and patterns
+- Resolution strategies
+- Impact on performance
+- Conflict avoidance behaviors
+
+### 9. Counterfactual Analysis
+```python
+counterfactuals = analyzer.analyze_counterfactuals(agent_id="agent_1")
+```
+Examines:
+- Alternative action scenarios
+- What-if analysis
+- Opportunity costs
+- Decision quality assessment
 
 ## Detailed Metrics
 
@@ -406,8 +426,10 @@ competitive_fitness = (
 ### Comprehensive Agent Analysis
 ```python
 from farm.database.analyzers.agent_analyzer import AgentAnalysis
+from farm.database.repositories.agent_repository import AgentRepository
 
 # Initialize analyzer
+repository = AgentRepository(session)
 analyzer = AgentAnalysis(repository)
 
 # Get comprehensive analysis
@@ -438,20 +460,30 @@ print(f"Collaboration Rate: {collaborative.collaboration_rate:.2%}")
 ```python
 # Analyze environmental impact and adaptation
 impact = analyzer.analyze_environmental_impact(agent_id)
-print(f"Adaptation Rate: {impact.adaptive_behavior['adaptation_rate']:.2%}")
+print(f"Resource Efficiency: {impact.resource_efficiency:.2%}")
+```
+
+### Conflict and Counterfactual Analysis
+```python
+# Analyze conflicts and alternative scenarios
+conflicts = analyzer.analyze_conflicts(agent_id)
+counterfactuals = analyzer.analyze_counterfactuals(agent_id)
+
+print(f"Conflict Frequency: {conflicts.conflict_frequency:.2%}")
+print(f"Opportunity Cost: {counterfactuals.opportunity_cost:.2f}")
 ```
 
 ## Analysis Parameters
 
 Most analysis methods accept common parameters:
-- `agent_id`: Target agent identifier
+- `agent_id`: Target agent identifier (optional for population-level analysis)
 - `scope`: Analysis scope (SIMULATION, EPISODE)
 - `step`: Specific timestep
 - `step_range`: Analysis period
 
 ## Integration Points
 
-The AgentAnalyzer integrates with:
+The AgentAnalysis integrates with:
 - Population analysis for context
 - Resource analysis for efficiency metrics
 - Learning analysis for performance evaluation

@@ -44,26 +44,41 @@ Key components:
 The Analysis module provides various analytical tools for processing simulation data. For comprehensive analyzer documentation, see [Analysis Overview](analysis/Analysis.md).
 
 Available analyzers include:
-- Action statistics and patterns
-- Behavioral clustering
-- Causal relationships
-- Decision patterns
-- Resource impacts
-- Temporal patterns
-- Sequence analysis
+- **ActionStatsAnalyzer**: Action statistics and patterns
+- **BehaviorClusteringAnalyzer**: Behavioral clustering and grouping
+- **CausalAnalyzer**: Causal relationships between actions
+- **DecisionPatternAnalyzer**: Decision patterns and trends
+- **ResourceImpactAnalyzer**: Resource impact analysis
+- **TemporalPatternAnalyzer**: Temporal patterns and trends
+- **SequencePatternAnalyzer**: Action sequence analysis
+- **PopulationAnalyzer**: Population-level statistics
+- **AgentAnalyzer**: Individual agent analysis
+- **LearningAnalyzer**: Learning experience analysis
 
 ### Repositories
 
 Repositories act as data access layers that encapsulate database query logic. They provide methods to query the database and retrieve data in a structured way, helping to decouple data access from business logic.
 
 Key repositories:
-- **`AgentActionRepository`**: Query agent actions with filtering
-- **`AgentRepository`**: Access agent data and states
-- **`PopulationRepository`**: Population-level statistics
+- **`ActionRepository`**: Query agent actions with filtering and analysis
+- **`AgentRepository`**: Access agent data, states, and lifecycle information
+- **`PopulationRepository`**: Population-level statistics and dynamics
+- **`ResourceRepository`**: Resource state and distribution analysis
+- **`LearningRepository`**: Learning experience and module performance data
+- **`SimulationRepository`**: Simulation metadata and configuration
+- **`GUIRepository`**: GUI-specific data access patterns
+
+**Detailed Documentation**: [Repository Documentation](repositories.md)
 
 ### Services
 
 Services provide high-level interfaces for performing complex operations. For detailed service documentation, see [Services Documentation](data_services.md).
+
+Available services:
+- **`ActionsService`**: Comprehensive action analysis and coordination
+- **`PopulationService`**: Population-level analysis and statistics
+
+**Detailed Documentation**: [Services Documentation](data_services.md)
 
 ## Component Interactions
 
@@ -142,6 +157,50 @@ For detailed information on specific components:
    - Use appropriate database contexts for multi-simulation
    - Consider performance implications of queries
    - Leverage indexes for common query patterns
+
+## Usage Examples
+
+### Basic Action Analysis
+```python
+from farm.database.repositories.action_repository import ActionRepository
+from farm.database.services.actions_service import ActionsService
+
+# Initialize repository and service
+action_repo = ActionRepository(session)
+actions_service = ActionsService(action_repo)
+
+# Perform comprehensive action analysis
+results = actions_service.analyze_actions(
+    scope="SIMULATION",
+    analysis_types=['stats', 'behavior', 'causal']
+)
+```
+
+### Population Analysis
+```python
+from farm.database.repositories.population_repository import PopulationRepository
+from farm.database.analyzers.population_analyzer import PopulationAnalyzer
+
+# Initialize repository and analyzer
+pop_repo = PopulationRepository(session)
+pop_analyzer = PopulationAnalyzer(pop_repo)
+
+# Get population statistics
+stats = pop_analyzer.analyze_comprehensive_statistics()
+```
+
+### Agent Analysis
+```python
+from farm.database.repositories.agent_repository import AgentRepository
+from farm.database.analyzers.agent_analyzer import AgentAnalyzer
+
+# Initialize repository and analyzer
+agent_repo = AgentRepository(session)
+agent_analyzer = AgentAnalyzer(agent_repo)
+
+# Analyze specific agent
+agent_stats = agent_analyzer.analyze(agent_id="agent_001")
+```
 
 ## Conclusion
 
