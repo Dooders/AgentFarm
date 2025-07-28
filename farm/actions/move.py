@@ -286,11 +286,11 @@ def move_action(agent: "BaseAgent") -> None:
     new_position = agent.move_module.get_movement(agent, state)
 
     # Update position first to avoid unnecessary calculations
-    agent.position = (int(new_position[0]), int(new_position[1]))
+    agent.position = (new_position[0], new_position[1])
 
     # Calculate reward
     reward = _calculate_movement_reward(agent, initial_position, new_position)
-    agent.total_reward = int(agent.total_reward) + int(reward)
+    agent.total_reward = agent.total_reward + reward
 
     # Batch logging for better performance
     if agent.environment.db is not None:
