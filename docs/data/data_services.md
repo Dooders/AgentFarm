@@ -198,6 +198,7 @@ All services include built-in error handling and will:
 
 ## Further Reading
 
-- [Repository Documentation](repositories.md)
-- [Database Schema Documentation](database_schema.md)
-- [Analysis Documentation](analysis.md) 
+- **Data API Overview**: [Data API Documentation](data_api.md)
+- **Database Schema**: [Database Schema Documentation](database_schema.md)
+- **Analysis Capabilities**: [Analysis Overview](analysis/Analysis.md)
+- **Data Retrieval**: [Data Retrieval Documentation](data_retrieval.md) 

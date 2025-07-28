@@ -2,6 +2,130 @@
 
 This document describes the database schema used to store simulation data. The database uses SQLite with SQLAlchemy ORM and consists of ten main tables tracking different aspects of the simulation.
 
+## Database Overview
+
+### Hierarchy: Experiment → Simulation → Agent
+
+The data model is structured hierarchically to support complex research workflows:
+
+- **Experiment**: The top-level container that groups multiple related simulations. Represented by `ExperimentModel` in the database.
+  - Contains metadata like name, description, hypothesis, status, variables, and results summary.
+  - Relationships: One-to-many with Simulations.
+
+- **Simulation**: A single run of the simulation environment. Represented by `Simulation` model (or similar).
+  - Tagged with a unique `simulation_id`.
+  - Contains configuration parameters, start/end times, and summary metrics.
+  - Relationships: Many-to-one with Experiment; One-to-many with Agents, Actions, States, etc.
+
+- **Agent**: Individual entities within a simulation. Represented by `AgentModel`.
+  - Attributes: agent_id, birth/death time, type, position, resources, health, genome, generation.
+  - Relationships: One-to-many with States, Actions, Health Incidents, Learning Experiences.
+
+This hierarchy allows storing multiple simulations (with their agents and data) in a single database file via `ExperimentDatabase`, using `simulation_id` to differentiate data.
+
+### Data Flow: From Logging to Analysis
+
+Data moves through the system in a structured flow to ensure efficiency and reliability:
+
+1. **Logging During Simulation**:
+   - Simulations use `DataLogger` (or `ExperimentDataLogger` for multi-simulation) to record data.
+   - Data is buffered in memory (e.g., action_buffer, learning_exp_buffer) to reduce database writes.
+   - Buffers flush based on size (default 1000) or time interval (default 30s).
+   - Transactions ensure atomicity; bulk inserts are used for performance.
+
+2. **Storage**:
+   - Core storage in SQLite via `SimulationDatabase` or `ExperimentDatabase`.
+   - For multi-simulation: Data tagged with `simulation_id`.
+   - Optional in-memory mode for faster operations, with persistence options.
+
+3. **Retrieval and Analysis**:
+   - Repositories (e.g., AgentRepository) provide query interfaces.
+   - Services (e.g., AgentService) add business logic.
+   - Analyzers (e.g., in farm/analysis/) process data into metrics like dominance, advantage.
+   - DataRetriever handles population statistics and advanced queries.
+
+**Performance Optimizations**:
+- Buffered logging to minimize I/O.
+- Indexes on key columns (e.g., agent_type, birth_time).
+- Bulk operations and transaction management.
+- In-memory database support for high-throughput scenarios.
+- Query optimization in repositories.
+
+### ExperimentDatabase Support
+
+`ExperimentDatabase` extends `SimulationDatabase` to support storing multiple simulations in a single SQLite file.
+
+- **Multi-Simulation Storage**:
+  - Each simulation is assigned a unique `simulation_id`.
+  - All data tables include `simulation_id` column for filtering.
+  - Consistent schema across simulations.
+
+- **Context Management**:
+  - Use `create_simulation_context(simulation_id)` to get a `SimulationContext` object.
+  - This context ensures all logging operations tag data with the correct `simulation_id`.
+  - Acts as a simulation-specific view into the shared database.
+
+- **Experiment vs. Simulation Data**:
+  - Experiment-level: Metadata in `experiments` table.
+  - Simulation-level: Per-simulation records in `simulations` table, plus tagged data in other tables.
+  - Query across simulations by filtering on `simulation_id`.
+
+### Architecture Diagrams
+
+#### Data Flow Diagram
+
+```mermaid
+graph TD
+    A[Simulation] -->|log data| B[DataLogger]
+    B -->|buffered writes| C[ExperimentDatabase]
+    C -->|queries| D[Repositories/Services]
+    D -->|processed data| E[Analyzers]
+    E -->|metrics| F[Results/Visualizations]
+```
+
+#### Repository Relationships
+
+```mermaid
+erDiagram
+    Experiment ||--o{ Simulation : contains
+    Simulation ||--o{ Agent : has
+    Agent ||--o{ AgentState : has
+    Agent ||--o{ Action : performs
+    Agent ||--o{ HealthIncident : experiences
+```
+
+### Usage Patterns
+
+#### Running Experiments with Multiple Simulations
+
+```python
+from farm.database.experiment_database import ExperimentDatabase
+from farm.runners.experiment_runner import ExperimentRunner
+
+db = ExperimentDatabase('experiment.db', 'exp_001')
+context1 = db.create_simulation_context('sim_001')
+# Run simulation 1 using context1.logger
+
+context2 = db.create_simulation_context('sim_002')
+# Run simulation 2 using context2.logger
+```
+
+#### Querying Cross-Simulation Data
+
+```python
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from farm.database.models import AgentModel
+
+engine = create_engine('sqlite:///experiment.db')
+Session = sessionmaker(bind=engine)
+with Session() as session:
+    agents = session.query(AgentModel).filter(
+        AgentModel.simulation_id.in_(['sim_001', 'sim_002']),
+        AgentModel.agent_type == 'control'
+    ).all()
+```
+
 ## Tables Overview
 
 ### Agents Table
