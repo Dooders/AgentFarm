@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING, Tuple, Optional
+from typing import TYPE_CHECKING, Optional, Tuple
 
 import numpy as np
 import torch
@@ -44,7 +44,7 @@ class BaseAgent:
     Attributes:
         actions (list[Action]): Available actions the agent can take
         agent_id (str): Unique identifier for this agent
-        position (tuple[int, int]): Current (x,y) coordinates
+        position (tuple[float, float]): Current (x,y) coordinates
         resource_level (int): Current amount of resources held
         alive (bool): Whether the agent is currently alive
         environment (Environment): Reference to the simulation environment
@@ -57,7 +57,7 @@ class BaseAgent:
     def __init__(
         self,
         agent_id: str,
-        position: tuple[int, int],
+        position: tuple[float, float],
         resource_level: int,
         environment: "Environment",
         action_set: list[Action] = BASE_ACTION_SET,
@@ -86,7 +86,7 @@ class BaseAgent:
         self.previous_state: AgentState | None = None
         self.previous_action = None
         self.max_movement = self.config.max_movement
-        self.total_reward = 0
+        self.total_reward = 0.0
         self.episode_rewards = []
         self.losses = []
         self.starvation_threshold = self.config.starvation_threshold
@@ -671,7 +671,7 @@ class BaseAgent:
         cls,
         genome: "Genome",
         agent_id: str,
-        position: tuple[int, int],
+        position: tuple[float, float],
         environment: "Environment",
     ) -> "BaseAgent":
         """Create a new agent instance from a genome.
@@ -738,7 +738,7 @@ class BaseAgent:
 
     def get_action_weights(self) -> dict:
         """Get a dictionary of action weights.
-        
+
         Returns:
             dict: A dictionary mapping action names to their weights
         """
@@ -746,7 +746,7 @@ class BaseAgent:
 
     def _init_memory(self, memory_config: Optional[dict] = None):
         """Initialize the Redis-based memory system for this agent.
-        
+
         Args:
             memory_config (dict, optional): Configuration parameters for memory
         """
@@ -757,43 +757,47 @@ class BaseAgent:
                 port=getattr(self.config, "redis_port", 6379),
                 memory_limit=getattr(self.config, "memory_limit", 1000),
             )
-            
+
             # Override with custom config if provided
             if memory_config:
                 for key, value in memory_config.items():
                     if hasattr(redis_config, key):
                         setattr(redis_config, key, value)
-            
+
             # Get memory manager instance
             memory_manager = AgentMemoryManager.get_instance(redis_config)
-            
+
             # Get this agent's memory
             self.memory = memory_manager.get_memory(self.agent_id)
             logger.info(f"Initialized Redis memory for agent {self.agent_id}")
-            
+
         except Exception as e:
-            logger.error(f"Failed to initialize Redis memory for agent {self.agent_id}: {e}")
+            logger.error(
+                f"Failed to initialize Redis memory for agent {self.agent_id}: {e}"
+            )
             # Memory remains None, agent will function without memory
 
-    def remember_experience(self, 
-                           action_name: str, 
-                           reward: float, 
-                           perception_data: Optional[PerceptionData] = None,
-                           metadata: Optional[dict] = None) -> bool:
+    def remember_experience(
+        self,
+        action_name: str,
+        reward: float,
+        perception_data: Optional[PerceptionData] = None,
+        metadata: Optional[dict] = None,
+    ) -> bool:
         """Record current experience in agent memory.
-        
+
         Args:
             action_name (str): Name of the action taken
             reward (float): Reward received for the action
             perception_data (PerceptionData, optional): Agent's perception data
             metadata (dict, optional): Additional information to store
-            
+
         Returns:
             bool: True if successfully recorded, False otherwise
         """
         if not self.memory:
             return False
-            
+
         try:
             # Create state representation
             current_state = AgentState(
@@ -806,16 +810,18 @@ class BaseAgent:
                 total_reward=self.total_reward,
                 age=self.environment.time - self.birth_time,
             )
-            
+
             # Add default metadata if not provided
             if metadata is None:
                 metadata = {}
-                
-            metadata.update({
-                "health_percent": self.current_health / self.starting_health,
-                "genome_id": self.genome_id
-            })
-            
+
+            metadata.update(
+                {
+                    "health_percent": self.current_health / self.starting_health,
+                    "genome_id": self.genome_id,
+                }
+            )
+
             # Remember in Redis
             return self.memory.remember_state(
                 step=self.environment.time,
@@ -823,33 +829,35 @@ class BaseAgent:
                 action=action_name,
                 reward=reward,
                 perception=perception_data,
-                metadata=metadata
+                metadata=metadata,
             )
-            
+
         except Exception as e:
-            logger.error(f"Failed to remember experience for agent {self.agent_id}: {e}")
+            logger.error(
+                f"Failed to remember experience for agent {self.agent_id}: {e}"
+            )
             return False
-            
+
     def recall_similar_situations(self, position=None, limit=5):
         """Retrieve memories similar to current situation.
-        
+
         Args:
             position (tuple, optional): Position to search around, or current position if None
             limit (int): Maximum number of memories to retrieve
-            
+
         Returns:
             list: List of similar memories, or empty list if memory not available
         """
         if not self.memory:
             return []
-            
+
         try:
             # Use provided position or current position
             pos = position or self.position
-            
+
             # Search memories by position
             return self.memory.search_by_position(pos, radius=10.0, limit=limit)
-            
+
         except Exception as e:
             logger.error(f"Failed to recall memories for agent {self.agent_id}: {e}")
             return []
