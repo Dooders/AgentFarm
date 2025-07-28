@@ -233,7 +233,7 @@ def attack_action(agent: "BaseAgent") -> None:
         attack_logger.log_attack_attempt(
             step_number=agent.environment.time,
             agent=agent,
-            action_target_id="",  # Empty string instead of None
+            action_target_id="",  # Empty string for no targets
             target_position=target_pos,
             resources_before=initial_resources,
             resources_after=initial_resources,
@@ -243,7 +243,7 @@ def attack_action(agent: "BaseAgent") -> None:
         )
         return
 
-        # Calculate and apply attack resource cost
+    # Calculate and apply attack resource cost
     attack_cost = agent.config.attack_base_cost * agent.resource_level
     agent.resource_level += attack_cost
 
@@ -264,7 +264,7 @@ def attack_action(agent: "BaseAgent") -> None:
         attack_logger.log_attack_attempt(
             step_number=agent.environment.time,
             agent=agent,
-            action_target_id="",  # Empty string instead of None
+            action_target_id="",  # Empty string for no valid targets
             target_position=target_pos,
             resources_before=initial_resources,
             resources_after=agent.resource_level,
@@ -274,7 +274,7 @@ def attack_action(agent: "BaseAgent") -> None:
         )
         return
 
-        # Select a random target from valid candidates for attack
+    # Select a random target from valid candidates for attack
     target = random.choice(valid_targets)
 
     # Calculate base damage based on attack strength and resource ratio
