@@ -437,7 +437,7 @@ def share_action(agent: "BaseAgent") -> None:
 
     # Calculate reward
     reward = _calculate_share_reward(agent, target, share_amount)
-    agent.total_reward += int(reward)
+    agent.total_reward += reward
 
     # Update cooperation history
     agent.share_module.update_cooperation(int(target.agent_id), True)

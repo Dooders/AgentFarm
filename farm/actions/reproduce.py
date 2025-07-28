@@ -272,7 +272,7 @@ def reproduce_action(agent: "BaseAgent") -> None:
 
         # Calculate reward based on success and conditions
         reward = _calculate_reproduction_reward(agent, offspring)
-        agent.total_reward = int(agent.total_reward) + int(reward)
+        agent.total_reward = agent.total_reward + reward
 
         # Log successful reproduction event
         if agent.environment.db is not None:

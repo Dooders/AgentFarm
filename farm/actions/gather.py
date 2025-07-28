@@ -501,7 +501,7 @@ def gather_action(agent: "BaseAgent") -> None:
         reward = agent.gather_module.calculate_gather_reward(
             agent, initial_resources, target_resource
         )
-        agent.total_reward += int(reward)
+        agent.total_reward += reward
 
         # Log successful gather action
         if agent.environment.db is not None:
