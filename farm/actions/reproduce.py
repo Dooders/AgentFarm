@@ -360,8 +360,8 @@ def _get_reproduce_state(agent: "BaseAgent") -> torch.Tensor:
         torch.Tensor: 8-dimensional state vector with dtype float32 on the agent's device
     """
     # Type assertion to help linter understand config structure
-    config = agent.environment.config
-    assert config is not None, "Environment config cannot be None"
+    config = agent.config
+    assert config is not None, "Agent config cannot be None"
     # Calculate local population density
     nearby_agents = [
         a

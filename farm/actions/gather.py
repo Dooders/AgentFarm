@@ -300,11 +300,15 @@ class GatherModule(BaseDQNModule):
         if agent.environment is None or agent.environment.config is None:
             return torch.zeros(6, device=self.device)
 
+        # Type assertion to help linter understand config structure
+        config = agent.config
+        assert config is not None, "Agent config cannot be None"
+        
         resources_in_range = agent.environment.get_nearby_resources(
-            agent.position, agent.environment.config.gathering_range
+            agent.position, config.gathering_range
         )
         resource_density = len(resources_in_range) / (
-            np.pi * agent.environment.config.gathering_range**2
+            np.pi * config.gathering_range**2
         )
 
         state = torch.tensor(
@@ -350,8 +354,12 @@ class GatherModule(BaseDQNModule):
         if agent.environment is None or agent.environment.config is None:
             return None
 
+        # Type assertion to help linter understand config structure
+        config = agent.config
+        assert config is not None, "Agent config cannot be None"
+        
         resources_in_range = agent.environment.get_nearby_resources(
-            agent.position, agent.environment.config.gathering_range
+            agent.position, config.gathering_range
         )
 
         # Filter depleted resources
@@ -491,8 +499,12 @@ def gather_action(agent: "BaseAgent") -> None:
         if agent.environment is None or agent.environment.config is None:
             return
 
+        # Type assertion to help linter understand config structure
+        config = agent.config
+        assert config is not None, "Agent config cannot be None"
+        
         gather_amount = min(
-            agent.environment.config.max_gather_amount, target_resource.amount
+            config.max_gather_amount, target_resource.amount
         )
         target_resource.consume(gather_amount)
         agent.resource_level += gather_amount
