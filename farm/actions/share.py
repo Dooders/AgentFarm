@@ -192,7 +192,9 @@ class ShareModule(BaseDQNModule):
         if epsilon is None:
             epsilon = self.epsilon
 
-        if epsilon is not None and random.random() < epsilon:
+        # Type assertion to help linter understand epsilon is not None
+        assert epsilon is not None
+        if random.random() < epsilon:
             return random.randint(0, len(self.action_space) - 1)
 
         with torch.no_grad():

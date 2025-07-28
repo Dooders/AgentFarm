@@ -240,7 +240,9 @@ class MoveModule(BaseDQNModule):
         if epsilon is None:
             epsilon = self.epsilon
 
-        if epsilon is not None and random.random() < epsilon:
+        # Type assertion to help linter understand epsilon is not None
+        assert epsilon is not None
+        if random.random() < epsilon:
             # Temperature-based random action selection
             q_values = self.q_network(state_tensor)
             temperature = max(0.1, epsilon or 0.1)  # Use epsilon as temperature

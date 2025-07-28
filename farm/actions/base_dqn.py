@@ -592,7 +592,9 @@ class BaseDQNModule:
             epsilon = self.epsilon
 
         # Use epsilon-greedy strategy
-        if epsilon is not None and random.random() < epsilon:
+        # Type assertion to help linter understand epsilon is not None
+        assert epsilon is not None
+        if random.random() < epsilon:
             return random.randint(0, self.output_dim - 1)
 
         # Cache tensor hash for repeated states

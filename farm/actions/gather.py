@@ -214,7 +214,9 @@ class GatherModule(BaseDQNModule):
         if epsilon is None:
             epsilon = self.epsilon
 
-        if epsilon is not None and random.random() < epsilon:
+        # Type assertion to help linter understand epsilon is not None
+        assert epsilon is not None
+        if random.random() < epsilon:
             # Random exploration
             return random.randint(0, self.output_dim - 1)
 
