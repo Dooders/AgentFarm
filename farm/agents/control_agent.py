@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from farm.core.environment import Environment
@@ -24,7 +24,7 @@ class ControlAgent(BaseAgent):
         resource_level: int,
         environment: "Environment",
         generation: int = 0,
-        action_set: list[Action] = None,
+        action_set: Optional[list[Action]] = None,
     ):
         """Initialize a ControlAgent.
 
@@ -44,7 +44,9 @@ class ControlAgent(BaseAgent):
             Custom action set for this agent
         """
         # Get agent-specific parameters from config
-        agent_params = environment.config.agent_parameters.get("ControlAgent", {})
+        agent_params = {}
+        if environment.config is not None:
+            agent_params = environment.config.agent_parameters.get("ControlAgent", {})
 
         # Create default action set if none provided
         if action_set is None:

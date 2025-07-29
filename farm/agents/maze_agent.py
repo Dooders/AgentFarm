@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 
@@ -20,7 +20,7 @@ class MazeAgent(BaseAgent):
         resource_level: int,
         environment: "Environment",
         generation: int = 0,
-        action_set: list[Action] = None,
+        action_set: Optional[list[Action]] = None,
     ):
         # Create maze-specific action set if none provided
         if action_set is None:
@@ -42,28 +42,31 @@ class MazeAgent(BaseAgent):
         )
 
         # Configure maze-specific parameters
-        self.move_module.config.max_movement = 1  # Limit to single-cell moves
-        self.move_module.config.movement_cost = 0.01  # Small movement penalty
+        self.max_movement = 1  # Limit to single-cell moves
+        # Movement cost is handled by the move module's config
 
     def calculate_move_reward(self, old_pos, new_pos):
         """Override move reward calculation for maze navigation."""
         # Base movement cost
         reward = -0.01
 
-        # Check if reached goal
-        if new_pos == self.environment.goal:
+        # Check if reached goal (support both 'goal' and 'end' attributes)
+        goal_pos = getattr(self.environment, 'goal', None) or getattr(self.environment, 'end', None)
+            
+        if goal_pos and new_pos == goal_pos:
             return 100
 
         # Calculate distances to goal
-        old_distance = np.linalg.norm(
-            np.array(self.environment.goal) - np.array(old_pos)
-        )
-        new_distance = np.linalg.norm(
-            np.array(self.environment.goal) - np.array(new_pos)
-        )
+        if goal_pos:
+            old_distance = np.linalg.norm(
+                np.array(goal_pos) - np.array(old_pos)
+            )
+            new_distance = np.linalg.norm(
+                np.array(goal_pos) - np.array(new_pos)
+            )
 
-        # Reward for moving closer to goal
-        reward += 10 * (old_distance - new_distance)
+            # Reward for moving closer to goal
+            reward += 10 * (old_distance - new_distance)
 
         # Penalty for invalid moves (hitting walls)
         if old_pos == new_pos:
@@ -71,6 +74,5 @@ class MazeAgent(BaseAgent):
 
         return reward
 
-    def act(self, state: np.ndarray) -> Action:
-        """Override act method for maze navigation."""
-        return super().act(state)
+    # Note: act() method is not overridden as it's meant to be called by the environment
+    # and returns None, not an Action
