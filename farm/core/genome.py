@@ -141,7 +141,7 @@ class Genome:
         """Load genome from a JSON file or string.
 
         Args:
-            path (Union[str, dict]): File path or JSON string from which to load the genome.
+            path (Union[str, dict]): File path, JSON string, or dictionary from which to load the genome.
                        File must exist and contain valid JSON if path is a filepath.
 
         Returns:
@@ -150,6 +150,11 @@ class Genome:
         if isinstance(path, dict):
             return path
 
+        # Check if it's a JSON string (starts with { or [)
+        if isinstance(path, str) and (path.strip().startswith('{') or path.strip().startswith('[')):
+            return json.loads(path)
+
+        # Otherwise treat as file path
         with open(path, "r") as f:
             return json.load(f)
 
@@ -258,4 +263,6 @@ class Genome:
             # Modifying copy won't affect original
         """
         json_str = Genome.save(genome)
-        return Genome.load(json_str)  # type: ignore
+        # Since we're calling save() without a path, it should always return a string
+        assert json_str is not None, "Genome.save() should return a string when no path is provided"
+        return Genome.load(json_str)
