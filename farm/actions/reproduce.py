@@ -497,3 +497,6 @@ def _calculate_reproduction_reward(agent: "BaseAgent", offspring: "BaseAgent") -
         reward += ReproduceConfig.population_balance_bonus
 
     return reward
+
+# Default configuration instance
+DEFAULT_REPRODUCE_CONFIG = ReproduceConfig()

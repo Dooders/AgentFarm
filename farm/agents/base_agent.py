@@ -1,4 +1,5 @@
 import logging
+import random
 from typing import TYPE_CHECKING, Optional, Tuple
 
 import numpy as np
@@ -260,10 +261,11 @@ class BaseAgent:
 
         current_step = self.environment.time
         enabled_actions = self.actions  # Default all
-        for phase in self.config.curriculum_phases:
-            if current_step < phase["steps"] or phase["steps"] == -1:
-                enabled_actions = [a for a in self.actions if a.name in phase["enabled_actions"]]
-                break
+        if self.config and hasattr(self.config, 'curriculum_phases'):
+            for phase in self.config.curriculum_phases:
+                if current_step < phase["steps"] or phase["steps"] == -1:
+                    enabled_actions = [a for a in self.actions if a.name in phase["enabled_actions"]]
+                    break
         selected_action = self.select_module.select_action(agent=self, actions=enabled_actions, state=self._cached_selection_state)
         return selected_action
 
@@ -358,14 +360,14 @@ class BaseAgent:
                 self.environment.db.log_reproduction_event(
                     step_number=self.environment.time,
                     parent_id=self.agent_id,
-                    offspring_id=None,
+                    offspring_id="",  # Empty string for failed reproduction
                     success=False,
                     parent_resources_before=initial_resources,
                     parent_resources_after=initial_resources,
-                    offspring_initial_resources=None,
+                    offspring_initial_resources=0.0,  # Default value for failed reproduction
                     failure_reason=failure_reason,
                     parent_generation=self.generation,
-                    offspring_generation=None,
+                    offspring_generation=0,  # Default value for failed reproduction
                     parent_position=self.position,
                 )
             return False
@@ -379,14 +381,14 @@ class BaseAgent:
                 self.environment.db.log_reproduction_event(
                     step_number=self.environment.time,
                     parent_id=self.agent_id,
-                    offspring_id=None,
+                    offspring_id="",  # Empty string for failed reproduction
                     success=False,
                     parent_resources_before=initial_resources,
                     parent_resources_after=initial_resources,
-                    offspring_initial_resources=None,
+                    offspring_initial_resources=0.0,  # Default value for failed reproduction
                     failure_reason=failure_reason,
                     parent_generation=self.generation,
-                    offspring_generation=None,
+                    offspring_generation=0,  # Default value for failed reproduction
                     parent_position=self.position,
                 )
             return False
@@ -404,7 +406,7 @@ class BaseAgent:
                 parent_resources_before=initial_resources,
                 parent_resources_after=self.resource_level,
                 offspring_initial_resources=self.config.offspring_initial_resources if self.config else 10,
-                failure_reason=None,
+                failure_reason="",  # Empty string for successful reproduction
                 parent_generation=self.generation,
                 offspring_generation=new_agent.generation,
                 parent_position=self.position,
@@ -557,32 +559,6 @@ class BaseAgent:
 
         return reward
 
-    def calculate_attack_position(self, action: int) -> tuple[float, float]:
-        """Calculate target position for attack based on action.
-
-        Determines attack target location by:
-        1. Getting direction vector from action space
-        2. Scaling by attack range from config
-        3. Adding to current position
-
-        Args:
-            action (int): Attack action index from AttackActionSpace
-
-        Returns:
-            tuple[float, float]: Target (x,y) coordinates for attack
-        """
-        # Get attack direction vector
-        dx, dy = self.attack_module.action_space[action]
-
-        # Scale by attack range
-        dx *= self.config.attack_range if self.config else 10
-        dy *= self.config.attack_range if self.config else 10
-
-        # Calculate target position
-        target_x = self.position[0] + dx
-        target_y = self.position[1] + dy
-
-        return (target_x, target_y)
 
     def handle_combat(self, attacker: "BaseAgent", damage: float) -> float:
         """Handle incoming attack and calculate actual damage taken.
@@ -650,8 +626,8 @@ class BaseAgent:
 
         # Attack success reward
         if damage_dealt > 0:
-            reward += self.config.attack_success_reward * (
-                damage_dealt / self.config.attack_base_damage if self.config else 1
+            reward += (self.config.attack_success_reward if self.config else 1) * (
+                damage_dealt / (self.config.attack_base_damage if self.config else 1)
             )
             if not target.alive:
                 reward += self.config.attack_kill_reward if self.config else 10
@@ -734,14 +710,14 @@ class BaseAgent:
     @property
     def attack_strength(self) -> float:
         """Calculate the agent's current attack strength."""
-        return self.config.base_attack_strength * (
+        return (self.config.base_attack_strength if self.config else 10) * (
             self.current_health / self.starting_health
         )
 
     @property
     def defense_strength(self) -> float:
         """Calculate the agent's current defense strength."""
-        return self.config.base_defense_strength if self.is_defending else 0.0
+        return (self.config.base_defense_strength if self.config else 5) if self.is_defending else 0.0
 
     def get_action_weights(self) -> dict:
         """Get a dictionary of action weights.
@@ -809,8 +785,10 @@ class BaseAgent:
             # Create state representation
             current_state = AgentState(
                 agent_id=self.agent_id,
+                step_number=self.environment.time,
                 position_x=self.position[0],
                 position_y=self.position[1],
+                position_z=self.position[2] if len(self.position) > 2 else 0,
                 resource_level=self.resource_level,
                 current_health=self.current_health,
                 is_defending=self.is_defending,

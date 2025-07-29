@@ -536,3 +536,6 @@ def gather_action(agent: "BaseAgent") -> None:
                     ),
                 },
             )
+
+# Default configuration instance
+DEFAULT_GATHER_CONFIG = GatherConfig()
