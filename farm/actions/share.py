@@ -147,12 +147,14 @@ class ShareModule(BaseDQNModule):
         device: torch.device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"
         ),
+        shared_encoder: Optional[SharedEncoder] = None,
     ) -> None:
         """Initialize the ShareModule with configuration and device settings.
 
         Args:
             config: Configuration object containing sharing parameters
             device: PyTorch device for network computations (CPU/GPU)
+            shared_encoder: Optional shared encoder for feature extraction
         """
         # Initialize parent class with share-specific network
         super().__init__(
@@ -164,12 +166,12 @@ class ShareModule(BaseDQNModule):
         self.cooperation_history = {}  # Track sharing interactions
         self._setup_action_space()
 
-        # Initialize Q-network specific to sharing
+        # Initialize Q-network specific to sharing with shared encoder if provided
         self.q_network = ShareQNetwork(
-            input_dim=6, hidden_size=config.dqn_hidden_size
+            input_dim=6, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
         ).to(device)
         self.target_network = ShareQNetwork(
-            input_dim=6, hidden_size=config.dqn_hidden_size
+            input_dim=6, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
         ).to(device)
         self.target_network.load_state_dict(self.q_network.state_dict())
 

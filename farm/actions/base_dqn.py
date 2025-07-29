@@ -102,10 +102,14 @@ class SharedEncoder(nn.Module):
     It is a simple feedforward neural network with one hidden layer.
 
     Attributes:
+        input_dim (int): Input dimension for the encoder
+        hidden_size (int): Hidden layer size
         fc (nn.Linear): Fully connected layer for common features
     """
     def __init__(self, input_dim: int, hidden_size: int):
         super().__init__()
+        self.input_dim = input_dim
+        self.hidden_size = hidden_size
         self.fc = nn.Linear(input_dim, hidden_size)  # Shared layer for common features like position/health
 
     def forward(self, x):

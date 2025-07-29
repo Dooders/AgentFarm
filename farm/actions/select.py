@@ -129,15 +129,25 @@ class SelectModule(BaseDQNModule):
         device: torch.device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"
         ),
+        shared_encoder: Optional[SharedEncoder] = None,
     ) -> None:
         super().__init__(
-            input_dim=8,  # State dimensions for selection
+            input_dim=6,  # State dimensions for selection (matches SharedEncoder)
             output_dim=num_actions,
             config=config,
             device=device,
         )
         # Pre-compute action indices for faster lookup
         self.action_indices = {}
+        
+        # Initialize Q-networks with shared encoder if provided
+        self.q_network = SelectQNetwork(
+            input_dim=6, num_actions=num_actions, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
+        ).to(device)
+        self.target_network = SelectQNetwork(
+            input_dim=6, num_actions=num_actions, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
+        ).to(device)
+        self.target_network.load_state_dict(self.q_network.state_dict())
 
     def select_action(
         self, agent: "BaseAgent", actions: List[Action], state: torch.Tensor

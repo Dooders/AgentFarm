@@ -124,11 +124,21 @@ class AttackModule(BaseDQNModule):
         self,
         config: AttackConfig = DEFAULT_ATTACK_CONFIG,
         device: torch.device = DEVICE,
+        shared_encoder: Optional[SharedEncoder] = None,
     ) -> None:
         super().__init__(input_dim=6, output_dim=5, config=config, device=device)
         self._setup_action_space()
         # Store the attack-specific config for access to attack attributes
         self.attack_config = config
+        
+        # Initialize Q-networks with shared encoder if provided
+        self.q_network = AttackQNetwork(
+            input_dim=6, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
+        ).to(device)
+        self.target_network = AttackQNetwork(
+            input_dim=6, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
+        ).to(device)
+        self.target_network.load_state_dict(self.q_network.state_dict())
 
     def _setup_action_space(self) -> None:
         """Initialize the attack action space with directional vectors.

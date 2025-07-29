@@ -5,10 +5,19 @@ from typing import TYPE_CHECKING, Optional, Tuple
 import numpy as np
 import torch
 
-from farm.actions.attack import AttackActionSpace, AttackModule, attack_action, DEFAULT_ATTACK_CONFIG
+from farm.actions.attack import (
+    AttackActionSpace,
+    AttackModule,
+    attack_action,
+    DEFAULT_ATTACK_CONFIG,
+)
 from farm.actions.gather import GatherModule, gather_action, DEFAULT_GATHER_CONFIG
 from farm.actions.move import MoveModule, move_action, DEFAULT_MOVE_CONFIG
-from farm.actions.reproduce import ReproduceModule, reproduce_action, DEFAULT_REPRODUCE_CONFIG
+from farm.actions.reproduce import (
+    ReproduceModule,
+    reproduce_action,
+    DEFAULT_REPRODUCE_CONFIG,
+)
 from farm.actions.select import SelectConfig, SelectModule, create_selection_state
 from farm.actions.share import ShareModule, share_action, DEFAULT_SHARE_CONFIG
 from farm.core.action import *
@@ -87,11 +96,15 @@ class BaseAgent:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.previous_state: AgentState | None = None
         self.previous_action = None
-        self.max_movement = self.config.max_movement if self.config else 8  # Default value
+        self.max_movement = (
+            self.config.max_movement if self.config else 8
+        )  # Default value
         self.total_reward = 0.0
         self.episode_rewards = []
         self.losses = []
-        self.starvation_threshold = self.config.starvation_threshold if self.config else 10
+        self.starvation_threshold = (
+            self.config.starvation_threshold if self.config else 10
+        )
         self.max_starvation = self.config.max_starvation_time if self.config else 100
         self.birth_time = environment.time
 
@@ -106,15 +119,36 @@ class BaseAgent:
 
         # Initialize all modules first
         #! make this a list of action modules that can be provided to the agent at init
-        self.shared_encoder = SharedEncoder(input_dim=8, hidden_size=64)  # Assuming common input dim, adjust as needed
-        self.move_module = MoveModule(self.config if self.config else DEFAULT_MOVE_CONFIG, db=environment.db, shared_encoder=self.shared_encoder)
-        self.attack_module = AttackModule(self.config if self.config else DEFAULT_ATTACK_CONFIG, shared_encoder=self.shared_encoder)
-        self.share_module = ShareModule(self.config if self.config else DEFAULT_SHARE_CONFIG, shared_encoder=self.shared_encoder)
-        self.gather_module = GatherModule(self.config if self.config else DEFAULT_GATHER_CONFIG, shared_encoder=self.shared_encoder)
-        self.reproduce_module = ReproduceModule(self.config if self.config else DEFAULT_REPRODUCE_CONFIG, shared_encoder=self.shared_encoder)
+        self.shared_encoder = SharedEncoder(
+            input_dim=6, hidden_size=64
+        )  # Use 6-dimensional input for compatibility with most modules
+        self.move_module = MoveModule(
+            self.config if self.config else DEFAULT_MOVE_CONFIG,
+            db=environment.db,
+            shared_encoder=self.shared_encoder,
+        )
+        self.attack_module = AttackModule(
+            self.config if self.config else DEFAULT_ATTACK_CONFIG,
+            shared_encoder=self.shared_encoder,
+        )
+        self.share_module = ShareModule(
+            self.config if self.config else DEFAULT_SHARE_CONFIG,
+            shared_encoder=self.shared_encoder,
+        )
+        self.gather_module = GatherModule(
+            self.config if self.config else DEFAULT_GATHER_CONFIG,
+            shared_encoder=self.shared_encoder,
+        )
+        self.reproduce_module = ReproduceModule(
+            self.config if self.config else DEFAULT_REPRODUCE_CONFIG,
+            shared_encoder=self.shared_encoder,
+        )
         #! change to ChoiceModule
         self.select_module = SelectModule(
-            num_actions=len(self.actions), config=SelectConfig(), device=self.device, shared_encoder=self.shared_encoder
+            num_actions=len(self.actions),
+            config=SelectConfig(),
+            device=self.device,
+            shared_encoder=self.shared_encoder,
         )
 
         # Initialize Redis memory if requested
@@ -261,12 +295,16 @@ class BaseAgent:
 
         current_step = self.environment.time
         enabled_actions = self.actions  # Default all
-        if self.config and hasattr(self.config, 'curriculum_phases'):
+        if self.config and hasattr(self.config, "curriculum_phases"):
             for phase in self.config.curriculum_phases:
                 if current_step < phase["steps"] or phase["steps"] == -1:
-                    enabled_actions = [a for a in self.actions if a.name in phase["enabled_actions"]]
+                    enabled_actions = [
+                        a for a in self.actions if a.name in phase["enabled_actions"]
+                    ]
                     break
-        selected_action = self.select_module.select_action(agent=self, actions=enabled_actions, state=self._cached_selection_state)
+        selected_action = self.select_module.select_action(
+            agent=self, actions=enabled_actions, state=self._cached_selection_state
+        )
         return selected_action
 
     def check_starvation(self) -> bool:
@@ -342,7 +380,10 @@ class BaseAgent:
         cloned_genome = Genome.clone(self.to_genome())
         mutated_genome = Genome.mutate(cloned_genome, mutation_rate=0.1)
         return Genome.to_agent(
-            mutated_genome, self.agent_id, (int(self.position[0]), int(self.position[1])), self.environment
+            mutated_genome,
+            self.agent_id,
+            (int(self.position[0]), int(self.position[1])),
+            self.environment,
         )
 
     def reproduce(self) -> bool:
@@ -352,7 +393,11 @@ class BaseAgent:
         failure_reason = None
 
         # Check resource requirements
-        if self.resource_level < self.config.min_reproduction_resources if self.config else 10:
+        if (
+            self.resource_level < self.config.min_reproduction_resources
+            if self.config
+            else 10
+        ):
             failure_reason = "Insufficient resources"
 
             # Record failed reproduction attempt
@@ -405,7 +450,9 @@ class BaseAgent:
                 success=True,
                 parent_resources_before=initial_resources,
                 parent_resources_after=self.resource_level,
-                offspring_initial_resources=self.config.offspring_initial_resources if self.config else 10,
+                offspring_initial_resources=(
+                    self.config.offspring_initial_resources if self.config else 10
+                ),
                 failure_reason="",  # Empty string for successful reproduction
                 parent_generation=self.generation,
                 offspring_generation=new_agent.generation,
@@ -431,7 +478,9 @@ class BaseAgent:
         new_agent = agent_class(
             agent_id=new_id,
             position=self.position,
-            resource_level=self.config.offspring_initial_resources if self.config else 10,
+            resource_level=(
+                self.config.offspring_initial_resources if self.config else 10
+            ),
             environment=self.environment,
             generation=generation,
         )
@@ -559,7 +608,6 @@ class BaseAgent:
 
         return reward
 
-
     def handle_combat(self, attacker: "BaseAgent", damage: float) -> float:
         """Handle incoming attack and calculate actual damage taken.
 
@@ -615,7 +663,9 @@ class BaseAgent:
         if action == AttackActionSpace.DEFEND:
             if (
                 self.current_health
-                < self.starting_health * self.config.attack_defense_threshold if self.config else 0.5
+                < self.starting_health * self.config.attack_defense_threshold
+                if self.config
+                else 0.5
             ):
                 reward += (
                     self.config.attack_success_reward if self.config else 1
@@ -673,7 +723,9 @@ class BaseAgent:
         Returns:
             BaseAgent: New agent instance with genome's characteristics
         """
-        return Genome.to_agent(genome, agent_id, (int(position[0]), int(position[1])), environment)
+        return Genome.to_agent(
+            genome, agent_id, (int(position[0]), int(position[1])), environment
+        )
 
     def take_damage(self, damage: float) -> bool:
         """Apply damage to the agent.
@@ -717,7 +769,11 @@ class BaseAgent:
     @property
     def defense_strength(self) -> float:
         """Calculate the agent's current defense strength."""
-        return (self.config.base_defense_strength if self.config else 5) if self.is_defending else 0.0
+        return (
+            (self.config.base_defense_strength if self.config else 5)
+            if self.is_defending
+            else 0.0
+        )
 
     def get_action_weights(self) -> dict:
         """Get a dictionary of action weights.
@@ -848,7 +904,14 @@ class BaseAgent:
             return []
 
     def train_all_modules(self):
-        modules = [self.move_module, self.attack_module, self.share_module, self.gather_module, self.reproduce_module, self.select_module]
+        modules = [
+            self.move_module,
+            self.attack_module,
+            self.share_module,
+            self.gather_module,
+            self.reproduce_module,
+            self.select_module,
+        ]
         for module in modules:
             if len(module.memory) >= module.config.batch_size:
                 batch = random.sample(module.memory, module.config.batch_size)
