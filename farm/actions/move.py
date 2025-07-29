@@ -53,6 +53,7 @@ import torch
 
 from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork
 from farm.database.database import SimulationDatabase
+from .base_dqn import SharedEncoder
 
 if TYPE_CHECKING:
     from farm.agents.base_agent import BaseAgent
@@ -116,10 +117,8 @@ class MoveQNetwork(BaseQNetwork):
         hidden_size (int, optional): Size of hidden layers. Defaults to 64.
     """
 
-    def __init__(self, input_dim: int, hidden_size: int = 64) -> None:
-        super().__init__(
-            input_dim, output_dim=4, hidden_size=hidden_size
-        )  # 4 movement actions
+    def __init__(self, input_dim: int, hidden_size: int = 64, shared_encoder: Optional[SharedEncoder] = None) -> None:
+        super().__init__(input_dim, output_dim=4, hidden_size=hidden_size, shared_encoder=shared_encoder)
 
 
 class MoveModule(BaseDQNModule):
@@ -135,14 +134,11 @@ class MoveModule(BaseDQNModule):
         db (Optional[SimulationDatabase], optional): Database for logging. Defaults to None.
     """
 
-    def __init__(
-        self,
-        config: MoveConfig = DEFAULT_MOVE_CONFIG,
-        device: torch.device = DEVICE,
-        db: Optional["SimulationDatabase"] = None,
-    ) -> None:
-        #! need to make input_dim dynamic to input size
+    def __init__(self, config: MoveConfig = DEFAULT_MOVE_CONFIG, device: torch.device = DEVICE, db: Optional["SimulationDatabase"] = None, shared_encoder: Optional[SharedEncoder] = None) -> None:
         super().__init__(input_dim=8, output_dim=4, config=config, device=device, db=db)
+        self.q_network = MoveQNetwork(input_dim=8, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder).to(device)
+        self.target_network = MoveQNetwork(input_dim=8, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder).to(device)
+        self.target_network.load_state_dict(self.q_network.state_dict())
         self._setup_action_space()
 
     def _setup_action_space(self) -> None:

@@ -27,9 +27,9 @@ The module integrates with the broader simulation through:
 """
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
-from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork
+from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork, SharedEncoder
 from farm.loggers.attack_logger import AttackLogger
 
 if TYPE_CHECKING:
@@ -101,9 +101,9 @@ class AttackQNetwork(BaseQNetwork):
     optimal attack strategies through reinforcement learning.
     """
 
-    def __init__(self, input_dim: int, hidden_size: int = 64) -> None:
+    def __init__(self, input_dim: int, hidden_size: int = 64, shared_encoder: Optional[SharedEncoder] = None) -> None:
         super().__init__(
-            input_dim, output_dim=5, hidden_size=hidden_size
+            input_dim, output_dim=5, hidden_size=hidden_size, shared_encoder=shared_encoder
         )  # 5 attack actions
 
 

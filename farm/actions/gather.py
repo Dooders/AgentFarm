@@ -39,7 +39,7 @@ from typing import TYPE_CHECKING, Optional, Tuple
 import numpy as np
 import torch
 
-from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork
+from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork, SharedEncoder
 from farm.core.resources import Resource
 
 if TYPE_CHECKING:
@@ -110,7 +110,7 @@ class GatherQNetwork(BaseQNetwork):
         - Resource regeneration rate
     """
 
-    def __init__(self, input_dim: int = 6, hidden_size: int = 64) -> None:
+    def __init__(self, input_dim: int = 6, hidden_size: int = 64, shared_encoder: Optional[SharedEncoder] = None) -> None:
         """
         Initialize the gathering Q-network.
 
@@ -130,6 +130,7 @@ class GatherQNetwork(BaseQNetwork):
             input_dim=input_dim,
             output_dim=3,  # GATHER, WAIT, or SKIP
             hidden_size=hidden_size,
+            shared_encoder=shared_encoder
         )
 
 

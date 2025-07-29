@@ -1,240 +1,130 @@
-# Multi-Agent Action System Documentation
-
-## Table of Contents
-- [Multi-Agent Action System Documentation](#multi-agent-action-system-documentation)
-  - [Table of Contents](#table-of-contents)
-  - [Overview](#overview)
-  - [Core Components](#core-components)
-    - [Base DQN System](#base-dqn-system)
-      - [BaseDQNConfig](#base-dqn-config)
-      - [BaseQNetwork](#base-q-network)
-      - [BaseDQNModule](#base-d-qn-module)
-    - [Action Types](#action-types)
-      - [1. Movement (`move_action`)](#1-movement-move_action)
-      - [2. Combat (`attack_action`)](#2-combat-attack_action)
-  - [Action Selection Mechanism](#action-selection-mechanism)
-    - [Overview](#overview-1)
-    - [Base Action Weights](#base-action-weights)
-    - [State-Based Adjustments](#state-based-adjustments)
-      - [Configurable Multipliers](#configurable-multipliers)
-    - [Epsilon-Greedy Exploration](#epsilon-greedy-exploration)
-    - [Selection Process](#selection-process)
-    - [Configuration](#configuration)
-  - [Movement Learning System](#movement-learning-system)
-    - [Architecture](#architecture)
-      - [MoveQNetwork](#moveqnetwork)
-      - [MoveModule](#movemodule)
-    - [Learning Process](#learning-process)
-    - [Configuration Parameters](#configuration-parameters)
-  - [Integration](#integration)
-  - [Performance Considerations](#performance-considerations)
-  - [Usage Example](#usage-example)
-  - [Further Reading and Resources](#further-reading-and-resources)
-
----
+# Action System
 
 ## Overview
 
-The action system provides a flexible framework for agent behaviors in a multi-agent environment, combining both rule-based actions and learned movement policies using Deep Q-Learning (DQN). The system enables agents to interact with their environment through actions such as movement, gathering resources, sharing, and combat, with rewards and conditions guiding their behaviors.
+The action system in AgentFarm implements a hierarchical reinforcement learning approach where agents learn both high-level action selection and low-level action execution. This design follows the Options Framework (Sutton et al., 1999) where "options" are sub-policies chosen by a high-level policy.
 
----
+## Hierarchical Action System Optimizations
 
-## Core Components
+### Shared Feature Extraction
 
-### Base DQN System
-The action system now uses a modular DQN architecture with:
-- **BaseDQNConfig**: Common configuration parameters
-- **BaseQNetwork**: Base neural network architecture
-- **BaseDQNModule**: Core DQN functionality
-
-### Action Types
-Each action type extends the base DQN system:
-
-#### 1. Movement (`move_action`)
-- Inherits from BaseDQNModule
-- Input dimension: 4
-- Output dimension: 4 (directions)
-- Custom reward structure:
-  - Base movement cost: -0.1
-  - Resource approach reward: +0.3
-  - Resource retreat penalty: -0.2
-
-#### 2. Combat (`attack_action`)
-- Inherits from BaseDQNModule
-- Input dimension: 6
-- Output dimension: 5 (4 directions + defend)
-- Custom features:
-  - Health-based defense boost
-  - Adaptive combat rewards
-
----
-
-## Action Selection Mechanism
-
-### Overview
-
-The system’s action selection mechanism balances exploration and exploitation. It uses a weighted probability system, adjusts action likelihoods based on agent states and environmental conditions, and incorporates an epsilon-greedy exploration strategy.
-
-### Base Action Weights
-
-Each action is assigned a base weight representing its initial likelihood of being chosen. These weights are normalized to create a probability distribution. The default weights are:
-
-- **Move**: 0.4
-- **Gather**: 0.3
-- **Share**: 0.2
-- **Attack**: 0.1
-
-### State-Based Adjustments
-
-The system adjusts action probabilities dynamically based on current state factors:
-
-- **Environmental Factors**:
-  - Presence of nearby resources.
-  - Proximity of other agents.
-  - Agent’s current resource levels.
-  - Starvation risk.
-
-#### Configurable Multipliers
-
-The following multipliers adjust action probabilities based on state:
+The system uses a `SharedEncoder` to extract common features across all action modules, reducing computational redundancy and improving learning efficiency.
 
 ```python
-# Movement
-move_mult_no_resources = 1.5    # Increased likelihood to move when no resources are nearby
-
-# Gathering
-gather_mult_low_resources = 1.5  # Increased likelihood to gather when agent's resources are low
-
-# Sharing
-share_mult_wealthy = 1.3        # Increased likelihood to share when agent has excess resources
-share_mult_poor = 0.5          # Decreased likelihood to share when resources are needed
-
-# Attack
-attack_mult_desperate = 1.4     # Increased likelihood to attack when agent is starving
-attack_mult_stable = 0.6       # Decreased likelihood to attack when agent's resources are stable
+class SharedEncoder(nn.Module):
+    def __init__(self, input_dim: int, hidden_size: int):
+        super().__init__()
+        self.fc = nn.Linear(input_dim, hidden_size)
+    
+    def forward(self, x):
+        return F.relu(self.fc(x))  # Shared features
 ```
 
-### Epsilon-Greedy Exploration
+**Benefits:**
+- Reduces parameter count across modules
+- Enables shared learning of common features (position, health, resources)
+- Improves training stability through shared representations
 
-To promote exploration, the system uses an epsilon-greedy approach:
+### Unified Training Loop
 
-- **Epsilon (ε)**: Represents the exploration rate, which decays from `start_epsilon` to `min_epsilon`.
-- **Action Selection**:
-  - With probability ε, a random action is selected.
-  - With probability (1 - ε), actions are chosen based on weighted selection.
-
-### Selection Process
-
-1. **Calculate Base Probabilities**: Begin with normalized base weights.
-2. **Apply State-Based Adjustments**: Multiply weights by relevant state-based multipliers.
-3. **Incorporate Epsilon-Greedy Exploration**:
-   - Generate a random number between 0 and 1.
-   - If the number is less than ε, select a random action.
-   - Otherwise, proceed to the next step.
-4. **Normalize Final Probabilities**: Ensure probabilities sum to 1.
-5. **Select Action**: Choose an action based on final adjusted probabilities.
-
-### Configuration
-
-The action selection mechanism is configurable via `SimulationConfig`:
+The `BaseAgent` class implements a centralized training mechanism that updates all modules simultaneously:
 
 ```python
-config = SimulationConfig(
-    social_range=30,               # Social interaction range
-    move_mult_no_resources=1.5,    # Movement multiplier
-    gather_mult_low_resources=1.5, # Gathering multiplier
-    share_mult_wealthy=1.3,        # Sharing multiplier (wealthy)
-    share_mult_poor=0.5,           # Sharing multiplier (poor)
-    attack_starvation_threshold=0.5,
-    attack_mult_desperate=1.4,     # Attack multiplier (desperate)
-    attack_mult_stable=0.6,        # Attack multiplier (stable)
-    start_epsilon=1.0,
-    min_epsilon=0.01,
-    epsilon_decay=0.995
-)
+def train_all_modules(self):
+    """Unified training for all action modules."""
+    for module in [self.move_module, self.attack_module, self.share_module, 
+                   self.gather_module, self.select_module]:
+        if hasattr(module, 'train') and len(module.memory) >= module.config.batch_size:
+            batch = random.sample(module.memory, module.config.batch_size)
+            module.train(batch)
 ```
 
----
+### Curriculum Learning
 
-## Movement Learning System
-
-### Architecture
-
-#### MoveQNetwork
-
-The `MoveQNetwork` class defines a fully connected neural network for movement learning:
-
-- **Input**: 4-dimensional state vector.
-- **Hidden Layers**: 2 layers with 64 neurons and ReLU activations.
-- **Output**: 4 actions (right, left, up, down).
-
-#### MoveModule
-
-The `MoveModule` handles the main Deep Q-Learning (DQN) operations, including experience replay, target network updates, and epsilon-greedy exploration.
-
-### Learning Process
-
-1. **State Observation**: Obtain current state representation.
-2. **Action Selection**: Choose an action using ε-greedy.
-3. **Environment Interaction**: Execute action and observe results.
-4. **Experience Storage**: Store the experience in the replay buffer.
-5. **Batch Training**: Sample and train on a batch of experiences.
-6. **Target Network Updates**: Update target network periodically for stable learning.
-
-### Configuration Parameters
-
-The learning system is configured through `MovementConfig`:
-
-| Parameter            | Description                         | Default Value |
-| -------------------- | ----------------------------------- | ------------- |
-| `learning_rate`      | Optimizer learning rate             | 0.001         |
-| `memory_size`        | Experience replay buffer size       | 10,000        |
-| `gamma`              | Reward discount factor              | 0.99          |
-| `epsilon_start`      | Initial exploration rate            | 1.0           |
-| `epsilon_min`        | Minimum exploration rate            | 0.01          |
-| `epsilon_decay`      | Exploration decay rate              | 0.995         |
-| `target_update_freq` | Frequency of target network updates | 100           |
-
----
-
-## Integration
-
-- **Action Execution**: Actions are managed through the `Action` class.
-- **Continuous Movement Learning**: Learning updates occur during agent interactions.
-- **Logging**: Each action includes detailed logging for monitoring behavior.
-- **Resource Management**: The system handles resources automatically, including bounds checking.
-
----
-
-## Performance Considerations
-
-- **Vectorized Distance Calculations**: For efficient resource and agent proximity checks.
-- **Batch Processing**: Experience replay uses batch processing to stabilize learning.
-- **Automatic Device Management**: Tensor operations are managed to ensure efficient use of CPU/GPU resources.
-- **Efficient Memory Usage**: Experience replay is managed using `deque` to limit memory usage.
-
----
-
-## Usage Example
+Actions are gradually enabled based on simulation progress to ease training complexity:
 
 ```python
-# Define actions
-move = Action("move", 0.4, move_action)
-gather = Action("gather
+curriculum_phases = [
+    {"steps": 100, "enabled_actions": ["move", "gather"]},
+    {"steps": 200, "enabled_actions": ["move", "gather", "share", "attack"]},
+    {"steps": -1, "enabled_actions": ["move", "gather", "share", "attack", "reproduce"]}
+]
+```
 
-", 0.3, gather_action)
-share = Action("share", 0.2, share_action)
-attack = Action("attack", 0.1, attack_action)
+### Rule-Based Simplification
 
-# Select and execute an action
-selected_action = select_action(agent)
+Simple actions like reproduction use rule-based logic instead of DQN to reduce complexity:
+
+```python
+def reproduce_action(agent: "BaseAgent") -> None:
+    if random.random() < 0.5 and agent.resource_level >= agent.config.min_reproduction_resources:
+        agent.reproduce()
+```
+
+## Action Modules
+
+### Movement Module (`move.py`)
+- **Purpose**: Learn optimal navigation policies
+- **Action Space**: 4 discrete directions (right, left, up, down)
+- **State**: Position, resource proximity, health
+- **Reward**: Movement cost + resource approach bonus
+
+### Attack Module (`attack.py`)
+- **Purpose**: Learn combat strategies
+- **Action Space**: 5 actions (4 directional attacks + defend)
+- **State**: Health ratio, target proximity, resource levels
+- **Reward**: Success/failure based on damage dealt
+
+### Gather Module (`gather.py`)
+- **Purpose**: Learn resource collection strategies
+- **Action Space**: 3 actions (gather, wait, skip)
+- **State**: Resource availability, distance, efficiency
+- **Reward**: Resource amount collected minus costs
+
+### Share Module (`share.py`)
+- **Purpose**: Learn cooperative resource sharing
+- **Action Space**: Share amounts and target selection
+- **State**: Own resources, nearby agents, cooperation history
+- **Reward**: Altruism bonuses and reciprocity
+
+### Select Module (`select.py`)
+- **Purpose**: High-level action selection policy
+- **Action Space**: Choose which action to execute
+- **State**: Current situation, available actions
+- **Reward**: Success of chosen action
+
+## Configuration
+
+Each module uses `BaseDQNConfig` with module-specific parameters:
+
+```python
+class MoveConfig(BaseDQNConfig):
+    move_base_cost: float = -0.1
+    move_resource_approach_reward: float = 0.3
+    move_resource_retreat_penalty: float = -0.2
+```
+
+## Usage
+
+Actions are typically called from the agent's decision loop:
+
+```python
+# In agent update method
+state = agent.get_state()
+selected_action = agent.select_module.select_action(agent, actions, state)
 selected_action.execute(agent)
 ```
 
----
+## Dependencies
 
-## Further Reading and Resources
+- PyTorch: Neural network implementation
+- NumPy: Numerical computations
+- farm.core: Base agent and environment classes
 
-- **Reinforcement Learning**: For more on DQN and action selection strategies, see "Deep Reinforcement Learning Hands-On" by Maxim Lapan.
-- **Multi-Agent Systems**: For further background on multi-agent coordination, refer to "Multiagent Systems" by Gerhard Weiss.
-- **Epsilon-Greedy Exploration**: Details on ε-greedy and other exploration strategies are available in the OpenAI Spinning Up documentation ([link](https://spinningup.openai.com)).
+## Development Notes
+
+- Each action module extends `BaseDQNModule` for consistent learning
+- State spaces are action-specific but follow similar normalization patterns
+- Rewards are designed to promote balanced agent behaviors
+- Shared encoder reduces computational overhead
+- Curriculum learning eases training complexity

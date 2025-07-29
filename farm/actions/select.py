@@ -20,12 +20,12 @@ Classes:
 
 import logging
 import random
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 import numpy as np
 import torch
 
-from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork
+from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork, SharedEncoder
 from farm.core.action import Action
 
 if TYPE_CHECKING:
@@ -98,8 +98,8 @@ class SelectQNetwork(BaseQNetwork):
         hidden_size: Size of hidden layers in the network
     """
 
-    def __init__(self, input_dim: int, num_actions: int, hidden_size: int = 64) -> None:
-        super().__init__(input_dim, num_actions, hidden_size)
+    def __init__(self, input_dim: int, num_actions: int, hidden_size: int = 64, shared_encoder: Optional[SharedEncoder] = None) -> None:
+        super().__init__(input_dim, num_actions, hidden_size, shared_encoder=shared_encoder)
 
 
 class SelectModule(BaseDQNModule):

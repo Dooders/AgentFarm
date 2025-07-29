@@ -34,7 +34,7 @@ from typing import TYPE_CHECKING, List, Optional, Tuple
 import numpy as np
 import torch
 
-from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork
+from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork, SharedEncoder
 
 if TYPE_CHECKING:
     from farm.agents.base_agent import BaseAgent
@@ -111,13 +111,14 @@ class ShareQNetwork(BaseQNetwork):
         hidden_size: Number of neurons in hidden layers (default: 64)
     """
 
-    def __init__(self, input_dim: int = 6, hidden_size: int = 64) -> None:
+    def __init__(self, input_dim: int = 6, hidden_size: int = 64, shared_encoder: Optional[SharedEncoder] = None) -> None:
         # Input features: [agent_resources, nearby_agents, avg_neighbor_resources,
         #                 min_neighbor_resources, max_neighbor_resources, cooperation_score]
         super().__init__(
             input_dim=input_dim,
             output_dim=4,  # NO_SHARE, SHARE_LOW, SHARE_MEDIUM, SHARE_HIGH
             hidden_size=hidden_size,
+            shared_encoder=shared_encoder
         )
 
 
