@@ -20,12 +20,12 @@ Classes:
 
 import logging
 import random
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 import numpy as np
 import torch
 
-from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork
+from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork, SharedEncoder
 from farm.core.action import Action
 
 if TYPE_CHECKING:
@@ -98,8 +98,8 @@ class SelectQNetwork(BaseQNetwork):
         hidden_size: Size of hidden layers in the network
     """
 
-    def __init__(self, input_dim: int, num_actions: int, hidden_size: int = 64) -> None:
-        super().__init__(input_dim, num_actions, hidden_size)
+    def __init__(self, input_dim: int, num_actions: int, hidden_size: int = 64, shared_encoder: Optional[SharedEncoder] = None) -> None:
+        super().__init__(input_dim, num_actions, hidden_size, shared_encoder=shared_encoder)
 
 
 class SelectModule(BaseDQNModule):
@@ -129,15 +129,25 @@ class SelectModule(BaseDQNModule):
         device: torch.device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"
         ),
+        shared_encoder: Optional[SharedEncoder] = None,
     ) -> None:
         super().__init__(
-            input_dim=8,  # State dimensions for selection
+            input_dim=6,  # State dimensions for selection (matches SharedEncoder)
             output_dim=num_actions,
             config=config,
             device=device,
         )
         # Pre-compute action indices for faster lookup
         self.action_indices = {}
+        
+        # Initialize Q-networks with shared encoder if provided
+        self.q_network = SelectQNetwork(
+            input_dim=6, num_actions=num_actions, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
+        ).to(device)
+        self.target_network = SelectQNetwork(
+            input_dim=6, num_actions=num_actions, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
+        ).to(device)
+        self.target_network.load_state_dict(self.q_network.state_dict())
 
     def select_action(
         self, agent: "BaseAgent", actions: List[Action], state: torch.Tensor

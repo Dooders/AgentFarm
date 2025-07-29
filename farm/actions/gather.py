@@ -39,7 +39,7 @@ from typing import TYPE_CHECKING, Optional, Tuple
 import numpy as np
 import torch
 
-from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork
+from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork, SharedEncoder
 from farm.core.resources import Resource
 
 if TYPE_CHECKING:
@@ -110,7 +110,7 @@ class GatherQNetwork(BaseQNetwork):
         - Resource regeneration rate
     """
 
-    def __init__(self, input_dim: int = 6, hidden_size: int = 64) -> None:
+    def __init__(self, input_dim: int = 6, hidden_size: int = 64, shared_encoder: Optional[SharedEncoder] = None) -> None:
         """
         Initialize the gathering Q-network.
 
@@ -130,6 +130,7 @@ class GatherQNetwork(BaseQNetwork):
             input_dim=input_dim,
             output_dim=3,  # GATHER, WAIT, or SKIP
             hidden_size=hidden_size,
+            shared_encoder=shared_encoder
         )
 
 
@@ -153,13 +154,14 @@ class GatherModule(BaseDQNModule):
     """
 
     def __init__(
-        self, config: GatherConfig = GatherConfig(), device: torch.device = DEVICE
+        self, config: GatherConfig = GatherConfig(), device: torch.device = DEVICE, shared_encoder: Optional[SharedEncoder] = None
     ) -> None:
         """Initialize the gathering module with configuration and device settings.
 
         Args:
             config: Configuration object containing gathering parameters
             device: PyTorch device for network computations (CPU/GPU)
+            shared_encoder: Optional shared encoder for feature extraction
 
         The module initializes:
             - Q-network and target network for learning
@@ -180,13 +182,13 @@ class GatherModule(BaseDQNModule):
         # Ensure we're using the correct config type
         self.config: GatherConfig = config
 
-        # Initialize Q-network after super().__init__
+        # Initialize Q-network after super().__init__ with shared encoder if provided
         self.q_network = GatherQNetwork(
-            input_dim=self.input_dim, hidden_size=config.dqn_hidden_size
+            input_dim=self.input_dim, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
         ).to(device)
 
         self.target_network = GatherQNetwork(
-            input_dim=self.input_dim, hidden_size=config.dqn_hidden_size
+            input_dim=self.input_dim, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
         ).to(device)
 
         self.target_network.load_state_dict(self.q_network.state_dict())
@@ -535,3 +537,6 @@ def gather_action(agent: "BaseAgent") -> None:
                     ),
                 },
             )
+
+# Default configuration instance
+DEFAULT_GATHER_CONFIG = GatherConfig()

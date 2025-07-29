@@ -1,6 +1,6 @@
 import json
 import random
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 from farm.core.action import Action
 
@@ -26,7 +26,7 @@ class Genome:
     """
 
     @staticmethod
-    def from_agent(agent: "BaseAgent") -> "Genome":
+    def from_agent(agent: "BaseAgent") -> dict:
         """Convert agent's current state and configuration into a genome representation.
 
         This method extracts all module states, action configurations, and core properties
@@ -119,7 +119,7 @@ class Genome:
         return agent
 
     @staticmethod
-    def save(genome: "Genome", path: str = None) -> None:
+    def save(genome: dict, path: Optional[str] = None) -> Union[str, None]:
         """Save genome to a file in JSON format or return JSON string.
 
         Args:
@@ -131,30 +131,35 @@ class Genome:
             str: JSON string representation if path is None
         """
         if path is None:
-            return json.dumps(genome)
+            return json.dumps(genome, indent=2)
 
         with open(path, "w") as f:
             json.dump(genome, f)
 
     @staticmethod
-    def load(path: Union[str, "Genome"]) -> "Genome":
+    def load(path: Union[str, dict]) -> dict:
         """Load genome from a JSON file or string.
 
         Args:
-            path (Union[str, "Genome"]): File path or JSON string from which to load the genome.
+            path (Union[str, dict]): File path, JSON string, or dictionary from which to load the genome.
                        File must exist and contain valid JSON if path is a filepath.
 
         Returns:
             dict: Loaded genome dictionary containing agent configuration
         """
-        if path is None:
+        if isinstance(path, dict):
+            return path
+
+        # Check if it's a JSON string (starts with { or [)
+        if isinstance(path, str) and (path.strip().startswith('{') or path.strip().startswith('[')):
             return json.loads(path)
 
+        # Otherwise treat as file path
         with open(path, "r") as f:
             return json.load(f)
 
     @staticmethod
-    def mutate(genome: "Genome", mutation_rate: float = 0.1) -> "Genome":
+    def mutate(genome: dict, mutation_rate: float = 0.1) -> dict:
         """Mutate a genome by randomly adjusting action weights.
 
         This method creates a modified copy of the input genome with potentially
@@ -195,8 +200,8 @@ class Genome:
 
     @staticmethod
     def crossover(
-        genome1: "Genome", genome2: "Genome", mutation_rate: float = 0.0
-    ) -> "Genome":
+        genome1: dict, genome2: dict, mutation_rate: float = 0.0
+    ) -> dict:
         """Create a child genome by crossing over two parent genomes.
 
         This method performs uniform crossover on the action weights of two parent
@@ -238,7 +243,7 @@ class Genome:
         return child
 
     @staticmethod
-    def clone(genome: "Genome") -> "Genome":
+    def clone(genome: dict) -> dict:
         """Create an exact deep copy of a genome.
 
         This method creates a completely independent copy of the input genome,
@@ -257,4 +262,7 @@ class Genome:
             copy = Genome.clone(original)
             # Modifying copy won't affect original
         """
-        return Genome.load(Genome.save(genome))
+        json_str = Genome.save(genome)
+        # Since we're calling save() without a path, it should always return a string
+        assert json_str is not None, "Genome.save() should return a string when no path is provided"
+        return Genome.load(json_str)

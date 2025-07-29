@@ -1,281 +1,118 @@
-# Reproduce Module Documentation
-
-The Reproduce Module is an intelligent reproduction decision system that uses Deep Q-Learning (DQN) to enable agents to learn optimal reproduction strategies. This module helps agents make informed decisions about when and under what conditions to reproduce, considering factors like resource availability, population density, and agent fitness.
-
----
+# Reproduction Module
 
 ## Overview
 
-The Reproduce Module implements a Deep Q-Learning approach with several key features:
+The reproduction module has been simplified from a DQN-based learning system to a rule-based implementation. This change reduces complexity while maintaining effective reproduction behavior.
 
-- **Intelligent Timing**: Learns optimal moments for reproduction
-- **Resource Management**: Considers resource levels and efficiency
-- **Population Control**: Maintains balanced population density
-- **Fitness Tracking**: Accounts for agent health and survival metrics
-- **Generation Management**: Tracks evolutionary progression
+## Rule-Based Implementation
 
----
+### Simple Reproduction Logic
 
-## Key Components
-
-### 1. `ReproduceQNetwork`
-
-Neural network architecture for reproduction decisions:
-
-- **Input Layer**: 8-dimensional state vector representing:
-  - Resource ratio
-  - Health ratio
-  - Local population density
-  - Resource availability
-  - Global population ratio
-  - Starvation risk
-  - Defensive status
-  - Generation number
-
-- **Hidden Layers**: Two layers with:
-  - Layer Normalization
-  - ReLU activation
-  - Dropout (10%)
-  - Xavier/Glorot initialization
-
-- **Output Layer**: 2 actions:
-  - WAIT: Delay reproduction
-  - REPRODUCE: Attempt reproduction
-
-### 2. `ReproduceModule`
-
-Main class handling reproduction decisions and learning:
-
-**Key Methods:**
-```python
-def get_reproduction_decision(
-    self,
-    agent: "BaseAgent",
-    state: torch.Tensor
-) -> Tuple[bool, float]:
-    """Determine whether to reproduce based on current state.
-    
-    Returns:
-        Tuple of (should_reproduce, confidence_score)
-    """
-```
-
----
-
-## Configuration Parameters (`ReproduceConfig`)
-
-### Reward Parameters
-```python
-reproduce_success_reward: float = 1.0
-reproduce_fail_penalty: float = -0.2
-offspring_survival_bonus: float = 0.5
-population_balance_bonus: float = 0.3
-```
-
-### Reproduction Thresholds
-```python
-min_health_ratio: float = 0.5
-min_resource_ratio: float = 0.6
-ideal_density_radius: float = 50.0
-```
-
-### Population Control
-```python
-max_local_density: float = 0.7
-min_space_required: float = 20.0
-```
-
----
-
-## State Representation
-
-The reproduce module uses an 8-dimensional state vector:
-
-1. **Resource Ratio**: `agent.resource_level / min_reproduction_resources`
-2. **Health Ratio**: `current_health / starting_health`
-3. **Local Density**: Nearby agents / total agents
-4. **Resource Availability**: Nearby resources / total resources
-5. **Population Ratio**: Current population / max population
-6. **Starvation Risk**: Current threshold / max threshold
-7. **Defense Status**: Binary indicator (0/1)
-8. **Generation**: Normalized generation number
-
----
-
-## Reproduction Conditions
-
-The module checks multiple conditions before allowing reproduction:
-
-1. **Population Limits**
-   - Total population below maximum
-   - Local density below threshold
-
-2. **Agent Fitness**
-   - Sufficient resources
-   - Adequate health level
-   - Survival stability
-
-3. **Environmental Conditions**
-   - Available space
-   - Resource availability
-   - Population balance
-
----
-
-## Reward System
-
-The reward calculation considers multiple factors:
-
-1. **Base Rewards**
-   - Successful reproduction: +1.0
-   - Failed attempt: -0.2
-
-2. **Bonuses**
-   - Offspring survival: +0.5
-   - Population balance: +0.3
-
-3. **Conditions**
-   - Resource maintenance
-   - Health status
-   - Population distribution
-
----
-
-## Usage Example
+The reproduction action now uses straightforward conditional logic:
 
 ```python
-# Initialize module
-config = ReproduceConfig(
-    reproduce_success_reward=1.0,
-    offspring_survival_bonus=0.5,
-    min_health_ratio=0.5
-)
-reproduce_module = ReproduceModule(config)
-
-# Get reproduction decision
-state = _get_reproduce_state(agent)
-should_reproduce, confidence = reproduce_module.get_reproduction_decision(
-    agent, state
-)
-
-# Attempt reproduction if conditions are met
-if should_reproduce and _check_reproduction_conditions(agent):
-    offspring = agent.create_offspring()
-    reward = _calculate_reproduction_reward(agent, offspring)
+def reproduce_action(agent: "BaseAgent") -> None:
+    if random.random() < 0.5 and agent.resource_level >= agent.config.min_reproduction_resources:
+        agent.reproduce()
 ```
 
----
+### Reproduction Conditions
 
-## Integration
+The rule-based system checks two main conditions:
 
-### With Base Agent
+1. **Random Chance**: 50% probability of attempting reproduction
+2. **Resource Threshold**: Agent must have sufficient resources (≥ `min_reproduction_resources`)
+
+### Configuration
+
+Reproduction behavior is controlled through `SimulationConfig`:
 
 ```python
-class BaseAgent:
-    def __init__(self, ...):
-        # Initialize reproduce module
-        self.reproduce_module = ReproduceModule(self.config)
+class SimulationConfig:
+    min_reproduction_resources: int = 8
+    offspring_cost: int = 3
+    offspring_initial_resources: int = 5
+    max_population: int = 3000
 ```
 
-### Reproduce Action
+## Benefits of Rule-Based Approach
+
+### Reduced Complexity
+- No neural network training required
+- Simpler debugging and analysis
+- Faster execution
+
+### Predictable Behavior
+- Clear reproduction conditions
+- Deterministic resource requirements
+- Easy to tune parameters
+
+### Computational Efficiency
+- No DQN overhead
+- Minimal memory usage
+- Faster agent updates
+
+## Integration with Curriculum Learning
+
+The reproduction module is enabled in the final curriculum phase:
 
 ```python
-def reproduce_action(agent):
-    """Execute reproduction action using the reproduce module."""
-    state = _get_reproduce_state(agent)
-    should_reproduce, confidence = agent.reproduce_module.get_reproduction_decision(
-        agent, state
-    )
-    
-    if should_reproduce and _check_reproduction_conditions(agent):
-        offspring = agent.create_offspring()
-        reward = _calculate_reproduction_reward(agent, offspring)
+curriculum_phases = [
+    {"steps": 100, "enabled_actions": ["move", "gather"]},
+    {"steps": 200, "enabled_actions": ["move", "gather", "share", "attack"]},
+    {"steps": -1, "enabled_actions": ["move", "gather", "share", "attack", "reproduce"]}
+]
 ```
 
----
+This allows agents to learn basic survival skills before attempting reproduction.
 
-## Performance Considerations
+## Usage
 
-1. **State Calculations**
-   - Efficient density calculations
-   - Vectorized distance computations
-   - Cached population metrics
+The reproduction action is called through the standard action system:
 
-2. **Decision Making**
-   - Quick condition checking
-   - Optimized state processing
-   - Efficient reward calculation
+```python
+# In agent decision loop
+if "reproduce" in enabled_actions:
+    reproduce_action(agent)
+```
 
-3. **Learning Process**
-   - Experience replay buffer
-   - Batch processing
-   - GPU acceleration when available
+## Migration from DQN
 
----
+### Previous DQN Implementation
 
-## Best Practices
+The previous version used a full DQN system with:
+- `ReproduceQNetwork` for Q-value approximation
+- `ReproduceModule` for learning and training
+- Complex state representation and reward calculation
 
-1. **Configuration**
-   - Adjust thresholds based on environment
-   - Balance rewards for stable population
-   - Set appropriate density limits
+### Current Rule-Based System
 
-2. **Integration**
-   - Initialize module early
-   - Monitor reproduction rates
-   - Track population metrics
+The current system uses:
+- Simple conditional logic
+- Direct resource threshold checking
+- Random chance for exploration
 
-3. **Monitoring**
-   - Population stability
-   - Resource efficiency
-   - Generation progression
+## Configuration Parameters
 
----
-
-## Troubleshooting
-
-Common issues and solutions:
-
-1. **Overpopulation**
-   - Lower success rewards
-   - Increase density thresholds
-   - Adjust resource requirements
-
-2. **Insufficient Reproduction**
-   - Check resource thresholds
-   - Adjust health requirements
-   - Review reward structure
-
-3. **Unstable Population**
-   - Balance rewards
-   - Tune density controls
-   - Adjust condition thresholds
-
----
+| Parameter | Description | Default Value |
+|-----------|-------------|---------------|
+| `min_reproduction_resources` | Minimum resources required | 8 |
+| `offspring_cost` | Resources consumed per offspring | 3 |
+| `offspring_initial_resources` | Starting resources for offspring | 5 |
+| `max_population` | Maximum population limit | 3000 |
 
 ## Future Enhancements
 
-Potential improvements:
+While the current implementation is rule-based, future versions could include:
 
-1. **Advanced Selection**
-   - Genetic fitness scoring
-   - Trait inheritance
-   - Mutation rates
+1. **Adaptive Probabilities**: Adjust reproduction chance based on population density
+2. **Quality-Based Selection**: Consider agent fitness for reproduction
+3. **Environmental Factors**: Include resource availability in reproduction decisions
+4. **Hybrid Approach**: Combine rule-based logic with simple learning components
 
-2. **Population Control**
-   - Dynamic density thresholds
-   - Resource-based limits
-   - Environmental factors
+## Best Practices
 
-3. **Learning Enhancements**
-   - Meta-learning adaptation
-   - Population-wide learning
-   - Multi-objective optimization
-
----
-
-## References
-
-1. **Deep Q-Learning**: [Original DQN Paper](https://www.nature.com/articles/nature14236)
-2. **Population Dynamics**: [Evolutionary Dynamics](https://press.princeton.edu/books/hardcover/9780691140179/evolutionary-dynamics)
-3. **Resource Management**: [Optimal Control Theory](https://www.springer.com/gp/book/9780387243177) 
+1. **Population Control**: Monitor population growth and adjust thresholds
+2. **Resource Balance**: Ensure reproduction costs don't deplete resources too quickly
+3. **Curriculum Integration**: Use reproduction only in later training phases
+4. **Performance Monitoring**: Track reproduction rates and adjust parameters as needed 

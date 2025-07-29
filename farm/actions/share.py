@@ -34,7 +34,7 @@ from typing import TYPE_CHECKING, List, Optional, Tuple
 import numpy as np
 import torch
 
-from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork
+from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork, SharedEncoder
 
 if TYPE_CHECKING:
     from farm.agents.base_agent import BaseAgent
@@ -111,13 +111,14 @@ class ShareQNetwork(BaseQNetwork):
         hidden_size: Number of neurons in hidden layers (default: 64)
     """
 
-    def __init__(self, input_dim: int = 6, hidden_size: int = 64) -> None:
+    def __init__(self, input_dim: int = 6, hidden_size: int = 64, shared_encoder: Optional[SharedEncoder] = None) -> None:
         # Input features: [agent_resources, nearby_agents, avg_neighbor_resources,
         #                 min_neighbor_resources, max_neighbor_resources, cooperation_score]
         super().__init__(
             input_dim=input_dim,
             output_dim=4,  # NO_SHARE, SHARE_LOW, SHARE_MEDIUM, SHARE_HIGH
             hidden_size=hidden_size,
+            shared_encoder=shared_encoder
         )
 
 
@@ -146,12 +147,14 @@ class ShareModule(BaseDQNModule):
         device: torch.device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"
         ),
+        shared_encoder: Optional[SharedEncoder] = None,
     ) -> None:
         """Initialize the ShareModule with configuration and device settings.
 
         Args:
             config: Configuration object containing sharing parameters
             device: PyTorch device for network computations (CPU/GPU)
+            shared_encoder: Optional shared encoder for feature extraction
         """
         # Initialize parent class with share-specific network
         super().__init__(
@@ -163,12 +166,12 @@ class ShareModule(BaseDQNModule):
         self.cooperation_history = {}  # Track sharing interactions
         self._setup_action_space()
 
-        # Initialize Q-network specific to sharing
+        # Initialize Q-network specific to sharing with shared encoder if provided
         self.q_network = ShareQNetwork(
-            input_dim=6, hidden_size=config.dqn_hidden_size
+            input_dim=6, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
         ).to(device)
         self.target_network = ShareQNetwork(
-            input_dim=6, hidden_size=config.dqn_hidden_size
+            input_dim=6, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
         ).to(device)
         self.target_network.load_state_dict(self.q_network.state_dict())
 

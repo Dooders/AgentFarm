@@ -277,6 +277,12 @@ class SimulationConfig:
 
     simulation_steps: int = 100  # Default value
 
+    curriculum_phases: List[Dict[str, Any]] = field(default_factory=lambda: [
+        {"steps": 100, "enabled_actions": ["move", "gather"]},
+        {"steps": 200, "enabled_actions": ["move", "gather", "share", "attack"]},
+        {"steps": -1, "enabled_actions": ["move", "gather", "share", "attack", "reproduce"]}
+    ])  # -1 for remaining steps
+
     @classmethod
     def from_yaml(cls, file_path: str) -> "SimulationConfig":
         """Load configuration from a YAML file."""

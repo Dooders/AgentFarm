@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Optional, Tuple
 import numpy as np
 import torch
 
-from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork
+from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork, SharedEncoder
 
 if TYPE_CHECKING:
     from farm.agents.base_agent import BaseAgent
@@ -108,11 +108,12 @@ class ReproduceQNetwork(BaseQNetwork):
         hidden_size: Number of neurons in hidden layers (default: 64)
     """
 
-    def __init__(self, input_dim: int = 8, hidden_size: int = 64) -> None:
+    def __init__(self, input_dim: int = 8, hidden_size: int = 64, shared_encoder: Optional[SharedEncoder] = None) -> None:
         super().__init__(
             input_dim=input_dim,
             output_dim=2,  # WAIT or REPRODUCE
             hidden_size=hidden_size,
+            shared_encoder=shared_encoder
         )
 
 
@@ -133,22 +134,22 @@ class ReproduceModule(BaseDQNModule):
     """
 
     def __init__(
-        self, config: ReproduceConfig = ReproduceConfig(), device: torch.device = DEVICE
+        self, config: ReproduceConfig = ReproduceConfig(), device: torch.device = DEVICE, shared_encoder: Optional[SharedEncoder] = None
     ) -> None:
         super().__init__(
-            input_dim=8,  # State dimensions for reproduction
+            input_dim=6,  # State dimensions for reproduction (matches SharedEncoder)
             output_dim=2,  # Number of reproduction actions
             config=config,
             device=device,
         )
 
-        # Initialize reproduction-specific Q-network
+        # Initialize reproduction-specific Q-network with shared encoder if provided
         self.q_network = ReproduceQNetwork(
-            input_dim=8, hidden_size=config.dqn_hidden_size
+            input_dim=6, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
         ).to(device)
 
         self.target_network = ReproduceQNetwork(
-            input_dim=8, hidden_size=config.dqn_hidden_size
+            input_dim=6, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
         ).to(device)
 
         self.target_network.load_state_dict(self.q_network.state_dict())
@@ -471,7 +472,7 @@ def _calculate_reproduction_reward(agent: "BaseAgent", offspring: "BaseAgent") -
     The reward calculation considers:
     - Base success reward for successful reproduction
     - Bonus for maintaining adequate resources after reproduction
-    - Bonus for maintaining population balance within optimal ranges
+    - Bonus for maintaining good population balance
 
     Args:
         agent: The parent agent that successfully reproduced
@@ -496,3 +497,6 @@ def _calculate_reproduction_reward(agent: "BaseAgent", offspring: "BaseAgent") -
         reward += ReproduceConfig.population_balance_bonus
 
     return reward
+
+# Default configuration instance
+DEFAULT_REPRODUCE_CONFIG = ReproduceConfig()

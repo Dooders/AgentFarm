@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from farm.core.environment import Environment
@@ -22,7 +22,7 @@ class IndependentAgent(BaseAgent):
         resource_level: int,
         environment: "Environment",
         generation: int = 0,
-        action_set: list[Action] = None,  # Make action_set optional
+        action_set: Optional[list[Action]] = None,  # Make action_set optional
     ):
         """Initialize an IndependentAgent.
 
@@ -42,7 +42,9 @@ class IndependentAgent(BaseAgent):
             Custom action set for this agent
         """
         # Get agent-specific parameters from config
-        agent_params = environment.config.agent_parameters.get("IndependentAgent", {})
+        agent_params = {}
+        if environment.config is not None:
+            agent_params = environment.config.agent_parameters.get("IndependentAgent", {})
 
         # Create default action set if none provided
         if action_set is None:
