@@ -169,7 +169,7 @@ class GatherModule(BaseDQNModule):
             - Tracking variables for gathering metrics
         """
         # Store dimensions as instance variables
-        self.input_dim = 6  # State space dimension
+        self.input_dim = 8  # State space dimension (matches SharedEncoder)
         self.output_dim = 3  # Action space dimension (GATHER, WAIT, SKIP)
 
         super().__init__(

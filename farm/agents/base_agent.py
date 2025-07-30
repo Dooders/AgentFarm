@@ -119,9 +119,11 @@ class BaseAgent:
 
         # Initialize all modules first
         #! make this a list of action modules that can be provided to the agent at init
+        # Use the config's dqn_hidden_size to match the modules
+        hidden_size = self.config.dqn_hidden_size if self.config else 64
         self.shared_encoder = SharedEncoder(
-            input_dim=6, hidden_size=64
-        )  # Use 6-dimensional input for compatibility with most modules
+            input_dim=8, hidden_size=hidden_size
+        )  # Use 8-dimensional input to match selection state
         self.move_module = MoveModule(
             self.config if self.config else DEFAULT_MOVE_CONFIG,
             db=environment.db,
