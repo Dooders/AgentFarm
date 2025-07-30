@@ -311,7 +311,7 @@ class ShareModule(BaseDQNModule):
             ):
                 weight *= 2.0
             # Consider past cooperation
-            coop_score = self._get_cooperation_score(int(target.agent_id))
+            coop_score = self._get_cooperation_score(target.agent_id)
             weight *= 1.0 + coop_score
             weights.append(weight)
 
@@ -349,7 +349,7 @@ class ShareModule(BaseDQNModule):
         }
         return share_amounts.get(action, 0)
 
-    def _get_cooperation_score(self, agent_id: int) -> float:
+    def _get_cooperation_score(self, agent_id: str) -> float:
         """Calculate the cooperation score for an agent based on interaction history.
 
         This method computes a running average of cooperation scores for a
@@ -371,7 +371,7 @@ class ShareModule(BaseDQNModule):
             self.cooperation_history[agent_id][-share_config.cooperation_memory :]
         ) / len(self.cooperation_history[agent_id][-share_config.cooperation_memory :])
 
-    def update_cooperation(self, agent_id: int, cooperative: bool) -> None:
+    def update_cooperation(self, agent_id: str, cooperative: bool) -> None:
         """Update the cooperation history for a specific agent.
 
         This method records the outcome of a sharing interaction to maintain
@@ -444,7 +444,7 @@ def share_action(agent: "BaseAgent") -> None:
     agent.total_reward += reward
 
     # Update cooperation history
-    agent.share_module.update_cooperation(int(target.agent_id), True)
+    agent.share_module.update_cooperation(target.agent_id, True)
 
     # Log successful share action
     if agent.environment.db is not None:
@@ -452,7 +452,7 @@ def share_action(agent: "BaseAgent") -> None:
             step_number=agent.environment.time,
             agent_id=agent.agent_id,
             action_type="share",
-            action_target_id=int(target.agent_id),
+            action_target_id=None,  # Agent IDs are strings, not integers
             resources_before=initial_resources,
             resources_after=agent.resource_level,
             reward=reward,
@@ -508,7 +508,7 @@ def _get_share_state(agent: "BaseAgent") -> List[float]:
         min(neighbor_resources) / max_resources,  # Min neighbor resources
         max(neighbor_resources) / max_resources,  # Max neighbor resources
         agent.share_module._get_cooperation_score(
-            int(agent.agent_id)
+            agent.agent_id
         ),  # Cooperation score
         agent.current_health / agent.starting_health,  # Health ratio
         float(agent.is_defending),  # Defensive status

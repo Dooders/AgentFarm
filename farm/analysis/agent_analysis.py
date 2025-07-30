@@ -198,7 +198,7 @@ class AgentAnalysis:
             return
 
         # Extract agent_id from selection string
-        agent_id = int(self.agent_var.get().split()[1])
+        agent_id = self.agent_var.get().split()[1]
         self._load_agent_data(agent_id)
 
     def _load_agent_data(self, agent_id: str):

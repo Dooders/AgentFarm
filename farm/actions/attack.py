@@ -243,7 +243,7 @@ def attack_action(agent: "BaseAgent") -> None:
         attack_logger.log_attack_attempt(
             step_number=agent.environment.time,
             agent=agent,
-            action_target_id="",  # Empty string for no targets
+            action_target_id=None,  # None for no targets
             target_position=target_pos,
             resources_before=initial_resources,
             resources_after=initial_resources,
@@ -274,7 +274,7 @@ def attack_action(agent: "BaseAgent") -> None:
         attack_logger.log_attack_attempt(
             step_number=agent.environment.time,
             agent=agent,
-            action_target_id="",  # Empty string for no valid targets
+            action_target_id=None,  # None for no valid targets
             target_position=target_pos,
             resources_before=initial_resources,
             resources_after=agent.resource_level,
