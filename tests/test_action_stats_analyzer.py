@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from farm.database.analyzers.action_stats_analyzer import ActionStatsAnalyzer
-from farm.database.data_types import Action
+from farm.database.data_types import AgentActionData
 from farm.database.enums import AnalysisScope
 from farm.database.repositories.action_repository import ActionRepository
 
@@ -19,29 +19,41 @@ class TestActionStatsAnalyzer(unittest.TestCase):
 
         # Create sample test actions
         self.test_actions = [
-            Action(
-                action_id=1,
-                step_number=1,
-                agent_id=1,
+            AgentActionData(
+                agent_id="1",
                 action_type="gather",
+                step_number=1,
                 action_target_id=None,
+                resources_before=None,
+                resources_after=None,
+                state_before_id=None,
+                state_after_id=None,
                 reward=10.0,
+                details=None,
             ),
-            Action(
-                action_id=2,
-                step_number=1,
-                agent_id=1,
+            AgentActionData(
+                agent_id="1",
                 action_type="gather",
-                action_target_id=2,
+                step_number=1,
+                action_target_id="2",
+                resources_before=None,
+                resources_after=None,
+                state_before_id=None,
+                state_after_id=None,
                 reward=5.0,
+                details=None,
             ),
-            Action(
-                action_id=3,
-                step_number=2,
-                agent_id=1,
+            AgentActionData(
+                agent_id="1",
                 action_type="move",
+                step_number=2,
                 action_target_id=None,
+                resources_before=None,
+                resources_after=None,
+                state_before_id=None,
+                state_after_id=None,
                 reward=2.0,
+                details=None,
             ),
         ]
 
@@ -132,7 +144,7 @@ class TestActionStatsAnalyzer(unittest.TestCase):
         self.repository.get_actions_by_scope.return_value = self.test_actions
 
         # Act
-        agent_results = self.analyzer.analyze(scope=AnalysisScope.AGENT, agent_id=1)
+        agent_results = self.analyzer.analyze(scope=AnalysisScope.AGENT, agent_id="1")
         step_results = self.analyzer.analyze(scope=AnalysisScope.STEP, step=1)
 
         # Assert
@@ -156,29 +168,41 @@ class TestActionStatsAnalyzer(unittest.TestCase):
         """
         # Arrange
         actions_with_varied_rewards = [
-            Action(
-                action_id=1,
+            AgentActionData(
+                agent_id="1",
+                action_type="gather",
                 step_number=1,
-                agent_id=1,
-                action_type="gather",
                 action_target_id=None,
+                resources_before=None,
+                resources_after=None,
+                state_before_id=None,
+                state_after_id=None,
                 reward=10.0,
+                details=None,
             ),
-            Action(
-                action_id=2,
+            AgentActionData(
+                agent_id="1",
+                action_type="gather",
                 step_number=2,
-                agent_id=1,
-                action_type="gather",
                 action_target_id=None,
+                resources_before=None,
+                resources_after=None,
+                state_before_id=None,
+                state_after_id=None,
                 reward=20.0,
+                details=None,
             ),
-            Action(
-                action_id=3,
-                step_number=3,
-                agent_id=1,
+            AgentActionData(
+                agent_id="1",
                 action_type="gather",
+                step_number=3,
                 action_target_id=None,
+                resources_before=None,
+                resources_after=None,
+                state_before_id=None,
+                state_after_id=None,
                 reward=30.0,
+                details=None,
             ),
         ]
         self.repository.get_actions_by_scope.return_value = actions_with_varied_rewards
