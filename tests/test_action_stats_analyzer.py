@@ -149,7 +149,7 @@ class TestActionStatsAnalyzer(unittest.TestCase):
 
         # Assert
         self.repository.get_actions_by_scope.assert_any_call(
-            AnalysisScope.AGENT, 1, None, None
+            AnalysisScope.AGENT, "1", None, None
         )
         self.repository.get_actions_by_scope.assert_any_call(
             AnalysisScope.STEP, None, 1, None

@@ -318,11 +318,7 @@ class SelectModule(BaseDQNModule):
                     config, "reproduce_mult_poor", 0.3
                 )
 
-            try:
-                population_ratio = len(agent.environment.agents) / max_population
-            except (TypeError, AttributeError):
-                # Handle Mock objects or missing agents attribute
-                population_ratio = 0.1  # Default low population ratio
+            population_ratio = len(agent.environment.agents) / max_population
             if population_ratio > getattr(config, "reproduce_resource_threshold", 0.7):
                 adjusted_probs[action_indices["reproduce"]] *= 0.5
 

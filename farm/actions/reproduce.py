@@ -400,11 +400,8 @@ def _check_reproduction_conditions(agent: "BaseAgent") -> bool:
     if agent.resource_level < config.min_reproduction_resources:
         return False
 
-    # Handle offspring_cost which might be a Mock in tests
+    # Check offspring cost requirement
     offspring_cost = getattr(config, 'offspring_cost', 3)  # Default to 3 if not set
-    if hasattr(offspring_cost, '__call__'):  # If it's a Mock
-        offspring_cost = 3  # Use default value
-    
     if agent.resource_level < offspring_cost + 2:
         return False
 
