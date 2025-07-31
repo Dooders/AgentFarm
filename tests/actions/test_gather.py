@@ -283,6 +283,9 @@ class TestGatherModule(unittest.TestCase):
         mock_agent = Mock()
         mock_agent.position = (10.0, 10.0)
         mock_agent.resource_level = 50.0
+        mock_agent.current_health = 80.0
+        mock_agent.starting_health = 100.0
+        mock_agent.is_defending = False
         mock_agent.environment = Mock()
         mock_agent.config = Mock()
         mock_agent.config.gathering_range = 5.0
@@ -300,7 +303,7 @@ class TestGatherModule(unittest.TestCase):
             
             state = module._process_gather_state(mock_agent)
             
-            self.assertEqual(state.shape, (6,))
+            self.assertEqual(state.shape, (8,))
             self.assertIsInstance(state, torch.Tensor)
 
     def test_process_gather_state_no_resource(self):
@@ -317,7 +320,7 @@ class TestGatherModule(unittest.TestCase):
             
             state = module._process_gather_state(mock_agent)
             
-            self.assertEqual(state.shape, (6,))
+            self.assertEqual(state.shape, (8,))
             self.assertTrue(torch.all(state == 0))  # Should be all zeros
 
     def test_find_best_resource(self):

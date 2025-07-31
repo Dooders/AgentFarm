@@ -293,7 +293,7 @@ class ShareModule(BaseDQNModule):
         This method implements a weighted selection algorithm that prioritizes:
         1. Agents with low resource levels (in need)
         2. Agents with positive cooperation history
-        3. Random selection among suitable candidates
+        3. Deterministic selection among suitable candidates
 
         The selection uses probability weights to balance immediate need with
         long-term cooperation patterns.
@@ -320,9 +320,10 @@ class ShareModule(BaseDQNModule):
             weight *= 1.0 + coop_score
             weights.append(weight)
 
-        # Normalize weights
-        weights = np.array(weights) / sum(weights)
-        chosen_index = np.random.choice(len(nearby_agents), p=weights)
+        # For deterministic behavior, select the agent with the highest weight
+        # In case of ties, select the first one
+        max_weight = max(weights)
+        chosen_index = weights.index(max_weight)
         return nearby_agents[chosen_index]
 
     def _calculate_share_amount(self, agent: "BaseAgent", action: int) -> int:

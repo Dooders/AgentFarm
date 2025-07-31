@@ -169,7 +169,8 @@ class AttackModule(BaseDQNModule):
         Returns:
             int: Selected action index from AttackActionSpace
         """
-        if torch.rand(1).item() > self.epsilon:
+        # Use random.random() instead of torch.rand() for deterministic testing
+        if random.random() > self.epsilon:
             with torch.no_grad():
                 q_values = self.q_network(state)
                 if health_ratio < self.attack_config.attack_defense_threshold:
@@ -177,7 +178,7 @@ class AttackModule(BaseDQNModule):
                         AttackActionSpace.DEFEND
                     ] *= self.attack_config.attack_defense_boost
                 return q_values.argmax().item()
-        return int(torch.randint(0, len(self.action_space), (1,)).item())
+        return random.randint(0, len(self.action_space) - 1)
 
 
 def attack_action(agent: "BaseAgent") -> None:
