@@ -34,7 +34,12 @@ from typing import TYPE_CHECKING, List, Optional, Tuple
 import numpy as np
 import torch
 
-from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork, SharedEncoder
+from farm.actions.base_dqn import (
+    BaseDQNConfig,
+    BaseDQNModule,
+    BaseQNetwork,
+    SharedEncoder,
+)
 
 if TYPE_CHECKING:
     from farm.agents.base_agent import BaseAgent
@@ -111,7 +116,12 @@ class ShareQNetwork(BaseQNetwork):
         hidden_size: Number of neurons in hidden layers (default: 64)
     """
 
-    def __init__(self, input_dim: int = 8, hidden_size: int = 64, shared_encoder: Optional[SharedEncoder] = None) -> None:
+    def __init__(
+        self,
+        input_dim: int = 8,
+        hidden_size: int = 64,
+        shared_encoder: Optional[SharedEncoder] = None,
+    ) -> None:
         # Input features: [agent_resources, nearby_agents, avg_neighbor_resources,
         #                 min_neighbor_resources, max_neighbor_resources, cooperation_score,
         #                 health_ratio, defensive_status]
@@ -119,7 +129,7 @@ class ShareQNetwork(BaseQNetwork):
             input_dim=input_dim,
             output_dim=4,  # NO_SHARE, SHARE_LOW, SHARE_MEDIUM, SHARE_HIGH
             hidden_size=hidden_size,
-            shared_encoder=shared_encoder
+            shared_encoder=shared_encoder,
         )
 
 
@@ -169,10 +179,14 @@ class ShareModule(BaseDQNModule):
 
         # Initialize Q-network specific to sharing with shared encoder if provided
         self.q_network = ShareQNetwork(
-            input_dim=8, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
+            input_dim=8,
+            hidden_size=config.dqn_hidden_size,
+            shared_encoder=shared_encoder,
         ).to(device)
         self.target_network = ShareQNetwork(
-            input_dim=8, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
+            input_dim=8,
+            hidden_size=config.dqn_hidden_size,
+            shared_encoder=shared_encoder,
         ).to(device)
         self.target_network.load_state_dict(self.q_network.state_dict())
 
@@ -443,7 +457,7 @@ def share_action(agent: "BaseAgent") -> None:
             step_number=agent.environment.time,
             agent_id=agent.agent_id,
             action_type="share",
-            action_target_id=None,  # Agent IDs are strings, not integers
+            action_target_id=target.agent_id,  # Agent IDs are strings, not integers
             resources_before=initial_resources,
             resources_after=agent.resource_level,
             reward=reward,
@@ -498,9 +512,7 @@ def _get_share_state(agent: "BaseAgent") -> List[float]:
         float(np.mean(neighbor_resources)) / max_resources,  # Avg neighbor resources
         min(neighbor_resources) / max_resources,  # Min neighbor resources
         max(neighbor_resources) / max_resources,  # Max neighbor resources
-        agent.share_module._get_cooperation_score(
-            agent.agent_id
-        ),  # Cooperation score
+        agent.share_module._get_cooperation_score(agent.agent_id),  # Cooperation score
         agent.current_health / agent.starting_health,  # Health ratio
         float(agent.is_defending),  # Defensive status
     ]
