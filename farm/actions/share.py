@@ -34,7 +34,12 @@ from typing import TYPE_CHECKING, List, Optional, Tuple
 import numpy as np
 import torch
 
-from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork, SharedEncoder
+from farm.actions.base_dqn import (
+    BaseDQNConfig,
+    BaseDQNModule,
+    BaseQNetwork,
+    SharedEncoder,
+)
 
 if TYPE_CHECKING:
     from farm.agents.base_agent import BaseAgent
@@ -111,14 +116,20 @@ class ShareQNetwork(BaseQNetwork):
         hidden_size: Number of neurons in hidden layers (default: 64)
     """
 
-    def __init__(self, input_dim: int = 6, hidden_size: int = 64, shared_encoder: Optional[SharedEncoder] = None) -> None:
+    def __init__(
+        self,
+        input_dim: int = 8,
+        hidden_size: int = 64,
+        shared_encoder: Optional[SharedEncoder] = None,
+    ) -> None:
         # Input features: [agent_resources, nearby_agents, avg_neighbor_resources,
-        #                 min_neighbor_resources, max_neighbor_resources, cooperation_score]
+        #                 min_neighbor_resources, max_neighbor_resources, cooperation_score,
+        #                 health_ratio, defensive_status]
         super().__init__(
             input_dim=input_dim,
             output_dim=4,  # NO_SHARE, SHARE_LOW, SHARE_MEDIUM, SHARE_HIGH
             hidden_size=hidden_size,
-            shared_encoder=shared_encoder
+            shared_encoder=shared_encoder,
         )
 
 
@@ -158,7 +169,7 @@ class ShareModule(BaseDQNModule):
         """
         # Initialize parent class with share-specific network
         super().__init__(
-            input_dim=6,  # State dimensions for sharing
+            input_dim=8,  # State dimensions for sharing (matches SharedEncoder)
             output_dim=4,  # Number of sharing actions
             config=config,
             device=device,
@@ -168,10 +179,14 @@ class ShareModule(BaseDQNModule):
 
         # Initialize Q-network specific to sharing with shared encoder if provided
         self.q_network = ShareQNetwork(
-            input_dim=6, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
+            input_dim=8,
+            hidden_size=config.dqn_hidden_size,
+            shared_encoder=shared_encoder,
         ).to(device)
         self.target_network = ShareQNetwork(
-            input_dim=6, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
+            input_dim=8,
+            hidden_size=config.dqn_hidden_size,
+            shared_encoder=shared_encoder,
         ).to(device)
         self.target_network.load_state_dict(self.q_network.state_dict())
 
@@ -192,17 +207,8 @@ class ShareModule(BaseDQNModule):
         Returns:
             int: Selected action index corresponding to ShareActionSpace constants
         """
-        if epsilon is None:
-            epsilon = self.epsilon
-
-        # Type assertion to help linter understand epsilon is not None
-        assert epsilon is not None
-        if random.random() < epsilon:
-            return random.randint(0, len(self.action_space) - 1)
-
-        with torch.no_grad():
-            q_values = self.q_network(state)
-            return q_values.argmax().item()
+        # Use the parent's select_action method which includes state caching
+        return super().select_action(state, epsilon)
 
     def _setup_action_space(self) -> None:
         """Initialize the action space mapping for sharing decisions.
@@ -287,7 +293,7 @@ class ShareModule(BaseDQNModule):
         This method implements a weighted selection algorithm that prioritizes:
         1. Agents with low resource levels (in need)
         2. Agents with positive cooperation history
-        3. Random selection among suitable candidates
+        3. Deterministic selection among suitable candidates
 
         The selection uses probability weights to balance immediate need with
         long-term cooperation patterns.
@@ -310,13 +316,14 @@ class ShareModule(BaseDQNModule):
             ):
                 weight *= 2.0
             # Consider past cooperation
-            coop_score = self._get_cooperation_score(int(target.agent_id))
+            coop_score = self._get_cooperation_score(target.agent_id)
             weight *= 1.0 + coop_score
             weights.append(weight)
 
-        # Normalize weights
-        weights = np.array(weights) / sum(weights)
-        chosen_index = np.random.choice(len(nearby_agents), p=weights)
+        # For deterministic behavior, select the agent with the highest weight
+        # In case of ties, select the first one
+        max_weight = max(weights)
+        chosen_index = weights.index(max_weight)
         return nearby_agents[chosen_index]
 
     def _calculate_share_amount(self, agent: "BaseAgent", action: int) -> int:
@@ -348,7 +355,7 @@ class ShareModule(BaseDQNModule):
         }
         return share_amounts.get(action, 0)
 
-    def _get_cooperation_score(self, agent_id: int) -> float:
+    def _get_cooperation_score(self, agent_id: str) -> float:
         """Calculate the cooperation score for an agent based on interaction history.
 
         This method computes a running average of cooperation scores for a
@@ -370,7 +377,7 @@ class ShareModule(BaseDQNModule):
             self.cooperation_history[agent_id][-share_config.cooperation_memory :]
         ) / len(self.cooperation_history[agent_id][-share_config.cooperation_memory :])
 
-    def update_cooperation(self, agent_id: int, cooperative: bool) -> None:
+    def update_cooperation(self, agent_id: str, cooperative: bool) -> None:
         """Update the cooperation history for a specific agent.
 
         This method records the outcome of a sharing interaction to maintain
@@ -443,7 +450,7 @@ def share_action(agent: "BaseAgent") -> None:
     agent.total_reward += reward
 
     # Update cooperation history
-    agent.share_module.update_cooperation(int(target.agent_id), True)
+    agent.share_module.update_cooperation(target.agent_id, True)
 
     # Log successful share action
     if agent.environment.db is not None:
@@ -451,7 +458,7 @@ def share_action(agent: "BaseAgent") -> None:
             step_number=agent.environment.time,
             agent_id=agent.agent_id,
             action_type="share",
-            action_target_id=int(target.agent_id),
+            action_target_id=target.agent_id,  # Agent IDs are strings, not integers
             resources_before=initial_resources,
             resources_after=agent.resource_level,
             reward=reward,
@@ -469,7 +476,7 @@ def share_action(agent: "BaseAgent") -> None:
 def _get_share_state(agent: "BaseAgent") -> List[float]:
     """Create a normalized state representation for sharing decisions.
 
-    This function constructs a 6-dimensional state vector that captures
+    This function constructs an 8-dimensional state vector that captures
     the current sharing context. All values are normalized to [0, 1] range
     for consistent neural network input.
 
@@ -480,12 +487,14 @@ def _get_share_state(agent: "BaseAgent") -> List[float]:
     - Minimum resource level among nearby agents (normalized)
     - Maximum resource level among nearby agents (normalized)
     - Historical cooperation score
+    - Agent's current health ratio
+    - Agent's defensive status
 
     Args:
         agent: The agent for whom to create the state representation
 
     Returns:
-        List[float]: 6-dimensional state vector for sharing decisions
+        List[float]: 8-dimensional state vector for sharing decisions
     """
     nearby_agents = agent.environment.get_nearby_agents(
         agent.position, DEFAULT_SHARE_CONFIG.share_range
@@ -504,9 +513,9 @@ def _get_share_state(agent: "BaseAgent") -> List[float]:
         float(np.mean(neighbor_resources)) / max_resources,  # Avg neighbor resources
         min(neighbor_resources) / max_resources,  # Min neighbor resources
         max(neighbor_resources) / max_resources,  # Max neighbor resources
-        agent.share_module._get_cooperation_score(
-            int(agent.agent_id)
-        ),  # Cooperation score
+        agent.share_module._get_cooperation_score(agent.agent_id),  # Cooperation score
+        agent.current_health / agent.starting_health,  # Health ratio
+        float(agent.is_defending),  # Defensive status
     ]
 
 

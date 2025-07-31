@@ -49,7 +49,7 @@ class AttackLogger:
         self,
         step_number: int,
         agent: "BaseAgent",
-        action_target_id: str,
+        action_target_id: Optional[str],
         target_position: Tuple[float, float],
         resources_before: float,
         resources_after: float,

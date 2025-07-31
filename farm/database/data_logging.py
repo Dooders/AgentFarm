@@ -95,7 +95,7 @@ class DataLogger:
         step_number: int,
         agent_id: str,
         action_type: str,
-        action_target_id: Optional[int] = None,
+        action_target_id: Optional[str] = None,
         resources_before: Optional[float] = None,
         resources_after: Optional[float] = None,
         reward: Optional[float] = None,

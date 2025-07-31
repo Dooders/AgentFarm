@@ -39,7 +39,12 @@ from typing import TYPE_CHECKING, Optional, Tuple
 import numpy as np
 import torch
 
-from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork, SharedEncoder
+from farm.actions.base_dqn import (
+    BaseDQNConfig,
+    BaseDQNModule,
+    BaseQNetwork,
+    SharedEncoder,
+)
 from farm.core.resources import Resource
 
 if TYPE_CHECKING:
@@ -110,19 +115,26 @@ class GatherQNetwork(BaseQNetwork):
         - Resource regeneration rate
     """
 
-    def __init__(self, input_dim: int = 6, hidden_size: int = 64, shared_encoder: Optional[SharedEncoder] = None) -> None:
+    def __init__(
+        self,
+        input_dim: int = 8,
+        hidden_size: int = 64,
+        shared_encoder: Optional[SharedEncoder] = None,
+    ) -> None:
         """
         Initialize the gathering Q-network.
 
         Args:
-            input_dim: Size of input state vector (default: 6)
+            input_dim: Size of input state vector (default: 8)
                 The state vector contains:
-                - Distance to nearest resource
-                - Resource amount
-                - Agent's current resources
+                - Distance to nearest resource (normalized)
+                - Resource amount (normalized)
+                - Agent's current resources (normalized)
                 - Resource density in area
-                - Steps since last gather
+                - Steps since last gather (normalized)
                 - Resource regeneration rate
+                - Agent's current health ratio
+                - Agent's defensive status
             hidden_size: Number of neurons in hidden layers (default: 64)
                 Controls the network's capacity to learn complex patterns
         """
@@ -130,7 +142,7 @@ class GatherQNetwork(BaseQNetwork):
             input_dim=input_dim,
             output_dim=3,  # GATHER, WAIT, or SKIP
             hidden_size=hidden_size,
-            shared_encoder=shared_encoder
+            shared_encoder=shared_encoder,
         )
 
 
@@ -154,7 +166,10 @@ class GatherModule(BaseDQNModule):
     """
 
     def __init__(
-        self, config: GatherConfig = GatherConfig(), device: torch.device = DEVICE, shared_encoder: Optional[SharedEncoder] = None
+        self,
+        config: GatherConfig = GatherConfig(),
+        device: torch.device = DEVICE,
+        shared_encoder: Optional[SharedEncoder] = None,
     ) -> None:
         """Initialize the gathering module with configuration and device settings.
 
@@ -169,7 +184,7 @@ class GatherModule(BaseDQNModule):
             - Tracking variables for gathering metrics
         """
         # Store dimensions as instance variables
-        self.input_dim = 6  # State space dimension
+        self.input_dim = 8  # State space dimension (matches SharedEncoder)
         self.output_dim = 3  # Action space dimension (GATHER, WAIT, SKIP)
 
         super().__init__(
@@ -184,11 +199,15 @@ class GatherModule(BaseDQNModule):
 
         # Initialize Q-network after super().__init__ with shared encoder if provided
         self.q_network = GatherQNetwork(
-            input_dim=self.input_dim, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
+            input_dim=self.input_dim,
+            hidden_size=config.dqn_hidden_size,
+            shared_encoder=shared_encoder,
         ).to(device)
 
         self.target_network = GatherQNetwork(
-            input_dim=self.input_dim, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
+            input_dim=self.input_dim,
+            hidden_size=config.dqn_hidden_size,
+            shared_encoder=shared_encoder,
         ).to(device)
 
         self.target_network.load_state_dict(self.q_network.state_dict())
@@ -277,7 +296,7 @@ class GatherModule(BaseDQNModule):
     def _process_gather_state(self, agent: "BaseAgent") -> torch.Tensor:
         """Create state representation for gathering decisions.
 
-        This method constructs a 6-dimensional state vector that captures all
+        This method constructs an 8-dimensional state vector that captures all
         relevant information for making gathering decisions. The state includes
         environmental factors, agent status, and resource characteristics.
 
@@ -285,47 +304,59 @@ class GatherModule(BaseDQNModule):
             agent: The agent for which to process the state
 
         Returns:
-            torch.Tensor: 6-dimensional state vector containing:
+            torch.Tensor: 8-dimensional state vector containing:
                 - Distance to nearest resource
                 - Resource amount available
                 - Agent's current resource level
                 - Resource density in the area
                 - Steps since last successful gather
                 - Resource regeneration rate
+                - Agent's current health ratio
+                - Agent's defensive status
         """
         closest_resource = self._find_best_resource(agent)
 
         if closest_resource is None:
-            return torch.zeros(6, device=self.device)
+            return torch.zeros(8, device=self.device)
 
         # Calculate resource density using KD-tree
         if agent.environment is None or agent.environment.config is None:
-            return torch.zeros(6, device=self.device)
+            return torch.zeros(8, device=self.device)
 
         # Type assertion to help linter understand config structure
         config = agent.config
         assert config is not None, "Agent config cannot be None"
-        
+
         resources_in_range = agent.environment.get_nearby_resources(
             agent.position, config.gathering_range
         )
-        resource_density = len(resources_in_range) / (
-            np.pi * config.gathering_range**2
+        resource_density = len(resources_in_range) / (np.pi * config.gathering_range**2)
+
+        # Calculate distance to closest resource
+        distance_to_resource = np.sqrt(
+            (
+                (np.array(closest_resource.position) - np.array(agent.position)) ** 2
+            ).sum()
         )
+
+        # Normalize values for better neural network performance
+        max_distance = config.gathering_range
+        max_resource_amount = 100.0  # Assuming max resource amount
+        max_health = agent.starting_health
 
         state = torch.tensor(
             [
-                np.sqrt(
-                    (
-                        (np.array(closest_resource.position) - np.array(agent.position))
-                        ** 2
-                    ).sum()
-                ),
-                closest_resource.amount,
-                agent.resource_level,
-                resource_density,
-                self.steps_since_gather,
-                closest_resource.regeneration_rate,
+                distance_to_resource / max_distance,  # Normalized distance
+                closest_resource.amount
+                / max_resource_amount,  # Normalized resource amount
+                agent.resource_level
+                / max_resource_amount,  # Normalized agent resources
+                resource_density,  # Already normalized (0-1)
+                self.steps_since_gather
+                / self.config.max_wait_steps,  # Normalized steps
+                closest_resource.regeneration_rate,  # Already normalized (0-1)
+                agent.current_health / max_health,  # Normalized health ratio
+                float(agent.is_defending),  # Defensive status (0 or 1)
             ],
             device=self.device,
             dtype=torch.float32,
@@ -359,7 +390,7 @@ class GatherModule(BaseDQNModule):
         # Type assertion to help linter understand config structure
         config = agent.config
         assert config is not None, "Agent config cannot be None"
-        
+
         resources_in_range = agent.environment.get_nearby_resources(
             agent.position, config.gathering_range
         )
@@ -504,10 +535,8 @@ def gather_action(agent: "BaseAgent") -> None:
         # Type assertion to help linter understand config structure
         config = agent.config
         assert config is not None, "Agent config cannot be None"
-        
-        gather_amount = min(
-            config.max_gather_amount, target_resource.amount
-        )
+
+        gather_amount = min(config.max_gather_amount, target_resource.amount)
         target_resource.consume(gather_amount)
         agent.resource_level += gather_amount
 
@@ -537,6 +566,22 @@ def gather_action(agent: "BaseAgent") -> None:
                     ),
                 },
             )
+    else:
+        # Log failed gather action due to depleted resource
+        if agent.environment.db is not None:
+            agent.environment.db.logger.log_agent_action(
+                step_number=agent.environment.time,
+                agent_id=agent.agent_id,
+                action_type="gather",
+                resources_before=initial_resources,
+                resources_after=initial_resources,
+                reward=0,
+                details={
+                    "success": False,
+                    "reason": "resource_depleted",
+                },
+            )
+
 
 # Default configuration instance
 DEFAULT_GATHER_CONFIG = GatherConfig()

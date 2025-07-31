@@ -126,17 +126,17 @@ class AttackModule(BaseDQNModule):
         device: torch.device = DEVICE,
         shared_encoder: Optional[SharedEncoder] = None,
     ) -> None:
-        super().__init__(input_dim=6, output_dim=5, config=config, device=device)
+        super().__init__(input_dim=8, output_dim=5, config=config, device=device)
         self._setup_action_space()
         # Store the attack-specific config for access to attack attributes
         self.attack_config = config
         
         # Initialize Q-networks with shared encoder if provided
         self.q_network = AttackQNetwork(
-            input_dim=6, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
+            input_dim=8, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
         ).to(device)
         self.target_network = AttackQNetwork(
-            input_dim=6, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
+            input_dim=8, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
         ).to(device)
         self.target_network.load_state_dict(self.q_network.state_dict())
 
@@ -169,7 +169,8 @@ class AttackModule(BaseDQNModule):
         Returns:
             int: Selected action index from AttackActionSpace
         """
-        if torch.rand(1).item() > self.epsilon:
+        # Use random.random() instead of torch.rand() for deterministic testing
+        if random.random() > self.epsilon:
             with torch.no_grad():
                 q_values = self.q_network(state)
                 if health_ratio < self.attack_config.attack_defense_threshold:
@@ -177,7 +178,7 @@ class AttackModule(BaseDQNModule):
                         AttackActionSpace.DEFEND
                     ] *= self.attack_config.attack_defense_boost
                 return q_values.argmax().item()
-        return int(torch.randint(0, len(self.action_space), (1,)).item())
+        return random.randint(0, len(self.action_space) - 1)
 
 
 def attack_action(agent: "BaseAgent") -> None:
@@ -243,7 +244,7 @@ def attack_action(agent: "BaseAgent") -> None:
         attack_logger.log_attack_attempt(
             step_number=agent.environment.time,
             agent=agent,
-            action_target_id="",  # Empty string for no targets
+            action_target_id=None,  # None for no targets
             target_position=target_pos,
             resources_before=initial_resources,
             resources_after=initial_resources,
@@ -274,7 +275,7 @@ def attack_action(agent: "BaseAgent") -> None:
         attack_logger.log_attack_attempt(
             step_number=agent.environment.time,
             agent=agent,
-            action_target_id="",  # Empty string for no valid targets
+            action_target_id=None,  # None for no valid targets
             target_position=target_pos,
             resources_before=initial_resources,
             resources_after=agent.resource_level,

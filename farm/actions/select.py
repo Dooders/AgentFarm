@@ -25,6 +25,8 @@ from typing import TYPE_CHECKING, List, Optional
 import numpy as np
 import torch
 
+from farm.utils.config_utils import get_config_value
+
 from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork, SharedEncoder
 from farm.core.action import Action
 
@@ -132,7 +134,7 @@ class SelectModule(BaseDQNModule):
         shared_encoder: Optional[SharedEncoder] = None,
     ) -> None:
         super().__init__(
-            input_dim=6,  # State dimensions for selection (matches SharedEncoder)
+            input_dim=8,  # State dimensions for selection (matches actual state size)
             output_dim=num_actions,
             config=config,
             device=device,
@@ -142,10 +144,10 @@ class SelectModule(BaseDQNModule):
         
         # Initialize Q-networks with shared encoder if provided
         self.q_network = SelectQNetwork(
-            input_dim=6, num_actions=num_actions, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
+            input_dim=8, num_actions=num_actions, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
         ).to(device)
         self.target_network = SelectQNetwork(
-            input_dim=6, num_actions=num_actions, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
+            input_dim=8, num_actions=num_actions, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
         ).to(device)
         self.target_network.load_state_dict(self.q_network.state_dict())
 
@@ -251,13 +253,11 @@ class SelectModule(BaseDQNModule):
         )
 
         # Get config values with fallbacks
-        min_reproduction_resources = (
-            getattr(agent.config, "min_reproduction_resources", 8)
-            if agent.config
-            else 8
+        min_reproduction_resources = get_config_value(
+            agent.config, "min_reproduction_resources", 8, (int, float)
         )
-        max_population = (
-            getattr(agent.config, "max_population", 300) if agent.config else 300
+        max_population = get_config_value(
+            agent.config, "max_population", 300, (int, float)
         )
 
         # Adjust move probability
@@ -278,7 +278,7 @@ class SelectModule(BaseDQNModule):
 
         # Adjust share probability
         if "share" in action_indices:
-            if resource_level > min_reproduction_resources and nearby_agents:
+            if resource_level > min_reproduction_resources and len(nearby_agents) > 0:
                 adjusted_probs[action_indices["share"]] *= getattr(
                     config, "share_mult_wealthy", 1.3
                 )
@@ -291,7 +291,7 @@ class SelectModule(BaseDQNModule):
         if "attack" in action_indices:
             if (
                 starvation_risk > getattr(config, "attack_starvation_threshold", 0.5)
-                and nearby_agents
+                and len(nearby_agents) > 0
                 and resource_level > 2
             ):
                 adjusted_probs[action_indices["attack"]] *= getattr(
