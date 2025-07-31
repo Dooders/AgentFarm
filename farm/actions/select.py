@@ -25,6 +25,8 @@ from typing import TYPE_CHECKING, List, Optional
 import numpy as np
 import torch
 
+from farm.utils.config_utils import get_config_value
+
 from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork, SharedEncoder
 from farm.core.action import Action
 
@@ -251,26 +253,12 @@ class SelectModule(BaseDQNModule):
         )
 
         # Get config values with fallbacks
-        min_reproduction_resources = 8
-        max_population = 300
-        
-        if agent.config:
-            try:
-                min_reproduction_resources = getattr(agent.config, "min_reproduction_resources", 8)
-                # If it's not a number, use default
-                if not isinstance(min_reproduction_resources, (int, float)):
-                    min_reproduction_resources = 8
-            except (AttributeError, TypeError):
-                min_reproduction_resources = 8
-                
-        if agent.config:
-            try:
-                max_population = getattr(agent.config, "max_population", 300)
-                # If it's not a number, use default
-                if not isinstance(max_population, (int, float)):
-                    max_population = 300
-            except (AttributeError, TypeError):
-                max_population = 300
+        min_reproduction_resources = get_config_value(
+            agent.config, "min_reproduction_resources", 8, (int, float)
+        )
+        max_population = get_config_value(
+            agent.config, "max_population", 300, (int, float)
+        )
 
         # Adjust move probability
         if "move" in action_indices and not nearby_resources:

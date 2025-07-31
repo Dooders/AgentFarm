@@ -285,7 +285,9 @@ class TestBaseDQNModule(unittest.TestCase):
         # Should return a loss value
         self.assertIsNotNone(loss)
         self.assertIsInstance(loss, float)
-        self.assertGreater(loss, 0.0)  # type: ignore
+        # After the above assertions, loss is guaranteed to be a float
+        assert loss is not None  # type: ignore[unreachable]
+        self.assertGreater(loss, 0.0)
 
     def test_select_action_exploration(self):
         """Test action selection during exploration."""
