@@ -193,17 +193,8 @@ class ShareModule(BaseDQNModule):
         Returns:
             int: Selected action index corresponding to ShareActionSpace constants
         """
-        if epsilon is None:
-            epsilon = self.epsilon
-
-        # Type assertion to help linter understand epsilon is not None
-        assert epsilon is not None
-        if random.random() < epsilon:
-            return random.randint(0, len(self.action_space) - 1)
-
-        with torch.no_grad():
-            q_values = self.q_network(state)
-            return q_values.argmax().item()
+        # Use the parent's select_action method which includes state caching
+        return super().select_action(state, epsilon)
 
     def _setup_action_space(self) -> None:
         """Initialize the action space mapping for sharing decisions.

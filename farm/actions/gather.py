@@ -537,6 +537,21 @@ def gather_action(agent: "BaseAgent") -> None:
                     ),
                 },
             )
+    else:
+        # Log failed gather action due to depleted resource
+        if agent.environment.db is not None:
+            agent.environment.db.logger.log_agent_action(
+                step_number=agent.environment.time,
+                agent_id=agent.agent_id,
+                action_type="gather",
+                resources_before=initial_resources,
+                resources_after=initial_resources,
+                reward=0,
+                details={
+                    "success": False,
+                    "reason": "resource_depleted",
+                },
+            )
 
 # Default configuration instance
 DEFAULT_GATHER_CONFIG = GatherConfig()
