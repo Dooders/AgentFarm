@@ -50,7 +50,7 @@ class SharedEncoder(nn.Module):
 - **`attack.py`**: Handles aggressive interactions between agents using DQN
 - **`gather.py`**: Manages resource collection with learning-based decisions
 - **`move.py`**: Controls agent movement and navigation with shared encoder
-- **`reproduce.py`**: **Rule-based** reproduction (simplified from DQN)
+- **`reproduce.py`**: **DQN-based** reproduction with population dynamics learning
 - **`select.py`**: High-level action selection policy
 - **`share.py`**: Manages cooperative resource sharing between agents
 
@@ -85,29 +85,12 @@ def train_all_modules(self):
             module.train(batch)
 ```
 
-## Rule-Based Simplification
-
-Simple actions like reproduction use rule-based logic instead of DQN:
-
-```python
-def reproduce_action(agent: "BaseAgent") -> None:
-    if random.random() < 0.5 and agent.resource_level >= agent.config.min_reproduction_resources:
-        agent.reproduce()
-```
-
-**Benefits:**
-- Reduced complexity for simple behaviors
-- Faster execution
-- Easier debugging and analysis
-- Predictable behavior
-
 ## Key Features
 
 - **Hierarchical Learning**: Separate policies for selection and execution
 - **Shared Feature Extraction**: Common encoder reduces computational overhead
 - **Curriculum Learning**: Progressive action enablement
 - **Unified Training**: Centralized learning across all modules
-- **Rule-Based Simplification**: Simple actions use deterministic logic
 - **State Representation**: Normalized state vectors for decision making
 - **Reward Systems**: Custom rewards encourage desired behaviors
 - **Configuration**: Extensible config classes for tuning behavior
@@ -127,7 +110,7 @@ if condition:
 elif other_condition:
     gather_action(agent)
 else:
-    reproduce_action(agent)  # Rule-based
+    reproduce_action(agent)  # DQN-based
 ```
 
 For custom configurations with shared encoder:
@@ -157,7 +140,6 @@ move_module = MoveModule(config, shared_encoder=shared_encoder)
 - Rewards are designed to promote balanced agent behaviors
 - Shared encoder reduces computational overhead across modules
 - Curriculum learning eases training complexity
-- Rule-based actions provide predictable behavior for simple tasks
 
 For more details, see individual module docstrings and the documentation in `docs/`. 
 
