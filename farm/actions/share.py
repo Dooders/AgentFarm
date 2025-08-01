@@ -40,6 +40,9 @@ from farm.actions.base_dqn import (
     BaseQNetwork,
     SharedEncoder,
 )
+from farm.core.action import action_registry
+
+action_registry.register('share', 0.2, share_action)
 
 if TYPE_CHECKING:
     from farm.agents.base_agent import BaseAgent

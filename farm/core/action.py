@@ -1,4 +1,5 @@
 import logging
+from typing import Callable, List
 
 logger = logging.getLogger(__name__)
 
@@ -67,3 +68,30 @@ class Action:
             **kwargs: Variable keyword arguments for the action function
         """
         self.function(agent, *args, **kwargs)
+
+
+class action_registry:
+    _registry = {}
+
+    @classmethod
+    def register(cls, name: str, weight: float, function: Callable) -> None:
+        """Register a new action in the global registry.
+
+        Args:
+            name: Unique name for the action
+            weight: Selection weight
+            function: The function to execute
+        """
+        if name in cls._registry:
+            raise ValueError(f"Action {name} already registered")
+        cls._registry[name] = Action(name, weight, function)
+
+    @classmethod
+    def get(cls, name: str) -> Action | None:
+        """Get a registered action by name."""
+        return cls._registry.get(name)
+
+    @classmethod
+    def get_all(cls) -> List[Action]:
+        """Get all registered actions."""
+        return list(cls._registry.values())

@@ -46,6 +46,7 @@ from farm.actions.base_dqn import (
     SharedEncoder,
 )
 from farm.core.resources import Resource
+from farm.core.action import action_registry
 
 if TYPE_CHECKING:
 
@@ -585,3 +586,5 @@ def gather_action(agent: "BaseAgent") -> None:
 
 # Default configuration instance
 DEFAULT_GATHER_CONFIG = GatherConfig()
+
+action_registry.register('gather', 0.3, gather_action)

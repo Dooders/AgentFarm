@@ -5,44 +5,24 @@ from typing import TYPE_CHECKING, Optional, Tuple
 import numpy as np
 import torch
 
-from farm.actions.attack import (
-    AttackActionSpace,
-    AttackModule,
-    attack_action,
-    DEFAULT_ATTACK_CONFIG,
-)
-from farm.actions.gather import GatherModule, gather_action, DEFAULT_GATHER_CONFIG
-from farm.actions.move import MoveModule, move_action, DEFAULT_MOVE_CONFIG
-from farm.actions.reproduce import (
-    ReproduceModule,
-    reproduce_action,
-    DEFAULT_REPRODUCE_CONFIG,
-)
+from farm.actions.attack import DEFAULT_ATTACK_CONFIG, AttackActionSpace, AttackModule
+from farm.actions.base_dqn import SharedEncoder
+from farm.actions.gather import DEFAULT_GATHER_CONFIG, GatherModule
+from farm.actions.move import DEFAULT_MOVE_CONFIG, MoveModule
+from farm.actions.reproduce import DEFAULT_REPRODUCE_CONFIG, ReproduceModule
 from farm.actions.select import SelectConfig, SelectModule, create_selection_state
-from farm.actions.share import ShareModule, share_action, DEFAULT_SHARE_CONFIG
+from farm.actions.share import DEFAULT_SHARE_CONFIG, ShareModule
 from farm.core.action import *
 from farm.core.genome import Genome
 from farm.core.perception import PerceptionData
 from farm.core.state import AgentState
 from farm.database.data_types import GenomeId
-from farm.database.models import ReproductionEventModel
-from farm.memory.redis_memory import AgentMemory, AgentMemoryManager, RedisMemoryConfig
-from farm.actions.base_dqn import SharedEncoder
+from farm.memory.redis_memory import AgentMemoryManager, RedisMemoryConfig
 
 if TYPE_CHECKING:
     from farm.core.environment import Environment
 
 logger = logging.getLogger(__name__)
-
-
-#! why do this if I explicitly set the action set in the agent init?
-BASE_ACTION_SET = [
-    Action("move", 0.4, move_action),
-    Action("gather", 0.3, gather_action),
-    Action("share", 0.2, share_action),
-    Action("attack", 0.1, attack_action),
-    Action("reproduce", 0.15, reproduce_action),
-]
 
 
 class BaseAgent:
@@ -71,7 +51,7 @@ class BaseAgent:
         position: tuple[float, float],
         resource_level: int,
         environment: "Environment",
-        action_set: list[Action] = BASE_ACTION_SET,
+        action_set: list[Action] = [],
         parent_ids: list[str] = [],
         generation: int = 0,
         use_memory: bool = False,
@@ -79,7 +59,7 @@ class BaseAgent:
     ):
         """Initialize a new agent with given parameters."""
         # Add default actions
-        self.actions = action_set
+        self.actions = action_set if action_set else action_registry.get_all()
 
         # Normalize weights
         total_weight = sum(action.weight for action in self.actions)

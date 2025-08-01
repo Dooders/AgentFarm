@@ -54,6 +54,9 @@ import torch
 from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork
 from farm.database.database import SimulationDatabase
 from .base_dqn import SharedEncoder
+from farm.core.action import action_registry
+
+action_registry.register('move', 0.4, move_action)
 
 if TYPE_CHECKING:
     from farm.agents.base_agent import BaseAgent

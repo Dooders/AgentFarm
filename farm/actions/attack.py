@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING, Optional
 
 from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork, SharedEncoder
 from farm.loggers.attack_logger import AttackLogger
+from farm.core.action import action_registry
 
 if TYPE_CHECKING:
     from farm.agents.base_agent import BaseAgent
@@ -318,3 +319,5 @@ def attack_action(agent: "BaseAgent") -> None:
         damage_dealt=total_damage_dealt,
         reason="hit" if successful_hits > 0 else "missed",
     )
+
+action_registry.register('attack', 0.1, attack_action)
