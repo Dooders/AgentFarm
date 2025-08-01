@@ -11,7 +11,7 @@ Key Components:
     - Target Network: Separate network for computing stable Q-value targets
 
 Technical Details:
-    - State Space: N-dimensional vector representing agent's current state
+    - State Space: 8-dimensional vector representing agent's current state
     - Action Space: 4 discrete actions (right, left, up, down)
     - Learning Algorithm: Deep Q-Learning with experience replay
     - Exploration: Epsilon-greedy strategy with decay

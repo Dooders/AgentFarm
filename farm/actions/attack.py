@@ -12,7 +12,7 @@ Key Components:
     - AttackLogger: Comprehensive logging of attack attempts and outcomes
 
 Technical Details:
-    - State Space: 6-dimensional vector representing agent's current state (position, health, resources)
+    - State Space: 8-dimensional vector representing agent's current state (position, health, resources, etc.)
     - Action Space: 5 discrete actions (attack up/down/left/right, defend)
     - Learning Algorithm: Deep Q-Learning with experience replay and soft target updates
     - Exploration: Epsilon-greedy strategy with decay for balanced exploration/exploitation
@@ -97,7 +97,7 @@ class AttackQNetwork(BaseQNetwork):
     Extends BaseQNetwork with attack-specific configuration, providing
     Q-value estimates for the 5 possible attack actions (4 directions + defend).
 
-    The network takes a 6-dimensional state vector as input and outputs
+    The network takes an 8-dimensional state vector as input and outputs
     Q-values for each possible attack action, enabling the agent to learn
     optimal attack strategies through reinforcement learning.
     """
