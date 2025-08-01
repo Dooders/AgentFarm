@@ -160,3 +160,15 @@ move_module = MoveModule(config, shared_encoder=shared_encoder)
 - Rule-based actions provide predictable behavior for simple tasks
 
 For more details, see individual module docstrings and the documentation in `docs/`. 
+
+## Adding New Actions
+
+To add a new action easily:
+
+1. Create newaction.py in farm/actions/
+
+2. Define def newaction_action(agent): # implementation
+
+3. At the end: from farm.core.action import action_registry; action_registry.register('newaction', 0.1, newaction_action)
+
+That's it! It will be automatically included in agents' action sets. 

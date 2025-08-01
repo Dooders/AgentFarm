@@ -54,6 +54,7 @@ import torch
 from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork
 from farm.database.database import SimulationDatabase
 from .base_dqn import SharedEncoder
+from farm.core.action import action_registry
 
 if TYPE_CHECKING:
     from farm.agents.base_agent import BaseAgent
@@ -448,3 +449,7 @@ def _store_and_train(agent: "BaseAgent", state: Any, reward: float) -> None:
         if len(agent.move_module.memory) >= 2:
             batch_size = min(32, len(agent.move_module.memory))
             agent.move_module.train(random.sample(agent.move_module.memory, batch_size))
+
+
+# Register the action at the end of the file after the function is defined
+action_registry.register('move', 0.4, move_action)

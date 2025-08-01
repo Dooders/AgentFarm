@@ -40,6 +40,7 @@ from farm.actions.base_dqn import (
     BaseQNetwork,
     SharedEncoder,
 )
+from farm.core.action import action_registry
 
 if TYPE_CHECKING:
     from farm.agents.base_agent import BaseAgent
@@ -550,3 +551,7 @@ def _calculate_share_reward(
     reward *= amount / DEFAULT_SHARE_CONFIG.min_share_amount
 
     return reward
+
+
+# Register the action at the end of the file after the function is defined
+action_registry.register('share', 0.2, share_action)
