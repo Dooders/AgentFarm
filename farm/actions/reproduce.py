@@ -31,9 +31,6 @@ import numpy as np
 import torch
 
 from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork, SharedEncoder
-from farm.core.action import action_registry
-
-action_registry.register('reproduce', 0.15, reproduce_action)
 
 if TYPE_CHECKING:
     from farm.agents.base_agent import BaseAgent
@@ -470,3 +467,7 @@ def _calculate_reproduction_reward(agent: "BaseAgent", offspring: "BaseAgent") -
 
 # Default configuration instance
 DEFAULT_REPRODUCE_CONFIG = ReproduceConfig()
+
+# Register the action at the end of the file after the function is defined
+from farm.core.action import action_registry
+action_registry.register('reproduce', 0.15, reproduce_action)
