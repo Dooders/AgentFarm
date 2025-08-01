@@ -274,6 +274,7 @@ class TestReproduceAction(unittest.TestCase):
         self.mock_agent.position = [0, 0]
         self.mock_agent.config = Mock()
         self.mock_agent.config.min_reproduction_resources = 10.0
+        self.mock_agent.config.offspring_cost = 3
         self.mock_agent.config.gathering_range = 50.0
         self.mock_agent.config.max_population = 100
         self.mock_agent.device = torch.device('cpu')
@@ -282,6 +283,7 @@ class TestReproduceAction(unittest.TestCase):
         self.mock_agent.is_defending = False
         self.mock_agent.generation = 1
         self.mock_agent.total_reward = 10.0
+        self.mock_agent.alive = True
         
         # Set up environment mock with proper iterables
         self.mock_environment.time = 100
