@@ -359,7 +359,7 @@ class TestAttackAction(unittest.TestCase):
             mock_logger.log_attack_attempt.assert_called_once()
             call_args = mock_logger.log_attack_attempt.call_args
             self.assertFalse(call_args[1]['success'])
-            self.assertEqual(call_args[1]['reason'], "no_valid_targets")
+            self.assertEqual(call_args[1]['reason'], "no_targets")
 
     def test_attack_action_defensive_target(self):
         """Test attack action against a defending target."""
