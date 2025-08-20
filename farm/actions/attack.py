@@ -1,89 +1,29 @@
-"""Attack learning and execution module using Deep Q-Learning (DQN).
+"""
+Attack action module for AgentFarm.
 
-This module implements a Deep Q-Learning approach for agents to learn optimal attack
-policies in a multi-agent environment. It provides both the neural network architecture
-and the training/execution logic for combat interactions between agents.
-
-Key Components:
-    - AttackQNetwork: Neural network architecture for Q-value approximation
-    - AttackModule: Main class handling training, action selection, and attack execution
-    - Experience Replay: Stores and samples past experiences for stable learning
-    - Target Network: Separate network for computing stable Q-value targets
-    - AttackLogger: Comprehensive logging of attack attempts and outcomes
-
-Technical Details:
-    - State Space: 8-dimensional vector representing agent's current state (position, health, resources, etc.)
-    - Action Space: 5 discrete actions (attack up/down/left/right, defend)
-    - Learning Algorithm: Deep Q-Learning with experience replay and soft target updates
-    - Exploration: Epsilon-greedy strategy with decay for balanced exploration/exploitation
-    - Hardware Acceleration: Automatic GPU usage when available for neural network operations
-    - Combat Mechanics: Damage calculation, defensive stance, health tracking, and death detection
-
-The module integrates with the broader simulation through:
-    - Environment spatial queries for target detection
-    - Agent health and resource management
-    - Combat statistics tracking
-    - Comprehensive logging for analysis and debugging
+This module handles combat actions including directional attacks and defensive behavior.
+Updated to use the new profile-based configuration system.
 """
 
+from typing import TYPE_CHECKING, Optional, Tuple
 import logging
-from typing import TYPE_CHECKING, Optional
-
-from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork, SharedEncoder
-from farm.loggers.attack_logger import AttackLogger
-from farm.core.action import action_registry
-
-if TYPE_CHECKING:
-    from farm.agents.base_agent import BaseAgent
-
 import random
 
 import numpy as np
 import torch
 
+from farm.actions.base_dqn import BaseDQNModule, BaseQNetwork, SharedEncoder, DEVICE
+from farm.core.profiles import DQNProfile
+
+if TYPE_CHECKING:
+    from farm.agents.base_agent import BaseAgent
+
 logger = logging.getLogger(__name__)
-
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-class AttackConfig(BaseDQNConfig):
-    """Configuration class for attack-specific parameters and learning settings.
-
-    Extends BaseDQNConfig with attack-specific hyperparameters that control
-    combat mechanics, reward structures, and learning behavior.
-
-    Attributes:
-        attack_base_cost: Base resource cost for attempting an attack
-        attack_success_reward: Reward multiplier for successful attacks
-        attack_failure_penalty: Penalty for failed attack attempts
-        attack_defense_threshold: Health ratio threshold for defensive behavior
-        attack_defense_boost: Multiplier for defense action when health is low
-    """
-
-    attack_base_cost: float = -0.2
-    attack_success_reward: float = 1.0
-    attack_failure_penalty: float = -0.3
-    attack_defense_threshold: float = 0.3
-    attack_defense_boost: float = 2.0
-
-
-DEFAULT_ATTACK_CONFIG = AttackConfig()
 
 
 class AttackActionSpace:
-    """Defines the available attack actions and their corresponding indices.
-
-    Provides a mapping between action indices and their semantic meaning
-    for the attack module. Actions include directional attacks and defensive stance.
-
-    Attributes:
-        ATTACK_RIGHT: Attack to the right (positive x-direction)
-        ATTACK_LEFT: Attack to the left (negative x-direction)
-        ATTACK_UP: Attack upward (positive y-direction)
-        ATTACK_DOWN: Attack downward (negative y-direction)
-        DEFEND: Take defensive stance (no movement, damage reduction)
-    """
-
+    """Defines the available attack actions and their corresponding indices."""
+    
     ATTACK_RIGHT: int = 0
     ATTACK_LEFT: int = 1
     ATTACK_UP: int = 2
@@ -92,232 +32,222 @@ class AttackActionSpace:
 
 
 class AttackQNetwork(BaseQNetwork):
-    """Neural network architecture for attack Q-value approximation.
-
-    Extends BaseQNetwork with attack-specific configuration, providing
-    Q-value estimates for the 5 possible attack actions (4 directions + defend).
-
-    The network takes an 8-dimensional state vector as input and outputs
-    Q-values for each possible attack action, enabling the agent to learn
-    optimal attack strategies through reinforcement learning.
-    """
-
-    def __init__(self, input_dim: int, hidden_size: int = 64, shared_encoder: Optional[SharedEncoder] = None) -> None:
-        super().__init__(
-            input_dim, output_dim=5, hidden_size=hidden_size, shared_encoder=shared_encoder
-        )  # 5 attack actions
+    """Neural network architecture for attack Q-value approximation."""
+    
+    def __init__(self, input_dim: int, hidden_size: int = 64, 
+                 shared_encoder: Optional[SharedEncoder] = None) -> None:
+        super().__init__(input_dim, 5, hidden_size, shared_encoder)  # 5 attack actions
 
 
 class AttackModule(BaseDQNModule):
-    """Deep Q-Network module specialized for attack action learning and execution.
-
-    Extends BaseDQNModule with attack-specific functionality including:
-    - Health-based defensive behavior enhancement
-    - Combat action space management
-    - Attack-specific configuration handling
-
-    The module learns optimal attack strategies through experience replay
-    and epsilon-greedy exploration, adapting its policy based on combat outcomes
-    and agent health status.
     """
-
+    Deep Q-Learning module for combat actions.
+    
+    This module learns optimal attack and defense strategies through experience.
+    It handles directional attacks and defensive stances, with rewards/costs
+    configured through the profile system.
+    """
+    
     def __init__(
         self,
-        config: AttackConfig = DEFAULT_ATTACK_CONFIG,
+        dqn_profile: DQNProfile,
+        rewards: dict = None,
+        costs: dict = None, 
+        thresholds: dict = None,
         device: torch.device = DEVICE,
         shared_encoder: Optional[SharedEncoder] = None,
     ) -> None:
-        super().__init__(input_dim=8, output_dim=5, config=config, device=device)
-        self._setup_action_space()
-        # Store the attack-specific config for access to attack attributes
-        self.attack_config = config
+        """
+        Initialize the attack module.
         
-        # Initialize Q-networks with shared encoder if provided
-        self.q_network = AttackQNetwork(
-            input_dim=8, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
-        ).to(device)
-        self.target_network = AttackQNetwork(
-            input_dim=8, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
-        ).to(device)
-        self.target_network.load_state_dict(self.q_network.state_dict())
-
-    def _setup_action_space(self) -> None:
-        """Initialize the attack action space with directional vectors.
-
-        Creates a mapping from action indices to directional vectors used
-        for calculating attack target positions. Each vector represents
-        the direction and magnitude of the attack.
-        """
-        self.action_space = {
-            AttackActionSpace.ATTACK_RIGHT: (1, 0),
-            AttackActionSpace.ATTACK_LEFT: (-1, 0),
-            AttackActionSpace.ATTACK_UP: (0, 1),
-            AttackActionSpace.ATTACK_DOWN: (0, -1),
-            AttackActionSpace.DEFEND: (0, 0),
-        }
-
-    def select_action(self, state: torch.Tensor, health_ratio: float) -> int:
-        """Select an attack action using epsilon-greedy strategy with health-based defense boost.
-
-        Overrides the base select_action method to incorporate health-based defensive
-        behavior. When the agent's health ratio falls below the defense threshold,
-        the Q-value for the defend action is boosted to encourage defensive behavior.
-
         Args:
-            state: Current agent state tensor
-            health_ratio: Current health as a ratio of starting health (0.0 to 1.0)
-
-        Returns:
-            int: Selected action index from AttackActionSpace
+            dqn_profile: DQN learning configuration profile
+            rewards: Attack-specific reward values (success, kill, failure_penalty)
+            costs: Attack-specific costs (base)
+            thresholds: Attack-specific thresholds (defense, defense_boost)
+            device: Computation device
+            shared_encoder: Optional shared encoder for efficiency
         """
-        # Use random.random() instead of torch.rand() for deterministic testing
-        if random.random() > self.epsilon:
-            with torch.no_grad():
-                q_values = self.q_network(state)
-                if health_ratio < self.attack_config.attack_defense_threshold:
-                    q_values[
-                        AttackActionSpace.DEFEND
-                    ] *= self.attack_config.attack_defense_boost
-                return q_values.argmax().item()
-        return random.randint(0, len(self.action_space) - 1)
+        # Set default reward/cost values
+        self.rewards = {
+            "success": 1.0,
+            "kill": 5.0, 
+            "failure_penalty": -0.3,
+            **(rewards or {})
+        }
+        
+        self.costs = {
+            "base": -0.2,
+            **(costs or {})
+        }
+        
+        self.thresholds = {
+            "defense": 0.3,
+            "defense_boost": 2.0,
+            **(thresholds or {})
+        }
+        
+        super().__init__(
+            input_dim=8,
+            output_dim=5, 
+            dqn_profile=dqn_profile,
+            device=device,
+            shared_encoder=shared_encoder
+        )
+        
+        self._setup_action_space()
+    
+    def _setup_action_space(self) -> None:
+        """Initialize action space mapping."""
+        self.action_space = AttackActionSpace()
+        self.action_names = {
+            0: "ATTACK_RIGHT",
+            1: "ATTACK_LEFT", 
+            2: "ATTACK_UP",
+            3: "ATTACK_DOWN",
+            4: "DEFEND"
+        }
+    
+    def select_action(self, state: torch.Tensor, health_ratio: float) -> int:
+        """
+        Select attack action based on current state and health.
+        
+        Args:
+            state: Current environment state tensor
+            health_ratio: Agent's current health as ratio (0-1)
+            
+        Returns:
+            Selected action index
+        """
+        # Adjust exploration based on health (more defensive when low health)
+        epsilon = self.epsilon
+        if health_ratio < self.thresholds["defense"]:
+            epsilon = self.epsilon * 0.5  # Less exploration when vulnerable
+            
+        # Bias towards defense when health is low
+        if health_ratio < self.thresholds["defense"] and random.random() < 0.3:
+            return self.action_space.DEFEND
+            
+        return super().select_action(state, epsilon)
 
 
 def attack_action(agent: "BaseAgent") -> None:
-    """Execute an attack action using the agent's AttackModule.
-
-    This function orchestrates the complete attack process including:
-    1. State evaluation and action selection
-    2. Target detection and validation
-    3. Damage calculation and application
-    4. Combat statistics tracking
-    5. Comprehensive logging of outcomes
-
-    The attack process involves:
-    - Selecting an action (attack direction or defend) using the DQN
-    - Finding potential targets within attack range
-    - Calculating and applying damage to selected targets
-    - Updating agent resources and health
-    - Logging all combat interactions for analysis
-
+    """
+    Execute attack action for an agent.
+    
+    This function handles the complete attack sequence including target selection,
+    damage calculation, and reward/penalty application.
+    
     Args:
         agent: The agent performing the attack action
-
-    Note:
-        This function handles both offensive attacks and defensive actions.
-        Defensive actions set the agent's defending flag but don't consume resources.
     """
-    # Get current state and health ratio for decision making
-    state = agent.get_state()
+    from farm.loggers.attack_logger import AttackLogger
+    
+    # Get attack configuration from agent's config
+    action_config = agent.environment.config.get_action_config("attack")
+    attack_module = agent.attack_module
+    
+    step_number = agent.environment.time
+    initial_position = agent.position
+    resources_before = agent.resource_level
+    
+    # Get current state and select action
+    state = agent.get_state().to_tensor(agent.device)
     health_ratio = agent.current_health / agent.starting_health
-    initial_resources = agent.resource_level
-
-    # Initialize attack logger for tracking combat outcomes
-    attack_logger = AttackLogger(agent.environment.db)
-
-    # Select attack action using DQN with health-based defense boost
-    action = agent.attack_module.select_action(
-        state.to_tensor(agent.attack_module.device), health_ratio
-    )
-
-    # Handle defensive action (no resource cost, sets defending flag)
+    action = attack_module.select_action(state, health_ratio)
+    
+    # Determine attack position based on selected action  
+    attack_position = agent.calculate_attack_position(action)
+    
+    # Apply base cost
+    base_cost = action_config.costs.get("base", -0.2)
+    agent.resource_level = max(0, agent.resource_level + base_cost)
+    
+    success = False
+    damage_dealt = 0.0
+    targets_found = 0
+    target_agent = None
+    reason = None
+    
     if action == AttackActionSpace.DEFEND:
+        # Defensive action
         agent.is_defending = True
-        attack_logger.log_defense(
-            step_number=agent.environment.time,
-            agent=agent,
-            resources_before=initial_resources,
-            resources_after=initial_resources,
+        reason = "defensive_stance"
+        reward = 0.1  # Small positive reward for defense
+        
+        # Log defense action
+        logger = AttackLogger(agent.environment.db)
+        logger.log_defense(step_number, agent, resources_before, agent.resource_level)
+        
+    else:
+        # Attack action - find targets in attack range
+        nearby_agents = agent.environment.get_nearby_agents(
+            attack_position, agent.environment.config.attack_range
         )
-        return
-
-    # Calculate attack target position based on selected action direction
-    target_pos = agent.calculate_attack_position(action)
-
-    # Safety check for config to prevent attribute access errors
-    if agent.config is None:
-        logger.error(f"Agent {agent.agent_id} has no config, skipping attack action")
-        return
-
-    # Find potential targets within attack range using spatial indexing
-    targets = agent.environment.get_nearby_agents(target_pos, agent.config.attack_range)
-
-    if not targets:
-        attack_logger.log_attack_attempt(
-            step_number=agent.environment.time,
-            agent=agent,
-            action_target_id=None,  # None for no targets
-            target_position=target_pos,
-            resources_before=initial_resources,
-            resources_after=initial_resources,
-            success=False,
-            targets_found=0,
-            reason="no_targets",
-        )
-        return
-
-    # Calculate and apply attack resource cost
-    attack_cost = agent.config.attack_base_cost * agent.resource_level
-    agent.resource_level += attack_cost
-
-    # Initialize combat statistics tracking
-    total_damage_dealt = 0.0
-    successful_hits = 0
-
-    # Update global combat encounter counters
-    agent.environment.combat_encounters += 1
-    agent.environment.combat_encounters_this_step += 1
-
-    # Filter out self-targeting to prevent agents from attacking themselves
-    valid_targets = [target for target in targets if target.agent_id != agent.agent_id]
-
-    # If no valid targets remain after filtering
-    if not valid_targets:
-        # Log attack outcome with no valid targets
-        attack_logger.log_attack_attempt(
-            step_number=agent.environment.time,
-            agent=agent,
-            action_target_id=None,  # None for no valid targets
-            target_position=target_pos,
-            resources_before=initial_resources,
-            resources_after=agent.resource_level,
-            success=False,
-            targets_found=0,
-            reason="no_valid_targets",
-        )
-        return
-
-    # Select a random target from valid candidates for attack
-    target = random.choice(valid_targets)
-
-    # Calculate base damage based on attack strength and resource ratio
-    base_damage = agent.attack_strength * (agent.resource_level / agent.starting_health)
-
-    # Apply defensive damage reduction if target is in defensive stance
-    if target.is_defending:
-        base_damage *= 1 - target.defense_strength
-
-    # Apply damage to target and track combat outcomes
-    if target.take_damage(base_damage):
-        total_damage_dealt += base_damage
-        successful_hits += 1
-
-    # Update global successful attack counters if damage was dealt
-    if successful_hits > 0:
-        agent.environment.successful_attacks += 1
-        agent.environment.successful_attacks_this_step += 1
-
-    # Log comprehensive attack outcome for analysis and debugging
-    attack_logger.log_attack_attempt(
-        step_number=agent.environment.time,
-        agent=agent,
-        action_target_id=target.agent_id,
-        target_position=target_pos,
-        resources_before=initial_resources,
-        resources_after=agent.resource_level,
-        success=successful_hits > 0,
-        targets_found=len(valid_targets),
-        damage_dealt=total_damage_dealt,
-        reason="hit" if successful_hits > 0 else "missed",
+        
+        targets_found = len(nearby_agents)
+        
+        if nearby_agents:
+            # Select target (closest or random)
+            target_agent = min(nearby_agents, key=lambda a: 
+                np.linalg.norm(np.array(a.position) - np.array(attack_position))
+            )
+            
+            # Calculate damage
+            damage_dealt = agent.attack_strength
+            target_killed = target_agent.take_damage(damage_dealt)
+            
+            if target_killed:
+                success = True
+                reward = action_config.rewards.get("kill", 5.0)
+                reason = "target_killed"
+            else:
+                success = True  
+                reward = action_config.rewards.get("success", 1.0)
+                reason = "damage_dealt"
+        else:
+            # No targets found
+            reward = action_config.rewards.get("failure_penalty", -0.3)
+            reason = "no_targets"
+    
+    # Store experience for learning
+    next_state = agent.get_state().to_tensor(agent.device)
+    attack_module.store_experience(
+        state=state,
+        action=action,
+        reward=reward,
+        next_state=next_state,
+        done=False,
+        step_number=step_number,
+        agent_id=agent.agent_id,
+        module_type="attack",
+        action_taken_mapped=attack_module.action_names.get(action, str(action))
     )
-
-action_registry.register('attack', 0.1, attack_action)
+    
+    # Log attack attempt
+    attack_logger = AttackLogger(agent.environment.db)
+    attack_logger.log_attack_attempt(
+        step_number=step_number,
+        agent=agent,
+        action_target_id=target_agent.agent_id if target_agent else None,
+        target_position=attack_position,
+        resources_before=resources_before,
+        resources_after=agent.resource_level,
+        success=success,
+        targets_found=targets_found,
+        damage_dealt=damage_dealt,
+        reason=reason
+    )
+    
+    # Reset defending state if not defending
+    if action != AttackActionSpace.DEFEND:
+        agent.is_defending = False
+    
+    # Train the module periodically
+    if len(attack_module.memory) > attack_module.profile.batch_size:
+        if step_number % 4 == 0:  # Train every 4 steps
+            attack_module.train(
+                step_number=step_number,
+                agent_id=agent.agent_id,
+                module_type="attack"
+            )
