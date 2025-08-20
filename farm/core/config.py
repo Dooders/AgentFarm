@@ -53,6 +53,38 @@ class VisualizationConfig:
 
 
 @dataclass
+class DQNProfile:
+    """Reusable DQN hyperparameter profile.
+
+    Defines a set of DQN learning hyperparameters that can be referenced and
+    reused across different actions. Action-specific overrides can be applied
+    on top of a base profile.
+    """
+
+    learning_rate: float = 0.001
+    gamma: float = 0.99
+    epsilon_start: float = 1.0
+    epsilon_min: float = 0.01
+    epsilon_decay: float = 0.995
+    memory_size: int = 10000
+    batch_size: int = 32
+    hidden_size: int = 64
+    tau: float = 0.005
+    target_update_freq: int = 100
+    seed: Optional[int] = None
+
+
+@dataclass 
+class ActionConfig:
+    """Per-action customizations that reference a profile and apply overrides."""
+
+    profile: str = "default"
+    rewards: Dict[str, float] = field(default_factory=dict)
+    costs: Dict[str, float] = field(default_factory=dict)
+    overrides: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class RedisMemoryConfig:
     host: str = "localhost"
     port: int = 6379
@@ -192,6 +224,10 @@ class SimulationConfig:
     # Redis configuration
     redis: RedisMemoryConfig = field(default_factory=RedisMemoryConfig)
 
+    # Unified config (profiles + action configs) - optional and used during load
+    profiles: Dict[str, DQNProfile] = field(default_factory=dict)
+    action_configs: Dict[str, ActionConfig] = field(default_factory=dict)
+
     # Gathering Module Parameters
     gather_target_update_freq: int = 100
     gather_memory_size: int = 10000
@@ -291,6 +327,166 @@ class SimulationConfig:
 
         # Handle visualization config separately
         vis_config = config_dict.pop("visualization", {})
+
+        # Detect and process unified profiles/actions format if present
+        profiles_raw = config_dict.pop("dqn_profiles", None)
+        actions_raw = config_dict.pop("actions", None)
+
+        flattened: Dict[str, Any] = {}
+
+        if profiles_raw is not None and isinstance(profiles_raw, dict):
+            # Normalize nested profiles into dataclasses
+            profiles: Dict[str, DQNProfile] = {}
+            for name, data in profiles_raw.items():
+                # YAML merges should already be resolved by safe_load
+                profiles[name] = DQNProfile(**data)
+
+            # Set global/unprefixed DQN params from the default profile if not explicitly provided
+            default_profile: Optional[DQNProfile] = profiles.get("default") or next(iter(profiles.values()), None)
+            if default_profile is not None:
+                if "learning_rate" not in config_dict:
+                    config_dict["learning_rate"] = default_profile.learning_rate
+                if "gamma" not in config_dict:
+                    config_dict["gamma"] = default_profile.gamma
+                if "epsilon_start" not in config_dict:
+                    config_dict["epsilon_start"] = default_profile.epsilon_start
+                if "epsilon_min" not in config_dict:
+                    config_dict["epsilon_min"] = default_profile.epsilon_min
+                if "epsilon_decay" not in config_dict:
+                    config_dict["epsilon_decay"] = default_profile.epsilon_decay
+                if "memory_size" not in config_dict:
+                    config_dict["memory_size"] = default_profile.memory_size
+                if "batch_size" not in config_dict:
+                    config_dict["batch_size"] = default_profile.batch_size
+                if "dqn_hidden_size" not in config_dict:
+                    config_dict["dqn_hidden_size"] = default_profile.hidden_size
+                if "tau" not in config_dict:
+                    config_dict["tau"] = default_profile.tau
+                if "target_update_freq" not in config_dict:
+                    config_dict["target_update_freq"] = default_profile.target_update_freq
+
+            # If actions are provided, map them into flattened legacy fields
+            if actions_raw and isinstance(actions_raw, dict):
+                action_cfgs: Dict[str, ActionConfig] = {}
+
+                def apply_profile_to_action(action_name: str, action_data: Dict[str, Any]) -> None:
+                    action = ActionConfig(**action_data)
+                    action_cfgs[action_name] = action
+
+                    # Get base profile
+                    profile_name = action.profile
+                    base_profile = profiles.get(profile_name, DQNProfile())
+                    # Start from base profile values
+                    effective = {
+                        "learning_rate": base_profile.learning_rate,
+                        "gamma": base_profile.gamma,
+                        "epsilon_start": base_profile.epsilon_start,
+                        "epsilon_min": base_profile.epsilon_min,
+                        "epsilon_decay": base_profile.epsilon_decay,
+                        "memory_size": base_profile.memory_size,
+                        "batch_size": base_profile.batch_size,
+                        "hidden_size": base_profile.hidden_size,
+                        "tau": base_profile.tau,
+                        "target_update_freq": base_profile.target_update_freq,
+                    }
+                    # Apply overrides on top
+                    for key, value in action.overrides.items():
+                        effective[key] = value
+
+                    # Map effective DQN params to legacy per-action fields
+                    prefix = action_name.lower()
+                    # Only map known actions to avoid collisions
+                    if prefix in {"move", "attack", "gather", "share"}:
+                        flattened[f"{prefix}_learning_rate"] = effective["learning_rate"]
+                        flattened[f"{prefix}_gamma"] = effective["gamma"]
+                        flattened[f"{prefix}_epsilon_start"] = effective["epsilon_start"]
+                        flattened[f"{prefix}_epsilon_min"] = effective["epsilon_min"]
+                        flattened[f"{prefix}_epsilon_decay"] = effective["epsilon_decay"]
+                        flattened[f"{prefix}_memory_size"] = effective["memory_size"]
+                        flattened[f"{prefix}_batch_size"] = effective["batch_size"]
+                        flattened[f"{prefix}_dqn_hidden_size"] = effective["hidden_size"]
+                        flattened[f"{prefix}_tau"] = effective["tau"]
+                        flattened[f"{prefix}_target_update_freq"] = effective["target_update_freq"]
+
+                        # Also set global hidden size if not already defined
+                        if "dqn_hidden_size" not in config_dict:
+                            config_dict["dqn_hidden_size"] = effective["hidden_size"]
+
+                        # Map rewards/costs to known legacy names when present
+                        costs = action.costs or {}
+                        rewards = action.rewards or {}
+
+                        if prefix == "move":
+                            if "base" in costs:
+                                flattened["move_base_cost"] = costs["base"]
+                            if "approach_resource" in rewards:
+                                flattened["move_resource_approach_reward"] = rewards["approach_resource"]
+                            if "retreat_penalty" in rewards:
+                                flattened["move_resource_retreat_penalty"] = rewards["retreat_penalty"]
+                        elif prefix == "attack":
+                            if "base" in costs:
+                                flattened["attack_base_cost"] = costs["base"]
+                            if "success" in rewards:
+                                flattened["attack_success_reward"] = rewards["success"]
+                            if "failure_penalty" in rewards:
+                                flattened["attack_failure_penalty"] = rewards["failure_penalty"]
+                            if "kill" in rewards:
+                                flattened["attack_kill_reward"] = rewards["kill"]
+                            # Common overrides for attack behavior
+                            if "defense_threshold" in effective:
+                                flattened["attack_defense_threshold"] = effective["defense_threshold"]
+                            if "defense_boost" in effective:
+                                flattened["attack_defense_boost"] = effective["defense_boost"]
+                        elif prefix == "gather":
+                            if "base" in costs:
+                                flattened["gather_base_cost"] = costs["base"]
+                            if "success" in rewards:
+                                flattened["gather_success_reward"] = rewards["success"]
+                            if "failure_penalty" in rewards:
+                                flattened["gather_failure_penalty"] = rewards["failure_penalty"]
+                            # Additional gather tuning via overrides
+                            for key_map in (
+                                ("distance_penalty_factor", "gather_distance_penalty_factor"),
+                                ("resource_threshold", "gather_resource_threshold"),
+                                ("competition_penalty", "gather_competition_penalty"),
+                                ("efficiency_bonus", "gather_efficiency_bonus"),
+                                ("max_wait_steps", "max_wait_steps"),
+                            ):
+                                src, dst = key_map
+                                if src in effective:
+                                    flattened[dst] = effective[src]
+                        elif prefix == "share":
+                            if "base" in costs:
+                                flattened["share_base_cost"] = costs["base"]
+                            if "success" in rewards:
+                                flattened["share_success_reward"] = rewards["success"]
+                            if "failure_penalty" in rewards:
+                                flattened["share_failure_penalty"] = rewards["failure_penalty"]
+                            # Additional share overrides
+                            for key_map in (
+                                ("range", "share_range"),
+                                ("min_share_amount", "min_share_amount"),
+                                ("max_share_amount", "max_share_amount"),
+                                ("share_threshold", "share_threshold"),
+                                ("cooperation_bonus", "share_cooperation_bonus"),
+                                ("altruism_factor", "share_altruism_factor"),
+                            ):
+                                src, dst = key_map
+                                if src in effective:
+                                    flattened[dst] = effective[src]
+
+                for action_name, action_data in actions_raw.items():
+                    if isinstance(action_data, dict):
+                        apply_profile_to_action(action_name, action_data)
+
+                # Persist parsed structures for visibility
+                config_dict["profiles"] = profiles
+                config_dict["action_configs"] = action_cfgs
+
+        # Merge flattened values on top of any existing keys
+        config_dict.update(flattened)
+
+        # Attach visualization dataclass last
         config_dict["visualization"] = VisualizationConfig(**vis_config)
 
         return cls(**config_dict)
