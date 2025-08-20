@@ -1,46 +1,18 @@
-"""Resource sharing module using Deep Q-Learning for intelligent cooperation.
+"""
+Share action module for AgentFarm.
 
-This module implements a learning-based approach for agents to develop optimal
-sharing strategies in a multi-agent environment. It considers factors like
-resource levels, agent relationships, and environmental conditions to make
-intelligent sharing decisions.
-
-The sharing system uses Deep Q-Learning to learn optimal sharing policies based on:
-- Current resource levels of the agent and nearby agents
-- Historical cooperation patterns
-- Environmental conditions and agent needs
-- Reward signals from successful/failed sharing attempts
-
-Key Components:
-    - ShareConfig: Configuration parameters for sharing behavior
-    - ShareActionSpace: Defines available sharing actions (NO_SHARE, SHARE_LOW, etc.)
-    - ShareQNetwork: Neural network architecture for Q-value estimation
-    - ShareModule: Main class handling sharing logic, learning, and decision making
-    - share_action: Main function that executes sharing behavior
-    - Experience Replay: Stores sharing interactions for learning (inherited from BaseDQNModule)
-    - Reward System: Encourages beneficial sharing behavior with altruism bonuses
-
-The module integrates with the broader AgentFarm system through:
-- Database logging of sharing actions and outcomes
-- Environment resource tracking
-- Agent cooperation history maintenance
-- Integration with other action modules (attack, gather, etc.)
+This module handles resource sharing between agents using Deep Q-Learning to learn
+optimal sharing strategies. Updated to use the new profile-based configuration system.
 """
 
+from typing import TYPE_CHECKING, Optional, Tuple, List
 import logging
-import random
-from typing import TYPE_CHECKING, List, Optional, Tuple
 
 import numpy as np
 import torch
 
-from farm.actions.base_dqn import (
-    BaseDQNConfig,
-    BaseDQNModule,
-    BaseQNetwork,
-    SharedEncoder,
-)
-from farm.core.action import action_registry
+from farm.actions.base_dqn import BaseDQNModule, BaseQNetwork, SharedEncoder, DEVICE
+from farm.core.profiles import DQNProfile
 
 if TYPE_CHECKING:
     from farm.agents.base_agent import BaseAgent
@@ -48,510 +20,255 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class ShareConfig(BaseDQNConfig):
-    """Configuration parameters for sharing behavior and learning.
-
-    This class defines all configurable parameters that control how agents
-    learn and execute sharing behavior. It extends BaseDQNConfig to include
-    sharing-specific parameters while inheriting DQN learning parameters.
-
-    Attributes:
-        share_range: Maximum distance (in environment units) for sharing interactions
-        min_share_amount: Minimum resources required to initiate sharing
-        share_success_reward: Base reward for successful sharing actions
-        share_failure_penalty: Penalty for failed sharing attempts
-        altruism_bonus: Extra reward for sharing with agents in need
-        cooperation_memory: Number of recent interactions to remember for cooperation scoring
-        max_resources: Maximum possible resources for normalization purposes
-    """
-
-    share_range: float = 30.0  # Maximum distance for sharing
-    min_share_amount: int = 1  # Minimum resources to share
-    share_success_reward: float = 0.3  # Reward for successful sharing
-    share_failure_penalty: float = -0.1  # Penalty for failed sharing attempt
-    altruism_bonus: float = 0.2  # Extra reward for sharing when recipient is low
-    cooperation_memory: int = 100  # Number of interactions to remember
-    max_resources: int = 30  # Maximum resources an agent can have (for normalization)
-
-
 class ShareActionSpace:
-    """Defines the available sharing actions and their corresponding amounts.
-
-    This class provides a centralized definition of all possible sharing actions
-    that agents can take. Each action corresponds to a different sharing amount,
-    allowing for granular control over sharing behavior.
-
-    Attributes:
-        NO_SHARE: Action to not share any resources
-        SHARE_LOW: Action to share minimum amount (1 resource)
-        SHARE_MEDIUM: Action to share moderate amount (2 resources)
-        SHARE_HIGH: Action to share larger amount (3 resources)
-    """
-
+    """Defines the available sharing actions and their corresponding amounts."""
+    
     NO_SHARE: int = 0
-    SHARE_LOW: int = 1  # Share minimum amount
-    SHARE_MEDIUM: int = 2  # Share moderate amount
-    SHARE_HIGH: int = 3  # Share larger amount
-
-
-DEFAULT_SHARE_CONFIG = ShareConfig()
+    SHARE_LOW: int = 1    # Share minimum amount (1 resource)
+    SHARE_MEDIUM: int = 2  # Share moderate amount (2 resources)
+    SHARE_HIGH: int = 3   # Share larger amount (3 resources)
 
 
 class ShareQNetwork(BaseQNetwork):
-    """Neural network architecture for Q-value estimation in sharing decisions.
-
-    This network takes the current state representation and outputs Q-values
-    for each possible sharing action. The network architecture is optimized
-    for the sharing domain with appropriate input and output dimensions.
-
-    The input features represent the sharing context:
-    - agent_resources: Normalized current resource level
-    - nearby_agents: Normalized count of nearby agents
-    - avg_neighbor_resources: Average resource level of nearby agents
-    - min_neighbor_resources: Minimum resource level among neighbors
-    - max_neighbor_resources: Maximum resource level among neighbors
-    - cooperation_score: Historical cooperation score
-
-    Args:
-        input_dim: Number of input features (default: 6)
-        hidden_size: Number of neurons in hidden layers (default: 64)
-    """
-
+    """Neural network architecture for sharing Q-value approximation."""
+    
     def __init__(
         self,
         input_dim: int = 8,
         hidden_size: int = 64,
         shared_encoder: Optional[SharedEncoder] = None,
     ) -> None:
-        # Input features: [agent_resources, nearby_agents, avg_neighbor_resources,
-        #                 min_neighbor_resources, max_neighbor_resources, cooperation_score,
-        #                 health_ratio, defensive_status]
-        super().__init__(
-            input_dim=input_dim,
-            output_dim=4,  # NO_SHARE, SHARE_LOW, SHARE_MEDIUM, SHARE_HIGH
-            hidden_size=hidden_size,
-            shared_encoder=shared_encoder,
-        )
+        super().__init__(input_dim, 4, hidden_size, shared_encoder)  # 4 sharing actions
 
 
 class ShareModule(BaseDQNModule):
-    """Main module for learning and executing intelligent sharing behavior.
-
-    This class implements the core sharing logic using Deep Q-Learning. It manages
-    the learning process, maintains cooperation history, and makes sharing decisions
-    based on the current state and learned policies.
-
-    The module integrates with the broader AgentFarm system by:
-    - Logging sharing actions to the database
-    - Updating environment resource counters
-    - Maintaining cooperation history for future decisions
-    - Providing reward signals for learning
-
-    Attributes:
-        cooperation_history: Dictionary mapping agent IDs to lists of cooperation scores
-        q_network: Primary Q-network for action selection
-        target_network: Target network for stable learning updates
     """
-
+    Deep Q-Learning module for resource sharing.
+    
+    This module learns optimal sharing strategies, deciding how much to share
+    with nearby agents based on cooperation history and current needs.
+    """
+    
     def __init__(
         self,
-        config: ShareConfig = DEFAULT_SHARE_CONFIG,
-        device: torch.device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu"
-        ),
+        dqn_profile: DQNProfile,
+        rewards: dict = None,
+        costs: dict = None,
+        thresholds: dict = None,
+        device: torch.device = DEVICE,
         shared_encoder: Optional[SharedEncoder] = None,
     ) -> None:
-        """Initialize the ShareModule with configuration and device settings.
-
+        """
+        Initialize the sharing module.
+        
         Args:
-            config: Configuration object containing sharing parameters
-            device: PyTorch device for network computations (CPU/GPU)
-            shared_encoder: Optional shared encoder for feature extraction
+            dqn_profile: DQN learning configuration profile
+            rewards: Sharing-specific reward values
+            costs: Sharing-specific costs
+            thresholds: Sharing-specific thresholds
+            device: Computation device  
+            shared_encoder: Optional shared encoder for efficiency
         """
-        # Initialize parent class with share-specific network
-        super().__init__(
-            input_dim=8,  # State dimensions for sharing (matches SharedEncoder)
-            output_dim=4,  # Number of sharing actions
-            config=config,
-            device=device,
-        )
-        self.cooperation_history = {}  # Track sharing interactions
-        self._setup_action_space()
-
-        # Initialize Q-network specific to sharing with shared encoder if provided
-        self.q_network = ShareQNetwork(
-            input_dim=8,
-            hidden_size=config.dqn_hidden_size,
-            shared_encoder=shared_encoder,
-        ).to(device)
-        self.target_network = ShareQNetwork(
-            input_dim=8,
-            hidden_size=config.dqn_hidden_size,
-            shared_encoder=shared_encoder,
-        ).to(device)
-        self.target_network.load_state_dict(self.q_network.state_dict())
-
-    def select_action(
-        self, state: torch.Tensor, epsilon: Optional[float] = None
-    ) -> int:
-        """Select sharing action using epsilon-greedy strategy.
-
-        This method implements the exploration-exploitation trade-off in action
-        selection. With probability epsilon, a random action is chosen for
-        exploration. Otherwise, the action with the highest Q-value is selected.
-
-        Args:
-            state: Current state tensor representing the sharing context
-            epsilon: Optional override for exploration rate. If None, uses
-                   the module's current epsilon value.
-
-        Returns:
-            int: Selected action index corresponding to ShareActionSpace constants
-        """
-        # Use the parent's select_action method which includes state caching
-        return super().select_action(state, epsilon)
-
-    def _setup_action_space(self) -> None:
-        """Initialize the action space mapping for sharing decisions.
-
-        This method creates a dictionary mapping action indices to their
-        corresponding sharing amounts. The action space is used throughout
-        the module for consistent action handling.
-        """
-        self.action_space = {
-            ShareActionSpace.NO_SHARE: 0,
-            ShareActionSpace.SHARE_LOW: 1,
-            ShareActionSpace.SHARE_MEDIUM: 2,
-            ShareActionSpace.SHARE_HIGH: 3,
+        # Set default reward/cost/threshold values
+        self.rewards = {
+            "success": 0.3,
+            "altruism_bonus": 0.2,
+            **(rewards or {})
         }
-
+        
+        self.costs = {
+            "failure_penalty": -0.1,
+            **(costs or {})
+        }
+        
+        self.thresholds = {
+            "share_range": 30.0,
+            "min_share_amount": 1,
+            "max_resources": 30,
+            "cooperation_memory": 100,
+            **(thresholds or {})
+        }
+        
+        super().__init__(
+            input_dim=8,
+            output_dim=4,
+            dqn_profile=dqn_profile,
+            device=device,
+            shared_encoder=shared_encoder
+        )
+        
+        self._setup_action_space()
+        
+        # Cooperation tracking
+        self.cooperation_history = {}
+    
+    def _setup_action_space(self) -> None:
+        """Initialize action space mapping."""
+        self.action_space = ShareActionSpace()
+        self.action_names = {
+            0: "NO_SHARE",
+            1: "SHARE_LOW",
+            2: "SHARE_MEDIUM", 
+            3: "SHARE_HIGH"
+        }
+    
     def get_share_decision(
         self, agent: "BaseAgent", state: torch.Tensor
     ) -> Tuple[int, Optional["BaseAgent"], int]:
-        """Determine the complete sharing decision including action, target, and amount.
-
-        This method orchestrates the sharing decision process by:
-        1. Selecting an action using the learned policy
-        2. Finding suitable nearby agents if sharing is chosen
-        3. Selecting the best target based on need and cooperation history
-        4. Calculating the appropriate sharing amount
-
-        Args:
-            agent: The agent making the sharing decision
-            state: Current state tensor representing the sharing context
-
-        Returns:
-            Tuple containing:
-            - int: Selected action index from ShareActionSpace
-            - Optional[BaseAgent]: Target agent for sharing (None if NO_SHARE)
-            - int: Amount of resources to share (0 if NO_SHARE)
         """
-        if not isinstance(state, torch.Tensor):
-            state = torch.FloatTensor(state).to(self.device)
-
+        Make sharing decision for the agent.
+        
+        Args:
+            agent: The agent making the decision
+            state: Current environment state tensor
+            
+        Returns:
+            Tuple of (share_amount, target_agent, action_taken)
+        """
         action = self.select_action(state)
-
+        
         if action == ShareActionSpace.NO_SHARE:
-            return action, None, 0
-
-        # Find potential sharing targets
+            return 0, None, action
+        
+        # Find nearby agents to share with
         nearby_agents = self._get_nearby_agents(agent)
         if not nearby_agents:
-            return ShareActionSpace.NO_SHARE, None, 0
-
-        # Select target based on need and cooperation history
-        target = self._select_target(agent, nearby_agents)
+            return 0, None, action
+        
+        # Select target agent (prefer those with low resources)
+        target_agent = self._select_target(agent, nearby_agents)
+        
+        # Calculate share amount based on action
         share_amount = self._calculate_share_amount(agent, action)
-
-        return action, target, share_amount
-
+        
+        return share_amount, target_agent, action
+    
     def _get_nearby_agents(self, agent: "BaseAgent") -> List["BaseAgent"]:
-        """Find all agents within sharing range, excluding the agent itself.
-
-        This method queries the environment for nearby agents and filters out
-        the agent itself to prevent self-sharing, which would be meaningless.
-
-        Args:
-            agent: The agent looking for nearby sharing targets
-
-        Returns:
-            List of BaseAgent objects within sharing range, excluding the agent itself
-        """
-        from typing import cast
-
-        share_config = cast(ShareConfig, self.config)
-        nearby_agents = agent.environment.get_nearby_agents(
-            agent.position, share_config.share_range
-        )
-        # Filter out self to prevent agents from sharing with themselves
-        return [a for a in nearby_agents if a.agent_id != agent.agent_id]
-
+        """Get agents within sharing range."""
+        share_range = self.thresholds["share_range"]
+        nearby_agents = agent.environment.get_nearby_agents(agent.position, share_range)
+        
+        # Filter out self and dead agents
+        return [a for a in nearby_agents if a.agent_id != agent.agent_id and a.alive]
+    
     def _select_target(
         self, agent: "BaseAgent", nearby_agents: List["BaseAgent"]
     ) -> "BaseAgent":
-        """Select the best target agent based on need and cooperation history.
-
-        This method implements a weighted selection algorithm that prioritizes:
-        1. Agents with low resource levels (in need)
-        2. Agents with positive cooperation history
-        3. Deterministic selection among suitable candidates
-
-        The selection uses probability weights to balance immediate need with
-        long-term cooperation patterns.
-
-        Args:
-            agent: The agent making the selection
-            nearby_agents: List of potential target agents
-
-        Returns:
-            BaseAgent: The selected target agent for sharing
-        """
-        # Calculate selection weights based on need and past cooperation
-        weights = []
-        for target in nearby_agents:
-            weight = 1.0
-            # Increase weight for agents with low resources
-            if (
-                target.config
-                and target.resource_level < target.config.starvation_threshold
-            ):
-                weight *= 2.0
-            # Consider past cooperation
-            coop_score = self._get_cooperation_score(target.agent_id)
-            weight *= 1.0 + coop_score
-            weights.append(weight)
-
-        # For deterministic behavior, select the agent with the highest weight
-        # In case of ties, select the first one
-        max_weight = max(weights)
-        chosen_index = weights.index(max_weight)
-        return nearby_agents[chosen_index]
-
+        """Select the best target for sharing (prioritize those with low resources)."""
+        if not nearby_agents:
+            return None
+        
+        # Sort by resource level (ascending) and cooperation score
+        def target_score(target):
+            resource_need = 1.0 - (target.resource_level / self.thresholds["max_resources"])
+            cooperation_score = self._get_cooperation_score(target.agent_id)
+            return resource_need * 0.7 + cooperation_score * 0.3
+        
+        return max(nearby_agents, key=target_score)
+    
     def _calculate_share_amount(self, agent: "BaseAgent", action: int) -> int:
-        """Calculate the amount of resources to share based on action and availability.
-
-        This method determines the actual sharing amount considering:
-        - The selected action (SHARE_LOW, SHARE_MEDIUM, SHARE_HIGH)
-        - The agent's current resource level
-        - Minimum sharing requirements
-
-        Args:
-            agent: The agent performing the sharing action
-            action: The selected action index from ShareActionSpace
-
-        Returns:
-            int: Amount of resources to share (0 if action is NO_SHARE or insufficient resources)
-        """
-        if action == ShareActionSpace.NO_SHARE:
-            return 0
-
-        from typing import cast
-
-        share_config = cast(ShareConfig, self.config)
-        available = max(0, agent.resource_level - share_config.min_share_amount)
+        """Calculate how much to share based on action."""
         share_amounts = {
-            ShareActionSpace.SHARE_LOW: min(1, available),
-            ShareActionSpace.SHARE_MEDIUM: min(2, available),
-            ShareActionSpace.SHARE_HIGH: min(3, available),
+            ShareActionSpace.SHARE_LOW: 1,
+            ShareActionSpace.SHARE_MEDIUM: 2,
+            ShareActionSpace.SHARE_HIGH: 3
         }
-        return share_amounts.get(action, 0)
-
+        
+        max_share = share_amounts.get(action, 0)
+        
+        # Can't share more than agent has
+        return min(max_share, agent.resource_level)
+    
     def _get_cooperation_score(self, agent_id: str) -> float:
-        """Calculate the cooperation score for an agent based on interaction history.
-
-        This method computes a running average of cooperation scores for a
-        specific agent. Positive scores indicate cooperative behavior, while
-        negative scores indicate uncooperative behavior.
-
-        Args:
-            agent_id: The ID of the agent to get cooperation score for
-
-        Returns:
-            float: Cooperation score between -1.0 and 1.0, or 0.0 if no history
-        """
-        from typing import cast
-
-        share_config = cast(ShareConfig, self.config)
+        """Get cooperation score for an agent based on history."""
         if agent_id not in self.cooperation_history:
-            return 0.0
-        return sum(
-            self.cooperation_history[agent_id][-share_config.cooperation_memory :]
-        ) / len(self.cooperation_history[agent_id][-share_config.cooperation_memory :])
-
+            return 0.5  # Neutral score for unknown agents
+        
+        history = self.cooperation_history[agent_id]
+        if len(history) == 0:
+            return 0.5
+        
+        return sum(history) / len(history)
+    
     def update_cooperation(self, agent_id: str, cooperative: bool) -> None:
-        """Update the cooperation history for a specific agent.
-
-        This method records the outcome of a sharing interaction to maintain
-        the cooperation history used for future target selection decisions.
-
-        Args:
-            agent_id: The ID of the agent whose cooperation history to update
-            cooperative: Whether the interaction was cooperative (True) or not (False)
-        """
+        """Update cooperation history for an agent."""
         if agent_id not in self.cooperation_history:
             self.cooperation_history[agent_id] = []
-        self.cooperation_history[agent_id].append(1.0 if cooperative else -1.0)
+        
+        history = self.cooperation_history[agent_id]
+        history.append(1.0 if cooperative else 0.0)
+        
+        # Keep only recent history
+        max_memory = self.thresholds["cooperation_memory"]
+        if len(history) > max_memory:
+            history.pop(0)
 
 
 def share_action(agent: "BaseAgent") -> None:
-    """Execute a sharing action using the agent's learned sharing policy.
-
-    This is the main entry point for sharing behavior. The function:
-    1. Gathers the current state representation
-    2. Uses the agent's ShareModule to make a sharing decision
-    3. Executes the sharing if conditions are met
-    4. Updates the environment and logs the action
-    5. Calculates and applies rewards for learning
-
-    The function handles both successful and failed sharing attempts,
-    logging appropriate information to the database for analysis.
-
+    """
+    Execute sharing action for an agent.
+    
+    This function handles the complete sharing sequence including target selection,
+    resource transfer, and cooperation tracking.
+    
     Args:
         agent: The agent performing the sharing action
     """
-    # Get state information
-    state = _get_share_state(agent)
-    initial_resources = agent.resource_level
-
-    # Get sharing decision
-    state_tensor = torch.FloatTensor(state).to(agent.share_module.device)
-    action, target, share_amount = agent.share_module.get_share_decision(
-        agent, state_tensor
+    # Get sharing configuration from agent's config
+    action_config = agent.environment.config.get_action_config("share")
+    share_module = agent.share_module
+    
+    step_number = agent.environment.time
+    resources_before = agent.resource_level
+    
+    # Get current state and make sharing decision
+    state = agent.get_state().to_tensor(agent.device)
+    share_amount, target_agent, action_taken = share_module.get_share_decision(agent, state)
+    
+    reward = 0.0
+    
+    if share_amount > 0 and target_agent and agent.resource_level >= share_amount:
+        # Execute the share
+        agent.resource_level -= share_amount
+        target_agent.resource_level += share_amount
+        
+        # Calculate reward
+        base_reward = action_config.rewards.get("success", 0.3)
+        
+        # Altruism bonus if target was in need
+        if target_agent.resource_level < action_config.thresholds.get("max_resources", 30) * 0.3:
+            base_reward += action_config.rewards.get("altruism_bonus", 0.2)
+        
+        # Amount multiplier
+        reward = base_reward * (share_amount / action_config.thresholds.get("min_share_amount", 1))
+        
+        # Update cooperation tracking
+        share_module.update_cooperation(target_agent.agent_id, True)
+        
+    elif action_taken != ShareActionSpace.NO_SHARE:
+        # Intended to share but couldn't (no target or insufficient resources)
+        reward = action_config.costs.get("failure_penalty", -0.1)
+    
+    # Store experience for learning
+    next_state = agent.get_state().to_tensor(agent.device)
+    
+    share_module.store_experience(
+        state=state,
+        action=action_taken,
+        reward=reward,
+        next_state=next_state,
+        done=False,
+        step_number=step_number,
+        agent_id=agent.agent_id,
+        module_type="share",
+        action_taken_mapped=share_module.action_names.get(action_taken, str(action_taken))
     )
-
-    if not target or share_amount <= 0 or agent.resource_level < share_amount:
-        # Log failed share action
-        if agent.environment.db is not None:
-            agent.environment.db.logger.log_agent_action(
-                step_number=agent.environment.time,
+    
+    # Train the module periodically
+    if len(share_module.memory) > share_module.profile.batch_size:
+        if step_number % 4 == 0:  # Train every 4 steps
+            share_module.train(
+                step_number=step_number,
                 agent_id=agent.agent_id,
-                action_type="share",
-                resources_before=initial_resources,
-                resources_after=initial_resources,
-                reward=DEFAULT_SHARE_CONFIG.share_failure_penalty,
-                details={
-                    "success": False,
-                    "reason": "invalid_share_conditions",
-                    "attempted_amount": share_amount,
-                },
+                module_type="share"
             )
-        return
-
-    # Execute sharing
-    target_initial_resources = target.resource_level
-    agent.resource_level -= share_amount
-    target.resource_level += share_amount
-
-    # Update environment's resources_shared counter
-    agent.environment.resources_shared += share_amount
-    agent.environment.resources_shared_this_step += share_amount
-
-    # Calculate reward
-    reward = _calculate_share_reward(agent, target, share_amount)
-    agent.total_reward += reward
-
-    # Update cooperation history
-    agent.share_module.update_cooperation(target.agent_id, True)
-
-    # Log successful share action
-    if agent.environment.db is not None:
-        agent.environment.db.logger.log_agent_action(
-            step_number=agent.environment.time,
-            agent_id=agent.agent_id,
-            action_type="share",
-            action_target_id=target.agent_id,  # Agent IDs are strings, not integers
-            resources_before=initial_resources,
-            resources_after=agent.resource_level,
-            reward=reward,
-            details={
-                "success": True,
-                "amount_shared": share_amount,
-                "target_resources_before": target_initial_resources,
-                "target_resources_after": target.resource_level,
-                "target_was_starving": target.config
-                and target_initial_resources < target.config.starvation_threshold,
-            },
-        )
-
-
-def _get_share_state(agent: "BaseAgent") -> List[float]:
-    """Create a normalized state representation for sharing decisions.
-
-    This function constructs an 8-dimensional state vector that captures
-    the current sharing context. All values are normalized to [0, 1] range
-    for consistent neural network input.
-
-    The state includes:
-    - Agent's current resource level (normalized)
-    - Density of nearby agents (normalized)
-    - Average resource level of nearby agents (normalized)
-    - Minimum resource level among nearby agents (normalized)
-    - Maximum resource level among nearby agents (normalized)
-    - Historical cooperation score
-    - Agent's current health ratio
-    - Agent's defensive status
-
-    Args:
-        agent: The agent for whom to create the state representation
-
-    Returns:
-        List[float]: 8-dimensional state vector for sharing decisions
-    """
-    nearby_agents = agent.environment.get_nearby_agents(
-        agent.position, DEFAULT_SHARE_CONFIG.share_range
-    )
-
-    neighbor_resources = (
-        [a.resource_level for a in nearby_agents] if nearby_agents else [0]
-    )
-
-    # Use ShareConfig's max_resources for normalization
-    max_resources = DEFAULT_SHARE_CONFIG.max_resources
-
-    return [
-        agent.resource_level / max_resources,  # Normalized agent resources
-        len(nearby_agents) / len(agent.environment.agents),  # Normalized nearby agents
-        float(np.mean(neighbor_resources)) / max_resources,  # Avg neighbor resources
-        min(neighbor_resources) / max_resources,  # Min neighbor resources
-        max(neighbor_resources) / max_resources,  # Max neighbor resources
-        agent.share_module._get_cooperation_score(agent.agent_id),  # Cooperation score
-        agent.current_health / agent.starting_health,  # Health ratio
-        float(agent.is_defending),  # Defensive status
-    ]
-
-
-def _calculate_share_reward(
-    agent: "BaseAgent", target: "BaseAgent", amount: int
-) -> float:
-    """Calculate the reward for a sharing action based on context and outcome.
-
-    This function implements the reward system for sharing behavior, considering:
-    - Base reward for successful sharing
-    - Altruism bonus for helping agents in need
-    - Scaling based on amount shared
-
-    The reward encourages beneficial sharing behavior while discouraging
-    wasteful or harmful sharing actions.
-
-    Args:
-        agent: The agent performing the sharing action
-        target: The agent receiving the shared resources
-        amount: The amount of resources being shared
-
-    Returns:
-        float: Calculated reward value for the sharing action
-    """
-    reward = DEFAULT_SHARE_CONFIG.share_success_reward
-
-    # Add altruism bonus if target was in need
-    if target.config and target.resource_level < target.config.starvation_threshold:
-        reward += DEFAULT_SHARE_CONFIG.altruism_bonus
-
-    # Scale reward based on amount shared
-    reward *= amount / DEFAULT_SHARE_CONFIG.min_share_amount
-
-    return reward
-
-
-# Register the action at the end of the file after the function is defined
-action_registry.register('share', 0.2, share_action)

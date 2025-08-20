@@ -10,7 +10,11 @@ import yaml
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
-import psutil
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
 
 from farm.core.profiles import (
     DQNProfile, AgentBehaviorProfile, EnvironmentProfile,
@@ -145,6 +149,10 @@ class SimulationConfig:
     
     def _auto_optimize(self):
         """Automatically optimize config based on system resources."""
+        if not PSUTIL_AVAILABLE:
+            print("psutil not available - skipping auto-optimization")
+            return
+            
         available_mb = psutil.virtual_memory().available // (1024 * 1024)
         
         # Adjust DQN profiles based on available memory

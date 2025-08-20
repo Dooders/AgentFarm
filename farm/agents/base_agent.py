@@ -5,13 +5,14 @@ from typing import TYPE_CHECKING, Optional, Tuple
 import numpy as np
 import torch
 
-from farm.actions.attack import DEFAULT_ATTACK_CONFIG, AttackActionSpace, AttackModule
+from farm.actions.attack import AttackActionSpace, AttackModule
 from farm.actions.base_dqn import SharedEncoder
-from farm.actions.gather import DEFAULT_GATHER_CONFIG, GatherModule
-from farm.actions.move import DEFAULT_MOVE_CONFIG, MoveModule
-from farm.actions.reproduce import DEFAULT_REPRODUCE_CONFIG, ReproduceModule
-from farm.actions.select import SelectConfig, SelectModule, create_selection_state
-from farm.actions.share import DEFAULT_SHARE_CONFIG, ShareModule
+from farm.actions.gather import GatherModule
+from farm.actions.move import MoveModule
+from farm.actions.reproduce import ReproduceModule
+from farm.actions.select import SelectModule, create_selection_state
+from farm.actions.share import ShareModule
+from farm.core.profiles import DQNProfile, get_dqn_profile
 from farm.core.action import *
 from farm.core.genome import Genome
 from farm.core.perception import PerceptionData
@@ -97,38 +98,90 @@ class BaseAgent:
         self.generation = generation
         self.genome_id = self._generate_genome_id(parent_ids)
 
-        # Initialize all modules first
-        #! make this a list of action modules that can be provided to the agent at init
-        # Use the config's dqn_hidden_size to match the modules
-        hidden_size = self.config.dqn_hidden_size if self.config else 64
+        # Initialize all modules using new profile-based configuration system
+        
+        # Get agent type and configurations
+        agent_type = self.__class__.__name__.replace("Agent", "").lower()
+        try:
+            agent_config = environment.config.get_agent_config(agent_type)
+            behavior_profile = agent_config.get_behavior_config()
+        except (AttributeError, ValueError):
+            # Fallback to default if agent type not in config
+            from farm.core.profiles import get_behavior_profile
+            behavior_profile = get_behavior_profile("balanced")
+        
+        # Get default DQN profile and create shared encoder
+        try:
+            default_dqn_profile = get_dqn_profile(environment.config.default_dqn_profile)
+        except (AttributeError, ValueError):
+            default_dqn_profile = get_dqn_profile("default")
+        
         self.shared_encoder = SharedEncoder(
-            input_dim=8, hidden_size=hidden_size
-        )  # Use 8-dimensional input to match selection state
+            input_dim=8, hidden_size=default_dqn_profile.hidden_size
+        )
+        
+        # Initialize action modules with profile-based configuration
+        
+        # Move module
+        move_config = environment.config.get_action_config("move")
         self.move_module = MoveModule(
-            self.config if self.config else DEFAULT_MOVE_CONFIG,
+            dqn_profile=move_config.get_dqn_config(),
+            rewards=move_config.rewards,
+            costs=move_config.costs,
+            device=self.device,
             db=environment.db,
             shared_encoder=self.shared_encoder,
         )
+        
+        # Attack module
+        attack_config = environment.config.get_action_config("attack")
         self.attack_module = AttackModule(
-            self.config if self.config else DEFAULT_ATTACK_CONFIG,
+            dqn_profile=attack_config.get_dqn_config(),
+            rewards=attack_config.rewards,
+            costs=attack_config.costs,
+            thresholds=attack_config.thresholds,
+            device=self.device,
             shared_encoder=self.shared_encoder,
         )
+        
+        # Share module
+        share_config = environment.config.get_action_config("share")
         self.share_module = ShareModule(
-            self.config if self.config else DEFAULT_SHARE_CONFIG,
+            dqn_profile=share_config.get_dqn_config(),
+            rewards=share_config.rewards,
+            costs=share_config.costs,
+            thresholds=share_config.thresholds,
+            device=self.device,
             shared_encoder=self.shared_encoder,
         )
+        
+        # Gather module
+        gather_config = environment.config.get_action_config("gather")
         self.gather_module = GatherModule(
-            self.config if self.config else DEFAULT_GATHER_CONFIG,
+            dqn_profile=gather_config.get_dqn_config(),
+            rewards=gather_config.rewards,
+            costs=gather_config.costs,
+            thresholds=gather_config.thresholds,
+            device=self.device,
             shared_encoder=self.shared_encoder,
         )
+        
+        # Reproduce module
+        reproduce_config = environment.config.get_action_config("reproduce")
         self.reproduce_module = ReproduceModule(
-            self.config if self.config else DEFAULT_REPRODUCE_CONFIG,
+            dqn_profile=reproduce_config.get_dqn_config(),
+            rewards=reproduce_config.rewards,
+            costs=reproduce_config.costs,
+            thresholds=reproduce_config.thresholds,
+            device=self.device,
             shared_encoder=self.shared_encoder,
         )
-        #! change to ChoiceModule
+        
+        # Selection module
         self.select_module = SelectModule(
             num_actions=len(self.actions),
-            config=SelectConfig(),
+            dqn_profile=default_dqn_profile,
+            behavior_profile=behavior_profile,
             device=self.device,
             shared_encoder=self.shared_encoder,
         )
