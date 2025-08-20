@@ -1,0 +1,189 @@
+# Example Simulation Configurations for MCP Server
+# These configurations can be used with the create_simulation and create_experiment tools
+
+# Basic balanced simulation
+basic_simulation:
+  width: 100
+  height: 100
+  system_agents: 10
+  independent_agents: 10
+  control_agents: 10
+  simulation_steps: 1000
+  initial_resources: 20
+  resource_regen_rate: 0.1
+  max_resource_amount: 30
+  seed: 42
+
+# High-density population study
+high_density:
+  width: 80
+  height: 80
+  system_agents: 25
+  independent_agents: 25
+  control_agents: 25
+  simulation_steps: 1500
+  initial_resources: 15
+  resource_regen_rate: 0.15
+  max_population: 500
+
+# Resource scarcity scenario
+resource_scarcity:
+  width: 120
+  height: 120
+  system_agents: 15
+  independent_agents: 15
+  control_agents: 15
+  simulation_steps: 2000
+  initial_resources: 10
+  resource_regen_rate: 0.05
+  max_resource_amount: 15
+  starvation_threshold: 2
+
+# Combat-focused simulation
+combat_heavy:
+  width: 80
+  height: 80
+  system_agents: 12
+  independent_agents: 12
+  control_agents: 12
+  simulation_steps: 1200
+  initial_resources: 25
+  starting_health: 120.0
+  attack_range: 25.0
+  attack_base_damage: 15.0
+  attack_kill_reward: 8.0
+
+# Cooperation study configuration
+cooperation_study:
+  width: 100
+  height: 100
+  system_agents: 20
+  independent_agents: 10
+  control_agents: 10
+  simulation_steps: 1500
+  initial_resources: 30
+  share_range: 40.0
+  share_success_reward: 0.5
+  cooperation_memory: 150
+
+# Long-term evolution study
+evolution_study:
+  width: 150
+  height: 150
+  system_agents: 15
+  independent_agents: 15
+  control_agents: 15
+  simulation_steps: 5000
+  initial_resources: 25
+  max_population: 1000
+  offspring_cost: 5
+  min_reproduction_resources: 10
+
+# Example experiment variations for parameter studies
+experiment_variations:
+  
+  # Agent ratio study
+  agent_ratios:
+    - system_agents: 25, independent_agents: 5, control_agents: 5
+    - system_agents: 15, independent_agents: 15, control_agents: 5
+    - system_agents: 5, independent_agents: 25, control_agents: 5
+    - system_agents: 5, independent_agents: 5, control_agents: 25
+    - system_agents: 12, independent_agents: 12, control_agents: 12
+  
+  # Resource availability study
+  resource_levels:
+    - initial_resources: 5, resource_regen_rate: 0.02
+    - initial_resources: 10, resource_regen_rate: 0.05
+    - initial_resources: 20, resource_regen_rate: 0.1
+    - initial_resources: 40, resource_regen_rate: 0.2
+    - initial_resources: 80, resource_regen_rate: 0.4
+  
+  # Environment size study
+  environment_sizes:
+    - width: 50, height: 50
+    - width: 75, height: 75
+    - width: 100, height: 100
+    - width: 150, height: 150
+    - width: 200, height: 200
+  
+  # Population density study
+  population_density:
+    - system_agents: 5, independent_agents: 5, control_agents: 5
+    - system_agents: 10, independent_agents: 10, control_agents: 10
+    - system_agents: 20, independent_agents: 20, control_agents: 20
+    - system_agents: 40, independent_agents: 40, control_agents: 40
+
+# Research project templates
+research_templates:
+  
+  emergence_study:
+    name: "Emergence of Cooperative Behavior"
+    description: "Investigating how cooperation emerges in competitive multi-agent environments"
+    tags: ["cooperation", "emergence", "social_behavior"]
+    base_config: 
+      <<: *cooperation_study
+      simulation_steps: 3000
+  
+  dominance_patterns:
+    name: "Agent Type Dominance Patterns"
+    description: "Analyzing which agent types achieve dominance under different conditions"
+    tags: ["dominance", "competition", "survival"]
+    base_config:
+      <<: *basic_simulation
+      simulation_steps: 2000
+  
+  resource_competition:
+    name: "Resource Competition Dynamics"
+    description: "Effects of resource scarcity on agent behavior and survival"
+    tags: ["resources", "competition", "scarcity"]
+    base_config:
+      <<: *resource_scarcity
+      simulation_steps: 2500
+
+# Analysis configuration
+analysis_settings:
+  
+  # Standard analysis pipeline
+  comprehensive:
+    - dominance
+    - advantage
+    - genesis
+    - social_behavior
+  
+  # Quick analysis for initial insights
+  basic:
+    - dominance
+    - advantage
+  
+  # Behavioral focus
+  behavioral:
+    - social_behavior
+    - advantage
+  
+  # Population dynamics focus
+  population:
+    - dominance
+    - genesis
+
+# Export configurations
+export_settings:
+  
+  # Full data export
+  complete:
+    format: "csv"
+    data_types: ["all"]
+  
+  # Agent-focused export
+  agents_only:
+    format: "csv"
+    data_types: ["agents", "actions", "states"]
+  
+  # Metrics export
+  metrics_only:
+    format: "json"
+    data_types: ["steps"]
+  
+  # Research export (compressed)
+  research:
+    format: "parquet"
+    data_types: ["all"]

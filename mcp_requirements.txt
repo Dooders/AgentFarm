@@ -1,0 +1,23 @@
+# MCP Server Requirements
+# Core MCP dependencies
+mcp>=1.0.0
+
+# Data processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Database
+sqlalchemy>=2.0.0
+
+# Visualization (optional, for chart generation)
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Scientific computing
+scipy>=1.10.0
+
+# Configuration
+pyyaml>=6.0.0
+
+# Logging and utilities
+python-dateutil>=2.8.0
