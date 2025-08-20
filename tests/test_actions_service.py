@@ -8,6 +8,7 @@ from farm.database.data_types import (
     BehaviorClustering,
     CausalAnalysis,
     DecisionPatterns,
+    DecisionSummary,
     ResourceImpact,
     SequencePattern,
     TimePattern,
@@ -24,26 +25,26 @@ def mock_action_repository():
     # Mock sample actions data
     sample_actions = [
         AgentActionData(
-            agent_id=1,
+            agent_id="1",
             action_type="gather",
             step_number=1,
             action_target_id=None,
-            resources_before={"food": 10},
-            resources_after={"food": 15},
-            state_before_id=1,
-            state_after_id=2,
+            resources_before=10,
+            resources_after=15,
+            state_before_id="1",
+            state_after_id="2",
             reward=5,
             details=None,
         ),
         AgentActionData(
-            agent_id=1,
+            agent_id="1",
             action_type="share",
             step_number=2,
-            action_target_id=2,
-            resources_before={"food": 15},
-            resources_after={"food": 10},
-            state_before_id=2,
-            state_after_id=3,
+            action_target_id="2",
+            resources_before=15,
+            resources_after=10,
+            state_before_id="2",
+            state_after_id="3",
             reward=2,
             details=None,
         ),
@@ -94,33 +95,54 @@ def test_analyze_actions_all_types(actions_service):
     ]
 
     actions_service.behavior_analyzer.analyze.return_value = BehaviorClustering(
-        clusters=[],
+        clusters={},
         cluster_characteristics={},
         cluster_performance={}
     )
 
     actions_service.causal_analyzer.analyze.return_value = CausalAnalysis(
         action_type="gather",
-        causes=[],
-        effects={}
+        causal_impact=5.0,
+        state_transition_probs={}
     )
 
     actions_service.decision_analyzer.analyze.return_value = DecisionPatterns(
-        decision_patterns=[]
+        decision_patterns={},
+        decision_summary=DecisionSummary(
+            total_decisions=2,
+            unique_actions=2,
+            most_frequent="gather",
+            most_rewarding="gather",
+            action_diversity=1.0,
+            normalized_diversity=1.0
+        )
     )
 
     actions_service.resource_analyzer.analyze.return_value = [
         ResourceImpact(
-            action_type="gather", resource_changes={}, resource_efficiency=1.0
+            action_type="gather",
+            avg_resources_before=10.0,
+            avg_resource_change=5.0,
+            resource_efficiency=1.0
         )
     ]
 
     actions_service.sequence_analyzer.analyze.return_value = [
-        SequencePattern(pattern=[], frequency=0, avg_reward=0)
+        SequencePattern(
+            sequence="gather",
+            count=1,
+            probability=0.5
+        )
     ]
 
     actions_service.temporal_analyzer.analyze.return_value = [
-        TimePattern(action_type="gather", temporal_distribution={}, periodicity=0)
+        TimePattern(
+            action_type="gather",
+            time_distribution=[1],
+            reward_progression=[5.0],
+            rolling_average_rewards=[5.0],
+            rolling_average_counts=[1.0]
+        )
     ]
 
     results = actions_service.analyze_actions(
@@ -140,6 +162,8 @@ def test_analyze_actions_all_types(actions_service):
 def test_analyze_actions_specific_types(actions_service):
     """Test analyzing actions with specific analysis types"""
 
+    # Create mock analyzer
+    actions_service.stats_analyzer = Mock()
     actions_service.stats_analyzer.analyze.return_value = [
         ActionMetrics(
             action_type="gather",
@@ -170,8 +194,6 @@ def test_analyze_actions_specific_types(actions_service):
     assert "action_stats" in results
     assert "behavior_clusters" not in results
     assert len(results) == 1
-
-
 
 
 def test_get_action_summary(actions_service):
@@ -208,6 +230,8 @@ def test_get_action_summary(actions_service):
     actions_service.resource_analyzer.analyze.return_value = [
         ResourceImpact(
             action_type="gather",
+            avg_resources_before=10.0,
+            avg_resource_change=5.0,
             resource_efficiency=1.0
         )
     ]

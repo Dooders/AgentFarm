@@ -44,7 +44,7 @@ class TestDatabasePragmas(unittest.TestCase):
 
     def test_default_pragmas(self):
         """Test default pragma settings."""
-        self.db = SimulationDatabase(self.db_path)
+        self.db = SimulationDatabase(self.db_path.as_posix())
         pragmas = self.db.get_current_pragmas()
         
         # Check default settings
@@ -63,7 +63,7 @@ class TestDatabasePragmas(unittest.TestCase):
     def test_performance_profile(self):
         """Test performance profile pragma settings."""
         self.config.db_pragma_profile = "performance"
-        self.db = SimulationDatabase(self.db_path, self.config)
+        self.db = SimulationDatabase(self.db_path.as_posix(), self.config)
         pragmas = self.db.get_current_pragmas()
         
         # Check performance settings
@@ -78,7 +78,7 @@ class TestDatabasePragmas(unittest.TestCase):
     def test_safety_profile(self):
         """Test safety profile pragma settings."""
         self.config.db_pragma_profile = "safety"
-        self.db = SimulationDatabase(self.db_path, self.config)
+        self.db = SimulationDatabase(self.db_path.as_posix(), self.config)
         pragmas = self.db.get_current_pragmas()
         
         # Check safety settings
@@ -92,7 +92,7 @@ class TestDatabasePragmas(unittest.TestCase):
     def test_memory_profile(self):
         """Test memory-optimized profile pragma settings."""
         self.config.db_pragma_profile = "memory"
-        self.db = SimulationDatabase(self.db_path, self.config)
+        self.db = SimulationDatabase(self.db_path.as_posix(), self.config)
         pragmas = self.db.get_current_pragmas()
         
         # Check memory-optimized settings
@@ -111,11 +111,11 @@ class TestDatabasePragmas(unittest.TestCase):
         self.config.db_pragma_profile = "balanced"
         self.config.db_custom_pragmas = {
             "synchronous": "OFF",
-            "cache_size": -524288,  # 512MB
-            "mmap_size": 536870912,  # 512MB
+            "cache_size": "-524288",  # 512MB
+            "mmap_size": "536870912",  # 512MB
         }
         
-        self.db = SimulationDatabase(self.db_path, self.config)
+        self.db = SimulationDatabase(self.db_path.as_posix(), self.config)
         pragmas = self.db.get_current_pragmas()
         
         # Check custom overrides
@@ -172,7 +172,7 @@ class TestDatabasePragmas(unittest.TestCase):
 
     def test_workload_adjustment(self):
         """Test runtime pragma adjustment for different workloads."""
-        self.db = SimulationDatabase(self.db_path)
+        self.db = SimulationDatabase(self.db_path.as_posix())
         
         # Check initial settings
         initial_pragmas = self.db.get_current_pragmas()
