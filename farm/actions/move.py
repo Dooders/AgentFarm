@@ -136,6 +136,24 @@ class MoveModule(BaseDQNModule):
     """
 
     def __init__(self, config: MoveConfig = DEFAULT_MOVE_CONFIG, device: torch.device = DEVICE, db: Optional["SimulationDatabase"] = None, shared_encoder: Optional[SharedEncoder] = None) -> None:
+        # Allow passing a global SimulationConfig by mapping prefixed fields to a MoveConfig
+        if not isinstance(config, MoveConfig):
+            effective = MoveConfig()
+            # DQN hyperparameters with move_* overrides first
+            effective.learning_rate = getattr(config, "move_learning_rate", getattr(config, "learning_rate", effective.learning_rate))
+            effective.gamma = getattr(config, "move_gamma", getattr(config, "gamma", effective.gamma))
+            effective.epsilon_start = getattr(config, "move_epsilon_start", getattr(config, "epsilon_start", effective.epsilon_start))
+            effective.epsilon_min = getattr(config, "move_epsilon_min", getattr(config, "epsilon_min", effective.epsilon_min))
+            effective.epsilon_decay = getattr(config, "move_epsilon_decay", getattr(config, "epsilon_decay", effective.epsilon_decay))
+            effective.memory_size = getattr(config, "move_memory_size", getattr(config, "memory_size", effective.memory_size))
+            effective.batch_size = getattr(config, "move_batch_size", getattr(config, "batch_size", effective.batch_size))
+            effective.dqn_hidden_size = getattr(config, "move_dqn_hidden_size", getattr(config, "dqn_hidden_size", effective.dqn_hidden_size))
+            effective.tau = getattr(config, "move_tau", getattr(config, "tau", effective.tau))
+            # Move-specific rewards/costs
+            effective.move_base_cost = getattr(config, "move_base_cost", effective.move_base_cost)
+            effective.move_resource_approach_reward = getattr(config, "move_resource_approach_reward", effective.move_resource_approach_reward)
+            effective.move_resource_retreat_penalty = getattr(config, "move_resource_retreat_penalty", effective.move_resource_retreat_penalty)
+            config = effective
         super().__init__(input_dim=8, output_dim=4, config=config, device=device, db=db)
         self.q_network = MoveQNetwork(input_dim=8, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder).to(device)
         self.target_network = MoveQNetwork(input_dim=8, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder).to(device)
@@ -296,7 +314,7 @@ def move_action(agent: "BaseAgent") -> None:
             agent_id=agent.agent_id,
             action_type="move",
             resources_before=agent.resource_level,
-            resources_after=agent.resource_level - DEFAULT_MOVE_CONFIG.move_base_cost,
+            resources_after=agent.resource_level - agent.move_module.config.move_base_cost,
             reward=reward,
             details={
                 "distance_moved": _calculate_distance(initial_position, new_position)
@@ -333,7 +351,7 @@ def _calculate_movement_reward(
         - Penalty for moving away from resources (negative)
     """
     # Base cost for moving
-    reward = DEFAULT_MOVE_CONFIG.move_base_cost
+    reward = agent.move_module.config.move_base_cost
 
     # Calculate movement distance
     distance_moved = np.sqrt(
@@ -349,9 +367,9 @@ def _calculate_movement_reward(
             )
             new_distance = _calculate_distance(closest_resource.position, new_position)
             reward += (
-                DEFAULT_MOVE_CONFIG.move_resource_approach_reward
+                agent.move_module.config.move_resource_approach_reward
                 if new_distance < old_distance
-                else DEFAULT_MOVE_CONFIG.move_resource_retreat_penalty
+                else agent.move_module.config.move_resource_retreat_penalty
             )
 
     return reward

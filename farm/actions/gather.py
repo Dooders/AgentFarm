@@ -188,6 +188,27 @@ class GatherModule(BaseDQNModule):
         self.input_dim = 8  # State space dimension (matches SharedEncoder)
         self.output_dim = 3  # Action space dimension (GATHER, WAIT, SKIP)
 
+        # Allow passing a global SimulationConfig by mapping prefixed fields to a GatherConfig
+        if not isinstance(config, GatherConfig):
+            effective = GatherConfig()
+            effective.learning_rate = getattr(config, "gather_learning_rate", getattr(config, "learning_rate", effective.learning_rate))
+            effective.gamma = getattr(config, "gather_gamma", getattr(config, "gamma", effective.gamma))
+            effective.epsilon_start = getattr(config, "gather_epsilon_start", getattr(config, "epsilon_start", effective.epsilon_start))
+            effective.epsilon_min = getattr(config, "gather_epsilon_min", getattr(config, "epsilon_min", effective.epsilon_min))
+            effective.epsilon_decay = getattr(config, "gather_epsilon_decay", getattr(config, "epsilon_decay", effective.epsilon_decay))
+            effective.memory_size = getattr(config, "gather_memory_size", getattr(config, "memory_size", effective.memory_size))
+            effective.batch_size = getattr(config, "gather_batch_size", getattr(config, "batch_size", effective.batch_size))
+            effective.dqn_hidden_size = getattr(config, "gather_dqn_hidden_size", getattr(config, "dqn_hidden_size", effective.dqn_hidden_size))
+            effective.tau = getattr(config, "gather_tau", getattr(config, "tau", effective.tau))
+            # Gather-specific
+            effective.min_resource_threshold = getattr(config, "gather_resource_threshold", getattr(config, "min_resource_threshold", effective.min_resource_threshold))
+            effective.max_wait_steps = getattr(config, "max_wait_steps", effective.max_wait_steps)
+            # Map reward/cost style fields if present
+            effective.gather_success_reward = getattr(config, "gather_success_reward", getattr(config, "gather_success_reward", effective.gather_success_reward))
+            effective.gather_fail_penalty = getattr(config, "gather_failure_penalty", getattr(config, "gather_fail_penalty", effective.gather_fail_penalty))
+            effective.gather_efficiency_multiplier = getattr(config, "gather_efficiency_bonus", getattr(config, "gather_efficiency_multiplier", effective.gather_efficiency_multiplier))
+            effective.gather_cost_multiplier = getattr(config, "gather_base_cost", getattr(config, "gather_cost_multiplier", effective.gather_cost_multiplier))
+            config = effective
         super().__init__(
             input_dim=self.input_dim,
             output_dim=self.output_dim,

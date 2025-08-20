@@ -374,6 +374,25 @@ class AttackModule(BaseDQNModule):
         device: torch.device = DEVICE,
         shared_encoder: Optional[SharedEncoder] = None,
     ) -> None:
+        # Allow passing a global SimulationConfig by mapping prefixed fields to an AttackConfig
+        if not isinstance(config, AttackConfig):
+            effective = AttackConfig()
+            effective.learning_rate = getattr(config, "attack_learning_rate", getattr(config, "learning_rate", effective.learning_rate))
+            effective.gamma = getattr(config, "attack_gamma", getattr(config, "gamma", effective.gamma))
+            effective.epsilon_start = getattr(config, "attack_epsilon_start", getattr(config, "epsilon_start", effective.epsilon_start))
+            effective.epsilon_min = getattr(config, "attack_epsilon_min", getattr(config, "epsilon_min", effective.epsilon_min))
+            effective.epsilon_decay = getattr(config, "attack_epsilon_decay", getattr(config, "epsilon_decay", effective.epsilon_decay))
+            effective.memory_size = getattr(config, "attack_memory_size", getattr(config, "memory_size", effective.memory_size))
+            effective.batch_size = getattr(config, "attack_batch_size", getattr(config, "batch_size", effective.batch_size))
+            effective.dqn_hidden_size = getattr(config, "attack_dqn_hidden_size", getattr(config, "dqn_hidden_size", effective.dqn_hidden_size))
+            effective.tau = getattr(config, "attack_tau", getattr(config, "tau", effective.tau))
+            # Attack-specific
+            effective.attack_base_cost = getattr(config, "attack_base_cost", effective.attack_base_cost)
+            effective.attack_success_reward = getattr(config, "attack_success_reward", effective.attack_success_reward)
+            effective.attack_failure_penalty = getattr(config, "attack_failure_penalty", effective.attack_failure_penalty)
+            effective.attack_defense_threshold = getattr(config, "attack_defense_threshold", effective.attack_defense_threshold)
+            effective.attack_defense_boost = getattr(config, "attack_defense_boost", effective.attack_defense_boost)
+            config = effective
         super().__init__(input_dim=8, output_dim=5, config=config, device=device)
         self._setup_action_space()
         # Store the attack-specific config for access to attack attributes
