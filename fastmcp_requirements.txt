@@ -1,0 +1,25 @@
+# FastMCP Server Requirements for AgentFarm
+fastmcp>=0.1.0
+
+# Data processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Database
+sqlalchemy>=2.0.0
+
+# PyTorch for AI models
+torch>=2.0.0
+
+# Visualization (optional)
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Scientific computing
+scipy>=1.10.0
+
+# Configuration
+pyyaml>=6.0.0
+
+# Logging and utilities
+python-dateutil>=2.8.0
