@@ -52,46 +52,14 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
+from .config import BaseDQNConfig
+
 logger = logging.getLogger(__name__)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 if TYPE_CHECKING:
     from farm.database.database import SimulationDatabase
-
-
-class BaseDQNConfig:
-    """Configuration class for DQN modules.
-
-    This class defines all hyperparameters and settings for DQN-based learning
-    modules. It provides sensible defaults while allowing customization for
-    specific use cases.
-
-    Attributes:
-        target_update_freq (int): Frequency of hard target network updates (unused with soft updates)
-        memory_size (int): Maximum size of experience replay buffer
-        learning_rate (float): Learning rate for the Adam optimizer
-        gamma (float): Discount factor for future rewards
-        epsilon_start (float): Initial exploration rate for epsilon-greedy strategy
-        epsilon_min (float): Minimum exploration rate
-        epsilon_decay (float): Decay rate for exploration (multiplied each step)
-        dqn_hidden_size (int): Number of neurons in hidden layers
-        batch_size (int): Number of experiences to sample for training
-        tau (float): Soft update parameter for target network (0 < tau < 1)
-        seed (Optional[int]): Random seed for reproducibility
-    """
-
-    target_update_freq: int = 100
-    memory_size: int = 10000
-    learning_rate: float = 0.001
-    gamma: float = 0.99
-    epsilon_start: float = 1.0
-    epsilon_min: float = 0.01
-    epsilon_decay: float = 0.995
-    dqn_hidden_size: int = 64
-    batch_size: int = 32
-    tau: float = 0.005
-    seed: Optional[int] = None  # Seed for reproducibility
 
 
 class SharedEncoder(nn.Module):

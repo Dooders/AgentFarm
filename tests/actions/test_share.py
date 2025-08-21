@@ -26,10 +26,10 @@ class TestShareConfig(unittest.TestCase):
         """Test default configuration values."""
         config = ShareConfig()
         
-        self.assertEqual(config.share_range, 30.0)
-        self.assertEqual(config.min_share_amount, 1)
-        self.assertEqual(config.share_success_reward, 0.3)
-        self.assertEqual(config.share_failure_penalty, -0.1)
+        self.assertEqual(config.range, 30.0)
+        self.assertEqual(config.min_amount, 1)
+        self.assertEqual(config.success_reward, 0.3)
+        self.assertEqual(config.failure_penalty, -0.1)
         self.assertEqual(config.altruism_bonus, 0.2)
         self.assertEqual(config.cooperation_memory, 100)
         self.assertEqual(config.max_resources, 30)
@@ -37,18 +37,18 @@ class TestShareConfig(unittest.TestCase):
     def test_custom_config(self):
         """Test custom configuration values."""
         config = ShareConfig()
-        config.share_range = 50.0
-        config.min_share_amount = 2
-        config.share_success_reward = 0.5
-        config.share_failure_penalty = -0.2
+        config.range = 50.0
+        config.min_amount = 2
+        config.success_reward = 0.5
+        config.failure_penalty = -0.2
         config.altruism_bonus = 0.3
         config.cooperation_memory = 200
         config.max_resources = 50
         
-        self.assertEqual(config.share_range, 50.0)
-        self.assertEqual(config.min_share_amount, 2)
-        self.assertEqual(config.share_success_reward, 0.5)
-        self.assertEqual(config.share_failure_penalty, -0.2)
+        self.assertEqual(config.range, 50.0)
+        self.assertEqual(config.min_amount, 2)
+        self.assertEqual(config.success_reward, 0.5)
+        self.assertEqual(config.failure_penalty, -0.2)
         self.assertEqual(config.altruism_bonus, 0.3)
         self.assertEqual(config.cooperation_memory, 200)
         self.assertEqual(config.max_resources, 50)

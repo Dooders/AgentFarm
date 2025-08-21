@@ -25,8 +25,8 @@ class TestReproduceConfig(unittest.TestCase):
         """Test default configuration values."""
         config = ReproduceConfig()
         
-        self.assertEqual(config.reproduce_success_reward, 1.0)
-        self.assertEqual(config.reproduce_fail_penalty, -0.2)
+        self.assertEqual(config.success_reward, 1.0)
+        self.assertEqual(config.failure_penalty, -0.2)
         self.assertEqual(config.offspring_survival_bonus, 0.5)
         self.assertEqual(config.population_balance_bonus, 0.3)
         self.assertEqual(config.min_health_ratio, 0.5)
@@ -38,8 +38,8 @@ class TestReproduceConfig(unittest.TestCase):
     def test_custom_config(self):
         """Test custom configuration values."""
         config = ReproduceConfig()
-        config.reproduce_success_reward = 2.0
-        config.reproduce_fail_penalty = -0.5
+        config.success_reward = 2.0
+        config.failure_penalty = -0.5
         config.offspring_survival_bonus = 0.7
         config.population_balance_bonus = 0.4
         config.min_health_ratio = 0.6
@@ -48,8 +48,8 @@ class TestReproduceConfig(unittest.TestCase):
         config.max_local_density = 0.8
         config.min_space_required = 25.0
         
-        self.assertEqual(config.reproduce_success_reward, 2.0)
-        self.assertEqual(config.reproduce_fail_penalty, -0.5)
+        self.assertEqual(config.success_reward, 2.0)
+        self.assertEqual(config.failure_penalty, -0.5)
         self.assertEqual(config.offspring_survival_bonus, 0.7)
         self.assertEqual(config.population_balance_bonus, 0.4)
         self.assertEqual(config.min_health_ratio, 0.6)

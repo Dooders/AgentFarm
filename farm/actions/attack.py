@@ -31,12 +31,8 @@ The module integrates with the broader simulation through:
 import logging
 from typing import TYPE_CHECKING, List, Optional, Tuple
 
-from farm.actions.base_dqn import (
-    BaseDQNConfig,
-    BaseDQNModule,
-    BaseQNetwork,
-    SharedEncoder,
-)
+from farm.actions.base_dqn import BaseDQNModule, BaseQNetwork, SharedEncoder
+from farm.actions.config import DEFAULT_ATTACK_CONFIG, AttackConfig
 from farm.core.action import action_registry
 from farm.loggers.attack_logger import AttackLogger
 
@@ -96,9 +92,7 @@ def _find_valid_targets(
     """
     if agent.config is None:
         return []
-    targets = agent.environment.get_nearby_agents(
-        target_position, agent.config.attack_range
-    )
+    targets = agent.environment.get_nearby_agents(target_position, agent.config.range)
     return [target for target in targets if target.agent_id != agent.agent_id]
 
 
@@ -139,7 +133,7 @@ def _apply_attack_cost(agent: "BaseAgent") -> None:
     """
     if agent.config is None:
         return
-    attack_cost = agent.config.attack_base_cost * agent.resource_level
+    attack_cost = agent.config.base_cost * agent.resource_level
     agent.resource_level += attack_cost
 
 
@@ -278,30 +272,6 @@ def _calculate_attack_direction(agent: "BaseAgent", target: "BaseAgent") -> int:
         return AttackActionSpace.ATTACK_UP if dy > 0 else AttackActionSpace.ATTACK_DOWN
 
 
-class AttackConfig(BaseDQNConfig):
-    """Configuration class for attack-specific parameters and learning settings.
-
-    Extends BaseDQNConfig with attack-specific hyperparameters that control
-    combat mechanics, reward structures, and learning behavior.
-
-    Attributes:
-        attack_base_cost: Base resource cost for attempting an attack (multiplied by resource level)
-        attack_success_reward: Reward multiplier for successful attacks (default: +1.0)
-        attack_failure_penalty: Penalty for failed attack attempts (default: -0.3)
-        attack_defense_threshold: Health ratio threshold for defensive behavior (default: 0.3)
-        attack_defense_boost: Multiplier for defense action when health is low (default: 2.0)
-    """
-
-    attack_base_cost: float = -0.2
-    attack_success_reward: float = 1.0
-    attack_failure_penalty: float = -0.3
-    attack_defense_threshold: float = 0.3
-    attack_defense_boost: float = 2.0
-
-
-DEFAULT_ATTACK_CONFIG = AttackConfig()
-
-
 class AttackActionSpace:
     """Defines the available attack actions and their corresponding indices.
 
@@ -426,10 +396,10 @@ class AttackModule(BaseDQNModule):
         if random.random() > self.epsilon:
             with torch.no_grad():
                 q_values = self.q_network(state)
-                if health_ratio < self.attack_config.attack_defense_threshold:
+                if health_ratio < self.attack_config.defense_threshold:
                     q_values[
                         AttackActionSpace.DEFEND
-                    ] *= self.attack_config.attack_defense_boost
+                    ] *= self.attack_config.defense_boost
                 return q_values.argmax().item()
         return random.randint(0, len(self.action_space) - 1)
 

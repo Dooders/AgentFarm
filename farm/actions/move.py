@@ -51,10 +51,12 @@ from typing import TYPE_CHECKING, Any, Optional, Tuple
 import numpy as np
 import torch
 
-from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork
-from farm.database.database import SimulationDatabase
-from .base_dqn import SharedEncoder
+from farm.actions.base_dqn import BaseDQNModule, BaseQNetwork
+from farm.actions.config import DEFAULT_MOVE_CONFIG, MoveConfig
 from farm.core.action import action_registry
+from farm.database.database import SimulationDatabase
+
+from .base_dqn import SharedEncoder
 
 if TYPE_CHECKING:
     from farm.agents.base_agent import BaseAgent
@@ -66,26 +68,6 @@ logger = logging.getLogger(__name__)
 
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-class MoveConfig(BaseDQNConfig):
-    """Configuration class for movement-specific DQN parameters.
-
-    This class extends BaseDQNConfig with movement-specific reward parameters
-    that control the learning behavior of the movement module.
-
-    Attributes:
-        move_base_cost (float): Base cost for any movement action (negative reward)
-        move_resource_approach_reward (float): Reward for moving closer to resources
-        move_resource_retreat_penalty (float): Penalty for moving away from resources
-    """
-
-    move_base_cost: float = -0.1
-    move_resource_approach_reward: float = 0.3
-    move_resource_retreat_penalty: float = -0.2
-
-
-DEFAULT_MOVE_CONFIG = MoveConfig()
 
 
 class MoveActionSpace:
@@ -118,8 +100,18 @@ class MoveQNetwork(BaseQNetwork):
         hidden_size (int, optional): Size of hidden layers. Defaults to 64.
     """
 
-    def __init__(self, input_dim: int, hidden_size: int = 64, shared_encoder: Optional[SharedEncoder] = None) -> None:
-        super().__init__(input_dim, output_dim=4, hidden_size=hidden_size, shared_encoder=shared_encoder)
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_size: int = 64,
+        shared_encoder: Optional[SharedEncoder] = None,
+    ) -> None:
+        super().__init__(
+            input_dim,
+            output_dim=4,
+            hidden_size=hidden_size,
+            shared_encoder=shared_encoder,
+        )
 
 
 class MoveModule(BaseDQNModule):
@@ -135,10 +127,24 @@ class MoveModule(BaseDQNModule):
         db (Optional[SimulationDatabase], optional): Database for logging. Defaults to None.
     """
 
-    def __init__(self, config: MoveConfig = DEFAULT_MOVE_CONFIG, device: torch.device = DEVICE, db: Optional["SimulationDatabase"] = None, shared_encoder: Optional[SharedEncoder] = None) -> None:
+    def __init__(
+        self,
+        config: MoveConfig = DEFAULT_MOVE_CONFIG,
+        device: torch.device = DEVICE,
+        db: Optional["SimulationDatabase"] = None,
+        shared_encoder: Optional[SharedEncoder] = None,
+    ) -> None:
         super().__init__(input_dim=8, output_dim=4, config=config, device=device, db=db)
-        self.q_network = MoveQNetwork(input_dim=8, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder).to(device)
-        self.target_network = MoveQNetwork(input_dim=8, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder).to(device)
+        self.q_network = MoveQNetwork(
+            input_dim=8,
+            hidden_size=config.dqn_hidden_size,
+            shared_encoder=shared_encoder,
+        ).to(device)
+        self.target_network = MoveQNetwork(
+            input_dim=8,
+            hidden_size=config.dqn_hidden_size,
+            shared_encoder=shared_encoder,
+        ).to(device)
         self.target_network.load_state_dict(self.q_network.state_dict())
         self._setup_action_space()
 
@@ -296,7 +302,7 @@ def move_action(agent: "BaseAgent") -> None:
             agent_id=agent.agent_id,
             action_type="move",
             resources_before=agent.resource_level,
-            resources_after=agent.resource_level - DEFAULT_MOVE_CONFIG.move_base_cost,
+            resources_after=agent.resource_level - DEFAULT_MOVE_CONFIG.base_cost,
             reward=reward,
             details={
                 "distance_moved": _calculate_distance(initial_position, new_position)
@@ -333,7 +339,7 @@ def _calculate_movement_reward(
         - Penalty for moving away from resources (negative)
     """
     # Base cost for moving
-    reward = DEFAULT_MOVE_CONFIG.move_base_cost
+    reward = DEFAULT_MOVE_CONFIG.base_cost
 
     # Calculate movement distance
     distance_moved = np.sqrt(
@@ -349,9 +355,9 @@ def _calculate_movement_reward(
             )
             new_distance = _calculate_distance(closest_resource.position, new_position)
             reward += (
-                DEFAULT_MOVE_CONFIG.move_resource_approach_reward
+                DEFAULT_MOVE_CONFIG.resource_approach_reward
                 if new_distance < old_distance
-                else DEFAULT_MOVE_CONFIG.move_resource_retreat_penalty
+                else DEFAULT_MOVE_CONFIG.resource_retreat_penalty
             )
 
     return reward
@@ -452,4 +458,4 @@ def _store_and_train(agent: "BaseAgent", state: Any, reward: float) -> None:
 
 
 # Register the action at the end of the file after the function is defined
-action_registry.register('move', 0.4, move_action)
+action_registry.register("move", 0.4, move_action)

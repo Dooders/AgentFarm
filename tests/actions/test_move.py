@@ -26,20 +26,20 @@ class TestMoveConfig(unittest.TestCase):
         """Test default configuration values."""
         config = MoveConfig()
         
-        self.assertEqual(config.move_base_cost, -0.1)
-        self.assertEqual(config.move_resource_approach_reward, 0.3)
-        self.assertEqual(config.move_resource_retreat_penalty, -0.2)
+        self.assertEqual(config.base_cost, -0.1)
+        self.assertEqual(config.resource_approach_reward, 0.3)
+        self.assertEqual(config.resource_retreat_penalty, -0.2)
 
     def test_custom_config(self):
         """Test custom configuration values."""
         config = MoveConfig()
-        config.move_base_cost = -0.05
-        config.move_resource_approach_reward = 0.5
-        config.move_resource_retreat_penalty = -0.3
+        config.base_cost = -0.05
+        config.resource_approach_reward = 0.5
+        config.resource_retreat_penalty = -0.3
         
-        self.assertEqual(config.move_base_cost, -0.05)
-        self.assertEqual(config.move_resource_approach_reward, 0.5)
-        self.assertEqual(config.move_resource_retreat_penalty, -0.3)
+        self.assertEqual(config.base_cost, -0.05)
+        self.assertEqual(config.resource_approach_reward, 0.5)
+        self.assertEqual(config.resource_retreat_penalty, -0.3)
 
     def test_inheritance_from_base_config(self):
         """Test that MoveConfig inherits from BaseDQNConfig."""
