@@ -247,8 +247,8 @@ class TestAttackAction(unittest.TestCase):
         self.mock_environment.successful_attacks_this_step = 0
         
         # Set up config mock
-        self.mock_config.attack_range = 5.0
-        self.mock_config.attack_base_cost = -0.2
+        self.mock_config.range = 5.0
+        self.mock_config.base_cost = -0.2
         
         # Set up attack module mock
         self.mock_attack_module.device = torch.device("cpu")

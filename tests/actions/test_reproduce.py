@@ -277,6 +277,13 @@ class TestReproduceAction(unittest.TestCase):
         self.mock_agent.config.offspring_cost = 3
         self.mock_agent.config.gathering_range = 50.0
         self.mock_agent.config.max_population = 100
+        self.mock_agent.config.min_health_ratio = 0.5
+        self.mock_agent.config.min_space_required = 20.0
+        self.mock_agent.config.max_local_density = 0.7
+        self.mock_agent.config.ideal_density_radius = 50.0
+        self.mock_agent.config.success_reward = 1.0
+        self.mock_agent.config.offspring_survival_bonus = 0.5
+        self.mock_agent.config.population_balance_bonus = 0.3
         self.mock_agent.device = torch.device('cpu')
         self.mock_agent.starvation_threshold = 0.5
         self.mock_agent.max_starvation = 1.0

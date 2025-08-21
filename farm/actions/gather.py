@@ -507,7 +507,7 @@ def gather_action(agent: "BaseAgent") -> None:
         config = agent.config
         assert config is not None, "Agent config cannot be None"
 
-        gather_amount = min(config.max_gather_amount, target_resource.amount)
+        gather_amount = min(config.max_amount, target_resource.amount)
         target_resource.consume(gather_amount)
         agent.resource_level += gather_amount
 

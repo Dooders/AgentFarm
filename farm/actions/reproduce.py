@@ -312,7 +312,7 @@ def _get_reproduce_state(agent: "BaseAgent") -> torch.Tensor:
         if a != agent
         and a.alive
         and np.sqrt(((np.array(a.position) - np.array(agent.position)) ** 2).sum())
-        < ReproduceConfig.ideal_density_radius
+        < config.ideal_density_radius
     ]
 
     local_density = len(nearby_agents) / max(1, len(agent.environment.agents))
@@ -383,7 +383,7 @@ def _check_reproduction_conditions(agent: "BaseAgent") -> bool:
         return False
 
     # Check health status
-    if agent.current_health < agent.starting_health * ReproduceConfig.min_health_ratio:
+    if agent.current_health < agent.starting_health * config.min_health_ratio:
         return False
 
     # Check local population density
@@ -393,12 +393,12 @@ def _check_reproduction_conditions(agent: "BaseAgent") -> bool:
         if a != agent
         and a.alive
         and np.sqrt(((np.array(a.position) - np.array(agent.position)) ** 2).sum())
-        < ReproduceConfig.min_space_required
+        < config.min_space_required
     ]
 
     if (
         len(nearby_agents) / max(1, len(agent.environment.agents))
-        > ReproduceConfig.max_local_density
+        > config.max_local_density
     ):
         return False
 
@@ -429,16 +429,16 @@ def _calculate_reproduction_reward(agent: "BaseAgent", offspring: "BaseAgent") -
     config = agent.config
     assert config is not None, "Agent config cannot be None"
 
-    reward = ReproduceConfig.success_reward
+    reward = config.success_reward
 
     # Add bonus for maintaining good health/resources after reproduction
     if agent.resource_level > config.min_reproduction_resources:
-        reward += ReproduceConfig.offspring_survival_bonus
+        reward += config.offspring_survival_bonus
 
     # Add bonus for maintaining good population balance
     population_ratio = len(agent.environment.agents) / config.max_population
     if 0.4 <= population_ratio <= 0.8:
-        reward += ReproduceConfig.population_balance_bonus
+        reward += config.population_balance_bonus
 
     return reward
 
