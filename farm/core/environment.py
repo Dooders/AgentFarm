@@ -3,10 +3,10 @@ import os
 import random
 import threading
 import time
-from typing import Dict, Set, Optional
+from typing import Dict, Optional, Set
 
 import numpy as np
-from scipy.spatial import cKDTree
+from scipy.spatial import KDTree
 
 from farm.agents import ControlAgent, IndependentAgent, SystemAgent
 from farm.core.resources import Resource
@@ -57,11 +57,15 @@ class Environment:
         seed=None,
     ):
         # Set seed if provided
-        self.seed_value = seed if seed is not None else config.seed if config and config.seed else None
+        self.seed_value = (
+            seed
+            if seed is not None
+            else config.seed if config and config.seed else None
+        )
         if self.seed_value is not None:
             random.seed(self.seed_value)
             np.random.seed(self.seed_value)
-        
+
         setup_db(db_path)
 
         # Initialize basic attributes
@@ -123,7 +127,7 @@ class Environment:
         alive_agents = [agent for agent in self.agents if agent.alive]
         if alive_agents:
             self.agent_positions = np.array([agent.position for agent in alive_agents])
-            self.agent_kdtree = cKDTree(self.agent_positions)
+            self.agent_kdtree = KDTree(self.agent_positions)
         else:
             self.agent_kdtree = None
             self.agent_positions = None
@@ -133,7 +137,7 @@ class Environment:
             self.resource_positions = np.array(
                 [resource.position for resource in self.resources]
             )
-            self.resource_kdtree = cKDTree(self.resource_positions)
+            self.resource_kdtree = KDTree(self.resource_positions)
         else:
             self.resource_kdtree = None
             self.resource_positions = None
@@ -216,12 +220,12 @@ class Environment:
         else:
             rng = random
             np_rng = np.random
-            
+
         for _ in range(distribution["amount"]):
             position = (rng.uniform(0, self.width), rng.uniform(0, self.height))
-            
+
             # Deterministic resource amount
-            if self.config and hasattr(self.config, 'max_resource_amount'):
+            if self.config and hasattr(self.config, "max_resource_amount"):
                 if self.seed_value is not None:
                     # Use a fixed formula based on position for initial amount
                     pos_sum = position[0] + position[1]
@@ -231,13 +235,15 @@ class Environment:
                     amount = random.randint(3, 8)
             else:
                 amount = 5  # Default if no config specified
-                
+
             resource = Resource(
                 resource_id=self.get_next_resource_id(),
                 position=position,
                 amount=amount,
                 max_amount=self.config.max_resource_amount if self.config else 10,
-                regeneration_rate=self.config.resource_regen_rate if self.config else 0.1,
+                regeneration_rate=(
+                    self.config.resource_regen_rate if self.config else 0.1
+                ),
             )
             self.resources.append(resource)
             # Log resource to database
@@ -261,8 +267,8 @@ class Environment:
     def collect_action(self, **action_data):
         """Collect an action for batch processing."""
 
-        if self.logger is not None:
-            self.logger.log_agent_action(
+        if self.db is not None:
+            self.db.logger.log_agent_action(
                 step_number=action_data["step_number"],
                 agent_id=action_data["agent_id"],
                 action_type=action_data["action_type"],
@@ -277,38 +283,59 @@ class Environment:
         """Update environment state for current time step."""
         try:
             # Update resources with deterministic regeneration if seed is set
-            if hasattr(self, 'seed_value') and self.seed_value is not None:
+            if hasattr(self, "seed_value") and self.seed_value is not None:
                 # Create deterministic RNG based on seed and current time
                 rng = random.Random(self.seed_value + self.time)
-                
+
                 # Deterministically decide which resources regenerate
                 for resource in self.resources:
                     # Use resource ID and position as additional entropy sources
-                    decision_seed = hash((resource.resource_id, resource.position[0], resource.position[1], self.time))
+                    decision_seed = hash(
+                        (
+                            resource.resource_id,
+                            resource.position[0],
+                            resource.position[1],
+                            self.time,
+                        )
+                    )
                     # Mix with simulation seed
                     combined_seed = (self.seed_value * 100000) + decision_seed
                     # Create a deterministic random generator for this resource
                     resource_rng = random.Random(combined_seed)
-                    
+
                     # Check if this resource should regenerate
-                    if resource_rng.random() < self.config.resource_regen_rate and (
-                        self.max_resource is None or resource.amount < self.max_resource
+                    if (
+                        resource_rng.random() < self.config.resource_regen_rate
+                        if self.config
+                        else 0.1
+                        and (
+                            self.max_resource is None
+                            or resource.amount < self.max_resource
+                        )
                     ):
                         resource.amount = min(
-                            resource.amount + self.config.resource_regen_amount,
+                            (
+                                resource.amount + self.config.resource_regen_amount
+                                if self.config
+                                else 2
+                            ),
                             self.max_resource or float("inf"),
                         )
             else:
                 # Use standard random method if no seed is set (non-deterministic mode)
-                regen_mask = (
-                    np.random.random(len(self.resources)) < self.config.resource_regen_rate
+                regen_mask = np.random.random(len(self.resources)) < (
+                    self.config.resource_regen_rate if self.config else 0.1
                 )
                 for resource, should_regen in zip(self.resources, regen_mask):
                     if should_regen and (
                         self.max_resource is None or resource.amount < self.max_resource
                     ):
                         resource.amount = min(
-                            resource.amount + self.config.resource_regen_amount,
+                            (
+                                resource.amount + self.config.resource_regen_amount
+                                if self.config
+                                else 2
+                            ),
                             self.max_resource or float("inf"),
                         )
 
@@ -383,7 +410,10 @@ class Environment:
             )
             resource_efficiency = (
                 total_resources
-                / (len(self.resources) * self.config.max_resource_amount)
+                / (
+                    len(self.resources)
+                    * (self.config.max_resource_amount if self.config else 30)
+                )
                 if self.resources
                 else 0
             )
@@ -477,18 +507,19 @@ class Environment:
         str
             A unique short ID string
         """
-        if hasattr(self, 'seed_value') and self.seed_value is not None:
+        if hasattr(self, "seed_value") and self.seed_value is not None:
             # For deterministic mode, create IDs based on a counter
-            if not hasattr(self, 'agent_id_counter'):
+            if not hasattr(self, "agent_id_counter"):
                 self.agent_id_counter = 0
-            
+
             # Use agent counter and seed to create a deterministic ID
             agent_seed = f"{self.seed_value}_{self.agent_id_counter}"
             # Increment counter for next agent
             self.agent_id_counter += 1
-            
+
             # Use a deterministic hash function
             import hashlib
+
             # Create a hash and use the first 10 characters
             agent_hash = hashlib.md5(agent_seed.encode()).hexdigest()[:10]
             return f"agent_{agent_hash}"
@@ -518,7 +549,7 @@ class Environment:
 
     def _initialize_resources(self):
         """Initialize resources in the environment."""
-        for i in range(self.config.initial_resources):
+        for i in range(self.config.initial_resources if self.config else 20):
             # Random position
             x = random.uniform(0, self.width)
             y = random.uniform(0, self.height)
@@ -527,9 +558,11 @@ class Environment:
             resource = Resource(
                 resource_id=i,
                 position=(x, y),
-                amount=self.config.max_resource_amount,
-                max_amount=self.config.max_resource_amount,
-                regeneration_rate=self.config.resource_regen_rate,
+                amount=self.config.max_resource_amount if self.config else 10,
+                max_amount=self.config.max_resource_amount if self.config else 10,
+                regeneration_rate=(
+                    self.config.resource_regen_rate if self.config else 0.1
+                ),
             )
             self.resources.append(resource)
 
@@ -538,12 +571,14 @@ class Environment:
         Generate a random position within the environment bounds.
         Uses a seeded random number generator for deterministic behavior if a seed is available.
         """
-        if hasattr(self, 'seed_value') and self.seed_value is not None:
+        if hasattr(self, "seed_value") and self.seed_value is not None:
             # Create a separate random state to avoid affecting the global state
-            rng = random.Random(self.seed_value + self.time)  # Add current time to avoid same positions
+            rng = random.Random(
+                self.seed_value + self.time
+            )  # Add current time to avoid same positions
         else:
             rng = random
-        
+
         x = rng.uniform(0, self.width)
         y = rng.uniform(0, self.height)
         return (x, y)
@@ -558,7 +593,7 @@ class Environment:
 
     def close(self):
         """Clean up environment resources."""
-        if hasattr(self, "db"):
+        if hasattr(self, "db") and self.db is not None:
             self.db.close()
 
     def add_agent(self, agent):
