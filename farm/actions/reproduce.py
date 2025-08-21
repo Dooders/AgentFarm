@@ -30,7 +30,8 @@ from typing import TYPE_CHECKING, Optional, Tuple
 import numpy as np
 import torch
 
-from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork, SharedEncoder
+from farm.actions.base_dqn import BaseDQNModule, BaseQNetwork, SharedEncoder
+from farm.actions.config import ReproduceConfig
 
 if TYPE_CHECKING:
     from farm.agents.base_agent import BaseAgent
@@ -38,42 +39,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-class ReproduceConfig(BaseDQNConfig):
-    """Configuration class for reproduction behavior and learning parameters.
-
-    This class defines all configurable parameters for the reproduction module,
-    including reward values, reproduction thresholds, and population control
-    mechanisms. These parameters influence both the learning process and the
-    decision-making behavior of agents.
-
-    Attributes:
-        reproduce_success_reward: Reward given for successful reproduction
-        reproduce_fail_penalty: Penalty for failed reproduction attempts
-        offspring_survival_bonus: Bonus for maintaining resources after reproduction
-        population_balance_bonus: Bonus for maintaining optimal population levels
-        min_health_ratio: Minimum health ratio required for reproduction
-        min_resource_ratio: Minimum resource ratio required for reproduction
-        ideal_density_radius: Radius for calculating local population density
-        max_local_density: Maximum allowed local population density
-        min_space_required: Minimum space required between agents for reproduction
-    """
-
-    # Reward parameters
-    reproduce_success_reward: float = 1.0
-    reproduce_fail_penalty: float = -0.2
-    offspring_survival_bonus: float = 0.5
-    population_balance_bonus: float = 0.3
-
-    # Reproduction thresholds
-    min_health_ratio: float = 0.5
-    min_resource_ratio: float = 0.6
-    ideal_density_radius: float = 50.0
-
-    # Population control
-    max_local_density: float = 0.7
-    min_space_required: float = 20.0
 
 
 class ReproduceActionSpace:
@@ -108,12 +73,17 @@ class ReproduceQNetwork(BaseQNetwork):
         hidden_size: Number of neurons in hidden layers (default: 64)
     """
 
-    def __init__(self, input_dim: int = 8, hidden_size: int = 64, shared_encoder: Optional[SharedEncoder] = None) -> None:
+    def __init__(
+        self,
+        input_dim: int = 8,
+        hidden_size: int = 64,
+        shared_encoder: Optional[SharedEncoder] = None,
+    ) -> None:
         super().__init__(
             input_dim=input_dim,
             output_dim=2,  # WAIT or REPRODUCE
             hidden_size=hidden_size,
-            shared_encoder=shared_encoder
+            shared_encoder=shared_encoder,
         )
 
 
@@ -134,7 +104,10 @@ class ReproduceModule(BaseDQNModule):
     """
 
     def __init__(
-        self, config: ReproduceConfig = ReproduceConfig(), device: torch.device = DEVICE, shared_encoder: Optional[SharedEncoder] = None
+        self,
+        config: ReproduceConfig = ReproduceConfig(),
+        device: torch.device = DEVICE,
+        shared_encoder: Optional[SharedEncoder] = None,
     ) -> None:
         super().__init__(
             input_dim=8,  # State dimensions for reproduction (matches actual state size)
@@ -145,11 +118,15 @@ class ReproduceModule(BaseDQNModule):
 
         # Initialize reproduction-specific Q-network with shared encoder if provided
         self.q_network = ReproduceQNetwork(
-            input_dim=8, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
+            input_dim=8,
+            hidden_size=config.dqn_hidden_size,
+            shared_encoder=shared_encoder,
         ).to(device)
 
         self.target_network = ReproduceQNetwork(
-            input_dim=8, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
+            input_dim=8,
+            hidden_size=config.dqn_hidden_size,
+            shared_encoder=shared_encoder,
         ).to(device)
 
         self.target_network.load_state_dict(self.q_network.state_dict())
@@ -262,8 +239,8 @@ def reproduce_action(agent: "BaseAgent") -> None:
                 details={
                     "success": False,
                     "reason": "conditions_not_met",
-                    "confidence": confidence if should_reproduce else 0.0
-                }
+                    "confidence": confidence if should_reproduce else 0.0,
+                },
             )
         return
 
@@ -286,8 +263,8 @@ def reproduce_action(agent: "BaseAgent") -> None:
                     "success": True,
                     "offspring_id": offspring.agent_id,
                     "confidence": confidence,
-                    "reward": reward
-                }
+                    "reward": reward,
+                },
             )
 
     except Exception as e:
@@ -302,7 +279,7 @@ def reproduce_action(agent: "BaseAgent") -> None:
                     "success": False,
                     "reason": "reproduction_error",
                     "error": str(e),
-                }
+                },
             )
 
 
@@ -335,7 +312,7 @@ def _get_reproduce_state(agent: "BaseAgent") -> torch.Tensor:
         if a != agent
         and a.alive
         and np.sqrt(((np.array(a.position) - np.array(agent.position)) ** 2).sum())
-        < ReproduceConfig.ideal_density_radius
+        < config.ideal_density_radius
     ]
 
     local_density = len(nearby_agents) / max(1, len(agent.environment.agents))
@@ -401,12 +378,12 @@ def _check_reproduction_conditions(agent: "BaseAgent") -> bool:
         return False
 
     # Check offspring cost requirement
-    offspring_cost = getattr(config, 'offspring_cost', 3)  # Default to 3 if not set
+    offspring_cost = getattr(config, "offspring_cost", 3)  # Default to 3 if not set
     if agent.resource_level < offspring_cost + 2:
         return False
 
     # Check health status
-    if agent.current_health < agent.starting_health * ReproduceConfig.min_health_ratio:
+    if agent.current_health < agent.starting_health * config.min_health_ratio:
         return False
 
     # Check local population density
@@ -416,12 +393,12 @@ def _check_reproduction_conditions(agent: "BaseAgent") -> bool:
         if a != agent
         and a.alive
         and np.sqrt(((np.array(a.position) - np.array(agent.position)) ** 2).sum())
-        < ReproduceConfig.min_space_required
+        < config.min_space_required
     ]
 
     if (
         len(nearby_agents) / max(1, len(agent.environment.agents))
-        > ReproduceConfig.max_local_density
+        > config.max_local_density
     ):
         return False
 
@@ -452,22 +429,24 @@ def _calculate_reproduction_reward(agent: "BaseAgent", offspring: "BaseAgent") -
     config = agent.config
     assert config is not None, "Agent config cannot be None"
 
-    reward = ReproduceConfig.reproduce_success_reward
+    reward = config.success_reward
 
     # Add bonus for maintaining good health/resources after reproduction
     if agent.resource_level > config.min_reproduction_resources:
-        reward += ReproduceConfig.offspring_survival_bonus
+        reward += config.offspring_survival_bonus
 
     # Add bonus for maintaining good population balance
     population_ratio = len(agent.environment.agents) / config.max_population
     if 0.4 <= population_ratio <= 0.8:
-        reward += ReproduceConfig.population_balance_bonus
+        reward += config.population_balance_bonus
 
     return reward
+
 
 # Default configuration instance
 DEFAULT_REPRODUCE_CONFIG = ReproduceConfig()
 
 # Register the action at the end of the file after the function is defined
 from farm.core.action import action_registry
-action_registry.register('reproduce', 0.15, reproduce_action)
+
+action_registry.register("reproduce", 0.15, reproduce_action)

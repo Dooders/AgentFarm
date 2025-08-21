@@ -17,6 +17,7 @@ import pytest
 from farm.core.config import SimulationConfig
 from farm.runners.parallel_experiment_runner import ParallelExperimentRunner
 from farm.database.database import SimulationDatabase
+from farm.database.models import AgentModel, SimulationStepModel
 
 
 class TestParallelExperimentRunnerIntegration(unittest.TestCase):
@@ -29,12 +30,13 @@ class TestParallelExperimentRunnerIntegration(unittest.TestCase):
 
         # Create a basic simulation config for testing
         self.config = SimulationConfig()
-        self.config.num_system_agents = 2
-        self.config.num_independent_agents = 2
-        self.config.world_size = (20, 20)
+        self.config.system_agents = 2
+        self.config.independent_agents = 2
+        self.config.width = 20
+        self.config.height = 20
         self.config.use_in_memory_db = True
         self.config.in_memory_db_memory_limit_mb = 100
-        self.config.max_steps = 10  # Keep it small for faster tests
+        self.config.simulation_steps = 10  # Keep it small for faster tests
 
         # Create a test experiment name
         self.experiment_name = "test_parallel_integration"
@@ -136,9 +138,11 @@ class TestParallelExperimentRunnerIntegration(unittest.TestCase):
         # Check agent counts in the databases
         db1 = SimulationDatabase(str(db_file_1))
         self.db_connections.append(db1)
-        agents1 = db1.get_all_agents()
-        system_count1 = sum(1 for a in agents1 if a.agent_type == "SYSTEM")
-        independent_count1 = sum(1 for a in agents1 if a.agent_type == "INDEPENDENT")
+        session1 = db1.Session()
+        agents1 = session1.query(AgentModel).all()
+        system_count1 = sum(1 for a in agents1 if getattr(a, 'agent_type') == "SYSTEM")
+        independent_count1 = sum(1 for a in agents1 if getattr(a, 'agent_type') == "INDEPENDENT")
+        session1.close()
 
         # Should have 3 system agents and 1 independent agent
         self.assertEqual(system_count1, 3)
@@ -146,9 +150,11 @@ class TestParallelExperimentRunnerIntegration(unittest.TestCase):
 
         db2 = SimulationDatabase(str(db_file_2))
         self.db_connections.append(db2)
-        agents2 = db2.get_all_agents()
-        system_count2 = sum(1 for a in agents2 if a.agent_type == "SYSTEM")
-        independent_count2 = sum(1 for a in agents2 if a.agent_type == "INDEPENDENT")
+        session2 = db2.Session()
+        agents2 = session2.query(AgentModel).all()
+        system_count2 = sum(1 for a in agents2 if getattr(a, 'agent_type') == "SYSTEM")
+        independent_count2 = sum(1 for a in agents2 if getattr(a, 'agent_type') == "INDEPENDENT")
+        session2.close()
 
         # Should have 1 system agent and 3 independent agents
         self.assertEqual(system_count2, 1)
@@ -170,12 +176,14 @@ class TestParallelExperimentRunnerIntegration(unittest.TestCase):
         self.db_connections.append(db)
 
         # Check that agents were saved
-        agents = db.get_all_agents()
+        session = db.Session()
+        agents = session.query(AgentModel).all()
         self.assertEqual(len(agents), 4)  # 2 system + 2 independent
 
         # Check that steps were saved
-        steps = db.get_all_steps()
+        steps = session.query(SimulationStepModel).all()
         self.assertEqual(len(steps), 5)  # 5 steps
+        session.close()
 
     @pytest.mark.slow
     def test_error_recovery(self):

@@ -26,26 +26,26 @@ class TestAttackConfig(unittest.TestCase):
         """Test default configuration values."""
         config = AttackConfig()
         
-        self.assertEqual(config.attack_base_cost, -0.2)
-        self.assertEqual(config.attack_success_reward, 1.0)
-        self.assertEqual(config.attack_failure_penalty, -0.3)
-        self.assertEqual(config.attack_defense_threshold, 0.3)
-        self.assertEqual(config.attack_defense_boost, 2.0)
+        self.assertEqual(config.base_cost, -0.2)
+        self.assertEqual(config.success_reward, 1.0)
+        self.assertEqual(config.failure_penalty, -0.3)
+        self.assertEqual(config.defense_threshold, 0.3)
+        self.assertEqual(config.defense_boost, 2.0)
 
     def test_custom_config(self):
         """Test custom configuration values."""
         config = AttackConfig()
-        config.attack_base_cost = -0.1
-        config.attack_success_reward = 2.0
-        config.attack_failure_penalty = -0.5
-        config.attack_defense_threshold = 0.5
-        config.attack_defense_boost = 3.0
+        config.base_cost = -0.1
+        config.success_reward = 2.0
+        config.failure_penalty = -0.5
+        config.defense_threshold = 0.5
+        config.defense_boost = 3.0
         
-        self.assertEqual(config.attack_base_cost, -0.1)
-        self.assertEqual(config.attack_success_reward, 2.0)
-        self.assertEqual(config.attack_failure_penalty, -0.5)
-        self.assertEqual(config.attack_defense_threshold, 0.5)
-        self.assertEqual(config.attack_defense_boost, 3.0)
+        self.assertEqual(config.base_cost, -0.1)
+        self.assertEqual(config.success_reward, 2.0)
+        self.assertEqual(config.failure_penalty, -0.5)
+        self.assertEqual(config.defense_threshold, 0.5)
+        self.assertEqual(config.defense_boost, 3.0)
 
     def test_inheritance_from_base_config(self):
         """Test that AttackConfig inherits from BaseDQNConfig."""
@@ -247,8 +247,8 @@ class TestAttackAction(unittest.TestCase):
         self.mock_environment.successful_attacks_this_step = 0
         
         # Set up config mock
-        self.mock_config.attack_range = 5.0
-        self.mock_config.attack_base_cost = -0.2
+        self.mock_config.range = 5.0
+        self.mock_config.base_cost = -0.2
         
         # Set up attack module mock
         self.mock_attack_module.device = torch.device("cpu")
@@ -359,7 +359,7 @@ class TestAttackAction(unittest.TestCase):
             mock_logger.log_attack_attempt.assert_called_once()
             call_args = mock_logger.log_attack_attempt.call_args
             self.assertFalse(call_args[1]['success'])
-            self.assertEqual(call_args[1]['reason'], "no_valid_targets")
+            self.assertEqual(call_args[1]['reason'], "no_targets")
 
     def test_attack_action_defensive_target(self):
         """Test attack action against a defending target."""

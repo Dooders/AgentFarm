@@ -39,14 +39,10 @@ from typing import TYPE_CHECKING, Optional, Tuple
 import numpy as np
 import torch
 
-from farm.actions.base_dqn import (
-    BaseDQNConfig,
-    BaseDQNModule,
-    BaseQNetwork,
-    SharedEncoder,
-)
-from farm.core.resources import Resource
+from farm.actions.base_dqn import BaseDQNModule, BaseQNetwork, SharedEncoder
+from farm.actions.config import GatherConfig
 from farm.core.action import action_registry
+from farm.core.resources import Resource
 
 if TYPE_CHECKING:
 
@@ -55,32 +51,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-
-class GatherConfig(BaseDQNConfig):
-    """Configuration for gathering behavior and reward parameters.
-
-    This class defines all the parameters that control how the gathering module
-    behaves, including reward values, thresholds, and timing parameters.
-
-    Attributes:
-        gather_success_reward: Base reward for successful resource gathering
-        gather_fail_penalty: Base penalty for failed gathering attempts
-        gather_efficiency_multiplier: Multiplier for efficiency bonuses
-        gather_cost_multiplier: Multiplier for movement cost penalties
-        min_resource_threshold: Minimum resource amount worth gathering
-        max_wait_steps: Maximum steps to wait before forcing gathering
-    """
-
-    # Reward parameters
-    gather_success_reward: float = 1.0
-    gather_fail_penalty: float = -0.1
-    gather_efficiency_multiplier: float = 0.5  # Rewards gathering larger amounts
-    gather_cost_multiplier: float = 0.3  # Penalizes movement costs
-
-    # Gathering parameters
-    min_resource_threshold: float = 0.1  # Minimum resource amount worth gathering
-    max_wait_steps: int = 5  # Maximum steps to wait for resource regeneration
 
 
 class GatherActionSpace:
@@ -329,9 +299,9 @@ class GatherModule(BaseDQNModule):
         assert config is not None, "Agent config cannot be None"
 
         resources_in_range = agent.environment.get_nearby_resources(
-            agent.position, config.gathering_range
+            agent.position, config.range
         )
-        resource_density = len(resources_in_range) / (np.pi * config.gathering_range**2)
+        resource_density = len(resources_in_range) / (np.pi * config.range**2)
 
         # Calculate distance to closest resource
         distance_to_resource = np.sqrt(
@@ -341,7 +311,7 @@ class GatherModule(BaseDQNModule):
         )
 
         # Normalize values for better neural network performance
-        max_distance = config.gathering_range
+        max_distance = config.range
         max_resource_amount = 100.0  # Assuming max resource amount
         max_health = agent.starting_health
 
@@ -425,8 +395,8 @@ class GatherModule(BaseDQNModule):
                 ((np.array(resource.position) - np.array(agent.position)) ** 2).sum()
             )
             return (
-                resource.amount * self.config.gather_efficiency_multiplier
-                - distance * self.config.gather_cost_multiplier
+                resource.amount * self.config.efficiency_multiplier
+                - distance * self.config.cost_multiplier
             )
 
         return max(resources_in_range, key=score_resource)
@@ -457,23 +427,23 @@ class GatherModule(BaseDQNModule):
             float: Calculated reward value (positive for success, negative for failure)
         """
         if target_resource is None:
-            return self.config.gather_fail_penalty
+            return self.config.failure_penalty
 
         resources_gained = agent.resource_level - initial_resources
 
         if resources_gained <= 0:
             self.consecutive_failed_attempts += 1
-            return self.config.gather_fail_penalty * self.consecutive_failed_attempts
+            return self.config.failure_penalty * self.consecutive_failed_attempts
 
         self.consecutive_failed_attempts = 0
         self.steps_since_gather = 0
 
         # Calculate efficiency bonus
         efficiency = resources_gained / target_resource.max_amount
-        efficiency_bonus = efficiency * self.config.gather_efficiency_multiplier
+        efficiency_bonus = efficiency * self.config.efficiency_multiplier
 
         # Calculate base reward
-        base_reward = self.config.gather_success_reward * resources_gained
+        base_reward = self.config.success_reward * resources_gained
 
         return base_reward + efficiency_bonus
 
@@ -537,7 +507,7 @@ def gather_action(agent: "BaseAgent") -> None:
         config = agent.config
         assert config is not None, "Agent config cannot be None"
 
-        gather_amount = min(config.max_gather_amount, target_resource.amount)
+        gather_amount = min(config.max_amount, target_resource.amount)
         target_resource.consume(gather_amount)
         agent.resource_level += gather_amount
 
@@ -587,4 +557,4 @@ def gather_action(agent: "BaseAgent") -> None:
 # Default configuration instance
 DEFAULT_GATHER_CONFIG = GatherConfig()
 
-action_registry.register('gather', 0.3, gather_action)
+action_registry.register("gather", 0.3, gather_action)

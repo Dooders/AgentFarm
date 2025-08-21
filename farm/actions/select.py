@@ -27,7 +27,8 @@ import torch
 
 from farm.utils.config_utils import get_config_value
 
-from farm.actions.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork, SharedEncoder
+from farm.actions.base_dqn import BaseDQNModule, BaseQNetwork, SharedEncoder
+from farm.actions.config import SelectConfig, DEFAULT_SELECT_CONFIG
 from farm.core.action import Action
 
 if TYPE_CHECKING:
@@ -36,55 +37,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class SelectConfig(BaseDQNConfig):
-    """Configuration for action selection behavior and parameters.
 
-    This class defines the weights, multipliers, and thresholds used to
-    adjust action selection probabilities based on agent state and environment
-    conditions. It inherits from BaseDQNConfig to provide DQN-specific settings.
-
-    Attributes:
-        move_weight: Base probability weight for move actions
-        gather_weight: Base probability weight for gather actions
-        share_weight: Base probability weight for share actions
-        attack_weight: Base probability weight for attack actions
-        reproduce_weight: Base probability weight for reproduce actions
-
-        move_mult_no_resources: Multiplier for move when no resources nearby
-        gather_mult_low_resources: Multiplier for gather when resources are low
-        share_mult_wealthy: Multiplier for share when agent is wealthy
-        share_mult_poor: Multiplier for share when agent is poor
-        attack_mult_desperate: Multiplier for attack when desperate (starving)
-        attack_mult_stable: Multiplier for attack when stable
-        reproduce_mult_wealthy: Multiplier for reproduce when wealthy
-        reproduce_mult_poor: Multiplier for reproduce when poor
-
-        attack_starvation_threshold: Threshold for desperate attack behavior
-        attack_defense_threshold: Threshold for defensive attack behavior
-        reproduce_resource_threshold: Threshold for reproduction resource requirements
-    """
-
-    # Base action weights
-    move_weight: float = 0.3
-    gather_weight: float = 0.3
-    share_weight: float = 0.15
-    attack_weight: float = 0.1
-    reproduce_weight: float = 0.15
-
-    # State-based multipliers
-    move_mult_no_resources: float = 1.5
-    gather_mult_low_resources: float = 1.5
-    share_mult_wealthy: float = 1.3
-    share_mult_poor: float = 0.5
-    attack_mult_desperate: float = 1.4
-    attack_mult_stable: float = 0.6
-    reproduce_mult_wealthy: float = 1.4
-    reproduce_mult_poor: float = 0.3
-
-    # Thresholds
-    attack_starvation_threshold: float = 0.5
-    attack_defense_threshold: float = 0.3
-    reproduce_resource_threshold: float = 0.7
 
 
 class SelectQNetwork(BaseQNetwork):

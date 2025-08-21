@@ -26,27 +26,27 @@ class TestGatherConfig(unittest.TestCase):
         """Test default configuration values."""
         config = GatherConfig()
         
-        self.assertEqual(config.gather_success_reward, 1.0)
-        self.assertEqual(config.gather_fail_penalty, -0.1)
-        self.assertEqual(config.gather_efficiency_multiplier, 0.5)
-        self.assertEqual(config.gather_cost_multiplier, 0.3)
+        self.assertEqual(config.success_reward, 1.0)
+        self.assertEqual(config.failure_penalty, -0.1)
+        self.assertEqual(config.efficiency_multiplier, 0.5)
+        self.assertEqual(config.cost_multiplier, 0.3)
         self.assertEqual(config.min_resource_threshold, 0.1)
         self.assertEqual(config.max_wait_steps, 5)
 
     def test_custom_config(self):
         """Test custom configuration values."""
         config = GatherConfig()
-        config.gather_success_reward = 2.0
-        config.gather_fail_penalty = -0.2
-        config.gather_efficiency_multiplier = 0.7
-        config.gather_cost_multiplier = 0.4
+        config.success_reward = 2.0
+        config.failure_penalty = -0.2
+        config.efficiency_multiplier = 0.7
+        config.cost_multiplier = 0.4
         config.min_resource_threshold = 0.2
         config.max_wait_steps = 10
         
-        self.assertEqual(config.gather_success_reward, 2.0)
-        self.assertEqual(config.gather_fail_penalty, -0.2)
-        self.assertEqual(config.gather_efficiency_multiplier, 0.7)
-        self.assertEqual(config.gather_cost_multiplier, 0.4)
+        self.assertEqual(config.success_reward, 2.0)
+        self.assertEqual(config.failure_penalty, -0.2)
+        self.assertEqual(config.efficiency_multiplier, 0.7)
+        self.assertEqual(config.cost_multiplier, 0.4)
         self.assertEqual(config.min_resource_threshold, 0.2)
         self.assertEqual(config.max_wait_steps, 10)
 
@@ -288,7 +288,7 @@ class TestGatherModule(unittest.TestCase):
         mock_agent.is_defending = False
         mock_agent.environment = Mock()
         mock_agent.config = Mock()
-        mock_agent.config.gathering_range = 5.0
+        mock_agent.config.range = 5.0
         
         # Mock _find_best_resource to return a resource
         with patch.object(module, '_find_best_resource') as mock_find:
@@ -331,7 +331,7 @@ class TestGatherModule(unittest.TestCase):
         mock_agent.position = (10.0, 10.0)
         mock_agent.environment = Mock()
         mock_agent.config = Mock()
-        mock_agent.config.gathering_range = 5.0
+        mock_agent.config.range = 5.0
         
         # Mock environment to return resources
         mock_resource1 = Mock()
@@ -357,7 +357,7 @@ class TestGatherModule(unittest.TestCase):
         mock_agent.position = (10.0, 10.0)
         mock_agent.environment = Mock()
         mock_agent.config = Mock()
-        mock_agent.config.gathering_range = 5.0
+        mock_agent.config.range = 5.0
         
         # Mock environment to return resources
         mock_resource1 = Mock()
@@ -418,7 +418,7 @@ class TestGatherModule(unittest.TestCase):
         reward = module.calculate_gather_reward(mock_agent, 50.0, None)
         
         # Should be the failure penalty
-        self.assertEqual(reward, self.config.gather_fail_penalty)
+        self.assertEqual(reward, self.config.failure_penalty)
 
 
 class TestGatherAction(unittest.TestCase):
@@ -477,7 +477,7 @@ class TestGatherAction(unittest.TestCase):
         
         # Mock agent config
         self.mock_agent.config = Mock()
-        self.mock_agent.config.max_gather_amount = 5.0
+        self.mock_agent.config.max_amount = 5.0
         
         initial_resources = self.mock_agent.resource_level
         
@@ -530,7 +530,7 @@ class TestGatherAction(unittest.TestCase):
         
         # Mock agent config
         self.mock_agent.config = Mock()
-        self.mock_agent.config.max_gather_amount = 5.0
+        self.mock_agent.config.max_amount = 5.0
         self.mock_agent.total_reward = 10.0
         
         gather_action(self.mock_agent)

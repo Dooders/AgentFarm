@@ -34,44 +34,14 @@ from typing import TYPE_CHECKING, List, Optional, Tuple
 import numpy as np
 import torch
 
-from farm.actions.base_dqn import (
-    BaseDQNConfig,
-    BaseDQNModule,
-    BaseQNetwork,
-    SharedEncoder,
-)
+from farm.actions.base_dqn import BaseDQNModule, BaseQNetwork, SharedEncoder
+from farm.actions.config import DEFAULT_SHARE_CONFIG, ShareConfig
 from farm.core.action import action_registry
 
 if TYPE_CHECKING:
     from farm.agents.base_agent import BaseAgent
 
 logger = logging.getLogger(__name__)
-
-
-class ShareConfig(BaseDQNConfig):
-    """Configuration parameters for sharing behavior and learning.
-
-    This class defines all configurable parameters that control how agents
-    learn and execute sharing behavior. It extends BaseDQNConfig to include
-    sharing-specific parameters while inheriting DQN learning parameters.
-
-    Attributes:
-        share_range: Maximum distance (in environment units) for sharing interactions
-        min_share_amount: Minimum resources required to initiate sharing
-        share_success_reward: Base reward for successful sharing actions
-        share_failure_penalty: Penalty for failed sharing attempts
-        altruism_bonus: Extra reward for sharing with agents in need
-        cooperation_memory: Number of recent interactions to remember for cooperation scoring
-        max_resources: Maximum possible resources for normalization purposes
-    """
-
-    share_range: float = 30.0  # Maximum distance for sharing
-    min_share_amount: int = 1  # Minimum resources to share
-    share_success_reward: float = 0.3  # Reward for successful sharing
-    share_failure_penalty: float = -0.1  # Penalty for failed sharing attempt
-    altruism_bonus: float = 0.2  # Extra reward for sharing when recipient is low
-    cooperation_memory: int = 100  # Number of interactions to remember
-    max_resources: int = 30  # Maximum resources an agent can have (for normalization)
 
 
 class ShareActionSpace:
@@ -92,9 +62,6 @@ class ShareActionSpace:
     SHARE_LOW: int = 1  # Share minimum amount
     SHARE_MEDIUM: int = 2  # Share moderate amount
     SHARE_HIGH: int = 3  # Share larger amount
-
-
-DEFAULT_SHARE_CONFIG = ShareConfig()
 
 
 class ShareQNetwork(BaseQNetwork):
@@ -281,7 +248,7 @@ class ShareModule(BaseDQNModule):
 
         share_config = cast(ShareConfig, self.config)
         nearby_agents = agent.environment.get_nearby_agents(
-            agent.position, share_config.share_range
+            agent.position, share_config.range
         )
         # Filter out self to prevent agents from sharing with themselves
         return [a for a in nearby_agents if a.agent_id != agent.agent_id]
@@ -348,7 +315,7 @@ class ShareModule(BaseDQNModule):
         from typing import cast
 
         share_config = cast(ShareConfig, self.config)
-        available = max(0, agent.resource_level - share_config.min_share_amount)
+        available = max(0, agent.resource_level - share_config.min_amount)
         share_amounts = {
             ShareActionSpace.SHARE_LOW: min(1, available),
             ShareActionSpace.SHARE_MEDIUM: min(2, available),
@@ -428,7 +395,7 @@ def share_action(agent: "BaseAgent") -> None:
                 action_type="share",
                 resources_before=initial_resources,
                 resources_after=initial_resources,
-                reward=DEFAULT_SHARE_CONFIG.share_failure_penalty,
+                reward=DEFAULT_SHARE_CONFIG.failure_penalty,
                 details={
                     "success": False,
                     "reason": "invalid_share_conditions",
@@ -498,7 +465,7 @@ def _get_share_state(agent: "BaseAgent") -> List[float]:
         List[float]: 8-dimensional state vector for sharing decisions
     """
     nearby_agents = agent.environment.get_nearby_agents(
-        agent.position, DEFAULT_SHARE_CONFIG.share_range
+        agent.position, DEFAULT_SHARE_CONFIG.range
     )
 
     neighbor_resources = (
@@ -541,17 +508,17 @@ def _calculate_share_reward(
     Returns:
         float: Calculated reward value for the sharing action
     """
-    reward = DEFAULT_SHARE_CONFIG.share_success_reward
+    reward = DEFAULT_SHARE_CONFIG.success_reward
 
     # Add altruism bonus if target was in need
     if target.config and target.resource_level < target.config.starvation_threshold:
         reward += DEFAULT_SHARE_CONFIG.altruism_bonus
 
     # Scale reward based on amount shared
-    reward *= amount / DEFAULT_SHARE_CONFIG.min_share_amount
+    reward *= amount / DEFAULT_SHARE_CONFIG.min_amount
 
     return reward
 
 
 # Register the action at the end of the file after the function is defined
-action_registry.register('share', 0.2, share_action)
+action_registry.register("share", 0.2, share_action)

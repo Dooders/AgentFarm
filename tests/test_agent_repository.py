@@ -46,6 +46,7 @@ class TestAgentRepository(unittest.TestCase):
 
         # Assert
         self.assertIsNotNone(result)
+        assert result is not None  # Type assertion for linter
         self.assertEqual(result.agent_id, "test_agent_1")
         self.assertEqual(result.agent_type, "hunter")
         self.assertEqual(result.birth_time, 100)
@@ -201,6 +202,7 @@ class TestAgentRepository(unittest.TestCase):
 
         # Assert
         self.assertIsInstance(result, AgentInfo)
+        assert result is not None  # Type assertion for linter
         self.assertEqual(result.agent_id, "test_agent_1")
         self.assertEqual(result.agent_type, "hunter")
         self.assertEqual(result.current_health, 95)

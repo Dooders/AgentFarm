@@ -21,7 +21,7 @@ class TestCombatMetrics(unittest.TestCase):
             width=10,
             height=10,
             resource_distribution={"amount": 5},
-            db_path=None,  # Use in-memory database
+            db_path=":memory:",  # Use in-memory database
             config=MagicMock(
                 max_resource_amount=10,
                 resource_regen_rate=0.1,
