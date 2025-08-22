@@ -16,7 +16,9 @@ format_agent_state : Format agent state data for database storage
 
 import json
 import logging
-from typing import Any, Dict, Optional, Tuple
+import os
+import time
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -178,7 +180,7 @@ def format_agent_state(
 
 
 def execute_with_retry(
-    session: Session, operation: callable, max_retries: int = 3
+    session: Session, operation: Callable, max_retries: int = 3
 ) -> Any:
     """Execute database operation with retry logic.
 
@@ -283,3 +285,46 @@ def create_prepared_statements(session):
     # Add more prepared statements as needed
 
     return statements
+
+
+def setup_db(db_path: Optional[str]) -> Optional[str]:
+    """Setup database file for simulation.
+
+    Handles database file cleanup and creation. If the database file exists,
+    it will be removed to ensure a fresh start. If removal fails, a unique
+    filename will be generated.
+
+    Parameters
+    ----------
+    db_path : Optional[str]
+        Path to the database file. If None, no setup is performed.
+
+    Returns
+    -------
+    Optional[str]
+        The final database path (may be modified if original couldn't be deleted)
+    """
+    # Skip setup for in-memory database (when db_path is None)
+    if db_path is None:
+        return None
+
+    # Try to clean up any existing database connections first
+    try:
+        import sqlite3
+
+        conn = sqlite3.connect(db_path)
+        conn.close()
+    except Exception:
+        pass
+
+    # Delete existing database file if it exists
+    if os.path.exists(db_path):
+        try:
+            os.remove(db_path)
+        except OSError as e:
+            logger.warning(f"Failed to remove database {db_path}: {e}")
+            # Generate unique filename if can't delete
+            base, ext = os.path.splitext(db_path)
+            db_path = f"{base}_{int(time.time())}{ext}"
+
+    return db_path
