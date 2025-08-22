@@ -61,7 +61,7 @@ class Environment:
             # Will be set to InMemorySimulationDatabase later
             self.db = None
 
-        self.seed = ShortUUID()
+        self.id_generator = ShortUUID()
         self.next_resource_id = 0
         # self.max_resource = max_resource or (config.max_resource_amount if config else None)
         self.max_resource = max_resource
@@ -501,7 +501,7 @@ class Environment:
             return f"agent_{agent_hash}"
         else:
             # Non-deterministic mode uses random short ID
-            return self.seed.id()
+            return self.id_generator.id()
 
     def get_state(self) -> EnvironmentState:
         """Get current environment state."""
