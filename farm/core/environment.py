@@ -63,11 +63,9 @@ class Environment:
 
         self.id_generator = ShortUUID()
         self.next_resource_id = 0
-        # self.max_resource = max_resource or (config.max_resource_amount if config else None)
         self.max_resource = max_resource
         self.config = config
-        self.initial_agent_count = 0
-        self.pending_actions = []  # Initialize pending_actions list
+        self.initial_agent_count = 0 #! Is this really needed``
 
         # Add KD-tree attributes
         self.agent_kdtree = None
