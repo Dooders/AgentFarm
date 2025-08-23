@@ -206,7 +206,12 @@ class SpatialIndex:
 
         # Use cached alive agents for direct indexing
         indices = self.agent_kdtree.query_ball_point(position, radius)
-        return [self._cached_alive_agents[i] for i in indices]
+        # Filter out dead agents to handle stale cache data
+        return [
+            self._cached_alive_agents[i]
+            for i in indices
+            if self._cached_alive_agents[i].alive
+        ]
 
     def get_nearby_resources(
         self, position: Tuple[float, float], radius: float
@@ -225,6 +230,12 @@ class SpatialIndex:
         list
             List of resources within radius
         """
+        # Input validation (same as get_nearby_agents)
+        if radius <= 0:
+            return []
+        if not self._is_valid_position(position):
+            return []
+
         if self.resource_kdtree is None:
             return []
 
@@ -244,6 +255,10 @@ class SpatialIndex:
         Resource or None
             Nearest resource if any exist
         """
+        # Input validation
+        if not self._is_valid_position(position):
+            return None
+
         if self.resource_kdtree is None:
             return None
 

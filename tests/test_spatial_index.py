@@ -453,6 +453,129 @@ class TestSpatialIndex(unittest.TestCase):
         self.assertEqual(len(nearby), 1)
         self.assertEqual(nearby[0].agent_id, "agent1")
 
+    def test_get_nearby_agents_stale_cache_bug_fix(self):
+        """Test the specific bug fix: dead agents are filtered out even with stale cache."""
+        # Add agents
+        agent1 = MockSystemAgent(
+            agent_id="agent1",
+            position=(10, 10),
+            resource_level=50,
+            environment=None,
+            generation=0,
+        )
+        agent2 = MockSystemAgent(
+            agent_id="agent2",
+            position=(15, 15),
+            resource_level=30,
+            environment=None,
+            generation=0,
+        )
+        self.agents.append(agent1)
+        self.agents.append(agent2)
+
+        # Build KD-tree with both agents alive
+        self.spatial_index._rebuild_kdtrees()
+        
+        # Verify both agents are in cache
+        self.assertIsNotNone(self.spatial_index._cached_alive_agents)
+        cached_agents = self.spatial_index._cached_alive_agents
+        assert cached_agents is not None  # Type assertion for linter
+        self.assertEqual(len(cached_agents), 2)
+        
+        # Kill agent2 AFTER cache is built (simulating stale cache scenario)
+        agent2.alive = False
+        
+        # Query without rebuilding KD-tree (using stale cache)
+        nearby = self.spatial_index.get_nearby_agents((10, 10), 10)
+        
+        # Bug fix: should filter out dead agent even with stale cache
+        self.assertEqual(len(nearby), 1)
+        self.assertEqual(nearby[0].agent_id, "agent1")
+        self.assertNotIn(agent2, nearby)
+        
+        # Verify the dead agent is still in the stale cache
+        self.assertIn(agent2, cached_agents)
+        self.assertEqual(len(cached_agents), 2)  # Cache is still stale
+
+    def test_get_nearby_resources_input_validation(self):
+        """Test input validation for get_nearby_resources (bug fix)."""
+        # Test invalid radius
+        result = self.spatial_index.get_nearby_resources((10, 10), -1)
+        self.assertEqual(result, [])
+
+        result = self.spatial_index.get_nearby_resources((10, 10), 0)
+        self.assertEqual(result, [])
+
+        # Test invalid position
+        result = self.spatial_index.get_nearby_resources((-1, 10), 5)
+        self.assertEqual(result, [])
+
+        result = self.spatial_index.get_nearby_resources((10, 101), 5)  # Outside height
+        self.assertEqual(result, [])
+
+        # Test valid inputs still work
+        self.spatial_index._rebuild_kdtrees()
+        result = self.spatial_index.get_nearby_resources((10, 10), 5)
+        self.assertIsInstance(result, list)
+
+    def test_get_nearest_resource_input_validation(self):
+        """Test input validation for get_nearest_resource (bug fix)."""
+        # Test invalid position
+        result = self.spatial_index.get_nearest_resource((-1, 10))
+        self.assertIsNone(result)
+
+        result = self.spatial_index.get_nearest_resource((10, 101))  # Outside height
+        self.assertIsNone(result)
+
+        # Test valid inputs still work
+        self.spatial_index._rebuild_kdtrees()
+        result = self.spatial_index.get_nearest_resource((10, 10))
+        self.assertIsInstance(result, Resource)
+
+    def test_consistent_input_validation_across_methods(self):
+        """Test that all spatial query methods have consistent input validation."""
+        # Test boundary conditions
+        boundary_positions = [
+            (-0.1, 50),   # Just outside left boundary
+            (100.1, 50),  # Just outside right boundary  
+            (50, -0.1),   # Just outside top boundary
+            (50, 100.1),  # Just outside bottom boundary
+            (-1, -1),     # Outside all boundaries
+            (101, 101),   # Outside all boundaries
+        ]
+        
+        # Test that all methods reject invalid positions consistently
+        for pos in boundary_positions:
+            # All methods should handle invalid positions gracefully
+            agents_result = self.spatial_index.get_nearby_agents(pos, 5)
+            resources_result = self.spatial_index.get_nearby_resources(pos, 5)
+            nearest_result = self.spatial_index.get_nearest_resource(pos)
+            
+            self.assertEqual(agents_result, [])
+            self.assertEqual(resources_result, [])
+            self.assertIsNone(nearest_result)
+        
+        # Test valid boundary positions (should work)
+        valid_boundary_positions = [
+            (0, 0),       # Top-left corner
+            (100, 100),   # Bottom-right corner
+            (0, 50),      # Left edge
+            (100, 50),    # Right edge
+            (50, 0),      # Top edge
+            (50, 100),    # Bottom edge
+        ]
+        
+        self.spatial_index._rebuild_kdtrees()
+        for pos in valid_boundary_positions:
+            # All methods should accept valid boundary positions
+            agents_result = self.spatial_index.get_nearby_agents(pos, 5)
+            resources_result = self.spatial_index.get_nearby_resources(pos, 5)
+            nearest_result = self.spatial_index.get_nearest_resource(pos)
+            
+            self.assertIsInstance(agents_result, list)
+            self.assertIsInstance(resources_result, list)
+            # nearest_result could be None if no resources, but should not crash
+
     def test_get_nearby_resources(self):
         """Test get_nearby_resources functionality."""
         # Test with no KD-tree
