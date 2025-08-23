@@ -1,9 +1,6 @@
 import logging
-import os
 import random
-import threading
-import time
-from typing import Dict, Optional, Set
+from typing import Dict
 
 import numpy as np
 from scipy.spatial import KDTree
@@ -14,34 +11,10 @@ from farm.core.state import EnvironmentState
 
 # from farm.agents.base_agent import BaseAgent
 from farm.database.database import SimulationDatabase
+from farm.database.utilities import setup_db
 from farm.utils.short_id import ShortUUID
 
 logger = logging.getLogger(__name__)
-
-
-def setup_db(db_path):
-    # Skip setup for in-memory database (when db_path is None)
-    if db_path is None:
-        return
-
-    # Try to clean up any existing database connections first
-    try:
-        import sqlite3
-
-        conn = sqlite3.connect(db_path)
-        conn.close()
-    except Exception:
-        pass
-
-    # Delete existing database file if it exists
-    if os.path.exists(db_path):
-        try:
-            os.remove(db_path)
-        except OSError as e:
-            logger.warning(f"Failed to remove database {db_path}: {e}")
-            # Generate unique filename if can't delete
-            base, ext = os.path.splitext(db_path)
-            db_path = f"{base}_{int(time.time())}{ext}"
 
 
 class Environment:
@@ -66,7 +39,8 @@ class Environment:
             random.seed(self.seed_value)
             np.random.seed(self.seed_value)
 
-        setup_db(db_path)
+        # Setup database and get potentially modified path
+        final_db_path = setup_db(db_path)
 
         # Initialize basic attributes
         self.width = width
@@ -79,19 +53,19 @@ class Environment:
         self.simulation_id = simulation_id or ShortUUID().uuid()
 
         # Only initialize database if db_path is provided (not for in-memory DB)
-        if db_path is not None:
-            self.db = SimulationDatabase(db_path, simulation_id=self.simulation_id)
+        if final_db_path is not None:
+            self.db = SimulationDatabase(
+                final_db_path, simulation_id=self.simulation_id
+            )
         else:
             # Will be set to InMemorySimulationDatabase later
             self.db = None
 
-        self.seed = ShortUUID()
+        self.id_generator = ShortUUID()
         self.next_resource_id = 0
-        # self.max_resource = max_resource or (config.max_resource_amount if config else None)
         self.max_resource = max_resource
         self.config = config
-        self.initial_agent_count = 0
-        self.pending_actions = []  # Initialize pending_actions list
+        self.initial_agent_count = 0 #! Is this really needed``
 
         # Add KD-tree attributes
         self.agent_kdtree = None
@@ -525,7 +499,7 @@ class Environment:
             return f"agent_{agent_hash}"
         else:
             # Non-deterministic mode uses random short ID
-            return self.seed.id()
+            return self.id_generator.id()
 
     def get_state(self) -> EnvironmentState:
         """Get current environment state."""
