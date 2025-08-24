@@ -12,7 +12,6 @@ from farm.agents.base_agent import BaseAgent
 from farm.core.action import Action
 
 
-
 class ControlAgent(BaseAgent):
     """A balanced agent implementation that maintains equilibrium between
     cooperative and individualistic behaviors."""
@@ -56,9 +55,7 @@ class ControlAgent(BaseAgent):
                 Action("share", 0.15, share_action),  # Moderate sharing
                 Action("attack", 0.10, attack_action),  # Moderate aggression
                 Action("reproduce", 0.25, reproduce_action),  # Moderate reproduction
-
             ]
-
 
         # Initialize base agent with custom action set and genealogy info
         super().__init__(
@@ -71,10 +68,6 @@ class ControlAgent(BaseAgent):
         )
 
         # Configure gather module with balanced parameters
-        self.gather_module.config.gather_efficiency_multiplier = (
-            0.55  # Balanced efficiency
-        )
-        self.gather_module.config.gather_cost_multiplier = (
-            0.3  # Balanced movement penalty
-        )
+        self.gather_module.config.efficiency_multiplier = 0.55  # Balanced efficiency
+        self.gather_module.config.cost_multiplier = 0.3  # Balanced movement penalty
         self.gather_module.config.min_resource_threshold = 0.125  # Balanced threshold
