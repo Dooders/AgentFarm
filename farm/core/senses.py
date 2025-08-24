@@ -24,7 +24,7 @@ class LatentSpace:
         """
         # Ensure embedding is 2D array for FAISS
         embedding_2d = embedding.reshape(1, -1).astype(np.float32)
-        self.index.add(x=embedding_2d, n=1)
+        self.index.add(embedding_2d)  # type: ignore
         self.embeddings.append(embedding)
         self.metadata.append(metadata)
 
@@ -34,11 +34,7 @@ class LatentSpace:
         """
         # Ensure embedding is 2D array for FAISS
         embedding_2d = embedding.reshape(1, -1).astype(np.float32)
-        distances = np.zeros((1, top_k), dtype=np.float32)
-        indices = np.zeros((1, top_k), dtype=np.int64)
-        self.index.search(
-            x=embedding_2d, k=top_k, n=1, distances=distances, labels=indices
-        )
+        distances, indices = self.index.search(embedding_2d, top_k)  # type: ignore
         results = [
             (self.metadata[i], distances[0][idx]) for idx, i in enumerate(indices[0])
         ]
