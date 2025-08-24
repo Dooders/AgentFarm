@@ -277,19 +277,6 @@ class ResourceDistributionStep:
 
 
 @dataclass
-class ResourceDistributionData:
-    """Resource distribution data over time.
-
-    Attributes
-    ----------
-    steps : List[ResourceDistributionStep]
-        List of resource distribution data for each step
-    """
-
-    steps: List[ResourceDistributionStep]
-
-
-@dataclass
 class EfficiencyMetrics:
     """Resource efficiency metrics.
 
@@ -541,40 +528,6 @@ class ActionTypeStats:
     frequency: float
     avg_reward: float
     total_reward: float
-
-
-@dataclass
-class DecisionPatternStats:
-    """Statistics for a single decision/action type.
-
-    Attributes
-    ----------
-    action_type : str
-        The type of action
-    count : int
-        Number of times this action was taken
-    frequency : float
-        Frequency of this action relative to total decisions
-    reward_stats : dict
-        Statistics about rewards for this action type including:
-        - average: Mean reward
-        - median: Median reward
-        - min: Minimum reward received
-        - max: Maximum reward received
-        - variance: Variance in rewards
-        - std_dev: Standard deviation of rewards
-        - percentile_25: 25th percentile of rewards
-        - percentile_50: 50th percentile of rewards
-        - percentile_75: 75th percentile of rewards
-    """
-
-    action_type: str
-    count: int
-    frequency: float
-    reward_stats: dict = field(default_factory=dict)
-    contribution_metrics: dict = field(default_factory=dict)
-    temporal_stats: dict = field(default_factory=dict)
-    first_occurrence: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -1046,7 +999,7 @@ class DecisionPatternStats:
 
 
 @dataclass
-class SequencePattern:
+class SequencePattern_2:
     """Statistics about action sequences.
 
     Attributes
@@ -1065,7 +1018,7 @@ class SequencePattern:
 
 
 @dataclass
-class TimePattern:
+class TimePattern_2:
     """Temporal patterns of action occurrences and rewards over time.
 
     Attributes:
@@ -1084,7 +1037,7 @@ class TimePattern:
 
 
 @dataclass
-class InteractionStats:
+class InteractionStats_2:
     """Statistics about agent interactions.
 
     Attributes
@@ -1106,7 +1059,7 @@ class InteractionStats:
 
 
 @dataclass
-class DecisionSummary:
+class DecisionSummary_2:
     """Summary statistics about decision making.
 
     Attributes
@@ -1590,6 +1543,7 @@ class AgentEvolutionMetrics:
 @dataclass
 class AgentInfo:
     """Comprehensive agent information."""
+
     agent_id: str
     agent_type: str
     birth_time: int
@@ -1962,7 +1916,7 @@ class ActionAnalysis:
 
 
 @dataclass
-class AdvancedActionMetrics:
+class AdvancedActionMetrics_2:
     """Advanced metrics for action analysis.
 
     Attributes
@@ -2071,7 +2025,7 @@ class ActionOutcome:
 
 
 @dataclass
-class ActionAnalysis:
+class ActionAnalysis_2:
     """Comprehensive analysis of a specific action type.
 
     Attributes
@@ -2090,7 +2044,7 @@ class ActionAnalysis:
 
 
 @dataclass
-class DecisionPatterns:
+class DecisionPatterns_2:
     """Comprehensive analysis of decision-making patterns.
 
     Attributes
@@ -2142,7 +2096,7 @@ class AgentActionData:
 
 
 @dataclass
-class DecisionPatternStats:
+class DecisionPatternStats_2:
     """Statistics for a single decision/action type."""
 
     action_type: str
@@ -2155,7 +2109,7 @@ class DecisionPatternStats:
 
 
 @dataclass
-class DecisionSummary:
+class DecisionSummary_3:
     """Summary statistics about decision making."""
 
     total_decisions: int

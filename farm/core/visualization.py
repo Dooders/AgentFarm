@@ -138,8 +138,11 @@ class SimulationVisualizer:
     def _get_total_steps(self) -> int:
         """Get the total number of steps in the simulation."""
         try:
-            self.db.cursor.execute("SELECT MAX(step_number) FROM SimulationSteps")
-            result = self.db.cursor.fetchone()
+            result = self.db.query.gui_repository.session_manager.execute_with_retry(
+                lambda session: session.execute(
+                    "SELECT MAX(step_number) FROM SimulationSteps"
+                ).fetchone()
+            )
             return result[0] if result and result[0] is not None else 0
         except Exception as e:
             messagebox.showerror(
@@ -372,7 +375,7 @@ class SimulationVisualizer:
         try:
             self.canvas_size = (event.width, event.height)
             # Trigger redraw if we have current data
-            data = self.db.get_simulation_data(self.current_step)
+            data = self.db.query.gui_repository.get_simulation_data(self.current_step)
             if data["agent_states"] or data["resource_states"]:
                 self._update_visualization(data)
         except Exception as e:
@@ -456,7 +459,9 @@ class SimulationVisualizer:
         """Handle simulation playback."""
         if self.playing:
             try:
-                data = self.db.get_simulation_data(self.current_step + 1)
+                data = self.db.query.gui_repository.get_simulation_data(
+                    self.current_step + 1
+                )
                 if not data["agent_states"] and not data["resource_states"]:
                     self.playing = False
                     return
@@ -465,7 +470,8 @@ class SimulationVisualizer:
                 delay = int(1000 / self.speed_scale.get())
                 if self.birth_animations or self.death_animations:
                     delay = min(delay, self.ANIMATION_MIN_DELAY)
-                self.root.after(delay, self._play_simulation)
+                if self.root:
+                    self.root.after(delay, self._play_simulation)
             except Exception as e:
                 messagebox.showerror(
                     "Playback Error", f"Failed to advance simulation: {str(e)}"
@@ -475,7 +481,7 @@ class SimulationVisualizer:
     def _step_to(self, step_number):
         """Move to a specific step in the simulation."""
         try:
-            data = self.db.get_simulation_data(step_number)
+            data = self.db.query.gui_repository.get_simulation_data(step_number)
             if data["agent_states"] or data["resource_states"]:
                 self.current_step = step_number
                 self._update_visualization(data)
@@ -530,7 +536,10 @@ class SimulationVisualizer:
         # Update canvas
         photo = ImageTk.PhotoImage(img)
         self.env_canvas.create_image(0, 0, image=photo, anchor="nw")
-        self.env_canvas.image = photo  # Keep reference to prevent garbage collection
+        # Keep reference to prevent garbage collection
+        if not hasattr(self, "_canvas_images"):
+            self._canvas_images = []
+        self._canvas_images.append(photo)
 
     def _calculate_transform_params(self, resource_states, width, height):
         """Calculate scaling and offset parameters for coordinate transformation."""
@@ -710,7 +719,7 @@ class SimulationVisualizer:
         """Update the population and resource charts with historical data."""
         try:
             # Fetch historical data up to the current step
-            history = self.db.get_historical_data()
+            history = self.db.query.gui_repository.get_historical_data()
 
             if not history["steps"]:
                 return  # No data to plot
@@ -790,11 +799,12 @@ class SimulationVisualizer:
 
     def _initialize_visualization(self):
         """Initialize the visualization with the first frame of data."""
-        initial_data = self.db.get_simulation_data(0)
+        initial_data = self.db.query.gui_repository.get_simulation_data(0)
         if initial_data["agent_states"] or initial_data["resource_states"]:
             self._update_visualization(initial_data)
             # Force an update of the window
-            self.root.update_idletasks()
+            if self.root:
+                self.root.update_idletasks()
 
 
 class ToolTip:

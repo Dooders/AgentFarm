@@ -3,11 +3,11 @@ import logging
 import os
 import random
 import time
-import numpy as np
-import torch
 from datetime import datetime
 from typing import List, Optional, Tuple
 
+import numpy as np
+import torch
 from tqdm import tqdm
 
 from farm.agents import IndependentAgent, SystemAgent
@@ -72,18 +72,18 @@ def create_initial_agents(
     logging.info(
         f"Creating initial agents - System: {num_system_agents}, Independent: {num_independent_agents}, Control: {num_control_agents}"
     )
-    
+
     # Use a seeded random number generator for deterministic agent creation
-    if hasattr(environment, 'seed_value') and environment.seed_value is not None:
+    if hasattr(environment, "seed_value") and environment.seed_value is not None:
         rng = random.Random(environment.seed_value)
     else:
         rng = random
-    
+
     # Helper function to generate deterministic positions
     def get_random_position():
         return (
-            rng.uniform(0, environment.width),
-            rng.uniform(0, environment.height),
+            int(rng.uniform(0, environment.width)),
+            int(rng.uniform(0, environment.height)),
         )
 
     # Create system agents
@@ -138,7 +138,7 @@ def create_initial_agents(
 def init_random_seeds(seed=None):
     """
     Initialize all random number generators with a seed for deterministic behavior.
-    
+
     Parameters
     ----------
     seed : int, optional
@@ -147,10 +147,10 @@ def init_random_seeds(seed=None):
     if seed is not None:
         # Set the Python random module seed
         random.seed(seed)
-        
+
         # Set NumPy random seed
         np.random.seed(seed)
-        
+
         # Set PyTorch seeds if available
         try:
             torch.manual_seed(seed)
@@ -162,7 +162,7 @@ def init_random_seeds(seed=None):
                 # torch.backends.cudnn.benchmark = False
         except ImportError:
             logging.info("PyTorch not available, skipping torch seed initialization")
-        
+
         logging.info(f"Random seeds initialized with seed {seed}")
 
 
@@ -200,12 +200,12 @@ def run_simulation(
     # Generate simulation_id if not provided
     if simulation_id is None:
         simulation_id = generate_simulation_id()
-        
+
     # Set seed for reproducibility if provided
     if seed is not None:
         # Store seed in config for future reference
         config.seed = seed
-        
+
         # Initialize all random seeds
         init_random_seeds(seed)
 
@@ -240,7 +240,7 @@ def run_simulation(
                     "type": "random",
                     "amount": config.initial_resources,
                 },
-                db_path=None,  # Will be ignored for in-memory DB
+                db_path="",  # Will be ignored for in-memory DB
                 config=config,
                 simulation_id=simulation_id,
                 seed=seed,  # Pass seed to Environment
@@ -269,7 +269,7 @@ def run_simulation(
 
         else:
             # Clean up any existing database file for disk-based DB
-            if os.path.exists(db_path):
+            if db_path is not None and os.path.exists(db_path):
                 try:
                     os.remove(db_path)
                 except PermissionError:
@@ -285,7 +285,8 @@ def run_simulation(
             from farm.database.models import Base, Simulation
 
             # Create parent directory if it doesn't exist
-            os.makedirs(os.path.dirname(db_path), exist_ok=True)
+            if db_path is not None:
+                os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
             # Create database engine and initialize tables using SQLAlchemy
             engine = create_engine(
@@ -315,7 +316,7 @@ def run_simulation(
                     "type": "random",
                     "amount": config.initial_resources,
                 },
-                db_path=db_path,
+                db_path=db_path if db_path is not None else "simulation.db",
                 config=config,
                 simulation_id=simulation_id,
                 seed=seed,  # Pass seed to Environment
@@ -383,14 +384,21 @@ def run_simulation(
 
                     logging.info(f"Persisting in-memory database to {db_path}")
                     # Persist with selected tables or all tables
-                    stats = environment.db.persist_to_disk(
-                        db_path=db_path,
-                        tables=config.in_memory_tables_to_persist,
-                        show_progress=True,
-                    )
-                    logging.info(
-                        f"Database persistence completed: {stats['rows_copied']} rows in {stats['duration']:.2f} seconds"
-                    )
+                    from farm.database.database import InMemorySimulationDatabase
+
+                    if isinstance(environment.db, InMemorySimulationDatabase):
+                        stats = environment.db.persist_to_disk(
+                            db_path=db_path,
+                            tables=config.in_memory_tables_to_persist,
+                            show_progress=True,
+                        )
+                        logging.info(
+                            f"Database persistence completed: {stats['rows_copied']} rows in {stats['duration']:.2f} seconds"
+                        )
+                    else:
+                        logging.warning(
+                            "Database is not an InMemorySimulationDatabase, skipping persistence"
+                        )
                 except Exception as e:
                     logging.error(f"Failed to persist in-memory database: {e}")
 

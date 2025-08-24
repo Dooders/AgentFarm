@@ -5,7 +5,8 @@ from farm.agents import IndependentAgent, SystemAgent
 
 
 class DataCollector:
-    def __init__(self):
+    def __init__(self, config):
+        self.config = config
         self.data = []
         self.births_this_cycle = 0
         self.deaths_this_cycle = 0

@@ -50,7 +50,7 @@ class PerceptionData:
         return self.grid
 
     @property
-    def shape(self) -> tuple[int, int]:
+    def shape(self) -> tuple[int, ...]:
         return self.grid.shape
 
     def to_tensor(self, device: Optional[torch.device] = None) -> torch.Tensor:

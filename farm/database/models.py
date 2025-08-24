@@ -873,10 +873,15 @@ class SimulationComparison:
                 differences[field] = (val1, val2)
 
         # Compare timestamps
-        if self.sim1.start_time != self.sim2.start_time:
-            differences["start_time"] = (self.sim1.start_time, self.sim2.start_time)
-        if self.sim1.end_time != self.sim2.end_time:
-            differences["end_time"] = (self.sim1.end_time, self.sim2.end_time)
+        start_time1: Any = self.sim1.start_time
+        start_time2: Any = self.sim2.start_time
+        if start_time1 != start_time2:
+            differences["start_time"] = (start_time1, start_time2)
+
+        end_time1: Any = self.sim1.end_time
+        end_time2: Any = self.sim2.end_time
+        if end_time1 != end_time2:
+            differences["end_time"] = (end_time1, end_time2)
 
         return differences
 

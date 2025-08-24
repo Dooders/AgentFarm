@@ -48,10 +48,7 @@ class ExperimentDataLogger(DataLogger):
     """
 
     def __init__(
-        self, 
-        database, 
-        simulation_id, 
-        config: DataLoggingConfig = None
+        self, database, simulation_id, config: DataLoggingConfig = DataLoggingConfig()
     ):
         """Initialize the experiment data logger.
 
@@ -330,7 +327,9 @@ class SimulationContext:
     ensuring all data is tagged with the correct simulation_id.
     """
 
-    def __init__(self, parent_db, simulation_id, config: DataLoggingConfig = None):
+    def __init__(
+        self, parent_db, simulation_id, config: DataLoggingConfig = DataLoggingConfig()
+    ):
         """Initialize the simulation context.
 
         Parameters
@@ -480,10 +479,10 @@ class ExperimentDatabase(SimulationDatabase):
         self._execute_in_transaction(_create)
 
     def create_simulation_context(
-        self, 
-        simulation_id: str, 
-        parameters: Dict = None,
-        logging_config: DataLoggingConfig = None
+        self,
+        simulation_id: str,
+        parameters: Dict = {},
+        logging_config: DataLoggingConfig = DataLoggingConfig(),
     ):
         """Create a simulation-specific context.
 
@@ -511,7 +510,7 @@ class ExperimentDatabase(SimulationDatabase):
         # Return a context for this simulation
         return SimulationContext(self, simulation_id, logging_config)
 
-    def _create_simulation_record(self, simulation_id: str, parameters: Dict = None):
+    def _create_simulation_record(self, simulation_id: str, parameters: Dict = {}):
         """Create a simulation record in the database.
 
         Parameters
@@ -544,7 +543,7 @@ class ExperimentDatabase(SimulationDatabase):
         self._execute_in_transaction(_create)
 
     def update_simulation_status(
-        self, simulation_id: str, status: str, results_summary: Dict = None
+        self, simulation_id: str, status: str, results_summary: Dict = {}
     ):
         """Update the status of a simulation.
 
@@ -594,7 +593,7 @@ class ExperimentDatabase(SimulationDatabase):
 
         return self._execute_in_transaction(_query)
 
-    def update_experiment_status(self, status: str, results_summary: Dict = None):
+    def update_experiment_status(self, status: str, results_summary: Dict = {}):
         """Update the status of the experiment.
 
         Parameters
