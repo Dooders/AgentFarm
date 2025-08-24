@@ -115,10 +115,16 @@ class ResourceManager:
         self.resources.clear()
         self.next_resource_id = 0
 
+        # Use seeded random generator for deterministic behavior
+        if self.seed_value is not None:
+            rng = random.Random(self.seed_value)
+        else:
+            rng = random
+
         for i in range(amount):
             # Random position (same as original)
-            x = random.uniform(0, self.width)
-            y = random.uniform(0, self.height)
+            x = rng.uniform(0, self.width)
+            y = rng.uniform(0, self.height)
 
             # Create resource with regeneration parameters (same as original)
             resource = Resource(
@@ -292,11 +298,11 @@ class ResourceManager:
         Dict
             Update statistics including regeneration events, consumption, etc.
         """
-        stats = {
+        stats: Dict[str, float] = {
             "regeneration_events": 0,
-            "resources_regenerated": 0,
+            "resources_regenerated": 0.0,
             "depletion_events": 0,
-            "total_resources": sum(r.amount for r in self.resources),
+            "total_resources": len(self.resources),
         }
 
         if self.seed_value is not None:
