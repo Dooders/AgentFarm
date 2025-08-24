@@ -5,6 +5,7 @@ matplotlib>=3.4.0
 pyyaml>=6.0
 sqlalchemy>=1.4.0
 deepdiff>=5.8.0
+pettingzoo>=1.24.0  # Multi-agent reinforcement learning environments
 
 # Database 
 # Note: sqlite3 is part of Python standard library, no need to install separately
@@ -28,9 +29,9 @@ python-dotenv>=0.19.0  # Environment variables
 
 # Machine Learning
 # For PyTorch, choose one of:
-# torch>=1.10.0  # Default PyTorch with CUDA support if available
-torch>=1.10.0+cpu  # CPU-only PyTorch (smaller, no CUDA)
-# Install PyTorch CPU with: pip install torch>=1.10.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
+# torch>=2.0.0  # Default PyTorch with CUDA support if available
+torch>=2.0.0  # CPU-only PyTorch (smaller, no CUDA)
+# Install PyTorch CPU with: pip install torch -f https://download.pytorch.org/whl/torch_stable.html
 scikit-learn>=1.0.0  # For machine learning utilities
 
 # Data Analysis
@@ -41,4 +42,4 @@ dash>=2.0.0  # Dashboard for visualization
 # Optional dependencies
 # tensorflow>=2.7.0  # Uncomment if needed for specific implementations
 moviepy>=1.0.3  # For video generation and processing 
-tkinter>=8.6.10  # For GUI  
+# Note: tkinter is part of Python standard library, no need to install separately  

@@ -1,47 +1,20 @@
 import logging
-import os
 import random
-import threading
-import time
-from typing import Dict, Optional, Set
+from typing import Dict
 
 import numpy as np
-from scipy.spatial import KDTree
 
 from farm.agents import ControlAgent, IndependentAgent, SystemAgent
 from farm.core.resources import Resource
+from farm.core.spatial_index import SpatialIndex
 from farm.core.state import EnvironmentState
 
 # from farm.agents.base_agent import BaseAgent
 from farm.database.database import SimulationDatabase
+from farm.database.utilities import setup_db
 from farm.utils.short_id import ShortUUID
 
 logger = logging.getLogger(__name__)
-
-
-def setup_db(db_path):
-    # Skip setup for in-memory database (when db_path is None)
-    if db_path is None:
-        return
-
-    # Try to clean up any existing database connections first
-    try:
-        import sqlite3
-
-        conn = sqlite3.connect(db_path)
-        conn.close()
-    except Exception:
-        pass
-
-    # Delete existing database file if it exists
-    if os.path.exists(db_path):
-        try:
-            os.remove(db_path)
-        except OSError as e:
-            logger.warning(f"Failed to remove database {db_path}: {e}")
-            # Generate unique filename if can't delete
-            base, ext = os.path.splitext(db_path)
-            db_path = f"{base}_{int(time.time())}{ext}"
 
 
 class Environment:
@@ -66,7 +39,8 @@ class Environment:
             random.seed(self.seed_value)
             np.random.seed(self.seed_value)
 
-        setup_db(db_path)
+        # Setup database and get potentially modified path
+        final_db_path = setup_db(db_path)
 
         # Initialize basic attributes
         self.width = width
@@ -79,25 +53,22 @@ class Environment:
         self.simulation_id = simulation_id or ShortUUID().uuid()
 
         # Only initialize database if db_path is provided (not for in-memory DB)
-        if db_path is not None:
-            self.db = SimulationDatabase(db_path, simulation_id=self.simulation_id)
+        if final_db_path is not None:
+            self.db = SimulationDatabase(
+                final_db_path, simulation_id=self.simulation_id
+            )
         else:
             # Will be set to InMemorySimulationDatabase later
             self.db = None
 
-        self.seed = ShortUUID()
+        self.id_generator = ShortUUID()
         self.next_resource_id = 0
-        # self.max_resource = max_resource or (config.max_resource_amount if config else None)
         self.max_resource = max_resource
         self.config = config
-        self.initial_agent_count = 0
-        self.pending_actions = []  # Initialize pending_actions list
+        self.initial_agent_count = 0  #! Is this really needed``
 
-        # Add KD-tree attributes
-        self.agent_kdtree = None
-        self.resource_kdtree = None
-        self.agent_positions = None
-        self.resource_positions = None
+        # Initialize spatial index for efficient spatial queries
+        self.spatial_index = SpatialIndex(width, height)
 
         # Add tracking for births and deaths
         self.births_this_step = 0
@@ -119,28 +90,13 @@ class Environment:
 
         # Initialize environment
         self.initialize_resources(resource_distribution)
-        self._update_kdtrees()
+        # Set references and initialize spatial index
+        self.spatial_index.set_references(self.agents, self.resources)
+        self.spatial_index.update()
 
-    def _update_kdtrees(self):
-        """Update KD-trees for efficient spatial queries."""
-        # Update agent KD-tree
-        alive_agents = [agent for agent in self.agents if agent.alive]
-        if alive_agents:
-            self.agent_positions = np.array([agent.position for agent in alive_agents])
-            self.agent_kdtree = KDTree(self.agent_positions)
-        else:
-            self.agent_kdtree = None
-            self.agent_positions = None
-
-        # Update resource KD-tree
-        if self.resources:
-            self.resource_positions = np.array(
-                [resource.position for resource in self.resources]
-            )
-            self.resource_kdtree = KDTree(self.resource_positions)
-        else:
-            self.resource_kdtree = None
-            self.resource_positions = None
+    def mark_positions_dirty(self):
+        """Public method for agents to mark positions as dirty when they move."""
+        self.spatial_index.mark_positions_dirty()
 
     def get_nearby_agents(self, position, radius):
         """Find all agents within radius of position.
@@ -157,13 +113,7 @@ class Environment:
         list
             List of agents within radius
         """
-        if self.agent_kdtree is None:
-            return []
-
-        indices = self.agent_kdtree.query_ball_point(position, radius)
-        return [
-            agent for i, agent in enumerate(self.agents) if agent.alive and i in indices
-        ]
+        return self.spatial_index.get_nearby_agents(position, radius)
 
     def get_nearby_resources(self, position, radius):
         """Find all resources within radius of position.
@@ -180,11 +130,7 @@ class Environment:
         list
             List of resources within radius
         """
-        if self.resource_kdtree is None:
-            return []
-
-        indices = self.resource_kdtree.query_ball_point(position, radius)
-        return [self.resources[i] for i in indices]
+        return self.spatial_index.get_nearby_resources(position, radius)
 
     def get_nearest_resource(self, position):
         """Find nearest resource to position.
@@ -199,11 +145,7 @@ class Environment:
         Resource or None
             Nearest resource if any exist
         """
-        if self.resource_kdtree is None:
-            return None
-
-        distance, index = self.resource_kdtree.query(position)
-        return self.resources[index]
+        return self.spatial_index.get_nearest_resource(position)
 
     def get_next_resource_id(self):
         resource_id = self.next_resource_id
@@ -263,6 +205,7 @@ class Environment:
     def remove_agent(self, agent):
         self.record_death()
         self.agents.remove(agent)
+        self.spatial_index.mark_positions_dirty()  # Mark positions as dirty when agent is removed
 
     def collect_action(self, **action_data):
         """Collect an action for batch processing."""
@@ -343,8 +286,8 @@ class Environment:
             metrics = self._calculate_metrics()
             self.update_metrics(metrics)
 
-            # Update KD trees
-            self._update_kdtrees()
+            # Update spatial index
+            self.spatial_index.update()
 
             # Reset counters for next step
             self.resources_shared_this_step = 0
@@ -525,7 +468,7 @@ class Environment:
             return f"agent_{agent_hash}"
         else:
             # Non-deterministic mode uses random short ID
-            return self.seed.id()
+            return self.id_generator.id()
 
     def get_state(self) -> EnvironmentState:
         """Get current environment state."""
@@ -618,6 +561,9 @@ class Environment:
         self.agents.append(agent)
         if self.time == 0:
             self.initial_agent_count += 1
+
+        # Mark positions as dirty when new agent is added
+        self.spatial_index.mark_positions_dirty()
 
         # Batch log to database using SQLAlchemy
         if self.db is not None:

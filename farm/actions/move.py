@@ -288,8 +288,8 @@ def move_action(agent: "BaseAgent") -> None:
     initial_position = agent.position
     new_position = agent.move_module.get_movement(agent, state)
 
-    # Update position first to avoid unnecessary calculations
-    agent.position = (new_position[0], new_position[1])
+    # Update position using the new method that marks spatial index as dirty
+    agent.update_position(new_position)
 
     # Calculate reward
     reward = _calculate_movement_reward(agent, initial_position, new_position)

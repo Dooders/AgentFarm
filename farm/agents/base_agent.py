@@ -503,20 +503,13 @@ class BaseAgent:
         self._environment = environment
 
     def calculate_new_position(self, action):
-        """Calculate new position based on movement action.
-
-        Takes into account environment boundaries and maximum movement distance.
-        Movement is grid-based with four possible directions.
+        """Calculate new position based on action.
 
         Args:
-            action (int): Movement direction index
-                0: Right  (+x direction)
-                1: Left   (-x direction)
-                2: Up     (+y direction)
-                3: Down   (-y direction)
+            action (int): Action index (0-3 for movement actions)
 
         Returns:
-            tuple[float, float]: New (x, y) position coordinates, bounded by environment limits
+            tuple: New (x, y) position
         """
         # Define movement vectors for each action
         action_vectors = {
@@ -538,6 +531,17 @@ class BaseAgent:
         new_y = max(0, min(self.environment.height, self.position[1] + dy))
 
         return (new_x, new_y)
+
+    def update_position(self, new_position):
+        """Update agent position and mark spatial index as dirty.
+        
+        Args:
+            new_position (tuple): New (x, y) position
+        """
+        if self.position != new_position:
+            self.position = new_position
+            # Mark spatial index as dirty when position changes
+            self.environment.mark_positions_dirty()
 
     def calculate_move_reward(self, old_pos, new_pos):
         """Calculate reward for a movement action.
