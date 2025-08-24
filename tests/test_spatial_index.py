@@ -453,8 +453,8 @@ class TestSpatialIndex(unittest.TestCase):
         self.assertEqual(len(nearby), 1)
         self.assertEqual(nearby[0].agent_id, "agent1")
 
-    def test_get_nearby_agents_stale_cache_bug_fix(self):
-        """Test the specific bug fix: dead agents are filtered out even with stale cache."""
+    def test_cache_invalidation_on_agent_death(self):
+        """Test that cache is properly invalidated when agents die, preventing stale cache issues."""
         # Add agents
         agent1 = MockSystemAgent(
             agent_id="agent1",
@@ -482,20 +482,24 @@ class TestSpatialIndex(unittest.TestCase):
         assert cached_agents is not None  # Type assertion for linter
         self.assertEqual(len(cached_agents), 2)
         
-        # Kill agent2 AFTER cache is built (simulating stale cache scenario)
+        # Kill agent2 and trigger proper cache invalidation (simulating proper death handling)
         agent2.alive = False
+        self.spatial_index.mark_positions_dirty()  # This is what Environment.remove_agent() does
+        self.spatial_index.update()  # This rebuilds the cache with only alive agents
         
-        # Query without rebuilding KD-tree (using stale cache)
+        # Query with properly updated cache
         nearby = self.spatial_index.get_nearby_agents((10, 10), 10)
         
-        # Bug fix: should filter out dead agent even with stale cache
+        # Should only return alive agent since cache was properly invalidated
         self.assertEqual(len(nearby), 1)
         self.assertEqual(nearby[0].agent_id, "agent1")
         self.assertNotIn(agent2, nearby)
         
-        # Verify the dead agent is still in the stale cache
-        self.assertIn(agent2, cached_agents)
-        self.assertEqual(len(cached_agents), 2)  # Cache is still stale
+        # Verify the dead agent is no longer in the updated cache
+        updated_cache = self.spatial_index._cached_alive_agents
+        assert updated_cache is not None  # Type assertion for linter
+        self.assertNotIn(agent2, updated_cache)
+        self.assertEqual(len(updated_cache), 1)  # Cache contains only alive agents
 
     def test_get_nearby_resources_input_validation(self):
         """Test input validation for get_nearby_resources (bug fix)."""

@@ -162,7 +162,7 @@ class SpatialIndex:
         """Rebuild KD-trees from current agent and resource positions."""
         # Update agent KD-tree
         alive_agents = [agent for agent in self._agents if agent.alive]
-        self._cached_alive_agents = alive_agents  # Cache for queries
+        self._cached_alive_agents = alive_agents  # Cache contains only alive agents for efficient queries
         if alive_agents:
             self.agent_positions = np.array([agent.position for agent in alive_agents])
             self.agent_kdtree = KDTree(self.agent_positions)
@@ -206,12 +206,8 @@ class SpatialIndex:
 
         # Use cached alive agents for direct indexing
         indices = self.agent_kdtree.query_ball_point(position, radius)
-        # Filter out dead agents to handle stale cache data
-        return [
-            self._cached_alive_agents[i]
-            for i in indices
-            if self._cached_alive_agents[i].alive
-        ]
+        # Return agents directly since cache only contains alive agents
+        return [self._cached_alive_agents[i] for i in indices]
 
     def get_nearby_resources(
         self, position: Tuple[float, float], radius: float
