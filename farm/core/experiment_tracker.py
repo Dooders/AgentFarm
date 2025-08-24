@@ -132,6 +132,11 @@ class ExperimentTracker:
                 logging.info("Restored metadata from backup")
             raise
 
+    def _get_row_count(self, cursor) -> int:
+        """Get the total number of rows in the SimulationMetrics table."""
+        cursor.execute("SELECT COUNT(*) FROM SimulationMetrics")
+        return cursor.fetchone()[0]
+
     def register_experiment(
         self, name: str, config: Dict[str, Any], db_path: str
     ) -> str:

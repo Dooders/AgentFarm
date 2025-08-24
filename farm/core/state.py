@@ -291,14 +291,17 @@ class EnvironmentState(BaseState):
         resource_density = len(env.resources) / cls.MAX_EXPECTED_RESOURCES
 
         alive_agents = [a for a in env.agents if a.alive]
-        agent_density = len(alive_agents) / env.config.max_population
+        max_population = env.config.max_population if env.config else 3000
+        agent_density = len(alive_agents) / max_population
 
         # Calculate system agent ratio
         system_agents = [a for a in alive_agents if isinstance(a, SystemAgent)]
         system_ratio = len(system_agents) / len(alive_agents) if alive_agents else 0.0
 
         # Calculate resource availability
-        max_possible = env.max_resource or env.config.max_resource_amount
+        max_possible = env.max_resource or (
+            env.config.max_resource_amount if env.config else 30
+        )
         avg_resource = (
             sum(r.amount for r in env.resources) / (len(env.resources) * max_possible)
             if env.resources
@@ -444,7 +447,7 @@ class ModelState(BaseModel):
             latest_loss=recent_losses[-1] if recent_losses else None,
             latest_reward=recent_rewards[-1] if recent_rewards else None,
             memory_size=len(move_module.memory),
-            memory_capacity=move_module.memory.maxlen,
+            memory_capacity=move_module.memory.maxlen if move_module.memory else 0,  # type: ignore
             steps=move_module.steps,
             architecture=architecture,
             training_metrics=training_metrics,
@@ -641,9 +644,10 @@ class SimulationState(BaseState):
 
         # Calculate resource efficiency
         total_resources = sum(resource.amount for resource in environment.resources)
-        max_resources = environment.config.max_resource_amount * len(
-            environment.resources
+        max_resource_amount = (
+            environment.config.max_resource_amount if environment.config else 30
         )
+        max_resources = max_resource_amount * len(environment.resources)
         resource_efficiency = (
             total_resources / max_resources if max_resources > 0 else 0.0
         )
