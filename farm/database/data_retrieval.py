@@ -55,6 +55,7 @@ from farm.database.session_manager import SessionManager
 
 from .data_types import (
     ActionMetrics,
+    ActionTypeStats,
     AdvancedStatistics,
     AgentBehaviorMetrics,
     AgentDistribution,
@@ -68,11 +69,13 @@ from .data_types import (
     PopulationMetrics,
     PopulationStatistics,
     PopulationVariance,
+    ResourceAnalysis,
     ResourceImpact,
     ResourceMetrics,
     SequencePattern,
     SimulationResults,
     StepActionData,
+    StepSummary,
     SurvivalMetrics,
     TimePattern,
 )
@@ -142,30 +145,76 @@ class DataRetriever:
 
     def population_statistics(self) -> PopulationStatistics:
         """Calculate comprehensive population statistics."""
-        return self.population_repository.get_population_data(
-            self.session_manager.get_session(), scope="simulation"
-        )
+        from farm.database.analyzers.population_analyzer import PopulationAnalyzer
 
-    def resource_statistics(self) -> Dict[str, Any]:
+        analyzer = PopulationAnalyzer(self.population_repository)
+        return analyzer.analyze_comprehensive_statistics(scope="simulation")
+
+    def resource_statistics(self) -> ResourceAnalysis:
         """Get statistics about resource distribution and consumption."""
-        return self.resource_repository.execute()
+        from farm.database.analyzers.resource_analyzer import ResourceAnalyzer
+
+        analyzer = ResourceAnalyzer(self.resource_repository)
+        return analyzer.analyze_comprehensive_statistics(scope="simulation")
 
     def learning_statistics(self) -> LearningStatistics:
         """Get statistics about agent learning and adaptation."""
-        session = self.session_manager.get_session()
-        return {
-            "learning_progress": self.learning_repository.get_learning_progress(
-                session, scope="simulation"
-            ),
-            "module_performance": self.learning_repository.get_module_performance(
-                session, scope="simulation"
-            ),
-        }
+        from farm.database.analyzers.learning_analyzer import LearningAnalyzer
+
+        analyzer = LearningAnalyzer(self.learning_repository)
+        return analyzer.analyze_comprehensive_statistics(scope="simulation")
 
     def step_actions(self, step_number: int) -> StepActionData:
         """Get all actions performed during a specific simulation step."""
-        return self.action_repository.get_actions_by_scope(
+        actions = self.action_repository.get_actions_by_scope(
             scope="simulation", step=step_number
+        )
+
+        if not actions:
+            return StepActionData(
+                step_summary=StepSummary(0, 0, 0, 0.0),
+                action_statistics={},
+                detailed_actions=[],
+            )
+
+        # Calculate step summary
+        total_actions = len(actions)
+        unique_agents = len(set(action.agent_id for action in actions))
+        action_types = len(set(action.action_type for action in actions))
+        total_reward = sum(action.reward or 0 for action in actions)
+
+        # Calculate action statistics
+        action_stats = {}
+        for action in actions:
+            if action.action_type not in action_stats:
+                action_stats[action.action_type] = ActionTypeStats(0, 0.0, 0.0, 0.0)
+
+            stats = action_stats[action.action_type]
+            stats.count += 1
+            stats.frequency = stats.count / total_actions
+            stats.total_reward += action.reward or 0
+            stats.avg_reward = stats.total_reward / stats.count
+
+        # Convert actions to detailed format
+        detailed_actions = [
+            {
+                "agent_id": action.agent_id,
+                "action_type": action.action_type,
+                "action_target_id": action.action_target_id,
+                "resources_before": action.resources_before,
+                "resources_after": action.resources_after,
+                "reward": action.reward,
+                "details": action.details,
+            }
+            for action in actions
+        ]
+
+        return StepActionData(
+            step_summary=StepSummary(
+                total_actions, unique_agents, action_types, total_reward
+            ),
+            action_statistics=action_stats,
+            detailed_actions=detailed_actions,
         )
 
     def get_agent_behaviors(
@@ -389,36 +438,20 @@ class DataRetriever:
                 population_metrics=PopulationStatistics(
                     population_metrics=PopulationMetrics(**pop_stats),
                     population_variance=PopulationVariance(
-                        total_agents=pop_stats["total_agents"],
-                        system_agents=pop_stats["system_agents"],
-                        independent_agents=pop_stats["independent_agents"],
-                        control_agents=pop_stats["control_agents"],
+                        variance=0.0,  # Calculate actual variance
+                        standard_deviation=0.0,  # Calculate actual std dev
+                        coefficient_variation=0.0,  # Calculate actual CV
                     ),
                 ),
                 interaction_metrics=InteractionPattern(
-                    **interaction_metrics,
-                    conflict_cooperation_ratio=(
-                        interaction_metrics["conflict_rate"]
-                        / interaction_metrics["cooperation_rate"]
-                        if interaction_metrics["cooperation_rate"] > 0
-                        else float("inf")
-                    ),
+                    interaction_count=interaction_metrics.get("total_actions", 0),
+                    average_reward=interaction_metrics.get("avg_reward", 0.0),
                 ),
                 resource_metrics=ResourceMetrics(**resource_metrics),
-                agent_distribution=AgentDistribution(
-                    **type_ratios,
-                    type_entropy=diversity,
-                ),
-                survival_metrics=SurvivalMetrics(
-                    population_stability=(
-                        pop_stats["minimum_population"] / pop_stats["peak_population"]
-                    ),
-                    health_maintenance=(pop_stats["average_health"] / 100.0),
-                    interaction_rate=(
-                        interaction_metrics["total_actions"]
-                        / pop_stats["total_steps"]
-                        / pop_stats["average_population"]
-                    ),
+                agent_type_distribution=AgentDistribution(
+                    system_agents=type_ratios.get("system", 0.0),
+                    independent_agents=type_ratios.get("independent", 0.0),
+                    control_agents=type_ratios.get("control", 0.0),
                 ),
             )
 
@@ -596,18 +629,16 @@ class DataRetriever:
         import numpy as np
 
         decision_patterns = {}
-        total_decisions = sum(m.decision_count for m in metrics)
+        total_decisions = sum(m.count for m in metrics)
 
         for metric in metrics:
             rewards = rewards_by_type.get(metric.action_type, [])
             reward_stddev = float(np.std(rewards)) if len(rewards) > 1 else 0.0
 
             decision_patterns[metric.action_type] = {
-                "count": metric.decision_count,
+                "count": metric.count,
                 "frequency": (
-                    float(metric.decision_count) / total_decisions
-                    if total_decisions > 0
-                    else 0
+                    float(metric.count) / total_decisions if total_decisions > 0 else 0
                 ),
                 "reward_stats": {
                     "average": metric.avg_reward,
@@ -769,7 +800,7 @@ class DataRetriever:
 
     def _get_all_patterns(
         self, base_query
-    ) -> Tuple[SequencePattern, ResourceImpact, TimePattern, InteractionStats]:
+    ) -> Tuple[List[Tuple], List[Tuple], List[Tuple], List[Tuple]]:
         """Get all pattern types from agent actions.
 
         Parameters
@@ -840,7 +871,7 @@ class DataRetriever:
             # Get rewards by action type
             rewards_by_type: Dict[str, List[float]] = self.rewards_by_type(
                 session,
-                [(m.action_type, m.decision_count) for m in action_metrics],
+                [(m.action_type, m.count) for m in action_metrics],
                 agent_id,
             )
 
@@ -853,33 +884,33 @@ class DataRetriever:
             ) = self._get_all_patterns(base_query)
 
             # Format decision patterns
-            decision_patterns: DecisionPatternStats = self._format_decision_patterns(
-                action_metrics, rewards_by_type
+            decision_patterns: Dict[str, Dict[str, Any]] = (
+                self._format_decision_patterns(action_metrics, rewards_by_type)
             )
 
             # Format sequential patterns
-            sequence_analysis: SequencePattern = self._format_sequence_analysis(
-                sequential_patterns, decision_patterns
+            sequence_analysis: Dict[str, Dict[str, Union[int, float]]] = (
+                self._format_sequence_analysis(sequential_patterns, decision_patterns)
             )
 
             # Format resource patterns
-            resource_impact: ResourceImpact = self._format_resource_patterns(
-                resource_patterns
+            resource_impact: Dict[str, Dict[str, float]] = (
+                self._format_resource_patterns(resource_patterns)
             )
 
             # Format time-based patterns
-            temporal_patterns: TimePattern = self._format_temporal_patterns(
-                time_patterns
+            temporal_patterns: Dict[str, Dict[str, List[Any]]] = (
+                self._format_temporal_patterns(time_patterns)
             )
 
             # Format interaction patterns
-            interaction_analysis: InteractionStats = self._format_interaction_patterns(
-                interaction_patterns
+            interaction_analysis: Dict[str, Dict[str, float]] = (
+                self._format_interaction_patterns(interaction_patterns)
             )
 
             # Create decision summary
-            decision_summary: DecisionSummary = self._create_decision_summary(
-                decision_patterns
+            decision_summary: Dict[str, Union[int, str, None]] = (
+                self._create_decision_summary(decision_patterns)
             )
 
             # Return with the created decision summary
@@ -896,7 +927,7 @@ class DataRetriever:
 
     def _create_decision_summary(
         self, decision_patterns: Dict[str, Any]
-    ) -> DecisionSummary:
+    ) -> Dict[str, Union[int, str, None]]:
         """Create a summary of decision patterns.
 
         Parameters

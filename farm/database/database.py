@@ -50,7 +50,7 @@ import queue
 import threading
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import pandas as pd
 from sqlalchemy import create_engine, event, text
@@ -59,6 +59,7 @@ from sqlalchemy.orm import joinedload, scoped_session, sessionmaker
 from sqlalchemy.pool import QueuePool
 
 from farm.database.data_retrieval import DataRetriever
+from farm.database.session_manager import SessionManager
 
 from .data_logging import DataLogger, ShardedDataLogger
 from .models import (
@@ -272,13 +273,20 @@ class SimulationDatabase:
         # Create tables and indexes
         self._create_tables()
 
+        # Create SessionManager for DataRetriever
+        self.session_manager = SessionManager()
+        self.session_manager.engine = self.engine
+        self.session_manager.Session = self.Session
+
         # Initialize data logger with simulation_id
         from farm.database.data_logging import DataLoggingConfig
+
         self.logger = DataLogger(
-            self, simulation_id=self.simulation_id,
-            config=DataLoggingConfig(buffer_size=1000)
+            self,
+            simulation_id=self.simulation_id,
+            config=DataLoggingConfig(buffer_size=1000),
         )
-        self.query = DataRetriever(self)
+        self.query = DataRetriever(self.session_manager)
 
     def _direct_apply_pragma_profile(self, cursor, profile):
         """Apply a specific pragma profile directly to a cursor.
@@ -532,7 +540,7 @@ class SimulationDatabase:
         cursor.close()
         conn.close()
 
-    def _execute_in_transaction(self, func: callable) -> Any:
+    def _execute_in_transaction(self, func: Callable) -> Any:
         """Execute database operations within a transaction with error handling.
 
         Parameters
@@ -609,7 +617,7 @@ class SimulationDatabase:
         self,
         filepath: str,
         format: str = "csv",
-        data_types: List[str] = None,
+        data_types: Optional[List[str]] = None,
         start_step: Optional[int] = None,
         end_step: Optional[int] = None,
         include_metadata: bool = True,
@@ -1011,12 +1019,12 @@ class SimulationDatabase:
         success: bool,
         parent_resources_before: float,
         parent_resources_after: float,
-        offspring_id: str = None,
-        offspring_initial_resources: float = None,
-        failure_reason: str = None,
-        parent_position: tuple[float, float] = None,
-        parent_generation: int = None,
-        offspring_generation: int = None,
+        offspring_id: Optional[str] = None,
+        offspring_initial_resources: Optional[float] = None,
+        failure_reason: Optional[str] = None,
+        parent_position: Optional[tuple[float, float]] = None,
+        parent_generation: Optional[int] = None,
+        offspring_generation: Optional[int] = None,
     ) -> None:
         """Log a reproduction event to the database.
 
@@ -1415,13 +1423,20 @@ class InMemorySimulationDatabase(SimulationDatabase):
 
         # Initialize data logger with simulation_id
         from farm.database.data_logging import DataLoggingConfig
+
         self.logger = DataLogger(
-            self, simulation_id=self.simulation_id,
-            config=DataLoggingConfig(buffer_size=1000)
+            self,
+            simulation_id=self.simulation_id,
+            config=DataLoggingConfig(buffer_size=1000),
         )
 
+        # Create SessionManager for DataRetriever
+        self.session_manager = SessionManager()
+        self.session_manager.engine = self.engine
+        self.session_manager.Session = self.Session
+
         # Initialize data retriever
-        self.query = DataRetriever(self)
+        self.query = DataRetriever(self.session_manager)
 
         # Start memory monitoring if a limit is set
         if self.memory_limit_mb:
@@ -1575,7 +1590,7 @@ class InMemorySimulationDatabase(SimulationDatabase):
         }
 
         # Begin transaction on destination
-        dest_conn.execute("BEGIN TRANSACTION")
+        dest_cursor.execute("BEGIN TRANSACTION")
 
         try:
             # Copy each table's data
@@ -1630,7 +1645,7 @@ class InMemorySimulationDatabase(SimulationDatabase):
                     logger.info(f"  Copied {len(rows)} rows from {table_name}")
 
             # Commit transaction
-            dest_conn.execute("COMMIT")
+            dest_cursor.execute("COMMIT")
 
             stats["end_time"] = time.time()
             stats["duration"] = stats["end_time"] - stats["start_time"]
@@ -1646,7 +1661,7 @@ class InMemorySimulationDatabase(SimulationDatabase):
             return stats
 
         except Exception as e:
-            dest_conn.execute("ROLLBACK")
+            dest_cursor.execute("ROLLBACK")
             logger.error(f"Error during database persistence: {e}")
             raise
         finally:
@@ -1694,6 +1709,23 @@ class ShardedSimulationDatabase:
 
         # Create logger that routes to appropriate shards
         self.logger = ShardedDataLogger(self, simulation_id=simulation_id)
+
+    def _get_shard_path(self, shard_id: int, data_type: str) -> str:
+        """Get the file path for a specific shard and data type.
+
+        Parameters
+        ----------
+        shard_id : int
+            Shard identifier
+        data_type : str
+            Type of data (agents, resources, actions, metrics)
+
+        Returns
+        -------
+        str
+            File path for the shard database
+        """
+        return os.path.join(self.base_path, f"shard_{shard_id}_{data_type}.db")
 
     def _init_shard(self, shard_id):
         """Initialize databases for a new shard."""
