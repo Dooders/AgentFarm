@@ -3,7 +3,7 @@ import pandas as pd
 from sqlalchemy import case, func
 
 from farm.database.database import SimulationDatabase
-from farm.database.models import Agent, AgentState, SimulationStep
+from farm.database.models import AgentModel, AgentStateModel, SimulationStepModel
 
 
 class SimulationAnalyzer:
@@ -16,18 +16,21 @@ class SimulationAnalyzer:
         def _query(session):
             query = (
                 session.query(
-                    SimulationStep.step_number,
-                    func.count(case([(Agent.agent_type == "SystemAgent", 1)])).label(
+                    SimulationStepModel.step_number,
+                    func.count(case((AgentModel.agent_type == "SystemAgent", 1))).label(
                         "system_alive"
                     ),
                     func.count(
-                        case([(Agent.agent_type == "IndependentAgent", 1)])
+                        case((AgentModel.agent_type == "IndependentAgent", 1))
                     ).label("independent_alive"),
                 )
-                .join(AgentState, SimulationStep.step_number == AgentState.step_number)
-                .join(Agent, AgentState.agent_id == Agent.agent_id)
-                .group_by(SimulationStep.step_number)
-                .order_by(SimulationStep.step_number)
+                .join(
+                    AgentStateModel,
+                    SimulationStepModel.step_number == AgentStateModel.step_number,
+                )
+                .join(AgentModel, AgentStateModel.agent_id == AgentModel.agent_id)
+                .group_by(SimulationStepModel.step_number)
+                .order_by(SimulationStepModel.step_number)
             )
 
             results = query.all()
@@ -43,17 +46,20 @@ class SimulationAnalyzer:
         def _query(session):
             query = (
                 session.query(
-                    SimulationStep.step_number,
-                    Agent.agent_type,
-                    func.avg(AgentState.resource_level).label("avg_resources"),
-                    func.min(AgentState.resource_level).label("min_resources"),
-                    func.max(AgentState.resource_level).label("max_resources"),
+                    SimulationStepModel.step_number,
+                    AgentModel.agent_type,
+                    func.avg(AgentStateModel.resource_level).label("avg_resources"),
+                    func.min(AgentStateModel.resource_level).label("min_resources"),
+                    func.max(AgentStateModel.resource_level).label("max_resources"),
                     func.count().label("agent_count"),
                 )
-                .join(AgentState, SimulationStep.step_number == AgentState.step_number)
-                .join(Agent, AgentState.agent_id == Agent.agent_id)
-                .group_by(SimulationStep.step_number, Agent.agent_type)
-                .order_by(SimulationStep.step_number)
+                .join(
+                    AgentStateModel,
+                    SimulationStepModel.step_number == AgentStateModel.step_number,
+                )
+                .join(AgentModel, AgentStateModel.agent_id == AgentModel.agent_id)
+                .group_by(SimulationStepModel.step_number, AgentModel.agent_type)
+                .order_by(SimulationStepModel.step_number)
             )
 
             results = query.all()
@@ -76,9 +82,9 @@ class SimulationAnalyzer:
 
         def _query(session):
             query = session.query(
-                SimulationStep.step_number,
-                SimulationStep.combat_encounters.label("competitive_interactions"),
-            ).order_by(SimulationStep.step_number)
+                SimulationStepModel.step_number,
+                SimulationStepModel.combat_encounters.label("competitive_interactions"),
+            ).order_by(SimulationStepModel.step_number)
 
             results = query.all()
             return pd.DataFrame(results, columns=["step", "competitive_interactions"])
@@ -90,9 +96,9 @@ class SimulationAnalyzer:
 
         def _query(session):
             query = session.query(
-                SimulationStep.step_number,
-                SimulationStep.resource_efficiency.label("efficiency"),
-            ).order_by(SimulationStep.step_number)
+                SimulationStepModel.step_number,
+                SimulationStepModel.resource_efficiency.label("efficiency"),
+            ).order_by(SimulationStepModel.step_number)
 
             results = query.all()
             return pd.DataFrame(results, columns=["step", "efficiency"])

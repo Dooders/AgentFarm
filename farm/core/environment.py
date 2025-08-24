@@ -1,10 +1,25 @@
 import logging
 import random
+
+# Add new enum:
+from enum import IntEnum
 from typing import Dict
 
 import numpy as np
 
+# Add:
+import torch
+from gymnasium import spaces
+from pettingzoo import AECEnv
+
+# Add action imports:
+from farm.actions.attack import attack_action
+from farm.actions.gather import gather_action
+from farm.actions.move import move_action
+from farm.actions.reproduce import reproduce_action
+from farm.actions.share import share_action
 from farm.agents import ControlAgent, IndependentAgent, SystemAgent
+from farm.core.observations import NUM_CHANNELS, AgentObservation, ObservationConfig
 from farm.core.resources import Resource
 from farm.core.spatial_index import SpatialIndex
 from farm.core.state import EnvironmentState
@@ -14,10 +29,20 @@ from farm.database.database import SimulationDatabase
 from farm.database.utilities import setup_db
 from farm.utils.short_id import ShortUUID
 
+
+class Action(IntEnum):
+    DEFEND = 0
+    ATTACK = 1
+    GATHER = 2
+    SHARE = 3
+    MOVE = 4
+    REPRODUCE = 5
+
+
 logger = logging.getLogger(__name__)
 
 
-class Environment:
+class Environment(AECEnv):
     def __init__(
         self,
         width,
@@ -29,6 +54,7 @@ class Environment:
         simulation_id=None,
         seed=None,
     ):
+        super().__init__()
         # Set seed if provided
         self.seed_value = (
             seed
@@ -45,7 +71,8 @@ class Environment:
         # Initialize basic attributes
         self.width = width
         self.height = height
-        self.agents = []
+        self.agent_objects = []
+        self.agents = []  # for PettingZoo
         self.resources = []
         self.time = 0
 
@@ -65,7 +92,12 @@ class Environment:
         self.next_resource_id = 0
         self.max_resource = max_resource
         self.config = config
-        self.initial_agent_count = 0  #! Is this really needed``
+        self.initial_agent_count = 0  #! Is this really needed?
+        self.resource_distribution = resource_distribution
+        self.max_steps = (
+            config.max_steps if config and hasattr(config, "max_steps") else 1000
+        )
+        self.agent_observations = {}  # Initialize agent observations dictionary
 
         # Initialize spatial index for efficient spatial queries
         self.spatial_index = SpatialIndex(width, height)
@@ -91,8 +123,23 @@ class Environment:
         # Initialize environment
         self.initialize_resources(resource_distribution)
         # Set references and initialize spatial index
-        self.spatial_index.set_references(self.agents, self.resources)
+        self.spatial_index.set_references(self.agent_objects, self.resources)
         self.spatial_index.update()
+
+        # Add observation space setup:
+        self._setup_observation_space(config)
+
+        # Add action space setup call:
+        self._setup_action_space()
+
+        # Add call to create agents:
+        self._create_initial_agents()
+
+        self.agent_observations = {}
+        for agent in self.agent_objects:
+            self.agent_observations[agent.agent_id] = AgentObservation(
+                self.observation_config
+            )
 
     def mark_positions_dirty(self):
         """Public method for agents to mark positions as dirty when they move."""
@@ -204,8 +251,10 @@ class Environment:
 
     def remove_agent(self, agent):
         self.record_death()
-        self.agents.remove(agent)
+        self.agent_objects.remove(agent)
         self.spatial_index.mark_positions_dirty()  # Mark positions as dirty when agent is removed
+        if agent.agent_id in self.agent_observations:
+            del self.agent_observations[agent.agent_id]
 
     def collect_action(self, **action_data):
         """Collect an action for batch processing."""
@@ -306,7 +355,7 @@ class Environment:
         #! resources_shared is now being calculated
         try:
             # Get alive agents
-            alive_agents = [agent for agent in self.agents if agent.alive]
+            alive_agents = [agent for agent in self.agent_objects if agent.alive]
             total_agents = len(alive_agents)
 
             # Calculate agent type counts
@@ -558,7 +607,7 @@ class Environment:
         ]
 
         # Add to environment
-        self.agents.append(agent)
+        self.agent_objects.append(agent)
         if self.time == 0:
             self.initial_agent_count += 1
 
@@ -568,6 +617,10 @@ class Environment:
         # Batch log to database using SQLAlchemy
         if self.db is not None:
             self.db.logger.log_agents_batch(agent_data)
+
+        self.agent_observations[agent.agent_id] = AgentObservation(
+            self.observation_config
+        )
 
     def cleanup(self):
         """Clean up environment resources."""
@@ -599,7 +652,7 @@ class Environment:
                     step_number=self.time,
                     agent_states=[
                         self._prepare_agent_state(agent)
-                        for agent in self.agents
+                        for agent in self.agent_objects
                         if agent.alive
                     ],
                     resource_states=[
@@ -672,3 +725,328 @@ class Environment:
     #     """Get currently active agent contexts."""
     #     with self._context_lock:
     #         return self._active_contexts.copy()
+
+    def action_space(self, agent):
+        return self._action_space
+
+    def observation_space(self, agent):
+        return self._observation_space
+
+    def _setup_observation_space(self, config):
+        if config and hasattr(config, "observation") and config.observation is not None:
+            self.observation_config = config.observation
+        else:
+            self.observation_config = ObservationConfig()
+        S = 2 * self.observation_config.R + 1
+        np_dtype = getattr(np, self.observation_config.dtype)
+        self._observation_space = spaces.Box(
+            low=0.0, high=1.0, shape=(NUM_CHANNELS, S, S), dtype=np_dtype
+        )
+
+    def _setup_action_space(self):
+        self._action_space = spaces.Discrete(
+            len(Action)
+        )  # Actions: DEFEND, ATTACK, GATHER, SHARE, MOVE
+
+    def _create_initial_agents(self):
+        num_system = self.config.system_agents if self.config else 0
+        num_independent = self.config.independent_agents if self.config else 0
+        num_control = (
+            self.config.control_agents if self.config else 1
+        )  # At least one for RL
+
+        if self.seed_value is not None:
+            rng = random.Random(self.seed_value)
+        else:
+            rng = random
+
+        for _ in range(num_system):
+            position = (
+                int(rng.uniform(0, self.width)),
+                int(rng.uniform(0, self.height)),
+            )
+            agent = SystemAgent(
+                agent_id=self.get_next_agent_id(),
+                position=position,
+                resource_level=1,
+                environment=self,
+                generation=0,
+            )
+            self.add_agent(agent)
+
+        for _ in range(num_independent):
+            position = (
+                int(rng.uniform(0, self.width)),
+                int(rng.uniform(0, self.height)),
+            )
+            agent = IndependentAgent(
+                agent_id=self.get_next_agent_id(),
+                position=position,
+                resource_level=1,
+                environment=self,
+                generation=0,
+            )
+            self.add_agent(agent)
+
+        for _ in range(num_control):
+            position = (
+                int(rng.uniform(0, self.width)),
+                int(rng.uniform(0, self.height)),
+            )
+            agent = ControlAgent(
+                agent_id=self.get_next_agent_id(),
+                position=position,
+                resource_level=1,
+                environment=self,
+                generation=0,
+            )
+            self.add_agent(agent)
+
+    def _get_observation(self, agent_id):
+        agent = next((a for a in self.agent_objects if a.agent_id == agent_id), None)
+        if agent is None or not agent.alive:
+            return np.zeros(
+                self._observation_space.shape, dtype=self._observation_space.dtype
+            )
+
+        # Assume width and height are integers for grid
+        height, width = int(self.height), int(self.width)
+
+        # Create resource grid
+        resource_grid = torch.zeros(
+            (height, width),
+            dtype=self.observation_config.torch_dtype,
+            device=self.observation_config.device,
+        )
+        max_amount = self.max_resource or (
+            self.config.max_resource_amount if self.config else 10
+        )
+        for r in self.resources:
+            y = int(round(r.position[1]))
+            x = int(round(r.position[0]))
+            if 0 <= y < height and 0 <= x < width:
+                resource_grid[y, x] = r.amount / max_amount
+
+        # Empty layers
+        obstacles = torch.zeros_like(resource_grid)
+        terrain_cost = torch.zeros_like(resource_grid)
+
+        world_layers = {
+            "RESOURCES": resource_grid,
+            "OBSTACLES": obstacles,
+            "TERRAIN_COST": terrain_cost,
+        }
+
+        # Agent position as (y, x)
+        ay, ax = int(round(agent.position[1])), int(round(agent.position[0]))
+
+        # Get nearby agents
+        nearby = self.get_nearby_agents(
+            agent.position, self.observation_config.fov_radius
+        )
+
+        allies = []
+        enemies = []
+        agent_type = type(agent)
+        for na in nearby:
+            if na == agent or not na.alive:
+                continue
+            ny = int(round(na.position[1]))
+            nx = int(round(na.position[0]))
+            hp01 = na.current_health / na.starting_health
+            if isinstance(na, agent_type):
+                allies.append((ny, nx, hp01))
+            else:
+                enemies.append((ny, nx, hp01))
+
+        self_hp01 = agent.current_health / agent.starting_health
+
+        obs = self.agent_observations[agent_id]
+        obs.perceive_world(
+            world_layers=world_layers,
+            agent_world_pos=(ay, ax),
+            self_hp01=self_hp01,
+            allies=allies,
+            enemies=enemies,
+            goal_world_pos=None,  # TODO: Set if needed
+            recent_damage_world=[],  # TODO: Implement if needed
+            ally_signals_world=[],  # TODO: Implement if needed
+            trails_world_points=[],  # TODO: Implement if needed
+        )
+
+        tensor = obs.tensor().cpu().numpy()
+        return tensor
+
+    def _process_action(self, agent_id, action):
+        agent = next((a for a in self.agent_objects if a.agent_id == agent_id), None)
+        if agent is None or not agent.alive:
+            return
+
+        def defend_action(ag):
+            ag.is_defending = True
+            self.collect_action(
+                step_number=self.time,
+                agent_id=ag.agent_id,
+                action_type="defend",
+                details="Set defending flag",
+            )
+
+        action_map = {
+            Action.DEFEND: defend_action,
+            Action.ATTACK: attack_action,
+            Action.GATHER: gather_action,
+            Action.SHARE: share_action,
+            Action.MOVE: move_action,
+            Action.REPRODUCE: reproduce_action,
+        }
+
+        func = action_map.get(action)
+        if func:
+            func(agent)
+        else:
+            logging.warning(f"Invalid action {action} for agent {agent_id}")
+
+    def _calculate_reward(self, agent_id):
+        agent = next((a for a in self.agent_objects if a.agent_id == agent_id), None)
+        if agent is None or not agent.alive:
+            return -10.0
+
+        resource_reward = agent.resource_level * 0.1
+        survival_reward = 0.1
+        health_reward = agent.current_health / agent.starting_health
+        # For combat and cooperation, add if successful_attacks_this_step or resources_shared_this_step, but since global, divide by num agents or something, but poor.
+        # Assume 0 for now.
+
+        reward = resource_reward + survival_reward + health_reward
+
+        # Add bonuses if did combat or share, but to detect, perhaps add agent metrics like agent.successful_attacks = 0, incremented in action.
+
+        # Since can't modify actions, for this edit, use the simple formula.
+
+        return reward
+
+    def _next_agent(self):
+        if not self.agents:
+            self.agent_selection = None
+            return
+        try:
+            current_idx = self.agents.index(self.agent_selection)
+        except ValueError:
+            current_idx = -1
+        for i in range(1, len(self.agents) + 1):
+            next_idx = (current_idx + i) % len(self.agents)
+            next_agent = self.agents[next_idx]
+            if not (
+                self.terminations.get(next_agent, False)
+                or self.truncations.get(next_agent, False)
+            ):
+                self.agent_selection = next_agent
+                return
+        self.agent_selection = None
+
+    def reset(self, *, seed=None, options=None):
+        if seed is not None:
+            self.seed_value = seed
+            random.seed(seed)
+            np.random.seed(seed)
+
+        self.time = 0
+        self.births_this_step = 0
+        self.deaths_this_step = 0
+        self.resources_shared = 0
+        self.resources_shared_this_step = 0
+        self.combat_encounters = 0
+        self.successful_attacks = 0
+        self.combat_encounters_this_step = 0
+        self.successful_attacks_this_step = 0
+
+        self.resources = []
+        self.initialize_resources(self.resource_distribution)
+
+        self.agent_objects = []
+        self.initial_agent_count = 0
+        self._create_initial_agents()
+
+        self.agent_observations = {}
+        for agent in self.agent_objects:
+            self.agent_observations[agent.agent_id] = AgentObservation(
+                self.observation_config
+            )
+
+        self.spatial_index.set_references(self.agent_objects, self.resources)
+        self.spatial_index.update()
+
+        self.agents = [a.agent_id for a in self.agent_objects if a.alive]
+        self.agent_selection = self.agents[0] if self.agents else None
+        self.rewards = {a: 0 for a in self.agents}
+        self.terminations = {a: False for a in self.agents}
+        self.truncations = {a: False for a in self.agents}
+        self.infos = {a: {} for a in self.agents}
+        self.observations = {a: self._get_observation(a) for a in self.agents}
+
+        self.previous_agent_states = {}
+
+        if self.agent_selection is None:
+            dummy_obs = np.zeros(
+                self._observation_space.shape, dtype=self._observation_space.dtype
+            )
+            return dummy_obs, {}
+
+        return self.observations[self.agent_selection], self.infos[self.agent_selection]
+
+    def step(self, action):
+        if self.agent_selection is None or not self.agents:
+            dummy_obs = np.zeros(
+                self._observation_space.shape, dtype=self._observation_space.dtype
+            )
+            return dummy_obs, 0.0, True, True, {}
+
+        agent_id = self.agent_selection
+        agent = next((a for a in self.agent_objects if a.agent_id == agent_id), None)
+        if agent:
+            self.previous_agent_states[agent_id] = {
+                "resource_level": agent.resource_level,
+                "health": agent.current_health,
+                "alive": agent.alive,
+            }
+        self._process_action(agent_id, action)
+        self.update()
+
+        # Add resource check to terminated:
+        alive_agents = [a for a in self.agent_objects if a.alive]
+        total_resources = sum(r.amount for r in self.resources)
+        terminated = len(alive_agents) == 0 or total_resources == 0
+        truncated = self.time >= self.max_steps
+
+        reward = self._calculate_reward(agent_id)
+
+        if agent:
+            resource_delta = (
+                agent.resource_level
+                - self.previous_agent_states[agent_id]["resource_level"]
+            )
+            health_delta = (
+                agent.current_health - self.previous_agent_states[agent_id]["health"]
+            )
+            survival_bonus = 0.1 if agent.alive else 0
+
+            # Assume for combat success, if resource_delta >0 and health_delta >=0, +2 (possible successful attack)
+            # For cooperation, if resource_delta <0 and health_delta >=0, +1 (possible share)
+
+            reward = resource_delta + health_delta * 0.5 + survival_bonus
+
+            if not agent.alive:
+                reward -= 10
+
+            # Add more if needed.
+
+            return reward
+
+        return reward
+
+    def render(self, mode="human"):
+        if mode == "human":
+            print(f"Time: {self.time}")
+            print(f"Active agents: {len(self.agents)}")
+            print(f"Total resources: {sum(r.amount for r in self.resources)}")
+        # TODO: Implement proper visualization if needed
