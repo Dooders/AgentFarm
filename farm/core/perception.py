@@ -8,6 +8,8 @@ import torch
 class PerceptionContent(IntEnum):
     """Enumeration of possible cell contents in agent perception."""
 
+    #! WRONG
+
     EMPTY = 0
     RESOURCE = 1
     AGENT = 2
@@ -15,7 +17,7 @@ class PerceptionContent(IntEnum):
 
 
 class PerceptionData:
-    """Wrapper for perception grid data with semantic meaning and tensor conversion.
+    """Wrapper for perception grid data with semantic meaning and tensor conversion. #! WRONG
 
     Attributes:
         grid (np.ndarray): 2D numpy array storing perception values
