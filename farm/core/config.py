@@ -21,7 +21,13 @@ class VisualizationConfig:
     birth_radius_scale: int = 4
     death_mark_scale: float = 1.5
     agent_colors: Dict[str, str] = field(
-        default_factory=lambda: {"SystemAgent": "blue", "IndependentAgent": "red"}
+        default_factory=lambda: {
+            "SystemAgent": "blue", 
+            "IndependentAgent": "red",
+            "ControlAgent": "#DAA520",
+            "AlienAgent": "#8B0000",  # Dark red for aliens
+            "HumanAgent": "#0066CC"   # Blue for humans
+        }
     )
     min_font_size: int = 10
     font_scale_factor: int = 40
@@ -122,6 +128,16 @@ class SimulationConfig:
     attack_range: float = 20.0
     attack_base_damage: float = 10.0
     attack_kill_reward: float = 5.0
+    
+    # Alien Invasion Specific Parameters
+    alien_agents: int = 15  # Number of alien agents
+    human_agents: int = 10  # Number of human agents
+    alien_attack_multiplier: float = 1.3  # Alien attack advantage
+    human_defense_bonus: float = 1.2  # Human group defense bonus
+    swarm_coordination_range: float = 25.0  # Range for alien swarm coordination
+    group_coordination_range: float = 20.0  # Range for human group coordination
+    surrounding_bonus: float = 1.5  # Damage bonus for surrounding attacks
+    territorial_influence_radius: float = 25.0  # Territory control radius
 
     # Agent-specific parameters
     agent_parameters: Dict[str, Dict[str, float]] = field(
@@ -146,6 +162,20 @@ class SimulationConfig:
                 "min_resource_threshold": 0.125,
                 "share_weight": 0.15,
                 "attack_weight": 0.15,
+            },
+            "AlienAgent": {
+                "gather_efficiency_multiplier": 0.3,
+                "gather_cost_multiplier": 0.1,
+                "min_resource_threshold": 0.05,
+                "share_weight": 0.05,
+                "attack_weight": 0.45,
+            },
+            "HumanAgent": {
+                "gather_efficiency_multiplier": 0.6,
+                "gather_cost_multiplier": 0.4,
+                "min_resource_threshold": 0.3,
+                "share_weight": 0.25,
+                "attack_weight": 0.10,
             },
         }
     )
