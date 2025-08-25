@@ -1,5 +1,6 @@
 import logging
 import os
+from dataclasses import replace
 from datetime import datetime
 
 from flask import Flask, jsonify, request
@@ -31,7 +32,7 @@ active_simulations = {}
 def create_simulation():
     """Create a new simulation with provided configuration."""
     try:
-        config_data = request.json
+        config_data = request.json or {}
         logger.info(f"Creating new simulation with config: {config_data}")
 
         # Generate unique simulation ID
@@ -40,7 +41,7 @@ def create_simulation():
 
         # Load and update config
         base_config = SimulationConfig.from_yaml("config.yaml")
-        config = base_config.update(config_data)
+        config = replace(base_config, **config_data)
 
         # Create database
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
@@ -61,8 +62,7 @@ def create_simulation():
         run_simulation(
             num_steps=config.simulation_steps,
             config=config,
-            db_path=db_path,
-            progress_callback=progress_callback,
+            path=os.path.dirname(db_path),
         )
 
         # Store simulation info
@@ -74,7 +74,7 @@ def create_simulation():
 
         # Get initial state
         db = SimulationDatabase(db_path)
-        initial_state = db.get_simulation_data(0)
+        initial_state = db.query.gui_repository.get_simulation_data(0)
 
         return jsonify(
             {
@@ -98,7 +98,7 @@ def get_step(sim_id, step):
             raise ValueError(f"Simulation {sim_id} not found")
 
         db = SimulationDatabase(active_simulations[sim_id]["db_path"])
-        data = db.get_simulation_data(step)
+        data = db.query.gui_repository.get_simulation_data(step)
 
         return jsonify({"status": "success", "data": data})
 
@@ -157,19 +157,19 @@ def export_simulation(sim_id):
 # WebSocket events
 @socketio.on("connect")
 def handle_connect():
-    logger.info(f"Client connected: {request.sid}")
+    logger.info("Client connected")
 
 
 @socketio.on("disconnect")
 def handle_disconnect():
-    logger.info(f"Client disconnected: {request.sid}")
+    logger.info("Client disconnected")
 
 
 @socketio.on("subscribe_simulation")
 def handle_subscribe(sim_id):
     """Subscribe to simulation updates."""
     if sim_id in active_simulations:
-        logger.info(f"Client {request.sid} subscribed to simulation {sim_id}")
+        logger.info(f"Client subscribed to simulation {sim_id}")
         emit("subscription_success", {"sim_id": sim_id})
     else:
         emit("subscription_error", {"message": f"Simulation {sim_id} not found"})

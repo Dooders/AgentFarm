@@ -12,7 +12,6 @@ from farm.agents.base_agent import BaseAgent
 from farm.core.action import Action
 
 
-
 class SystemAgent(BaseAgent):
     """System-oriented agent implementation focused on cooperation."""
 
@@ -54,11 +53,10 @@ class SystemAgent(BaseAgent):
                 Action("gather", 0.25, gather_action),
                 Action("share", 0.20, share_action),  # Higher weight for sharing
                 Action("attack", 0.05, attack_action),  # Lower weight for attacking
-                Action("reproduce", 0.25, reproduce_action),  # Lower weight for reproducing
+                Action(
+                    "reproduce", 0.25, reproduce_action
+                ),  # Lower weight for reproducing
             ]
-
-
-
 
         # Initialize base agent with custom action set and genealogy info
         super().__init__(
@@ -71,12 +69,8 @@ class SystemAgent(BaseAgent):
         )
 
         # Configure gather module for more sustainable resource collection
-        self.gather_module.config.gather_efficiency_multiplier = (
-            0.4  # Lower efficiency reward
-        )
-        self.gather_module.config.gather_cost_multiplier = (
-            0.4  # Higher movement penalty
-        )
+        self.gather_module.config.efficiency_multiplier = 0.4  # Lower efficiency reward
+        self.gather_module.config.cost_multiplier = 0.4  # Higher movement penalty
         self.gather_module.config.min_resource_threshold = (
             0.2  # Higher threshold for gathering
         )
