@@ -151,7 +151,7 @@ class BaseAnalyzer(ABC):
         """
         if self._data is None and self.data_loader is not None:
             self._data = self.data_loader.load_data()
-        return self._data
+        return self._data or pd.DataFrame()
 
     @property
     def results(self) -> Dict[str, Any]:

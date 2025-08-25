@@ -8,7 +8,9 @@ import pandas as pd
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from sqlalchemy import func
 
-from farm.database.database import Agent, AgentAction, AgentState
+from farm.database.database import ActionModel as AgentAction
+from farm.database.database import AgentModel as Agent
+from farm.database.database import AgentStateModel as AgentState
 
 
 class AgentAnalysis:
@@ -39,6 +41,11 @@ class AgentAnalysis:
         self.parent = parent
         self.db_path = db_path
         self.chart_canvas = None
+
+        # Initialize database connection
+        from farm.database.database import SimulationDatabase
+
+        self.db = SimulationDatabase(db_path)
 
         # Create and configure window
         self.window = tk.Toplevel(self.parent)
@@ -174,6 +181,7 @@ class AgentAnalysis:
     def _load_agents(self):
         """Load available agents from database."""
         try:
+
             def _query(session):
                 agents = (
                     session.query(Agent.agent_id, Agent.agent_type, Agent.birth_time)
@@ -181,7 +189,7 @@ class AgentAnalysis:
                     .all()
                 )
                 return agents
-            
+
             agents = self.db._execute_in_transaction(_query)
 
             # Format combobox values to show more info
@@ -236,13 +244,10 @@ class AgentAnalysis:
 
     def _load_basic_info(self, conn, agent_id) -> Dict:
         """Load basic agent information using SQLAlchemy."""
+
         def _query(session):
-            agent = (
-                session.query(Agent)
-                .filter(Agent.agent_id == agent_id)
-                .first()
-            )
-            
+            agent = session.query(Agent).filter(Agent.agent_id == agent_id).first()
+
             if agent:
                 return {
                     "agent_type": agent.agent_type,
@@ -252,14 +257,15 @@ class AgentAnalysis:
                     "initial_resources": agent.initial_resources,
                     "starting_health": agent.starting_health,
                     "starvation_threshold": agent.starvation_threshold,
-                    "genome_id": agent.genome_id
+                    "genome_id": agent.genome_id,
                 }
             return {}
-            
+
         return self.db._execute_in_transaction(_query)
 
     def _load_agent_stats(self, conn, agent_id) -> Dict:
         """Load current agent statistics using SQLAlchemy."""
+
         def _query(session):
             # Get latest state for the agent
             latest_state = (
@@ -267,17 +273,17 @@ class AgentAnalysis:
                     AgentState.current_health,
                     AgentState.resource_level,
                     AgentState.total_reward,
-                    (AgentState.step_number - Agent.birth_time).label('age'),
+                    (AgentState.step_number - Agent.birth_time).label("age"),
                     AgentState.is_defending,
                     AgentState.position_x,
-                    AgentState.position_y
+                    AgentState.position_y,
                 )
                 .join(Agent)
                 .filter(AgentState.agent_id == agent_id)
                 .order_by(AgentState.step_number.desc())
                 .first()
             )
-            
+
             if latest_state:
                 return {
                     "current_health": latest_state[0],
@@ -285,22 +291,23 @@ class AgentAnalysis:
                     "total_reward": latest_state[2],
                     "age": latest_state[3],
                     "is_defending": latest_state[4],
-                    "current_position": f"{latest_state[5]}, {latest_state[6]}"
+                    "current_position": f"{latest_state[5]}, {latest_state[6]}",
                 }
-            
+
             return {
                 "current_health": 0,
                 "resource_level": 0,
                 "total_reward": 0,
                 "age": 0,
                 "is_defending": 0,
-                "current_position": "0, 0"
+                "current_position": "0, 0",
             }
-            
+
         return self.db._execute_in_transaction(_query)
 
     def _load_performance_metrics(self, conn, agent_id) -> Dict:
         """Load agent performance metrics using SQLAlchemy."""
+
         def _query(session):
             # Calculate survival time, peak health, peak resources
             metrics = (
@@ -308,38 +315,39 @@ class AgentAnalysis:
                     func.max(AgentState.step_number) - func.min(AgentState.step_number),
                     func.max(AgentState.current_health),
                     func.max(AgentState.resource_level),
-                    func.count(func.distinct(AgentAction.action_id))
+                    func.count(func.distinct(AgentAction.action_id)),
                 )
                 .select_from(AgentState)
                 .outerjoin(
                     AgentAction,
-                    (AgentAction.agent_id == AgentState.agent_id) & 
-                    (AgentAction.step_number == AgentState.step_number)
+                    (AgentAction.agent_id == AgentState.agent_id)
+                    & (AgentAction.step_number == AgentState.step_number),
                 )
                 .filter(AgentState.agent_id == agent_id)
                 .group_by(AgentState.agent_id)
                 .first()
             )
-            
+
             if metrics:
                 return {
                     "survival_time": metrics[0] or 0,
                     "peak_health": metrics[1] or 0,
                     "peak_resources": metrics[2] or 0,
-                    "total_actions": metrics[3] or 0
+                    "total_actions": metrics[3] or 0,
                 }
-            
+
             return {
                 "survival_time": 0,
                 "peak_health": 0,
                 "peak_resources": 0,
-                "total_actions": 0
+                "total_actions": 0,
             }
-            
+
         return self.db._execute_in_transaction(_query)
 
     def _update_metrics_chart(self, conn, agent_id):
         """Update the metrics chart with agent's time series data."""
+
         def _query(session):
             states = (
                 session.query(
@@ -347,14 +355,14 @@ class AgentAnalysis:
                     AgentState.current_health,
                     AgentState.resource_level,
                     AgentState.total_reward,
-                    AgentState.is_defending
+                    AgentState.is_defending,
                 )
                 .filter(AgentState.agent_id == agent_id)
                 .order_by(AgentState.step_number)
                 .all()
             )
             return states
-        
+
         states = self.db._execute_in_transaction(_query)
 
         # Clear previous chart
@@ -362,11 +370,17 @@ class AgentAnalysis:
             widget.destroy()
 
         if states:
-            df = pd.DataFrame(states, columns=[
-                "step_number", "current_health", "resource_level", 
-                "total_reward", "is_defending"
-            ])
-            
+            df = pd.DataFrame(
+                states,
+                columns=[
+                    "step_number",
+                    "current_health",
+                    "resource_level",
+                    "total_reward",
+                    "is_defending",
+                ],
+            )
+
             fig, ax = plt.subplots(figsize=(8, 4))
             ax.plot(
                 df["step_number"],
@@ -414,12 +428,13 @@ class AgentAnalysis:
 
     def _update_actions_chart(self, conn, agent_id):
         """Update the actions distribution and rewards charts."""
+
         def _query(session):
             actions = (
                 session.query(
                     AgentAction.action_type,
-                    func.count().label('count'),
-                    func.avg(AgentAction.reward).label('avg_reward')
+                    func.count().label("count"),
+                    func.avg(AgentAction.reward).label("avg_reward"),
                 )
                 .filter(AgentAction.agent_id == agent_id)
                 .group_by(AgentAction.action_type)
@@ -427,7 +442,7 @@ class AgentAnalysis:
                 .all()
             )
             return actions
-        
+
         actions = self.db._execute_in_transaction(_query)
 
         # Clear previous chart
@@ -436,7 +451,7 @@ class AgentAnalysis:
 
         if actions:
             df = pd.DataFrame(actions, columns=["action_type", "count", "avg_reward"])
-            
+
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
 
             # Action counts
