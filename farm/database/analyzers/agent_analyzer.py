@@ -52,21 +52,35 @@ class AgentAnalysis:
                 - genome_id: Unique identifier of agent's genome
         """
         agent = self.repository.get_agent_by_id(agent_id)
+        if agent is None:
+            raise ValueError(f"Agent with ID {agent_id} not found")
+
+        # Convert int timestamps to datetime objects
+        from datetime import datetime, timedelta
+
+        # Access the actual values from the SQLAlchemy model
+        birth_time_val = getattr(agent, "birth_time", 0)
+        death_time_val = getattr(agent, "death_time", None)
+
+        birth_time = (
+            datetime.fromtimestamp(birth_time_val) if birth_time_val else datetime.now()
+        )
+        death_time = datetime.fromtimestamp(death_time_val) if death_time_val else None
+        lifespan = (death_time - birth_time) if death_time else None
+
         #! add final metrics like reward, health, reproduced, consumed, etc.
         return BasicAgentInfo(
-            agent_id=agent.agent_id,
-            agent_type=agent.agent_type,
-            birth_time=agent.birth_time,
-            death_time=agent.death_time,
-            lifespan=(
-                (agent.death_time - agent.birth_time) if agent.death_time else None
-            ),
-            initial_resources=agent.initial_resources,
-            starting_health=agent.starting_health,
-            starvation_threshold=agent.starvation_threshold,
+            agent_id=str(getattr(agent, "agent_id", "")),
+            agent_type=str(getattr(agent, "agent_type", "")),
+            birth_time=birth_time,
+            death_time=death_time,
+            lifespan=lifespan,
+            initial_resources=float(getattr(agent, "initial_resources", 0.0)),
+            starting_health=float(getattr(agent, "starting_health", 0.0)),
+            starvation_threshold=float(getattr(agent, "starvation_threshold", 0)),
             # Genealogy
-            generation=agent.generation,
-            genome_id=agent.genome_id,
+            generation=int(getattr(agent, "generation", 0)),
+            genome_id=str(getattr(agent, "genome_id", "")),
         )
 
     def analyze_exploration_exploitation(

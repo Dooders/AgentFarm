@@ -34,7 +34,7 @@ class ActionStatsAnalyzer:
     def analyze(
         self,
         scope: Union[str, AnalysisScope] = AnalysisScope.SIMULATION,
-        agent_id: Optional[str] = None,
+        agent_id: Optional[int] = None,
         step: Optional[int] = None,
         step_range: Optional[Tuple[int, int]] = None,
     ) -> List[ActionMetrics]:
@@ -104,7 +104,7 @@ class ActionStatsAnalyzer:
             - Confidence intervals are calculated at 95% confidence level
         """
         actions = self.repository.get_actions_by_scope(
-            scope, agent_id, step, step_range
+            scope=scope, agent_id=agent_id, step=step, step_range=step_range
         )
         total_actions = len(actions)
 
@@ -194,9 +194,9 @@ class ActionStatsAnalyzer:
                     ],
                     decision_patterns=[
                         d
-                        for d in decision_patterns.decision_patterns
-                        if d.action_type == action_type
-                    ]
+                        for action_key, d in decision_patterns.decision_patterns.items()
+                        if action_key == action_type
+                    ],
                 )
             )
 
