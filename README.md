@@ -89,6 +89,7 @@ For detailed documentation and advanced usage:
 - [Simulation Guide](docs/SimulationQuickStart.md)
 - [Experiment Guide](docs/ExperimentQuickStart.md)
 - [Data System Architecture](docs/data/data_api.md)
+- [Interaction Edge Logging](docs/data/interaction_edges.md)
 - [Full Documentation](docs/README.md)
 
 ## Contributing
