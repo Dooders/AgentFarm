@@ -73,7 +73,7 @@ def generate_family_tree(
     offspring_count = {}
     for event in reproduction_events:
         agents.add(event.parent_id)
-        if event.offspring_id:
+        if event.offspring_id is not None:
             agents.add(event.offspring_id)
             offspring_count[event.parent_id] = (
                 offspring_count.get(event.parent_id, 0) + 1
@@ -101,9 +101,9 @@ def generate_family_tree(
                 # Calculate total resources consumed from changes in resource levels
                 total_consumed = 0
                 for i in range(1, len(states)):
-                    resource_diff = (
-                        states[i - 1].resource_level - states[i].resource_level
-                    )
+                    prev_level = float(states[i - 1].resource_level or 0)  # type: ignore
+                    curr_level = float(states[i].resource_level or 0)  # type: ignore
+                    resource_diff = prev_level - curr_level
                     if resource_diff > 0:  # Only count decreases as consumption
                         total_consumed += resource_diff
                 resources_consumed[agent_id] = total_consumed
@@ -152,9 +152,11 @@ def generate_family_tree(
 
     # Add edges from parent to offspring
     for event in reproduction_events:
-        if event.offspring_id:
+        if event.offspring_id is not None:
             dot.edge(
-                event.parent_id, event.offspring_id, label=f"Step {event.step_number}"
+                str(event.parent_id),
+                str(event.offspring_id),
+                label=f"Step {event.step_number}",
             )
 
     # Save both PDF and interactive versions
@@ -191,7 +193,7 @@ def generate_interactive_tree(
     offspring_count = {}
     for event in reproduction_events:
         agents.add(event.parent_id)
-        if event.offspring_id:
+        if event.offspring_id is not None:
             agents.add(event.offspring_id)
             offspring_count[event.parent_id] = (
                 offspring_count.get(event.parent_id, 0) + 1
@@ -217,7 +219,9 @@ def generate_interactive_tree(
         if states:
             total_consumed = 0
             for i in range(1, len(states)):
-                resource_diff = states[i - 1].resource_level - states[i].resource_level
+                prev_level = float(states[i - 1].resource_level or 0)  # type: ignore
+                curr_level = float(states[i].resource_level or 0)  # type: ignore
+                resource_diff = prev_level - curr_level
                 if resource_diff > 0:
                     total_consumed += resource_diff
             resources_consumed[agent_id] = total_consumed
@@ -271,7 +275,9 @@ def generate_interactive_tree(
         if agent_id in agent_details:
             agent = agent_details[agent_id]
             max_step = agent_max_steps.get(agent_id, agent.birth_time)
-            current_age = (agent.death_time or max_step) - agent.birth_time
+            current_age = (
+                agent.death_time if agent.death_time is not None else max_step
+            ) - agent.birth_time
 
             G.add_node(
                 agent_id,
@@ -285,7 +291,10 @@ def generate_interactive_tree(
                 resources_consumed=resources_consumed.get(agent_id, 0),
                 avg_resources=(
                     resources_consumed.get(agent_id, 0)
-                    / ((agent.death_time or max_step) - agent.birth_time)
+                    / (
+                        (agent.death_time if agent.death_time is not None else max_step)
+                        - agent.birth_time
+                    )
                     if agent_id in resources_consumed
                     else 0
                 ),
@@ -295,7 +304,7 @@ def generate_interactive_tree(
 
     # Add edges
     for event in reproduction_events:
-        if event.offspring_id:
+        if event.offspring_id is not None:
             G.add_edge(event.parent_id, event.offspring_id, step=event.step_number)
 
     # Convert to JSON format for visualization
