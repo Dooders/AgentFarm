@@ -1,18 +1,13 @@
 import logging
 import random
-
-# Add new enum:
 from enum import IntEnum
 from typing import Dict
 
 import numpy as np
-
-# Add:
 import torch
 from gymnasium import spaces
 from pettingzoo import AECEnv
 
-# Add action imports:
 from farm.actions.attack import attack_action
 from farm.actions.gather import gather_action
 from farm.actions.move import move_action
@@ -21,11 +16,8 @@ from farm.actions.share import share_action
 from farm.agents import ControlAgent, IndependentAgent, SystemAgent
 from farm.core.observations import NUM_CHANNELS, AgentObservation, ObservationConfig
 from farm.core.resource_manager import ResourceManager
-from farm.core.resources import Resource
 from farm.core.spatial_index import SpatialIndex
 from farm.core.state import EnvironmentState
-
-# from farm.agents.base_agent import BaseAgent
 from farm.database.database import SimulationDatabase
 from farm.database.utilities import setup_db
 from farm.utils.short_id import ShortUUID
@@ -244,8 +236,13 @@ class Environment(AECEnv):
             del self.agent_observations[agent.agent_id]
 
     def collect_action(self, **action_data):
-        #! Is this needed?
-        """Collect an action for batch processing."""
+        """Collect an action for batch processing and database logging.
+
+        Parameters
+        ----------
+        **action_data : dict
+            Action data including step_number, agent_id, action_type, etc.
+        """
 
         if self.db is not None:
             self.db.logger.log_agent_action(
@@ -480,9 +477,14 @@ class Environment(AECEnv):
         return (0 <= x <= self.width) and (0 <= y <= self.height)
 
     def _get_random_position(self):
-        """
-        Generate a random position within the environment bounds.
+        """Generate a random position within the environment bounds.
+
         Uses a seeded random number generator for deterministic behavior if a seed is available.
+
+        Returns
+        -------
+        tuple
+            A (x, y) coordinate tuple within the environment bounds.
         """
         if hasattr(self, "seed_value") and self.seed_value is not None:
             # Create a separate random state to avoid affecting the global state
@@ -648,12 +650,43 @@ class Environment(AECEnv):
     #         return self._active_contexts.copy()
 
     def action_space(self, agent):
+        """Get the action space for an agent.
+
+        Parameters
+        ----------
+        agent : str
+            Agent identifier (unused but required by PettingZoo interface).
+
+        Returns
+        -------
+        gymnasium.spaces.Discrete
+            The action space containing all possible actions.
+        """
         return self._action_space
 
     def observation_space(self, agent):
+        """Get the observation space for an agent.
+
+        Parameters
+        ----------
+        agent : str
+            Agent identifier (unused but required by PettingZoo interface).
+
+        Returns
+        -------
+        gymnasium.spaces.Box
+            The observation space defining the shape and bounds of observations.
+        """
         return self._observation_space
 
     def _setup_observation_space(self, config):
+        """Setup the observation space based on configuration.
+
+        Parameters
+        ----------
+        config : object, optional
+            Configuration object containing observation settings.
+        """
         if config and hasattr(config, "observation") and config.observation is not None:
             self.observation_config = config.observation
         else:
@@ -665,11 +698,13 @@ class Environment(AECEnv):
         )
 
     def _setup_action_space(self):
+        """Setup the action space with all available actions."""
         self._action_space = spaces.Discrete(
             len(Action)
-        )  # Actions: DEFEND, ATTACK, GATHER, SHARE, MOVE
+        )  # Actions: DEFEND, ATTACK, GATHER, SHARE, MOVE, REPRODUCE
 
     def _create_initial_agents(self):
+        """Create and add initial agents to the environment based on configuration."""
         num_system = self.config.system_agents if self.config else 0
         num_independent = self.config.independent_agents if self.config else 0
         num_control = (
@@ -724,6 +759,18 @@ class Environment(AECEnv):
             self.add_agent(agent)
 
     def _get_observation(self, agent_id):
+        """Generate an observation for a specific agent.
+
+        Parameters
+        ----------
+        agent_id : str
+            The ID of the agent to generate an observation for.
+
+        Returns
+        -------
+        np.ndarray
+            The observation tensor for the agent.
+        """
         agent = next((a for a in self.agent_objects if a.agent_id == agent_id), None)
         if agent is None or not agent.alive:
             return np.zeros(
@@ -799,6 +846,15 @@ class Environment(AECEnv):
         return tensor
 
     def _process_action(self, agent_id, action):
+        """Process an action for a specific agent.
+
+        Parameters
+        ----------
+        agent_id : str
+            The ID of the agent performing the action.
+        action : int
+            The action to perform (from Action enum).
+        """
         agent = next((a for a in self.agent_objects if a.agent_id == agent_id), None)
         if agent is None or not agent.alive:
             return
@@ -828,6 +884,18 @@ class Environment(AECEnv):
             logging.warning(f"Invalid action {action} for agent {agent_id}")
 
     def _calculate_reward(self, agent_id):
+        """Calculate the reward for a specific agent.
+
+        Parameters
+        ----------
+        agent_id : str
+            The ID of the agent to calculate reward for.
+
+        Returns
+        -------
+        float
+            The calculated reward value.
+        """
         agent = next((a for a in self.agent_objects if a.agent_id == agent_id), None)
         if agent is None or not agent.alive:
             return -10.0
@@ -847,6 +915,7 @@ class Environment(AECEnv):
         return reward
 
     def _next_agent(self):
+        """Select the next agent to act in the environment."""
         if not self.agents:
             self.agent_selection = None
             return
@@ -866,6 +935,22 @@ class Environment(AECEnv):
         self.agent_selection = None
 
     def reset(self, *, seed=None, options=None):
+        """Reset the environment to its initial state.
+
+        Parameters
+        ----------
+        seed : int, optional
+            Random seed to set for deterministic behavior. If None, uses existing seed.
+        options : dict, optional
+            Additional options for reset (currently unused).
+
+        Returns
+        -------
+        tuple
+            A 2-tuple containing:
+            - observation (np.ndarray): The initial observation for the first agent
+            - info (dict): Additional information about the reset
+        """
         if seed is not None:
             self.seed_value = seed
             random.seed(seed)
@@ -915,7 +1000,25 @@ class Environment(AECEnv):
 
         return self.observations[self.agent_selection], self.infos[self.agent_selection]
 
-    def step(self, action):
+    def step(self, action=None) -> tuple[np.ndarray, float, bool, bool, dict]:
+        """Execute one step in the environment for the currently selected agent.
+
+        Parameters
+        ----------
+        action : int, optional
+            The action to take. Must be one of the valid actions defined in Action enum.
+            If None, no action is taken.
+
+        Returns
+        -------
+        tuple
+            A 5-tuple containing:
+            - observation (np.ndarray): The observation for the current agent
+            - reward (float): The reward received by the agent
+            - terminated (bool): Whether the episode has terminated
+            - truncated (bool): Whether the episode was truncated (e.g., max steps reached)
+            - info (dict): Additional information about the step
+        """
         if self.agent_selection is None or not self.agents:
             dummy_obs = np.zeros(
                 self._observation_space.shape, dtype=self._observation_space.dtype
@@ -961,11 +1064,25 @@ class Environment(AECEnv):
 
             # Add more if needed.
 
-            return reward
+        # Get observation for current agent
+        observation = (
+            self._get_observation(agent_id)
+            if agent
+            else np.zeros(
+                self._observation_space.shape, dtype=self._observation_space.dtype
+            )
+        )
 
-        return reward
+        return observation, reward, terminated, truncated, {}
 
     def render(self, mode="human"):
+        """Render the current state of the environment.
+
+        Parameters
+        ----------
+        mode : str
+            The rendering mode. Currently only supports "human".
+        """
         if mode == "human":
             print(f"Time: {self.time}")
             print(f"Active agents: {len(self.agents)}")
