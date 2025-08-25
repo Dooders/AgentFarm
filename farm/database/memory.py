@@ -30,39 +30,32 @@ logger = logging.getLogger(__name__)
 class RedisMemoryConfig:
     """Configuration for Redis-backed agent memory."""
 
-
     # Redis connection settings
     host: str = "localhost"
     port: int = 6379
     db: int = 0
     password: Optional[str] = None
 
-
     # Memory management
     memory_limit: int = 1000  # Max memory entries per agent
     ttl: int = 3600  # Default TTL for entries (seconds)
-
 
     # Advanced settings
     enable_semantic_search: bool = True
     embedding_dimension: int = 128
     memory_priority_decay: float = 0.95  # How quickly priority decays with time
 
-
     # Auto-cleanup
     cleanup_interval: int = 100  # Check for cleanup every N insertions
 
-
     # Namespace prefixes
     namespace: str = "agent_memory"
-
 
     @property
     def connection_params(self) -> Dict:
         """Return connection parameters for Redis client."""
         return {
             "host": self.host,
-            "port": self.port,
             "port": self.port,
             "db": self.db,
             "password": self.password,
@@ -88,13 +81,10 @@ class AgentMemory:
         _insertion_count (int): Counter for tracking insertions for cleanup
     """
 
-
     def __init__(
-        self,
         self,
         agent_id: str,
         config: Optional[RedisMemoryConfig] = None,
-        redis_client: Optional[redis.Redis] = None,
         redis_client: Optional[redis.Redis] = None,
     ):
         """Initialize the agent memory system.
@@ -108,13 +98,11 @@ class AgentMemory:
         self.agent_id = agent_id
         self.config = config or RedisMemoryConfig()
 
-
         # Use provided Redis client or create a new one
         self.redis_client = redis_client or redis.Redis(**self.config.connection_params)
 
         # Initialize tracking variables
         self._insertion_count = 0
-
 
         # Check Redis connection
         try:
@@ -124,23 +112,20 @@ class AgentMemory:
             logger.error(f"Failed to connect to Redis: {e}")
             raise
 
-
     @property
     def _agent_key_prefix(self) -> str:
         """Get the Redis key prefix for this agent."""
         return f"{self.config.namespace}:{self.agent_id}"
 
-
     def remember_state(
         self,
         step: int,
-        state: AgentStateModel,
+        state: AgentState,
         action: Optional[str] = None,
         reward: Optional[float] = None,
         perception: Optional[PerceptionData] = None,
         metadata: Optional[Dict[str, Any]] = None,
         priority: float = 1.0,
-        ttl: Optional[int] = None,
         ttl: Optional[int] = None,
     ) -> bool:
         """Store agent state and related information in memory.
@@ -169,7 +154,6 @@ class AgentMemory:
                 "priority": priority,
             }
 
-
             # Add optional fields if provided
             if action is not None:
                 memory_entry["action"] = action
@@ -181,38 +165,27 @@ class AgentMemory:
                     if hasattr(perception, "grid")
                     else vars(perception)
                 )
-                memory_entry["perception"] = (
-                    perception.grid.tolist()
-                    if hasattr(perception, "grid")
-                    else vars(perception)
-                )
             if metadata:
                 memory_entry["metadata"] = metadata
-
 
             # Two key data structures:
             # 1. Ordered timeline using a sorted set with step number as score
             # 2. Hash table with full data keyed by step
 
-
             # Generate keys
             timeline_key = f"{self._agent_key_prefix}:timeline"
             memory_key = f"{self._agent_key_prefix}:memory:{step}"
 
-
             # Add to timeline sorted set
             self.redis_client.zadd(timeline_key, {str(step): step})
-
 
             # Store full state as hash
             serialized = json.dumps(memory_entry)
             self.redis_client.set(memory_key, serialized)
 
-
             # Set TTL if provided
             if ttl or self.config.ttl:
                 self.redis_client.expire(memory_key, ttl or self.config.ttl)
-
 
             # Check if we should clean up
             self._insertion_count += 1
@@ -220,14 +193,11 @@ class AgentMemory:
                 self._cleanup_old_memories()
                 self._insertion_count = 0
 
-
             return True
-
 
         except Exception as e:
             logger.error(f"Failed to store memory for agent {self.agent_id}: {e}")
             return False
-
 
     def retrieve_state(self, step: int) -> Optional[Dict[str, Any]]:
         """Retrieve a specific state by step number.
@@ -244,17 +214,13 @@ class AgentMemory:
             memory_key = f"{self._agent_key_prefix}:memory:{step}"
             data = self.redis_client.get(memory_key)
 
-
             if data:
                 return json.loads(str(data))
-                return json.loads(str(data))
             return None
-
 
         except Exception as e:
             logger.error(f"Failed to retrieve state for agent {self.agent_id}: {e}")
             return None
-
 
     def retrieve_recent_states(self, count: int = 10) -> List[Dict[str, Any]]:
         """Retrieve the most recent states.
@@ -270,7 +236,6 @@ class AgentMemory:
         try:
             timeline_key = f"{self._agent_key_prefix}:timeline"
 
-
             # Get the most recent step numbers from the timeline
             recent_steps = self.redis_client.zrevrange(timeline_key, 0, count - 1)
 
@@ -281,22 +246,15 @@ class AgentMemory:
                 if state:
                     results.append(state)
 
-
             return results
-
 
         except Exception as e:
             logger.error(
                 f"Failed to retrieve recent states for agent {self.agent_id}: {e}"
             )
-            logger.error(
-                f"Failed to retrieve recent states for agent {self.agent_id}: {e}"
-            )
             return []
 
-
     def retrieve_states_by_timeframe(
-        self, start_step: int, end_step: int
         self, start_step: int, end_step: int
     ) -> List[Dict[str, Any]]:
         """Retrieve states within a specific timeframe.
@@ -313,12 +271,10 @@ class AgentMemory:
         try:
             timeline_key = f"{self._agent_key_prefix}:timeline"
 
-
             # Get steps in the specified range
             steps = self.redis_client.zrangebyscore(
                 timeline_key, min=start_step, max=end_step
             )
-
 
             # Retrieve each state
             results = []
@@ -327,22 +283,15 @@ class AgentMemory:
                 if state:
                     results.append(state)
 
-
             return results
-
 
         except Exception as e:
             logger.error(
                 f"Failed to retrieve states by timeframe for agent {self.agent_id}: {e}"
             )
-            logger.error(
-                f"Failed to retrieve states by timeframe for agent {self.agent_id}: {e}"
-            )
             return []
 
-
     def search_by_metadata(
-        self, key: str, value: Any, limit: int = 10
         self, key: str, value: Any, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """Search for states with matching metadata.
@@ -360,10 +309,8 @@ class AgentMemory:
         try:
             timeline_key = f"{self._agent_key_prefix}:timeline"
 
-
             # Get all steps from the timeline
             all_steps = self.redis_client.zrange(timeline_key, 0, -1)
-
 
             # Search through states for matching metadata
             results = []
@@ -372,25 +319,19 @@ class AgentMemory:
                 if not state or "metadata" not in state:
                     continue
 
-
                 if key in state["metadata"] and state["metadata"][key] == value:
                     results.append(state)
-
 
                 if len(results) >= limit:
                     break
 
-
             return results
-
 
         except Exception as e:
             logger.error(f"Failed to search metadata for agent {self.agent_id}: {e}")
             return []
 
-
     def search_by_state_value(
-        self, key: str, value: Any, limit: int = 10
         self, key: str, value: Any, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """Search for states with matching state values.
@@ -408,10 +349,8 @@ class AgentMemory:
         try:
             timeline_key = f"{self._agent_key_prefix}:timeline"
 
-
             # Get all steps from the timeline
             all_steps = self.redis_client.zrange(timeline_key, 0, -1)
-
 
             # Search through states for matching value
             results = []
@@ -420,30 +359,21 @@ class AgentMemory:
                 if not state_data or "state" not in state_data:
                     continue
 
-
                 if key in state_data["state"] and state_data["state"][key] == value:
                     results.append(state_data)
-
 
                 if len(results) >= limit:
                     break
 
-
             return results
-
 
         except Exception as e:
             logger.error(
                 f"Failed to search state values for agent {self.agent_id}: {e}"
             )
-            logger.error(
-                f"Failed to search state values for agent {self.agent_id}: {e}"
-            )
             return []
 
-
     def search_by_position(
-        self, position: Tuple[float, float], radius: float = 1.0, limit: int = 10
         self, position: Tuple[float, float], radius: float = 1.0, limit: int = 10
     ) -> List[Dict[str, Any]]:
         """Search for states where agent was near a specific position.
@@ -462,10 +392,8 @@ class AgentMemory:
             timeline_key = f"{self._agent_key_prefix}:timeline"
             target_x, target_y = position
 
-
             # Get all steps from the timeline
             all_steps = self.redis_client.zrange(timeline_key, 0, -1)
-
 
             # Search through states for positions within radius
             results = []
@@ -477,36 +405,24 @@ class AgentMemory:
                     or "position_x" not in state_data["state"]
                     or "position_y" not in state_data["state"]
                 ):
-                if (
-                    not state_data
-                    or "state" not in state_data
-                    or "position_x" not in state_data["state"]
-                    or "position_y" not in state_data["state"]
-                ):
                     continue
-
 
                 x = state_data["state"].get("position_x")
                 y = state_data["state"].get("position_y")
-
 
                 # Calculate distance
                 distance = ((x - target_x) ** 2 + (y - target_y) ** 2) ** 0.5
                 if distance <= radius:
                     results.append(state_data)
 
-
                 if len(results) >= limit:
                     break
 
-
             return results
-
 
         except Exception as e:
             logger.error(f"Failed to search by position for agent {self.agent_id}: {e}")
             return []
-
 
     def retrieve_action_history(self, limit: int = 20) -> List[str]:
         """Retrieve a history of actions taken by the agent.
@@ -522,10 +438,8 @@ class AgentMemory:
         try:
             timeline_key = f"{self._agent_key_prefix}:timeline"
 
-
             # Get the most recent step numbers from the timeline
             recent_steps = self.redis_client.zrevrange(timeline_key, 0, limit - 1)
-
 
             # Extract action from each state
             actions = []
@@ -534,19 +448,13 @@ class AgentMemory:
                 if state and "action" in state:
                     actions.append(state["action"])
 
-
             return actions
-
 
         except Exception as e:
             logger.error(
                 f"Failed to retrieve action history for agent {self.agent_id}: {e}"
             )
-            logger.error(
-                f"Failed to retrieve action history for agent {self.agent_id}: {e}"
-            )
             return []
-
 
     def get_action_frequency(self) -> Dict[str, int]:
         """Get frequency distribution of actions taken by the agent.
@@ -558,7 +466,6 @@ class AgentMemory:
         try:
             actions = self.retrieve_action_history(limit=1000)  # Get a large sample
 
-
             # Count occurrences
             frequency = {}
             for action in actions:
@@ -567,19 +474,13 @@ class AgentMemory:
                 else:
                     frequency[action] = 1
 
-
             return frequency
-
 
         except Exception as e:
             logger.error(
                 f"Failed to get action frequency for agent {self.agent_id}: {e}"
             )
-            logger.error(
-                f"Failed to get action frequency for agent {self.agent_id}: {e}"
-            )
             return {}
-
 
     def clear_memory(self) -> bool:
         """Clear all memory entries for this agent.
@@ -593,20 +494,16 @@ class AgentMemory:
             pattern = f"{self._agent_key_prefix}:*"
             keys = self.redis_client.keys(pattern)
 
-
             # Delete all keys
             if keys:
                 self.redis_client.delete(*keys)
 
-
             logger.info(f"Cleared memory for agent {self.agent_id}")
             return True
-
 
         except Exception as e:
             logger.error(f"Failed to clear memory for agent {self.agent_id}: {e}")
             return False
-
 
     def _cleanup_old_memories(self) -> None:
         """Clean up old memories based on limit and priority.
@@ -618,38 +515,27 @@ class AgentMemory:
         try:
             timeline_key = f"{self._agent_key_prefix}:timeline"
 
-
             # Get total count of memories
             memory_count = self.redis_client.zcard(timeline_key)
-
 
             # If we're under the limit, no cleanup needed
             if memory_count <= self.config.memory_limit:
                 return
 
-
             # Calculate how many to remove
             to_remove = memory_count - self.config.memory_limit
 
-
             # Get the oldest entries
             oldest_steps = self.redis_client.zrange(timeline_key, 0, to_remove - 1)
-
 
             # Remove each entry
             for step in oldest_steps:
                 memory_key = f"{self._agent_key_prefix}:memory:{step}"
                 self.redis_client.delete(memory_key)
 
-
             # Remove from timeline
             if oldest_steps:
                 self.redis_client.zrem(timeline_key, *oldest_steps)
-
-            logger.debug(
-                f"Cleaned up {len(oldest_steps)} old memories for agent {self.agent_id}"
-            )
-
 
             logger.debug(
                 f"Cleaned up {len(oldest_steps)} old memories for agent {self.agent_id}"
@@ -667,9 +553,7 @@ class AgentMemoryManager:
     allowing resource sharing and efficient connection pooling.
     """
 
-
     _instance = None
-
 
     @classmethod
     def get_instance(cls, config: Optional[RedisMemoryConfig] = None):
@@ -677,7 +561,6 @@ class AgentMemoryManager:
         if cls._instance is None:
             cls._instance = cls(config)
         return cls._instance
-
 
     def __init__(self, config: Optional[RedisMemoryConfig] = None):
         """Initialize the memory manager.
@@ -689,14 +572,11 @@ class AgentMemoryManager:
         if AgentMemoryManager._instance is not None:
             raise RuntimeError("Use get_instance() to get the singleton instance")
 
-
         self.config = config or RedisMemoryConfig()
         self.memories = {}
 
-
         # Create shared Redis connection pool
         self.redis = redis.Redis(**self.config.connection_params)
-
 
         # Check Redis connection
         try:
@@ -705,7 +585,6 @@ class AgentMemoryManager:
         except redis.ConnectionError as e:
             logger.error(f"Failed to connect to Redis: {e}")
             raise
-
 
     def get_memory(self, agent_id: str) -> AgentMemory:
         """Get or create an agent memory system.
@@ -721,10 +600,8 @@ class AgentMemoryManager:
         if agent_id not in self.memories:
             self.memories[agent_id] = AgentMemory(
                 agent_id=agent_id, config=self.config, redis_client=self.redis
-                agent_id=agent_id, config=self.config, redis_client=self.redis
             )
         return self.memories[agent_id]
-
 
     def clear_all_memories(self) -> bool:
         """Clear all agent memories.
@@ -738,19 +615,15 @@ class AgentMemoryManager:
             pattern = f"{self.config.namespace}:*"
             keys = self.redis.keys(pattern)
 
-
             # Delete all keys
             if keys:
                 self.redis.delete(*keys)
 
-
             # Reset local cache
             self.memories = {}
 
-
             logger.info("Cleared all agent memories")
             return True
-
 
         except Exception as e:
             logger.error(f"Failed to clear all memories: {e}")
@@ -760,7 +633,6 @@ class AgentMemoryManager:
 # Example integration with BaseAgent
 def integrate_with_agent():
     """Example code showing how to integrate memory with BaseAgent class."""
-
 
     # Add this to BaseAgent.__init__
     """
@@ -773,7 +645,6 @@ def integrate_with_agent():
     memory_manager = AgentMemoryManager.get_instance(memory_config)
     self.memory = memory_manager.get_memory(self.agent_id)
     """
-
 
     # Add this to BaseAgent.act after taking action
     """
@@ -789,7 +660,6 @@ def integrate_with_agent():
             metadata={"health_percent": self.current_health / self.starting_health}
         )
     """
-
 
     # Example: Add a new method to BaseAgent for memory retrieval
     """
@@ -815,4 +685,3 @@ def integrate_with_agent():
         # Otherwise return recent states
         return self.memory.retrieve_recent_states(limit)
     """
-
