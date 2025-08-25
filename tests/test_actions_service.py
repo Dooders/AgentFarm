@@ -95,27 +95,26 @@ def test_analyze_actions_all_types(actions_service):
     ]
 
     actions_service.behavior_analyzer.analyze.return_value = BehaviorClustering(
-        clusters={},
-        cluster_characteristics={},
-        cluster_performance={}
+        clusters={}, cluster_characteristics={}, cluster_performance={}
     )
 
     actions_service.causal_analyzer.analyze.return_value = CausalAnalysis(
-        action_type="gather",
-        causal_impact=5.0,
-        state_transition_probs={}
+        action_type="gather", causal_impact=5.0, state_transition_probs={}
     )
 
     actions_service.decision_analyzer.analyze.return_value = DecisionPatterns(
         decision_patterns={},
+        sequence_analysis={},
+        resource_impact={},
+        temporal_patterns={},
+        interaction_analysis={},
         decision_summary=DecisionSummary(
             total_decisions=2,
             unique_actions=2,
             most_frequent="gather",
             most_rewarding="gather",
             action_diversity=1.0,
-            normalized_diversity=1.0
-        )
+        ),
     )
 
     actions_service.resource_analyzer.analyze.return_value = [
@@ -123,16 +122,12 @@ def test_analyze_actions_all_types(actions_service):
             action_type="gather",
             avg_resources_before=10.0,
             avg_resource_change=5.0,
-            resource_efficiency=1.0
+            resource_efficiency=1.0,
         )
     ]
 
     actions_service.sequence_analyzer.analyze.return_value = [
-        SequencePattern(
-            sequence="gather",
-            count=1,
-            probability=0.5
-        )
+        SequencePattern(count=1, probability=0.5)
     ]
 
     actions_service.temporal_analyzer.analyze.return_value = [
@@ -141,7 +136,7 @@ def test_analyze_actions_all_types(actions_service):
             time_distribution=[1],
             reward_progression=[5.0],
             rolling_average_rewards=[5.0],
-            rolling_average_counts=[1.0]
+            rolling_average_counts=[1.0],
         )
     ]
 
@@ -223,7 +218,7 @@ def test_get_action_summary(actions_service):
             temporal_patterns=[],
             resource_impacts=[],
             decision_patterns=[],
-            rewards=[5.0, 5.0]
+            rewards=[5.0, 5.0],
         )
     ]
 
@@ -232,7 +227,7 @@ def test_get_action_summary(actions_service):
             action_type="gather",
             avg_resources_before=10.0,
             avg_resource_change=5.0,
-            resource_efficiency=1.0
+            resource_efficiency=1.0,
         )
     ]
 
