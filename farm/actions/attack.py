@@ -123,6 +123,21 @@ def _log_no_targets_attempt(
         targets_found=0,
         reason=reason,
     )
+    # Log interaction edge (attempt with no target)
+    agent.environment.log_interaction_edge(
+        source_type="agent",
+        source_id=agent.agent_id,
+        target_type="agent",
+        target_id="none",
+        interaction_type="attack_attempt",
+        action_type="attack",
+        details={
+            "success": False,
+            "reason": reason,
+            "targets_found": 0,
+            "target_position": target_position,
+        },
+    )
 
 
 def _apply_attack_cost(agent: "BaseAgent") -> None:
@@ -217,6 +232,21 @@ def _log_attack_outcome(
         targets_found=valid_targets_count,
         damage_dealt=total_damage_dealt,
         reason="hit" if successful_hits > 0 else "missed",
+    )
+    # Log interaction edge for attack outcome
+    agent.environment.log_interaction_edge(
+        source_type="agent",
+        source_id=agent.agent_id,
+        target_type="agent",
+        target_id=target.agent_id,
+        interaction_type="attack" if successful_hits > 0 else "attack_failed",
+        action_type="attack",
+        details={
+            "success": successful_hits > 0,
+            "damage_dealt": total_damage_dealt,
+            "targets_found": valid_targets_count,
+            "target_position": target_position,
+        },
     )
 
 

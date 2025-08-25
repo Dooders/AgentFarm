@@ -493,6 +493,21 @@ def gather_action(agent: "BaseAgent") -> None:
                     ),
                 },
             )
+        # Log interaction edge (attempt)
+        agent.environment.log_interaction_edge(
+            source_type="agent",
+            source_id=agent.agent_id,
+            target_type="resource",
+            target_id=str(target_resource.resource_id) if target_resource else "none",
+            interaction_type="gather_attempt",
+            action_type="gather",
+            details={
+                "success": False,
+                "reason": (
+                    "decided_not_to_gather" if not should_gather else "no_target_resource"
+                ),
+            },
+        )
         return
 
     # Record initial resource amount
@@ -537,6 +552,20 @@ def gather_action(agent: "BaseAgent") -> None:
                     ),
                 },
             )
+        # Log interaction edge (success)
+        agent.environment.log_interaction_edge(
+            source_type="agent",
+            source_id=agent.agent_id,
+            target_type="resource",
+            target_id=str(target_resource.resource_id),
+            interaction_type="gather",
+            action_type="gather",
+            details={
+                "amount_gathered": gather_amount,
+                "resource_before": resource_amount_before,
+                "resource_after": target_resource.amount,
+            },
+        )
     else:
         # Log failed gather action due to depleted resource
         if agent.environment.db is not None:
@@ -552,6 +581,18 @@ def gather_action(agent: "BaseAgent") -> None:
                     "reason": "resource_depleted",
                 },
             )
+        # Log interaction edge (failed)
+        agent.environment.log_interaction_edge(
+            source_type="agent",
+            source_id=agent.agent_id,
+            target_type="resource",
+            target_id=str(target_resource.resource_id),
+            interaction_type="gather_failed",
+            action_type="gather",
+            details={
+                "reason": "resource_depleted",
+            },
+        )
 
 
 # Default configuration instance

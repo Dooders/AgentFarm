@@ -24,6 +24,7 @@ from farm.database.models import (
     ActionModel,
     AgentModel,
     AgentStateModel,
+    InteractionModel,
     HealthIncident,
     LearningExperienceModel,
     ReproductionEventModel,
@@ -80,6 +81,7 @@ class DataLogger:
         self._learning_exp_buffer = []
         self._health_incident_buffer = []
         self._resource_buffer = []
+        self._interaction_buffer = []
         self.reproduction_buffer = []
         self._step_buffer = []
 
@@ -135,6 +137,46 @@ class DataLogger:
             raise
         except Exception as e:
             logger.error(f"Unexpected error logging agent action: {e}")
+            raise
+
+    def log_interaction_edge(
+        self,
+        step_number: int,
+        source_type: str,
+        source_id: str,
+        target_type: str,
+        target_id: str,
+        interaction_type: str,
+        action_type: Optional[str] = None,
+        details: Optional[Dict] = None,
+    ) -> None:
+        """Buffer an interaction as an edge between nodes.
+
+        Ensures consistent structure for downstream analytics and visualization.
+        """
+        try:
+            if step_number < 0:
+                raise ValueError("step_number must be non-negative")
+
+            edge = {
+                "simulation_id": self.simulation_id,
+                "step_number": step_number,
+                "source_type": str(source_type),
+                "source_id": str(source_id),
+                "target_type": str(target_type),
+                "target_id": str(target_id),
+                "interaction_type": str(interaction_type),
+                "action_type": str(action_type) if action_type else None,
+                "details": details if details is not None else None,
+            }
+
+            self._interaction_buffer.append(edge)
+
+            if len(self._interaction_buffer) >= self._buffer_size:
+                self.flush_interaction_buffer()
+
+        except Exception as e:
+            logger.error(f"Error logging interaction edge: {e}")
             raise
 
     def log_learning_experience(
@@ -251,6 +293,23 @@ class DataLogger:
             logger.error(f"Failed to flush action buffer: {e}")
             raise
 
+    def flush_interaction_buffer(self) -> None:
+        """Flush buffered interaction edges to the database."""
+        if not self._interaction_buffer:
+            return
+
+        buffer_copy = list(self._interaction_buffer)
+        try:
+
+            def _insert(session):
+                session.bulk_insert_mappings(InteractionModel, buffer_copy)
+
+            self.db._execute_in_transaction(_insert)
+            self._interaction_buffer.clear()
+        except SQLAlchemyError as e:
+            logger.error(f"Failed to flush interaction buffer: {e}")
+            raise
+
     def flush_learning_buffer(self) -> None:
         """Flush the learning experience buffer with transaction safety."""
         if not self._learning_exp_buffer:
@@ -329,6 +388,12 @@ class DataLogger:
                         ReproductionEventModel, self.reproduction_buffer
                     )
                     self.reproduction_buffer.clear()
+
+                if self._interaction_buffer:
+                    session.bulk_insert_mappings(
+                        InteractionModel, self._interaction_buffer
+                    )
+                    self._interaction_buffer.clear()
 
                 if self._step_buffer:
                     session.bulk_insert_mappings(SimulationStepModel, self._step_buffer)

@@ -288,6 +288,40 @@ class ResourceModel(Base):
         }
 
 
+class InteractionModel(Base):
+    """Generic interaction edges between nodes in the environment.
+
+    This table captures interactions as edges between source and target nodes
+    (e.g., agent->agent, agent->resource) with consistent metadata for
+    downstream analytics and visualization.
+    """
+
+    __tablename__ = "interactions"
+    __table_args__ = (
+        Index("idx_interactions_step_number", "step_number"),
+        Index("idx_interactions_source", "source_type", "source_id"),
+        Index("idx_interactions_target", "target_type", "target_id"),
+        Index("idx_interactions_type", "interaction_type"),
+    )
+
+    interaction_id = Column(Integer, primary_key=True)
+    simulation_id = Column(String(64), ForeignKey("simulations.simulation_id"))
+    step_number = Column(Integer, nullable=False)
+
+    # Source node
+    source_type = Column(String(32), nullable=False)  # e.g., 'agent', 'resource'
+    source_id = Column(String(64), nullable=False)
+
+    # Target node
+    target_type = Column(String(32), nullable=False)  # e.g., 'agent', 'resource'
+    target_id = Column(String(64), nullable=False)
+
+    # Semantics
+    interaction_type = Column(String(50), nullable=False)  # e.g., 'share', 'attack', 'gather', 'reproduce'
+    action_type = Column(String(50), nullable=True)  # Optional action grouping
+    details = Column(JSON, nullable=True)
+    timestamp = Column(DateTime, default=func.now(), nullable=False)
+
 class SimulationStepModel(Base):
     """Records simulation-wide metrics for each time step.
 

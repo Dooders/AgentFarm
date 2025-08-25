@@ -402,6 +402,20 @@ def share_action(agent: "BaseAgent") -> None:
                     "attempted_amount": share_amount,
                 },
             )
+        # Log interaction edge (attempt)
+        agent.environment.log_interaction_edge(
+            source_type="agent",
+            source_id=agent.agent_id,
+            target_type="agent" if target else "none",
+            target_id="none" if not target else target.agent_id,
+            interaction_type="share_attempt",
+            action_type="share",
+            details={
+                "success": False,
+                "attempted_amount": share_amount,
+                "reason": "invalid_share_conditions",
+            },
+        )
         return
 
     # Execute sharing
@@ -439,6 +453,20 @@ def share_action(agent: "BaseAgent") -> None:
                 and target_initial_resources < target.config.starvation_threshold,
             },
         )
+    # Log interaction edge (success)
+    agent.environment.log_interaction_edge(
+        source_type="agent",
+        source_id=agent.agent_id,
+        target_type="agent",
+        target_id=target.agent_id,
+        interaction_type="share",
+        action_type="share",
+        details={
+            "amount_shared": share_amount,
+            "target_resources_before": target_initial_resources,
+            "target_resources_after": target.resource_level,
+        },
+    )
 
 
 def _get_share_state(agent: "BaseAgent") -> List[float]:
