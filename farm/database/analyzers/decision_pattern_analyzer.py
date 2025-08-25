@@ -6,7 +6,6 @@ import numpy as np
 from farm.database.analyzers.analysis_utils import (
     calculate_consistency,
     calculate_periodicity,
-    calculate_rolling_mean,
     calculate_trend,
     get_recent_trend,
 )
