@@ -147,15 +147,16 @@ def run_simulation_steps(name: str, db: Session = Depends(get_db)):
                 sim_info["running"] = False
                 # Update final result in database
                 try:
-                    with Session(get_db()) as db:
-                        result = (
-                            db.query(models.SimulationResult)
-                            .filter(models.SimulationResult.id == sim_info["id"])
-                            .first()
-                        )
-                        if result:
-                            result.result = sim_info["progress"]
-                            db.commit()
+                    db = next(get_db())
+                    result = (
+                        db.query(models.SimulationResult)
+                        .filter(models.SimulationResult.id == sim_info["id"])
+                        .first()
+                    )
+                    if result:
+                        result.result = sim_info["progress"]
+                        db.commit()
+                    db.close()
                 except Exception as e:
                     logger.error(f"Failed to update final result: {str(e)}")
                 logger.info(f"Simulation {name} completed")
