@@ -242,6 +242,20 @@ def reproduce_action(agent: "BaseAgent") -> None:
                     "confidence": confidence if should_reproduce else 0.0,
                 },
             )
+        # Reproduction is a self-contained action; log as self-edge for lineage attempt
+        agent.environment.log_interaction_edge(
+            source_type="agent",
+            source_id=agent.agent_id,
+            target_type="agent",
+            target_id=agent.agent_id,
+            interaction_type="reproduce_attempt",
+            action_type="reproduce",
+            details={
+                "success": False,
+                "reason": "conditions_not_met",
+                "confidence": confidence if should_reproduce else 0.0,
+            },
+        )
         return
 
     # Attempt reproduction
@@ -266,6 +280,20 @@ def reproduce_action(agent: "BaseAgent") -> None:
                     "reward": reward,
                 },
             )
+        # Log lineage interaction edge parent -> offspring
+        agent.environment.log_interaction_edge(
+            source_type="agent",
+            source_id=agent.agent_id,
+            target_type="agent",
+            target_id=offspring.agent_id,
+            interaction_type="reproduce",
+            action_type="reproduce",
+            details={
+                "success": True,
+                "reward": reward,
+                "confidence": confidence,
+            },
+        )
 
     except Exception as e:
         logger.error(f"Reproduction failed for agent {agent.agent_id}: {str(e)}")
@@ -281,6 +309,19 @@ def reproduce_action(agent: "BaseAgent") -> None:
                     "error": str(e),
                 },
             )
+        agent.environment.log_interaction_edge(
+            source_type="agent",
+            source_id=agent.agent_id,
+            target_type="agent",
+            target_id=agent.agent_id,
+            interaction_type="reproduce_failed",
+            action_type="reproduce",
+            details={
+                "success": False,
+                "reason": "reproduction_error",
+                "error": str(e),
+            },
+        )
 
 
 def _get_reproduce_state(agent: "BaseAgent") -> torch.Tensor:

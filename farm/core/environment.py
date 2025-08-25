@@ -256,6 +256,33 @@ class Environment(AECEnv):
                 details=action_data.get("details"),
             )
 
+    def log_interaction_edge(
+        self,
+        source_type,
+        source_id,
+        target_type,
+        target_id,
+        interaction_type,
+        action_type=None,
+        details=None,
+    ):
+        """Log an interaction as an edge between nodes if database is enabled."""
+        if self.db is None:
+            return
+        try:
+            self.db.logger.log_interaction_edge(
+                step_number=self.time,
+                source_type=source_type,
+                source_id=str(source_id),
+                target_type=target_type,
+                target_id=str(target_id),
+                interaction_type=interaction_type,
+                action_type=action_type,
+                details=details,
+            )
+        except Exception as e:
+            logger.error(f"Failed to log interaction edge: {e}")
+
     def update(self):
         """Update environment state for current time step."""
         try:
