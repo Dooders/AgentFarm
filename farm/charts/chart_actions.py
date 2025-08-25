@@ -156,8 +156,8 @@ def plot_action_target_distribution(dataframe):
 
     # Create distribution plot
     target_counts = pd.Series(targets).value_counts()
-    plt.bar(range(len(target_counts)), target_counts.values, alpha=0.7)
-    plt.xticks(range(len(target_counts)), target_counts.index, rotation=45)
+    plt.bar(range(len(target_counts)), target_counts.values.tolist(), alpha=0.7)
+    plt.xticks(range(len(target_counts)), target_counts.index.tolist(), rotation=45)
     plt.title("Action Target Distribution")
     plt.xlabel("Target Type")
     plt.ylabel("Frequency")

@@ -87,6 +87,8 @@ class LLMClient:
             return f"Error analyzing chart: {e}"
 
     def _analyze_action_distribution(self) -> str:
+        if self.actions_df is None:
+            return "Error: Actions data not available"
         action_counts = self.actions_df["action_type"].value_counts()
         most_common = action_counts.index[0]
         least_common = action_counts.index[-1]
@@ -99,20 +101,30 @@ Action Distribution Analysis:
 - Distribution pattern: {'Balanced' if action_counts.std()/action_counts.mean() < 0.5 else 'Highly varied'}"""
 
     def _analyze_rewards_by_action(self) -> str:
+        if self.actions_df is None:
+            return "Error: Actions data not available"
         reward_stats = self.actions_df.groupby("action_type")["reward"].agg(
             ["mean", "std", "count"]
         )
         best_action = reward_stats["mean"].idxmax()
         worst_action = reward_stats["mean"].idxmin()
 
+        best_reward = reward_stats.loc[best_action, "mean"].item()  # type: ignore
+        worst_reward = reward_stats.loc[worst_action, "mean"].item()  # type: ignore
+        effectiveness_ratio = (
+            best_reward / worst_reward if worst_reward != 0 else float("inf")
+        )
+
         return f"""
 Reward Analysis by Action:
-- Most rewarding action: {best_action} (avg {reward_stats.loc[best_action, 'mean']:.2f})
-- Least rewarding action: {worst_action} (avg {reward_stats.loc[worst_action, 'mean']:.2f})
+- Most rewarding action: {best_action} (avg {best_reward:.2f})
+- Least rewarding action: {worst_action} (avg {worst_reward:.2f})
 - Reward consistency: {'High' if reward_stats['std'].mean() < 1.0 else 'Variable'}
-- Key insight: {best_action} is {reward_stats.loc[best_action, 'mean']/reward_stats.loc[worst_action, 'mean']:.1f}x more effective than {worst_action}"""
+- Key insight: {best_action} is {effectiveness_ratio:.1f}x more effective than {worst_action}"""
 
     def _analyze_resource_changes(self) -> str:
+        if self.actions_df is None:
+            return "Error: Actions data not available"
         self.actions_df["resource_change"] = (
             self.actions_df["resources_after"] - self.actions_df["resources_before"]
         )
@@ -127,6 +139,8 @@ Resource Impact Analysis:
 - Trend: {'Accumulating' if total_change > 0 else 'Depleting'} resources over time"""
 
     def _analyze_temporal_patterns(self) -> str:
+        if self.actions_df is None:
+            return "Error: Actions data not available"
         early_actions = self.actions_df[
             self.actions_df["step_number"] <= self.actions_df["step_number"].median()
         ]
@@ -145,6 +159,8 @@ Temporal Pattern Analysis:
 - Evolution: {'Adapted strategy' if early_common != late_common else 'Maintained strategy'}"""
 
     def _analyze_reward_progression(self) -> str:
+        if self.actions_df is None:
+            return "Error: Actions data not available"
         rewards = self.actions_df.groupby("step_number")["reward"].sum()
         trend = np.polyfit(range(len(rewards)), rewards, 1)[0]
 
@@ -156,6 +172,8 @@ Reward Progression Analysis:
 - Performance: {'Learning effective' if trend > 0 else 'Needs optimization'}"""
 
     def _analyze_target_distribution(self) -> str:
+        if self.actions_df is None:
+            return "Error: Actions data not available"
         targets = self.actions_df["action_target_id"].value_counts()
 
         return f"""
@@ -166,18 +184,24 @@ Target Selection Analysis:
 - Preference strength: {'Strong' if targets.iloc[0]/targets.sum() > 0.5 else 'Balanced'}"""
 
     def _analyze_lifespan_distribution(self) -> str:
+        if self.agents_df is None:
+            return "Error: Agents data not available"
         lifespan = self.agents_df["death_time"] - self.agents_df["birth_time"]
         avg_lifespan = lifespan.mean()
         max_lifespan = lifespan.max()
 
+        skew_value = lifespan.skew().item()  # type: ignore
+        skew_direction = "Right-skewed" if skew_value > 0 else "Left-skewed"
         return f"""
 Lifespan Distribution Analysis:
 - Average lifespan: {avg_lifespan:.1f} time units
 - Maximum lifespan: {max_lifespan:.1f} time units
 - Survival rate: {(lifespan > avg_lifespan).mean()*100:.1f}% exceed average
-- Distribution: {'Right-skewed' if lifespan.skew() > 0 else 'Left-skewed'}"""
+- Distribution: {skew_direction}"""
 
     def _analyze_spatial_distribution(self) -> str:
+        if self.agents_df is None:
+            return "Error: Agents data not available"
         x_spread = self.agents_df["position_x"].std()
         y_spread = self.agents_df["position_y"].std()
 
@@ -190,6 +214,8 @@ Spatial Distribution Analysis:
 
     def _analyze_resources_by_generation(self) -> str:
         try:
+            if self.agents_df is None:
+                return "Error: Agents data not available"
             gen_stats = self.agents_df.groupby("generation")["initial_resources"].agg(
                 ["mean", "std"]
             )
@@ -217,6 +243,8 @@ Resource Evolution Analysis:
             return f"Error analyzing resource evolution: {str(e)}"
 
     def _analyze_starvation_thresholds(self) -> str:
+        if self.agents_df is None:
+            return "Error: Agents data not available"
         thresholds = self.agents_df.groupby("agent_type")["starvation_threshold"].agg(
             ["mean", "count"]
         )
@@ -238,6 +266,8 @@ Starvation Threshold Analysis:
     def _analyze_health_vs_resources(self) -> str:
         try:
             # Check if we have valid data to analyze
+            if self.agents_df is None:
+                return "Error: Agents data not available"
             health_range = (
                 self.agents_df["starting_health"].max()
                 - self.agents_df["starting_health"].min()
@@ -281,6 +311,8 @@ Health-Resource Relationship:
 
     def _analyze_agent_types_over_time(self) -> str:
         try:
+            if self.agents_df is None:
+                return "Error: Agents data not available"
             type_counts = self.agents_df.groupby(["agent_type", "birth_time"]).size()
             type_totals = self.agents_df["agent_type"].value_counts()
             most_common = type_totals.index[0]
@@ -297,6 +329,8 @@ Population Evolution Analysis:
 
     def _analyze_lineage_size(self) -> str:
         try:
+            if self.agents_df is None:
+                return "Error: Agents data not available"
             lineage_sizes = self.agents_df["genome_id"].value_counts()
             successful_lineages = (lineage_sizes > 1).sum()
 
@@ -310,6 +344,8 @@ Lineage Analysis:
             return f"Error analyzing lineages: {str(e)}"
 
     def _analyze_reproduction_success_rate(self) -> str:
+        if self.agents_df is None:
+            return "Error: Agents data not available"
         if "success" in self.agents_df.columns:
             success_rate = self.agents_df["success"].mean() * 100
             trend = (
