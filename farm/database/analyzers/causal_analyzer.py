@@ -1,5 +1,5 @@
 import json
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Tuple, Union
 
 from farm.database.data_types import CausalAnalysis
 from farm.database.enums import AnalysisScope
