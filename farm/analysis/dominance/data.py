@@ -154,7 +154,7 @@ def get_initial_positions_and_resources(sim_session, config):
     ]
 
     # Set initial count values
-    result = {
+    result: dict[str, int | float] = {
         "initial_system_count": system_count,
         "initial_independent_count": independent_count,
         "initial_control_count": control_count,
@@ -171,10 +171,12 @@ def get_initial_positions_and_resources(sim_session, config):
 
         # Calculate distance to nearest resource
         if distances:
-            result[f"{agent_type}_nearest_resource_dist"] = min(distances)
+            result[f"{agent_type}_nearest_resource_dist"] = float(min(distances))
 
             # Calculate average distance to all resources
-            result[f"{agent_type}_avg_resource_dist"] = sum(distances) / len(distances)
+            result[f"{agent_type}_avg_resource_dist"] = float(
+                sum(distances) / len(distances)
+            )
 
             # Calculate weighted distance (by resource amount)
             weighted_distances = [
@@ -184,9 +186,9 @@ def get_initial_positions_and_resources(sim_session, config):
                 )  # Add 1 to avoid division by zero
                 for i in range(len(distances))
             ]
-            result[f"{agent_type}_weighted_resource_dist"] = sum(
-                weighted_distances
-            ) / len(weighted_distances)
+            result[f"{agent_type}_weighted_resource_dist"] = float(
+                sum(weighted_distances) / len(weighted_distances)
+            )
 
             # Count resources within gathering range
             gathering_range = config.get("gathering_range", 30)

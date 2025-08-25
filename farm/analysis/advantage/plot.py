@@ -456,7 +456,7 @@ def plot_advantage_thresholds(
             f"Critical Advantage Thresholds for {agent_type.capitalize()} Dominance",
             fontsize=16,
         )
-        plt.tight_layout(rect=[0, 0, 1, 0.97])  # Adjust for suptitle
+        plt.tight_layout(rect=(0, 0, 1, 0.97))  # Adjust for suptitle
 
         # Add watermark if data was cleaned
         if data_cleaned:

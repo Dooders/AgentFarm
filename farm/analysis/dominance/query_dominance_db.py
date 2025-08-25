@@ -14,7 +14,6 @@ from farm.analysis.dominance.sqlalchemy_models import (
     ReproductionStats,
     ResourceDistribution,
     Simulation,
-    get_session,
     init_db,
 )
 
@@ -530,7 +529,7 @@ def load_data_from_db(db_path="sqlite:///dominance.db"):
         """
 
         # Execute query and load into DataFrame
-        df = pd.read_sql(text(query), session.bind)
+        df = pd.read_sql(text(query), engine)
 
         logging.info(f"Loaded {len(df)} rows from database")
         return df

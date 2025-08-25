@@ -77,7 +77,8 @@ def query_resource_advantages(
     )
 
     # Convert to DataFrame
-    df = pd.read_sql(query.statement, session.bind)
+    results = query.all()
+    df = pd.DataFrame([row._asdict() for row in results])
 
     # Save to CSV if output file is provided
     if output_file:
@@ -132,7 +133,8 @@ def query_reproduction_advantages(
     )
 
     # Convert to DataFrame
-    df = pd.read_sql(query.statement, session.bind)
+    results = query.all()
+    df = pd.DataFrame([row._asdict() for row in results])
 
     # Save to CSV if output file is provided
     if output_file:
@@ -182,7 +184,8 @@ def query_survival_advantages(
     )
 
     # Convert to DataFrame
-    df = pd.read_sql(query.statement, session.bind)
+    results = query.all()
+    df = pd.DataFrame([row._asdict() for row in results])
 
     # Save to CSV if output file is provided
     if output_file:
@@ -232,7 +235,8 @@ def query_population_growth(
     )
 
     # Convert to DataFrame
-    df = pd.read_sql(query.statement, session.bind)
+    results = query.all()
+    df = pd.DataFrame([row._asdict() for row in results])
 
     # Save to CSV if output file is provided
     if output_file:
@@ -282,7 +286,8 @@ def query_composite_advantages(
     )
 
     # Convert to DataFrame
-    df = pd.read_sql(query.statement, session.bind)
+    results = query.all()
+    df = pd.DataFrame([row._asdict() for row in results])
 
     # Save to CSV if output file is provided
     if output_file:
@@ -331,7 +336,8 @@ def query_advantage_dominance_correlations(
     )
 
     # Convert to DataFrame
-    df = pd.read_sql(query.statement, session.bind)
+    results = query.all()
+    df = pd.DataFrame([row._asdict() for row in results])
 
     # Save to CSV if output file is provided
     if output_file:
@@ -372,7 +378,7 @@ def run_custom_query(
         # Convert to DataFrame
         df = pd.DataFrame(result.fetchall())
         if not df.empty:
-            df.columns = result.keys()
+            df.columns = list(result.keys())
 
         # Save to CSV if output file is provided
         if output_file and not df.empty:
@@ -387,9 +393,7 @@ def run_custom_query(
 
 def main():
     """Main function to query the database."""
-    parser = argparse.ArgumentParser(
-        description="Query the Advantage database"
-    )
+    parser = argparse.ArgumentParser(description="Query the Advantage database")
     parser.add_argument(
         "--db-path",
         type=str,

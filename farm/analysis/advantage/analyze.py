@@ -7,7 +7,7 @@ identifying patterns and correlations between advantages and dominance outcomes.
 
 import logging
 import time
-from typing import Any, Dict
+from typing import Any, Dict, cast
 
 import numpy as np
 import pandas as pd
@@ -149,7 +149,8 @@ def analyze_advantages(
     # Handle the save_to_db option if implemented
     if save_to_db and not df.empty:
         logging.info(f"Saving analysis data to database: {db_path}")
-        return None
+        # Return empty DataFrame when saving to database
+        return pd.DataFrame()
 
     return df
 
@@ -197,6 +198,18 @@ def analyze_advantage_patterns(df: pd.DataFrame) -> Dict[str, Any]:
         # Test if the advantage is significantly different from zero
         try:
             t_stat, p_value = stats.ttest_1samp(df[col].dropna(), 0)
+            # Handle tuple return from scipy.stats and ensure float type
+            if isinstance(p_value, tuple):
+                p_value = p_value[0] if len(p_value) > 0 else 1.0
+            elif p_value is None:
+                p_value = 1.0
+            else:
+                try:
+                    p_value = (
+                        float(cast(float, p_value)) if p_value is not None else 1.0
+                    )
+                except (ValueError, TypeError):
+                    p_value = 1.0
             significance = p_value < 0.05
 
             results["advantage_significance"][col] = {
@@ -224,7 +237,19 @@ def analyze_advantage_patterns(df: pd.DataFrame) -> Dict[str, Any]:
                         # means an advantage for the first agent, not our agent_type
                         invert = f"_vs_{agent_type}" in col
 
-                        corr = df[[col, score_col]].corr().iloc[0, 1]
+                        corr_result = df[[col, score_col]].corr().iloc[0, 1]
+                        # Handle NaN values and ensure float type
+                        if pd.isna(corr_result):
+                            corr = 0.0
+                        else:
+                            try:
+                                corr = (
+                                    float(cast(float, corr_result))
+                                    if corr_result is not None
+                                    else 0.0
+                                )
+                            except (ValueError, TypeError):
+                                corr = 0.0
                         if invert:
                             corr = -corr
 
@@ -389,6 +414,20 @@ def analyze_advantage_patterns(df: pd.DataFrame) -> Dict[str, Any]:
                         t_stat, p_value = 0, 1.0
 
                     # Determine if this advantage significantly predicts dominance
+                    # Handle tuple return from scipy.stats
+                    if isinstance(p_value, tuple):
+                        p_value = p_value[0] if len(p_value) > 0 else 1.0
+                    elif p_value is None:
+                        p_value = 1.0
+                    else:
+                        try:
+                            p_value = (
+                                float(cast(float, p_value))
+                                if p_value is not None
+                                else 1.0
+                            )
+                        except (ValueError, TypeError):
+                            p_value = 1.0
                     is_significant = p_value < 0.05
 
                     # Calculate effect size (Cohen's d)
