@@ -10,7 +10,7 @@ resource dynamics, and simulation outcomes.
 #! THIS SCRIPT MAY BE WRONG
 import logging
 from pathlib import Path
-from typing import Dict, List, Tuple, Any
+from typing import Any, Dict, List, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -20,17 +20,17 @@ from sklearn.cluster import KMeans
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.inspection import permutation_importance
 from sklearn.metrics import classification_report
-from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.model_selection import cross_val_score, train_test_split
 from sklearn.preprocessing import StandardScaler
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from farm.database.models import (
-    AgentModel,
     ActionModel,
+    AgentModel,
     ResourceModel,
-    SimulationStepModel,
     Simulation,
+    SimulationStepModel,
 )
 
 # Configure logging
@@ -289,21 +289,22 @@ class SimulationAnalyzer:
             prev, curr = steps[i - 1], steps[i]
 
             # Calculate population change rates
-            system_change = (curr.system_agents - prev.system_agents) / max(
-                prev.system_agents, 1
-            )
-            indep_change = (curr.independent_agents - prev.independent_agents) / max(
-                prev.independent_agents, 1
-            )
-            control_change = (curr.control_agents - prev.control_agents) / max(
-                prev.control_agents, 1
-            )
+            curr_system = curr.system_agents or 0  # type: ignore
+            prev_system = prev.system_agents or 0  # type: ignore
+            curr_indep = curr.independent_agents or 0  # type: ignore
+            prev_indep = prev.independent_agents or 0  # type: ignore
+            curr_control = curr.control_agents or 0  # type: ignore
+            prev_control = prev.control_agents or 0  # type: ignore
+
+            system_change = (curr_system - prev_system) / max(prev_system, 1)  # type: ignore
+            indep_change = (curr_indep - prev_indep) / max(prev_indep, 1)  # type: ignore
+            control_change = (curr_control - prev_control) / max(prev_control, 1)  # type: ignore
 
             # If any population changed significantly
             if (
-                abs(system_change) > 0.2
-                or abs(indep_change) > 0.2
-                or abs(control_change) > 0.2
+                abs(system_change) > 0.2  # type: ignore
+                or abs(indep_change) > 0.2  # type: ignore
+                or abs(control_change) > 0.2  # type: ignore
             ):
                 critical_steps.append(
                     {
@@ -393,7 +394,10 @@ class SimulationAnalyzer:
         output_dir.mkdir(exist_ok=True)
 
         results_file = output_dir / f"simulation_{simulation_id}_analysis.json"
-        pd.io.json.to_json(results_file, results)
+        import json
+
+        with open(results_file, "w") as f:
+            json.dump(results, f, default=str)
 
         logger.info(f"Analysis complete. Results saved to {results_file}")
         return results

@@ -36,9 +36,10 @@ class TestParallelExperimentRunnerPerformance(unittest.TestCase):
 
         # Create a basic simulation config for testing
         self.config = SimulationConfig()
-        self.config.num_system_agents = 5
-        self.config.num_independent_agents = 5
-        self.config.world_size = (50, 50)
+        self.config.system_agents = 5
+        self.config.independent_agents = 5
+        self.config.width = 50
+        self.config.height = 50
         self.config.use_in_memory_db = True
         self.config.in_memory_db_memory_limit_mb = 100
 

@@ -94,13 +94,4 @@ class BaseRepository(Generic[T]):
         SQLAlchemyError
             For database-related errors
         """
-        session = self.db.Session()
-        try:
-            result = func(session)
-            session.commit()
-            return result
-        except SQLAlchemyError as e:
-            session.rollback()
-            raise e
-        finally:
-            self.db.Session.remove()
+        return self.session_manager.execute_with_retry(func)

@@ -2,24 +2,26 @@
 Configuration helper utilities for benchmarks.
 """
 
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 from farm.core.config import SimulationConfig
 
 
-def configure_for_performance_with_persistence(config: Optional[SimulationConfig] = None) -> SimulationConfig:
+def configure_for_performance_with_persistence(
+    config: Optional[SimulationConfig] = None,
+) -> SimulationConfig:
     """
     Configure a simulation for optimal performance while maintaining data persistence.
-    
+
     This configuration uses an in-memory database with persistence enabled,
     which provides a good balance between performance and data durability
     for post-simulation analysis.
-    
+
     Parameters
     ----------
     config : SimulationConfig, optional
         Existing configuration to modify. If None, a new configuration is created.
-        
+
     Returns
     -------
     SimulationConfig
@@ -27,20 +29,22 @@ def configure_for_performance_with_persistence(config: Optional[SimulationConfig
     """
     if config is None:
         config = SimulationConfig()
-    
+
     # Enable in-memory database with persistence
     config.use_in_memory_db = True
-    config.persist_in_memory_db = True
-    
+    config.persist_db_on_completion = True
+
     return config
 
 
-def get_recommended_config(num_agents: int = 30, 
-                          num_steps: int = 100,
-                          additional_params: Optional[Dict[str, Any]] = None) -> SimulationConfig:
+def get_recommended_config(
+    num_agents: int = 30,
+    num_steps: int = 100,
+    additional_params: Optional[Dict[str, Any]] = None,
+) -> SimulationConfig:
     """
     Get a recommended configuration for simulations that need post-simulation analysis.
-    
+
     Parameters
     ----------
     num_agents : int
@@ -49,31 +53,33 @@ def get_recommended_config(num_agents: int = 30,
         Number of simulation steps to run
     additional_params : Dict[str, Any], optional
         Additional parameters to set on the configuration
-        
+
     Returns
     -------
     SimulationConfig
         Recommended configuration for simulations
     """
     config = SimulationConfig()
-    
+
     # Set basic simulation parameters
     config.width = 100
     config.height = 100
-    
+
     config.system_agents = num_agents // 3
     config.independent_agents = num_agents // 3
-    config.control_agents = num_agents - (2 * (num_agents // 3))  # Ensure total is num_agents
-    
+    config.control_agents = num_agents - (
+        2 * (num_agents // 3)
+    )  # Ensure total is num_agents
+
     config.initial_resources = 20
     config.simulation_steps = num_steps
-    
+
     # Set additional parameters
     if additional_params:
         for key, value in additional_params.items():
             if hasattr(config, key):
                 setattr(config, key, value)
-    
+
     # Configure for performance with persistence
     return configure_for_performance_with_persistence(config)
 
@@ -85,11 +91,13 @@ def print_config_recommendations() -> None:
     print("=" * 80)
     print("RECOMMENDED CONFIGURATION FOR POST-SIMULATION ANALYSIS")
     print("=" * 80)
-    print("For optimal performance while maintaining data for post-simulation analysis,")
+    print(
+        "For optimal performance while maintaining data for post-simulation analysis,"
+    )
     print("use an in-memory database with persistence enabled:")
     print()
     print("    config.use_in_memory_db = True")
-    print("    config.persist_in_memory_db = True")
+    print("    config.persist_db_on_completion = True")
     print()
     print("This configuration provides:")
     print("  - 33.6% faster execution than disk-based database")
@@ -98,6 +106,8 @@ def print_config_recommendations() -> None:
     print()
     print("You can use the helper function to apply these settings:")
     print()
-    print("    from benchmarks.utils.config_helper import configure_for_performance_with_persistence")
+    print(
+        "    from benchmarks.utils.config_helper import configure_for_performance_with_persistence"
+    )
     print("    config = configure_for_performance_with_persistence(config)")
-    print("=" * 80) 
+    print("=" * 80)

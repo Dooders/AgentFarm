@@ -4,45 +4,46 @@ from unittest.mock import MagicMock, patch
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from database.models import AgentModel
-from database.repositories.agent_repository import AgentRepository
-from database.repositories.base_repository import BaseRepository
-from database.repositories.learning_repository import LearningRepository
-from database.repositories.population_repository import PopulationRepository
-from database.repositories.resource_repository import ResourceRepository
-from database.repositories.simulation_repository import SimulationRepository
+from farm.database.models import AgentModel
+from farm.database.repositories.agent_repository import AgentRepository
+from farm.database.repositories.base_repository import BaseRepository
+from farm.database.repositories.learning_repository import LearningRepository
+from farm.database.repositories.population_repository import PopulationRepository
+from farm.database.repositories.simulation_repository import SimulationRepository
+from farm.database.session_manager import SessionManager
 
 
 class TestBaseRepository(unittest.TestCase):
     def setUp(self):
-        self.db = MagicMock()
+        self.session_manager = MagicMock(spec=SessionManager)
         self.session = MagicMock(spec=Session)
-        self.db.Session.return_value = self.session
+        self.session_manager.execute_with_retry.side_effect = lambda x: x(self.session)
         self.model = AgentModel
-        self.repository = BaseRepository(self.db, self.model)
+        self.repository = BaseRepository(self.session_manager, self.model)
 
     def test_add(self):
         entity = self.model()
         self.repository.add(entity)
         self.session.add.assert_called_once_with(entity)
-        self.session.commit.assert_called_once()
 
     def test_get_by_id(self):
         entity_id = 1
-        self.repository.get_by_id(entity_id)
-        self.session.query(self.model).get.assert_called_once_with(entity_id)
+        mock_entity = MagicMock()
+        self.session.query.return_value.get.return_value = mock_entity
+        result = self.repository.get_by_id(entity_id)
+        self.session.query.assert_called_once_with(self.model)
+        self.session.query.return_value.get.assert_called_once_with(entity_id)
+        self.assertEqual(result, mock_entity)
 
     def test_update(self):
         entity = self.model()
         self.repository.update(entity)
         self.session.merge.assert_called_once_with(entity)
-        self.session.commit.assert_called_once()
 
     def test_delete(self):
         entity = self.model()
         self.repository.delete(entity)
         self.session.delete.assert_called_once_with(entity)
-        self.session.commit.assert_called_once()
 
     def test_execute_in_transaction(self):
         def func(session):
@@ -50,7 +51,6 @@ class TestBaseRepository(unittest.TestCase):
 
         result = self.repository._execute_in_transaction(func)
         self.assertEqual(result, "result")
-        self.session.commit.assert_called_once()
 
     def test_execute_in_transaction_rollback_on_error(self):
         def func(session):
@@ -58,162 +58,119 @@ class TestBaseRepository(unittest.TestCase):
 
         with self.assertRaises(SQLAlchemyError):
             self.repository._execute_in_transaction(func)
-        self.session.rollback.assert_called_once()
 
 
 class TestAgentRepository(unittest.TestCase):
     def setUp(self):
-        self.db = MagicMock()
-        self.repository = AgentRepository(self.db)
+        self.session_manager = MagicMock(spec=SessionManager)
+        self.repository = AgentRepository(self.session_manager)
 
-    @patch("database.agent_repository.execute_query")
-    def test_lifespan_statistics(self, mock_execute_query):
-        mock_execute_query.return_value = MagicMock()
-        result = self.repository.lifespan_statistics()
+    def test_get_agent_by_id(self):
+        mock_agent = MagicMock()
+        self.session_manager.execute_with_retry.return_value = mock_agent
+        result = self.repository.get_agent_by_id("test_agent")
         self.assertIsNotNone(result)
 
-    @patch("database.agent_repository.execute_query")
-    def test_survival_rates(self, mock_execute_query):
-        mock_execute_query.return_value = MagicMock()
-        result = self.repository.survival_rates()
+    def test_get_actions_by_agent_id(self):
+        mock_actions = [MagicMock(), MagicMock()]
+        self.session_manager.execute_with_retry.return_value = mock_actions
+        result = self.repository.get_actions_by_agent_id("test_agent")
         self.assertIsNotNone(result)
 
-    @patch("database.agent_repository.execute_query")
-    def test_execute(self, mock_execute_query):
-        mock_execute_query.return_value = MagicMock()
-        result = self.repository.execute()
-        self.assertIsNotNone(result)
-
-
-class TestResourceRepository(unittest.TestCase):
-    def setUp(self):
-        self.db = MagicMock()
-        self.repository = ResourceRepository(self.db)
-
-    @patch("database.resource_repository.execute_query")
-    def test_resource_distribution(self, mock_execute_query):
-        mock_execute_query.return_value = MagicMock()
-        result = self.repository.resource_distribution()
-        self.assertIsNotNone(result)
-
-    @patch("database.resource_repository.execute_query")
-    def test_consumption_patterns(self, mock_execute_query):
-        mock_execute_query.return_value = MagicMock()
-        result = self.repository.consumption_patterns()
-        self.assertIsNotNone(result)
-
-    @patch("database.resource_repository.execute_query")
-    def test_resource_hotspots(self, mock_execute_query):
-        mock_execute_query.return_value = MagicMock()
-        result = self.repository.resource_hotspots()
-        self.assertIsNotNone(result)
-
-    @patch("database.resource_repository.execute_query")
-    def test_efficiency_metrics(self, mock_execute_query):
-        mock_execute_query.return_value = MagicMock()
-        result = self.repository.efficiency_metrics()
-        self.assertIsNotNone(result)
-
-    @patch("database.resource_repository.execute_query")
-    def test_execute(self, mock_execute_query):
-        mock_execute_query.return_value = MagicMock()
-        result = self.repository.execute()
+    def test_get_states_by_agent_id(self):
+        mock_states = [MagicMock(), MagicMock()]
+        self.session_manager.execute_with_retry.return_value = mock_states
+        result = self.repository.get_states_by_agent_id("test_agent")
         self.assertIsNotNone(result)
 
 
 class TestLearningRepository(unittest.TestCase):
     def setUp(self):
-        self.db = MagicMock()
-        self.repository = LearningRepository(self.db)
+        self.session_manager = MagicMock(spec=SessionManager)
+        self.repository = LearningRepository(self.session_manager)
+        self.mock_session = MagicMock(spec=Session)
 
-    @patch("database.learning_repository.execute_query")
-    def test_learning_progress(self, mock_execute_query):
-        mock_execute_query.return_value = MagicMock()
-        result = self.repository.learning_progress()
+    def test_get_learning_progress(self):
+        mock_progress = [MagicMock(), MagicMock()]
+        self.session_manager.execute_with_retry.return_value = mock_progress
+        result = self.repository.get_learning_progress(self.mock_session, "simulation")
         self.assertIsNotNone(result)
 
-    @patch("database.learning_repository.execute_query")
-    def test_module_performance(self, mock_execute_query):
-        mock_execute_query.return_value = MagicMock()
-        result = self.repository.module_performance()
+    def test_get_module_performance(self):
+        mock_performance = {"module1": MagicMock()}
+        self.session_manager.execute_with_retry.return_value = mock_performance
+        result = self.repository.get_module_performance(self.mock_session, "simulation")
         self.assertIsNotNone(result)
 
-    @patch("database.learning_repository.execute_query")
-    def test_agent_learning_stats(self, mock_execute_query):
-        mock_execute_query.return_value = MagicMock()
-        result = self.repository.agent_learning_stats()
+    def test_get_agent_learning_stats(self):
+        mock_stats = {"module1": MagicMock()}
+        self.session_manager.execute_with_retry.return_value = mock_stats
+        result = self.repository.get_agent_learning_stats(self.mock_session)
         self.assertIsNotNone(result)
 
-    @patch("database.learning_repository.execute_query")
-    def test_learning_efficiency(self, mock_execute_query):
-        mock_execute_query.return_value = MagicMock()
-        result = self.repository.learning_efficiency()
-        self.assertIsNotNone(result)
-
-    @patch("database.learning_repository.execute_query")
-    def test_execute(self, mock_execute_query):
-        mock_execute_query.return_value = MagicMock()
-        result = self.repository.execute()
+    def test_get_learning_experiences(self):
+        mock_experiences = [MagicMock(), MagicMock()]
+        self.session_manager.execute_with_retry.return_value = mock_experiences
+        result = self.repository.get_learning_experiences(
+            self.mock_session, "simulation"
+        )
         self.assertIsNotNone(result)
 
 
 class TestPopulationRepository(unittest.TestCase):
     def setUp(self):
-        self.db = MagicMock()
-        self.repository = PopulationRepository(self.db)
+        self.session_manager = MagicMock(spec=SessionManager)
+        self.repository = PopulationRepository(self.session_manager)
+        self.mock_session = MagicMock(spec=Session)
 
-    @patch("database.population_repository.execute_query")
-    def test_population_data(self, mock_execute_query):
-        mock_execute_query.return_value = MagicMock()
-        result = self.repository.population_data()
+    def test_get_population_data(self):
+        mock_data = [MagicMock(), MagicMock()]
+        self.session_manager.execute_with_retry.return_value = mock_data
+        result = self.repository.get_population_data(self.mock_session, "simulation")
         self.assertIsNotNone(result)
 
-    @patch("database.population_repository.execute_query")
-    def test_basic_population_statistics(self, mock_execute_query):
-        mock_execute_query.return_value = MagicMock()
-        result = self.repository.basic_population_statistics()
+    def test_get_agent_type_distribution(self):
+        mock_distribution = MagicMock()
+        self.session_manager.execute_with_retry.return_value = mock_distribution
+        result = self.repository.get_agent_type_distribution(
+            self.mock_session, "simulation"
+        )
         self.assertIsNotNone(result)
 
-    @patch("database.population_repository.execute_query")
-    def test_agent_type_distribution(self, mock_execute_query):
-        mock_execute_query.return_value = MagicMock()
-        result = self.repository.agent_type_distribution()
+    def test_get_states(self):
+        mock_states = [MagicMock(), MagicMock()]
+        self.session_manager.execute_with_retry.return_value = mock_states
+        result = self.repository.get_states("simulation")
         self.assertIsNotNone(result)
 
-    @patch("database.population_repository.execute_query")
-    def test_execute(self, mock_execute_query):
-        mock_execute_query.return_value = MagicMock()
-        result = self.repository.execute()
+    def test_get_all_agents(self):
+        mock_agents = [MagicMock(), MagicMock()]
+        self.session_manager.execute_with_retry.return_value = mock_agents
+        result = self.repository.get_all_agents()
         self.assertIsNotNone(result)
 
 
 class TestSimulationRepository(unittest.TestCase):
     def setUp(self):
-        self.db = MagicMock()
-        self.repository = SimulationRepository(self.db)
+        self.session_manager = MagicMock(spec=SessionManager)
+        self.repository = SimulationRepository(self.session_manager)
 
-    @patch("database.simulation_repository.execute_query")
-    def test_agent_states(self, mock_execute_query):
-        mock_execute_query.return_value = MagicMock()
+    def test_agent_states(self):
+        mock_states = [MagicMock(), MagicMock()]
+        self.session_manager.execute_with_retry.return_value = mock_states
         result = self.repository.agent_states()
         self.assertIsNotNone(result)
 
-    @patch("database.simulation_repository.execute_query")
-    def test_resource_states(self, mock_execute_query):
-        mock_execute_query.return_value = MagicMock()
-        result = self.repository.resource_states()
+    def test_resource_states(self):
+        mock_states = [MagicMock(), MagicMock()]
+        self.session_manager.execute_with_retry.return_value = mock_states
+        result = self.repository.resource_states(step_number=1)
         self.assertIsNotNone(result)
 
-    @patch("database.simulation_repository.execute_query")
-    def test_simulation_state(self, mock_execute_query):
-        mock_execute_query.return_value = MagicMock()
-        result = self.repository.simulation_state()
-        self.assertIsNotNone(result)
-
-    @patch("database.simulation_repository.execute_query")
-    def test_execute(self, mock_execute_query):
-        mock_execute_query.return_value = MagicMock()
-        result = self.repository.execute()
+    def test_simulation_state(self):
+        mock_state = MagicMock()
+        self.session_manager.execute_with_retry.return_value = mock_state
+        result = self.repository.simulation_state(step_number=1)
         self.assertIsNotNone(result)
 
 

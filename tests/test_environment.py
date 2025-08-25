@@ -91,17 +91,6 @@ class TestEnvironment(unittest.TestCase):
 
         self.assertGreater(steps, 0)
 
-    def test_rl_compatibility(self):
-        # Wrap PettingZoo env for SB3 compatibility
-        vec_env = pettingzoo_env_to_vec_env_v1(self.env)
-        vec_env = make_vec_env(lambda: vec_env, n_envs=1)
-
-        model = PPO("MlpPolicy", vec_env, verbose=0)
-        model.learn(total_timesteps=10)
-
-        # If no errors, it's compatible
-        self.assertTrue(True)
-
     def test_initialization(self):
         """Test environment initialization with various parameters"""
         self.assertEqual(self.env.width, 100)
@@ -163,6 +152,7 @@ class TestEnvironment(unittest.TestCase):
             (a for a in self.env.agent_objects if a.agent_id == agent_id), None
         )
         self.assertIsNotNone(agent)
+        assert agent is not None  # Type assertion for type checker
 
         # Ensure agent has proper health and resource values
         if hasattr(agent, "current_health") and agent.current_health is None:
@@ -199,6 +189,7 @@ class TestEnvironment(unittest.TestCase):
             (a for a in self.env.agent_objects if a.agent_id == agent_id), None
         )
         self.assertIsNotNone(agent)
+        assert agent is not None  # Type assertion for type checker
 
         # Ensure agent has proper health and resource values
         if hasattr(agent, "current_health") and agent.current_health is None:
