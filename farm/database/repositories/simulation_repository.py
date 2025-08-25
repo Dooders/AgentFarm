@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from typing import List, Optional
 
 from farm.database.data_types import (
@@ -103,8 +104,36 @@ class SimulationRepository(BaseRepository[SimulationStepModel]):
 
     def execute(self, step_number: int) -> SimulationResults:
         """Retrieve complete simulation state for a specific step."""
+        agent_states = self.agent_states(step_number)
+        resource_states = self.resource_states(step_number)
+
+        # Convert dataclass objects to tuples as expected by SimulationResults
+        agent_tuples = [
+            (
+                state.step_number,
+                state.agent_id,
+                state.agent_type,
+                state.position_x,
+                state.position_y,
+                state.resource_level,
+                state.current_health,
+                state.is_defending,
+            )
+            for state in agent_states
+        ]
+
+        resource_tuples = [
+            (
+                state.resource_id,
+                state.amount,
+                state.position_x,
+                state.position_y,
+            )
+            for state in resource_states
+        ]
+
         return SimulationResults(
-            agent_states=self.agent_states(step_number),
-            resource_states=self.resource_states(step_number),
-            simulation_state=self.simulation_state(step_number),
+            agent_states=agent_tuples,
+            resource_states=resource_tuples,
+            simulation_state=asdict(self.simulation_state(step_number)),
         )

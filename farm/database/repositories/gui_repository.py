@@ -125,6 +125,17 @@ class GUIRepository(BaseRepository[SimulationStepModel]):
                 # Add similar aggregates for other metrics...
             ).first()
 
+            if not summary:
+                return {
+                    "agents": {
+                        "min": 0,
+                        "max": 0,
+                        "avg": 0,
+                        "std": 0,
+                    },
+                    "total_steps": 0,
+                }
+
             return {
                 "agents": {
                     "min": summary.min_agents,

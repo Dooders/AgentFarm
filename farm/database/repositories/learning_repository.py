@@ -3,7 +3,11 @@ from typing import Dict, List, Optional, Tuple
 from sqlalchemy import distinct, func
 from sqlalchemy.orm import Session
 
-from farm.database.data_types import AgentLearningStats, LearningProgress, ModulePerformance
+from farm.database.data_types import (
+    AgentLearningStats,
+    LearningProgress,
+    ModulePerformance,
+)
 from farm.database.models import LearningExperienceModel
 from farm.database.repositories.base_repository import BaseRepository
 from farm.database.scope_utils import filter_scope
@@ -72,7 +76,7 @@ class LearningRepository(BaseRepository[LearningExperienceModel]):
             ),
         ).group_by(LearningExperienceModel.step_number)
 
-        query = filter_scope(query, scope, agent_id, step, step_range)
+        query = filter_scope(query, scope, str(agent_id), step, step_range)
         results = query.order_by(LearningExperienceModel.step_number).all()
 
         return [
@@ -133,7 +137,7 @@ class LearningRepository(BaseRepository[LearningExperienceModel]):
             LearningExperienceModel.module_id,
         )
 
-        query = filter_scope(query, scope, agent_id, step, step_range)
+        query = filter_scope(query, scope, str(agent_id), step, step_range)
         results = query.all()
 
         return {
@@ -193,7 +197,7 @@ class LearningRepository(BaseRepository[LearningExperienceModel]):
             LearningExperienceModel.module_type,
         )
 
-        query = filter_scope(query, scope, agent_id, step, step_range)
+        query = filter_scope(query, scope, str(agent_id), step, step_range)
         results = query.all()
 
         return {
@@ -228,5 +232,5 @@ class LearningRepository(BaseRepository[LearningExperienceModel]):
             List[LearningExperienceModel]: Filtered learning experiences
         """
         query = session.query(LearningExperienceModel)
-        query = filter_scope(query, scope, agent_id, step, step_range)
+        query = filter_scope(query, scope, str(agent_id), step, step_range)
         return query.all()

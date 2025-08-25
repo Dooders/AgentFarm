@@ -206,8 +206,8 @@ class ResourceRepository(BaseRepository[ResourceModel]):
             - efficiency: Resource efficiency measures
         """
         return ResourceAnalysis(
-            distribution=self.resource_distribution(),
-            consumption=self.consumption_patterns(),
-            hotspots=self.resource_hotspots(),
-            efficiency={},
+            distribution=self.resource_distribution(session),
+            consumption=self.consumption_patterns(session),
+            hotspots=self.resource_hotspots(session),
+            efficiency=self.efficiency_metrics(session),
         )

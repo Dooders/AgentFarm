@@ -63,7 +63,7 @@ class ActionRepository(BaseRepository[ActionModel]):
                 .order_by(ActionModel.step_number, ActionModel.agent_id)
             )
 
-            query = filter_scope(query, scope, agent_id, step, step_range)
+            query = filter_scope(query, scope, str(agent_id), step, step_range)
 
             actions = query.all()
             return [

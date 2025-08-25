@@ -1,3 +1,4 @@
+import json
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import func
@@ -12,6 +13,7 @@ from farm.database.models import (
 )
 from farm.database.repositories.base_repository import BaseRepository
 from farm.database.session_manager import SessionManager
+from farm.database.utilities import safe_json_loads
 
 
 class AgentRepository(BaseRepository[AgentModel]):
@@ -189,16 +191,29 @@ class AgentRepository(BaseRepository[AgentModel]):
                 .all()
             )
 
-            return [
-                HealthIncidentData(
-                    step=incident.step_number,
-                    health_before=incident.health_before,
-                    health_after=incident.health_after,
-                    cause=incident.cause,
-                    details=incident.details,
+            result = []
+            for incident in incidents:
+                # Extract values to satisfy type checker
+                step = getattr(incident, "step_number")
+                health_before = getattr(incident, "health_before")
+                health_after = getattr(incident, "health_after")
+                cause = getattr(incident, "cause")
+                details_str = getattr(incident, "details", None)
+
+                details_dict = safe_json_loads(details_str) if details_str else {}
+                if details_dict is None:
+                    details_dict = {}
+
+                result.append(
+                    HealthIncidentData(
+                        step=step,
+                        health_before=health_before,
+                        health_after=health_after,
+                        cause=cause,
+                        details=details_dict,
+                    )
                 )
-                for incident in incidents
-            ]
+            return result
 
         return self.session_manager.execute_with_retry(query_incidents)
 
@@ -318,7 +333,7 @@ class AgentRepository(BaseRepository[AgentModel]):
             )
             if agent_id:
                 q = q.filter(ActionModel.agent_id == agent_id)
-            return q.all()
+            return [tuple(row) for row in q.all()]
 
         return self.session_manager.execute_with_retry(query_actions_states)
 
@@ -364,17 +379,28 @@ class AgentRepository(BaseRepository[AgentModel]):
                 death_time=agent.death_time,
                 generation=agent.generation,
                 genome_id=agent.genome_id,
-                current_health=latest_state.current_health if latest_state else None,
-                current_resources=latest_state.resource_level if latest_state else None,
+                current_health=(
+                    getattr(latest_state, "current_health", None)
+                    if latest_state
+                    else None
+                ),
+                current_resources=(
+                    getattr(latest_state, "resource_level", None)
+                    if latest_state
+                    else None
+                ),
                 position=(
-                    (latest_state.position_x, latest_state.position_y)
+                    (
+                        getattr(latest_state, "position_x", 0),
+                        getattr(latest_state, "position_y", 0),
+                    )
                     if latest_state
                     else None
                 ),
                 action_stats={
-                    stat.action_type: {
-                        "count": stat.count,
-                        "avg_reward": stat.avg_reward,
+                    str(stat[0]): {
+                        "count": float(stat[1]),
+                        "avg_reward": float(stat[2]) if stat[2] else 0.0,
                     }
                     for stat in action_stats
                 },

@@ -79,13 +79,16 @@ class PopulationRepository(BaseRepository[SimulationStepModel]):
                 SimulationStepModel.total_resources,
                 func.sum(AgentStateModel.resource_level).label("resources_consumed"),
             )
-            .outerjoin(AgentStateModel, AgentStateModel.step_number == SimulationStepModel.step_number)
+            .outerjoin(
+                AgentStateModel,
+                AgentStateModel.step_number == SimulationStepModel.step_number,
+            )
             .filter(SimulationStepModel.total_agents > 0)
             .group_by(SimulationStepModel.step_number)
         )
 
         # Apply scope filtering
-        query = filter_scope(query, scope, agent_id, step, step_range)
+        query = filter_scope(query, scope, str(agent_id), step, step_range)
 
         pop_data = query.all()
 
@@ -138,13 +141,19 @@ class PopulationRepository(BaseRepository[SimulationStepModel]):
         )
 
         # Apply scope filtering
-        query = filter_scope(query, scope, agent_id, step, step_range)
+        query = filter_scope(query, scope, str(agent_id), step, step_range)
         type_stats = query.first()
 
         return AgentDistribution(
-            system_agents=float(type_stats[0] or 0),
-            independent_agents=float(type_stats[1] or 0),
-            control_agents=float(type_stats[2] or 0),
+            system_agents=float(
+                type_stats[0] if type_stats and type_stats[0] is not None else 0
+            ),
+            independent_agents=float(
+                type_stats[1] if type_stats and type_stats[1] is not None else 0
+            ),
+            control_agents=float(
+                type_stats[2] if type_stats and type_stats[2] is not None else 0
+            ),
         )
 
     def get_states(
@@ -190,7 +199,7 @@ class PopulationRepository(BaseRepository[SimulationStepModel]):
                 .order_by(AgentStateModel.step_number, AgentStateModel.agent_id)
             )
 
-            query = filter_scope(query, scope, agent_id, step, step_range)
+            query = filter_scope(query, scope, str(agent_id), step, step_range)
 
             results = query.all()
             return [
@@ -249,7 +258,7 @@ class PopulationRepository(BaseRepository[SimulationStepModel]):
         query = session.query(AgentModel)
 
         # Apply scope filtering
-        query = filter_scope(query, scope, agent_id, step, step_range)
+        query = filter_scope(query, scope, str(agent_id), step, step_range)
 
         if generation is not None:
             query = query.filter(AgentModel.generation == generation)
@@ -281,11 +290,10 @@ class PopulationRepository(BaseRepository[SimulationStepModel]):
         List[AgentModel]
             List of all agents with their basic information.
         """
+
         def query_agents(session: Session) -> List[AgentModel]:
             return (
-                session.query(AgentModel)
-                .order_by(AgentModel.birth_time.desc())
-                .all()
+                session.query(AgentModel).order_by(AgentModel.birth_time.desc()).all()
             )
 
         return self.session_manager.execute_with_retry(query_agents)
