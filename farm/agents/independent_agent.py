@@ -44,7 +44,9 @@ class IndependentAgent(BaseAgent):
         # Get agent-specific parameters from config
         agent_params = {}
         if environment.config is not None:
-            agent_params = environment.config.agent_parameters.get("IndependentAgent", {})
+            agent_params = environment.config.agent_parameters.get(
+                "IndependentAgent", {}
+            )
 
         # Create default action set if none provided
         if action_set is None:
@@ -53,7 +55,9 @@ class IndependentAgent(BaseAgent):
                 Action("gather", 0.25, gather_action),  # Higher weight for gathering
                 Action("share", 0.05, share_action),  # Lower weight for sharing
                 Action("attack", 0.20, attack_action),  # Moderate weight for attacking
-                Action("reproduce", 0.25, reproduce_action) # Lower weight for reproducing
+                Action(
+                    "reproduce", 0.25, reproduce_action
+                ),  # Lower weight for reproducing
             ]
 
         # Initialize base agent with custom action set and genealogy info
@@ -67,10 +71,10 @@ class IndependentAgent(BaseAgent):
         )
 
         # Configure gather module for more aggressive resource collection
-        self.gather_module.config.gather_efficiency_multiplier = (
+        self.gather_module.config.efficiency_multiplier = (
             0.7  # Higher efficiency reward
         )
-        self.gather_module.config.gather_cost_multiplier = 0.2  # Lower movement penalty
+        self.gather_module.config.cost_multiplier = 0.2  # Lower movement penalty
         self.gather_module.config.min_resource_threshold = (
             0.05  # Lower threshold for gathering
         )

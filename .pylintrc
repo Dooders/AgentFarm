@@ -1,0 +1,34 @@
+[MASTER]
+extension-pkg-whitelist=
+
+[MESSAGES CONTROL]
+disable=
+    C0114,  # missing-module-docstring
+    C0115,  # missing-class-docstring
+    C0116,  # missing-function-docstring
+    R0903,  # too-few-public-methods
+    R0913,  # too-many-arguments
+    R0914,  # too-many-locals
+    W0613,  # unused-argument
+    W0212,  # protected-access (for _private methods in tests)
+    C0103,  # invalid-name (for test methods)
+    R0801,  # duplicate-code
+
+[FORMAT]
+max-line-length=120
+indent-string='    '
+
+[DESIGN]
+max-args=10
+max-locals=20
+max-branches=15
+max-statements=60
+
+[SIMILARITIES]
+min-similarity-lines=10
+ignore-comments=yes
+ignore-docstrings=yes
+ignore-imports=yes
+
+[BASIC]
+good-names=i,j,k,ex,Run,_,id,db,x,y

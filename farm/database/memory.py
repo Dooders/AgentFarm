@@ -18,7 +18,6 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import numpy as np
 import redis
 
 from farm.core.perception import PerceptionData
@@ -69,9 +68,11 @@ class RedisMemoryConfig:
 class AgentMemory:
     """Redis-backed memory system for storing and retrieving agent experiences.
 
+
     This class provides a memory system that stores agent experiences in Redis,
     allowing for efficient storage, retrieval, and querying of agent states,
     actions, and perceptions over time.
+
 
     Attributes:
         agent_id (str): Unique identifier for this agent
@@ -87,6 +88,7 @@ class AgentMemory:
         redis_client: Optional[redis.Redis] = None,
     ):
         """Initialize the agent memory system.
+
 
         Args:
             agent_id (str): Unique identifier for this agent
@@ -128,6 +130,7 @@ class AgentMemory:
     ) -> bool:
         """Store agent state and related information in memory.
 
+
         Args:
             step (int): Current simulation step
             state (AgentState): Agent's current state
@@ -137,6 +140,7 @@ class AgentMemory:
             metadata (Dict, optional): Additional information to store
             priority (float): Memory importance (higher values persist longer)
             ttl (int, optional): Time-to-live in seconds, or None for default
+
 
         Returns:
             bool: True if stored successfully, False otherwise
@@ -198,8 +202,10 @@ class AgentMemory:
     def retrieve_state(self, step: int) -> Optional[Dict[str, Any]]:
         """Retrieve a specific state by step number.
 
+
         Args:
             step (int): The step number to retrieve
+
 
         Returns:
             Dict or None: The stored state or None if not found
@@ -219,8 +225,10 @@ class AgentMemory:
     def retrieve_recent_states(self, count: int = 10) -> List[Dict[str, Any]]:
         """Retrieve the most recent states.
 
+
         Args:
             count (int): Number of recent states to retrieve
+
 
         Returns:
             List[Dict]: List of state dictionaries, most recent first
@@ -251,9 +259,11 @@ class AgentMemory:
     ) -> List[Dict[str, Any]]:
         """Retrieve states within a specific timeframe.
 
+
         Args:
             start_step (int): Starting step (inclusive)
             end_step (int): Ending step (inclusive)
+
 
         Returns:
             List[Dict]: List of state dictionaries in chronological order
@@ -286,10 +296,12 @@ class AgentMemory:
     ) -> List[Dict[str, Any]]:
         """Search for states with matching metadata.
 
+
         Args:
             key (str): Metadata key to search for
             value (Any): Value to match
             limit (int): Maximum number of results to return
+
 
         Returns:
             List[Dict]: List of matching state dictionaries
@@ -324,10 +336,12 @@ class AgentMemory:
     ) -> List[Dict[str, Any]]:
         """Search for states with matching state values.
 
+
         Args:
             key (str): State attribute to search for
             value (Any): Value to match
             limit (int): Maximum number of results to return
+
 
         Returns:
             List[Dict]: List of matching state dictionaries
@@ -364,10 +378,12 @@ class AgentMemory:
     ) -> List[Dict[str, Any]]:
         """Search for states where agent was near a specific position.
 
+
         Args:
             position (Tuple[float, float]): (x, y) coordinates to search around
             radius (float): Search radius around the position
             limit (int): Maximum number of results to return
+
 
         Returns:
             List[Dict]: List of matching state dictionaries
@@ -411,8 +427,10 @@ class AgentMemory:
     def retrieve_action_history(self, limit: int = 20) -> List[str]:
         """Retrieve a history of actions taken by the agent.
 
+
         Args:
             limit (int): Maximum number of actions to retrieve
+
 
         Returns:
             List[str]: List of action names in reverse chronological order
@@ -441,6 +459,7 @@ class AgentMemory:
     def get_action_frequency(self) -> Dict[str, int]:
         """Get frequency distribution of actions taken by the agent.
 
+
         Returns:
             Dict[str, int]: Mapping of action names to occurrence counts
         """
@@ -466,6 +485,7 @@ class AgentMemory:
     def clear_memory(self) -> bool:
         """Clear all memory entries for this agent.
 
+
         Returns:
             bool: True if successful, False otherwise
         """
@@ -487,6 +507,7 @@ class AgentMemory:
 
     def _cleanup_old_memories(self) -> None:
         """Clean up old memories based on limit and priority.
+
 
         This method is called periodically to ensure memory doesn't exceed limits.
         Memories are removed based on a combination of age and priority.
@@ -527,6 +548,7 @@ class AgentMemory:
 class AgentMemoryManager:
     """Manages memory systems for multiple agents.
 
+
     This singleton class provides centralized management of agent memory systems,
     allowing resource sharing and efficient connection pooling.
     """
@@ -542,6 +564,7 @@ class AgentMemoryManager:
 
     def __init__(self, config: Optional[RedisMemoryConfig] = None):
         """Initialize the memory manager.
+
 
         Args:
             config (RedisMemoryConfig, optional): Configuration, or use defaults
@@ -566,8 +589,10 @@ class AgentMemoryManager:
     def get_memory(self, agent_id: str) -> AgentMemory:
         """Get or create an agent memory system.
 
+
         Args:
             agent_id (str): Unique identifier for the agent
+
 
         Returns:
             AgentMemory: Memory system for the agent
@@ -580,6 +605,7 @@ class AgentMemoryManager:
 
     def clear_all_memories(self) -> bool:
         """Clear all agent memories.
+
 
         Returns:
             bool: True if successful, False otherwise

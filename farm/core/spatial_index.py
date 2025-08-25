@@ -162,7 +162,9 @@ class SpatialIndex:
         """Rebuild KD-trees from current agent and resource positions."""
         # Update agent KD-tree
         alive_agents = [agent for agent in self._agents if agent.alive]
-        self._cached_alive_agents = alive_agents  # Cache contains only alive agents for efficient queries
+        self._cached_alive_agents = (
+            alive_agents  # Cache contains only alive agents for efficient queries
+        )
         if alive_agents:
             self.agent_positions = np.array([agent.position for agent in alive_agents])
             self.agent_kdtree = KDTree(self.agent_positions)
