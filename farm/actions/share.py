@@ -406,8 +406,8 @@ def share_action(agent: "BaseAgent") -> None:
         agent.environment.log_interaction_edge(
             source_type="agent",
             source_id=agent.agent_id,
-            target_type="agent" if target else "none",
-            target_id="none" if not target else target.agent_id,
+            target_type="agent" if target else "unknown",
+            target_id="unknown" if not target else target.agent_id,
             interaction_type="share_attempt",
             action_type="share",
             details={
