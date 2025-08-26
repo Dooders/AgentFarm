@@ -126,7 +126,7 @@ def plot_dominance_distribution(df, output_path):
     plt.figtext(0.5, 0.01, caption, wrap=True, horizontalalignment="center", fontsize=9)
 
     # Adjust layout to make room for caption
-    plt.tight_layout(rect=[0, 0.05, 1, 1])
+    plt.tight_layout(rect=(0, 0.05, 1, 1))
     output_file = os.path.join(output_path, "dominance_distribution.png")
     plt.savefig(output_file)
     logging.info(f"Saved dominance distribution plot to {output_file}")
@@ -153,6 +153,8 @@ def plot_feature_importance(df=None, output_path=None, feat_imp=None, label_name
         raise ValueError("feat_imp parameter is required")
     if label_name is None:
         raise ValueError("label_name parameter is required")
+    if output_path is None:
+        raise ValueError("output_path parameter is required")
 
     top_features = feat_imp[:15]
     features = [f[0] for f in top_features]
@@ -174,7 +176,7 @@ def plot_feature_importance(df=None, output_path=None, feat_imp=None, label_name
     plt.figtext(0.5, 0.01, caption, wrap=True, horizontalalignment="center", fontsize=9)
 
     # Adjust layout to make room for caption
-    plt.tight_layout(rect=[0, 0.05, 1, 0.95])
+    plt.tight_layout(rect=(0, 0.05, 1, 0.95))
     output_file = os.path.join(output_path, f"{label_name}_feature_importance.png")
     plt.savefig(output_file)
     logging.info(f"Saved feature importance plot to {output_file}")
@@ -217,7 +219,7 @@ def plot_resource_proximity_vs_dominance(df, output_path):
     plt.figtext(0.5, 0.01, caption, wrap=True, horizontalalignment="center", fontsize=9)
 
     # Adjust layout to make room for caption
-    plt.tight_layout(rect=[0, 0.03, 1, 0.97])
+    plt.tight_layout(rect=(0, 0.03, 1, 0.97))
     output_file = os.path.join(output_path, "resource_proximity_vs_dominance.png")
     plt.savefig(output_file)
     logging.info(f"Saved resource proximity plot to {output_file}")
@@ -329,7 +331,7 @@ def plot_reproduction_vs_dominance(df, output_path):
     plt.figtext(0.5, 0.01, caption, wrap=True, horizontalalignment="center", fontsize=9)
 
     # Adjust layout to make room for caption
-    plt.tight_layout(rect=[0, 0.03, 1, 0.97])
+    plt.tight_layout(rect=(0, 0.03, 1, 0.97))
 
     # Save a single figure with the most important metrics
     output_file = os.path.join(output_path, "reproduction_metrics_boxplots.png")
@@ -355,6 +357,8 @@ def plot_correlation_matrix(df, label_name, output_path=None):
         raise ValueError(
             f"label_name parameter must be a valid column name. Provided: {label_name}"
         )
+    if output_path is None:
+        raise ValueError("output_path parameter is required")
 
     # Convert categorical target to numeric for correlation
     target_numeric = pd.get_dummies(df[label_name])
@@ -422,7 +426,7 @@ def plot_correlation_matrix(df, label_name, output_path=None):
     plt.figtext(0.5, 0.01, caption, wrap=True, horizontalalignment="center", fontsize=9)
 
     # Adjust layout to make room for caption
-    plt.tight_layout(rect=[0, 0.05, 1, 0.95])
+    plt.tight_layout(rect=(0, 0.05, 1, 0.95))
     output_file = os.path.join(output_path, f"{label_name}_correlation_matrix.png")
     plt.savefig(output_file)
     logging.info(f"Saved correlation matrix plot to {output_file}")
@@ -591,7 +595,7 @@ def plot_dominance_comparison(df, output_path):
     plt.figtext(0.5, 0.01, caption, wrap=True, horizontalalignment="center", fontsize=9)
 
     # Adjust layout and save
-    plt.tight_layout(rect=[0, 0.05, 1, 0.97])
+    plt.tight_layout(rect=(0, 0.05, 1, 0.97))
     output_file = os.path.join(output_path, "dominance_comparison.png")
     plt.savefig(output_file, dpi=300)
     logging.info(f"Saved dominance comparison plot to {output_file}")
@@ -629,7 +633,7 @@ def plot_dominance_switches(df, output_path):
     plt.figtext(0.5, 0.01, caption, wrap=True, horizontalalignment="center", fontsize=9)
 
     # Adjust layout to make room for caption
-    plt.tight_layout(rect=[0, 0.07, 1, 0.95])
+    plt.tight_layout(rect=(0, 0.07, 1, 0.95))
     output_file = os.path.join(output_path, "dominance_switches_distribution.png")
     plt.savefig(output_file)
     plt.close()
@@ -667,7 +671,7 @@ def plot_dominance_switches(df, output_path):
     plt.figtext(0.5, 0.01, caption, wrap=True, horizontalalignment="center", fontsize=9)
 
     # Adjust layout to make room for caption
-    plt.tight_layout(rect=[0, 0.07, 1, 0.95])
+    plt.tight_layout(rect=(0, 0.07, 1, 0.95))
     output_file = os.path.join(output_path, "avg_dominance_period.png")
     plt.savefig(output_file)
     plt.close()
@@ -706,7 +710,7 @@ def plot_dominance_switches(df, output_path):
         )
 
         # Adjust layout to make room for caption
-        plt.tight_layout(rect=[0, 0.07, 1, 0.95])
+        plt.tight_layout(rect=(0, 0.07, 1, 0.95))
         output_file = os.path.join(output_path, "phase_switches.png")
         plt.savefig(output_file)
         plt.close()
@@ -757,7 +761,7 @@ def plot_dominance_switches(df, output_path):
         )
 
         # Adjust layout to make room for caption
-        plt.tight_layout(rect=[0, 0.05, 1, 0.95])
+        plt.tight_layout(rect=(0, 0.05, 1, 0.95))
         output_file = os.path.join(output_path, "dominance_transitions.png")
         plt.savefig(output_file)
         plt.close()
@@ -965,7 +969,7 @@ def plot_reproduction_advantage_vs_stability(df, output_path):
     plt.figtext(0.5, 0.01, caption, wrap=True, horizontalalignment="center", fontsize=9)
 
     # Adjust layout to make room for caption
-    plt.tight_layout(rect=[0, 0.07, 1, 0.95])
+    plt.tight_layout(rect=(0, 0.07, 1, 0.95))
 
     output_file = os.path.join(output_path, "reproduction_advantage_stability.png")
     plt.savefig(output_file)
@@ -1053,7 +1057,7 @@ def plot_comprehensive_score_breakdown(df, output_path):
     index = np.arange(len(agent_types))
 
     # Create a colormap for the components
-    colors = plt.cm.viridis(np.linspace(0, 0.8, len(components)))
+    colors = plt.cm.get_cmap("viridis")(np.linspace(0, 0.8, len(components)))
 
     # Create the stacked bars
     bottom = np.zeros(len(agent_types))
@@ -1110,7 +1114,7 @@ def plot_comprehensive_score_breakdown(df, output_path):
         bbox=dict(facecolor="#f0f0f0", alpha=0.5, pad=5),
     )
 
-    plt.tight_layout(rect=[0, 0.08, 1, 0.95])  # Adjust layout to make room for caption
+    plt.tight_layout(rect=(0, 0.08, 1, 0.95))  # Adjust layout to make room for caption
 
     # Save the chart
     output_file = os.path.join(output_path, "comprehensive_score_breakdown.png")
@@ -1256,7 +1260,7 @@ def plot_reproduction_success_vs_switching(df, output_path):
     plt.figtext(0.5, 0.01, caption, wrap=True, horizontalalignment="center", fontsize=9)
 
     # Adjust layout to make room for caption
-    plt.tight_layout(rect=[0, 0.07, 1, 0.95])
+    plt.tight_layout(rect=(0, 0.07, 1, 0.95))
     output_file = os.path.join(output_path, "reproduction_vs_switching.png")
     plt.savefig(output_file)
     plt.close()

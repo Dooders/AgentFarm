@@ -5,14 +5,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib.figure import Figure
 from scipy import signal
 from scipy.stats import pearsonr
 from sklearn.cluster import KMeans
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
 
-from farm.database.database import SimulationDatabase
 from farm.database.data_retrieval import DataRetriever
+from farm.database.database import SimulationDatabase
 
 #! SIMULATION LEVEL ANALYSIS
 
@@ -47,12 +48,12 @@ def fetch_health_resource_data(db: SimulationDatabase) -> pd.DataFrame:
     JOIN Agents a ON as1.agent_id = a.agent_id
     ORDER BY as1.step_number, as1.agent_id
     """
-    return pd.read_sql_query(query, db.conn)
+    return pd.read_sql_query(query, db.engine)
 
 
 def calculate_cross_correlation(
     data: pd.DataFrame,
-) -> Tuple[pd.DataFrame, plt.Figure]:
+) -> Tuple[pd.DataFrame, Figure]:
     """
     Calculate cross-correlation between resource levels and health.
     """
@@ -91,7 +92,7 @@ def calculate_cross_correlation(
 
 def perform_fourier_analysis(
     data: pd.DataFrame,
-) -> Tuple[pd.DataFrame, plt.Figure]:
+) -> Tuple[pd.DataFrame, Figure]:
     """
     Perform Fourier analysis on health and resource levels.
     """
@@ -160,10 +161,10 @@ def build_health_prediction_model(
 
     # Create and fit model
     model = LinearRegression()
-    model.fit(X_scaled, y)
+    model.fit(X_scaled, np.array(y))
 
     # Calculate R-squared
-    r2_score = model.score(X_scaled, y)
+    r2_score = float(model.score(X_scaled, np.array(y)))
 
     # Create feature importance summary
     feature_importance = pd.DataFrame(
@@ -180,12 +181,14 @@ def build_health_prediction_model(
     return model, r2_score, feature_importance
 
 
-def create_health_resource_visualizations(data: pd.DataFrame) -> Dict[str, plt.Figure]:
+def create_health_resource_visualizations(
+    data: pd.DataFrame,
+) -> Dict[str, Figure]:
     """
     Create comprehensive visualizations of health and resource dynamics.
 
     Returns:
-        Dict[str, plt.Figure]: Dictionary of named figures
+        Dict[str, plt.matplotlib.figure.Figure]: Dictionary of named matplotlib figures
     """
     figures = {}
 
@@ -314,7 +317,9 @@ def create_health_resource_visualizations(data: pd.DataFrame) -> Dict[str, plt.F
     return figures
 
 
-def analyze_health_strategies(data: pd.DataFrame) -> Tuple[pd.DataFrame, plt.Figure]:
+def analyze_health_strategies(
+    data: pd.DataFrame,
+) -> Tuple[pd.DataFrame, Figure]:
     """
     Analyze agent health strategies using clustering.
 
@@ -322,7 +327,7 @@ def analyze_health_strategies(data: pd.DataFrame) -> Tuple[pd.DataFrame, plt.Fig
         data: DataFrame containing agent health data
 
     Returns:
-        Tuple containing cluster analysis results and visualization
+        Tuple[pd.DataFrame, plt.Figure]: Tuple containing cluster analysis results and visualization
     """
     # Prepare time series data for clustering - handle duplicates by taking mean
     pivot_health = (
@@ -330,8 +335,8 @@ def analyze_health_strategies(data: pd.DataFrame) -> Tuple[pd.DataFrame, plt.Fig
         .mean()  # Handle duplicates by taking mean
         .reset_index()
         .pivot(index="agent_id", columns="step_number", values="current_health")
-        .fillna(method="ffill")
-        .fillna(method="bfill")
+        .ffill()
+        .bfill()
     )
 
     # Standardize the data
@@ -345,37 +350,38 @@ def analyze_health_strategies(data: pd.DataFrame) -> Tuple[pd.DataFrame, plt.Fig
         kmeans = KMeans(n_clusters=k, random_state=42)
         kmeans.fit(health_scaled)
         inertias.append(kmeans.inertia_)
-    
+
     # Find optimal k using elbow method
     # Calculate the angle between lines to find the "elbow"
     angles = []
     for i in range(1, len(inertias) - 1):
-        p1 = np.array([i-1, inertias[i-1]])
+        p1 = np.array([i - 1, inertias[i - 1]])
         p2 = np.array([i, inertias[i]])
-        p3 = np.array([i+1, inertias[i+1]])
-        
+        p3 = np.array([i + 1, inertias[i + 1]])
+
         v1 = p2 - p1
         v2 = p3 - p2
-        
+
         angle = np.abs(np.degrees(np.arctan2(np.cross(v1, v2), np.dot(v1, v2))))
         angles.append(angle)
-    
-    optimal_k = angles.index(max(angles)) + 2  # +2 because we start at k=1 and index starts at 0
-    
+
+    optimal_k = (
+        angles.index(max(angles)) + 2
+    )  # +2 because we start at k=1 and index starts at 0
+
     # Create visualization with added elbow plot
     fig = plt.figure(figsize=(15, 12))
     gs = gridspec.GridSpec(3, 2)
-    
+
     # Plot elbow curve
     ax0 = plt.subplot(gs[0, :])
-    ax0.plot(range(1, max_clusters + 1), inertias, 'bo-')
-    ax0.axvline(x=optimal_k, color='r', linestyle='--', label=f'Optimal k={optimal_k}')
-    ax0.set_title('Elbow Method for Optimal k')
-    ax0.set_xlabel('Number of Clusters (k)')
-    ax0.set_ylabel('Inertia')
-    ax0.legend()
+    ax0.plot(range(1, max_clusters + 1), inertias, "bo-")
+    ax0.axvline(x=optimal_k, color="r", linestyle="--", label=f"Optimal k={optimal_k}")
+    ax0.set_title("Elbow Method for Optimal k")
+    ax0.set_xlabel("Number of Clusters (k)")
+    ax0.set_ylabel("Inertia")
     ax0.grid(True, alpha=0.3)
-    
+
     # Perform clustering with optimal k
     kmeans = KMeans(n_clusters=optimal_k, random_state=42)
     clusters = kmeans.fit_predict(health_scaled)
@@ -432,18 +438,26 @@ def analyze_health_resource_dynamics(db_path: str):
     """
     # Initialize database and retriever
     db = SimulationDatabase(db_path)
-    retriever = DataRetriever(db)
+    retriever = DataRetriever(db.session_manager)
 
     try:
         # Fetch data using DataRetriever
         print("Fetching data...")
-        data = retriever.get_simulation_data(step_number=None)  # Get all steps
-        
+        data = retriever.get_simulation_data()  # Get all steps
+
         # Extract agent states
-        agent_states = pd.DataFrame(data['agent_states'], columns=[
-            'agent_id', 'agent_type', 'position_x', 'position_y',
-            'resource_level', 'current_health', 'is_defending'
-        ])
+        agent_states = pd.DataFrame(
+            data["agent_states"],
+            columns=[
+                "agent_id",
+                "agent_type",
+                "position_x",
+                "position_y",
+                "resource_level",
+                "current_health",
+                "is_defending",
+            ],
+        )
 
         # Create visualizations
         print("\nGenerating visualizations...")
@@ -472,7 +486,9 @@ def analyze_health_resource_dynamics(db_path: str):
 
         # Build prediction model
         print("\nBuilding health prediction model...")
-        model, r2_score, feature_importance = build_health_prediction_model(agent_states)
+        model, r2_score, feature_importance = build_health_prediction_model(
+            agent_states
+        )
         print(f"Model R-squared: {r2_score:.4f}")
         print("\nFeature importance:")
         print(feature_importance)

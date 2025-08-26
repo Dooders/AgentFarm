@@ -65,7 +65,7 @@ from farm.database.models import (
     AgentModel,
     ReproductionEventModel,
     ResourceModel,
-    SimulationModel,
+    Simulation,
     SimulationStepModel,
 )
 
@@ -106,6 +106,8 @@ class SQLiteLoader(DatabaseLoader):
         """
         if self._session_factory is None:
             self.connect()
+        if self._session_factory is None:
+            raise RuntimeError("Failed to create session factory")
         return self._session_factory()
 
     def execute_query(
@@ -126,8 +128,11 @@ class SQLiteLoader(DatabaseLoader):
         if params is None:
             params = {}
 
+        if self._connection is None:
+            raise RuntimeError("Failed to establish database connection")
+
         result = self._connection.execute(text(query), params)
-        columns = result.keys()
+        columns = list(result.keys())
         data = result.fetchall()
 
         return pd.DataFrame(data, columns=columns)
@@ -319,20 +324,21 @@ class SQLiteLoader(DatabaseLoader):
             pd.DataFrame: Simulation metadata
         """
         session = self.get_session()
-        simulations = session.query(SimulationModel).all()
+        simulations = session.query(Simulation).all()
         session.close()
 
         # Convert to DataFrame
         data = []
         for sim in simulations:
             sim_dict = {
-                "id": sim.id,
-                "name": sim.name,
-                "config": sim.config,
+                "simulation_id": sim.simulation_id,
+                "experiment_id": sim.experiment_id,
                 "start_time": sim.start_time,
                 "end_time": sim.end_time,
-                "total_steps": sim.total_steps,
-                "notes": sim.notes,
+                "status": sim.status,
+                "parameters": sim.parameters,
+                "results_summary": sim.results_summary,
+                "simulation_db_path": sim.simulation_db_path,
             }
             data.append(sim_dict)
 
@@ -359,7 +365,9 @@ class SQLiteLoader(DatabaseLoader):
 
         # Get simulation IDs
         if "simulations" in table_list:
-            sims = self.execute_query("SELECT id, name FROM simulations")
+            sims = self.execute_query(
+                "SELECT simulation_id, experiment_id FROM simulations"
+            )
             sim_list = sims.to_dict("records")
         else:
             sim_list = []
@@ -395,10 +403,10 @@ class SimulationLoader(SQLiteLoader):
         # If only name is provided, look up the ID
         if simulation_id is None and simulation_name is not None:
             self.connect()
-            query = f"SELECT id FROM simulations WHERE name = :name"
+            query = f"SELECT simulation_id FROM simulations WHERE experiment_id = :name"
             result = self.execute_query(query, {"name": simulation_name})
             if not result.empty:
-                self.simulation_id = result["id"].iloc[0]
+                self.simulation_id = result["simulation_id"].iloc[0]
             self.disconnect()
 
     def load_data(self, table: str = "steps", **kwargs) -> pd.DataFrame:
@@ -447,15 +455,15 @@ class SimulationLoader(SQLiteLoader):
             raise ValueError("No simulation ID or name specified, or name not found")
 
         self.connect()
-        query = "SELECT config FROM simulations WHERE id = :sim_id"
+        query = "SELECT parameters FROM simulations WHERE simulation_id = :sim_id"
         result = self.execute_query(query, {"sim_id": self.simulation_id})
         self.disconnect()
 
         if result.empty:
             return {}
 
-        config_str = result["config"].iloc[0]
-        return json.loads(config_str) if config_str else {}
+        config_str = result["parameters"].iloc[0]
+        return config_str if config_str else {}
 
 
 class CSVLoader(DataLoader):

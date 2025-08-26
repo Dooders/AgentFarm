@@ -20,7 +20,7 @@ def compute_population_dominance(sim_session):
         "control": final_step.control_agents,
     }
     # Return the key with the maximum count
-    return max(counts, key=counts.get)
+    return max(counts.items(), key=lambda x: x[1])[0]
 
 
 def compute_survival_dominance(sim_session):
@@ -62,7 +62,7 @@ def compute_survival_dominance(sim_session):
     }
     if not avg_survival:
         return None
-    return max(avg_survival, key=avg_survival.get)
+    return max(avg_survival.items(), key=lambda x: x[1])[0]
 
 
 def compute_dominance_switches(sim_session):
@@ -114,7 +114,7 @@ def compute_dominance_switches(sim_session):
         if sum(counts.values()) == 0:
             continue
 
-        current_dominant = max(counts, key=counts.get)
+        current_dominant = max(counts.items(), key=lambda x: x[1])[0]
 
         # If this is the first step with agents, initialize
         if previous_dominant is None:
@@ -256,7 +256,9 @@ def compute_comprehensive_dominance(sim_session):
             "independent": step.independent_agents,
             "control": step.control_agents,
         }
-        dominant_type = max(counts, key=counts.get) if any(counts.values()) else None
+        dominant_type = (
+            max(counts.items(), key=lambda x: x[1])[0] if any(counts.values()) else None
+        )
         if dominant_type:
             dominance_duration[dominant_type] += 1
 
@@ -337,7 +339,7 @@ def compute_comprehensive_dominance(sim_session):
 
     # Determine overall dominant type
     dominant_type = (
-        max(composite_scores, key=composite_scores.get)
+        max(composite_scores.items(), key=lambda x: x[1])[0]
         if any(composite_scores.values())
         else None
     )

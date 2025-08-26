@@ -1,29 +1,67 @@
+"""Environment module for AgentFarm simulation.
+
+This module contains the core Environment class that manages the simulation world,
+including agents, resources, spatial relationships, and the simulation loop.
+The Environment class extends PettingZoo's AECEnv to provide multi-agent
+reinforcement learning capabilities.
+
+Key Components:
+    - Environment: Main simulation environment class
+    - Action: Enumeration of available agent actions
+    - Spatial indexing for efficient proximity queries
+    - Resource management and regeneration
+    - Metrics tracking and database logging
+    - Agent lifecycle management
+
+The environment supports various agent types (SystemAgent, IndependentAgent,
+ControlAgent) and provides observation spaces for reinforcement learning
+training and evaluation.
+"""
+
 import logging
 import random
 from enum import IntEnum
-from typing import Dict
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 from gymnasium import spaces
 from pettingzoo import AECEnv
 
+# TODO: Simplify actions import.
 from farm.actions.attack import attack_action
 from farm.actions.gather import gather_action
 from farm.actions.move import move_action
 from farm.actions.reproduce import reproduce_action
 from farm.actions.share import share_action
 from farm.agents import ControlAgent, IndependentAgent, SystemAgent
+from farm.core.metrics_tracker import MetricsTracker
 from farm.core.observations import NUM_CHANNELS, AgentObservation, ObservationConfig
 from farm.core.resource_manager import ResourceManager
 from farm.core.spatial_index import SpatialIndex
 from farm.core.state import EnvironmentState
-from farm.database.database import SimulationDatabase
 from farm.database.utilities import setup_db
 from farm.utils.short_id import ShortUUID
 
 
 class Action(IntEnum):
+    """Enumeration of available agent actions.
+
+    Actions define the possible behaviors agents can take in the environment.
+    Each action has specific effects on the agent and its surroundings.
+
+    Attributes:
+        DEFEND (0): Agent enters defensive stance, reducing damage from attacks
+        ATTACK (1): Agent attempts to attack nearby enemies
+        GATHER (2): Agent collects resources from nearby resource nodes
+        SHARE (3): Agent shares resources with nearby allies
+        MOVE (4): Agent moves to a new position within the environment
+        REPRODUCE (5): Agent attempts to create offspring if conditions are met
+
+    Note:
+        TODO: Move to actions.py for better organization
+    """
+
     DEFEND = 0
     ATTACK = 1
     GATHER = 2
@@ -36,17 +74,87 @@ logger = logging.getLogger(__name__)
 
 
 class Environment(AECEnv):
+    """Multi-agent simulation environment for AgentFarm.
+
+    The Environment class manages a 2D world containing agents and resources,
+    supporting multi-agent reinforcement learning through the PettingZoo API.
+    It handles agent lifecycle, resource management, spatial relationships,
+    combat interactions, and evolutionary dynamics.
+
+    The environment provides:
+    - Spatial indexing for efficient proximity queries
+    - Resource spawning and regeneration
+    - Agent birth, death, and reproduction
+    - Combat and cooperation mechanics
+    - Observation generation for RL training
+    - Comprehensive metrics tracking
+    - Database logging for analysis
+
+    Attributes:
+        width (int): Environment width in grid units
+        height (int): Environment height in grid units
+        agents (list): List of active agent IDs (PettingZoo requirement)
+        resources (list): List of resource nodes in the environment
+        time (int): Current simulation time step
+        simulation_id (str): Unique identifier for this simulation run
+        spatial_index (SpatialIndex): Efficient spatial query system
+        resource_manager (ResourceManager): Handles resource lifecycle
+        metrics_tracker (MetricsTracker): Tracks simulation statistics
+        db (Database): Optional database for logging simulation data
+
+    Inherits from:
+        AECEnv: PettingZoo's Agent-Environment-Cycle environment base class
+    """
+
     def __init__(
         self,
-        width,
-        height,
-        resource_distribution,
-        db_path="simulation.db",
-        max_resource=None,
-        config=None,
-        simulation_id=None,
-        seed=None,
-    ):
+        width: int,
+        height: int,
+        resource_distribution: Union[Dict[str, Any], Callable],
+        db_path: str = "simulation.db",
+        max_resource: Optional[float] = None,
+        config: Optional[Any] = None,
+        simulation_id: Optional[str] = None,
+        seed: Optional[int] = None,
+    ) -> None:
+        """Initialize the AgentFarm environment.
+
+        Creates a new simulation environment with specified dimensions and
+        configuration. Sets up spatial indexing, resource management, metrics
+        tracking, and database logging.
+
+        Parameters
+        ----------
+        width : int
+            Width of the environment in grid units
+        height : int
+            Height of the environment in grid units
+        resource_distribution : dict or callable
+            Configuration for initial resource placement. Can be a dictionary
+            specifying resource parameters or a callable that generates resources.
+        db_path : str, optional
+            Path to SQLite database file for logging simulation data.
+            Defaults to "simulation.db".
+        max_resource : float, optional
+            Maximum resource amount for normalization. If None, uses config
+            value or defaults to reasonable value.
+        config : object, optional
+            Configuration object containing simulation parameters like
+            max_steps, agent counts, observation settings, etc.
+        simulation_id : str, optional
+            Unique identifier for this simulation. If None, generates a new
+            short UUID.
+        seed : int, optional
+            Random seed for deterministic simulation. If None, uses config
+            seed or remains non-deterministic.
+
+        Raises
+        ------
+        ValueError
+            If width or height are non-positive
+        Exception
+            If database setup fails or resource initialization fails
+        """
         super().__init__()
         # Set seed if provided
         self.seed_value = (
@@ -58,56 +166,47 @@ class Environment(AECEnv):
             random.seed(self.seed_value)
             np.random.seed(self.seed_value)
 
-        # Setup database and get potentially modified path
-        final_db_path = setup_db(db_path)
-
         # Initialize basic attributes
         self.width = width
         self.height = height
-        self.agent_objects = []
-        self.agents = []  # for PettingZoo
+        self.agents = []
+        self._agent_objects = {}  # Internal mapping: agent_id -> agent object
         self.resources = []
         self.time = 0
 
         # Store simulation ID
         self.simulation_id = simulation_id or ShortUUID().uuid()
 
-        # Only initialize database if db_path is provided (not for in-memory DB)
-        if final_db_path is not None:
-            self.db = SimulationDatabase(
-                final_db_path, simulation_id=self.simulation_id
-            )
-        else:
-            # Will be set to InMemorySimulationDatabase later
-            self.db = None
+        # Setup database and get initialized database instance
+        self.db = setup_db(db_path, self.simulation_id)
 
         self.id_generator = ShortUUID()
         self.next_resource_id = 0
         self.max_resource = max_resource
         self.config = config
-        self.initial_agent_count = 0  #! Is this really needed?
         self.resource_distribution = resource_distribution
         self.max_steps = (
             config.max_steps if config and hasattr(config, "max_steps") else 1000
         )
-        self.agent_observations = {}  # Initialize agent observations dictionary
+
+        # Initialize PettingZoo required attributes
+        self.agent_selection = None
+        self.rewards = {}
+        self._cumulative_rewards = {}
+        self.terminations = {}
+        self.truncations = {}
+        self.infos = {}
+        self.observations = {}
 
         # Initialize spatial index for efficient spatial queries
         self.spatial_index = SpatialIndex(width, height)
 
-        # Add tracking for births and deaths
-        self.births_this_step = 0
-        self.deaths_this_step = 0
+        # Initialize metrics tracker
+        self.metrics_tracker = MetricsTracker()
 
-        # Add tracking for resources shared
-        self.resources_shared = 0
-        self.resources_shared_this_step = 0
-
-        # Add tracking for combat metrics
-        self.combat_encounters = 0
-        self.successful_attacks = 0
-        self.combat_encounters_this_step = 0
-        self.successful_attacks_this_step = 0
+        # Initialize resource sharing counters
+        self.resources_shared = 0.0
+        self.resources_shared_this_step = 0.0
 
         # Initialize resource manager
         self.resource_manager = ResourceManager(
@@ -122,7 +221,9 @@ class Environment(AECEnv):
         # Initialize environment
         self.initialize_resources(resource_distribution)
         # Set references and initialize spatial index
-        self.spatial_index.set_references(self.agent_objects, self.resources)
+        self.spatial_index.set_references(
+            list(self._agent_objects.values()), self.resources
+        )
         self.spatial_index.update()
 
         # Add observation space setup:
@@ -140,11 +241,18 @@ class Environment(AECEnv):
                 self.observation_config
             )
 
-    def mark_positions_dirty(self):
+    @property
+    def agent_objects(self) -> List[Any]:
+        """Backward compatibility property to get all agent objects as a list."""
+        return list(self._agent_objects.values())
+
+    def mark_positions_dirty(self) -> None:
         """Public method for agents to mark positions as dirty when they move."""
         self.spatial_index.mark_positions_dirty()
 
-    def get_nearby_agents(self, position, radius):
+    def get_nearby_agents(
+        self, position: Tuple[float, float], radius: float
+    ) -> List[Any]:
         """Find all agents within radius of position.
 
         Parameters
@@ -161,7 +269,9 @@ class Environment(AECEnv):
         """
         return self.spatial_index.get_nearby_agents(position, radius)
 
-    def get_nearby_resources(self, position, radius):
+    def get_nearby_resources(
+        self, position: Tuple[float, float], radius: float
+    ) -> List[Any]:
         """Find all resources within radius of position.
 
         Parameters
@@ -179,7 +289,7 @@ class Environment(AECEnv):
         # Use spatial index for efficient O(log n) queries
         return self.spatial_index.get_nearby_resources(position, radius)
 
-    def get_nearest_resource(self, position):
+    def get_nearest_resource(self, position: Tuple[float, float]) -> Optional[Any]:
         """Find nearest resource to position.
 
         Parameters
@@ -195,12 +305,22 @@ class Environment(AECEnv):
         # Use spatial index for efficient O(log n) queries
         return self.spatial_index.get_nearest_resource(position)
 
-    def get_next_resource_id(self):
+    def get_next_resource_id(self) -> int:
+        """Generate the next unique resource ID.
+
+        Returns a monotonically increasing integer ID for new resources
+        and increments the internal counter.
+
+        Returns
+        -------
+        int
+            Unique resource ID
+        """
         resource_id = self.next_resource_id
         self.next_resource_id += 1
         return resource_id
 
-    def consume_resource(self, resource, amount):
+    def consume_resource(self, resource: Any, amount: float) -> float:
         """Consume resources from a specific resource node.
 
         Parameters
@@ -217,8 +337,28 @@ class Environment(AECEnv):
         """
         return self.resource_manager.consume_resource(resource, amount)
 
-    def initialize_resources(self, distribution):
-        """Initialize resources with proper amounts using ResourceManager."""
+    def initialize_resources(
+        self, distribution: Union[Dict[str, Any], Callable]
+    ) -> None:
+        """Initialize resources in the environment using ResourceManager.
+
+        Creates initial resource nodes based on the provided distribution
+        configuration. Resources are placed according to the distribution
+        parameters and assigned proper amounts.
+
+        Parameters
+        ----------
+        distribution : dict or callable
+            Resource distribution configuration specifying how resources
+            should be placed in the environment. Can include parameters
+            like density, clustering, amount ranges, etc.
+
+        Notes
+        -----
+        This method delegates to ResourceManager for actual resource creation
+        and then synchronizes the environment's resource list with the manager.
+        The next_resource_id counter is also synchronized to ensure unique IDs.
+        """
         # Use ResourceManager to initialize resources (passes through to original logic)
         resources = self.resource_manager.initialize_resources(distribution)
 
@@ -228,45 +368,74 @@ class Environment(AECEnv):
         # Update next_resource_id to match ResourceManager
         self.next_resource_id = self.resource_manager.next_resource_id
 
-    def remove_agent(self, agent):
+    def remove_agent(self, agent: Any) -> None:
+        """Remove an agent from the environment.
+
+        Handles complete agent removal including death recording, cleanup of
+        internal data structures, and spatial index updates. This is typically
+        called when an agent dies or is otherwise removed from the simulation.
+
+        Parameters
+        ----------
+        agent : Agent
+            The agent object to remove. Must have an agent_id attribute.
+
+        Notes
+        -----
+        This method:
+        - Records the death event for metrics tracking
+        - Removes the agent from internal object mapping
+        - Removes the agent from PettingZoo's agent list
+        - Marks spatial index as dirty for next update
+        - Cleans up agent observation data
+        """
         self.record_death()
-        self.agent_objects.remove(agent)
+        if agent.agent_id in self._agent_objects:
+            del self._agent_objects[agent.agent_id]
+        if agent.agent_id in self.agents:
+            self.agents.remove(agent.agent_id)  # Remove from PettingZoo agents list
         self.spatial_index.mark_positions_dirty()  # Mark positions as dirty when agent is removed
         if agent.agent_id in self.agent_observations:
             del self.agent_observations[agent.agent_id]
 
-    def collect_action(self, **action_data):
-        """Collect an action for batch processing and database logging.
+    def log_interaction_edge(
+        self,
+        source_type: str,
+        source_id: Union[str, int],
+        target_type: str,
+        target_id: Union[str, int],
+        interaction_type: str,
+        action_type: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Log an interaction as an edge between nodes if database is enabled.
+
+        Records interactions between agents and other entities (agents, resources)
+        as graph edges in the database for network analysis and relationship tracking.
 
         Parameters
         ----------
-        **action_data : dict
-            Action data including step_number, agent_id, action_type, etc.
+        source_type : str
+            Type of the source entity (e.g., 'agent', 'resource')
+        source_id : str or int
+            Unique identifier of the source entity
+        target_type : str
+            Type of the target entity (e.g., 'agent', 'resource')
+        target_id : str or int
+            Unique identifier of the target entity
+        interaction_type : str
+            Type of interaction (e.g., 'attack', 'share', 'gather')
+        action_type : str, optional
+            Specific action type if different from interaction_type
+        details : dict, optional
+            Additional interaction details (e.g., amount transferred, damage dealt)
+
+        Notes
+        -----
+        If no database is configured, this method returns silently without logging.
+        Errors during logging are caught and logged as warnings to prevent
+        simulation disruption.
         """
-
-        if self.db is not None:
-            self.db.logger.log_agent_action(
-                step_number=action_data["step_number"],
-                agent_id=action_data["agent_id"],
-                action_type=action_data["action_type"],
-                action_target_id=action_data.get("action_target_id"),
-                resources_before=action_data.get("resources_before"),
-                resources_after=action_data.get("resources_after"),
-                reward=action_data.get("reward"),
-                details=action_data.get("details"),
-            )
-
-    def log_interaction_edge(
-        self,
-        source_type,
-        source_id,
-        target_type,
-        target_id,
-        interaction_type,
-        action_type=None,
-        details=None,
-    ):
-        """Log an interaction as an edge between nodes if database is enabled."""
         if self.db is None:
             return
         try:
@@ -283,8 +452,31 @@ class Environment(AECEnv):
         except Exception as e:
             logger.error(f"Failed to log interaction edge: {e}")
 
-    def update(self):
-        """Update environment state for current time step."""
+    def update(self) -> None:
+        """Update environment state for current time step.
+
+        Performs a full environment update including resource regeneration,
+        metrics calculation, spatial index updates, and time advancement.
+        This method is called once per simulation step to advance the world state.
+
+        The update process includes:
+        - Resource regeneration and decay using ResourceManager
+        - Metrics calculation and logging for current state
+        - Spatial index updates for efficient proximity queries
+        - Counter resets for step-specific tracking
+        - Time step increment
+
+        Raises
+        ------
+        Exception
+            If any critical update operation fails, the exception is logged
+            and re-raised to halt the simulation.
+
+        Notes
+        -----
+        This method should be called after all agents have taken their actions
+        for the current time step but before the next step begins.
+        """
         try:
             # Update resources using ResourceManager
             resource_stats = self.resource_manager.update_resources(self.time)
@@ -297,7 +489,13 @@ class Environment(AECEnv):
 
             # Calculate and log metrics
             metrics = self._calculate_metrics()
-            self.update_metrics(metrics)
+            self.metrics_tracker.update_metrics(
+                metrics,
+                db=self.db,
+                time=self.time,
+                agent_objects=self._agent_objects,
+                resources=self.resources,
+            )
 
             # Update spatial index
             self.spatial_index.update()
@@ -314,148 +512,35 @@ class Environment(AECEnv):
             logging.error(f"Error in environment update: {e}")
             raise
 
-    def _calculate_metrics(self):
-        """Calculate various metrics for the current simulation state."""
-        #! resources_shared is now being calculated
-        try:
-            # Get alive agents
-            alive_agents = [agent for agent in self.agent_objects if agent.alive]
-            total_agents = len(alive_agents)
+    def _calculate_metrics(self) -> Dict[str, Any]:
+        """Calculate various metrics for the current simulation state.
 
-            # Calculate agent type counts
-            system_agents = len([a for a in alive_agents if isinstance(a, SystemAgent)])
-            independent_agents = len(
-                [a for a in alive_agents if isinstance(a, IndependentAgent)]
-            )
-            control_agents = len(
-                [a for a in alive_agents if isinstance(a, ControlAgent)]
-            )
+        Computes comprehensive metrics about the current state of the simulation
+        including agent statistics, resource distribution, population dynamics,
+        and interaction patterns. These metrics are used for analysis and
+        database logging.
 
-            # Get births and deaths from tracking
-            births = self.births_this_step
-            deaths = self.deaths_this_step
+        Returns
+        -------
+        dict
+            Dictionary containing calculated metrics with keys like:
+            - agent_count: Number of active agents
+            - resource_count: Number of resource nodes
+            - total_resources: Sum of all resource amounts
+            - average_health: Mean agent health
+            - population_density: Agents per unit area
+            - And other simulation-specific metrics
 
-            # Calculate generation metrics
-            current_max_generation = (
-                max([a.generation for a in alive_agents]) if alive_agents else 0
-            )
+        Notes
+        -----
+        This method delegates to MetricsTracker for actual calculations,
+        passing the current agent objects, resources, time, and configuration.
+        """
+        return self.metrics_tracker.calculate_metrics(
+            self._agent_objects, self.resources, self.time, self.config
+        )
 
-            # Calculate health and age metrics
-            average_health = (
-                sum(a.current_health for a in alive_agents) / total_agents
-                if total_agents > 0
-                else 0
-            )
-            average_age = (
-                sum(self.time - a.birth_time for a in alive_agents) / total_agents
-                if total_agents > 0
-                else 0
-            )
-            average_reward = (
-                sum(a.total_reward for a in alive_agents) / total_agents
-                if total_agents > 0
-                else 0
-            )
-
-            # Calculate resource metrics
-            total_resources = sum(r.amount for r in self.resources)
-            average_agent_resources = (
-                sum(a.resource_level for a in alive_agents) / total_agents
-                if total_agents > 0
-                else 0
-            )
-            resource_efficiency = (
-                total_resources
-                / (
-                    len(self.resources)
-                    * (self.config.max_resource_amount if self.config else 30)
-                )
-                if self.resources
-                else 0
-            )
-
-            # Calculate genetic diversity
-            genome_counts = {}
-            for agent in alive_agents:
-                genome_counts[agent.genome_id] = (
-                    genome_counts.get(agent.genome_id, 0) + 1
-                )
-            genetic_diversity = (
-                len(genome_counts) / total_agents if total_agents > 0 else 0
-            )
-            dominant_genome_ratio = (
-                max(genome_counts.values()) / total_agents if genome_counts else 0
-            )
-
-            # Get combat and sharing metrics
-            combat_encounters = getattr(self, "combat_encounters", 0)
-            successful_attacks = getattr(self, "successful_attacks", 0)
-            resources_shared = getattr(self, "resources_shared", 0)
-            resources_shared_this_step = getattr(self, "resources_shared_this_step", 0)
-            combat_encounters_this_step = getattr(
-                self, "combat_encounters_this_step", 0
-            )
-            successful_attacks_this_step = getattr(
-                self, "successful_attacks_this_step", 0
-            )
-
-            # Calculate resource distribution entropy
-            resource_amounts = [r.amount for r in self.resources]
-            if resource_amounts:
-                total = sum(resource_amounts)
-                if total > 0:
-                    probabilities = [amt / total for amt in resource_amounts]
-                    resource_distribution_entropy = -sum(
-                        p * np.log(p) if p > 0 else 0 for p in probabilities
-                    )
-                else:
-                    resource_distribution_entropy = 0.0
-            else:
-                resource_distribution_entropy = 0.0
-
-            # Calculate resource consumption for this step
-            previous_resources = getattr(self, "previous_total_resources", 0)
-            current_resources = sum(r.amount for r in self.resources)
-            resources_consumed = max(0, previous_resources - current_resources)
-            self.previous_total_resources = current_resources
-
-            # Add births and deaths to metrics
-            metrics = {
-                "total_agents": total_agents,
-                "system_agents": system_agents,
-                "independent_agents": independent_agents,
-                "control_agents": control_agents,
-                "total_resources": total_resources,
-                "average_agent_resources": average_agent_resources,
-                "resources_consumed": resources_consumed,
-                "births": births,
-                "deaths": deaths,
-                "current_max_generation": current_max_generation,
-                "resource_efficiency": resource_efficiency,
-                "resource_distribution_entropy": resource_distribution_entropy,
-                "average_agent_health": average_health,
-                "average_agent_age": average_age,
-                "average_reward": average_reward,
-                "combat_encounters": combat_encounters,
-                "successful_attacks": successful_attacks,
-                "resources_shared": resources_shared,
-                "resources_shared_this_step": resources_shared_this_step,
-                "genetic_diversity": genetic_diversity,
-                "dominant_genome_ratio": dominant_genome_ratio,
-                "combat_encounters_this_step": combat_encounters_this_step,
-                "successful_attacks_this_step": successful_attacks_this_step,
-            }
-
-            # Reset counters for next step
-            self.births_this_step = 0
-            self.deaths_this_step = 0
-
-            return metrics
-        except Exception as e:
-            logging.error(f"Error calculating metrics: {e}")
-            return {}  # Return empty metrics on error
-
-    def get_next_agent_id(self):
+    def get_next_agent_id(self) -> str:
         """Generate a unique short ID for an agent using environment's seed.
 
         Returns
@@ -487,7 +572,7 @@ class Environment(AECEnv):
         """Get current environment state."""
         return EnvironmentState.from_environment(self)
 
-    def is_valid_position(self, position):
+    def is_valid_position(self, position: Tuple[float, float]) -> bool:
         """Check if a position is valid within the environment bounds.
 
         Parameters
@@ -503,43 +588,59 @@ class Environment(AECEnv):
         x, y = position
         return (0 <= x <= self.width) and (0 <= y <= self.height)
 
-    def _get_random_position(self):
-        """Generate a random position within the environment bounds.
-
-        Uses a seeded random number generator for deterministic behavior if a seed is available.
-
-        Returns
-        -------
-        tuple
-            A (x, y) coordinate tuple within the environment bounds.
-        """
-        if hasattr(self, "seed_value") and self.seed_value is not None:
-            # Create a separate random state to avoid affecting the global state
-            rng = random.Random(
-                self.seed_value + self.time
-            )  # Add current time to avoid same positions
-        else:
-            rng = random
-
-        x = rng.uniform(0, self.width)
-        y = rng.uniform(0, self.height)
-        return (x, y)
-
-    def record_birth(self):
+    def record_birth(self) -> None:
         """Record a birth event."""
-        self.births_this_step += 1
+        self.metrics_tracker.record_birth()
 
-    def record_death(self):
+    def record_death(self) -> None:
         """Record a death event."""
-        self.deaths_this_step += 1
+        self.metrics_tracker.record_death()
 
-    def close(self):
+    def record_combat_encounter(self) -> None:
+        """Record a combat encounter."""
+        self.metrics_tracker.record_combat_encounter()
+
+    def record_successful_attack(self) -> None:
+        """Record a successful attack."""
+        self.metrics_tracker.record_successful_attack()
+
+    def record_resources_shared(self, amount: float) -> None:
+        """Record resources shared between agents."""
+        self.metrics_tracker.record_resources_shared(amount)
+        self.resources_shared += amount
+        self.resources_shared_this_step += amount
+
+    def close(self) -> None:
         """Clean up environment resources."""
         if hasattr(self, "db") and self.db is not None:
             self.db.close()
 
-    def add_agent(self, agent):
-        """Add an agent to the environment with efficient database logging."""
+    def add_agent(self, agent: Any) -> None:
+        """Add an agent to the environment with efficient database logging.
+
+        Registers a new agent in the environment, adding it to internal tracking
+        structures, the spatial index, and optionally logging its creation to
+        the database. This method handles all necessary setup for a new agent.
+
+        Parameters
+        ----------
+        agent : Agent
+            The agent object to add. Must have attributes like agent_id, position,
+            resource_level, etc. The agent should be properly initialized before
+            being added to the environment.
+
+        Notes
+        -----
+        This method:
+        - Extracts agent data for database logging
+        - Adds agent to internal object mapping and PettingZoo agent list
+        - Marks spatial index as dirty for next update
+        - Batch logs agent data to database if available
+        - Creates observation tracking for the agent
+
+        The agent data logged includes birth time, position, resources, health,
+        genome information (if applicable), and action weights.
+        """
         agent_data = [
             {
                 "simulation_id": self.simulation_id,
@@ -557,9 +658,8 @@ class Environment(AECEnv):
         ]
 
         # Add to environment
-        self.agent_objects.append(agent)
-        if self.time == 0:
-            self.initial_agent_count += 1
+        self._agent_objects[agent.agent_id] = agent
+        self.agents.append(agent.agent_id)  # Add to PettingZoo agents list
 
         # Mark positions as dirty when new agent is added
         self.spatial_index.mark_positions_dirty()
@@ -572,8 +672,23 @@ class Environment(AECEnv):
             self.observation_config
         )
 
-    def cleanup(self):
-        """Clean up environment resources."""
+    def cleanup(self) -> None:
+        """Clean up environment resources.
+
+        Properly closes database connections and flushes any pending data
+        to ensure no data loss. This method should be called when the
+        simulation is finished or the environment is being destroyed.
+
+        Notes
+        -----
+        This method:
+        - Flushes all pending database buffers
+        - Closes database connections gracefully
+        - Handles errors during cleanup to prevent crashes
+
+        Cleanup errors are logged but do not raise exceptions to allow
+        for graceful shutdown even if some resources fail to close properly.
+        """
         try:
             if hasattr(self, "db") and self.db is not None:
                 # Use logger for buffer flushing
@@ -583,106 +698,28 @@ class Environment(AECEnv):
         except Exception as e:
             logger.error(f"Error during environment cleanup: {str(e)}")
 
-    def __del__(self):
-        """Ensure cleanup on deletion."""
+    def __del__(self) -> None:
+        """Ensure cleanup on deletion.
+
+        Destructor that calls cleanup() to ensure proper resource cleanup
+        when the Environment object is garbage collected. This provides
+        a safety net in case cleanup() is not called explicitly.
+
+        Notes
+        -----
+        While this provides a backup cleanup mechanism, it's better practice
+        to call cleanup() explicitly rather than relying on the destructor,
+        as the timing of garbage collection is not guaranteed in Python.
+        """
         self.cleanup()
 
-    def update_metrics(self, metrics: Dict):
-        """Update environment metrics and log to database.
+    def action_space(self, agent: Optional[str] = None) -> spaces.Discrete:
+        """Get the action space for an agent (PettingZoo API).
 
         Parameters
         ----------
-        metrics : Dict
-            Dictionary containing metrics to update and log
-        """
-        try:
-            # Log metrics to database
-            if self.db:
-                self.db.logger.log_step(
-                    step_number=self.time,
-                    agent_states=[
-                        self._prepare_agent_state(agent)
-                        for agent in self.agent_objects
-                        if agent.alive
-                    ],
-                    resource_states=[
-                        self._prepare_resource_state(resource)
-                        for resource in self.resources
-                    ],
-                    metrics=metrics,
-                )
-        except Exception as e:
-            logging.error(f"Error updating metrics: {e}")
-
-    def _prepare_agent_state(self, agent) -> tuple:
-        """Prepare agent state data for database logging.
-
-        Parameters
-        ----------
-        agent : BaseAgent
-            Agent to prepare state data for
-
-        Returns
-        -------
-        tuple
-            State data in format expected by database
-        """
-        return (
-            agent.agent_id,
-            agent.position[0],  # x coordinate
-            agent.position[1],  # y coordinate
-            agent.resource_level,
-            agent.current_health,
-            agent.starting_health,
-            agent.starvation_threshold,
-            int(agent.is_defending),
-            agent.total_reward,
-            self.time - agent.birth_time,  # age
-        )
-
-    def _prepare_resource_state(self, resource) -> tuple:
-        """Prepare resource state data for database logging.
-
-        Parameters
-        ----------
-        resource : Resource
-            Resource to prepare state data for
-
-        Returns
-        -------
-        tuple
-            State data in format expected by database
-        """
-        return (
-            resource.resource_id,
-            resource.amount,
-            resource.position[0],  # x coordinate
-            resource.position[1],  # y coordinate
-        )
-
-    #! part of context manager, commented out for now
-    # def register_active_context(self, agent: BaseAgent) -> None:
-    #     """Register an active agent context."""
-    #     with self._context_lock:
-    #         self._active_contexts.add(agent)
-
-    # def unregister_active_context(self, agent: BaseAgent) -> None:
-    #     """Unregister an active agent context."""
-    #     with self._context_lock:
-    #         self._active_contexts.discard(agent)
-
-    # def get_active_contexts(self) -> Set[BaseAgent]:
-    #     """Get currently active agent contexts."""
-    #     with self._context_lock:
-    #         return self._active_contexts.copy()
-
-    def action_space(self, agent):
-        """Get the action space for an agent.
-
-        Parameters
-        ----------
-        agent : str
-            Agent identifier (unused but required by PettingZoo interface).
+        agent : str, optional
+            Agent ID. If None, returns the general action space.
 
         Returns
         -------
@@ -691,13 +728,13 @@ class Environment(AECEnv):
         """
         return self._action_space
 
-    def observation_space(self, agent):
-        """Get the observation space for an agent.
+    def observation_space(self, agent: Optional[str] = None) -> spaces.Box:
+        """Get the observation space for an agent (PettingZoo API).
 
         Parameters
         ----------
-        agent : str
-            Agent identifier (unused but required by PettingZoo interface).
+        agent : str, optional
+            Agent ID. If None, returns the general observation space.
 
         Returns
         -------
@@ -706,7 +743,24 @@ class Environment(AECEnv):
         """
         return self._observation_space
 
-    def _setup_observation_space(self, config):
+    def observe(self, agent: str) -> np.ndarray:
+        """Returns the observation an agent currently can make.
+
+        Required by PettingZoo API.
+
+        Parameters
+        ----------
+        agent : str
+            Agent identifier
+
+        Returns
+        -------
+        np.ndarray
+            Observation for the agent
+        """
+        return self._get_observation(agent)
+
+    def _setup_observation_space(self, config: Optional[Any]) -> None:
         """Setup the observation space based on configuration.
 
         Parameters
@@ -724,14 +778,59 @@ class Environment(AECEnv):
             low=0.0, high=1.0, shape=(NUM_CHANNELS, S, S), dtype=np_dtype
         )
 
-    def _setup_action_space(self):
+    def _setup_action_space(self) -> None:
         """Setup the action space with all available actions."""
-        self._action_space = spaces.Discrete(
-            len(Action)
-        )  # Actions: DEFEND, ATTACK, GATHER, SHARE, MOVE, REPRODUCE
+        self._action_space = spaces.Discrete(len(Action))
 
-    def _create_initial_agents(self):
-        """Create and add initial agents to the environment based on configuration."""
+    def get_initial_agent_count(self) -> int:
+        """Calculate the number of initial agents (born at time 0) dynamically.
+
+        Counts how many agents were present at the start of the simulation
+        by checking their birth_time attribute. This is useful for analysis
+        and metrics that need to distinguish between initial population and
+        agents born during the simulation.
+
+        Returns
+        -------
+        int
+            Number of agents with birth_time == 0, representing the initial
+            population that was present when the simulation started.
+
+        Notes
+        -----
+        This count is calculated dynamically by iterating through all current
+        agents, so it only includes agents that are still alive. Dead agents
+        are not counted even if they were part of the initial population.
+        """
+        return len(
+            [
+                agent
+                for agent in self._agent_objects.values()
+                if getattr(agent, "birth_time", 0) == 0
+            ]
+        )
+
+    def _create_initial_agents(self) -> None:
+        """Create and add initial agents to the environment based on configuration.
+
+        Creates the starting population of agents according to the configuration
+        settings. Supports multiple agent types (SystemAgent, IndependentAgent,
+        ControlAgent) with randomized initial positions and default attributes.
+
+        Notes
+        -----
+        TODO: Agents will be created outside the environment, so this is not needed.
+
+        This method:
+        - Reads agent counts from config (system_agents, independent_agents, control_agents)
+        - Creates agents with random positions within environment bounds
+        - Uses deterministic randomization if seed is set
+        - Adds each agent to the environment with default starting resources
+        - Sets generation to 0 for all initial agents
+
+        Agent positioning uses uniform random distribution within the environment
+        bounds. All agents start with resource_level=1 and generation=0.
+        """
         num_system = self.config.system_agents if self.config else 0
         num_independent = self.config.independent_agents if self.config else 0
         num_control = (
@@ -785,8 +884,13 @@ class Environment(AECEnv):
             )
             self.add_agent(agent)
 
-    def _get_observation(self, agent_id):
+    def _get_observation(self, agent_id: str) -> np.ndarray:
         """Generate an observation for a specific agent.
+
+        Creates a multi-channel observation tensor containing information about
+        the local environment around the agent, including resources, nearby agents,
+        and the agent's own state. The observation follows the configured format
+        and dimensions for reinforcement learning.
 
         Parameters
         ----------
@@ -796,9 +900,23 @@ class Environment(AECEnv):
         Returns
         -------
         np.ndarray
-            The observation tensor for the agent.
+            The observation tensor for the agent with shape (channels, height, width).
+            Returns zero tensor if agent is None or not alive.
+
+        Notes
+        -----
+        TODO: Deprecate. The observation will come from the spatial index.
+
+        The observation includes:
+        - Resource distribution in the agent's field of view
+        - Positions and health of nearby allies and enemies
+        - Agent's own health and position
+        - Empty layers for obstacles and terrain cost (future features)
+
+        The observation is generated using the AgentObservation class and
+        follows the perception system defined in the observation configuration.
         """
-        agent = next((a for a in self.agent_objects if a.agent_id == agent_id), None)
+        agent = self._agent_objects.get(agent_id)
         if agent is None or not agent.alive:
             return np.zeros(
                 self._observation_space.shape, dtype=self._observation_space.dtype
@@ -856,7 +974,7 @@ class Environment(AECEnv):
 
         self_hp01 = agent.current_health / agent.starting_health
 
-        obs = self.agent_observations[agent_id]
+        obs = self.agent_observations[agent_id]  #! What is this for?
         obs.perceive_world(
             world_layers=world_layers,
             agent_world_pos=(ay, ax),
@@ -872,28 +990,40 @@ class Environment(AECEnv):
         tensor = obs.tensor().cpu().numpy()
         return tensor
 
-    def _process_action(self, agent_id, action):
+    def _process_action(self, agent_id: str, action: Optional[int]) -> None:
         """Process an action for a specific agent.
+
+        Executes the specified action for the given agent by calling the
+        appropriate action function. Actions are mapped to their corresponding
+        implementation functions and executed if the agent is alive.
 
         Parameters
         ----------
         agent_id : str
             The ID of the agent performing the action.
         action : int
-            The action to perform (from Action enum).
+            The action to perform (from Action enum). Must be one of:
+            DEFEND, ATTACK, GATHER, SHARE, MOVE, or REPRODUCE.
+
+        Notes
+        -----
+        This method:
+        - Validates that the agent exists and is alive
+        - Maps actions to their implementation functions
+        - Executes the action with the agent as parameter
+        - Logs warnings for invalid actions
+        - Returns silently if agent is dead or doesn't exist
+
+        Action implementations are imported from the farm.actions module and
+        handle the specific logic for each action type including validation,
+        effects, and side effects like resource transfer or combat.
         """
-        agent = next((a for a in self.agent_objects if a.agent_id == agent_id), None)
-        if agent is None or not agent.alive:
+        agent = self._agent_objects.get(agent_id)
+        if agent is None or not agent.alive or action is None:
             return
 
         def defend_action(ag):
             ag.is_defending = True
-            self.collect_action(
-                step_number=self.time,
-                agent_id=ag.agent_id,
-                action_type="defend",
-                details="Set defending flag",
-            )
 
         action_map = {
             Action.DEFEND: defend_action,
@@ -904,14 +1034,18 @@ class Environment(AECEnv):
             Action.REPRODUCE: reproduce_action,
         }
 
-        func = action_map.get(action)
+        func = action_map.get(Action(action))
         if func:
             func(agent)
         else:
             logging.warning(f"Invalid action {action} for agent {agent_id}")
 
-    def _calculate_reward(self, agent_id):
+    def _calculate_reward(self, agent_id: str) -> float:
         """Calculate the reward for a specific agent.
+
+        Computes a reward signal for reinforcement learning based on the agent's
+        current state including resource level, health, and survival status.
+        The reward encourages resource accumulation, health maintenance, and survival.
 
         Parameters
         ----------
@@ -921,9 +1055,20 @@ class Environment(AECEnv):
         Returns
         -------
         float
-            The calculated reward value.
+            The calculated reward value. Returns -10.0 if agent is dead or missing.
+            Positive rewards for resource accumulation, health, and survival.
+
+        Notes
+        -----
+        The reward function includes:
+        - Resource reward: 0.1 * resource_level
+        - Survival reward: 0.1 for being alive
+        - Health reward: current_health / starting_health ratio
+
+        Additional rewards for combat success and cooperation could be added
+        by tracking agent-specific metrics in action implementations.
         """
-        agent = next((a for a in self.agent_objects if a.agent_id == agent_id), None)
+        agent = self._agent_objects.get(agent_id)
         if agent is None or not agent.alive:
             return -10.0
 
@@ -941,8 +1086,24 @@ class Environment(AECEnv):
 
         return reward
 
-    def _next_agent(self):
-        """Select the next agent to act in the environment."""
+    def _next_agent(self) -> None:
+        """Select the next agent to act in the environment.
+
+        Implements the Agent-Environment-Cycle (AEC) pattern by selecting the
+        next agent in round-robin order. Skips agents that are terminated or
+        truncated, ensuring only active agents are selected for actions.
+
+        Notes
+        -----
+        This method:
+        - Finds the current agent's position in the agent list
+        - Cycles through agents in order starting from the next position
+        - Skips agents marked as terminated or truncated
+        - Sets agent_selection to None if no active agents remain
+
+        The round-robin scheduling ensures fair time allocation among all
+        active agents. Dead or removed agents are automatically skipped.
+        """
         if not self.agents:
             self.agent_selection = None
             return
@@ -961,7 +1122,10 @@ class Environment(AECEnv):
                 return
         self.agent_selection = None
 
-    def reset(self, *, seed=None, options=None):
+    def reset(
+        self, *, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None
+    ) -> Tuple[np.ndarray, Dict[str, Any]]:
+        # TODO: Reduce code duplication.
         """Reset the environment to its initial state.
 
         Parameters
@@ -984,34 +1148,30 @@ class Environment(AECEnv):
             np.random.seed(seed)
 
         self.time = 0
-        self.births_this_step = 0
-        self.deaths_this_step = 0
-        self.resources_shared = 0
-        self.resources_shared_this_step = 0
-        self.combat_encounters = 0
-        self.successful_attacks = 0
-        self.combat_encounters_this_step = 0
-        self.successful_attacks_this_step = 0
+        # Reset metrics tracker
+        self.metrics_tracker.reset()
 
         self.resources = []
         self.initialize_resources(self.resource_distribution)
 
-        self.agent_objects = []
-        self.initial_agent_count = 0
+        self._agent_objects = {}
         self._create_initial_agents()
 
         self.agent_observations = {}
-        for agent in self.agent_objects:
+        for agent in self._agent_objects.values():
             self.agent_observations[agent.agent_id] = AgentObservation(
                 self.observation_config
             )
 
-        self.spatial_index.set_references(self.agent_objects, self.resources)
+        self.spatial_index.set_references(
+            list(self._agent_objects.values()), self.resources
+        )
         self.spatial_index.update()
 
-        self.agents = [a.agent_id for a in self.agent_objects if a.alive]
+        self.agents = [a.agent_id for a in self._agent_objects.values() if a.alive]
         self.agent_selection = self.agents[0] if self.agents else None
         self.rewards = {a: 0 for a in self.agents}
+        self._cumulative_rewards = {a: 0 for a in self.agents}
         self.terminations = {a: False for a in self.agents}
         self.truncations = {a: False for a in self.agents}
         self.infos = {a: {} for a in self.agents}
@@ -1027,7 +1187,9 @@ class Environment(AECEnv):
 
         return self.observations[self.agent_selection], self.infos[self.agent_selection]
 
-    def step(self, action=None) -> tuple[np.ndarray, float, bool, bool, dict]:
+    def step(
+        self, action: Optional[int] = None
+    ) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
         """Execute one step in the environment for the currently selected agent.
 
         Parameters
@@ -1053,7 +1215,7 @@ class Environment(AECEnv):
             return dummy_obs, 0.0, True, True, {}
 
         agent_id = self.agent_selection
-        agent = next((a for a in self.agent_objects if a.agent_id == agent_id), None)
+        agent = self._agent_objects.get(agent_id)
         if agent:
             self.previous_agent_states[agent_id] = {
                 "resource_level": agent.resource_level,
@@ -1064,7 +1226,7 @@ class Environment(AECEnv):
         self.update()
 
         # Add resource check to terminated:
-        alive_agents = [a for a in self.agent_objects if a.alive]
+        alive_agents = [a for a in self._agent_objects.values() if a.alive]
         total_resources = sum(r.amount for r in self.resources)
         terminated = len(alive_agents) == 0 or total_resources == 0
         truncated = self.time >= self.max_steps
@@ -1102,7 +1264,7 @@ class Environment(AECEnv):
 
         return observation, reward, terminated, truncated, {}
 
-    def render(self, mode="human"):
+    def render(self, mode: str = "human") -> None:
         """Render the current state of the environment.
 
         Parameters

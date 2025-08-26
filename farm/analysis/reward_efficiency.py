@@ -11,7 +11,7 @@ def fetch_reward_efficiency_data(db: SimulationDatabase) -> pd.DataFrame:
     :param db: SimulationDatabase instance
     :return: DataFrame with reward efficiency by action type and agent group
     """
-    retriever = DataRetriever(db)
+    retriever = DataRetriever(db.session_manager)
 
     # Get action data for all steps
     data = retriever.get_simulation_data(step_number=None)

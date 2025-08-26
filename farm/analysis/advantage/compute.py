@@ -1168,8 +1168,8 @@ def compute_advantage_dominance_correlation(sim_session):
                 summary["advantages_favoring_dominant"] += 1
 
     if summary["total_advantages"] > 0:
-        summary["advantage_ratio"] = (
-            summary["advantages_favoring_dominant"] / summary["total_advantages"]
+        summary["advantage_ratio"] = int(
+            summary["advantages_favoring_dominant"] / summary["total_advantages"] * 100
         )
 
     results["summary"] = summary

@@ -47,7 +47,12 @@ from .llm_client import LLMClient
 
 
 class ChartAnalyzer:
-    def __init__(self, database: "SimulationDatabase", output_dir: Optional[Path] = None, save_charts: bool = True):
+    def __init__(
+        self,
+        database: "SimulationDatabase",
+        output_dir: Optional[Path] = None,
+        save_charts: bool = True,
+    ):
         """
         Initialize the chart analyzer.
 
@@ -64,13 +69,15 @@ class ChartAnalyzer:
     def analyze_all_charts(self, output_path: Optional[Path] = None) -> Dict[str, str]:
         """Generate and analyze all charts, returning a dictionary of analyses."""
         analyses = {}
-        
+
         if output_path:
             self.output_dir = output_path
 
         try:
             # Use the database connection directly instead of creating a new one
-            simulation_df = pd.read_sql("SELECT * FROM simulation_steps", self.db.engine)
+            simulation_df = pd.read_sql(
+                "SELECT * FROM simulation_steps", self.db.engine
+            )
             actions_df = pd.read_sql("SELECT * FROM agent_actions", self.db.engine)
             agents_df = pd.read_sql("SELECT * FROM agents", self.db.engine)
 
@@ -103,20 +110,31 @@ class ChartAnalyzer:
                 try:
                     print(f"Generating {chart_name} chart...")
                     # Pass connection string to chart functions that need it
-                    if chart_name in ["births_and_deaths_by_type", "agent_lifespan_histogram", 
-                                    "agent_type_comparison", "reproduction_success_rate",
-                                    "reproduction_resources", "generational_analysis",
-                                    "reproduction_failure_reasons"]:
+                    if chart_name in [
+                        "births_and_deaths_by_type",
+                        "agent_lifespan_histogram",
+                        "agent_type_comparison",
+                        "reproduction_success_rate",
+                        "reproduction_resources",
+                        "generational_analysis",
+                        "reproduction_failure_reasons",
+                    ]:
                         plt = chart_func(simulation_df, connection_string)
                     else:
                         plt = chart_func(simulation_df)
 
                     if plt is not None:
                         if self.save_charts:
-                            image_path = save_plot(plt, chart_name, self.output_dir)
-                            analysis = self._analyze_simulation_chart(chart_name, simulation_df)
+                            image_path = save_plot(
+                                plt, chart_name, self.output_dir.as_posix()
+                            )
+                            analysis = self._analyze_simulation_chart(
+                                chart_name, simulation_df
+                            )
                         else:
-                            analysis = self._analyze_simulation_chart(chart_name, simulation_df)
+                            analysis = self._analyze_simulation_chart(
+                                chart_name, simulation_df
+                            )
                             plt.close()
                         analyses[chart_name] = analysis
                 except Exception as e:
@@ -140,10 +158,16 @@ class ChartAnalyzer:
                         plt = chart_func(actions_df)
                         if plt is not None:
                             if self.save_charts:
-                                image_path = save_plot(plt, chart_name, self.output_dir)
-                                analysis = self._analyze_simulation_chart(chart_name, actions_df)
+                                image_path = save_plot(
+                                    plt, chart_name, self.output_dir.as_posix()
+                                )
+                                analysis = self._analyze_simulation_chart(
+                                    chart_name, actions_df
+                                )
                             else:
-                                analysis = self._analyze_simulation_chart(chart_name, actions_df)
+                                analysis = self._analyze_simulation_chart(
+                                    chart_name, actions_df
+                                )
                                 plt.close()
                             analyses[chart_name] = analysis
                     except Exception as e:
@@ -164,10 +188,16 @@ class ChartAnalyzer:
                         plt = chart_func(agents_df)
                         if plt is not None:
                             if self.save_charts:
-                                image_path = save_plot(plt, chart_name, self.output_dir)
-                                analysis = self._analyze_simulation_chart(chart_name, agents_df)
+                                image_path = save_plot(
+                                    plt, chart_name, self.output_dir.as_posix()
+                                )
+                                analysis = self._analyze_simulation_chart(
+                                    chart_name, agents_df
+                                )
                             else:
-                                analysis = self._analyze_simulation_chart(chart_name, agents_df)
+                                analysis = self._analyze_simulation_chart(
+                                    chart_name, agents_df
+                                )
                                 plt.close()
                             analyses[chart_name] = analysis
                     except Exception as e:
@@ -614,16 +644,16 @@ Lifespan Distribution Analysis:
         """Analyze the distribution of lineage sizes."""
         try:
             lineage_sizes = df["genome_id"].value_counts()
-            avg_lineage = lineage_sizes.mean()
+            avg_lineage = float(lineage_sizes.mean())
             max_lineage = lineage_sizes.max()
-            successful_lineages = (lineage_sizes > avg_lineage).sum()
+            successful_lineages = lineage_sizes.gt(avg_lineage).sum()
 
             return f"""
 Lineage Size Analysis:
 - Average lineage size: {avg_lineage:.1f} agents
 - Largest lineage: {max_lineage} agents
 - Successful lineages: {successful_lineages} above average
-- Genetic diversity: {"High" if len(lineage_sizes) > len(df)/10 else "Low"}
+- Genetic diversity: {"High" if len(lineage_sizes) > len(df)/10.0 else "Low"}
 """
         except Exception as e:
             return f"Error analyzing lineage sizes: {str(e)}"
@@ -650,7 +680,11 @@ Agent Type Evolution Analysis:
 
 def main(actions_df=None, agents_df=None):
     """Main function to run chart analysis."""
-    analyzer = ChartAnalyzer()
+    # Create a mock database for the analyzer
+    from farm.database.database import SimulationDatabase
+
+    db = SimulationDatabase("sqlite:///simulations/simulation.db")
+    analyzer = ChartAnalyzer(db)
     analyses = analyzer.analyze_all_charts()
 
     # Print analyses

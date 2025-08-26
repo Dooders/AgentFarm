@@ -214,10 +214,8 @@ class TimeSeriesProcessor(DataProcessor):
 
             # Fill missing values if requested
             if self.fill_missing:
-                resampled = resampled.fillna(method="ffill")
-                resampled = resampled.fillna(
-                    method="bfill"
-                )  # In case there are still NaNs at the beginning
+                resampled = resampled.ffill()
+                resampled = resampled.bfill()
 
             # Reset index to make timestamp a column again
             processed_data = resampled.reset_index()
@@ -663,9 +661,8 @@ class DominanceProcessor(DataProcessor):
 
         # If we already have agent_type, use it directly
         if "agent_type" in data.columns:
-            reproduction_counts = (
-                data.groupby("agent_type").size().reset_index(name="reproduction_count")
-            )
+            reproduction_counts = data["agent_type"].value_counts().reset_index()
+            reproduction_counts.columns = ["agent_type", "reproduction_count"]
 
             # Calculate dominance metrics
             total_reproductions = reproduction_counts["reproduction_count"].sum()
@@ -782,12 +779,12 @@ class FeatureEngineeringProcessor(DataProcessor):
                     if scaling == "minmax":
                         scaler = MinMaxScaler()
                         processed_data[feature_name] = scaler.fit_transform(
-                            processed_data[source_col].values.reshape(-1, 1)
+                            processed_data[source_col].to_numpy().reshape(-1, 1)
                         )
                     elif scaling == "standard":
                         scaler = StandardScaler()
                         processed_data[feature_name] = scaler.fit_transform(
-                            processed_data[source_col].values.reshape(-1, 1)
+                            processed_data[source_col].to_numpy().reshape(-1, 1)
                         )
                     else:
                         processed_data[feature_name] = processed_data[source_col]

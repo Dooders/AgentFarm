@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from scipy.cluster.hierarchy import linkage
@@ -9,6 +9,7 @@ from sklearn.manifold import TSNE
 from sklearn.preprocessing import StandardScaler
 
 from farm.database.data_types import AgentActionData, BehaviorClustering
+from farm.database.enums import AnalysisScope
 from farm.database.repositories.action_repository import ActionRepository
 
 
@@ -44,10 +45,10 @@ class BehaviorClusteringAnalyzer:
 
     def analyze(
         self,
-        scope: str,
-        agent_id: str = None,
-        step: int = None,
-        step_range: tuple = None,
+        scope: Union[str, AnalysisScope],
+        agent_id: Optional[str] = None,
+        step: Optional[int] = None,
+        step_range: Optional[Tuple[int, int]] = None,
     ) -> BehaviorClustering:
         """
         Analyze agent behaviors and create behavioral clusters based on action patterns.
@@ -56,10 +57,10 @@ class BehaviorClusteringAnalyzer:
         clustering, and generates visualization data if dimensionality reduction is enabled.
 
         Args:
-            scope (str): The scope of analysis (e.g., 'episode', 'training')
-            agent_id (str, optional): Specific agent ID to analyze. Defaults to None.
-            step (int, optional): Specific step to analyze. Defaults to None.
-            step_range (tuple, optional): Range of steps to analyze (start, end). Defaults to None.
+            scope (Union[str, AnalysisScope]): The scope of analysis (e.g., 'episode', 'training')
+            agent_id (Optional[str]): Specific agent ID to analyze. Defaults to None.
+            step (Optional[int]): Specific step to analyze. Defaults to None.
+            step_range (Optional[Tuple[int, int]]): Range of steps to analyze (start, end). Defaults to None.
 
         Returns:
             BehaviorClustering: A data structure containing:
@@ -90,7 +91,7 @@ class BehaviorClusteringAnalyzer:
                 reduced_features=None,
             )
 
-        X = StandardScaler().fit_transform(features)
+        X = StandardScaler().fit_transform(np.array(features))
         reduced_features = (
             self._reduce_dimensions(X) if self.dim_reduction_method else None
         )
@@ -138,22 +139,24 @@ class BehaviorClusteringAnalyzer:
         """
         if self.dim_reduction_method == "pca":
             reducer = PCA(n_components=self.n_components)
+            return reducer.fit_transform(X)
         elif self.dim_reduction_method == "tsne":
             reducer = TSNE(
                 n_components=self.n_components,
                 perplexity=min(30, len(X) - 1),
                 random_state=42,
             )
+            return reducer.fit_transform(X)
         else:
-            return None
-
-        return reducer.fit_transform(X)
+            raise ValueError(
+                f"Unknown dimensionality reduction method: {self.dim_reduction_method}"
+            )
 
     def _create_visualization_data(
         self,
         reduced_features: np.ndarray,
         agent_ids: List[str],
-        clusters: Dict[str, List[int]],
+        clusters: Dict[str, List[str]],
     ) -> Dict[str, Dict]:
         """
         Create a structured visualization data format containing reduced dimensional
@@ -181,11 +184,11 @@ class BehaviorClusteringAnalyzer:
         Example:
             >>> viz_data = analyzer._create_visualization_data(
             ...     reduced_features=np.array([[1, 2], [3, 4]]),
-            ...     agent_ids=[1, 2],
-            ...     clusters={'cluster1': [1], 'cluster2': [2]}
+            ...     agent_ids=["1", "2"],
+            ...     clusters={'cluster1': ["1"], 'cluster2': ["2"]}
             ... )
             >>> print(viz_data['points'][0])
-            {'agent_id': 1, 'cluster': 'cluster1', 'coordinates': [1, 2]}
+            {'agent_id': "1", 'cluster': 'cluster1', 'coordinates': [1, 2]}
         """
         viz_data = {
             "method": self.dim_reduction_method,
@@ -211,8 +214,8 @@ class BehaviorClusteringAnalyzer:
         return viz_data
 
     def _cluster_agents(
-        self, X: np.ndarray, agent_ids: List[int]
-    ) -> Dict[str, List[int]]:
+        self, X: np.ndarray, agent_ids: List[str]
+    ) -> Dict[str, List[str]]:
         """
         Cluster agents using selected clustering algorithm.
         """
@@ -230,7 +233,7 @@ class BehaviorClusteringAnalyzer:
 
     def _calculate_agent_metrics(
         self, actions: List[AgentActionData]
-    ) -> Dict[int, Dict[str, float]]:
+    ) -> Dict[str, Dict[str, float]]:
         """
         Calculate behavioral metrics for each agent based on their action history.
 
@@ -242,7 +245,7 @@ class BehaviorClusteringAnalyzer:
                 action types, rewards, and interaction data.
 
         Returns:
-            Dict[int, Dict[str, float]]: A nested dictionary structure where:
+            Dict[str, Dict[str, float]]: A nested dictionary structure where:
                 - Outer key: agent ID
                 - Inner keys: metric names including:
                     - attack_count: Number of attack actions
@@ -283,8 +286,8 @@ class BehaviorClusteringAnalyzer:
         return agent_metrics
 
     def _prepare_features(
-        self, agent_metrics: Dict[int, Dict[str, float]]
-    ) -> Tuple[List[List[float]], List[int]]:
+        self, agent_metrics: Dict[str, Dict[str, float]]
+    ) -> Tuple[List[List[float]], List[str]]:
         """
         Prepare feature matrix from agent metrics.
         """
@@ -335,7 +338,7 @@ class BehaviorClusteringAnalyzer:
 
         Example:
             >>> features = np.array([[1, 2], [3, 4], [10, 12], [11, 13]])
-            >>> agent_ids = [1, 2, 3, 4]
+            >>> agent_ids = ["1", "2", "3", "4"]
             >>> clusters = analyzer._perform_hierarchical_clustering(features, agent_ids)
             >>> print(clusters.keys())
             dict_keys(['cooperative_high_success', 'aggressive_standard'])
@@ -447,7 +450,7 @@ class BehaviorClusteringAnalyzer:
 
         # Find the elbow point within our constraints
         n_clusters = min(
-            np.argmax(distance_diffs[: max_clusters - 1]) + 2, max_clusters
+            int(np.argmax(distance_diffs[: max_clusters - 1])) + 2, max_clusters
         )
         return max(n_clusters, min_clusters)
 
@@ -482,8 +485,8 @@ class BehaviorClusteringAnalyzer:
             return "standard"
 
     def _process_flat_clustering(
-        self, labels: np.ndarray, X: np.ndarray, agent_ids: List[int]
-    ) -> Dict[str, List[int]]:
+        self, labels: np.ndarray, X: np.ndarray, agent_ids: List[str]
+    ) -> Dict[str, List[str]]:
         """
         Process clustering labels into named clusters with assigned agents.
 
@@ -494,20 +497,20 @@ class BehaviorClusteringAnalyzer:
         Args:
             labels (np.ndarray): Cluster labels assigned by the clustering algorithm
             X (np.ndarray): Feature matrix used for clustering
-            agent_ids (List[int]): List of agent IDs corresponding to the rows in X
+            agent_ids (List[str]): List of agent IDs corresponding to the rows in X
 
         Returns:
-            Dict[str, List[int]]: Dictionary mapping descriptive cluster names to lists
+            Dict[str, List[str]]: Dictionary mapping descriptive cluster names to lists
                 of agent IDs belonging to each cluster. Special cluster 'outliers' is
                 used for agents with label -1.
 
         Example:
             >>> labels = np.array([0, 0, 1, -1])
             >>> X = np.array([[1, 2], [1, 3], [5, 6], [10, 10]])
-            >>> agent_ids = [1, 2, 3, 4]
+            >>> agent_ids = ["1", "2", "3", "4"]
             >>> clusters = analyzer._process_flat_clustering(labels, X, agent_ids)
             >>> print(clusters)
-            {'cooperative': [1, 2], 'aggressive': [3], 'outliers': [4]}
+            {'cooperative': ["1", "2"], 'aggressive': ["3"], 'outliers': ["4"]}
         """
         clusters = defaultdict(list)
         for agent_idx, cluster_label in enumerate(labels):
@@ -561,8 +564,8 @@ class BehaviorClusteringAnalyzer:
             return "balanced"
 
     def _calculate_cluster_characteristics(
-        self, clusters: Dict[str, List[int]], agent_metrics: Dict[int, Dict[str, float]]
-    ) -> tuple[Dict[str, Dict[str, float]], Dict[str, float]]:
+        self, clusters: Dict[str, List[str]], agent_metrics: Dict[str, Dict[str, float]]
+    ) -> Tuple[Dict[str, Dict[str, float]], Dict[str, float]]:
         """
         Calculate characteristic metrics and performance statistics for each cluster.
 
@@ -570,13 +573,13 @@ class BehaviorClusteringAnalyzer:
         for each cluster based on the individual agent metrics within the cluster.
 
         Args:
-            clusters (Dict[str, List[int]]): Dictionary mapping cluster names to lists
+            clusters (Dict[str, List[str]]): Dictionary mapping cluster names to lists
                 of agent IDs
-            agent_metrics (Dict[int, Dict[str, float]]): Dictionary mapping agent IDs
+            agent_metrics (Dict[str, Dict[str, float]]): Dictionary mapping agent IDs
                 to their individual behavioral metrics
 
         Returns:
-            tuple[Dict[str, Dict[str, float]], Dict[str, float]]: A tuple containing:
+            Tuple[Dict[str, Dict[str, float]], Dict[str, float]]: A tuple containing:
                 - characteristics: Dictionary mapping cluster names to their behavioral
                   metrics including:
                     - attack_rate: Average rate of aggressive actions
@@ -588,12 +591,12 @@ class BehaviorClusteringAnalyzer:
                   reward performance
 
         Example:
-            >>> clusters = {'aggressive': [1, 2], 'cooperative': [3, 4]}
+            >>> clusters = {'aggressive': ["1", "2"], 'cooperative': ["3", "4"]}
             >>> agent_metrics = {
-            ...     1: {'attack_count': 10, 'share_count': 2, 'total_actions': 20},
-            ...     2: {'attack_count': 8, 'share_count': 3, 'total_actions': 20},
-            ...     3: {'attack_count': 2, 'share_count': 10, 'total_actions': 20},
-            ...     4: {'attack_count': 3, 'share_count': 8, 'total_actions': 20}
+            ...     "1": {'attack_count': 10, 'share_count': 2, 'total_actions': 20},
+            ...     "2": {'attack_count': 8, 'share_count': 3, 'total_actions': 20},
+            ...     "3": {'attack_count': 2, 'share_count': 10, 'total_actions': 20},
+            ...     "4": {'attack_count': 3, 'share_count': 8, 'total_actions': 20}
             ... }
             >>> chars, perf = analyzer._calculate_cluster_characteristics(
             ...     clusters, agent_metrics)
@@ -606,13 +609,13 @@ class BehaviorClusteringAnalyzer:
             if not agent_ids:
                 continue
             cluster_metrics = {
-                "attack_rate": 0,
-                "cooperation": 0,
-                "risk_taking": 0,
-                "success_rate": 0,
-                "resource_efficiency": 0,
+                "attack_rate": 0.0,
+                "cooperation": 0.0,
+                "risk_taking": 0.0,
+                "success_rate": 0.0,
+                "resource_efficiency": 0.0,
             }
-            total_reward = 0
+            total_reward = 0.0
             for agent_id in agent_ids:
                 metrics = agent_metrics[agent_id]
                 total_actions = metrics["total_actions"]

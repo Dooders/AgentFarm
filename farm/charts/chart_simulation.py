@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 
 from .chart_utils import (
     save_plot,
@@ -429,17 +429,17 @@ def plot_agent_type_comparison(dataframe, connection_string=None):
     for metric in ["avg_resources", "avg_health", "avg_age", "avg_reward"]:
         metrics[metric.replace("avg_", "").title()] = {
             "System": float(
-                agent_metrics.loc["SystemAgent", metric]
+                agent_metrics.at["SystemAgent", metric]
                 if "SystemAgent" in agent_metrics.index
                 else 0
             ),
             "Independent": float(
-                agent_metrics.loc["IndependentAgent", metric]
+                agent_metrics.at["IndependentAgent", metric]
                 if "IndependentAgent" in agent_metrics.index
                 else 0
             ),
             "Control": float(
-                agent_metrics.loc["ControlAgent", metric]
+                agent_metrics.at["ControlAgent", metric]
                 if "ControlAgent" in agent_metrics.index
                 else 0
             ),
@@ -482,8 +482,9 @@ def plot_agent_type_comparison(dataframe, connection_string=None):
         ax.fill(angles, values[i], alpha=0.25, color=colors[i])
 
     # Fix axis to go in the right order and start at 12 o'clock
-    ax.set_theta_offset(np.pi / 2)
-    ax.set_theta_direction(-1)
+    # Type: ignore for polar axes methods
+    ax.set_theta_offset(np.pi / 2)  # type: ignore
+    ax.set_theta_direction(-1)  # type: ignore
 
     # Draw axis lines for each angle and label
     ax.set_xticks(angles[:-1])
@@ -494,7 +495,7 @@ def plot_agent_type_comparison(dataframe, connection_string=None):
 
     # Set the radial limits and ticks
     ax.set_ylim(0, 1)
-    ax.set_rticks([0.2, 0.4, 0.6, 0.8, 1.0])
+    ax.set_rticks([0.2, 0.4, 0.6, 0.8, 1.0])  # type: ignore
 
     # Add legend with better positioning
     plt.legend(loc="center left", bbox_to_anchor=(1.2, 0.5))
@@ -582,7 +583,9 @@ def plot_reproduction_resources(dataframe, connection_string=None):
         resource_data["offspring_initial_resources"],
     ]
 
-    plt.boxplot(data, labels=["Parent Before", "Parent After", "Offspring Initial"])
+    plt.boxplot(
+        data, tick_labels=["Parent Before", "Parent After", "Offspring Initial"]
+    )
 
     plt.title("Resource Distribution in Successful Reproduction Events")
     plt.ylabel("Resource Amount")
@@ -690,7 +693,7 @@ def check_database(connection_string):
 
             # Check for some data
             with engine.connect() as conn:
-                result = conn.execute("SELECT COUNT(*) FROM agents").scalar()
+                result = conn.execute(text("SELECT COUNT(*) FROM agents")).scalar()
                 print(f"Number of agents in database: {result}")
 
     except Exception as e:

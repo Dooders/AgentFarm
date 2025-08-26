@@ -71,8 +71,10 @@ class TestResourcesShared(unittest.TestCase):
     def test_resources_shared_tracking(self):
         """Test that resources_shared is properly tracked when agents share resources."""
         # Verify initial state
-        self.assertEqual(self.env.resources_shared, 0)
-        self.assertEqual(self.env.resources_shared_this_step, 0)
+        self.assertEqual(self.env.metrics_tracker.step_metrics.resources_shared, 0)
+        self.assertEqual(
+            self.env.metrics_tracker.step_metrics.resources_shared_this_step, 0
+        )
 
         # Initial resource levels
         agent1_initial_resources = self.agent1.resource_level

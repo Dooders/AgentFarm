@@ -98,29 +98,44 @@ def process_single_simulation(session, iteration, config, **kwargs):
             "iteration": iteration,
             "population_dominance": population_dominance,
             "survival_dominance": survival_dominance,
-            "comprehensive_dominance": comprehensive_dominance["dominant_type"],
+            "comprehensive_dominance": (
+                comprehensive_dominance["dominant_type"]
+                if comprehensive_dominance
+                else None
+            ),
         }
 
         # Add dominance scores
         for agent_type in ["system", "independent", "control"]:
-            sim_data[f"{agent_type}_dominance_score"] = comprehensive_dominance[
-                "scores"
-            ][agent_type]
-            sim_data[f"{agent_type}_auc"] = comprehensive_dominance["metrics"]["auc"][
-                agent_type
-            ]
-            sim_data[f"{agent_type}_recency_weighted_auc"] = comprehensive_dominance[
-                "metrics"
-            ]["recency_weighted_auc"][agent_type]
-            sim_data[f"{agent_type}_dominance_duration"] = comprehensive_dominance[
-                "metrics"
-            ]["dominance_duration"][agent_type]
-            sim_data[f"{agent_type}_growth_trend"] = comprehensive_dominance["metrics"][
-                "growth_trends"
-            ][agent_type]
-            sim_data[f"{agent_type}_final_ratio"] = comprehensive_dominance["metrics"][
-                "final_ratios"
-            ][agent_type]
+            if comprehensive_dominance:
+                sim_data[f"{agent_type}_dominance_score"] = comprehensive_dominance[
+                    "scores"
+                ][agent_type]
+                sim_data[f"{agent_type}_auc"] = comprehensive_dominance["metrics"][
+                    "auc"
+                ][agent_type]
+                sim_data[f"{agent_type}_recency_weighted_auc"] = (
+                    comprehensive_dominance["metrics"]["recency_weighted_auc"][
+                        agent_type
+                    ]
+                )
+                sim_data[f"{agent_type}_dominance_duration"] = comprehensive_dominance[
+                    "metrics"
+                ]["dominance_duration"][agent_type]
+                sim_data[f"{agent_type}_growth_trend"] = comprehensive_dominance[
+                    "metrics"
+                ]["growth_trends"][agent_type]
+                sim_data[f"{agent_type}_final_ratio"] = comprehensive_dominance[
+                    "metrics"
+                ]["final_ratios"][agent_type]
+            else:
+                # Set default values when comprehensive_dominance is None
+                sim_data[f"{agent_type}_dominance_score"] = None
+                sim_data[f"{agent_type}_auc"] = None
+                sim_data[f"{agent_type}_recency_weighted_auc"] = None
+                sim_data[f"{agent_type}_dominance_duration"] = None
+                sim_data[f"{agent_type}_growth_trend"] = None
+                sim_data[f"{agent_type}_final_ratio"] = None
 
         # Add dominance switching data
         if dominance_switches:
@@ -147,10 +162,14 @@ def process_single_simulation(session, iteration, config, **kwargs):
                     ][from_type][to_type]
 
         # Add all other data
-        sim_data.update(initial_data)
-        sim_data.update(final_counts)
-        sim_data.update(survival_stats)
-        sim_data.update(reproduction_stats)
+        if initial_data:
+            sim_data.update(initial_data)
+        if final_counts:
+            sim_data.update(final_counts)
+        if survival_stats:
+            sim_data.update(survival_stats)
+        if reproduction_stats:
+            sim_data.update(reproduction_stats)
 
         # Check if survival stats were added
         survival_keys = [

@@ -261,16 +261,17 @@ class AnalysisModule(ABC):
 
                 # Get kwargs for this function if available
                 func_kwargs = analysis_kwargs.get(func_name, {})
-                
+
                 # Check if function expects output_path as an argument
                 import inspect
+
                 sig = inspect.signature(func)
                 params = list(sig.parameters.keys())
-                
+
                 logging.info(f"Running {func_name}...")
-                
+
                 # Handle different function signatures properly
-                if 'output_path' in params:
+                if "output_path" in params:
                     # Pass output_path as a named parameter
                     func(df=df, output_path=output_path, **func_kwargs)
                 elif len(params) >= 2:
@@ -452,7 +453,7 @@ def analyze_correlations(
 
             if len(valid_data) >= min_data_points:
                 corr = valid_data[[col, target_column]].corr().iloc[0, 1]
-                if not np.isnan(corr):
+                if not pd.isna(corr):
                     correlations[col] = corr
             else:
                 logging.debug(

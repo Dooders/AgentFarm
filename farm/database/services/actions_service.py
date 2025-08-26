@@ -114,13 +114,14 @@ class ActionsService:
         # Basic action statistics
         if "stats" in analysis_types:
             results["action_stats"] = self.stats_analyzer.analyze(
-                scope, agent_id, step, step_range
+                scope, str(agent_id) if agent_id is not None else None, step, step_range
             )
 
         # Behavioral clustering
         if "behavior" in analysis_types:
+            behavior_agent_id = str(agent_id) if agent_id is not None else None
             results["behavior_clusters"] = self.behavior_analyzer.analyze(
-                scope, agent_id, step, step_range
+                scope, behavior_agent_id, step, step_range
             )
 
         # Causal analysis
@@ -154,7 +155,7 @@ class ActionsService:
         # Temporal patterns
         if "temporal" in analysis_types:
             results["temporal_patterns"] = self.temporal_analyzer.analyze(
-                scope, agent_id, step_range
+                scope, agent_id, step, step_range
             )
 
         return results
@@ -179,7 +180,7 @@ class ActionsService:
             List[str]: List of unique action types
         """
         actions = self.action_repository.get_actions_by_scope(
-            scope, agent_id, step, step_range
+            scope, str(agent_id) if agent_id is not None else None, step, step_range
         )
         return list(set(action.action_type for action in actions))
 
@@ -202,7 +203,9 @@ class ActionsService:
                 - frequency: Relative frequency of the action
                 - resource_efficiency: Average resource gain/loss per action
         """
-        action_stats = self.stats_analyzer.analyze(scope, agent_id)
+        action_stats = self.stats_analyzer.analyze(
+            scope, str(agent_id) if agent_id is not None else None
+        )
         resource_impacts = self.resource_analyzer.analyze(scope, agent_id)
 
         summary = {}

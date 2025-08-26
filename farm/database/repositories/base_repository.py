@@ -1,4 +1,4 @@
-from typing import Any, Generic, List, Optional, Type, TypeVar
+from typing import Any, Callable, Generic, List, Optional, Type, TypeVar
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -79,7 +79,7 @@ class BaseRepository(Generic[T]):
 
         self._execute_in_transaction(_delete)
 
-    def _execute_in_transaction(self, func: callable) -> Any:
+    def _execute_in_transaction(self, func: Callable[[Session], Any]) -> Any:
         """Execute database operations within a transaction with error handling.
         Parameters
         ----------

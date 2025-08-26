@@ -16,7 +16,7 @@ def analyze_learning_experiences(db_path: str):
     """
     # Initialize database and retriever
     db = SimulationDatabase(db_path)
-    retriever = DataRetriever(db)
+    retriever = DataRetriever(db.session_manager)
 
     try:
         # Get learning statistics using DataRetriever

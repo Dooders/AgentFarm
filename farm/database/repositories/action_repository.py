@@ -32,7 +32,7 @@ class ActionRepository(BaseRepository[ActionModel]):
     def get_actions_by_scope(
         self,
         scope: str,
-        agent_id: Optional[int] = None,
+        agent_id: Optional[str] = None,
         step: Optional[int] = None,
         step_range: Optional[Tuple[int, int]] = None,
     ) -> List[AgentActionData]:
@@ -42,7 +42,7 @@ class ActionRepository(BaseRepository[ActionModel]):
         ----------
         scope : str
             The scope to filter actions by (e.g., 'episode', 'experiment')
-        agent_id : Optional[int], optional
+        agent_id : Optional[str], optional
             Specific agent ID to filter by. Defaults to None.
         step : Optional[int], optional
             Specific step number to filter by. Defaults to None.

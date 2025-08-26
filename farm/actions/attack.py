@@ -158,8 +158,7 @@ def _update_combat_counters(agent: "BaseAgent") -> None:
     Args:
         agent: The agent involved in combat
     """
-    agent.environment.combat_encounters += 1
-    agent.environment.combat_encounters_this_step += 1
+    agent.environment.record_combat_encounter()
 
 
 def _calculate_and_apply_damage(
@@ -191,8 +190,7 @@ def _calculate_and_apply_damage(
 
     # Update global successful attack counters if damage was dealt
     if successful_hits > 0:
-        agent.environment.successful_attacks += 1
-        agent.environment.successful_attacks_this_step += 1
+        agent.environment.record_successful_attack()
 
     return total_damage_dealt, successful_hits
 

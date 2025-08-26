@@ -633,7 +633,7 @@ class SimulationState(BaseState):
 
         # Calculate population metrics
         current_population = len([a for a in environment.agents if a.alive])
-        initial_population = environment.initial_agent_count
+        initial_population = environment.get_initial_agent_count()
         max_population = cls.MAX_POPULATION
 
         # Calculate survival rate (capped at 1.0 to handle reproduction)

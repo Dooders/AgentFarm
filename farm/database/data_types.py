@@ -1679,7 +1679,7 @@ class BehaviorClustering:
 
     Attributes
     ----------
-    clusters : Dict[str, List[int]]
+    clusters : Dict[str, List[str]]
         Groups of agent IDs with similar behaviors, where:
         - 'aggressive': Agents with high attack rates
         - 'cooperative': Agents focused on sharing and interaction
@@ -1705,15 +1705,15 @@ class BehaviorClustering:
     ...     print(f"{name}: {len(agents)} agents")
     ...     print(f"Performance: {clusters.cluster_performance[name]:.2f}")
     ...     print("Characteristics:", clusters.cluster_characteristics[name])
-    Aggressive: 12 agents
+    aggressive: 12 agents
     Performance: 1.85
     Characteristics: {'attack_rate': 0.75, 'cooperation': 0.15, 'risk_taking': 0.85}
-    Cooperative: 8 agents
+    cooperative: 8 agents
     Performance: 2.15
     Characteristics: {'attack_rate': 0.25, 'cooperation': 0.85, 'risk_taking': 0.35}
     """
 
-    clusters: Dict[str, List[int]]
+    clusters: Dict[str, List[str]]
     cluster_characteristics: Dict[str, Dict[str, float]]
     cluster_performance: Dict[str, float]
     reduced_features: Optional[Dict[str, Dict]] = None

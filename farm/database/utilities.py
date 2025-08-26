@@ -287,26 +287,50 @@ def create_prepared_statements(session):
     return statements
 
 
-def setup_db(db_path: Optional[str]) -> Optional[str]:
-    """Setup database file for simulation.
+def setup_db(db_path: Optional[str], simulation_id: str) -> Optional[Any]:
+    """Setup database for simulation.
 
-    Handles database file cleanup and creation. If the database file exists,
-    it will be removed to ensure a fresh start. If removal fails, a unique
-    filename will be generated.
+    Handles database file cleanup, creation, and initialization of the appropriate
+    database instance. If the database file exists, it will be removed to ensure
+    a fresh start. If removal fails, a unique filename will be generated.
 
     Parameters
     ----------
     db_path : Optional[str]
-        Path to the database file. If None, no setup is performed.
+        Path to the database file. If None, no database is setup.
+        If ":memory:", an in-memory database is created.
+    simulation_id : str
+        The simulation ID to use for database initialization
 
     Returns
     -------
-    Optional[str]
-        The final database path (may be modified if original couldn't be deleted)
+    Optional[Any]
+        The database instance if setup is successful, otherwise None
     """
-    # Skip setup for in-memory database (when db_path is None)
+    # Skip setup if no database requested
     if db_path is None:
         return None
+
+    # Handle in-memory database
+    if db_path == ":memory:":
+        from datetime import datetime
+
+        from farm.database.database import InMemorySimulationDatabase
+
+        db = InMemorySimulationDatabase(simulation_id=simulation_id)
+
+        # Add simulation record to the in-memory database
+        db.add_simulation_record(
+            simulation_id=simulation_id,
+            start_time=datetime.now(),
+            status="running",
+            parameters={},
+        )
+
+        return db, ":memory:"
+
+    # Handle file-based database
+    final_db_path = db_path
 
     # Try to clean up any existing database connections first
     try:
@@ -325,6 +349,11 @@ def setup_db(db_path: Optional[str]) -> Optional[str]:
             logger.warning(f"Failed to remove database {db_path}: {e}")
             # Generate unique filename if can't delete
             base, ext = os.path.splitext(db_path)
-            db_path = f"{base}_{int(time.time())}{ext}"
+            final_db_path = f"{base}_{int(time.time())}{ext}"
 
-    return db_path
+    # Create the database instance
+    from farm.database.database import SimulationDatabase
+
+    db = SimulationDatabase(final_db_path, simulation_id=simulation_id)
+
+    return db

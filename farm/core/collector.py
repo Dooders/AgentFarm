@@ -11,7 +11,6 @@ class DataCollector:
         self.births_this_cycle = 0
         self.deaths_this_cycle = 0
         self.competitive_interactions = 0
-        self.initial_agent_count = 0
         self.agent_resource_history = {}
 
     def collect(self, environment, step):
@@ -22,9 +21,6 @@ class DataCollector:
         independent_agents = [
             agent for agent in environment.agents if isinstance(agent, IndependentAgent)
         ]
-
-        if step == 0:
-            self.initial_agent_count = len(alive_agents)
 
         for agent in alive_agents:
             if agent.agent_id not in self.agent_resource_history:
@@ -56,7 +52,8 @@ class DataCollector:
             ),
             "resource_density": self._calculate_resource_density(environment),
             "population_stability": self._calculate_population_stability(),
-            "survival_rate": len(alive_agents) / max(self.initial_agent_count, 1),
+            "survival_rate": len(alive_agents)
+            / max(environment.get_initial_agent_count(), 1),
             "system_survival_rate": len(system_agents)
             / max(self.config.system_agents, 1),
             "independent_survival_rate": len(independent_agents)
