@@ -53,10 +53,9 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import IntEnum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, Optional, Tuple
 
 import torch
-import torch.nn.functional as F
 
 if TYPE_CHECKING:
     from farm.core.observations import ObservationConfig
@@ -696,10 +695,12 @@ class KnownEmptyHandler(ChannelHandler):
         **kwargs,
     ) -> None:
         """
-        No direct processing - handled externally.
+        No-op process method for externally managed channel.
 
-        This channel is updated externally via the update_known_empty function
-        rather than through the standard process method.
+        This channel does not perform direct processing during the standard observation
+        update cycle. Instead, it relies entirely on external updates via the
+        update_known_empty function and temporal decay via the decay method using
+        config.gamma_known.
         """
         # This is handled specially in update_known_empty - no direct processing needed
         pass
@@ -707,13 +708,14 @@ class KnownEmptyHandler(ChannelHandler):
 
 class TransientEventHandler(ChannelHandler):
     """
-    Base handler for transient events (damage, trails, signals).
+    Generic handler for transient events that decay over time.
 
     This handler processes transient events that occur at specific world positions
     and decay over time. Events are represented as intensity values that fade
-    according to a configurable gamma factor.
+    according to a configurable gamma factor. The specific event data source is
+    configured via the data_key parameter.
 
-    Data source: Event lists from kwargs (recent_damage_world, trails_world_points, etc.)
+    Data source: Event list from kwargs using the configured data_key
     Channel behavior: DYNAMIC (decays over time)
     Position: Event positions relative to agent, clipped to observation bounds
     """
@@ -724,8 +726,10 @@ class TransientEventHandler(ChannelHandler):
 
         Args:
             name: Channel name (e.g., "DAMAGE_HEAT", "TRAILS")
-            data_key: Key to access event data in kwargs
-            config_gamma_key: Key to access gamma value in config
+            data_key: Key to access event data in kwargs (e.g., "recent_damage_world",
+                     "trails_world_points", "ally_signals_world")
+            config_gamma_key: Key to access gamma value in config (e.g., "gamma_dmg",
+                           "gamma_trail", "gamma_sig")
         """
         super().__init__(name, ChannelBehavior.DYNAMIC, gamma=None)  # Use config gamma
         self.data_key = data_key
@@ -763,6 +767,7 @@ class TransientEventHandler(ChannelHandler):
             config: Observation configuration
             agent_world_pos: Agent's world position (y, x)
             **kwargs: Must contain event data at self.data_key as list of (y, x, intensity) tuples
+                     where self.data_key is configured during initialization
         """
         events = kwargs.get(self.data_key, [])
         if not events:
@@ -841,7 +846,7 @@ class LandmarkHandler(ChannelHandler):
     cleared and can represent strategic locations, resource caches, or
     important waypoints.
 
-    Data source: landmarks_world list from kwargs
+    Data source: landmarks_world list passed via kwargs in perceive_world()
     Channel behavior: PERSISTENT (remains until explicitly cleared)
     Position: Landmark positions relative to agent, clipped to observation bounds
     """

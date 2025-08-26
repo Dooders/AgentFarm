@@ -7,7 +7,6 @@ channel handlers, channel registry, and all core channel implementations.
 import unittest
 from unittest.mock import MagicMock, Mock, patch
 
-import numpy as np
 import torch
 
 from farm.core.channels import (
@@ -20,6 +19,7 @@ from farm.core.channels import (
     EnemiesHPHandler,
     GoalHandler,
     KnownEmptyHandler,
+    LandmarkHandler,
     SelfHPHandler,
     TransientEventHandler,
     VisibilityHandler,
@@ -842,6 +842,141 @@ class TestGoalHandler(unittest.TestCase):
 
         # Should not write anything
         self.assertTrue(torch.allclose(observation, torch.zeros(1, 11, 11)))
+
+
+class TestLandmarkHandler(unittest.TestCase):
+    """Test cases for LandmarkHandler."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.handler = LandmarkHandler()
+        self.config_mock = Mock()
+        self.config_mock.R = 5
+
+    def test_initialization(self):
+        """Test LandmarkHandler initialization."""
+        self.assertEqual(self.handler.name, "LANDMARKS")
+        self.assertEqual(self.handler.behavior, ChannelBehavior.PERSISTENT)
+
+    def test_process_with_landmarks(self):
+        """Test LandmarkHandler process method with landmarks."""
+        observation = torch.zeros(1, 11, 11)
+        agent_world_pos = (5, 5)
+
+        landmarks = [
+            (7, 5, 0.8),  # Landmark at relative (2, 0) from agent
+            (5, 7, 0.6),  # Landmark at relative (0, 2) from agent
+        ]
+
+        self.handler.process(
+            observation, 0, self.config_mock, agent_world_pos, landmarks_world=landmarks
+        )
+
+        # Check that landmarks are written at correct positions
+        self.assertAlmostEqual(observation[0, 7, 5].item(), 0.8)  # First landmark
+        self.assertAlmostEqual(observation[0, 5, 7].item(), 0.6)  # Second landmark
+
+    def test_process_no_landmarks(self):
+        """Test LandmarkHandler with no landmarks."""
+        observation = torch.ones(1, 11, 11)
+        agent_world_pos = (5, 5)
+
+        self.handler.process(
+            observation, 0, self.config_mock, agent_world_pos, landmarks_world=[]
+        )
+
+        # Observation should remain unchanged
+        self.assertTrue(torch.allclose(observation, torch.ones(1, 11, 11)))
+
+    def test_process_landmark_outside_bounds(self):
+        """Test LandmarkHandler with landmark outside observation bounds."""
+        observation = torch.zeros(1, 11, 11)
+        agent_world_pos = (5, 5)
+
+        landmarks = [
+            (20, 20, 0.8),  # Way outside bounds
+        ]
+
+        self.handler.process(
+            observation, 0, self.config_mock, agent_world_pos, landmarks_world=landmarks
+        )
+
+        # Should not write anything (all values remain 0)
+        self.assertTrue(torch.allclose(observation, torch.zeros(1, 11, 11)))
+
+    def test_process_multiple_landmarks_same_position(self):
+        """Test LandmarkHandler with multiple landmarks at same position."""
+        observation = torch.zeros(1, 11, 11)
+        agent_world_pos = (5, 5)
+
+        landmarks = [
+            (7, 5, 0.6),  # Landmark at relative (2, 0) with lower importance
+            (7, 5, 0.8),  # Same position with higher importance
+        ]
+
+        self.handler.process(
+            observation, 0, self.config_mock, agent_world_pos, landmarks_world=landmarks
+        )
+
+        # Should take the maximum importance
+        self.assertAlmostEqual(observation[0, 7, 5].item(), 0.8)
+
+    def test_process_accumulates_landmarks(self):
+        """Test LandmarkHandler accumulates landmarks across multiple calls."""
+        observation = torch.zeros(1, 11, 11)
+        agent_world_pos = (5, 5)
+
+        # First call with one landmark
+        landmarks1 = [(7, 5, 0.6)]
+        self.handler.process(
+            observation,
+            0,
+            self.config_mock,
+            agent_world_pos,
+            landmarks_world=landmarks1,
+        )
+
+        # Second call with landmark at different position
+        landmarks2 = [(5, 7, 0.8)]
+        self.handler.process(
+            observation,
+            0,
+            self.config_mock,
+            agent_world_pos,
+            landmarks_world=landmarks2,
+        )
+
+        # Both landmarks should be present
+        self.assertAlmostEqual(observation[0, 7, 5].item(), 0.6)
+        self.assertAlmostEqual(observation[0, 5, 7].item(), 0.8)
+
+    def test_process_accumulates_at_same_position(self):
+        """Test LandmarkHandler accumulates importance at same position."""
+        observation = torch.zeros(1, 11, 11)
+        agent_world_pos = (5, 5)
+
+        # First call with landmark at position
+        landmarks1 = [(7, 5, 0.6)]
+        self.handler.process(
+            observation,
+            0,
+            self.config_mock,
+            agent_world_pos,
+            landmarks_world=landmarks1,
+        )
+
+        # Second call with higher importance at same position
+        landmarks2 = [(7, 5, 0.8)]
+        self.handler.process(
+            observation,
+            0,
+            self.config_mock,
+            agent_world_pos,
+            landmarks_world=landmarks2,
+        )
+
+        # Should have the maximum importance
+        self.assertAlmostEqual(observation[0, 7, 5].item(), 0.8)
 
 
 class TestChannelEnum(unittest.TestCase):
