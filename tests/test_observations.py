@@ -14,10 +14,9 @@ import numpy as np
 import pytest
 import torch
 
+from farm.core.channels import NUM_CHANNELS, Channel
 from farm.core.observations import (
-    NUM_CHANNELS,
     AgentObservation,
-    Channel,
     ObservationConfig,
     crop_egocentric,
     crop_egocentric_stack,
