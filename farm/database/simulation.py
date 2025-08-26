@@ -14,6 +14,7 @@ SimulationStateRetriever
     Main class for retrieving simulation state data from the database
 """
 
+from dataclasses import asdict
 from typing import List, Optional
 
 from farm.database.data_types import (
@@ -22,7 +23,12 @@ from farm.database.data_types import (
     SimulationResults,
     SimulationState,
 )
-from farm.database.models import AgentModel, AgentStateModel, ResourceModel, SimulationStepModel
+from farm.database.models import (
+    AgentModel,
+    AgentStateModel,
+    ResourceModel,
+    SimulationStepModel,
+)
 from farm.database.utilities import execute_query
 
 
@@ -119,7 +125,9 @@ class SimulationStateRetriever:
         if step_number is not None:
             query = query.filter(AgentStateModel.step_number == step_number)
         else:
-            query = query.order_by(AgentStateModel.step_number, AgentStateModel.agent_id)
+            query = query.order_by(
+                AgentStateModel.step_number, AgentStateModel.agent_id
+            )
 
         results = query.all()
 
@@ -243,8 +251,36 @@ class SimulationStateRetriever:
         SimulationResults
             Data containing agent states, resource states, and simulation metrics
         """
+        # Get simulation state once
+        simulation_state = self.simulation_state(session=None, step_number=step_number)
+
+        # Convert dataclass objects to tuples as expected by SimulationResults
+        agent_tuples = [
+            (
+                state.step_number,
+                state.agent_id,
+                state.agent_type,
+                state.position_x,
+                state.position_y,
+                state.resource_level,
+                state.current_health,
+                state.is_defending,
+            )
+            for state in self.agent_states(session=None, step_number=step_number)
+        ]
+
+        resource_tuples = [
+            (
+                state.resource_id,
+                state.amount,
+                state.position_x,
+                state.position_y,
+            )
+            for state in self.resource_states(session=None, step_number=step_number)
+        ]
+
         return SimulationResults(
-            agent_states=self.agent_states(step_number),
-            resource_states=self.resource_states(step_number),
-            simulation_state=self.simulation_state(step_number),
+            agent_states=agent_tuples,
+            resource_states=resource_tuples,
+            simulation_state=asdict(simulation_state),
         )

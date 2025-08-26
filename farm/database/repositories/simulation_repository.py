@@ -102,38 +102,55 @@ class SimulationRepository(BaseRepository[SimulationStepModel]):
 
         return self._execute_in_transaction(_query)
 
+    def _agent_states_tuples(self, step_number: int) -> list:
+        """Retrieve agent states as tuples for efficient SimulationResults creation."""
+
+        def _query(session):
+            query = (
+                session.query(
+                    AgentStateModel.step_number,
+                    AgentStateModel.agent_id,
+                    AgentModel.agent_type,
+                    AgentStateModel.position_x,
+                    AgentStateModel.position_y,
+                    AgentStateModel.resource_level,
+                    AgentStateModel.current_health,
+                    AgentStateModel.is_defending,
+                )
+                .join(AgentModel)
+                .filter(AgentStateModel.step_number == step_number)
+            )
+
+            return query.all()
+
+        return self._execute_in_transaction(_query)
+
+    def _resource_states_tuples(self, step_number: int) -> list:
+        """Retrieve resource states as tuples for efficient SimulationResults creation."""
+
+        def _query(session):
+            query = session.query(
+                ResourceModel.resource_id,
+                ResourceModel.amount,
+                ResourceModel.position_x,
+                ResourceModel.position_y,
+            ).filter(ResourceModel.step_number == step_number)
+
+            return query.all()
+
+        return self._execute_in_transaction(_query)
+
     def execute(self, step_number: int) -> SimulationResults:
         """Retrieve complete simulation state for a specific step."""
-        agent_states = self.agent_states(step_number)
-        resource_states = self.resource_states(step_number)
+        # Get simulation state once
+        simulation_state = self.simulation_state(step_number)
 
-        # Convert dataclass objects to tuples as expected by SimulationResults
-        agent_tuples = [
-            (
-                state.step_number,
-                state.agent_id,
-                state.agent_type,
-                state.position_x,
-                state.position_y,
-                state.resource_level,
-                state.current_health,
-                state.is_defending,
-            )
-            for state in agent_states
-        ]
-
-        resource_tuples = [
-            (
-                state.resource_id,
-                state.amount,
-                state.position_x,
-                state.position_y,
-            )
-            for state in resource_states
-        ]
+        # Get data directly as tuples for efficiency
+        agent_tuples = self._agent_states_tuples(step_number)
+        resource_tuples = self._resource_states_tuples(step_number)
 
         return SimulationResults(
             agent_states=agent_tuples,
             resource_states=resource_tuples,
-            simulation_state=asdict(self.simulation_state(step_number)),
+            simulation_state=asdict(simulation_state),
         )
