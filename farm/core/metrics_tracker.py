@@ -32,6 +32,7 @@ class StepMetrics:
 
     # Resource sharing metrics
     resources_shared: float = 0.0
+    resources_shared_this_step: float = 0.0
 
     # Additional metrics can be added here
     reproduction_attempts: int = 0
@@ -45,6 +46,7 @@ class StepMetrics:
         self.combat_encounters = 0
         self.successful_attacks = 0
         self.resources_shared = 0.0
+        self.resources_shared_this_step = 0.0
         self.reproduction_attempts = 0
         self.reproduction_successes = 0
         self.resource_consumption = 0.0
@@ -123,6 +125,7 @@ class MetricsTracker:
     def record_resources_shared(self, amount: float) -> None:
         """Record resources shared between agents."""
         self.step_metrics.resources_shared += amount
+        self.step_metrics.resources_shared_this_step += amount
 
     def record_reproduction_attempt(self) -> None:
         """Record a reproduction attempt."""
@@ -148,6 +151,7 @@ class MetricsTracker:
             "combat_encounters": self.step_metrics.combat_encounters,
             "successful_attacks": self.step_metrics.successful_attacks,
             "resources_shared": self.step_metrics.resources_shared,
+            "resources_shared_this_step": self.step_metrics.resources_shared_this_step,
             "reproduction_attempts": self.step_metrics.reproduction_attempts,
             "reproduction_successes": self.step_metrics.reproduction_successes,
             "resource_consumption": self.step_metrics.resource_consumption,
