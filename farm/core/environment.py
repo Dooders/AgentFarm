@@ -62,7 +62,7 @@ class Environment(AECEnv):
         # Initialize basic attributes
         self.width = width
         self.height = height
-        self.agents = []  # PettingZoo agents list (agent IDs)
+        self.agents = []
         self._agent_objects = {}  # Internal mapping: agent_id -> agent object
         self.resources = []
         self.time = 0
@@ -77,7 +77,6 @@ class Environment(AECEnv):
         self.next_resource_id = 0
         self.max_resource = max_resource
         self.config = config
-        self.initial_agent_count = 0  #! Is this really needed?
         self.resource_distribution = resource_distribution
         self.max_steps = (
             config.max_steps if config and hasattr(config, "max_steps") else 1000
@@ -569,8 +568,6 @@ class Environment(AECEnv):
         # Add to environment
         self._agent_objects[agent.agent_id] = agent
         self.agents.append(agent.agent_id)  # Add to PettingZoo agents list
-        if self.time == 0:
-            self.initial_agent_count += 1
 
         # Mark positions as dirty when new agent is added
         self.spatial_index.mark_positions_dirty()
@@ -787,6 +784,16 @@ class Environment(AECEnv):
         self._action_space = spaces.Discrete(
             len(Action)
         )  # Actions: DEFEND, ATTACK, GATHER, SHARE, MOVE, REPRODUCE
+
+    def get_initial_agent_count(self):
+        """Calculate the number of initial agents (born at time 0) dynamically."""
+        return len(
+            [
+                agent
+                for agent in self._agent_objects.values()
+                if getattr(agent, "birth_time", 0) == 0
+            ]
+        )
 
     def _create_initial_agents(self):
         """Create and add initial agents to the environment based on configuration."""
@@ -1049,7 +1056,6 @@ class Environment(AECEnv):
         self.initialize_resources(self.resource_distribution)
 
         self._agent_objects = {}
-        self.initial_agent_count = 0
         self._create_initial_agents()
 
         self.agent_observations = {}
