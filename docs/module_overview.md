@@ -13,7 +13,7 @@ AgentFarm/
 ├── Core Framework
 │   ├── Environment (farm.core.environment)
 │   ├── Observations (farm.core.observations)
-│   ├── Channels (farm.core.channels)
+│   ├── Perception Channels (farm.core.channels)
 │   └── State Management (farm.core.state)
 ├── Agent System
 │   ├── Base Agents (farm.agents)
@@ -86,6 +86,7 @@ Each agent maintains a **local observation** of the world:
 - `TRAILS`: Movement trails (decays over time)
 - `ALLY_SIGNAL`: Communication signals (decays over time)
 - `GOAL`: Current objectives or waypoints
+- `LANDMARKS`: Permanent landmarks and waypoints (persistent)
 
 **Dynamic Decay System:**
 Certain channels implement temporal decay using configurable gamma factors to simulate fading information and memory.
@@ -97,12 +98,14 @@ The channel system provides a flexible framework for extending observations:
 **Channel Behaviors:**
 - `INSTANT`: Immediate information (refreshed each step)
 - `DYNAMIC`: Persistent information with temporal decay
+- `PERSISTENT`: Persistent information that remains until explicitly cleared
 
 **Usage:**
 ```python
 from farm.core.channels import ChannelHandler, ChannelBehavior, register_channel
 
-class CustomChannel(ChannelHandler):
+class CustomDynamicChannel(ChannelHandler):
+    """Example DYNAMIC channel with temporal decay."""
     def __init__(self, name):
         super().__init__(name, ChannelBehavior.DYNAMIC, gamma=0.95)
 
@@ -110,8 +113,18 @@ class CustomChannel(ChannelHandler):
         # Custom processing logic
         pass
 
-# Register the channel
-channel_idx = register_channel(CustomChannel("CUSTOM_CHANNEL"))
+class CustomPersistentChannel(ChannelHandler):
+    """Example PERSISTENT channel that maintains information until cleared."""
+    def __init__(self, name):
+        super().__init__(name, ChannelBehavior.PERSISTENT)
+
+    def process(self, observation, channel_idx, config, agent_world_pos, **kwargs):
+        # Custom processing logic that accumulates information
+        pass
+
+# Register the channels
+dynamic_idx = register_channel(CustomDynamicChannel("DYNAMIC_CHANNEL"))
+persistent_idx = register_channel(CustomPersistentChannel("PERSISTENT_CHANNEL"))
 ```
 
 ### 5. Action System (`farm.actions`)
@@ -123,6 +136,8 @@ Agents can perform various actions through specialized modules:
 - **Attack**: Engage in combat with other agents
 - **Share**: Redistribute resources to allies
 - **Reproduce**: Create offspring (with inheritance)
+- **Defend**: Defend against enemies (damage-modifying)
+- **Pass**: Pass turn, no action
 
 Each action module uses reinforcement learning to optimize behavior.
 
@@ -225,7 +240,7 @@ from farm.core.channels import ChannelHandler, ChannelBehavior, register_channel
 import torch
 
 class EmotionChannel(ChannelHandler):
-    """Channel representing agent emotional states."""
+    """Channel representing agent emotional states with temporal decay."""
 
     def __init__(self, name):
         super().__init__(name, ChannelBehavior.DYNAMIC, gamma=0.9)
@@ -253,8 +268,33 @@ class EmotionChannel(ChannelHandler):
         health_ratio = agent.resource_level / agent.initial_resources
         return min(1.0, (len(nearby_enemies) * 0.2) + (1 - health_ratio) * 0.5)
 
-# Register the channel
+class TerritoryChannel(ChannelHandler):
+    """Channel representing agent's claimed territory (persistent)."""
+
+    def __init__(self, name):
+        super().__init__(name, ChannelBehavior.PERSISTENT)
+
+    def process(self, observation, channel_idx, config, agent_world_pos, **kwargs):
+        """Mark territory cells in the observation."""
+        territory_cells = kwargs.get('territory_cells', [])
+        if not territory_cells:
+            return
+
+        R = config.R
+        ay, ax = agent_world_pos
+
+        for cell_y, cell_x in territory_cells:
+            dy = cell_y - ay
+            dx = cell_x - ax
+            y = R + dy
+            x = R + dx
+            if 0 <= y < 2 * R + 1 and 0 <= x < 2 * R + 1:
+                # Mark territory (accumulates over time)
+                observation[channel_idx, y, x] = 1.0
+
+# Register the channels
 emotion_channel_idx = register_channel(EmotionChannel("EMOTION"))
+territory_channel_idx = register_channel(TerritoryChannel("TERRITORY"))
 ```
 
 ### Experiment Configuration

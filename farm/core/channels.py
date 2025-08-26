@@ -832,6 +832,64 @@ class GoalHandler(ChannelHandler):
             observation[channel_idx, y, x] = 1.0
 
 
+class LandmarkHandler(ChannelHandler):
+    """
+    Handler for permanent landmarks or waypoints.
+
+    This channel tracks important permanent locations in the environment that
+    agents should remember indefinitely. Landmarks persist until explicitly
+    cleared and can represent strategic locations, resource caches, or
+    important waypoints.
+
+    Data source: landmarks_world list from kwargs
+    Channel behavior: PERSISTENT (remains until explicitly cleared)
+    Position: Landmark positions relative to agent, clipped to observation bounds
+    """
+
+    def __init__(self):
+        """Initialize the landmark handler as a PERSISTENT channel."""
+        super().__init__("LANDMARKS", ChannelBehavior.PERSISTENT)
+
+    def process(
+        self,
+        observation: torch.Tensor,
+        channel_idx: int,
+        config: "ObservationConfig",
+        agent_world_pos: Tuple[int, int],
+        **kwargs,
+    ) -> None:
+        """
+        Process landmark positions and accumulate them in the observation.
+
+        Unlike INSTANT channels, PERSISTENT channels accumulate information
+        across ticks. This handler adds landmark information without clearing
+        previous landmark data.
+
+        Args:
+            observation: Full observation tensor
+            channel_idx: Index of the LANDMARKS channel
+            config: Observation configuration
+            agent_world_pos: Agent's world position (y, x)
+            **kwargs: Must contain 'landmarks_world' list of (y, x, importance) tuples
+        """
+        landmarks_world = kwargs.get("landmarks_world", [])
+        if not landmarks_world:
+            return
+
+        R = config.R
+        ay, ax = agent_world_pos
+
+        for landmark_y, landmark_x, importance in landmarks_world:
+            dy = landmark_y - ay
+            dx = landmark_x - ax
+            y = R + dy
+            x = R + dx
+            if 0 <= y < 2 * R + 1 and 0 <= x < 2 * R + 1:
+                # Accumulate landmark importance (don't overwrite existing values)
+                current_value = observation[channel_idx, y, x].item()
+                observation[channel_idx, y, x] = max(current_value, float(importance))
+
+
 # Register core channel handlers with their original indices for backward compatibility
 def _register_core_channels():
     """
@@ -855,6 +913,7 @@ def _register_core_channels():
         9: TRAILS - Agent movement trails
         10: ALLY_SIGNAL - Ally communication signals
         11: GOAL - Goal/waypoint positions
+        12: LANDMARKS - Permanent landmarks and waypoints
     """
 
     # Register with specific indices to maintain backward compatibility
@@ -876,6 +935,7 @@ def _register_core_channels():
         TransientEventHandler("ALLY_SIGNAL", "ally_signals_world", "gamma_sig"), 10
     )
     register_channel(GoalHandler(), 11)
+    register_channel(LandmarkHandler(), 12)
 
 
 # Register core channels on import
@@ -904,6 +964,7 @@ class Channel(IntEnum):
         TRAILS: Agent movement trails (decays over time)
         ALLY_SIGNAL: Ally communication signals (decays over time)
         GOAL: Goal/waypoint positions (waypoint projection)
+        LANDMARKS: Permanent landmarks and waypoints (persistent)
     """
 
     SELF_HP = 0  # 1
@@ -918,6 +979,7 @@ class Channel(IntEnum):
     TRAILS = 9  # 10 (decays)
     ALLY_SIGNAL = 10  # 11 (decays)
     GOAL = 11  # 12 (waypoint projection)
+    LANDMARKS = 12  # 13 (persistent)
 
 
 # Dynamic channel count based on registry
