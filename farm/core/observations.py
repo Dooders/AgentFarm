@@ -64,15 +64,15 @@ Usage:
 # observations.py
 from __future__ import annotations
 
+import logging
 from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn.functional as F
 from pydantic import BaseModel, Field, field_validator
-import logging
 
 from farm.core.channels import NUM_CHANNELS, Channel, get_channel_registry
-
+from farm.core.spatial_index import SpatialIndex
 
 logger = logging.getLogger(__name__)
 
@@ -472,9 +472,15 @@ class AgentObservation:
         # Optionally derive allies/enemies from spatial index if not provided
         final_allies = allies
         final_enemies = enemies
-        if (final_allies is None or final_enemies is None) and spatial_index is not None and agent_object is not None:
-            computed_allies, computed_enemies = self._compute_entities_from_spatial_index(
-                spatial_index, agent_object, agent_world_pos
+        if (
+            (final_allies is None or final_enemies is None)
+            and spatial_index is not None
+            and agent_object is not None
+        ):
+            computed_allies, computed_enemies = (
+                self._compute_entities_from_spatial_index(
+                    spatial_index, agent_object, agent_world_pos
+                )
             )
             if final_allies is None:
                 final_allies = computed_allies
