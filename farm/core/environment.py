@@ -222,11 +222,6 @@ class Environment(AECEnv):
 
         # Initialize environment
         self.initialize_resources(resource_distribution)
-        # Set references and initialize spatial index
-        self.spatial_index.set_references(
-            list(self._agent_objects.values()), self.resources
-        )
-        self.spatial_index.update()
 
         # Add observation space setup:
         self._setup_observation_space(config)
@@ -1089,18 +1084,28 @@ class Environment(AECEnv):
         self.resources = []
         self.initialize_resources(self.resource_distribution)
 
-        # Do not recreate agents. Preserve externally managed agents and refresh observations
-        self.agent_observations = {}
-        for agent in self._agent_objects.values():
-            self.agent_observations[agent.agent_id] = AgentObservation(
-                self.observation_config
-            )
+        # Optionally replace agents if provided via options
+        if options and isinstance(options, dict) and options.get("agents") is not None:
+            # Clear existing agents and re-add provided ones
+            self._agent_objects = {}
+            self.agents = []
+            self.agent_observations = {}
+            for agent in options.get("agents"):
+                self.add_agent(agent)
+        else:
+            # Preserve existing agents and refresh observations
+            self.agent_observations = {}
+            for agent in self._agent_objects.values():
+                self.agent_observations[agent.agent_id] = AgentObservation(
+                    self.observation_config
+                )
 
         self.spatial_index.set_references(
             list(self._agent_objects.values()), self.resources
         )
         self.spatial_index.update()
 
+        # Rebuild PettingZoo agent lists from current alive agents
         self.agents = [a.agent_id for a in self._agent_objects.values() if a.alive]
         self.agent_selection = self.agents[0] if self.agents else None
         self.rewards = {a: 0 for a in self.agents}
