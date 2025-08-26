@@ -69,8 +69,12 @@ from typing import Dict, List, Optional, Tuple
 import torch
 import torch.nn.functional as F
 from pydantic import BaseModel, Field, field_validator
+import logging
 
 from farm.core.channels import NUM_CHANNELS, Channel, get_channel_registry
+
+
+logger = logging.getLogger(__name__)
 
 
 class ObservationConfig(BaseModel):
@@ -298,6 +302,65 @@ class AgentObservation:
             dtype=config.torch_dtype,
         )
 
+    def _compute_entities_from_spatial_index(
+        self,
+        spatial_index: Optional["SpatialIndex"],
+        agent_object: Optional[object],
+        agent_world_pos: Tuple[int, int],
+    ) -> Tuple[List[Tuple[int, int, float]], List[Tuple[int, int, float]]]:
+        """Compute allies and enemies using the provided spatial index.
+
+        Returns (allies, enemies) lists of tuples (y, x, hp01).
+        """
+        if spatial_index is None or agent_object is None:
+            return ([], [])
+
+        ay, ax = agent_world_pos
+        query_position_xy = (float(ax), float(ay))
+        radius = float(self.config.fov_radius)
+
+        try:
+            nearby_agents = spatial_index.get_nearby_agents(query_position_xy, radius)
+        except Exception as e:  # pragma: no cover - defensive only
+            logger.exception(
+                "Error in spatial_index.get_nearby_agents; defaulting to empty list"
+            )
+            nearby_agents = []
+
+        computed_allies: List[Tuple[int, int, float]] = []
+        computed_enemies: List[Tuple[int, int, float]] = []
+        agent_cls = type(agent_object)
+        for other in nearby_agents:
+            if other is agent_object or not getattr(other, "alive", False):
+                continue
+
+            position = getattr(other, "position", None)
+            if (
+                position is None
+                or not isinstance(position, (list, tuple))
+                or len(position) < 2
+            ):
+                # Skip invalid positions
+                continue
+
+            ny = int(round(position[1]))
+            nx = int(round(position[0]))
+
+            starting_health = getattr(other, "starting_health", 0)
+            current_health = getattr(other, "current_health", 0)
+            hp01 = (
+                float(current_health) / float(starting_health)
+                if starting_health and starting_health > 0
+                else 0.0
+            )
+
+            if isinstance(other, agent_cls):
+                computed_allies.append((ny, nx, hp01))
+            else:
+                computed_enemies.append((ny, nx, hp01))
+
+        return (computed_allies, computed_enemies)
+
     def decay_dynamics(self):
         """
         Apply decay factors to dynamic observation channels.
@@ -410,29 +473,9 @@ class AgentObservation:
         final_allies = allies
         final_enemies = enemies
         if (final_allies is None or final_enemies is None) and spatial_index is not None and agent_object is not None:
-            ay, ax = agent_world_pos
-            query_position_xy = (float(ax), float(ay))
-            radius = float(self.config.fov_radius)
-            try:
-                nearby_agents = spatial_index.get_nearby_agents(query_position_xy, radius)
-            except Exception:
-                nearby_agents = []
-
-            computed_allies: List[Tuple[int, int, float]] = []
-            computed_enemies: List[Tuple[int, int, float]] = []
-            agent_cls = type(agent_object)
-            for other in nearby_agents:
-                if other is agent_object or not getattr(other, "alive", False):
-                    continue
-                ny = int(round(other.position[1]))
-                nx = int(round(other.position[0]))
-                # Ensure positions are within world bounds is handled later by handlers
-                hp01 = float(other.current_health) / float(other.starting_health) if getattr(other, "starting_health", 0) else 0.0
-                if isinstance(other, agent_cls):
-                    computed_allies.append((ny, nx, hp01))
-                else:
-                    computed_enemies.append((ny, nx, hp01))
-
+            computed_allies, computed_enemies = self._compute_entities_from_spatial_index(
+                spatial_index, agent_object, agent_world_pos
+            )
             if final_allies is None:
                 final_allies = computed_allies
             if final_enemies is None:
