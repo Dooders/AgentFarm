@@ -35,8 +35,9 @@ from farm.actions.move import move_action
 from farm.actions.reproduce import reproduce_action
 from farm.actions.share import share_action
 from farm.agents import ControlAgent, IndependentAgent, SystemAgent
+from farm.core.channels import NUM_CHANNELS
 from farm.core.metrics_tracker import MetricsTracker
-from farm.core.observations import NUM_CHANNELS, AgentObservation, ObservationConfig
+from farm.core.observations import AgentObservation, ObservationConfig
 from farm.core.resource_manager import ResourceManager
 from farm.core.spatial_index import SpatialIndex
 from farm.core.state import EnvironmentState

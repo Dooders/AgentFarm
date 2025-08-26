@@ -64,32 +64,13 @@ Usage:
 # observations.py
 from __future__ import annotations
 
-from enum import IntEnum
 from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn.functional as F
 from pydantic import BaseModel, Field, field_validator
 
-
-class Channel(IntEnum):
-    """Observation channels for the agent's perception system."""
-
-    SELF_HP = 0  # 1
-    ALLIES_HP = 1  # 2
-    ENEMIES_HP = 2  # 3
-    RESOURCES = 3  # 4
-    OBSTACLES = 4  # 5 (binary or passability)
-    TERRAIN_COST = 5  # 6 (0..1)
-    VISIBILITY = 6  # 7 (1=visible now)
-    KNOWN_EMPTY = 7  # 8 (decays)
-    DAMAGE_HEAT = 8  # 9 (decays)
-    TRAILS = 9  # 10 (decays)
-    ALLY_SIGNAL = 10  # 11 (decays)
-    GOAL = 11  # 12 (waypoint projection)
-
-
-NUM_CHANNELS = len(Channel)
+from farm.core.channels import NUM_CHANNELS, Channel, get_channel_registry
 
 
 class ObservationConfig(BaseModel):
@@ -307,9 +288,14 @@ class AgentObservation:
 
     def __init__(self, config: ObservationConfig):
         self.config = config
+        self.registry = get_channel_registry()
         S = 2 * config.R + 1
         self.observation = torch.zeros(
-            NUM_CHANNELS, S, S, device=config.device, dtype=config.torch_dtype
+            self.registry.num_channels,
+            S,
+            S,
+            device=config.device,
+            dtype=config.torch_dtype,
         )
 
     def decay_dynamics(self):
@@ -320,10 +306,7 @@ class AgentObservation:
         (gamma value) to simulate the gradual fading of transient information over time.
         Dynamic channels include trails, damage heat, ally signals, and known empty cells.
         """
-        self.observation[Channel.TRAILS] *= self.config.gamma_trail
-        self.observation[Channel.DAMAGE_HEAT] *= self.config.gamma_dmg
-        self.observation[Channel.ALLY_SIGNAL] *= self.config.gamma_sig
-        self.observation[Channel.KNOWN_EMPTY] *= self.config.gamma_known
+        self.registry.apply_decay(self.observation, self.config)
 
     def clear_instant(self):
         """
@@ -334,107 +317,7 @@ class AgentObservation:
         doesn't persist between ticks, such as current HP, visible entities, and
         immediate environmental features.
         """
-        # Clear channels that are overwritten each tick from fresh world reads
-        for channel in (
-            Channel.SELF_HP,
-            Channel.ALLIES_HP,
-            Channel.ENEMIES_HP,
-            Channel.RESOURCES,
-            Channel.OBSTACLES,
-            Channel.TERRAIN_COST,
-            Channel.VISIBILITY,
-            Channel.GOAL,
-        ):
-            self.observation[channel].zero_()
-
-    def write_visibility(self):
-        """
-        Write the field-of-view visibility mask to the observation tensor.
-
-        This method creates a circular visibility mask based on the field-of-view radius
-        and writes it to the VISIBILITY channel. The mask indicates which cells are
-        currently visible to the agent within its observation range.
-        """
-        S = 2 * self.config.R + 1
-        vis = make_disk_mask(
-            S,
-            min(self.config.fov_radius, self.config.R),
-            device=self.config.device,
-            dtype=self.config.torch_dtype,
-        )
-        self.observation[Channel.VISIBILITY] = vis
-
-    # ------------------------
-    # Writers (egocentric)
-    # ------------------------
-    def write_self(self, hp01: float):
-        """
-        Write the agent's own health information to the center of the observation.
-
-        Args:
-            hp01: Health value normalized to [0, 1] range, where 1.0 is full health
-        """
-        # center pixel only
-        R = self.config.R
-        self.observation[Channel.SELF_HP, R, R] = float(hp01)
-
-    def write_points_with_values(
-        self, ch_name: str, rel_points: List[Tuple[int, int]], values: List[float]
-    ):
-        """
-        Write values to specific points in a channel relative to the agent's position.
-
-        This method writes values to the observation tensor at specified relative positions.
-        Points outside the observation window are ignored. If multiple values are written
-        to the same position, the maximum value is retained.
-
-        Args:
-            ch_name: Name of the channel to write to (must be a valid Channel enum value)
-            rel_points: List of (dy, dx) tuples representing positions relative to center
-                       where negative dy is up and negative dx is left
-            values: List of values to write, assumed to be in [0, 1] range
-        """
-        ch = getattr(Channel, ch_name)
-        R = self.config.R
-        for (dy, dx), val in zip(rel_points, values):
-            y = R + dy
-            x = R + dx
-            if 0 <= y < 2 * R + 1 and 0 <= x < 2 * R + 1:
-                self.observation[ch, y, x] = max(
-                    self.observation[ch, y, x].item(), float(val)
-                )
-
-    def write_binary_points(
-        self, ch_name: str, rel_points: List[Tuple[int, int]], value: float = 1.0
-    ):
-        """
-        Write a constant value to multiple points in a channel.
-
-        This is a convenience method that writes the same value to all specified points.
-        It's equivalent to calling write_points_with_values with a list of identical values.
-
-        Args:
-            ch_name: Name of the channel to write to (must be a valid Channel enum value)
-            rel_points: List of (dy, dx) tuples representing positions relative to center
-            value: Value to write to all points (default: 1.0)
-        """
-        self.write_points_with_values(ch_name, rel_points, [value] * len(rel_points))
-
-    def write_goal(self, rel_goal: Optional[Tuple[int, int]]):
-        """
-        Write the goal position to the observation tensor.
-
-        Args:
-            rel_goal: Tuple of (dy, dx) representing goal position relative to agent center,
-                     or None if no goal is set
-        """
-        if rel_goal is None:
-            return
-        R = self.config.R
-        gy = R + rel_goal[0]
-        gx = R + rel_goal[1]
-        if 0 <= gy < 2 * R + 1 and 0 <= gx < 2 * R + 1:
-            self.observation[Channel.GOAL, gy, gx] = 1.0
+        self.registry.clear_instant(self.observation)
 
     def update_known_empty(self):
         """
@@ -445,16 +328,27 @@ class AgentObservation:
         The known empty information persists across ticks and decays over time.
         """
         # known_empty = known_empty ∪ (visible & empty_of_all_entities)
-        visible = self.observation[Channel.VISIBILITY]
-        # Cells considered "non-empty" if any of these layers have mass at that cell:
-        entity_like = (
-            self.observation[Channel.ALLIES_HP]
-            + self.observation[Channel.ENEMIES_HP]
-            + self.observation[Channel.RESOURCES]
-            + self.observation[Channel.OBSTACLES]
-        )
-        empty_visible = (visible > 0.5) & (entity_like <= 1e-6)
-        self.observation[Channel.KNOWN_EMPTY][empty_visible] = 1.0
+        try:
+            visibility_idx = self.registry.get_index("VISIBILITY")
+            known_empty_idx = self.registry.get_index("KNOWN_EMPTY")
+            allies_idx = self.registry.get_index("ALLIES_HP")
+            enemies_idx = self.registry.get_index("ENEMIES_HP")
+            resources_idx = self.registry.get_index("RESOURCES")
+            obstacles_idx = self.registry.get_index("OBSTACLES")
+
+            visible = self.observation[visibility_idx]
+            # Cells considered "non-empty" if any of these layers have mass at that cell:
+            entity_like = (
+                self.observation[allies_idx]
+                + self.observation[enemies_idx]
+                + self.observation[resources_idx]
+                + self.observation[obstacles_idx]
+            )
+            empty_visible = (visible > 0.5) & (entity_like <= 1e-6)
+            self.observation[known_empty_idx][empty_visible] = 1.0
+        except KeyError:
+            # If any required channels are missing, skip the update
+            pass
 
     # ------------------------
     # World → egocentric pass
@@ -478,6 +372,7 @@ class AgentObservation:
         trails_world_points: Optional[
             List[Tuple[int, int, float]]
         ] = None,  # you can also auto-add from seen agents
+        **kwargs,  # Additional data for custom channels
     ):
         """
         Perform a complete observation update for one simulation tick.
@@ -506,70 +401,97 @@ class AgentObservation:
         """
         self.decay_dynamics()
         self.clear_instant()
-        self.write_visibility()
 
-        # Self
-        self.write_self(self_hp01)
+        # Process all channels using their registered handlers
+        kwargs_for_handlers = {
+            "world_layers": world_layers,
+            "self_hp01": self_hp01,
+            "allies": allies,
+            "enemies": enemies,
+            "goal_world_pos": goal_world_pos,
+            "recent_damage_world": recent_damage_world,
+            "ally_signals_world": ally_signals_world,
+            "trails_world_points": trails_world_points,
+            **kwargs,  # Include any additional custom channel data
+        }
 
-        # World layers (resources/obstacles/terrain): convert world → egocentric crop, mask by VISIBILITY if desired
-        R = self.config.R
-        for name in ("RESOURCES", "OBSTACLES", "TERRAIN_COST"):
-            if name in world_layers:
-                crop = crop_egocentric(
-                    world_layers[name], agent_world_pos, R, pad_val=0.0
-                )
-                # OPTIONAL: enforce strict partial observability now
-                # crop *= self.obs[Channel.VISIBILITY]
-                self.observation[getattr(Channel, name)].copy_(crop)
+        for name, handler in self.registry.get_all_handlers().items():
+            channel_idx = self.registry.get_index(name)
+            handler.process(
+                self.observation,
+                channel_idx,
+                self.config,
+                agent_world_pos,
+                **kwargs_for_handlers,
+            )
 
-        # Allies / Enemies projected as relative offsets
-        ay, ax = agent_world_pos
-
-        def to_rel(points: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
-            return [(py - ay, px - ax) for (py, px) in points]
-
-        if allies:
-            rel_xy = to_rel([(y, x) for (y, x, _) in allies])
-            vals = [float(h) for (_, _, h) in allies]
-            self.write_points_with_values("ALLIES_HP", rel_xy, vals)
-
-        if enemies:
-            rel_xy = to_rel([(y, x) for (y, x, _) in enemies])
-            vals = [float(h) for (_, _, h) in enemies]
-            self.write_points_with_values("ENEMIES_HP", rel_xy, vals)
-
-        # Damage heat (transient)
-        if recent_damage_world:
-            rel_xy = to_rel([(y, x) for (y, x, _) in recent_damage_world])
-            vals = [float(v) for (_, _, v) in recent_damage_world]
-            self.write_points_with_values("DAMAGE_HEAT", rel_xy, vals)
-
-        # Ally signals
-        if ally_signals_world:
-            rel_xy = to_rel([(y, x) for (y, x, _) in ally_signals_world])
-            vals = [float(v) for (_, _, v) in ally_signals_world]
-            self.write_points_with_values("ALLY_SIGNAL", rel_xy, vals)
-
-        # Trails
-        if trails_world_points:
-            rel_xy = to_rel([(y, x) for (y, x, _) in trails_world_points])
-            vals = [float(v) for (_, _, v) in trails_world_points]
-            self.write_points_with_values("TRAILS", rel_xy, vals)
-
-        # Known-empty update (uses VISIBILITY + entity presence)
+        # Known-empty update (special case that depends on other channels)
         self.update_known_empty()
 
-        # Goal projection
-        if goal_world_pos is not None:
-            gy, gx = goal_world_pos
-            self.write_goal((gy - ay, gx - ax))
+    # ------------------------
+    # Backward compatibility methods
+    # ------------------------
+    def write_visibility(self):
+        """Write the field-of-view visibility mask (backward compatibility)."""
+        handler = self.registry.get_handler("VISIBILITY")
+        channel_idx = self.registry.get_index("VISIBILITY")
+        handler.process(self.observation, channel_idx, self.config, (0, 0))
+
+    def write_self(self, hp01: float):
+        """Write agent's own health information (backward compatibility)."""
+        handler = self.registry.get_handler("SELF_HP")
+        channel_idx = self.registry.get_index("SELF_HP")
+        handler.process(
+            self.observation, channel_idx, self.config, (0, 0), self_hp01=hp01
+        )
+
+    def write_points_with_values(
+        self, ch_name: str, rel_points: List[Tuple[int, int]], values: List[float]
+    ):
+        """Write values to specific points (backward compatibility)."""
+        try:
+            ch_idx = self.registry.get_index(ch_name)
+        except KeyError:
+            # Fallback to Channel enum for backward compatibility
+            ch_idx = getattr(Channel, ch_name)
+
+        R = self.config.R
+        for (dy, dx), val in zip(rel_points, values):
+            y = R + dy
+            x = R + dx
+            if 0 <= y < 2 * R + 1 and 0 <= x < 2 * R + 1:
+                self.observation[ch_idx, y, x] = max(
+                    self.observation[ch_idx, y, x].item(), float(val)
+                )
+
+    def write_binary_points(
+        self, ch_name: str, rel_points: List[Tuple[int, int]], value: float = 1.0
+    ):
+        """Write constant value to multiple points (backward compatibility)."""
+        self.write_points_with_values(ch_name, rel_points, [value] * len(rel_points))
+
+    def write_goal(self, rel_goal: Optional[Tuple[int, int]]):
+        """Write goal position (backward compatibility)."""
+        if rel_goal is None:
+            return
+        handler = self.registry.get_handler("GOAL")
+        channel_idx = self.registry.get_index("GOAL")
+        # Convert relative position to world position for handler
+        # This is a bit of a hack since we don't know the actual agent world pos
+        handler.process(
+            self.observation,
+            channel_idx,
+            self.config,
+            (0, 0),
+            goal_world_pos=rel_goal,  # Pass relative as if it were world pos
+        )
 
     def tensor(self) -> torch.Tensor:
         """
         Get the current observation tensor.
 
         Returns:
-            torch.Tensor: Multi-channel observation tensor of shape (NUM_CHANNELS, 2R+1, 2R+1)
+            torch.Tensor: Multi-channel observation tensor of shape (num_channels, 2R+1, 2R+1)
                          representing the agent's current view of the world
         """
         return self.observation
