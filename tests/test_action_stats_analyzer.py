@@ -144,7 +144,7 @@ class TestActionStatsAnalyzer(unittest.TestCase):
         self.repository.get_actions_by_scope.return_value = self.test_actions
 
         # Act
-        agent_results = self.analyzer.analyze(scope=AnalysisScope.AGENT, agent_id=1)
+        agent_results = self.analyzer.analyze(scope=AnalysisScope.AGENT, agent_id="1")
         step_results = self.analyzer.analyze(scope=AnalysisScope.STEP, step=1)
 
         # Assert
