@@ -986,6 +986,8 @@ class Environment(AECEnv):
             recent_damage_world=[],  # TODO: Implement if needed
             ally_signals_world=[],  # TODO: Implement if needed
             trails_world_points=[],  # TODO: Implement if needed
+            spatial_index=self.spatial_index,
+            agent_object=agent,
         )
 
         tensor = obs.tensor().cpu().numpy()
