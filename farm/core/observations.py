@@ -69,8 +69,12 @@ from typing import Dict, List, Optional, Tuple
 import torch
 import torch.nn.functional as F
 from pydantic import BaseModel, Field, field_validator
+import logging
 
 from farm.core.channels import NUM_CHANNELS, Channel, get_channel_registry
+
+
+logger = logging.getLogger(__name__)
 
 
 class ObservationConfig(BaseModel):
@@ -298,6 +302,65 @@ class AgentObservation:
             dtype=config.torch_dtype,
         )
 
+    def _compute_entities_from_spatial_index(
+        self,
+        spatial_index: Optional["SpatialIndex"],
+        agent_object: Optional[object],
+        agent_world_pos: Tuple[int, int],
+    ) -> Tuple[List[Tuple[int, int, float]], List[Tuple[int, int, float]]]:
+        """Compute allies and enemies using the provided spatial index.
+
+        Returns (allies, enemies) lists of tuples (y, x, hp01).
+        """
+        if spatial_index is None or agent_object is None:
+            return ([], [])
+
+        ay, ax = agent_world_pos
+        query_position_xy = (float(ax), float(ay))
+        radius = float(self.config.fov_radius)
+
+        try:
+            nearby_agents = spatial_index.get_nearby_agents(query_position_xy, radius)
+        except Exception as e:  # pragma: no cover - defensive only
+            logger.exception(
+                "Error in spatial_index.get_nearby_agents; defaulting to empty list"
+            )
+            nearby_agents = []
+
+        computed_allies: List[Tuple[int, int, float]] = []
+        computed_enemies: List[Tuple[int, int, float]] = []
+        agent_cls = type(agent_object)
+        for other in nearby_agents:
+            if other is agent_object or not getattr(other, "alive", False):
+                continue
+
+            position = getattr(other, "position", None)
+            if (
+                position is None
+                or not isinstance(position, (list, tuple))
+                or len(position) < 2
+            ):
+                # Skip invalid positions
+                continue
+
+            ny = int(round(position[1]))
+            nx = int(round(position[0]))
+
+            starting_health = getattr(other, "starting_health", 0)
+            current_health = getattr(other, "current_health", 0)
+            hp01 = (
+                float(current_health) / float(starting_health)
+                if starting_health and starting_health > 0
+                else 0.0
+            )
+
+            if isinstance(other, agent_cls):
+                computed_allies.append((ny, nx, hp01))
+            else:
+                computed_enemies.append((ny, nx, hp01))
+
+        return (computed_allies, computed_enemies)
+
     def decay_dynamics(self):
         """
         Apply decay factors to dynamic observation channels.
@@ -360,9 +423,9 @@ class AgentObservation:
         ],  # world tensors: ("RESOURCES","OBSTACLES","TERRAIN_COST", optional others) shape (H,W), 0..1
         agent_world_pos: Tuple[int, int],  # (y,x) in world coordinates
         self_hp01: float,
-        allies: List[Tuple[int, int, float]],  # (y,x,hp01)
-        enemies: List[Tuple[int, int, float]],  # (y,x,hp01)
-        goal_world_pos: Optional[Tuple[int, int]],  # (y,x) or None
+        allies: Optional[List[Tuple[int, int, float]]] = None,  # (y,x,hp01)
+        enemies: Optional[List[Tuple[int, int, float]]] = None,  # (y,x,hp01)
+        goal_world_pos: Optional[Tuple[int, int]] = None,  # (y,x) or None
         recent_damage_world: Optional[
             List[Tuple[int, int, float]]
         ] = None,  # events within last tick
@@ -372,6 +435,8 @@ class AgentObservation:
         trails_world_points: Optional[
             List[Tuple[int, int, float]]
         ] = None,  # you can also auto-add from seen agents
+        spatial_index: Optional["SpatialIndex"] = None,
+        agent_object: Optional[object] = None,
         **kwargs,  # Additional data for custom channels
     ):
         """
@@ -398,20 +463,36 @@ class AgentObservation:
             recent_damage_world: List of (y, x, intensity) tuples for recent damage events
             ally_signals_world: List of (y, x, intensity01) tuples for ally signals
             trails_world_points: List of (y, x, intensity) tuples for agent trails
+            spatial_index: Optional spatial index to derive entities efficiently
+            agent_object: Optional agent instance used to determine ally/enemy types
         """
         self.decay_dynamics()
         self.clear_instant()
+
+        # Optionally derive allies/enemies from spatial index if not provided
+        final_allies = allies
+        final_enemies = enemies
+        if (final_allies is None or final_enemies is None) and spatial_index is not None and agent_object is not None:
+            computed_allies, computed_enemies = self._compute_entities_from_spatial_index(
+                spatial_index, agent_object, agent_world_pos
+            )
+            if final_allies is None:
+                final_allies = computed_allies
+            if final_enemies is None:
+                final_enemies = computed_enemies
 
         # Process all channels using their registered handlers
         kwargs_for_handlers = {
             "world_layers": world_layers,
             "self_hp01": self_hp01,
-            "allies": allies,
-            "enemies": enemies,
+            "allies": final_allies or [],
+            "enemies": final_enemies or [],
             "goal_world_pos": goal_world_pos,
             "recent_damage_world": recent_damage_world,
             "ally_signals_world": ally_signals_world,
             "trails_world_points": trails_world_points,
+            "spatial_index": spatial_index,
+            "agent_object": agent_object,
             **kwargs,  # Include any additional custom channel data
         }
 
