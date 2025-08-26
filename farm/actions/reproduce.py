@@ -349,14 +349,16 @@ def _get_reproduce_state(agent: "BaseAgent") -> torch.Tensor:
     # Calculate local population density
     nearby_agents = [
         a
-        for a in agent.environment.agent_objects
+        for a in agent.environment._agent_objects.values()
         if a != agent
         and a.alive
         and np.sqrt(((np.array(a.position) - np.array(agent.position)) ** 2).sum())
         < config.ideal_density_radius
     ]
 
-    local_density = len(nearby_agents) / max(1, len(agent.environment.agent_objects))
+    local_density = len(nearby_agents) / max(
+        1, len(agent.environment._agent_objects.values())
+    )
 
     # Calculate resource availability in area
     nearby_resources = [

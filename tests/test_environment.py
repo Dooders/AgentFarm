@@ -80,14 +80,14 @@ class TestEnvironment(unittest.TestCase):
         if not self.env.agents:
             self.skipTest("No agents in environment")
         agent = self.env.agents[0]
-        obs_space = self.env.get_observation_space(agent)
+        obs_space = self.env.observation_space(agent)
         self.assertIsInstance(obs_space, spaces.Box)
         self.assertEqual(
             obs_space.shape, (12, 13, 13)
         )  # Default R=6, 2*6+1=13, NUM_CHANNELS=12
         self.assertEqual(obs_space.dtype, np.float32)
 
-        act_space = self.env.get_action_space(agent)
+        act_space = self.env.action_space(agent)
         self.assertIsInstance(act_space, spaces.Discrete)
         self.assertEqual(act_space.n, 6)  # With REPRODUCE
 

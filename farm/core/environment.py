@@ -23,7 +23,7 @@ from farm.database.utilities import setup_db
 from farm.utils.short_id import ShortUUID
 
 
-class Action(IntEnum):
+class Action(IntEnum):  # TODO: Move to actions.py
     DEFEND = 0
     ATTACK = 1
     GATHER = 2
@@ -273,7 +273,13 @@ class Environment(AECEnv):
 
             # Calculate and log metrics
             metrics = self._calculate_metrics()
-            self.update_metrics(metrics)
+            self.metrics_tracker.update_metrics(
+                metrics,
+                db=self.db,
+                time=self.time,
+                agent_objects=self._agent_objects,
+                resources=self.resources,
+            )
 
             # Update spatial index
             self.spatial_index.update()
@@ -292,142 +298,9 @@ class Environment(AECEnv):
 
     def _calculate_metrics(self):
         """Calculate various metrics for the current simulation state."""
-        #! resources_shared is now being calculated
-        try:
-            # Get alive agents
-            alive_agents = [
-                agent for agent in self._agent_objects.values() if agent.alive
-            ]
-            total_agents = len(alive_agents)
-
-            # Calculate agent type counts
-            system_agents = len([a for a in alive_agents if isinstance(a, SystemAgent)])
-            independent_agents = len(
-                [a for a in alive_agents if isinstance(a, IndependentAgent)]
-            )
-            control_agents = len(
-                [a for a in alive_agents if isinstance(a, ControlAgent)]
-            )
-
-            # Get metrics from tracker
-            tracker_metrics = self.metrics_tracker.get_step_metrics()
-            births = tracker_metrics["births"]
-            deaths = tracker_metrics["deaths"]
-
-            # Calculate generation metrics
-            current_max_generation = (
-                max([a.generation for a in alive_agents]) if alive_agents else 0
-            )
-
-            # Calculate health and age metrics
-            average_health = (
-                sum(a.current_health for a in alive_agents) / total_agents
-                if total_agents > 0
-                else 0
-            )
-            average_age = (
-                sum(self.time - a.birth_time for a in alive_agents) / total_agents
-                if total_agents > 0
-                else 0
-            )
-            average_reward = (
-                sum(a.total_reward for a in alive_agents) / total_agents
-                if total_agents > 0
-                else 0
-            )
-
-            # Calculate resource metrics
-            total_resources = sum(r.amount for r in self.resources)
-            average_agent_resources = (
-                sum(a.resource_level for a in alive_agents) / total_agents
-                if total_agents > 0
-                else 0
-            )
-            resource_efficiency = (
-                total_resources
-                / (
-                    len(self.resources)
-                    * (self.config.max_resource_amount if self.config else 30)
-                )
-                if self.resources
-                else 0
-            )
-
-            # Calculate genetic diversity
-            genome_counts = {}
-            for agent in alive_agents:
-                genome_counts[agent.genome_id] = (
-                    genome_counts.get(agent.genome_id, 0) + 1
-                )
-            genetic_diversity = (
-                len(genome_counts) / total_agents if total_agents > 0 else 0
-            )
-            dominant_genome_ratio = (
-                max(genome_counts.values()) / total_agents if genome_counts else 0
-            )
-
-            # Get combat and sharing metrics from tracker
-            combat_encounters = tracker_metrics["combat_encounters"]
-            successful_attacks = tracker_metrics["successful_attacks"]
-            resources_shared = tracker_metrics["resources_shared"]
-            resources_shared_this_step = tracker_metrics["resources_shared"]
-            combat_encounters_this_step = tracker_metrics["combat_encounters"]
-            successful_attacks_this_step = tracker_metrics["successful_attacks"]
-
-            # Calculate resource distribution entropy
-            resource_amounts = [r.amount for r in self.resources]
-            if resource_amounts:
-                total = sum(resource_amounts)
-                if total > 0:
-                    probabilities = [amt / total for amt in resource_amounts]
-                    resource_distribution_entropy = -sum(
-                        p * np.log(p) if p > 0 else 0 for p in probabilities
-                    )
-                else:
-                    resource_distribution_entropy = 0.0
-            else:
-                resource_distribution_entropy = 0.0
-
-            # Calculate resource consumption for this step
-            previous_resources = getattr(self, "previous_total_resources", 0)
-            current_resources = sum(r.amount for r in self.resources)
-            resources_consumed = max(0, previous_resources - current_resources)
-            self.previous_total_resources = current_resources
-
-            # Add births and deaths to metrics
-            metrics = {
-                "total_agents": total_agents,
-                "system_agents": system_agents,
-                "independent_agents": independent_agents,
-                "control_agents": control_agents,
-                "total_resources": total_resources,
-                "average_agent_resources": average_agent_resources,
-                "resources_consumed": resources_consumed,
-                "births": births,
-                "deaths": deaths,
-                "current_max_generation": current_max_generation,
-                "resource_efficiency": resource_efficiency,
-                "resource_distribution_entropy": resource_distribution_entropy,
-                "average_agent_health": average_health,
-                "average_agent_age": average_age,
-                "average_reward": average_reward,
-                "combat_encounters": combat_encounters,
-                "successful_attacks": successful_attacks,
-                "resources_shared": resources_shared,
-                "resources_shared_this_step": resources_shared_this_step,
-                "genetic_diversity": genetic_diversity,
-                "dominant_genome_ratio": dominant_genome_ratio,
-                "combat_encounters_this_step": combat_encounters_this_step,
-                "successful_attacks_this_step": successful_attacks_this_step,
-            }
-
-            # End step in tracker (resets step metrics and updates cumulative)
-            self.metrics_tracker.end_step()
-
-            return metrics
-        except Exception as e:
-            logging.error(f"Error calculating metrics: {e}")
-            return {}  # Return empty metrics on error
+        return self.metrics_tracker.calculate_metrics(
+            self._agent_objects, self.resources, self.time, self.config
+        )
 
     def get_next_agent_id(self):
         """Generate a unique short ID for an agent using environment's seed.
@@ -476,28 +349,6 @@ class Environment(AECEnv):
         """
         x, y = position
         return (0 <= x <= self.width) and (0 <= y <= self.height)
-
-    def _get_random_position(self):
-        """Generate a random position within the environment bounds.
-
-        Uses a seeded random number generator for deterministic behavior if a seed is available.
-
-        Returns
-        -------
-        tuple
-            A (x, y) coordinate tuple within the environment bounds.
-        """
-        if hasattr(self, "seed_value") and self.seed_value is not None:
-            # Create a separate random state to avoid affecting the global state
-            rng = random.Random(
-                self.seed_value + self.time
-            )  # Add current time to avoid same positions
-        else:
-            rng = random
-
-        x = rng.uniform(0, self.width)
-        y = rng.uniform(0, self.height)
-        return (x, y)
 
     def record_birth(self):
         """Record a birth event."""
@@ -572,79 +423,6 @@ class Environment(AECEnv):
         """Ensure cleanup on deletion."""
         self.cleanup()
 
-    def update_metrics(self, metrics: Dict):
-        """Update environment metrics and log to database.
-
-        Parameters
-        ----------
-        metrics : Dict
-            Dictionary containing metrics to update and log
-        """
-        try:
-            # Log metrics to database
-            if self.db:
-                self.db.logger.log_step(
-                    step_number=self.time,
-                    agent_states=[
-                        self._prepare_agent_state(agent)
-                        for agent in self._agent_objects.values()
-                        if agent.alive
-                    ],
-                    resource_states=[
-                        self._prepare_resource_state(resource)
-                        for resource in self.resources
-                    ],
-                    metrics=metrics,
-                )
-        except Exception as e:
-            logging.error(f"Error updating metrics: {e}")
-
-    def _prepare_agent_state(self, agent) -> tuple:
-        """Prepare agent state data for database logging.
-
-        Parameters
-        ----------
-        agent : BaseAgent
-            Agent to prepare state data for
-
-        Returns
-        -------
-        tuple
-            State data in format expected by database
-        """
-        return (
-            agent.agent_id,
-            agent.position[0],  # x coordinate
-            agent.position[1],  # y coordinate
-            agent.resource_level,
-            agent.current_health,
-            agent.starting_health,
-            agent.starvation_threshold,
-            int(agent.is_defending),
-            agent.total_reward,
-            self.time - agent.birth_time,  # age
-        )
-
-    def _prepare_resource_state(self, resource) -> tuple:
-        """Prepare resource state data for database logging.
-
-        Parameters
-        ----------
-        resource : Resource
-            Resource to prepare state data for
-
-        Returns
-        -------
-        tuple
-            State data in format expected by database
-        """
-        return (
-            resource.resource_id,
-            resource.amount,
-            resource.position[0],  # x coordinate
-            resource.position[1],  # y coordinate
-        )
-
     def action_space(self, agent=None):
         """Get the action space for an agent (PettingZoo API).
 
@@ -667,36 +445,6 @@ class Environment(AECEnv):
         ----------
         agent : str, optional
             Agent ID. If None, returns the general observation space.
-
-        Returns
-        -------
-        gymnasium.spaces.Box
-            The observation space defining the shape and bounds of observations.
-        """
-        return self._observation_space
-
-    def get_action_space(self, agent):
-        """Get the action space for an agent.
-
-        Parameters
-        ----------
-        agent : str
-            Agent identifier (unused but required by PettingZoo interface).
-
-        Returns
-        -------
-        gymnasium.spaces.Discrete
-            The action space containing all possible actions.
-        """
-        return self._action_space
-
-    def get_observation_space(self, agent):
-        """Get the observation space for an agent.
-
-        Parameters
-        ----------
-        agent : str
-            Agent identifier (unused but required by PettingZoo interface).
 
         Returns
         -------
@@ -742,9 +490,7 @@ class Environment(AECEnv):
 
     def _setup_action_space(self):
         """Setup the action space with all available actions."""
-        self._action_space = spaces.Discrete(
-            len(Action)
-        )  # Actions: DEFEND, ATTACK, GATHER, SHARE, MOVE, REPRODUCE
+        self._action_space = spaces.Discrete(len(Action))
 
     def get_initial_agent_count(self):
         """Calculate the number of initial agents (born at time 0) dynamically."""
@@ -757,6 +503,7 @@ class Environment(AECEnv):
         )
 
     def _create_initial_agents(self):
+        # TODO: Agents will be created outside the environment, so this is not needed.
         """Create and add initial agents to the environment based on configuration."""
         num_system = self.config.system_agents if self.config else 0
         num_independent = self.config.independent_agents if self.config else 0
@@ -812,6 +559,7 @@ class Environment(AECEnv):
             self.add_agent(agent)
 
     def _get_observation(self, agent_id):
+        # TODO Deprecate. The observation will come from the spatial index.
         """Generate an observation for a specific agent.
 
         Parameters
@@ -882,7 +630,7 @@ class Environment(AECEnv):
 
         self_hp01 = agent.current_health / agent.starting_health
 
-        obs = self.agent_observations[agent_id]
+        obs = self.agent_observations[agent_id]  #! What is this for?
         obs.perceive_world(
             world_layers=world_layers,
             agent_world_pos=(ay, ax),
@@ -982,6 +730,7 @@ class Environment(AECEnv):
         self.agent_selection = None
 
     def reset(self, *, seed=None, options=None):
+        # TODO: Reduce code duplication.
         """Reset the environment to its initial state.
 
         Parameters
