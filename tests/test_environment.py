@@ -73,6 +73,33 @@ class TestEnvironment(unittest.TestCase):
             db_path=":memory:",  # Use in-memory database for tests
         )
 
+        # Add a small set of agents explicitly (external agent management)
+        initial_agents = [
+            SystemAgent(
+                agent_id=self.env.get_next_agent_id(),
+                position=(10, 10),
+                resource_level=5,
+                environment=self.env,
+                generation=0,
+            ),
+            IndependentAgent(
+                agent_id=self.env.get_next_agent_id(),
+                position=(12, 12),
+                resource_level=5,
+                environment=self.env,
+                generation=0,
+            ),
+            ControlAgent(
+                agent_id=self.env.get_next_agent_id(),
+                position=(14, 14),
+                resource_level=5,
+                environment=self.env,
+                generation=0,
+            ),
+        ]
+        for a in initial_agents:
+            self.env.add_agent(a)
+
     def tearDown(self):
         if hasattr(self, "env") and self.env:
             self.env.cleanup()
