@@ -888,8 +888,9 @@ class TestNUM_CHANNELS(unittest.TestCase):
 
     def test_num_channels_value(self):
         """Test that NUM_CHANNELS has correct value."""
-        # Since we register core channels on import, it should be 12
-        self.assertEqual(NUM_CHANNELS, 12)
+        # Since we register core channels on import, it should be 13
+        # (includes the new LANDMARKS channel added for persistent landmarks)
+        self.assertEqual(NUM_CHANNELS, 13)
 
     def test_num_channels_matches_registry(self):
         """Test that NUM_CHANNELS matches the registry's num_channels."""
