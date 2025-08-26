@@ -19,7 +19,6 @@ from farm.core.observations import NUM_CHANNELS, AgentObservation, ObservationCo
 from farm.core.resource_manager import ResourceManager
 from farm.core.spatial_index import SpatialIndex
 from farm.core.state import EnvironmentState
-from farm.database.database import SimulationDatabase
 from farm.database.utilities import setup_db
 from farm.utils.short_id import ShortUUID
 
@@ -81,7 +80,6 @@ class Environment(AECEnv):
         self.max_steps = (
             config.max_steps if config and hasattr(config, "max_steps") else 1000
         )
-        self.agent_observations = {}  # Initialize agent observations dictionary
 
         # Initialize PettingZoo required attributes
         self.agent_selection = None
@@ -233,27 +231,6 @@ class Environment(AECEnv):
         self.spatial_index.mark_positions_dirty()  # Mark positions as dirty when agent is removed
         if agent.agent_id in self.agent_observations:
             del self.agent_observations[agent.agent_id]
-
-    def collect_action(self, **action_data):
-        """Collect an action for batch processing and database logging.
-
-        Parameters
-        ----------
-        **action_data : dict
-            Action data including step_number, agent_id, action_type, etc.
-        """
-
-        if self.db is not None:
-            self.db.logger.log_agent_action(
-                step_number=action_data["step_number"],
-                agent_id=action_data["agent_id"],
-                action_type=action_data["action_type"],
-                action_target_id=action_data.get("action_target_id"),
-                resources_before=action_data.get("resources_before"),
-                resources_after=action_data.get("resources_after"),
-                reward=action_data.get("reward"),
-                details=action_data.get("details"),
-            )
 
     def log_interaction_edge(
         self,
@@ -668,22 +645,6 @@ class Environment(AECEnv):
             resource.position[1],  # y coordinate
         )
 
-    #! part of context manager, commented out for now
-    # def register_active_context(self, agent: BaseAgent) -> None:
-    #     """Register an active agent context."""
-    #     with self._context_lock:
-    #         self._active_contexts.add(agent)
-
-    # def unregister_active_context(self, agent: BaseAgent) -> None:
-    #     """Unregister an active agent context."""
-    #     with self._context_lock:
-    #         self._active_contexts.discard(agent)
-
-    # def get_active_contexts(self) -> Set[BaseAgent]:
-    #     """Get currently active agent contexts."""
-    #     with self._context_lock:
-    #         return self._active_contexts.copy()
-
     def action_space(self, agent=None):
         """Get the action space for an agent (PettingZoo API).
 
@@ -953,12 +914,6 @@ class Environment(AECEnv):
 
         def defend_action(ag):
             ag.is_defending = True
-            self.collect_action(
-                step_number=self.time,
-                agent_id=ag.agent_id,
-                action_type="defend",
-                details="Set defending flag",
-            )
 
         action_map = {
             Action.DEFEND: defend_action,
