@@ -117,6 +117,7 @@ class Environment(AECEnv):
         config: Optional[Any] = None,
         simulation_id: Optional[str] = None,
         seed: Optional[int] = None,
+        agents: Optional[List[Any]] = None,
     ) -> None:
         """Initialize the AgentFarm environment.
 
@@ -233,14 +234,19 @@ class Environment(AECEnv):
         # Add action space setup call:
         self._setup_action_space()
 
-        # Add call to create agents:
-        self._create_initial_agents()
-
+        # Initialize agent observations mapping before adding any agents
         self.agent_observations = {}
-        for agent in self.agent_objects:
-            self.agent_observations[agent.agent_id] = AgentObservation(
-                self.observation_config
-            )
+
+        # If pre-instantiated agents are provided, add them now
+        if agents:
+            for agent in agents:
+                self.add_agent(agent)
+
+        # Update spatial index references now that resources and agents are initialized
+        self.spatial_index.set_references(
+            list(self._agent_objects.values()), self.resources
+        )
+        self.spatial_index.update()
 
     @property
     def agent_objects(self) -> List[Any]:
@@ -811,79 +817,7 @@ class Environment(AECEnv):
             ]
         )
 
-    def _create_initial_agents(self) -> None:
-        """Create and add initial agents to the environment based on configuration.
-
-        Creates the starting population of agents according to the configuration
-        settings. Supports multiple agent types (SystemAgent, IndependentAgent,
-        ControlAgent) with randomized initial positions and default attributes.
-
-        Notes
-        -----
-        TODO: Agents will be created outside the environment, so this is not needed.
-
-        This method:
-        - Reads agent counts from config (system_agents, independent_agents, control_agents)
-        - Creates agents with random positions within environment bounds
-        - Uses deterministic randomization if seed is set
-        - Adds each agent to the environment with default starting resources
-        - Sets generation to 0 for all initial agents
-
-        Agent positioning uses uniform random distribution within the environment
-        bounds. All agents start with resource_level=1 and generation=0.
-        """
-        num_system = self.config.system_agents if self.config else 0
-        num_independent = self.config.independent_agents if self.config else 0
-        num_control = (
-            self.config.control_agents if self.config else 1
-        )  # At least one for RL
-
-        if self.seed_value is not None:
-            rng = random.Random(self.seed_value)
-        else:
-            rng = random
-
-        for _ in range(num_system):
-            position = (
-                int(rng.uniform(0, self.width)),
-                int(rng.uniform(0, self.height)),
-            )
-            agent = SystemAgent(
-                agent_id=self.get_next_agent_id(),
-                position=position,
-                resource_level=1,
-                environment=self,
-                generation=0,
-            )
-            self.add_agent(agent)
-
-        for _ in range(num_independent):
-            position = (
-                int(rng.uniform(0, self.width)),
-                int(rng.uniform(0, self.height)),
-            )
-            agent = IndependentAgent(
-                agent_id=self.get_next_agent_id(),
-                position=position,
-                resource_level=1,
-                environment=self,
-                generation=0,
-            )
-            self.add_agent(agent)
-
-        for _ in range(num_control):
-            position = (
-                int(rng.uniform(0, self.width)),
-                int(rng.uniform(0, self.height)),
-            )
-            agent = ControlAgent(
-                agent_id=self.get_next_agent_id(),
-                position=position,
-                resource_level=1,
-                environment=self,
-                generation=0,
-            )
-            self.add_agent(agent)
+    # _create_initial_agents removed: agents should be created outside the environment
 
     def _get_observation(self, agent_id: str) -> np.ndarray:
         """Generate an observation for a specific agent.
@@ -1155,9 +1089,7 @@ class Environment(AECEnv):
         self.resources = []
         self.initialize_resources(self.resource_distribution)
 
-        self._agent_objects = {}
-        self._create_initial_agents()
-
+        # Do not recreate agents. Preserve externally managed agents and refresh observations
         self.agent_observations = {}
         for agent in self._agent_objects.values():
             self.agent_observations[agent.agent_id] = AgentObservation(
