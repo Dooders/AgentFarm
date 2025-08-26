@@ -140,7 +140,7 @@ class ChannelHandler(ABC):
 
         Args:
             observation: The full observation tensor with shape (NUM_CHANNELS, 2R+1, 2R+1)
-                        where R is the observation radius. This tensor is egocentric
+                        where R is the observation radius. This tensor is local
                         (centered on the agent's position).
             channel_idx: Index of this channel in the observation tensor
             config: Observation configuration containing parameters like R (radius),
@@ -555,7 +555,7 @@ class WorldLayerHandler(ChannelHandler):
     Base handler for world layer data (resources, obstacles, terrain cost).
 
     This handler processes world layer data by cropping it to the agent's
-    egocentric view and copying it directly to the observation channel.
+    local view and copying it directly to the observation channel.
     World layers represent static environmental information.
 
     Data source: world_layers dict from kwargs
@@ -597,13 +597,11 @@ class WorldLayerHandler(ChannelHandler):
             return
 
         from farm.core.observations import (
-            crop_egocentric,
+            crop_local,
         )  # Import here to avoid circular import
 
         R = config.R
-        crop = crop_egocentric(
-            world_layers[self.layer_key], agent_world_pos, R, pad_val=0.0
-        )
+        crop = crop_local(world_layers[self.layer_key], agent_world_pos, R, pad_val=0.0)
         observation[channel_idx].copy_(crop)
 
 

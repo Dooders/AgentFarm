@@ -601,7 +601,7 @@ class TestWorldLayerHandler(unittest.TestCase):
         # Mock world layer data
         world_layers = {"TEST_LAYER": torch.ones(20, 20)}  # 20x20 world layer
 
-        with patch("farm.core.observations.crop_egocentric") as mock_crop:
+        with patch("farm.core.observations.crop_local") as mock_crop:
             mock_crop.return_value = torch.full((11, 11), 0.5)
 
             self.handler.process(
@@ -612,7 +612,7 @@ class TestWorldLayerHandler(unittest.TestCase):
                 world_layers=world_layers,
             )
 
-            # Check that crop_egocentric was called correctly
+            # Check that crop_local was called correctly
             mock_crop.assert_called_once()
             args = mock_crop.call_args[0]
             self.assertEqual(args[1], agent_world_pos)  # agent_world_pos

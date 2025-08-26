@@ -80,9 +80,9 @@ class WorldLayerChannel(ChannelHandler):
     def process(self, observation, channel_idx, config, agent_world_pos, **kwargs):
         world_layers = kwargs.get("world_layers", {})
         if self.layer_key in world_layers:
-            from farm.core.observations import crop_egocentric
+            from farm.core.observations import crop_local
             R = config.R
-            crop = crop_egocentric(world_layers[self.layer_key], agent_world_pos, R)
+            crop = crop_local(world_layers[self.layer_key], agent_world_pos, R)
             observation[channel_idx].copy_(crop)
 
 # Register for elevation data
