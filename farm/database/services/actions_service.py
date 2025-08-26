@@ -120,10 +120,9 @@ class ActionsService:
         # Behavioral clustering
         if "behavior" in analysis_types:
             behavior_agent_id = str(agent_id) if agent_id is not None else None
-            behavior_step = step if step is not None else 0
-            behavior_step_range = step_range if step_range is not None else ()
-            # Type: ignore because analyzer has incorrect type annotation (should be Optional[str])
-            results["behavior_clusters"] = self.behavior_analyzer.analyze(scope, behavior_agent_id, behavior_step, behavior_step_range)  # type: ignore
+            results["behavior_clusters"] = self.behavior_analyzer.analyze(
+                scope, behavior_agent_id, step, step_range
+            )
 
         # Causal analysis
         if "causal" in analysis_types:
@@ -181,7 +180,7 @@ class ActionsService:
             List[str]: List of unique action types
         """
         actions = self.action_repository.get_actions_by_scope(
-            scope, agent_id, step, step_range
+            scope, str(agent_id) if agent_id is not None else None, step, step_range
         )
         return list(set(action.action_type for action in actions))
 
