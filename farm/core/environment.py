@@ -21,7 +21,7 @@ training and evaluation.
 import logging
 import random
 from enum import IntEnum
-from typing import Dict
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -108,15 +108,15 @@ class Environment(AECEnv):
 
     def __init__(
         self,
-        width,
-        height,
-        resource_distribution,
-        db_path="simulation.db",
-        max_resource=None,
-        config=None,
-        simulation_id=None,
-        seed=None,
-    ):
+        width: int,
+        height: int,
+        resource_distribution: Union[Dict[str, Any], Callable],
+        db_path: str = "simulation.db",
+        max_resource: Optional[float] = None,
+        config: Optional[Any] = None,
+        simulation_id: Optional[str] = None,
+        seed: Optional[int] = None,
+    ) -> None:
         """Initialize the AgentFarm environment.
 
         Creates a new simulation environment with specified dimensions and
@@ -242,15 +242,17 @@ class Environment(AECEnv):
             )
 
     @property
-    def agent_objects(self):
+    def agent_objects(self) -> List[Any]:
         """Backward compatibility property to get all agent objects as a list."""
         return list(self._agent_objects.values())
 
-    def mark_positions_dirty(self):
+    def mark_positions_dirty(self) -> None:
         """Public method for agents to mark positions as dirty when they move."""
         self.spatial_index.mark_positions_dirty()
 
-    def get_nearby_agents(self, position, radius):
+    def get_nearby_agents(
+        self, position: Tuple[float, float], radius: float
+    ) -> List[Any]:
         """Find all agents within radius of position.
 
         Parameters
@@ -267,7 +269,9 @@ class Environment(AECEnv):
         """
         return self.spatial_index.get_nearby_agents(position, radius)
 
-    def get_nearby_resources(self, position, radius):
+    def get_nearby_resources(
+        self, position: Tuple[float, float], radius: float
+    ) -> List[Any]:
         """Find all resources within radius of position.
 
         Parameters
@@ -285,7 +289,7 @@ class Environment(AECEnv):
         # Use spatial index for efficient O(log n) queries
         return self.spatial_index.get_nearby_resources(position, radius)
 
-    def get_nearest_resource(self, position):
+    def get_nearest_resource(self, position: Tuple[float, float]) -> Optional[Any]:
         """Find nearest resource to position.
 
         Parameters
@@ -301,7 +305,7 @@ class Environment(AECEnv):
         # Use spatial index for efficient O(log n) queries
         return self.spatial_index.get_nearest_resource(position)
 
-    def get_next_resource_id(self):
+    def get_next_resource_id(self) -> int:
         """Generate the next unique resource ID.
 
         Returns a monotonically increasing integer ID for new resources
@@ -316,7 +320,7 @@ class Environment(AECEnv):
         self.next_resource_id += 1
         return resource_id
 
-    def consume_resource(self, resource, amount):
+    def consume_resource(self, resource: Any, amount: float) -> float:
         """Consume resources from a specific resource node.
 
         Parameters
@@ -333,7 +337,9 @@ class Environment(AECEnv):
         """
         return self.resource_manager.consume_resource(resource, amount)
 
-    def initialize_resources(self, distribution):
+    def initialize_resources(
+        self, distribution: Union[Dict[str, Any], Callable]
+    ) -> None:
         """Initialize resources in the environment using ResourceManager.
 
         Creates initial resource nodes based on the provided distribution
@@ -362,7 +368,7 @@ class Environment(AECEnv):
         # Update next_resource_id to match ResourceManager
         self.next_resource_id = self.resource_manager.next_resource_id
 
-    def remove_agent(self, agent):
+    def remove_agent(self, agent: Any) -> None:
         """Remove an agent from the environment.
 
         Handles complete agent removal including death recording, cleanup of
@@ -394,14 +400,14 @@ class Environment(AECEnv):
 
     def log_interaction_edge(
         self,
-        source_type,
-        source_id,
-        target_type,
-        target_id,
-        interaction_type,
-        action_type=None,
-        details=None,
-    ):
+        source_type: str,
+        source_id: Union[str, int],
+        target_type: str,
+        target_id: Union[str, int],
+        interaction_type: str,
+        action_type: Optional[str] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """Log an interaction as an edge between nodes if database is enabled.
 
         Records interactions between agents and other entities (agents, resources)
@@ -446,7 +452,7 @@ class Environment(AECEnv):
         except Exception as e:
             logger.error(f"Failed to log interaction edge: {e}")
 
-    def update(self):
+    def update(self) -> None:
         """Update environment state for current time step.
 
         Performs a full environment update including resource regeneration,
@@ -506,7 +512,7 @@ class Environment(AECEnv):
             logging.error(f"Error in environment update: {e}")
             raise
 
-    def _calculate_metrics(self):
+    def _calculate_metrics(self) -> Dict[str, Any]:
         """Calculate various metrics for the current simulation state.
 
         Computes comprehensive metrics about the current state of the simulation
@@ -534,7 +540,7 @@ class Environment(AECEnv):
             self._agent_objects, self.resources, self.time, self.config
         )
 
-    def get_next_agent_id(self):
+    def get_next_agent_id(self) -> str:
         """Generate a unique short ID for an agent using environment's seed.
 
         Returns
@@ -566,7 +572,7 @@ class Environment(AECEnv):
         """Get current environment state."""
         return EnvironmentState.from_environment(self)
 
-    def is_valid_position(self, position):
+    def is_valid_position(self, position: Tuple[float, float]) -> bool:
         """Check if a position is valid within the environment bounds.
 
         Parameters
@@ -582,34 +588,34 @@ class Environment(AECEnv):
         x, y = position
         return (0 <= x <= self.width) and (0 <= y <= self.height)
 
-    def record_birth(self):
+    def record_birth(self) -> None:
         """Record a birth event."""
         self.metrics_tracker.record_birth()
 
-    def record_death(self):
+    def record_death(self) -> None:
         """Record a death event."""
         self.metrics_tracker.record_death()
 
-    def record_combat_encounter(self):
+    def record_combat_encounter(self) -> None:
         """Record a combat encounter."""
         self.metrics_tracker.record_combat_encounter()
 
-    def record_successful_attack(self):
+    def record_successful_attack(self) -> None:
         """Record a successful attack."""
         self.metrics_tracker.record_successful_attack()
 
-    def record_resources_shared(self, amount: float):
+    def record_resources_shared(self, amount: float) -> None:
         """Record resources shared between agents."""
         self.metrics_tracker.record_resources_shared(amount)
         self.resources_shared += amount
         self.resources_shared_this_step += amount
 
-    def close(self):
+    def close(self) -> None:
         """Clean up environment resources."""
         if hasattr(self, "db") and self.db is not None:
             self.db.close()
 
-    def add_agent(self, agent):
+    def add_agent(self, agent: Any) -> None:
         """Add an agent to the environment with efficient database logging.
 
         Registers a new agent in the environment, adding it to internal tracking
@@ -666,7 +672,7 @@ class Environment(AECEnv):
             self.observation_config
         )
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """Clean up environment resources.
 
         Properly closes database connections and flushes any pending data
@@ -692,7 +698,7 @@ class Environment(AECEnv):
         except Exception as e:
             logger.error(f"Error during environment cleanup: {str(e)}")
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Ensure cleanup on deletion.
 
         Destructor that calls cleanup() to ensure proper resource cleanup
@@ -707,7 +713,7 @@ class Environment(AECEnv):
         """
         self.cleanup()
 
-    def action_space(self, agent=None):
+    def action_space(self, agent: Optional[str] = None) -> spaces.Discrete:
         """Get the action space for an agent (PettingZoo API).
 
         Parameters
@@ -722,7 +728,7 @@ class Environment(AECEnv):
         """
         return self._action_space
 
-    def observation_space(self, agent=None):
+    def observation_space(self, agent: Optional[str] = None) -> spaces.Box:
         """Get the observation space for an agent (PettingZoo API).
 
         Parameters
@@ -737,7 +743,7 @@ class Environment(AECEnv):
         """
         return self._observation_space
 
-    def observe(self, agent):
+    def observe(self, agent: str) -> np.ndarray:
         """Returns the observation an agent currently can make.
 
         Required by PettingZoo API.
@@ -754,7 +760,7 @@ class Environment(AECEnv):
         """
         return self._get_observation(agent)
 
-    def _setup_observation_space(self, config):
+    def _setup_observation_space(self, config: Optional[Any]) -> None:
         """Setup the observation space based on configuration.
 
         Parameters
@@ -772,11 +778,11 @@ class Environment(AECEnv):
             low=0.0, high=1.0, shape=(NUM_CHANNELS, S, S), dtype=np_dtype
         )
 
-    def _setup_action_space(self):
+    def _setup_action_space(self) -> None:
         """Setup the action space with all available actions."""
         self._action_space = spaces.Discrete(len(Action))
 
-    def get_initial_agent_count(self):
+    def get_initial_agent_count(self) -> int:
         """Calculate the number of initial agents (born at time 0) dynamically.
 
         Counts how many agents were present at the start of the simulation
@@ -804,7 +810,7 @@ class Environment(AECEnv):
             ]
         )
 
-    def _create_initial_agents(self):
+    def _create_initial_agents(self) -> None:
         """Create and add initial agents to the environment based on configuration.
 
         Creates the starting population of agents according to the configuration
@@ -878,7 +884,7 @@ class Environment(AECEnv):
             )
             self.add_agent(agent)
 
-    def _get_observation(self, agent_id):
+    def _get_observation(self, agent_id: str) -> np.ndarray:
         """Generate an observation for a specific agent.
 
         Creates a multi-channel observation tensor containing information about
@@ -984,7 +990,7 @@ class Environment(AECEnv):
         tensor = obs.tensor().cpu().numpy()
         return tensor
 
-    def _process_action(self, agent_id, action):
+    def _process_action(self, agent_id: str, action: Optional[int]) -> None:
         """Process an action for a specific agent.
 
         Executes the specified action for the given agent by calling the
@@ -1013,7 +1019,7 @@ class Environment(AECEnv):
         effects, and side effects like resource transfer or combat.
         """
         agent = self._agent_objects.get(agent_id)
-        if agent is None or not agent.alive:
+        if agent is None or not agent.alive or action is None:
             return
 
         def defend_action(ag):
@@ -1028,13 +1034,13 @@ class Environment(AECEnv):
             Action.REPRODUCE: reproduce_action,
         }
 
-        func = action_map.get(action)
+        func = action_map.get(Action(action))
         if func:
             func(agent)
         else:
             logging.warning(f"Invalid action {action} for agent {agent_id}")
 
-    def _calculate_reward(self, agent_id):
+    def _calculate_reward(self, agent_id: str) -> float:
         """Calculate the reward for a specific agent.
 
         Computes a reward signal for reinforcement learning based on the agent's
@@ -1080,7 +1086,7 @@ class Environment(AECEnv):
 
         return reward
 
-    def _next_agent(self):
+    def _next_agent(self) -> None:
         """Select the next agent to act in the environment.
 
         Implements the Agent-Environment-Cycle (AEC) pattern by selecting the
@@ -1116,7 +1122,9 @@ class Environment(AECEnv):
                 return
         self.agent_selection = None
 
-    def reset(self, *, seed=None, options=None):
+    def reset(
+        self, *, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None
+    ) -> Tuple[np.ndarray, Dict[str, Any]]:
         # TODO: Reduce code duplication.
         """Reset the environment to its initial state.
 
@@ -1179,7 +1187,9 @@ class Environment(AECEnv):
 
         return self.observations[self.agent_selection], self.infos[self.agent_selection]
 
-    def step(self, action=None) -> tuple[np.ndarray, float, bool, bool, dict]:
+    def step(
+        self, action: Optional[int] = None
+    ) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
         """Execute one step in the environment for the currently selected agent.
 
         Parameters
@@ -1254,7 +1264,7 @@ class Environment(AECEnv):
 
         return observation, reward, terminated, truncated, {}
 
-    def render(self, mode="human"):
+    def render(self, mode: str = "human") -> None:
         """Render the current state of the environment.
 
         Parameters

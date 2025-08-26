@@ -1,6 +1,6 @@
 import logging
 import random
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -87,7 +87,9 @@ class ResourceManager:
         if self.spatial_index is not None:
             self.spatial_index.mark_positions_dirty()
 
-    def initialize_resources(self, distribution: Dict) -> List[Resource]:
+    def initialize_resources(
+        self, distribution: Union[Dict[str, Any], Callable]
+    ) -> List[Resource]:
         """
         Initialize resources in the environment using the same logic as the original Environment.
 
@@ -102,7 +104,7 @@ class ResourceManager:
             List of created resources
         """
         # Check if distribution has amount, otherwise use config.initial_resources
-        if distribution and "amount" in distribution:
+        if distribution and isinstance(distribution, dict) and "amount" in distribution:
             amount = distribution["amount"]
         else:
             amount = (
