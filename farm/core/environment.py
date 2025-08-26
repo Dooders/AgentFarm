@@ -14,6 +14,7 @@ from farm.actions.move import move_action
 from farm.actions.reproduce import reproduce_action
 from farm.actions.share import share_action
 from farm.agents import ControlAgent, IndependentAgent, SystemAgent
+from farm.core.metrics_tracker import MetricsTracker
 from farm.core.observations import NUM_CHANNELS, AgentObservation, ObservationConfig
 from farm.core.resource_manager import ResourceManager
 from farm.core.spatial_index import SpatialIndex
@@ -58,28 +59,19 @@ class Environment(AECEnv):
             random.seed(self.seed_value)
             np.random.seed(self.seed_value)
 
-        # Setup database and get potentially modified path
-        final_db_path = setup_db(db_path)
-
         # Initialize basic attributes
         self.width = width
         self.height = height
-        self.agent_objects = []
-        self.agents = []  # for PettingZoo
+        self.agents = []  # PettingZoo agents list (agent IDs)
+        self._agent_objects = {}  # Internal mapping: agent_id -> agent object
         self.resources = []
         self.time = 0
 
         # Store simulation ID
         self.simulation_id = simulation_id or ShortUUID().uuid()
 
-        # Only initialize database if db_path is provided (not for in-memory DB)
-        if final_db_path is not None:
-            self.db = SimulationDatabase(
-                final_db_path, simulation_id=self.simulation_id
-            )
-        else:
-            # Will be set to InMemorySimulationDatabase later
-            self.db = None
+        # Setup database and get initialized database instance
+        self.db = setup_db(db_path, self.simulation_id)
 
         self.id_generator = ShortUUID()
         self.next_resource_id = 0
@@ -92,22 +84,20 @@ class Environment(AECEnv):
         )
         self.agent_observations = {}  # Initialize agent observations dictionary
 
+        # Initialize PettingZoo required attributes
+        self.agent_selection = None
+        self.rewards = {}
+        self._cumulative_rewards = {}
+        self.terminations = {}
+        self.truncations = {}
+        self.infos = {}
+        self.observations = {}
+
         # Initialize spatial index for efficient spatial queries
         self.spatial_index = SpatialIndex(width, height)
 
-        # Add tracking for births and deaths
-        self.births_this_step = 0
-        self.deaths_this_step = 0
-
-        # Add tracking for resources shared
-        self.resources_shared = 0
-        self.resources_shared_this_step = 0
-
-        # Add tracking for combat metrics
-        self.combat_encounters = 0
-        self.successful_attacks = 0
-        self.combat_encounters_this_step = 0
-        self.successful_attacks_this_step = 0
+        # Initialize metrics tracker
+        self.metrics_tracker = MetricsTracker()
 
         # Initialize resource manager
         self.resource_manager = ResourceManager(
@@ -122,7 +112,9 @@ class Environment(AECEnv):
         # Initialize environment
         self.initialize_resources(resource_distribution)
         # Set references and initialize spatial index
-        self.spatial_index.set_references(self.agent_objects, self.resources)
+        self.spatial_index.set_references(
+            list(self._agent_objects.values()), self.resources
+        )
         self.spatial_index.update()
 
         # Add observation space setup:
@@ -139,6 +131,11 @@ class Environment(AECEnv):
             self.agent_observations[agent.agent_id] = AgentObservation(
                 self.observation_config
             )
+
+    @property
+    def agent_objects(self):
+        """Backward compatibility property to get all agent objects as a list."""
+        return list(self._agent_objects.values())
 
     def mark_positions_dirty(self):
         """Public method for agents to mark positions as dirty when they move."""
@@ -230,7 +227,10 @@ class Environment(AECEnv):
 
     def remove_agent(self, agent):
         self.record_death()
-        self.agent_objects.remove(agent)
+        if agent.agent_id in self._agent_objects:
+            del self._agent_objects[agent.agent_id]
+        if agent.agent_id in self.agents:
+            self.agents.remove(agent.agent_id)  # Remove from PettingZoo agents list
         self.spatial_index.mark_positions_dirty()  # Mark positions as dirty when agent is removed
         if agent.agent_id in self.agent_observations:
             del self.agent_observations[agent.agent_id]
@@ -319,7 +319,9 @@ class Environment(AECEnv):
         #! resources_shared is now being calculated
         try:
             # Get alive agents
-            alive_agents = [agent for agent in self.agent_objects if agent.alive]
+            alive_agents = [
+                agent for agent in self._agent_objects.values() if agent.alive
+            ]
             total_agents = len(alive_agents)
 
             # Calculate agent type counts
@@ -331,9 +333,10 @@ class Environment(AECEnv):
                 [a for a in alive_agents if isinstance(a, ControlAgent)]
             )
 
-            # Get births and deaths from tracking
-            births = self.births_this_step
-            deaths = self.deaths_this_step
+            # Get metrics from tracker
+            tracker_metrics = self.metrics_tracker.get_step_metrics()
+            births = tracker_metrics["births"]
+            deaths = tracker_metrics["deaths"]
 
             # Calculate generation metrics
             current_max_generation = (
@@ -387,17 +390,13 @@ class Environment(AECEnv):
                 max(genome_counts.values()) / total_agents if genome_counts else 0
             )
 
-            # Get combat and sharing metrics
-            combat_encounters = getattr(self, "combat_encounters", 0)
-            successful_attacks = getattr(self, "successful_attacks", 0)
-            resources_shared = getattr(self, "resources_shared", 0)
-            resources_shared_this_step = getattr(self, "resources_shared_this_step", 0)
-            combat_encounters_this_step = getattr(
-                self, "combat_encounters_this_step", 0
-            )
-            successful_attacks_this_step = getattr(
-                self, "successful_attacks_this_step", 0
-            )
+            # Get combat and sharing metrics from tracker
+            combat_encounters = tracker_metrics["combat_encounters"]
+            successful_attacks = tracker_metrics["successful_attacks"]
+            resources_shared = tracker_metrics["resources_shared"]
+            resources_shared_this_step = tracker_metrics["resources_shared"]
+            combat_encounters_this_step = tracker_metrics["combat_encounters"]
+            successful_attacks_this_step = tracker_metrics["successful_attacks"]
 
             # Calculate resource distribution entropy
             resource_amounts = [r.amount for r in self.resources]
@@ -446,9 +445,8 @@ class Environment(AECEnv):
                 "successful_attacks_this_step": successful_attacks_this_step,
             }
 
-            # Reset counters for next step
-            self.births_this_step = 0
-            self.deaths_this_step = 0
+            # End step in tracker (resets step metrics and updates cumulative)
+            self.metrics_tracker.end_step()
 
             return metrics
         except Exception as e:
@@ -527,11 +525,23 @@ class Environment(AECEnv):
 
     def record_birth(self):
         """Record a birth event."""
-        self.births_this_step += 1
+        self.metrics_tracker.record_birth()
 
     def record_death(self):
         """Record a death event."""
-        self.deaths_this_step += 1
+        self.metrics_tracker.record_death()
+
+    def record_combat_encounter(self):
+        """Record a combat encounter."""
+        self.metrics_tracker.record_combat_encounter()
+
+    def record_successful_attack(self):
+        """Record a successful attack."""
+        self.metrics_tracker.record_successful_attack()
+
+    def record_resources_shared(self, amount: float):
+        """Record resources shared between agents."""
+        self.metrics_tracker.record_resources_shared(amount)
 
     def close(self):
         """Clean up environment resources."""
@@ -557,7 +567,8 @@ class Environment(AECEnv):
         ]
 
         # Add to environment
-        self.agent_objects.append(agent)
+        self._agent_objects[agent.agent_id] = agent
+        self.agents.append(agent.agent_id)  # Add to PettingZoo agents list
         if self.time == 0:
             self.initial_agent_count += 1
 
@@ -602,7 +613,7 @@ class Environment(AECEnv):
                     step_number=self.time,
                     agent_states=[
                         self._prepare_agent_state(agent)
-                        for agent in self.agent_objects
+                        for agent in self._agent_objects.values()
                         if agent.alive
                     ],
                     resource_states=[
@@ -676,7 +687,37 @@ class Environment(AECEnv):
     #     with self._context_lock:
     #         return self._active_contexts.copy()
 
-    def action_space(self, agent):
+    def action_space(self, agent=None):
+        """Get the action space for an agent (PettingZoo API).
+
+        Parameters
+        ----------
+        agent : str, optional
+            Agent ID. If None, returns the general action space.
+
+        Returns
+        -------
+        gymnasium.spaces.Discrete
+            The action space containing all possible actions.
+        """
+        return self._action_space
+
+    def observation_space(self, agent=None):
+        """Get the observation space for an agent (PettingZoo API).
+
+        Parameters
+        ----------
+        agent : str, optional
+            Agent ID. If None, returns the general observation space.
+
+        Returns
+        -------
+        gymnasium.spaces.Box
+            The observation space defining the shape and bounds of observations.
+        """
+        return self._observation_space
+
+    def get_action_space(self, agent):
         """Get the action space for an agent.
 
         Parameters
@@ -691,7 +732,7 @@ class Environment(AECEnv):
         """
         return self._action_space
 
-    def observation_space(self, agent):
+    def get_observation_space(self, agent):
         """Get the observation space for an agent.
 
         Parameters
@@ -705,6 +746,23 @@ class Environment(AECEnv):
             The observation space defining the shape and bounds of observations.
         """
         return self._observation_space
+
+    def observe(self, agent):
+        """Returns the observation an agent currently can make.
+
+        Required by PettingZoo API.
+
+        Parameters
+        ----------
+        agent : str
+            Agent identifier
+
+        Returns
+        -------
+        np.ndarray
+            Observation for the agent
+        """
+        return self._get_observation(agent)
 
     def _setup_observation_space(self, config):
         """Setup the observation space based on configuration.
@@ -798,7 +856,7 @@ class Environment(AECEnv):
         np.ndarray
             The observation tensor for the agent.
         """
-        agent = next((a for a in self.agent_objects if a.agent_id == agent_id), None)
+        agent = self._agent_objects.get(agent_id)
         if agent is None or not agent.alive:
             return np.zeros(
                 self._observation_space.shape, dtype=self._observation_space.dtype
@@ -882,7 +940,7 @@ class Environment(AECEnv):
         action : int
             The action to perform (from Action enum).
         """
-        agent = next((a for a in self.agent_objects if a.agent_id == agent_id), None)
+        agent = self._agent_objects.get(agent_id)
         if agent is None or not agent.alive:
             return
 
@@ -923,7 +981,7 @@ class Environment(AECEnv):
         float
             The calculated reward value.
         """
-        agent = next((a for a in self.agent_objects if a.agent_id == agent_id), None)
+        agent = self._agent_objects.get(agent_id)
         if agent is None or not agent.alive:
             return -10.0
 
@@ -984,34 +1042,31 @@ class Environment(AECEnv):
             np.random.seed(seed)
 
         self.time = 0
-        self.births_this_step = 0
-        self.deaths_this_step = 0
-        self.resources_shared = 0
-        self.resources_shared_this_step = 0
-        self.combat_encounters = 0
-        self.successful_attacks = 0
-        self.combat_encounters_this_step = 0
-        self.successful_attacks_this_step = 0
+        # Reset metrics tracker
+        self.metrics_tracker.reset()
 
         self.resources = []
         self.initialize_resources(self.resource_distribution)
 
-        self.agent_objects = []
+        self._agent_objects = {}
         self.initial_agent_count = 0
         self._create_initial_agents()
 
         self.agent_observations = {}
-        for agent in self.agent_objects:
+        for agent in self._agent_objects.values():
             self.agent_observations[agent.agent_id] = AgentObservation(
                 self.observation_config
             )
 
-        self.spatial_index.set_references(self.agent_objects, self.resources)
+        self.spatial_index.set_references(
+            list(self._agent_objects.values()), self.resources
+        )
         self.spatial_index.update()
 
-        self.agents = [a.agent_id for a in self.agent_objects if a.alive]
+        self.agents = [a.agent_id for a in self._agent_objects.values() if a.alive]
         self.agent_selection = self.agents[0] if self.agents else None
         self.rewards = {a: 0 for a in self.agents}
+        self._cumulative_rewards = {a: 0 for a in self.agents}
         self.terminations = {a: False for a in self.agents}
         self.truncations = {a: False for a in self.agents}
         self.infos = {a: {} for a in self.agents}
@@ -1053,7 +1108,7 @@ class Environment(AECEnv):
             return dummy_obs, 0.0, True, True, {}
 
         agent_id = self.agent_selection
-        agent = next((a for a in self.agent_objects if a.agent_id == agent_id), None)
+        agent = self._agent_objects.get(agent_id)
         if agent:
             self.previous_agent_states[agent_id] = {
                 "resource_level": agent.resource_level,
@@ -1064,7 +1119,7 @@ class Environment(AECEnv):
         self.update()
 
         # Add resource check to terminated:
-        alive_agents = [a for a in self.agent_objects if a.alive]
+        alive_agents = [a for a in self._agent_objects.values() if a.alive]
         total_resources = sum(r.amount for r in self.resources)
         terminated = len(alive_agents) == 0 or total_resources == 0
         truncated = self.time >= self.max_steps
