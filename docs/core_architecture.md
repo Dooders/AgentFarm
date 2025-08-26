@@ -15,15 +15,15 @@ farm.core/
 ├── __init__.py
 ├── action.py              # Action enumeration and definitions
 ├── analysis.py            # Core analysis functionality
-├── channels.py            # Dynamic channel system ⭐
+├── channels.py            # Dynamic channel system
 ├── cli.py                 # Command-line interface utilities
 ├── collector.py           # Data collection mechanisms
 ├── config.py              # Configuration management
-├── environment.py         # Main simulation environment ⭐
+├── environment.py         # Main simulation environment
 ├── experiment_tracker.py  # Experiment tracking and logging
 ├── genome.py              # Genetic algorithm components
 ├── metrics_tracker.py     # Performance metrics collection
-├── observations.py        # Observation system ⭐
+├── observations.py        # Observation system
 ├── perception.py          # Agent perception mechanisms
 ├── resource_manager.py    # Resource distribution and management
 ├── resources.py           # Resource definitions and types
