@@ -53,10 +53,9 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from enum import IntEnum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, Optional, Tuple
 
 import torch
-import torch.nn.functional as F
 
 if TYPE_CHECKING:
     from farm.core.observations import ObservationConfig
@@ -140,7 +139,7 @@ class ChannelHandler(ABC):
 
         Args:
             observation: The full observation tensor with shape (NUM_CHANNELS, 2R+1, 2R+1)
-                        where R is the observation radius. This tensor is egocentric
+                        where R is the observation radius. This tensor is local
                         (centered on the agent's position).
             channel_idx: Index of this channel in the observation tensor
             config: Observation configuration containing parameters like R (radius),
@@ -555,7 +554,7 @@ class WorldLayerHandler(ChannelHandler):
     Base handler for world layer data (resources, obstacles, terrain cost).
 
     This handler processes world layer data by cropping it to the agent's
-    egocentric view and copying it directly to the observation channel.
+    local view and copying it directly to the observation channel.
     World layers represent static environmental information.
 
     Data source: world_layers dict from kwargs
@@ -597,13 +596,11 @@ class WorldLayerHandler(ChannelHandler):
             return
 
         from farm.core.observations import (
-            crop_egocentric,
+            crop_local,
         )  # Import here to avoid circular import
 
         R = config.R
-        crop = crop_egocentric(
-            world_layers[self.layer_key], agent_world_pos, R, pad_val=0.0
-        )
+        crop = crop_local(world_layers[self.layer_key], agent_world_pos, R, pad_val=0.0)
         observation[channel_idx].copy_(crop)
 
 
@@ -698,10 +695,12 @@ class KnownEmptyHandler(ChannelHandler):
         **kwargs,
     ) -> None:
         """
-        No direct processing - handled externally.
+        No-op process method for externally managed channel.
 
-        This channel is updated externally via the update_known_empty function
-        rather than through the standard process method.
+        This channel does not perform direct processing during the standard observation
+        update cycle. Instead, it relies entirely on external updates via the
+        update_known_empty function and temporal decay via the decay method using
+        config.gamma_known.
         """
         # This is handled specially in update_known_empty - no direct processing needed
         pass
@@ -709,13 +708,14 @@ class KnownEmptyHandler(ChannelHandler):
 
 class TransientEventHandler(ChannelHandler):
     """
-    Base handler for transient events (damage, trails, signals).
+    Generic handler for transient events that decay over time.
 
     This handler processes transient events that occur at specific world positions
     and decay over time. Events are represented as intensity values that fade
-    according to a configurable gamma factor.
+    according to a configurable gamma factor. The specific event data source is
+    configured via the data_key parameter.
 
-    Data source: Event lists from kwargs (recent_damage_world, trails_world_points, etc.)
+    Data source: Event list from kwargs using the configured data_key
     Channel behavior: DYNAMIC (decays over time)
     Position: Event positions relative to agent, clipped to observation bounds
     """
@@ -726,8 +726,10 @@ class TransientEventHandler(ChannelHandler):
 
         Args:
             name: Channel name (e.g., "DAMAGE_HEAT", "TRAILS")
-            data_key: Key to access event data in kwargs
-            config_gamma_key: Key to access gamma value in config
+            data_key: Key to access event data in kwargs (e.g., "recent_damage_world",
+                     "trails_world_points", "ally_signals_world")
+            config_gamma_key: Key to access gamma value in config (e.g., "gamma_dmg",
+                           "gamma_trail", "gamma_sig")
         """
         super().__init__(name, ChannelBehavior.DYNAMIC, gamma=None)  # Use config gamma
         self.data_key = data_key
@@ -765,6 +767,7 @@ class TransientEventHandler(ChannelHandler):
             config: Observation configuration
             agent_world_pos: Agent's world position (y, x)
             **kwargs: Must contain event data at self.data_key as list of (y, x, intensity) tuples
+                     where self.data_key is configured during initialization
         """
         events = kwargs.get(self.data_key, [])
         if not events:
@@ -834,6 +837,64 @@ class GoalHandler(ChannelHandler):
             observation[channel_idx, y, x] = 1.0
 
 
+class LandmarkHandler(ChannelHandler):
+    """
+    Handler for permanent landmarks or waypoints.
+
+    This channel tracks important permanent locations in the environment that
+    agents should remember indefinitely. Landmarks persist until explicitly
+    cleared and can represent strategic locations, resource caches, or
+    important waypoints.
+
+    Data source: landmarks_world list passed via kwargs in perceive_world()
+    Channel behavior: PERSISTENT (remains until explicitly cleared)
+    Position: Landmark positions relative to agent, clipped to observation bounds
+    """
+
+    def __init__(self):
+        """Initialize the landmark handler as a PERSISTENT channel."""
+        super().__init__("LANDMARKS", ChannelBehavior.PERSISTENT)
+
+    def process(
+        self,
+        observation: torch.Tensor,
+        channel_idx: int,
+        config: "ObservationConfig",
+        agent_world_pos: Tuple[int, int],
+        **kwargs,
+    ) -> None:
+        """
+        Process landmark positions and accumulate them in the observation.
+
+        Unlike INSTANT channels, PERSISTENT channels accumulate information
+        across ticks. This handler adds landmark information without clearing
+        previous landmark data.
+
+        Args:
+            observation: Full observation tensor
+            channel_idx: Index of the LANDMARKS channel
+            config: Observation configuration
+            agent_world_pos: Agent's world position (y, x)
+            **kwargs: Must contain 'landmarks_world' list of (y, x, importance) tuples
+        """
+        landmarks_world = kwargs.get("landmarks_world", [])
+        if not landmarks_world:
+            return
+
+        R = config.R
+        ay, ax = agent_world_pos
+
+        for landmark_y, landmark_x, importance in landmarks_world:
+            dy = landmark_y - ay
+            dx = landmark_x - ax
+            y = R + dy
+            x = R + dx
+            if 0 <= y < 2 * R + 1 and 0 <= x < 2 * R + 1:
+                # Accumulate landmark importance (don't overwrite existing values)
+                current_value = observation[channel_idx, y, x].item()
+                observation[channel_idx, y, x] = max(current_value, float(importance))
+
+
 # Register core channel handlers with their original indices for backward compatibility
 def _register_core_channels():
     """
@@ -857,6 +918,7 @@ def _register_core_channels():
         9: TRAILS - Agent movement trails
         10: ALLY_SIGNAL - Ally communication signals
         11: GOAL - Goal/waypoint positions
+        12: LANDMARKS - Permanent landmarks and waypoints
     """
 
     # Register with specific indices to maintain backward compatibility
@@ -878,6 +940,7 @@ def _register_core_channels():
         TransientEventHandler("ALLY_SIGNAL", "ally_signals_world", "gamma_sig"), 10
     )
     register_channel(GoalHandler(), 11)
+    register_channel(LandmarkHandler(), 12)
 
 
 # Register core channels on import
@@ -906,6 +969,7 @@ class Channel(IntEnum):
         TRAILS: Agent movement trails (decays over time)
         ALLY_SIGNAL: Ally communication signals (decays over time)
         GOAL: Goal/waypoint positions (waypoint projection)
+        LANDMARKS: Permanent landmarks and waypoints (persistent)
     """
 
     SELF_HP = 0  # 1
@@ -920,6 +984,7 @@ class Channel(IntEnum):
     TRAILS = 9  # 10 (decays)
     ALLY_SIGNAL = 10  # 11 (decays)
     GOAL = 11  # 12 (waypoint projection)
+    LANDMARKS = 12  # 13 (persistent)
 
 
 # Dynamic channel count based on registry

@@ -39,7 +39,7 @@ class TemporalPatternAnalyzer:
     def analyze(
         self,
         scope: Union[str, AnalysisScope] = AnalysisScope.SIMULATION,
-        agent_id: Optional[int] = None,
+        agent_id: Optional[str] = None,
         step: Optional[int] = None,
         step_range: Optional[Tuple[int, int]] = None,
         time_period_size: int = 100,
@@ -60,7 +60,7 @@ class TemporalPatternAnalyzer:
         Args:
             scope (Union[str, AnalysisScope]): Scope of analysis (e.g., 'simulation', 'episode').
                 Determines the context in which actions are analyzed.
-            agent_id (Optional[int]): ID of specific agent to analyze. If None,
+            agent_id (Optional[str]): ID of specific agent to analyze. If None,
                 analyzes actions from all agents.
             step (Optional[int]): Specific step to analyze. If provided, only
                 analyzes actions at this step.
@@ -94,7 +94,9 @@ class TemporalPatternAnalyzer:
             ...     print(f"Average reward: {np.mean(pattern.reward_progression)}")
         """
         actions = self.repository.get_actions_by_scope(
-            scope, agent_id, step_range=step_range
+            scope,
+            str(agent_id) if agent_id is not None else None,
+            step_range=step_range,
         )
         patterns = {}
         max_time_period = 0
@@ -193,17 +195,21 @@ class TemporalPatternAnalyzer:
             ...     print(f"Action counts: {segment.action_counts}")
         """
         actions = self.repository.get_actions_by_scope(
-            scope, agent_id, step_range=step_range
+            scope,
+            str(agent_id) if agent_id is not None else None,
+            step_range=step_range,
         )
         # Sort events to ensure correct segmentation
         event_steps = sorted(event_steps)
         segments = []
-        last_event_step = 0
+        last_event_step: int = 0
         for event_step in event_steps + [None]:  # Add None to capture last segment
             segment_actions = [
                 a
                 for a in actions
-                if last_event_step <= a.step_number < (event_step or float("inf"))
+                if last_event_step
+                <= int(getattr(a, "step_number", 0))
+                < (event_step if event_step is not None else float("inf"))
             ]
             # Calculate metrics for this segment
             action_counts = {}
@@ -226,6 +232,6 @@ class TemporalPatternAnalyzer:
                     average_rewards=average_rewards,
                 )
             )
-            last_event_step = event_step
+            last_event_step = event_step if event_step is not None else -1
 
         return segments

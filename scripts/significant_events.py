@@ -33,7 +33,7 @@ import logging
 import os
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -168,7 +168,10 @@ class SignificantEventAnalyzer:
         return False
 
     def get_significant_events(
-        self, start_step: int = None, end_step: int = None, min_severity: float = 0.3
+        self,
+        start_step: Optional[int] = None,
+        end_step: Optional[int] = None,
+        min_severity: float = 0.3,
     ) -> List[SignificantEvent]:
         """Identify all significant events in the given time range.
 
@@ -195,7 +198,11 @@ class SignificantEventAnalyzer:
             ORDER BY step_number
             """,
             self.db.engine,
-            params={"start_step": start_step, "end_step": end_step},
+            params={
+                k: v
+                for k, v in {"start_step": start_step, "end_step": end_step}.items()
+                if v is not None
+            },
         )
 
         events = []
@@ -503,7 +510,7 @@ class SignificantEventAnalyzer:
         return events
 
     def _analyze_reproduction_events(
-        self, start_step: int = None, end_step: int = None
+        self, start_step: Optional[int] = None, end_step: Optional[int] = None
     ) -> List[SignificantEvent]:
         """Detect significant reproduction-related events."""
         events = []
@@ -531,7 +538,11 @@ class SignificantEventAnalyzer:
         reproduction_df = pd.read_sql(
             query,
             self.db.engine,
-            params={"start_step": start_step, "end_step": end_step},
+            params={
+                k: v
+                for k, v in {"start_step": start_step, "end_step": end_step}.items()
+                if v is not None
+            },
         )
 
         if reproduction_df.empty:
@@ -636,7 +647,11 @@ class SignificantEventAnalyzer:
             ORDER BY step_number, failure_count DESC
             """,
             self.db.engine,
-            params={"start_step": start_step, "end_step": end_step},
+            params={
+                k: v
+                for k, v in {"start_step": start_step, "end_step": end_step}.items()
+                if v is not None
+            },
         )
 
         logger.debug(f"Found {len(failure_df)} reproduction failure patterns")
@@ -664,7 +679,7 @@ class SignificantEventAnalyzer:
         return events
 
     def _analyze_health_incidents(
-        self, start_step: int = None, end_step: int = None
+        self, start_step: Optional[int] = None, end_step: Optional[int] = None
     ) -> List[SignificantEvent]:
         """Detect significant health-related events and patterns.
 
@@ -695,7 +710,11 @@ class SignificantEventAnalyzer:
         health_df = pd.read_sql(
             query,
             self.db.engine,
-            params={"start_step": start_step, "end_step": end_step},
+            params={
+                k: v
+                for k, v in {"start_step": start_step, "end_step": end_step}.items()
+                if v is not None
+            },
         )
 
         if health_df.empty:
@@ -792,7 +811,7 @@ class SignificantEventAnalyzer:
         return events
 
     def _analyze_learning_experiences(
-        self, start_step: int = None, end_step: int = None
+        self, start_step: Optional[int] = None, end_step: Optional[int] = None
     ) -> List[SignificantEvent]:
         """Analyze learning experiences to detect significant patterns and anomalies."""
         events = []
@@ -819,7 +838,11 @@ class SignificantEventAnalyzer:
         learning_df = pd.read_sql(
             query,
             self.db.engine,
-            params={"start_step": start_step, "end_step": end_step},
+            params={
+                k: v
+                for k, v in {"start_step": start_step, "end_step": end_step}.items()
+                if v is not None
+            },
         )
 
         if learning_df.empty:
@@ -997,7 +1020,11 @@ class SignificantEventAnalyzer:
         agent_learning_df = pd.read_sql(
             agent_query,
             self.db.engine,
-            params={"start_step": start_step, "end_step": end_step},
+            params={
+                k: v
+                for k, v in {"start_step": start_step, "end_step": end_step}.items()
+                if v is not None
+            },
         )
 
         if not agent_learning_df.empty:
@@ -1111,7 +1138,7 @@ class SignificantEventAnalyzer:
         return events
 
     def _analyze_action_patterns(
-        self, start_step: int = None, end_step: int = None
+        self, start_step: Optional[int] = None, end_step: Optional[int] = None
     ) -> List[SignificantEvent]:
         """Analyze patterns and shifts in non-combat agent actions.
 
@@ -1164,7 +1191,11 @@ class SignificantEventAnalyzer:
         action_df = pd.read_sql(
             query,
             self.db.engine,
-            params={"start_step": start_step, "end_step": end_step},
+            params={
+                k: v
+                for k, v in {"start_step": start_step, "end_step": end_step}.items()
+                if v is not None
+            },
         )
 
         if action_df.empty:
@@ -1289,7 +1320,11 @@ class SignificantEventAnalyzer:
         defense_df = pd.read_sql(
             defensive_query,
             self.db.engine,
-            params={"start_step": start_step, "end_step": end_step},
+            params={
+                k: v
+                for k, v in {"start_step": start_step, "end_step": end_step}.items()
+                if v is not None
+            },
         )
 
         if not defense_df.empty:
@@ -1398,7 +1433,11 @@ class SignificantEventAnalyzer:
         return "\n".join(summary)
 
     def analyze_simulation(
-        self, start_step=None, end_step=None, min_severity=0.3, path=None
+        self,
+        start_step: Optional[int] = None,
+        end_step: Optional[int] = None,
+        min_severity: float = 0.3,
+        path: Optional[str] = None,
     ):
         """Analyze simulation and return both events and summary.
 
@@ -1422,7 +1461,7 @@ class SignificantEventAnalyzer:
         summary = self.get_event_summary(events)
 
         if path:
-            with open(path / "significant_events.txt", "w") as f:
+            with open(os.path.join(path, "significant_events.txt"), "w") as f:
                 f.write(summary)
 
         return events, summary

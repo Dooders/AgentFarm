@@ -380,7 +380,7 @@ scatter = ax.scatter(
     reduced_embeddings[:, 2],
     c=range(len(simulation_settings)),
     cmap="viridis",
-    s=100,
+    markersize=100,  # Marker size
 )
 
 # Annotate points in 3D
@@ -390,7 +390,8 @@ for i, (x, y, z) in enumerate(reduced_embeddings):
 plt.colorbar(scatter, label="Configuration Index")
 ax.set_xlabel(f"PCA1 ({explained_variance[0]:.1%} variance explained)")
 ax.set_ylabel(f"PCA2 ({explained_variance[1]:.1%} variance explained)")
-ax.set_zlabel(f"PCA3 ({explained_variance[2]:.1%} variance explained)")
+# Type: ignore for 3D axes set_zlabel method
+ax.set_zlabel(f"PCA3 ({explained_variance[2]:.1%} variance explained)")  # type: ignore
 ax.set_title("Configuration Space Visualization (PCA 3D)")
 plt.tight_layout()
 plt.savefig("config_pca_visualization_3d.png")
@@ -659,8 +660,12 @@ sns.heatmap(
     annot=True,
     cmap="RdBu",
     center=0,
-    xticklabels=feature_names,
-    yticklabels=feature_names,
+    xticklabels=list(
+        feature_names.tolist() if hasattr(feature_names, "tolist") else feature_names
+    ),
+    yticklabels=list(
+        feature_names.tolist() if hasattr(feature_names, "tolist") else feature_names
+    ),
 )
 plt.title("Parameter Correlation Matrix")
 plt.tight_layout()

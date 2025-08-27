@@ -639,7 +639,7 @@ class TestEnvironment(unittest.TestCase):
         obs, info = self.env.reset()
 
         while steps_taken < max_steps and self.env.agents:
-            action = self.env.action_space().sample()
+            action = int(self.env.action_space().sample())
             obs, reward, terminated, truncated, info = self.env.step(action)
 
             # Verify step results are valid
@@ -671,7 +671,7 @@ class TestEnvironment(unittest.TestCase):
 
         # Test environment behavior with no resources
         if self.env.agents:
-            action = self.env.action_space().sample()
+            action = int(self.env.action_space().sample())
             obs, reward, terminated, truncated, info = self.env.step(action)
 
             # Environment should handle gracefully

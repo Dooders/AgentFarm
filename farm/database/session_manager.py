@@ -149,7 +149,10 @@ class SessionManager:
                 )
 
         logger.error(f"Operation failed after {max_retries} retries: {last_error}")
-        raise last_error
+        if last_error is not None:
+            raise last_error
+        else:
+            raise SQLAlchemyError(f"Operation failed after {max_retries} retries")
 
     def __enter__(self) -> Session:
         """Enter context manager, creating a new session.

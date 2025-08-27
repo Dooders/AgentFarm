@@ -92,7 +92,9 @@ class CausalAnalyzer:
               * 10% chance of a failed gather attempt
         """
         actions = self.repository.get_actions_by_scope(
-            scope, agent_id, step_range=step_range
+            scope,
+            str(agent_id) if agent_id is not None else None,
+            step_range=step_range,
         )
         filtered_actions = [
             action for action in actions if action.action_type == action_type

@@ -10,17 +10,28 @@ Usage:
     python analyze_time_series.py
 """
 
-import glob
+# Standard library imports
 import json
 import os
-import sqlite3
+from pathlib import Path
 
+# Third-party imports
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
-from matplotlib.lines import Line2D
-from scipy.spatial.distance import euclidean
+
+# Import our utility modules
+from .data_extraction import (
+    calculate_initial_advantages as calculate_initial_advantages_util,
+)
+from .data_extraction import extract_time_series as extract_time_series_util
+from .data_extraction import get_initial_positions as get_initial_positions_util
+from .database_utils import (
+    get_simulation_database_path,
+    get_simulation_folders,
+    validate_simulation_folder,
+)
+from .visualization_utils import create_time_series_plot, save_figure, setup_plot_style
 
 # Load the simulation analysis results
 df = pd.read_csv("simulation_analysis.csv")
@@ -29,155 +40,25 @@ df = pd.read_csv("simulation_analysis.csv")
 def extract_time_series(db_path):
     """
     Extract time series data from a simulation database.
+    Now uses the consolidated data_extraction utility.
     """
-    conn = sqlite3.connect(db_path)
-
-    # Get simulation steps data
-    steps_query = """
-    SELECT step_number, total_agents, system_agents, independent_agents, control_agents,
-           total_resources, average_agent_resources, births, deaths, average_agent_health,
-           average_agent_age, combat_encounters, successful_attacks, resources_shared_this_step AS resources_shared
-    FROM simulation_steps
-    ORDER BY step_number
-    """
-    steps_df = pd.read_sql_query(steps_query, conn)
-
-    # Get reproduction events
-    repro_query = """
-    SELECT step_number, parent_id, offspring_id, success, parent_resources_before,
-           parent_resources_after, offspring_initial_resources, parent_generation,
-           offspring_generation, parent_position_x, parent_position_y
-    FROM reproduction_events
-    ORDER BY step_number
-    """
-    repro_df = pd.read_sql_query(repro_query, conn)
-
-    # Get agent data to map IDs to types
-    agents_query = """
-    SELECT agent_id, agent_type, birth_time, death_time
-    FROM agents
-    """
-    agents_df = pd.read_sql_query(agents_query, conn)
-
-    conn.close()
-
-    # Create a mapping of agent_id to agent_type
-    agent_types = dict(zip(agents_df["agent_id"], agents_df["agent_type"]))
-
-    # Add agent type information to reproduction events
-    if not repro_df.empty:
-        repro_df["parent_type"] = repro_df["parent_id"].map(agent_types)
-        # Count successful reproductions by agent type and step
-        if "success" in repro_df.columns:
-            successful_repro = repro_df[repro_df["success"] == 1]
-            repro_counts = (
-                successful_repro.groupby(["step_number", "parent_type"])
-                .size()
-                .unstack(fill_value=0)
-            )
-
-            # Rename columns to standardize
-            if "SystemAgent" in repro_counts.columns:
-                repro_counts.rename(
-                    columns={"SystemAgent": "system_reproduction"}, inplace=True
-                )
-            else:
-                repro_counts["system_reproduction"] = 0
-
-            if "IndependentAgent" in repro_counts.columns:
-                repro_counts.rename(
-                    columns={"IndependentAgent": "independent_reproduction"},
-                    inplace=True,
-                )
-            else:
-                repro_counts["independent_reproduction"] = 0
-
-            if "ControlAgent" in repro_counts.columns:
-                repro_counts.rename(
-                    columns={"ControlAgent": "control_reproduction"}, inplace=True
-                )
-            else:
-                repro_counts["control_reproduction"] = 0
-
-            # Merge reproduction counts with steps data
-            steps_df = pd.merge(
-                steps_df, repro_counts.reset_index(), on="step_number", how="left"
-            )
-            steps_df.fillna(
-                {
-                    "system_reproduction": 0,
-                    "independent_reproduction": 0,
-                    "control_reproduction": 0,
-                },
-                inplace=True,
-            )
-
-    return steps_df, repro_df, agents_df
+    return extract_time_series_util(db_path)
 
 
 def get_initial_positions(db_path):
     """
     Extract initial positions of agents and resources from the simulation database.
+    Now uses the consolidated data_extraction utility.
     """
-    conn = sqlite3.connect(db_path)
-
-    # Get initial agents (birth_time = 0)
-    agents_query = """
-    SELECT agent_id, agent_type, position_x, position_y, initial_resources
-    FROM agents
-    WHERE birth_time = 0
-    """
-    agents = pd.read_sql_query(agents_query, conn)
-
-    # Get initial resources (step_number = 0)
-    resources_query = """
-    SELECT resource_id, position_x, position_y, amount
-    FROM resource_states
-    WHERE step_number = 0
-    """
-    resources = pd.read_sql_query(resources_query, conn)
-
-    conn.close()
-    return agents, resources
+    return get_initial_positions_util(db_path)
 
 
 def calculate_initial_advantages(agents_df, resources_df, gathering_range=30):
     """
     Calculate initial advantages based on agent positions relative to resources.
+    Now uses the consolidated data_extraction utility.
     """
-    advantages = {}
-
-    for _, agent in agents_df.iterrows():
-        agent_type = agent["agent_type"]
-        agent_pos = (agent["position_x"], agent["position_y"])
-
-        # Calculate distances to all resources
-        distances = []
-        for _, resource in resources_df.iterrows():
-            resource_pos = (resource["position_x"], resource["position_y"])
-            distance = euclidean(agent_pos, resource_pos)
-            distances.append((distance, resource["amount"]))
-
-        # Calculate metrics
-        if distances:
-            # Nearest resource distance
-            nearest_dist = min(distances, key=lambda x: x[0])[0]
-
-            # Resources within gathering range
-            resources_in_range = sum(1 for d, _ in distances if d <= gathering_range)
-
-            # Resource amount within gathering range
-            resource_amount_in_range = sum(
-                amount for dist, amount in distances if dist <= gathering_range
-            )
-
-            advantages[agent_type] = {
-                "nearest_resource_dist": nearest_dist,
-                "resources_in_range": resources_in_range,
-                "resource_amount_in_range": resource_amount_in_range,
-            }
-
-    return advantages
+    return calculate_initial_advantages_util(agents_df, resources_df, gathering_range)
 
 
 def plot_population_time_series(steps_df, initial_advantages, title, filename):

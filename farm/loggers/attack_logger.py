@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 if TYPE_CHECKING:
     from farm.agents.base_agent import BaseAgent
-    from farm.database.database import Database
+    from farm.database.database import SimulationDatabase
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class AttackLogger:
     """Logger for attack-related actions and outcomes."""
 
-    def __init__(self, db: Optional["Database"] = None):
+    def __init__(self, db: Optional["SimulationDatabase"] = None):
         self.db = db
 
     def log_defense(

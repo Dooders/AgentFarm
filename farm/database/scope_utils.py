@@ -94,6 +94,8 @@ def filter_scope(
     elif scope == AnalysisScope.STEP:
         query = query.filter(AgentModel.step_number == step)
     elif scope == AnalysisScope.STEP_RANGE:
+        if step_range is None:
+            raise ValueError("step_range is required when scope is STEP_RANGE")
         start_step, end_step = step_range
         query = query.filter(
             AgentModel.step_number >= start_step,

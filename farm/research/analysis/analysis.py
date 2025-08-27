@@ -1,9 +1,8 @@
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Union
 
-from farm.analysis.comparative_analysis import plot_population_trends_across_simulations
 from farm.database.database import SimulationDatabase
 from farm.database.models import AgentModel
 from farm.research.analysis.database import (
@@ -15,17 +14,19 @@ from farm.research.analysis.database import (
     get_resource_level_data,
     get_rewards_by_generation,
 )
+from farm.research.analysis.plotting import plot_population_trends_across_simulations
 from farm.research.analysis.util import (
     validate_population_data,
     validate_resource_level_data,
 )
-from results.one_of_a_kind.scripts.simple_research_analysis import EXPERIMENT_DATA_PATH
+
+# EXPERIMENT_DATA_PATH = "results/one_of_a_kind_v1/experiments/data"
 
 logger = logging.getLogger(__name__)
 
 
 def detect_early_terminations(
-    db_paths: List[str], expected_steps: int = None
+    db_paths: List[str], expected_steps: Optional[int] = None
 ) -> Dict[str, Dict[str, Any]]:
     """
     Detect and analyze simulations that terminated earlier than expected.
@@ -45,8 +46,9 @@ def detect_early_terminations(
     # First pass: collect step counts for all simulations
     for db_path in db_paths:
         try:
-            steps, _, steps_count = get_data(db_path)
-            if steps is not None:
+            data = get_data(db_path)
+            if data is not None:
+                steps, _, steps_count = data
                 all_step_counts.append(steps_count)
                 results[db_path] = {"steps_completed": steps_count}
             else:
@@ -65,6 +67,9 @@ def detect_early_terminations(
             f"Using maximum observed steps ({expected_steps}) as expected duration"
         )
 
+    # At this point expected_steps is guaranteed to be not None
+    assert expected_steps is not None
+
     # Set threshold for early termination (e.g., 90% of expected steps)
     early_threshold = int(expected_steps * 0.9)
 
@@ -77,14 +82,22 @@ def detect_early_terminations(
         if steps_completed < early_threshold:
             try:
                 # Get final state data
-                steps, populations, _ = get_columns_data_by_agent_type(db_path)
-
-                if steps is None or not populations:
+                result = get_columns_data_by_agent_type(db_path)
+                if result is None:
                     logger.warning(f"Could not retrieve population data from {db_path}")
                     continue
 
+                steps, populations, _ = result
+
                 # Get resource consumption data
-                _, consumption, _ = get_resource_consumption_data(db_path)
+                consumption_result = get_resource_consumption_data(db_path)
+                if consumption_result is None:
+                    logger.warning(
+                        f"Could not retrieve consumption data from {db_path}"
+                    )
+                    continue
+
+                _, consumption, _ = consumption_result
 
                 # Analyze final state
                 final_state = {
@@ -155,7 +168,7 @@ def analyze_final_agent_counts(experiment_data: Dict[str, Dict]) -> Dict[str, Di
     result = {
         "system": {
             "total": 0,
-            "mean": 0,
+            "mean": 0.0,
             "median": 0,
             "max": 0,
             "min": 0,
@@ -163,7 +176,7 @@ def analyze_final_agent_counts(experiment_data: Dict[str, Dict]) -> Dict[str, Di
         },
         "control": {
             "total": 0,
-            "mean": 0,
+            "mean": 0.0,
             "median": 0,
             "max": 0,
             "min": 0,
@@ -171,7 +184,7 @@ def analyze_final_agent_counts(experiment_data: Dict[str, Dict]) -> Dict[str, Di
         },
         "independent": {
             "total": 0,
-            "mean": 0,
+            "mean": 0.0,
             "median": 0,
             "max": 0,
             "min": 0,
@@ -273,7 +286,9 @@ def process_experiment_rewards_by_generation(
     }
 
     try:
-        experiment_path = os.path.join(EXPERIMENT_DATA_PATH, experiment)
+        experiment_path = os.path.join(
+            "results/one_of_a_kind_v1/experiments/data", experiment
+        )
         if not os.path.exists(experiment_path):
             logger.error(f"Experiment directory not found: {experiment_path}")
             return result
@@ -375,7 +390,7 @@ def process_experiment_rewards_by_generation(
         return result
 
 
-def process_experiment(agent_type: str, experiment: str) -> Dict[str, List]:
+def process_experiment(agent_type: str, experiment: str) -> Dict[str, Union[List, int]]:
     """
     Process experiment data with comprehensive error handling.
 
@@ -389,7 +404,9 @@ def process_experiment(agent_type: str, experiment: str) -> Dict[str, List]:
     logger.info(f"Processing experiment: {experiment}")
 
     try:
-        experiment_path = os.path.join(EXPERIMENT_DATA_PATH, experiment)
+        experiment_path = os.path.join(
+            "results/one_of_a_kind_v1/experiments/data", experiment
+        )
         if not os.path.exists(experiment_path):
             logger.error(f"Experiment directory not found: {experiment_path}")
             return {"populations": [], "max_steps": 0}
@@ -406,8 +423,9 @@ def process_experiment(agent_type: str, experiment: str) -> Dict[str, List]:
 
         for db_path in db_paths:
             try:
-                steps, pop, steps_count = get_data(db_path)
-                if steps is not None and pop is not None:
+                result = get_data(db_path)
+                if result is not None:
+                    steps, pop, steps_count = result
                     # Validate population data
                     if not validate_population_data(pop, db_path):
                         failed_dbs += 1
@@ -453,7 +471,9 @@ def process_experiment(agent_type: str, experiment: str) -> Dict[str, List]:
         return {"populations": [], "max_steps": 0}
 
 
-def find_experiments(base_path: str) -> Dict[str, List[str]]:
+def find_experiments(
+    base_path: str,
+) -> Dict[str, Union[Dict[str, List[str]], List[str]]]:
     """Find all experiment directories and their iterations."""
     base = Path(base_path)
     experiments = {
@@ -515,8 +535,9 @@ def process_experiment_by_agent_type(experiment: str) -> Dict[str, Dict]:
 
         for db_path in db_paths:
             try:
-                steps, pops, steps_count = get_columns_data_by_agent_type(db_path)
-                if steps is not None and pops:
+                db_result = get_columns_data_by_agent_type(db_path)
+                if db_result is not None:
+                    steps, pops, steps_count = db_result
                     # Validate population data for each agent type
                     valid_data = True
                     for agent_type, pop in zip(
@@ -602,8 +623,9 @@ def process_experiment_resource_consumption(experiment: str) -> Dict[str, Dict]:
 
         for db_path in db_paths:
             try:
-                steps, consumption, steps_count = get_resource_consumption_data(db_path)
-                if steps is not None and consumption:
+                db_result = get_resource_consumption_data(db_path)
+                if db_result is not None:
+                    steps, consumption, steps_count = db_result
                     # Validate consumption data for each agent type
                     valid_data = True
                     for agent_type in ["system", "control", "independent"]:
@@ -658,7 +680,7 @@ def process_experiment_resource_consumption(experiment: str) -> Dict[str, Dict]:
 
 def process_action_distributions(
     experiment: str,
-) -> Dict[str, Dict[str, Dict[str, float]]]:
+) -> Dict[str, Dict[str, Union[Dict[str, float], int]]]:
     """
     Process action distribution data for an experiment.
 
@@ -748,7 +770,7 @@ def process_action_distributions(
         return result
 
 
-def process_experiment_resource_levels(experiment: str) -> Dict[str, List]:
+def process_experiment_resource_levels(experiment: str) -> Dict[str, Union[List, int]]:
     """
     Process resource level data for an experiment.
 
@@ -779,8 +801,9 @@ def process_experiment_resource_levels(experiment: str) -> Dict[str, List]:
 
         for db_path in db_paths:
             try:
-                steps, resource_levels, steps_count = get_resource_level_data(db_path)
-                if steps is not None and resource_levels is not None:
+                result_data = get_resource_level_data(db_path)
+                if result_data is not None:
+                    steps, resource_levels, steps_count = result_data
                     # Use the specialized validation function for resource levels
                     if validate_resource_level_data(resource_levels, db_path):
                         result["resource_levels"].append(resource_levels)

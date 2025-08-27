@@ -2,32 +2,40 @@ import pandas as pd
 
 from farm.database.data_retrieval import DataRetriever
 from farm.database.database import SimulationDatabase
+from farm.database.session_manager import SessionManager
 
 
 class SimulationAnalyzer:
     def __init__(self, db_path: str):
         self.db = SimulationDatabase(db_path)
-        self.retriever = DataRetriever(self.db)
+        self.session_manager = SessionManager(db_path)
+        self.retriever = DataRetriever(self.session_manager)
 
     def calculate_survival_rates(self) -> pd.DataFrame:
         """Calculate survival rates using DataRetriever."""
         population_stats = self.retriever.get_population_statistics()
-        return pd.DataFrame(population_stats['population_over_time'])
+        return pd.DataFrame(population_stats["population_over_time"])
 
     def analyze_resource_distribution(self) -> pd.DataFrame:
         """Analyze resource distribution using DataRetriever."""
         resource_stats = self.retriever.get_resource_statistics()
-        return pd.DataFrame({
-            'steps': resource_stats['resource_distribution']['steps'],
-            'total_resources': resource_stats['resource_distribution']['total_resources'],
-            'average_per_agent': resource_stats['resource_distribution']['average_per_agent']
-        })
+        return pd.DataFrame(
+            {
+                "steps": resource_stats["resource_distribution"]["steps"],
+                "total_resources": resource_stats["resource_distribution"][
+                    "total_resources"
+                ],
+                "average_per_agent": resource_stats["resource_distribution"][
+                    "average_per_agent"
+                ],
+            }
+        )
 
     def get_control_agent_stats(self) -> str:
         """Get control agent statistics using DataRetriever."""
         lifespan_stats = self.retriever.get_agent_lifespan_statistics()
         population_stats = self.retriever.get_population_statistics()
-        
+
         return f"""
         Survival Rate: {lifespan_stats['survival_rate']:.2%}
         Average Resources: {population_stats['resource_metrics']['average_per_agent']:.2f}
@@ -57,7 +65,8 @@ class SimulationAnalyzer:
             AVG(average_agent_resources) as avg_agent_resources
         FROM AgentCounts
         """
-        result = pd.read_sql_query(query, self.conn)
+        with self.db.engine.connect() as conn:
+            result = pd.read_sql_query(query, conn)
 
         return f"""
         Population Balance Analysis:
