@@ -4,7 +4,7 @@ Unit tests for the observations module.
 This module tests the agent observation system including:
 - Channel enumeration
 - ObservationConfig validation
-- Utility functions (crop_egocentric, crop_egocentric_stack, make_disk_mask)
+- Utility functions (crop_local, crop_local_stack, make_disk_mask) for local cropping
 - AgentObservation class and all its methods
 """
 
@@ -18,8 +18,8 @@ from farm.core.channels import NUM_CHANNELS, Channel
 from farm.core.observations import (
     AgentObservation,
     ObservationConfig,
-    crop_egocentric,
-    crop_egocentric_stack,
+    crop_local,
+    crop_local_stack,
     make_disk_mask,
 )
 
@@ -114,8 +114,8 @@ class TestObservationConfig:
         assert config.dtype == torch.float64
 
 
-class TestCropEgocentric:
-    """Test the crop_egocentric function."""
+class TestCropLocal:
+    """Test the crop_local function."""
 
     def test_basic_crop(self):
         """Test basic cropping functionality."""
@@ -124,7 +124,7 @@ class TestCropEgocentric:
         grid[3:7, 3:7] = 1.0  # Create a 4x4 square of 1s
 
         # Crop around center (5, 5) with radius 2
-        crop = crop_egocentric(grid, center=(5, 5), R=2)
+        crop = crop_local(grid, center=(5, 5), R=2)
 
         assert crop.shape == (5, 5)  # 2*2 + 1 = 5
         assert crop[2, 2] == 1.0  # Center should be 1
@@ -142,7 +142,7 @@ class TestCropEgocentric:
         grid = torch.ones(10, 10)
 
         # Crop at edge (0, 0) with radius 3
-        crop = crop_egocentric(grid, center=(0, 0), R=3)
+        crop = crop_local(grid, center=(0, 0), R=3)
 
         assert crop.shape == (7, 7)  # 2*3 + 1 = 7
         # Should be padded with zeros for out-of-bounds areas
@@ -155,7 +155,7 @@ class TestCropEgocentric:
         grid = torch.ones(5, 5)
 
         # Crop at corner (4, 4) with radius 2
-        crop = crop_egocentric(grid, center=(4, 4), R=2)
+        crop = crop_local(grid, center=(4, 4), R=2)
 
         assert crop.shape == (5, 5)
         assert crop[2, 2] == 1.0  # Center of crop should be original corner
@@ -168,7 +168,7 @@ class TestCropEgocentric:
         grid[5, 5] = 1.0
 
         # Crop with custom pad value
-        crop = crop_egocentric(grid, center=(0, 0), R=3, pad_val=0.5)
+        crop = crop_local(grid, center=(0, 0), R=3, pad_val=0.5)
 
         assert crop.shape == (7, 7)
         # Check that padded areas have custom value
@@ -184,7 +184,7 @@ class TestCropEgocentric:
         grid = torch.ones(3, 3)
 
         # Crop with radius larger than grid
-        crop = crop_egocentric(grid, center=(1, 1), R=5)
+        crop = crop_local(grid, center=(1, 1), R=5)
 
         assert crop.shape == (11, 11)  # 2*5 + 1 = 11
         # Most should be padded, only center 3x3 should be original values
@@ -192,8 +192,8 @@ class TestCropEgocentric:
         assert crop[0, 0] == 0.0  # Padded corner
 
 
-class TestCropEgocentricStack:
-    """Test the crop_egocentric_stack function."""
+class TestCropLocalStack:
+    """Test the crop_local_stack function."""
 
     def test_multi_channel_crop(self):
         """Test cropping multi-channel tensor."""
@@ -204,7 +204,7 @@ class TestCropEgocentricStack:
         gridC[2, 5, 5] = 3.0  # Channel 2: single pixel
 
         # Crop around center (5, 5) with radius 2
-        crop = crop_egocentric_stack(gridC, center=(5, 5), R=2)
+        crop = crop_local_stack(gridC, center=(5, 5), R=2)
 
         assert crop.shape == (3, 5, 5)  # 3 channels, 5x5 spatial
         assert crop[0, 2, 2] == 1.0  # Channel 0 center
@@ -216,7 +216,7 @@ class TestCropEgocentricStack:
         gridC = torch.ones(2, 5, 5)
 
         # Crop at edge
-        crop = crop_egocentric_stack(gridC, center=(0, 0), R=2)
+        crop = crop_local_stack(gridC, center=(0, 0), R=2)
 
         assert crop.shape == (2, 5, 5)
         assert crop[0, 2, 2] == 1.0  # Center should be original value

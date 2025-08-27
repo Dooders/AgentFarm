@@ -416,12 +416,12 @@ def get_valid_numeric_columns(df, column_list):
 
 def run_analysis(
     analysis_type: str,
-    data_processor: Callable = None,
-    analysis_functions: List[Callable] = None,
-    db_filename: str = None,
-    load_data_function: Callable = None,
-    processor_kwargs: Dict[str, Any] = None,
-    analysis_kwargs: Dict[str, Dict[str, Any]] = None,
+    data_processor: Optional[Callable] = None,
+    analysis_functions: Optional[List[Callable]] = None,
+    db_filename: Optional[str] = None,
+    load_data_function: Optional[Callable] = None,
+    processor_kwargs: Optional[Dict[str, Any]] = None,
+    analysis_kwargs: Optional[Dict[str, Dict[str, Any]]] = None,
     function_group: str = "all",
 ):
     """
@@ -474,8 +474,12 @@ def run_analysis(
             logging.info(f"Using module system for {analysis_type} analysis")
 
             # Use the module's run_analysis method
+            experiment_path = find_latest_experiment_path()
+            if experiment_path is None:
+                logging.error("No experiment path found")
+                return output_path, None
             return module.run_analysis(
-                experiment_path=find_latest_experiment_path(),
+                experiment_path=experiment_path,
                 output_path=output_path,
                 group=function_group,
                 processor_kwargs=processor_kwargs,
@@ -520,6 +524,9 @@ def run_analysis(
         }
 
         # Process data and save to database
+        if data_processor is None:
+            logging.error("No data processor function provided")
+            return output_path, None
         df = data_processor(experiment_path, **db_processor_kwargs)
 
         # Load data from database if processor doesn't return it
@@ -528,6 +535,9 @@ def run_analysis(
             df = load_data_function(db_uri)
     else:
         # Process data without database
+        if data_processor is None:
+            logging.error("No data processor function provided")
+            return output_path, None
         df = data_processor(experiment_path, **processor_kwargs)
 
     if df is None or df.empty:
@@ -540,21 +550,22 @@ def run_analysis(
     logging.info(df.describe().to_string())
 
     # Run each analysis function
-    for func in analysis_functions:
-        try:
-            # Get function name for logging
-            func_name = func.__name__
+    if analysis_functions:
+        for func in analysis_functions:
+            try:
+                # Get function name for logging
+                func_name = func.__name__
 
-            # Get kwargs for this function if available
-            func_kwargs = analysis_kwargs.get(func_name, {})
+                # Get kwargs for this function if available
+                func_kwargs = analysis_kwargs.get(func_name, {})
 
-            logging.info(f"Running {func_name}...")
-            func(df, output_path, **func_kwargs)
-        except Exception as e:
-            logging.error(f"Error running {func.__name__}: {e}")
-            import traceback
+                logging.info(f"Running {func_name}...")
+                func(df, output_path, **func_kwargs)
+            except Exception as e:
+                logging.error(f"Error running {func.__name__}: {e}")
+                import traceback
 
-            logging.error(traceback.format_exc())
+                logging.error(traceback.format_exc())
 
     # Log completion
     logging.info("\nAnalysis complete. Results saved.")
@@ -569,7 +580,7 @@ def run_analysis(
 def setup_and_process_simulations(
     experiment_path: str,
     process_simulation_func: Callable,
-    process_kwargs: Dict[str, Any] = None,
+    process_kwargs: Optional[Dict[str, Any]] = None,
     show_progress: bool = True,
     progress_interval: int = 10,
 ) -> List[Dict[str, Any]]:

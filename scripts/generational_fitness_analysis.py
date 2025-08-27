@@ -140,32 +140,38 @@ def get_agent_metrics_by_generation(
                 "avg_survival_time": avg_survival_time,
                 "avg_resources": (
                     float(resource_metrics.avg_resources)
-                    if resource_metrics.avg_resources is not None
+                    if resource_metrics is not None
+                    and resource_metrics.avg_resources is not None
                     else 0
                 ),
                 "max_resources": (
                     float(resource_metrics.max_resources)
-                    if resource_metrics.max_resources is not None
+                    if resource_metrics is not None
+                    and resource_metrics.max_resources is not None
                     else 0
                 ),
                 "total_actions": (
                     int(action_metrics.total_actions)
-                    if action_metrics.total_actions is not None
+                    if action_metrics is not None
+                    and action_metrics.total_actions is not None
                     else 0
                 ),
                 "avg_reward": (
                     float(action_metrics.avg_reward)
-                    if action_metrics.avg_reward is not None
+                    if action_metrics is not None
+                    and action_metrics.avg_reward is not None
                     else 0
                 ),
                 "reproduction_attempts": (
                     int(reproduction_metrics.total_attempts)
-                    if reproduction_metrics.total_attempts is not None
+                    if reproduction_metrics is not None
+                    and reproduction_metrics.total_attempts is not None
                     else 0
                 ),
                 "reproduction_success": (
                     int(reproduction_metrics.successful_attempts)
-                    if reproduction_metrics.successful_attempts is not None
+                    if reproduction_metrics is not None
+                    and reproduction_metrics.successful_attempts is not None
                     else 0
                 ),
                 "reproduction_rate": (
@@ -173,7 +179,8 @@ def get_agent_metrics_by_generation(
                         float(reproduction_metrics.successful_attempts)
                         / float(reproduction_metrics.total_attempts)
                     )
-                    if reproduction_metrics.total_attempts
+                    if reproduction_metrics is not None
+                    and reproduction_metrics.total_attempts
                     and reproduction_metrics.total_attempts > 0
                     else 0
                 ),

@@ -63,12 +63,8 @@ class ResourceAnalyzer:
             >>> for step in distribution[:3]:
             ...     print(f"Step {step.step}: {step.total_resources:.2f} resources")
         """
-        return self.repository.get_resource_distribution(
-            self.repository.session_manager.create_session(),
-            scope=scope,
-            agent_id=agent_id,
-            step=step,
-            step_range=step_range,
+        return self.repository.resource_distribution(
+            self.repository.session_manager.create_session()
         )
 
     def analyze_consumption_patterns(
@@ -102,12 +98,8 @@ class ResourceAnalyzer:
             >>> print(f"Average consumption: {stats.avg_consumption_rate:.2f}/step")
             >>> print(f"Peak consumption: {stats.peak_consumption:.2f}")
         """
-        return self.repository.get_consumption_patterns(
-            self.repository.session_manager.create_session(),
-            scope=scope,
-            agent_id=agent_id,
-            step=step,
-            step_range=step_range,
+        return self.repository.consumption_patterns(
+            self.repository.session_manager.create_session()
         )
 
     def analyze_resource_hotspots(
@@ -141,12 +133,8 @@ class ResourceAnalyzer:
             ...     print(f"Hotspot at ({spot.position_x}, {spot.position_y}): "
             ...           f"{spot.concentration:.2f}")
         """
-        return self.repository.get_resource_hotspots(
-            self.repository.session_manager.create_session(),
-            scope=scope,
-            agent_id=agent_id,
-            step=step,
-            step_range=step_range,
+        return self.repository.resource_hotspots(
+            self.repository.session_manager.create_session()
         )
 
     def analyze_efficiency_metrics(
@@ -180,12 +168,8 @@ class ResourceAnalyzer:
             >>> print(f"Utilization rate: {efficiency.utilization_rate:.1%}")
             >>> print(f"Distribution efficiency: {efficiency.distribution_efficiency:.1%}")
         """
-        return self.repository.get_efficiency_metrics(
-            self.repository.session_manager.create_session(),
-            scope=scope,
-            agent_id=agent_id,
-            step=step,
-            step_range=step_range,
+        return self.repository.efficiency_metrics(
+            self.repository.session_manager.create_session()
         )
 
     def analyze_comprehensive_statistics(

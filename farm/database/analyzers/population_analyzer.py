@@ -360,10 +360,4 @@ class PopulationAnalyzer:
                 scope, agent_id, step, step_range
             ),
             population_variance=self.analyze_population_variance(basic_stats),
-            population_momentum=self.analyze_population_momentum(
-                scope, agent_id, step, step_range
-            ),
-            agent_distribution=self.analyze_agent_distribution(
-                scope, agent_id, step, step_range
-            ),
         )

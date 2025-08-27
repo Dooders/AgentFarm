@@ -194,7 +194,7 @@ class ExperimentRunner:
                             start_step=0,
                             end_step=num_steps,
                             min_severity=0.3,
-                            path=iteration_path,
+                            path=str(iteration_path),
                         )
                     finally:
                         # Clean up analysis database connection

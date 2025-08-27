@@ -173,19 +173,29 @@ class AgentAnalysis:
             a for a in actions if a.action_type in ["attack", "defend", "compete"]
         ]
 
-        successful = [a for a in competitive_actions if a.reward and a.reward > 0]
+        successful = [
+            a
+            for a in competitive_actions
+            if getattr(a, "reward", None) is not None
+            and float(getattr(a, "reward", 0)) > 0
+        ]
 
         # Calculate counter-strategies
         counter_actions = {}
         for action in competitive_actions:
-            if action.action_target_id:
+            if action.action_target_id is not None:
                 # Get all actions for the target
                 target_actions = self.repository.get_actions_by_agent_id(
-                    action.action_target_id
+                    str(action.action_target_id)
                 )
                 # Find first response after this action
+                action_step = int(getattr(action, "step_number", 0))
                 target_response = next(
-                    (a for a in target_actions if a.step_number > action.step_number),
+                    (
+                        a
+                        for a in target_actions
+                        if int(getattr(a, "step_number", 0)) > action_step
+                    ),
                     None,
                 )
                 if target_response:
@@ -208,7 +218,10 @@ class AgentAnalysis:
                 len(successful) / len(competitive_actions) if competitive_actions else 0
             ),
             damage_efficiency=(
-                sum(a.reward for a in successful) / len(successful) if successful else 0
+                sum(float(getattr(a, "reward", 0)) for a in successful)
+                / len(successful)
+                if successful
+                else 0
             ),
             counter_strategies=counter_frequencies,
         )
@@ -239,12 +252,18 @@ class AgentAnalysis:
         ]
 
         # Filter solo actions
-        solo_actions = [a for a in actions if not a.action_target_id]
+        solo_actions = [a for a in actions if a.action_target_id is None]
 
         collaborative_rewards = [
-            a.reward for a in collaborative_actions if a.reward is not None
+            float(getattr(a, "reward", 0))
+            for a in collaborative_actions
+            if getattr(a, "reward", None) is not None
         ]
-        solo_rewards = [a.reward for a in solo_actions if a.reward is not None]
+        solo_rewards = [
+            float(getattr(a, "reward", 0))
+            for a in solo_actions
+            if getattr(a, "reward", None) is not None
+        ]
 
         return CollaborativeInteractionAnalysis(
             collaboration_rate=(
@@ -291,9 +310,10 @@ class AgentAnalysis:
             period = action.step_number // 100
             if period not in time_periods:
                 time_periods[period] = {"rewards": [], "successes": 0, "total": 0}
-            if action.reward is not None:
-                time_periods[period]["rewards"].append(action.reward)
-                if action.reward > 0:
+            if getattr(action, "reward", None) is not None:
+                reward_value = float(getattr(action, "reward", 0))
+                time_periods[period]["rewards"].append(reward_value)
+                if reward_value > 0:
                     time_periods[period]["successes"] += 1
             time_periods[period]["total"] += 1
 
@@ -371,7 +391,10 @@ class AgentAnalysis:
             ...       key=lambda x: x[1])[0])
         """
         # Get actions through repository
-        actions = self.repository.get_ordered_actions(agent_id) if agent_id else []
+        agent_id_int = int(agent_id) if agent_id else None
+        actions = (
+            self.repository.get_ordered_actions(agent_id_int) if agent_id_int else []
+        )
 
         conflict_triggers = {}
         conflict_resolutions = {}
@@ -430,7 +453,8 @@ class AgentAnalysis:
             >>> print("High-risk actions:", risk.high_risk_actions)
         """
         # Get action statistics through repository
-        action_stats = self.repository.get_action_statistics(agent_id)
+        agent_id_int = int(agent_id) if agent_id else None
+        action_stats = self.repository.get_action_statistics(agent_id_int)
 
         high_risk = {}
         low_risk = {}
@@ -541,7 +565,10 @@ class AgentAnalysis:
             >>> print(f"Adaptation rate: {resilience.adaptation_rate:.1%}")
         """
         # Get ordered actions through repository
-        actions = self.repository.get_ordered_actions(agent_id) if agent_id else []
+        agent_id_int = int(agent_id) if agent_id else None
+        actions = (
+            self.repository.get_ordered_actions(agent_id_int) if agent_id_int else []
+        )
 
         recovery_times = []
         adaptation_speeds = []
@@ -552,19 +579,26 @@ class AgentAnalysis:
         pre_failure_reward = 0
 
         for i, action in enumerate(actions):
-            if action.reward is not None and action.reward < 0:
+            if (
+                getattr(action, "reward", None) is not None
+                and float(getattr(action, "reward", 0)) < 0
+            ):
                 if not current_failure:
                     current_failure = True
                     failure_start = i
                     pre_failure_reward = (
                         sum(
-                            a.reward
+                            float(getattr(a, "reward", 0))
                             for a in actions[max(0, i - 5) : i]
-                            if a.reward is not None
+                            if getattr(a, "reward", None) is not None
                         )
                         / 5
                     )
-            elif current_failure and action.reward is not None and action.reward > 0:
+            elif (
+                current_failure
+                and getattr(action, "reward", None) is not None
+                and float(getattr(action, "reward", 0)) > 0
+            ):
                 recovery_times.append(i - failure_start)
 
                 post_failure_actions = actions[failure_start:i]
@@ -572,14 +606,16 @@ class AgentAnalysis:
                     adaptation = sum(
                         1
                         for a in post_failure_actions
-                        if a.action_type != actions[failure_start].action_type
+                        if str(a.action_type) != str(actions[failure_start].action_type)
                     ) / len(post_failure_actions)
                     adaptation_speeds.append(adaptation)
 
                 failure_impacts.append(
                     pre_failure_reward
                     - min(
-                        a.reward for a in post_failure_actions if a.reward is not None
+                        float(getattr(a, "reward", 0))
+                        for a in post_failure_actions
+                        if getattr(a, "reward", None) is not None
                     )
                 )
 
@@ -620,7 +656,8 @@ class AgentAnalysis:
                     Analysis of location-based patterns and effects
         """
         # Get actions and states through repository
-        results = self.repository.get_actions_with_states(agent_id)
+        agent_id_int = int(agent_id) if agent_id else None
+        results = self.repository.get_actions_with_states(agent_id_int)
 
         # Analyze resource levels impact
         resource_impacts = {}

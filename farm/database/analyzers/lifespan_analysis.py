@@ -156,10 +156,10 @@ class AgentLifespanAnalysis:
                 Survival rates by generation
         """
         # Get lifespan statistics
-        lifespan_stats = self.lifespan_statistics()
+        lifespan_stats = self.lifespan_statistics(session)
 
         # Get survival rates
-        survival_rates = self.survival_rates()
+        survival_rates = self.survival_rates(session)
 
         return AgentLifespanResults(
             lifespan_statistics=lifespan_stats,
