@@ -1092,7 +1092,7 @@ class Environment(AECEnv):
             self._agent_objects = {}
             self.agents = []
             self.agent_observations = {}
-            for agent in options.get("agents"):
+            for agent in options.get("agents", []):
                 self.add_agent(agent)
         else:
             # Preserve existing agents and refresh observations
