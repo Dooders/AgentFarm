@@ -1,7 +1,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from sqlalchemy import func
@@ -50,7 +50,7 @@ def find_simulation_databases(base_path: str) -> List[str]:
 
 def get_columns_data(
     experiment_db_path: str, columns: List[str]
-) -> Tuple[np.ndarray, Dict[str, np.ndarray], int]:
+) -> Optional[Tuple[np.ndarray, Dict[str, np.ndarray], int]]:
     """
     Retrieve specified columns from the simulation database with robust error handling.
 
@@ -66,7 +66,7 @@ def get_columns_data(
     """
     if not os.path.exists(experiment_db_path):
         logger.error(f"Database file not found: {experiment_db_path}")
-        return None, {}, 0
+        return None
 
     db = None
     session = None
@@ -78,7 +78,7 @@ def get_columns_data(
         for col in columns:
             if not hasattr(SimulationStepModel, col):
                 logger.error(f"Column '{col}' not found in database schema")
-                return None, {}, 0
+                return None
 
         # Build query dynamically based on requested columns
         query_columns = [getattr(SimulationStepModel, col) for col in columns]
@@ -90,7 +90,7 @@ def get_columns_data(
 
         if not query:
             logger.warning(f"No data found in database: {experiment_db_path}")
-            return None, {}, 0
+            return None
 
         # Extract step numbers and column data
         steps = np.array([row[0] for row in query])
@@ -107,33 +107,33 @@ def get_columns_data(
                     logger.error(
                         f"Invalid resource level data for column '{col}' in {experiment_db_path}"
                     )
-                    return None, {}, 0
+                    return None
             else:
                 # Use population validation for other data
                 if not validate_population_data(data, experiment_db_path):
                     logger.error(
                         f"Invalid data for column '{col}' in {experiment_db_path}"
                     )
-                    return None, {}, 0
+                    return None
 
         max_steps = len(steps)
 
         # Validate steps
         if len(steps) == 0:
             logger.error(f"No steps found in database: {experiment_db_path}")
-            return None, {}, 0
+            return None
 
         if not np.all(np.diff(steps) >= 0):
             logger.error(
                 f"Steps are not monotonically increasing in {experiment_db_path}"
             )
-            return None, {}, 0
+            return None
 
         return steps, populations, max_steps
 
     except Exception as e:
         logger.error(f"Error accessing database {experiment_db_path}: {str(e)}")
-        return None, {}, 0
+        return None
     finally:
         if session:
             session.close()
@@ -141,22 +141,21 @@ def get_columns_data(
             db.close()
 
 
-def get_data(experiment_db_path: str) -> Tuple[np.ndarray, np.ndarray, int]:
+def get_data(experiment_db_path: str) -> Optional[Tuple[np.ndarray, np.ndarray, int]]:
     """
     Retrieve step numbers and total agents from the simulation database.
     This is a wrapper around get_columns_data for backward compatibility.
     """
-    steps, populations, max_steps = get_columns_data(
-        experiment_db_path, ["total_agents"]
-    )
-    if steps is not None:
+    result = get_columns_data(experiment_db_path, ["total_agents"])
+    if result is not None:
+        steps, populations, max_steps = result
         return steps, populations["total_agents"], max_steps
-    return None, None, 0
+    return None
 
 
 def get_columns_data_by_agent_type(
     experiment_db_path: str,
-) -> Tuple[np.ndarray, Dict[str, np.ndarray], int]:
+) -> Optional[Tuple[np.ndarray, Dict[str, np.ndarray], int]]:
     """
     Retrieve population data for each agent type from the simulation database.
     """
@@ -166,7 +165,7 @@ def get_columns_data_by_agent_type(
 
 def get_resource_consumption_data(
     experiment_db_path: str,
-) -> Tuple[np.ndarray, Dict[str, np.ndarray], int]:
+) -> Optional[Tuple[np.ndarray, Dict[str, np.ndarray], int]]:
     """
     Retrieve resource consumption data for each agent type from the simulation database.
 
@@ -185,10 +184,12 @@ def get_resource_consumption_data(
         "independent_agents",
         "resources_consumed",
     ]
-    steps, data, max_steps = get_columns_data(experiment_db_path, columns)
+    result = get_columns_data(experiment_db_path, columns)
 
-    if steps is None or not data:
-        return None, {}, 0
+    if result is None:
+        return None
+
+    steps, data, max_steps = result
 
     # Calculate consumption per agent type
     consumption = {}
@@ -271,7 +272,7 @@ def get_action_distribution_data(experiment_db_path: str) -> Dict[str, Dict[str,
 
 def get_resource_level_data(
     experiment_db_path: str,
-) -> Tuple[np.ndarray, np.ndarray, int]:
+) -> Optional[Tuple[np.ndarray, np.ndarray, int]]:
     """
     Retrieve resource level data from the simulation database.
 
@@ -285,10 +286,12 @@ def get_resource_level_data(
         - max_steps: Number of steps in the simulation
     """
     columns = ["average_agent_resources"]
-    steps, data, max_steps = get_columns_data(experiment_db_path, columns)
+    result = get_columns_data(experiment_db_path, columns)
 
-    if steps is None or not data:
-        return None, None, 0
+    if result is None:
+        return None
+
+    steps, data, max_steps = result
 
     return steps, data["average_agent_resources"], max_steps
 

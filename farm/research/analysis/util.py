@@ -1,5 +1,5 @@
 import logging
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -7,7 +7,9 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-def validate_population_data(population: np.ndarray, db_path: str = None) -> bool:
+def validate_population_data(
+    population: np.ndarray, db_path: Optional[str] = None
+) -> bool:
     """
     Validate population data array for integrity.
 
@@ -42,7 +44,7 @@ def validate_population_data(population: np.ndarray, db_path: str = None) -> boo
 
 
 def validate_resource_level_data(
-    resource_levels: np.ndarray, db_path: str = None
+    resource_levels: np.ndarray, db_path: Optional[str] = None
 ) -> bool:
     """
     Validate resource level data array for integrity.
@@ -95,9 +97,9 @@ def calculate_statistics(
     grouped = df.groupby("step")["population"]
 
     # Calculate statistics with handling for all-NaN groups
-    mean_pop = grouped.mean().fillna(0).values
-    median_pop = grouped.median().fillna(0).values
-    std_pop = grouped.std().fillna(0).values
+    mean_pop = np.array(grouped.mean().fillna(0).values)
+    median_pop = np.array(grouped.median().fillna(0).values)
+    std_pop = np.array(grouped.std().fillna(0).values)
 
     # Avoid division by zero in confidence interval calculation
     confidence_interval = np.where(

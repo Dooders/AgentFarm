@@ -1,8 +1,6 @@
 import logging
 from pathlib import Path
 
-import results.one_of_a_kind.scripts.generational_fitness_analysis as generational_fitness_analysis
-from farm.analysis.comparative_analysis import plot_population_trends_across_simulations
 from farm.research.analysis.analysis import (
     analyze_final_agent_counts,
     detect_early_terminations,
@@ -15,10 +13,13 @@ from farm.research.analysis.analysis import (
     process_experiment_rewards_by_generation,
 )
 from farm.research.analysis.database import find_simulation_databases
+
+# import results.one_of_a_kind.scripts.generational_fitness_analysis as generational_fitness_analysis  # Module not found
 from farm.research.analysis.plotting import (
     plot_action_distributions,
     plot_early_termination_analysis,
     plot_final_agent_counts,
+    plot_population_trends_across_simulations,
     plot_population_trends_by_agent_type,
     plot_resource_consumption_trends,
     plot_resource_level_trends,
@@ -54,51 +55,63 @@ def main():
     all_consumption_data = {}
     all_resource_level_data = {"resource_levels": [], "max_steps": 0}
 
-    for agent_type, experiment_list in experiments["single_agent"].items():
-        all_experiment_data[agent_type] = {"populations": [], "max_steps": 0}
-        all_consumption_data[agent_type] = {"consumption": [], "max_steps": 0}
+    # Type assertion to help the type checker
+    single_agent_experiments = experiments["single_agent"]
+    if isinstance(single_agent_experiments, dict):
+        for agent_type, experiment_list in single_agent_experiments.items():
+            all_experiment_data[agent_type] = {"populations": [], "max_steps": 0}
+            all_consumption_data[agent_type] = {"consumption": [], "max_steps": 0}
 
-        # Process each iteration of this experiment type
-        for experiment in experiment_list:
-            # Process population data
-            data = process_experiment(agent_type, experiment)
-            all_experiment_data[agent_type]["populations"].extend(data["populations"])
-            all_experiment_data[agent_type]["max_steps"] = max(
-                all_experiment_data[agent_type]["max_steps"], data["max_steps"]
-            )
+            # Process each iteration of this experiment type
+            for experiment in experiment_list:
+                # Process population data
+                data = process_experiment(agent_type, experiment)
+                all_experiment_data[agent_type]["populations"].extend(
+                    data["populations"]
+                )
+                all_experiment_data[agent_type]["max_steps"] = max(
+                    all_experiment_data[agent_type]["max_steps"], data["max_steps"]
+                )
 
-            # Process consumption data
-            consumption_data = process_experiment_resource_consumption(experiment)
-            if agent_type in consumption_data:
-                all_consumption_data[agent_type]["consumption"].extend(
+                # Process consumption data
+                consumption_data = process_experiment_resource_consumption(experiment)
+                if agent_type in consumption_data:
+                    all_consumption_data[agent_type]["consumption"].extend(
+                        consumption_data[agent_type]["consumption"]
+                    )
+                    all_consumption_data[agent_type]["max_steps"] = max(
+                        all_consumption_data[agent_type]["max_steps"],
+                        consumption_data[agent_type]["max_steps"],
+                    )
+
+                # Process resource level data
+                resource_level_data = process_experiment_resource_levels(experiment)
+                all_resource_level_data["resource_levels"].extend(
+                    resource_level_data["resource_levels"]
+                )
+                all_resource_level_data["max_steps"] = max(
+                    all_resource_level_data["max_steps"],
+                    resource_level_data["max_steps"],
+                )
+
+                # Create individual experiment resource consumption chart
+                experiment_path = (
+                    f"results/one_of_a_kind_v1/experiments/data/{experiment}"
+                )
+                if any(
                     consumption_data[agent_type]["consumption"]
-                )
-                all_consumption_data[agent_type]["max_steps"] = max(
-                    all_consumption_data[agent_type]["max_steps"],
-                    consumption_data[agent_type]["max_steps"],
-                )
+                    for agent_type in consumption_data
+                ):
+                    plot_resource_consumption_trends(consumption_data, experiment_path)
 
-            # Process resource level data
-            resource_level_data = process_experiment_resource_levels(experiment)
-            all_resource_level_data["resource_levels"].extend(
-                resource_level_data["resource_levels"]
-            )
-            all_resource_level_data["max_steps"] = max(
-                all_resource_level_data["max_steps"], resource_level_data["max_steps"]
-            )
-
-            # Create individual experiment resource consumption chart
-            experiment_path = f"results/one_of_a_kind_v1/experiments/data/{experiment}"
-            if any(
-                consumption_data[agent_type]["consumption"]
-                for agent_type in consumption_data
-            ):
-                plot_resource_consumption_trends(consumption_data, experiment_path)
-
-            # Create individual experiment resource level chart
-            if resource_level_data["resource_levels"]:
-                output_path = Path(experiment_path) / "resource_level_trends.png"
-                plot_resource_level_trends(resource_level_data, str(output_path))
+                # Create individual experiment resource level chart
+                if resource_level_data["resource_levels"]:
+                    output_path = Path(experiment_path) / "resource_level_trends.png"
+                    plot_resource_level_trends(
+                        {"resource_levels": resource_level_data["resource_levels"]}, str(output_path)  # type: ignore
+                    )
+    else:
+        logger.warning("single_agent_experiments is not a dict as expected")
 
     # Create combined plots for single agent experiments
     plot_population_trends_by_agent_type(all_experiment_data, str(base_path))
@@ -107,7 +120,10 @@ def main():
     # Create combined resource level plot
     if all_resource_level_data["resource_levels"]:
         output_path = base_path / "resource_level_trends.png"
-        plot_resource_level_trends(all_resource_level_data, str(output_path))
+        plot_resource_level_trends(
+            {"resource_levels": all_resource_level_data["resource_levels"]},
+            str(output_path),
+        )
 
     # Process one_of_a_kind experiments
     for experiment in experiments["one_of_a_kind"]:
@@ -115,7 +131,7 @@ def main():
 
         # Create overall population trend plot
         data = process_experiment("one_of_a_kind", experiment)
-        if data["populations"]:
+        if isinstance(data["populations"], list) and isinstance(data["max_steps"], int):
             output_path = experiment_path / "population_trends.png"
             plot_population_trends_across_simulations(
                 data["populations"], data["max_steps"], str(output_path)
@@ -144,13 +160,20 @@ def main():
         resource_level_data = process_experiment_resource_levels(experiment)
         if resource_level_data["resource_levels"]:
             output_path = experiment_path / "resource_level_trends.png"
-            plot_resource_level_trends(resource_level_data, str(output_path))
+            plot_resource_level_trends(
+                {"resource_levels": resource_level_data["resource_levels"]},  # type: ignore
+                str(output_path),
+            )
 
         # Add action distribution analysis
         action_data = process_action_distributions(experiment)
-        if any(data["total_actions"] > 0 for data in action_data.values()):
+        if any(
+            isinstance((total_actions := data.get("total_actions", 0)), int)
+            and total_actions > 0
+            for data in action_data.values()
+        ):
             action_analysis_dir = experiment_path / "action_analysis"
-            plot_action_distributions(action_data, str(action_analysis_dir))
+            plot_action_distributions(action_data, str(action_analysis_dir))  # type: ignore
 
         # Analyze early terminations
         db_paths = find_simulation_databases(str(experiment_path))
@@ -176,22 +199,23 @@ def main():
             plot_rewards_by_generation(rewards_by_generation, str(rewards_analysis_dir))
 
         # Add generational fitness analysis
-        logger.info(
-            f"Running generational fitness analysis for experiment: {experiment}"
-        )
-        try:
-            generational_fitness_results = (
-                generational_fitness_analysis.process_experiment_generational_fitness(
-                    experiment,
-                    data_path=EXPERIMENT_DATA_PATH,
-                    analysis_path=EXPERIMENT_ANALYSIS_PATH,
-                )
-            )
-            logger.info(f"Completed generational fitness analysis for {experiment}")
-        except Exception as e:
-            logger.error(
-                f"Error in generational fitness analysis for {experiment}: {str(e)}"
-            )
+        # TODO: Re-enable when generational_fitness_analysis module is available
+        # logger.info(
+        #     f"Running generational fitness analysis for experiment: {experiment}"
+        # )
+        # try:
+        #     generational_fitness_results = (
+        #         generational_fitness_analysis.process_experiment_generational_fitness(
+        #             experiment,
+        #             data_path=EXPERIMENT_DATA_PATH,
+        #             analysis_path=EXPERIMENT_ANALYSIS_PATH,
+        #         )
+        #     )
+        #     logger.info(f"Completed generational fitness analysis for {experiment}")
+        # except Exception as e:
+        #     logger.error(
+        #         f"Error in generational fitness analysis for {experiment}: {str(e)}"
+        #     )
 
 
 if __name__ == "__main__":

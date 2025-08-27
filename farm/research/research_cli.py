@@ -34,10 +34,12 @@ Note:
 """
 
 import argparse
+import os
 from pathlib import Path
 
-from farm.core.config import SimulationConfig
 from research.research import ResearchProject
+
+from farm.core.config import SimulationConfig
 
 
 def main():
@@ -113,7 +115,9 @@ def main():
         try:
             config = SimulationConfig.from_yaml(args.config)
             exp_path = project.create_experiment(args.name, args.description, config)
-            exp_id = exp_path.name  # Get the folder name as the experiment ID
+            exp_id = os.path.basename(
+                exp_path
+            )  # Get the folder name as the experiment ID
             print(f"Created experiment with ID: {exp_id}")
             print(f"Use this ID when running the experiment")
         except TypeError as e:
