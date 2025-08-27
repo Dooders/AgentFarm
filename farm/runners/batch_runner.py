@@ -3,7 +3,7 @@ import logging
 import os
 from datetime import datetime
 from multiprocessing import Pool
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
@@ -21,7 +21,9 @@ class BatchRunner:
     - Results collection and analysis
     """
 
-    def __init__(self, base_config: SimulationConfig):
+    def __init__(
+        self, base_config: SimulationConfig, config_file_path: Optional[str] = None
+    ):
         """
         Initialize batch runner with base configuration.
 
@@ -29,8 +31,11 @@ class BatchRunner:
         ----------
         base_config : SimulationConfig
             Base configuration to use for simulations
+        config_file_path : str, optional
+            Path to the config file for loading variations
         """
         self.base_config = base_config
+        self.config_file_path = config_file_path
         self.parameter_variations = {}
         self.results = []
 
@@ -75,7 +80,7 @@ class BatchRunner:
         args = [
             (
                 dict(zip(param_names, combo)),
-                self.base_config,
+                self.config_file_path,
                 num_steps,
                 f"{batch_dir}/sim_{i}.db",
             )
@@ -109,7 +114,10 @@ class BatchRunner:
         SimulationConfig
             New configuration object with updated parameters
         """
-        config = SimulationConfig.from_yaml(self.base_config.config_file)
+        if self.config_file_path:
+            config = SimulationConfig.from_yaml(self.config_file_path)
+        else:
+            config = self.base_config.copy()
         for param, value in params.items():
             setattr(config, param, value)
         return config
@@ -153,9 +161,13 @@ class BatchRunner:
 
 
 def run_simulation_wrapper(args):
-    params, config, num_steps, path = args
+    params, config_file_path, num_steps, path = args
     try:
-        config_copy = SimulationConfig.from_yaml(config.config_file)
+        if config_file_path:
+            config_copy = SimulationConfig.from_yaml(config_file_path)
+        else:
+            # Fallback: create a basic config (this might need adjustment based on usage)
+            config_copy = SimulationConfig()
         for param, value in params.items():
             setattr(config_copy, param, value)
         return run_simulation(num_steps, config_copy, path)
