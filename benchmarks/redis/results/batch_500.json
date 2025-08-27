@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "timestamp": 1756173376.7598193,
+    "timestamp": 1756261841.260431,
     "entries": 500,
     "batch_size": 500,
     "redis_server": "localhost:6379",
@@ -8,74 +8,74 @@
   },
   "writes": {
     "total_operations": 500,
-    "total_time": 0.1891326904296875,
-    "operations_per_second": 2643.646631706333,
-    "avg_operation_time": 0.00037760019302368164,
-    "min_operation_time": 0.0003294944763183594,
-    "max_operation_time": 0.0006470680236816406,
-    "std_operation_time": 3.177837279611397e-05
+    "total_time": 0.17666125297546387,
+    "operations_per_second": 2830.275408889147,
+    "avg_operation_time": 0.00035260629653930666,
+    "min_operation_time": 0.00033354759216308594,
+    "max_operation_time": 0.0005865097045898438,
+    "std_operation_time": 1.8381943822259848e-05
   },
   "reads": {
     "total_operations": 500,
-    "total_time": 0.08119392395019531,
-    "operations_per_second": 6158.096267236721,
-    "avg_operation_time": 0.00016183137893676757,
-    "min_operation_time": 0.0001480579376220703,
-    "max_operation_time": 0.00032639503479003906,
-    "std_operation_time": 1.0940426741244105e-05
+    "total_time": 0.0819697380065918,
+    "operations_per_second": 6099.812103337347,
+    "avg_operation_time": 0.00016322851181030273,
+    "min_operation_time": 0.0001513957977294922,
+    "max_operation_time": 0.0003249645233154297,
+    "std_operation_time": 1.1680109220679765e-05
   },
   "batch_operations": {
     "total_operations": 500,
     "total_batches": 1,
     "batch_size": 500,
-    "total_time": 0.019372940063476562,
-    "operations_per_second": 25809.1956286305,
-    "batches_per_second": 51.618391257261,
-    "avg_batch_time": 0.019371747970581055,
-    "min_batch_time": 0.019371747970581055,
-    "max_batch_time": 0.019371747970581055,
+    "total_time": 0.01836085319519043,
+    "operations_per_second": 27231.849995455195,
+    "batches_per_second": 54.46369999091039,
+    "avg_batch_time": 0.01835942268371582,
+    "min_batch_time": 0.01835942268371582,
+    "max_batch_time": 0.01835942268371582,
     "std_batch_time": 0
   },
   "memory": {
-    "initial_memory": 1854016,
-    "final_memory": 2151928,
-    "total_memory_used": 297912,
+    "initial_memory": 1854616,
+    "final_memory": 2151784,
+    "total_memory_used": 297168,
     "entries": 500,
-    "bytes_per_entry": 595.824,
+    "bytes_per_entry": 594.336,
     "memory_samples": [
       {
         "entries": 100,
-        "total_memory": 51344,
-        "memory_per_entry": 513.44
+        "total_memory": 48128,
+        "memory_per_entry": 481.28
       },
       {
         "entries": 200,
-        "total_memory": 117080,
-        "memory_per_entry": 585.4
+        "total_memory": 116872,
+        "memory_per_entry": 584.36
       },
       {
         "entries": 300,
-        "total_memory": 180176,
-        "memory_per_entry": 600.5866666666667
+        "total_memory": 179720,
+        "memory_per_entry": 599.0666666666667
       },
       {
         "entries": 400,
-        "total_memory": 236880,
-        "memory_per_entry": 592.2
+        "total_memory": 238392,
+        "memory_per_entry": 595.98
       },
       {
         "entries": 500,
-        "total_memory": 297912,
-        "memory_per_entry": 595.824
+        "total_memory": 297168,
+        "memory_per_entry": 594.336
       }
     ],
     "total_time": 0
   },
   "overall": {
-    "writes_per_second": 2643.646631706333,
-    "reads_per_second": 6158.096267236721,
-    "batch_throughput": 25809.1956286305,
-    "memory_per_entry": 595.824,
-    "total_duration": 0.2896995544433594
+    "writes_per_second": 2830.275408889147,
+    "reads_per_second": 6099.812103337347,
+    "batch_throughput": 27231.849995455195,
+    "memory_per_entry": 594.336,
+    "total_duration": 0.2769918441772461
   }
 }
