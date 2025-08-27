@@ -25,30 +25,6 @@ from matplotlib import pyplot as plt
 from sqlalchemy import func
 from sqlalchemy.orm import sessionmaker
 
-# Import our utility modules
-from ..data_extraction import (
-    get_initial_positions,
-    extract_time_series,
-    get_column_data_at_steps,
-    validate_dataframe
-)
-from ..database_utils import (
-    create_database_session,
-    get_simulation_folders,
-    get_simulation_database_path,
-    validate_simulation_folder,
-    get_iteration_number,
-    get_final_step_number,
-    get_agent_counts_by_type
-)
-from ..visualization_utils import (
-    setup_plot_style,
-    create_time_series_plot,
-    create_histogram,
-    create_box_plot,
-    save_figure
-)
-
 # Import database models
 from farm.database.models import (
     ActionModel,
@@ -58,6 +34,30 @@ from farm.database.models import (
     LearningExperienceModel,
     ReproductionEventModel,
     SimulationStepModel,
+)
+
+# Import our utility modules
+from ..data_extraction import (
+    extract_time_series,
+    get_column_data_at_steps,
+    get_initial_positions,
+    validate_dataframe,
+)
+from ..database_utils import (
+    create_database_session,
+    get_agent_counts_by_type,
+    get_final_step_number,
+    get_iteration_number,
+    get_simulation_database_path,
+    get_simulation_folders,
+    validate_simulation_folder,
+)
+from ..visualization_utils import (
+    create_box_plot,
+    create_histogram,
+    create_time_series_plot,
+    save_figure,
+    setup_plot_style,
 )
 
 logger = logging.getLogger(__name__)
@@ -85,9 +85,13 @@ class UnifiedExperimentAnalyzer:
 
         # Get all simulation folders
         self.sim_folders = get_simulation_folders(experiment_path)
-        self.valid_folders = [f for f in self.sim_folders if validate_simulation_folder(f)]
+        self.valid_folders = [
+            f for f in self.sim_folders if validate_simulation_folder(f)
+        ]
 
-        logger.info(f"Found {len(self.sim_folders)} simulation folders, {len(self.valid_folders)} valid")
+        logger.info(
+            f"Found {len(self.sim_folders)} simulation folders, {len(self.valid_folders)} valid"
+        )
 
     def analyze_population_dynamics(self) -> Dict[str, Any]:
         """
@@ -97,7 +101,11 @@ class UnifiedExperimentAnalyzer:
         logger.info("Analyzing population dynamics...")
 
         all_populations = []
-        agent_type_populations = {"SystemAgent": [], "IndependentAgent": [], "ControlAgent": []}
+        agent_type_populations = {
+            "SystemAgent": [],
+            "IndependentAgent": [],
+            "ControlAgent": [],
+        }
         max_steps = 0
 
         for folder in self.valid_folders:
@@ -118,7 +126,9 @@ class UnifiedExperimentAnalyzer:
                 for agent_type in agent_type_populations.keys():
                     col_name = f"{agent_type.lower().replace('agent', '_agents')}"
                     if col_name in steps_df.columns:
-                        agent_type_populations[agent_type].append(steps_df[col_name].values)
+                        agent_type_populations[agent_type].append(
+                            steps_df[col_name].values
+                        )
 
                 max_steps = max(max_steps, len(total_pop))
                 session.close()
@@ -134,7 +144,9 @@ class UnifiedExperimentAnalyzer:
         results["agent_types"] = {}
         for agent_type, populations in agent_type_populations.items():
             if populations:
-                results["agent_types"][agent_type] = self._calculate_population_statistics(populations, max_steps)
+                results["agent_types"][agent_type] = (
+                    self._calculate_population_statistics(populations, max_steps)
+                )
 
         return results
 
@@ -198,9 +210,13 @@ class UnifiedExperimentAnalyzer:
                     action_success_rates[action_type]["total"] += 1
 
                     # Check if action was successful
-                    if hasattr(action, 'details') and action.details:
+                    if hasattr(action, "details") and action.details:
                         try:
-                            details = json.loads(action.details) if isinstance(action.details, str) else action.details
+                            details = (
+                                json.loads(action.details)
+                                if isinstance(action.details, str)
+                                else action.details
+                            )
                             if details.get("success", False):
                                 action_success_rates[action_type]["success"] += 1
                         except (json.JSONDecodeError, KeyError):
@@ -216,13 +232,15 @@ class UnifiedExperimentAnalyzer:
         for action_type in action_success_rates:
             total = action_success_rates[action_type]["total"]
             if total > 0:
-                action_success_rates[action_type]["rate"] = action_success_rates[action_type]["success"] / total
+                action_success_rates[action_type]["rate"] = (
+                    action_success_rates[action_type]["success"] / total
+                )
             else:
                 action_success_rates[action_type]["rate"] = 0
 
         return {
             "action_counts": action_counts,
-            "action_success_rates": action_success_rates
+            "action_success_rates": action_success_rates,
         }
 
     def analyze_reproduction(self) -> Dict[str, Any]:
@@ -235,7 +253,7 @@ class UnifiedExperimentAnalyzer:
             "total_events": 0,
             "successful_events": 0,
             "by_agent_type": {},
-            "success_rates": {}
+            "success_rates": {},
         }
 
         for folder in self.valid_folders:
@@ -255,15 +273,26 @@ class UnifiedExperimentAnalyzer:
                     # Track by agent type
                     if repro.parent_id:
                         # Get agent type from agents table
-                        agent = session.query(AgentModel).filter(AgentModel.agent_id == repro.parent_id).first()
+                        agent = (
+                            session.query(AgentModel)
+                            .filter(AgentModel.agent_id == repro.parent_id)
+                            .first()
+                        )
                         if agent:
                             agent_type = agent.agent_type
                             if agent_type not in reproduction_stats["by_agent_type"]:
-                                reproduction_stats["by_agent_type"][agent_type] = {"total": 0, "successful": 0}
+                                reproduction_stats["by_agent_type"][agent_type] = {
+                                    "total": 0,
+                                    "successful": 0,
+                                }
 
-                            reproduction_stats["by_agent_type"][agent_type]["total"] += 1
+                            reproduction_stats["by_agent_type"][agent_type][
+                                "total"
+                            ] += 1
                             if repro.success:
-                                reproduction_stats["by_agent_type"][agent_type]["successful"] += 1
+                                reproduction_stats["by_agent_type"][agent_type][
+                                    "successful"
+                                ] += 1
 
                 session.close()
 
@@ -274,7 +303,8 @@ class UnifiedExperimentAnalyzer:
         # Calculate success rates
         if reproduction_stats["total_events"] > 0:
             reproduction_stats["overall_success_rate"] = (
-                reproduction_stats["successful_events"] / reproduction_stats["total_events"]
+                reproduction_stats["successful_events"]
+                / reproduction_stats["total_events"]
             )
 
         for agent_type in reproduction_stats["by_agent_type"]:
@@ -287,7 +317,9 @@ class UnifiedExperimentAnalyzer:
 
         return reproduction_stats
 
-    def _calculate_population_statistics(self, all_populations: List[np.ndarray], max_steps: int) -> Dict[str, Any]:
+    def _calculate_population_statistics(
+        self, all_populations: List[np.ndarray], max_steps: int
+    ) -> Dict[str, Any]:
         """Calculate comprehensive population statistics."""
         if not all_populations:
             return {"error": "No population data available"}
@@ -297,7 +329,7 @@ class UnifiedExperimentAnalyzer:
         for pop in all_populations:
             if len(pop) < max_steps:
                 # Pad with last value
-                padded = np.pad(pop, (0, max_steps - len(pop)), 'edge')
+                padded = np.pad(pop, (0, max_steps - len(pop)), "edge")
             else:
                 padded = pop[:max_steps]
             aligned_populations.append(padded)
@@ -328,10 +360,12 @@ class UnifiedExperimentAnalyzer:
             "peak_step": int(peak_step),
             "peak_value": float(peak_value),
             "n_simulations": len(aligned_populations),
-            "survival_rate": np.mean(final_populations > 0)
+            "survival_rate": np.mean(final_populations > 0),
         }
 
-    def _calculate_resource_statistics(self, all_resources: List[np.ndarray], max_steps: int) -> Dict[str, Any]:
+    def _calculate_resource_statistics(
+        self, all_resources: List[np.ndarray], max_steps: int
+    ) -> Dict[str, Any]:
         """Calculate comprehensive resource statistics."""
         if not all_resources:
             return {"error": "No resource data available"}
@@ -340,7 +374,7 @@ class UnifiedExperimentAnalyzer:
         aligned_resources = []
         for res in all_resources:
             if len(res) < max_steps:
-                padded = np.pad(res, (0, max_steps - len(res)), 'edge')
+                padded = np.pad(res, (0, max_steps - len(res)), "edge")
             else:
                 padded = res[:max_steps]
             aligned_resources.append(padded)
@@ -359,7 +393,7 @@ class UnifiedExperimentAnalyzer:
             "std": std_res,
             "steps": steps,
             "n_simulations": len(aligned_resources),
-            "final_resources": resources_array[:, -1]
+            "final_resources": resources_array[:, -1],
         }
 
     def generate_comprehensive_report(self) -> Dict[str, Any]:
@@ -372,17 +406,17 @@ class UnifiedExperimentAnalyzer:
             "experiment_info": {
                 "total_simulations": len(self.sim_folders),
                 "valid_simulations": len(self.valid_folders),
-                "experiment_path": str(self.experiment_path)
+                "experiment_path": str(self.experiment_path),
             },
             "population_analysis": self.analyze_population_dynamics(),
             "resource_analysis": self.analyze_resource_dynamics(),
             "action_analysis": self.analyze_action_patterns(),
-            "reproduction_analysis": self.analyze_reproduction()
+            "reproduction_analysis": self.analyze_reproduction(),
         }
 
         # Save report
         report_path = self.output_dir / "comprehensive_analysis_report.json"
-        with open(report_path, 'w') as f:
+        with open(report_path, "w") as f:
             # Convert numpy types to JSON serializable
             json_report = self._make_json_serializable(report)
             json.dump(json_report, f, indent=2)
@@ -416,36 +450,42 @@ class UnifiedExperimentAnalyzer:
         if "mean" in pop_data:
             fig, ax = plt.subplots(figsize=(12, 8))
             create_time_series_plot(
-                ax, pd.DataFrame({
-                    "step_number": pop_data["steps"],
-                    "mean": pop_data["mean"],
-                    "median": pop_data["median"]
-                }),
+                ax,
+                pd.DataFrame(
+                    {
+                        "step_number": pop_data["steps"],
+                        "mean": pop_data["mean"],
+                        "median": pop_data["median"],
+                    }
+                ),
                 "step_number",
                 ["mean", "median"],
                 title="Population Dynamics Across Simulations",
                 xlabel="Step Number",
-                ylabel="Population Count"
+                ylabel="Population Count",
             )
-            save_figure(fig, self.output_dir / "population_dynamics.png")
+            save_figure(fig, str(self.output_dir / "population_dynamics.png"))
 
         # Resource dynamics visualization
         res_data = self.analyze_resource_dynamics()
         if "mean" in res_data:
             fig, ax = plt.subplots(figsize=(12, 8))
             create_time_series_plot(
-                ax, pd.DataFrame({
-                    "step_number": res_data["steps"],
-                    "mean": res_data["mean"],
-                    "median": res_data["median"]
-                }),
+                ax,
+                pd.DataFrame(
+                    {
+                        "step_number": res_data["steps"],
+                        "mean": res_data["mean"],
+                        "median": res_data["median"],
+                    }
+                ),
                 "step_number",
                 ["mean", "median"],
                 title="Resource Dynamics Across Simulations",
                 xlabel="Step Number",
-                ylabel="Total Resources"
+                ylabel="Total Resources",
             )
-            save_figure(fig, self.output_dir / "resource_dynamics.png")
+            save_figure(fig, str(self.output_dir / "resource_dynamics.png"))
 
         logger.info(f"Visualization report saved to: {self.output_dir}")
 
@@ -453,7 +493,7 @@ class UnifiedExperimentAnalyzer:
 def analyze_single_experiment(
     experiment_path: str,
     output_dir: str = "experiment_analysis",
-    create_visualizations: bool = True
+    create_visualizations: bool = True,
 ) -> Dict[str, Any]:
     """
     Convenience function to analyze a single experiment.
@@ -489,7 +529,9 @@ def main():
     Example usage of the unified experiment analyzer.
     """
     # Example experiment path (adjust as needed)
-    experiment_path = "results/one_of_a_kind/experiments/data/one_of_a_kind_20250302_193353"
+    experiment_path = (
+        "results/one_of_a_kind/experiments/data/one_of_a_kind_20250302_193353"
+    )
 
     if not os.path.exists(experiment_path):
         print(f"Experiment path not found: {experiment_path}")
@@ -498,16 +540,22 @@ def main():
 
     # Create comprehensive analysis
     print("Starting unified experiment analysis...")
-    report = analyze_single_experiment(experiment_path, "unified_analysis", create_visualizations=True)
+    report = analyze_single_experiment(
+        experiment_path, "unified_analysis", create_visualizations=True
+    )
 
     # Print summary
     print("\n=== ANALYSIS SUMMARY ===")
     print(f"Total simulations: {report['experiment_info']['total_simulations']}")
     print(f"Valid simulations: {report['experiment_info']['valid_simulations']}")
 
-    if "population_analysis" in report and "peak_value" in report["population_analysis"]:
+    if (
+        "population_analysis" in report
+        and "peak_value" in report["population_analysis"]
+    ):
         pop_analysis = report["population_analysis"]
-        print(".1f"    print(".1f"
+        print(f"Peak population: {pop_analysis['peak_value']:.1f}")
+        print(f"Survival rate: {pop_analysis['survival_rate']:.1f}")
     if "action_analysis" in report:
         action_analysis = report["action_analysis"]
         if "action_counts" in action_analysis:

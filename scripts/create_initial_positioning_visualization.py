@@ -32,6 +32,7 @@ import seaborn as sns
 
 # Import analysis configuration
 from analysis_config import OUTPUT_PATH, setup_logging
+from matplotlib.lines import Line2D
 from matplotlib.patches import Circle
 from scipy.spatial.distance import euclidean
 from sklearn.ensemble import RandomForestClassifier
@@ -924,7 +925,7 @@ def create_comprehensive_dominance_scatter(data_df, output_path):
     if regular_points and dominant_points:
         # Create custom legend elements
         legend_elements = [
-            plt.Line2D(
+            Line2D(
                 [0],
                 [0],
                 marker="o",
@@ -933,7 +934,7 @@ def create_comprehensive_dominance_scatter(data_df, output_path):
                 markersize=10,
                 label="All Simulations",
             ),
-            plt.Line2D(
+            Line2D(
                 [0],
                 [0],
                 marker="*",
@@ -942,9 +943,7 @@ def create_comprehensive_dominance_scatter(data_df, output_path):
                 markersize=15,
                 label="Achieved Comprehensive Dominance",
             ),
-            plt.Line2D(
-                [0], [0], color="r", linestyle="--", alpha=0.8, label="Trend Line"
-            ),
+            Line2D([0], [0], color="r", linestyle="--", alpha=0.8, label="Trend Line"),
         ]
 
         # Place legend at the top of the figure
@@ -961,7 +960,7 @@ def create_comprehensive_dominance_scatter(data_df, output_path):
         y=0.92,
     )
     plt.tight_layout(
-        rect=[0, 0, 1, 0.92]
+        rect=(0, 0, 1, 0.92)
     )  # Adjust the layout to make room for the legend
     plt.savefig(
         os.path.join(output_path, "proximity_vs_comprehensive_scatter.png"), dpi=150
@@ -1012,7 +1011,7 @@ def create_component_breakdown_visualization(data_df, output_path):
         "Growth Trend",
         "Final Ratio",
     ]
-    
+
     # Define consistent metrics to use for each component column
     # This ensures all agent types use the same x-axis metric for each component
     consistent_metrics = {
@@ -1038,10 +1037,10 @@ def create_component_breakdown_visualization(data_df, output_path):
             # Use consistent metric for this component column
             metric_suffix = consistent_metrics[component]
             metric_col = f"{agent_type}agent_{metric_suffix}"
-            
+
             # Find the component column
             component_col = f"{agent_type}_{component}"
-            
+
             if component_col in data_df.columns and metric_col in data_df.columns:
                 # Plot this relationship
                 ax.scatter(
@@ -1064,7 +1063,7 @@ def create_component_breakdown_visualization(data_df, output_path):
                         z = np.polyfit(x, y, 1)
                         p = np.poly1d(z)
                         ax.plot(x, p(x), "r--", alpha=0.8)
-                        
+
                         # Add correlation value
                         ax.text(
                             0.05,
@@ -1078,7 +1077,7 @@ def create_component_breakdown_visualization(data_df, output_path):
                 # Format the axis label to make it more readable
                 metric_label = metric_suffix.replace("_", " ")
                 ax.set_xlabel(metric_label, fontsize=8)
-                
+
                 # Set consistent x-axis limits for each column to ensure comparability
                 if j == 0:  # First column - set y-label
                     ax.set_ylabel(agent_type.capitalize(), fontsize=10)
@@ -1088,12 +1087,12 @@ def create_component_breakdown_visualization(data_df, output_path):
                 ax.set_title(component_names[j], fontsize=10)
 
             ax.grid(True, alpha=0.3)
-    
+
     # Set consistent x-axis limits for each column
     for j in range(5):  # For each component column
-        x_min = float('inf')
-        x_max = float('-inf')
-        
+        x_min = float("inf")
+        x_max = float("-inf")
+
         # Find min and max across all agent types for this component
         for i in range(3):  # For each agent type
             if axes[i, j].collections:  # If there's data plotted
@@ -1101,9 +1100,9 @@ def create_component_breakdown_visualization(data_df, output_path):
                 if len(x_data) > 0:
                     x_min = min(x_min, np.min(x_data))
                     x_max = max(x_max, np.max(x_data))
-        
+
         # Apply consistent limits to all plots in this column
-        if x_min != float('inf') and x_max != float('-inf'):
+        if x_min != float("inf") and x_max != float("-inf"):
             for i in range(3):  # For each agent type
                 axes[i, j].set_xlim(x_min, x_max)
 
