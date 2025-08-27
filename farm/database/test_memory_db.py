@@ -10,14 +10,16 @@ import shutil
 import tempfile
 import time
 import unittest
-from unittest.mock import patch, MagicMock
+from typing import Any, cast
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
 import psutil
+from sqlalchemy import text
 
-from farm.database.database import InMemorySimulationDatabase, SimulationDatabase
 from farm.core.config import SimulationConfig
+from farm.database.database import InMemorySimulationDatabase, SimulationDatabase
 
 
 class TestInMemorySimulationDatabase(unittest.TestCase):
@@ -28,10 +30,10 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
         # Create a temporary directory for test files
         self.test_dir = tempfile.mkdtemp()
         self.db_path = os.path.join(self.test_dir, "test_db.db")
-        
+
         # Create an in-memory database instance
         self.db = InMemorySimulationDatabase()
-        
+
         # Sample data for testing
         self.sample_config = {
             "width": 100,
@@ -40,7 +42,7 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
             "independent_agents": 10,
             "control_agents": 10,
         }
-        
+
         # Sample agent data
         self.sample_agent_data = {
             "agent_id": "test_agent_1",
@@ -53,7 +55,7 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
             "genome_id": "genome_1",
             "generation": 1,
         }
-        
+
         # Sample step data
         self.sample_step_data = {
             "step_number": 1,
@@ -68,12 +70,12 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
     def tearDown(self):
         """Clean up after each test."""
         # Close database connection
-        if hasattr(self, 'db') and self.db:
+        if hasattr(self, "db") and self.db:
             try:
                 self.db.close()
             except Exception:
                 pass
-        
+
         # Remove temporary directory
         shutil.rmtree(self.test_dir)
 
@@ -82,16 +84,16 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
         # Verify database is created
         self.assertIsNotNone(self.db)
         self.assertEqual(self.db.db_path, ":memory:")
-        
+
         # Verify engine is created
         self.assertIsNotNone(self.db.engine)
-        
+
         # Verify session factory is created
         self.assertIsNotNone(self.db.Session)
-        
+
         # Verify logger is created
         self.assertIsNotNone(self.db.logger)
-        
+
         # Verify query interface is created
         self.assertIsNotNone(self.db.query)
 
@@ -100,10 +102,10 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
         # Create database with memory limit
         memory_limit = 1024  # 1GB
         db = InMemorySimulationDatabase(memory_limit_mb=memory_limit)
-        
+
         # Verify memory limit is set
         self.assertEqual(db.memory_limit_mb, memory_limit)
-        
+
         # Clean up
         db.close()
 
@@ -111,10 +113,10 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
         """Test saving and retrieving configuration."""
         # Save configuration
         self.db.save_configuration(self.sample_config)
-        
+
         # Retrieve configuration
         config = self.db.get_configuration()
-        
+
         # Verify configuration is retrieved correctly
         for key, value in self.sample_config.items():
             self.assertEqual(config[key], value)
@@ -133,20 +135,23 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
             genome_id=self.sample_agent_data["genome_id"],
             generation=self.sample_agent_data["generation"],
         )
-        
+
         # Flush buffers to ensure data is written
         self.db.logger.flush_all_buffers()
-        
+
         # Query agent data
         session = self.db.Session()
         try:
             # Use raw SQL for simplicity
-            result = session.execute("SELECT * FROM agents WHERE agent_id = :agent_id", 
-                                    {"agent_id": self.sample_agent_data["agent_id"]})
+            result = session.execute(
+                text("SELECT * FROM agents WHERE agent_id = :agent_id"),
+                {"agent_id": self.sample_agent_data["agent_id"]},
+            )
             agent_row = result.fetchone()
-            
+
             # Verify agent data is retrieved correctly
             self.assertIsNotNone(agent_row)
+            agent_row = cast(Any, agent_row)
             self.assertEqual(agent_row.agent_id, self.sample_agent_data["agent_id"])
             self.assertEqual(agent_row.agent_type, self.sample_agent_data["agent_type"])
             self.assertEqual(agent_row.birth_time, self.sample_agent_data["birth_time"])
@@ -163,24 +168,33 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
             resource_states=[],  # Empty for simplicity
             metrics=self.sample_step_data,
         )
-        
+
         # Flush buffers to ensure data is written
         self.db.logger.flush_all_buffers()
-        
+
         # Query step data
         session = self.db.Session()
         try:
             # Use raw SQL for simplicity
-            result = session.execute("SELECT * FROM simulation_steps WHERE step_number = :step_number", 
-                                    {"step_number": self.sample_step_data["step_number"]})
+            result = session.execute(
+                text("SELECT * FROM simulation_steps WHERE step_number = :step_number"),
+                {"step_number": self.sample_step_data["step_number"]},
+            )
             step_row = result.fetchone()
-            
+
             # Verify step data is retrieved correctly
             self.assertIsNotNone(step_row)
+            step_row = cast(Any, step_row)
             self.assertEqual(step_row.step_number, self.sample_step_data["step_number"])
-            self.assertEqual(step_row.total_agents, self.sample_step_data["total_agents"])
-            self.assertEqual(step_row.system_agents, self.sample_step_data["system_agents"])
-            self.assertEqual(step_row.independent_agents, self.sample_step_data["independent_agents"])
+            self.assertEqual(
+                step_row.total_agents, self.sample_step_data["total_agents"]
+            )
+            self.assertEqual(
+                step_row.system_agents, self.sample_step_data["system_agents"]
+            )
+            self.assertEqual(
+                step_row.independent_agents, self.sample_step_data["independent_agents"]
+            )
         finally:
             session.close()
 
@@ -188,7 +202,7 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
         """Test persisting in-memory database to disk."""
         # Add some data
         self.db.save_configuration(self.sample_config)
-        
+
         # Log agent
         self.db.logger.log_agent(
             agent_id=self.sample_agent_data["agent_id"],
@@ -201,7 +215,7 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
             genome_id=self.sample_agent_data["genome_id"],
             generation=self.sample_agent_data["generation"],
         )
-        
+
         # Log step
         self.db.logger.log_step(
             step_number=self.sample_step_data["step_number"],
@@ -209,22 +223,22 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
             resource_states=[],  # Empty for simplicity
             metrics=self.sample_step_data,
         )
-        
+
         # Flush buffers to ensure data is written
         self.db.logger.flush_all_buffers()
-        
+
         # Persist to disk
         stats = self.db.persist_to_disk(self.db_path, show_progress=False)
-        
+
         # Verify persistence statistics
         self.assertIsNotNone(stats)
         self.assertIn("tables_copied", stats)
         self.assertIn("rows_copied", stats)
         self.assertIn("duration", stats)
-        
+
         # Verify database file exists
         self.assertTrue(os.path.exists(self.db_path))
-        
+
         # Open the persisted database and verify data
         disk_db = SimulationDatabase(self.db_path)
         try:
@@ -232,26 +246,36 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
             config = disk_db.get_configuration()
             for key, value in self.sample_config.items():
                 self.assertEqual(config[key], value)
-            
+
             # Verify agent data
             session = disk_db.Session()
             try:
-                result = session.execute("SELECT * FROM agents WHERE agent_id = :agent_id", 
-                                        {"agent_id": self.sample_agent_data["agent_id"]})
+                result = session.execute(
+                    text("SELECT * FROM agents WHERE agent_id = :agent_id"),
+                    {"agent_id": self.sample_agent_data["agent_id"]},
+                )
                 agent_row = result.fetchone()
                 self.assertIsNotNone(agent_row)
+                agent_row = cast(Any, agent_row)
                 self.assertEqual(agent_row.agent_id, self.sample_agent_data["agent_id"])
             finally:
                 session.close()
-            
+
             # Verify step data
             session = disk_db.Session()
             try:
-                result = session.execute("SELECT * FROM simulation_steps WHERE step_number = :step_number", 
-                                        {"step_number": self.sample_step_data["step_number"]})
+                result = session.execute(
+                    text(
+                        "SELECT * FROM simulation_steps WHERE step_number = :step_number"
+                    ),
+                    {"step_number": self.sample_step_data["step_number"]},
+                )
                 step_row = result.fetchone()
                 self.assertIsNotNone(step_row)
-                self.assertEqual(step_row.step_number, self.sample_step_data["step_number"])
+                step_row = cast(Any, step_row)
+                self.assertEqual(
+                    step_row.step_number, self.sample_step_data["step_number"]
+                )
             finally:
                 session.close()
         finally:
@@ -261,7 +285,7 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
         """Test persisting only selected tables."""
         # Add some data
         self.db.save_configuration(self.sample_config)
-        
+
         # Log agent
         self.db.logger.log_agent(
             agent_id=self.sample_agent_data["agent_id"],
@@ -274,7 +298,7 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
             genome_id=self.sample_agent_data["genome_id"],
             generation=self.sample_agent_data["generation"],
         )
-        
+
         # Log step
         self.db.logger.log_step(
             step_number=self.sample_step_data["step_number"],
@@ -282,32 +306,30 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
             resource_states=[],  # Empty for simplicity
             metrics=self.sample_step_data,
         )
-        
+
         # Flush buffers to ensure data is written
         self.db.logger.flush_all_buffers()
-        
+
         # Persist only simulation_config table
         tables_to_persist = ["simulation_config"]
         stats = self.db.persist_to_disk(
-            self.db_path, 
-            tables=tables_to_persist,
-            show_progress=False
+            self.db_path, tables=tables_to_persist, show_progress=False
         )
-        
+
         # Verify persistence statistics
         self.assertEqual(stats["tables_copied"], 1)
-        
+
         # Open the persisted database and verify data
         disk_db = SimulationDatabase(self.db_path)
         try:
             # Verify configuration exists
             config = disk_db.get_configuration()
             self.assertIsNotNone(config)
-            
+
             # Verify agent data does not exist
             session = disk_db.Session()
             try:
-                result = session.execute("SELECT COUNT(*) FROM agents")
+                result = session.execute(text("SELECT COUNT(*) FROM agents"))
                 count = result.scalar()
                 self.assertEqual(count, 0)
             finally:
@@ -315,102 +337,104 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
         finally:
             disk_db.close()
 
-    @patch('psutil.Process')
+    @patch("psutil.Process")
     def test_memory_monitoring(self, mock_process):
         """Test memory usage monitoring."""
         # Mock psutil.Process to return predictable memory values
         mock_process_instance = MagicMock()
         mock_process.return_value = mock_process_instance
-        
+
         # Mock memory_info to return a namedtuple with rss attribute
         memory_info = MagicMock()
         memory_info.rss = 500 * 1024 * 1024  # 500MB
         mock_process_instance.memory_info.return_value = memory_info
-        
+
         # Create database with memory monitoring
-        with patch('threading.Thread') as mock_thread:
+        with patch("threading.Thread") as mock_thread:
             db = InMemorySimulationDatabase(memory_limit_mb=1000)
-            
+
             # Verify thread was started for memory monitoring
             self.assertTrue(mock_thread.called)
-            
+
             # Manually call the monitor_memory function to simulate thread execution
             # Extract the target function from the Thread constructor call
-            monitor_func = mock_thread.call_args[1]['target']
-            
+            monitor_func = mock_thread.call_args[1]["target"]
+
             # Call it once to populate memory_usage_samples
             monitor_func()
-            
+
             # Verify memory usage was recorded
             self.assertEqual(len(db.memory_usage_samples), 1)
             self.assertEqual(db.memory_usage_samples[0], 500)
-            
+
             # Get memory usage stats
             stats = db.get_memory_usage()
             self.assertEqual(stats["current_mb"], 500)
             self.assertEqual(stats["limit_mb"], 1000)
             self.assertEqual(stats["usage_percent"], 50)
-            
+
             # Clean up
             db.close()
 
-    @patch('psutil.Process')
+    @patch("psutil.Process")
     def test_memory_warning_threshold(self, mock_process):
         """Test memory warning threshold."""
         # Mock psutil.Process to return memory values near warning threshold
         mock_process_instance = MagicMock()
         mock_process.return_value = mock_process_instance
-        
+
         # Mock memory_info to return a value above warning threshold
         memory_info = MagicMock()
         memory_info.rss = 850 * 1024 * 1024  # 850MB (85% of 1000MB limit)
         mock_process_instance.memory_info.return_value = memory_info
-        
+
         # Create database with memory monitoring
-        with patch('threading.Thread') as mock_thread, \
-             patch('logging.warning') as mock_warning:
-            
+        with patch("threading.Thread") as mock_thread, patch(
+            "logging.warning"
+        ) as mock_warning:
+
             db = InMemorySimulationDatabase(memory_limit_mb=1000)
-            
+
             # Extract the target function from the Thread constructor call
-            monitor_func = mock_thread.call_args[1]['target']
-            
+            monitor_func = mock_thread.call_args[1]["target"]
+
             # Call it to trigger warning
             monitor_func()
-            
+
             # Verify warning was logged
             self.assertTrue(mock_warning.called)
-            
+
             # Clean up
             db.close()
 
-    @patch('psutil.Process')
+    @patch("psutil.Process")
     def test_memory_critical_threshold(self, mock_process):
         """Test memory critical threshold."""
         # Mock psutil.Process to return memory values near critical threshold
         mock_process_instance = MagicMock()
         mock_process.return_value = mock_process_instance
-        
+
         # Mock memory_info to return a value above critical threshold
         memory_info = MagicMock()
         memory_info.rss = 960 * 1024 * 1024  # 960MB (96% of 1000MB limit)
         mock_process_instance.memory_info.return_value = memory_info
-        
+
         # Create database with memory monitoring
-        with patch('threading.Thread') as mock_thread, \
-             patch('logging.critical') as mock_critical:
-            
+        with patch("threading.Thread") as mock_thread, patch(
+            "logging.critical"
+        ) as mock_critical:
+
             db = InMemorySimulationDatabase(memory_limit_mb=1000)
-            
+
             # Extract the target function from the Thread constructor call
-            monitor_func = mock_thread.call_args[1]['target']
-            
+            monitor_func = mock_thread.call_args[1]["target"]
+
             # Call it to trigger critical warning
             monitor_func()
-            
+
             # Verify critical warning was logged
             self.assertTrue(mock_critical.called)
-            
+
             # Clean up
             db.close()
 
@@ -418,28 +442,28 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
         """Test memory usage trend detection."""
         # Create database
         db = InMemorySimulationDatabase(memory_limit_mb=1000)
-        
+
         # Manually set memory samples to simulate increasing trend
         db.memory_usage_samples = [100, 120, 150]
-        
+
         # Get memory usage stats
         stats = db.get_memory_usage()
         self.assertEqual(stats["trend"], "increasing")
-        
+
         # Manually set memory samples to simulate decreasing trend
         db.memory_usage_samples = [150, 120, 100]
-        
+
         # Get memory usage stats
         stats = db.get_memory_usage()
         self.assertEqual(stats["trend"], "decreasing")
-        
+
         # Manually set memory samples to simulate stable trend
         db.memory_usage_samples = [100, 102, 101]
-        
+
         # Get memory usage stats
         stats = db.get_memory_usage()
         self.assertEqual(stats["trend"], "stable")
-        
+
         # Clean up
         db.close()
 
@@ -447,7 +471,7 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
         """Test persisting large batches of data."""
         # Create a large number of step records
         num_steps = 2000
-        
+
         # Log steps
         for step in range(num_steps):
             self.db.logger.log_step(
@@ -456,48 +480,50 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
                 resource_states=[],  # Empty for simplicity
                 metrics={"total_agents": 30, "step_number": step},
             )
-        
+
         # Flush buffers to ensure data is written
         self.db.logger.flush_all_buffers()
-        
+
         # Persist to disk
         start_time = time.time()
         stats = self.db.persist_to_disk(self.db_path, show_progress=False)
         end_time = time.time()
-        
+
         # Verify persistence statistics
         self.assertGreaterEqual(stats["rows_copied"], num_steps)
-        
+
         # Verify database file exists
         self.assertTrue(os.path.exists(self.db_path))
-        
+
         # Open the persisted database and verify data
         disk_db = SimulationDatabase(self.db_path)
         try:
             # Verify step count
             session = disk_db.Session()
             try:
-                result = session.execute("SELECT COUNT(*) FROM simulation_steps")
+                result = session.execute(text("SELECT COUNT(*) FROM simulation_steps"))
                 count = result.scalar()
                 self.assertEqual(count, num_steps)
             finally:
                 session.close()
         finally:
             disk_db.close()
-        
+
         # Print performance metrics
         print(f"Persisted {num_steps} steps in {end_time - start_time:.2f} seconds")
-        print(f"Persistence rate: {num_steps / (end_time - start_time):.2f} rows/second")
+        print(
+            f"Persistence rate: {num_steps / (end_time - start_time):.2f} rows/second"
+        )
 
     def test_error_handling_during_persistence(self):
         """Test error handling during persistence."""
         # Add some data
         self.db.save_configuration(self.sample_config)
-        
+
         # Mock os.makedirs to raise an exception
-        with patch('os.makedirs') as mock_makedirs:
+        with patch("os.makedirs") as mock_makedirs:
             mock_makedirs.side_effect = PermissionError("Permission denied")
-            
+
             # Attempt to persist to disk
             with self.assertRaises(Exception):
                 self.db.persist_to_disk("/invalid/path/db.db", show_progress=False)
@@ -509,16 +535,16 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
         config.use_in_memory_db = True
         config.in_memory_db_memory_limit_mb = 2048
         config.persist_db_on_completion = True
-        
+
         # Verify settings
         self.assertTrue(config.use_in_memory_db)
         self.assertEqual(config.in_memory_db_memory_limit_mb, 2048)
         self.assertTrue(config.persist_db_on_completion)
-        
+
         # Convert to dict and back to ensure serialization works
         config_dict = config.to_dict()
         new_config = SimulationConfig.from_dict(config_dict)
-        
+
         # Verify settings are preserved
         self.assertTrue(new_config.use_in_memory_db)
         self.assertEqual(new_config.in_memory_db_memory_limit_mb, 2048)
@@ -526,4 +552,4 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main() 
+    unittest.main()

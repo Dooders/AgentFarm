@@ -190,7 +190,7 @@ def calculate_consistency(frequencies: np.ndarray) -> float:
     """
     if len(frequencies) < 2:
         return 1.0
-    return 1.0 - np.std(frequencies) / (np.mean(frequencies) + 1e-10)
+    return float(1.0 - np.std(frequencies) / (np.mean(frequencies) + 1e-10))
 
 
 def calculate_periodicity(data: np.ndarray) -> float:

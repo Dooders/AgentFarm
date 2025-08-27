@@ -9,7 +9,11 @@ from farm.database.analyzers.analysis_utils import (
     calculate_trend,
     get_recent_trend,
 )
-from farm.database.data_types import DecisionPatterns, DecisionPatternStats, DecisionSummary
+from farm.database.data_types import (
+    DecisionPatterns,
+    DecisionPatternStats,
+    DecisionSummary,
+)
 from farm.database.enums import AnalysisScope
 from farm.database.repositories.action_repository import ActionRepository
 
@@ -46,7 +50,7 @@ class DecisionPatternAnalyzer:
     def analyze(
         self,
         scope: Union[str, AnalysisScope] = AnalysisScope.SIMULATION,
-        agent_id: Optional[int] = None,
+        agent_id: Optional[str] = None,
         step: Optional[int] = None,
         step_range: Optional[Tuple[int, int]] = None,
     ) -> DecisionPatterns:
@@ -63,7 +67,7 @@ class DecisionPatternAnalyzer:
         Args:
             scope (Union[str, AnalysisScope]): The scope of analysis (e.g., SIMULATION, EPISODE).
                 Determines the context in which patterns are analyzed.
-            agent_id (Optional[int]): Specific agent ID to analyze. If None, analyzes all agents.
+            agent_id (Optional[str]): Specific agent ID to analyze. If None, analyzes all agents.
             step (Optional[int]): Specific step to analyze. If provided, only analyzes that step.
             step_range (Optional[Tuple[int, int]]): Range of steps to analyze (inclusive).
                 Format: (start_step, end_step).
@@ -75,7 +79,7 @@ class DecisionPatternAnalyzer:
 
         Example:
             >>> analyzer = DecisionPatternAnalyzer(repository)
-            >>> patterns = analyzer.analyze(scope=AnalysisScope.EPISODE, agent_id=1)
+            >>> patterns = analyzer.analyze(scope=AnalysisScope.EPISODE, agent_id="agent_1")
             >>> print(patterns.decision_summary.total_decisions)
         """
         actions = self.repository.get_actions_by_scope(
@@ -84,7 +88,9 @@ class DecisionPatternAnalyzer:
         total_decisions = len(actions)
 
         # Track temporal patterns and sequences
-        temporal_metrics = defaultdict(lambda: defaultdict(list))
+        temporal_metrics: Dict[str, Dict[str, List]] = defaultdict(
+            lambda: defaultdict(list)
+        )
         first_occurrences = {}
         action_sequences = []
         current_sequence = []
@@ -139,13 +145,6 @@ class DecisionPatternAnalyzer:
                     metrics["count"] / total_decisions if total_decisions > 0 else 0
                 ),
                 reward_stats=self._calculate_reward_stats(metrics["rewards"]),
-                contribution_metrics=self._calculate_contribution_metrics(
-                    metrics["rewards"],
-                    sum(m["count"] for m in decision_metrics.values()),
-                    sum(sum(m["rewards"]) for m in decision_metrics.values()),
-                ),
-                temporal_stats=temporal_trends.get(action_type, {}),
-                first_occurrence=first_occurrences.get(action_type, {}),
             )
             for action_type, metrics in decision_metrics.items()
         ]
@@ -165,12 +164,14 @@ class DecisionPatternAnalyzer:
                 else None
             ),
             action_diversity=self._calculate_diversity(patterns),
-            normalized_diversity=self._calculate_normalized_diversity(patterns),
-            co_occurrence_patterns=co_occurrence,
         )
 
         return DecisionPatterns(
-            decision_patterns=patterns,
+            decision_patterns={p.action_type: p for p in patterns},
+            sequence_analysis={},
+            resource_impact={},
+            temporal_patterns={},
+            interaction_analysis={},
             decision_summary=summary,
         )
 

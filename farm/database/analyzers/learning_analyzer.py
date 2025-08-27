@@ -251,17 +251,32 @@ class LearningAnalyzer:
             >>> print(f"Total modules: {len(stats.module_performance)}")
             >>> print(f"Learning stability: {stats.learning_efficiency.learning_stability:.2%}")
         """
+        progress_list = self.analyze_learning_progress(
+            scope, agent_id, step, step_range
+        )
+        learning_progress = (
+            progress_list[0]
+            if progress_list
+            else LearningProgress(step=0, reward=0.0, action_count=0, unique_actions=0)
+        )
+
+        agent_stats = self.analyze_agent_learning_stats(
+            agent_id, scope, step, step_range
+        )
+        # Convert to Dict[str, float] format expected by LearningStatistics
+        agent_learning_stats = {
+            agent: stats.reward_mean for agent, stats in agent_stats.items()
+        }
+
+        efficiency_metrics = self.analyze_learning_efficiency(
+            scope, agent_id, step, step_range
+        )
+
         return LearningStatistics(
-            learning_progress=self.analyze_learning_progress(
-                scope, agent_id, step, step_range
-            ),
+            learning_progress=learning_progress,
             module_performance=self.analyze_module_performance(
                 scope, agent_id, step, step_range
             ),
-            agent_learning_stats=self.analyze_agent_learning_stats(
-                agent_id, scope, step, step_range
-            ),
-            learning_efficiency=self.analyze_learning_efficiency(
-                scope, agent_id, step, step_range
-            ),
+            agent_learning_stats=agent_learning_stats,
+            learning_efficiency=efficiency_metrics.reward_efficiency,
         )

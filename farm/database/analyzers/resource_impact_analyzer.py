@@ -28,7 +28,7 @@ class ResourceImpactAnalyzer:
     def analyze(
         self,
         scope: Union[str, AnalysisScope] = AnalysisScope.SIMULATION,
-        agent_id: Optional[int] = None,
+        agent_id: Optional[str] = None,
         step: Optional[int] = None,
         step_range: Optional[Tuple[int, int]] = None,
     ) -> List[ResourceImpact]:
@@ -41,7 +41,7 @@ class ResourceImpactAnalyzer:
         Args:
             scope (Union[str, AnalysisScope]): The scope of analysis (e.g., simulation, episode).
                 Defaults to AnalysisScope.SIMULATION.
-            agent_id (Optional[int]): ID of the specific agent to analyze. If None, analyzes all agents.
+            agent_id (Optional[str]): ID of the specific agent to analyze. If None, analyzes all agents.
             step (Optional[int]): Specific simulation step to analyze. If None, analyzes all steps.
             step_range (Optional[Tuple[int, int]]): Range of steps to analyze (inclusive).
                 If None, analyzes all steps.

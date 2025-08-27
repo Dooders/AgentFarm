@@ -54,7 +54,7 @@ class SequencePatternAnalyzer:
             # Returns patterns like: [SequencePattern(sequence="MOVE->ATTACK", count=5, probability=0.25)]
         """
         actions = self.repository.get_actions_by_scope(
-            scope, agent_id, step, step_range
+            scope, str(agent_id) if agent_id is not None else None, step, step_range
         )
         sequences = {}
         action_counts = {}
@@ -72,7 +72,6 @@ class SequencePatternAnalyzer:
 
         return [
             SequencePattern(
-                sequence=sequence,
                 count=count,
                 probability=(
                     count / action_counts[sequence.split("->")[0]]
