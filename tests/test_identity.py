@@ -38,6 +38,8 @@ class TestIdentity(unittest.TestCase):
         a1 = str(identity.agent_id())
         a2 = str(identity.agent_id())
         self.assertNotEqual(a1, a2)
+        self.assertTrue(a1.startswith("agent_"))
+        self.assertTrue(a2.startswith("agent_"))
 
     def test_agent_id_deterministic(self):
         identity1 = Identity(IdentityConfig(deterministic_seed=123))
