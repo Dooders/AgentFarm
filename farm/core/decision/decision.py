@@ -137,9 +137,9 @@ class DecisionModule:
                 if hasattr(action_space, "n"):
                     return int(action_space.n)
             # Fallback: count actions in Action enum
-            from farm.core.environment import Action
+            from farm.core.action import ActionType
 
-            return len(Action)
+            return len(ActionType)
         except Exception as e:
             logger.warning(
                 f"Could not determine action space size for agent {self.agent_id}: {e}"

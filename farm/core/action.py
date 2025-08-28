@@ -1,5 +1,6 @@
 import logging
 import math
+from enum import IntEnum
 from typing import TYPE_CHECKING, Callable, List, Optional, Tuple
 
 if TYPE_CHECKING:
@@ -15,6 +16,7 @@ including movement, resource gathering, sharing, and combat. Each action has
 associated costs, rewards, and conditions for execution.
 
 Key Components:
+    - ActionType: Enumeration of available agent actions
     - Action: Base class for defining executable agent behaviors
     - Movement: Deep Q-Learning based movement with rewards
     - Gathering: Resource collection from environment nodes
@@ -27,6 +29,31 @@ Technical Details:
     - Numpy-based distance calculations
     - Automatic tensor-numpy conversion for state handling
 """
+
+
+class ActionType(IntEnum):
+    """Enumeration of available agent actions.
+
+    Actions define the possible behaviors agents can take in the environment.
+    Each action has specific effects on the agent and its surroundings.
+
+    Attributes:
+        DEFEND (0): Agent enters defensive stance, reducing damage from attacks
+        ATTACK (1): Agent attempts to attack nearby enemies
+        GATHER (2): Agent collects resources from nearby resource nodes
+        SHARE (3): Agent shares resources with nearby allies
+        MOVE (4): Agent moves to a new position within the environment
+        REPRODUCE (5): Agent attempts to create offspring if conditions are met
+        PASS (6): Agent takes no action this turn
+    """
+
+    DEFEND = 0
+    ATTACK = 1
+    GATHER = 2
+    SHARE = 3
+    MOVE = 4
+    REPRODUCE = 5
+    PASS = 6
 
 
 class Action:
