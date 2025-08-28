@@ -30,6 +30,8 @@ from farm.utils.config_utils import get_config_value
 from farm.actions.base_dqn import BaseDQNModule, BaseQNetwork, SharedEncoder
 from farm.actions.config import SelectConfig, DEFAULT_SELECT_CONFIG
 from farm.core.action import Action
+from farm.actions.feature_engineering import FeatureEngineer
+from farm.actions.algorithms.base import AlgorithmRegistry, ActionAlgorithm
 
 if TYPE_CHECKING:
     from farm.agents.base_agent import BaseAgent
@@ -94,15 +96,26 @@ class SelectModule(BaseDQNModule):
         )
         # Pre-compute action indices for faster lookup
         self.action_indices = {}
-        
-        # Initialize Q-networks with shared encoder if provided
-        self.q_network = SelectQNetwork(
-            input_dim=8, num_actions=num_actions, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
-        ).to(device)
-        self.target_network = SelectQNetwork(
-            input_dim=8, num_actions=num_actions, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
-        ).to(device)
-        self.target_network.load_state_dict(self.q_network.state_dict())
+
+        # Choose algorithm path: DQN (default) or traditional ML via registry
+        self._algo_name = getattr(config, "algorithm_type", "dqn")
+        self._ml_algo: Optional[ActionAlgorithm] = None
+        self._feature_engineer: Optional[FeatureEngineer] = None
+
+        if self._algo_name == "dqn":
+            # Initialize Q-networks with shared encoder if provided
+            self.q_network = SelectQNetwork(
+                input_dim=8, num_actions=num_actions, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
+            ).to(device)
+            self.target_network = SelectQNetwork(
+                input_dim=8, num_actions=num_actions, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
+            ).to(device)
+            self.target_network.load_state_dict(self.q_network.state_dict())
+        else:
+            # Initialize traditional ML algorithm
+            params = getattr(config, "algorithm_params", {}) or {}
+            self._ml_algo = AlgorithmRegistry.create(self._algo_name, num_actions=num_actions, **params)
+            self._feature_engineer = FeatureEngineer()
 
     def select_action(
         self, agent: "BaseAgent", actions: List[Action], state: torch.Tensor
@@ -142,20 +155,35 @@ class SelectModule(BaseDQNModule):
             agent, base_probs, self.action_indices[agent.agent_id]
         )
 
-        # Use epsilon-greedy for exploration
-        if random.random() < self.epsilon:
-            return random.choices(actions, weights=adjusted_probs, k=1)[0]
+        # If using ML algorithm, predict probabilities from engineered features
+        if self._ml_algo is not None and self._feature_engineer is not None:
+            ml_state = self._feature_engineer.extract_features(agent, agent.environment)
+            ml_probs = self._ml_algo.predict_proba(ml_state)
 
-        # Get Q-values from network
-        with torch.no_grad():
-            q_values = self.q_network(state)
+            # Optional exploration bonus
+            if getattr(self.config, "use_exploration_bonus", True):
+                ml_probs = (ml_probs + (self.epsilon / max(1, len(ml_probs))))
+                ml_probs = ml_probs / ml_probs.sum()
 
-        # Combine Q-values with adjusted probabilities
-        combined_probs = self._combine_probs_and_qvalues(
-            adjusted_probs, q_values.cpu().numpy()
-        )
+            # Blend ML probabilities with adjusted rule-based probabilities
+            combined = 0.5 * np.array(adjusted_probs) + 0.5 * np.array(ml_probs)
+            combined = combined / combined.sum()
+            return random.choices(actions, weights=combined.tolist(), k=1)[0]
+        else:
+            # Use epsilon-greedy for exploration
+            if random.random() < self.epsilon:
+                return random.choices(actions, weights=adjusted_probs, k=1)[0]
 
-        return random.choices(actions, weights=combined_probs, k=1)[0]
+            # Get Q-values from network
+            with torch.no_grad():
+                q_values = self.q_network(state)
+
+            # Combine Q-values with adjusted probabilities
+            combined_probs = self._combine_probs_and_qvalues(
+                adjusted_probs, q_values.cpu().numpy()
+            )
+
+            return random.choices(actions, weights=combined_probs, k=1)[0]
 
     def _fast_adjust_probabilities(
         self, agent: "BaseAgent", base_probs: List[float], action_indices: dict

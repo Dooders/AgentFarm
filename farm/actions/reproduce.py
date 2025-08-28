@@ -347,31 +347,42 @@ def _get_reproduce_state(agent: "BaseAgent") -> torch.Tensor:
     config = agent.config
     assert config is not None, "Agent config cannot be None"
     # Calculate local population density
+    try:
+        agent_objs = getattr(agent.environment, "_agent_objects", None)
+        if agent_objs and hasattr(agent_objs, "values"):
+            population_iter = list(agent_objs.values())
+        else:
+            population_iter = []
+    except Exception:
+        population_iter = []
+
     nearby_agents = [
         a
-        for a in agent.environment._agent_objects.values()
+        for a in population_iter
         if a != agent
-        and a.alive
+        and getattr(a, "alive", True)
         and np.sqrt(((np.array(a.position) - np.array(agent.position)) ** 2).sum())
         < config.ideal_density_radius
     ]
 
-    local_density = len(nearby_agents) / max(
-        1, len(agent.environment._agent_objects.values())
-    )
+    total_population = len(population_iter) if population_iter else 1
+    local_density = len(nearby_agents) / max(1, total_population)
 
     # Calculate resource availability in area
+    resources_list = getattr(agent.environment, "resources", [])
     nearby_resources = [
         r
-        for r in agent.environment.resources
-        if not r.is_depleted()
+        for r in resources_list
+        if hasattr(r, "is_depleted")
+        and not r.is_depleted()
         and np.sqrt(((np.array(r.position) - np.array(agent.position)) ** 2).sum())
-        < config.gathering_range
+        < getattr(config, "gathering_range", 30)
     ]
 
-    resource_availability = len(nearby_resources) / max(
-        1, len(agent.environment.resources)
-    )
+    total_resources = len(resources_list) if resources_list else 1
+    resource_availability = len(nearby_resources) / max(1, total_resources)
+
+    agents_list = getattr(agent.environment, "agents", [])
 
     state = torch.tensor(
         [

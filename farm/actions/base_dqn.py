@@ -161,11 +161,19 @@ class BaseQNetwork(nn.Module):
         """
         if self.shared_encoder:
             x = self.shared_encoder(x)
-        if x.dim() == 1:
-            x = x.unsqueeze(0)
-            result = self.network(x)
-            return result.squeeze(0)
-        return self.network(x)
+        # Ensure deterministic behavior during inference by disabling dropout
+        training_state = self.training
+        try:
+            self.eval()
+            if x.dim() == 1:
+                x = x.unsqueeze(0)
+                result = self.network(x)
+                return result.squeeze(0)
+            return self.network(x)
+        finally:
+            # Restore original training state
+            if training_state:
+                self.train()
 
 
 class BaseDQNModule:
