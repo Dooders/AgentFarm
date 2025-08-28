@@ -21,13 +21,15 @@ import time
 from datetime import datetime
 
 import numpy as np
-# Import analysis configuration
-from analysis_config import (DATA_PATH, OUTPUT_PATH, safe_remove_directory,
-                             setup_logging)
 
-from farm.analysis.advantage.analyze import (analyze_advantage_patterns,
-                                             analyze_advantages,
-                                             get_advantage_recommendations)
+# Import analysis configuration
+from analysis_config import DATA_PATH, OUTPUT_PATH, safe_remove_directory, setup_logging
+
+from farm.analysis.advantage.analyze import (
+    analyze_advantage_patterns,
+    analyze_advantages,
+    get_advantage_recommendations,
+)
 from farm.analysis.advantage.plot import plot_advantage_results
 
 
@@ -160,11 +162,9 @@ def main():
 
         # Convert numpy types to Python types for JSON serialization
         def convert_for_json(obj):
-            if isinstance(
-                obj, (np.int_, np.intc, np.intp, np.int8, np.int16, np.int32, np.int64)
-            ):
+            if isinstance(obj, np.integer):
                 return int(obj)
-            elif isinstance(obj, (np.float_, np.float16, np.float32, np.float64)):
+            elif isinstance(obj, np.floating):
                 return float(obj)
             elif isinstance(obj, (np.ndarray,)):
                 return obj.tolist()
@@ -310,14 +310,6 @@ def main():
             logging.error(f"JSON serialization error for recommendations: {e}")
             # Try to save with the SafeEncoder
             try:
-
-                class SafeEncoder(json.JSONEncoder):
-                    def default(self, obj):
-                        try:
-                            return super().default(obj)
-                        except TypeError:
-                            return str(obj)
-
                 with open(recommendations_json, "w") as f:
                     json.dump(
                         process_dict(recommendations), f, indent=2, cls=SafeEncoder

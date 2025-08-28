@@ -1,14 +1,15 @@
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Union
 
 import matplotlib.patheffects as path_effects
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from farm.research.analysis.analysis import calculate_statistics, create_population_df
+from farm.research.analysis.dataframes import create_population_df
+from farm.research.analysis.util import calculate_statistics
 
 # Configure logging
 logging.basicConfig(
@@ -68,7 +69,7 @@ def setup_plot_aesthetics(ax, title, experiment_name=None):
 
 
 def plot_population_trends_across_simulations(
-    all_populations: List[np.ndarray], max_steps: int, output_path: str
+    all_populations: List[np.ndarray], max_steps: int, output_path: Union[str, Path]
 ):
     """Plot population trends using modularized plotting functions."""
     # Ensure output directory exists
@@ -118,7 +119,7 @@ def plot_population_trends_across_simulations(
 
 
 def plot_population_trends_by_agent_type(
-    experiment_data: Dict[str, Dict], output_dir: str
+    experiment_data: Dict[str, Dict], output_dir: Union[str, Path]
 ):
     """Plot population trends comparison using modularized plotting functions."""
     # Ensure output directory exists
@@ -176,7 +177,9 @@ def plot_population_trends_by_agent_type(
         plt.close()
 
 
-def plot_resource_consumption_trends(experiment_data: Dict[str, Dict], output_dir: str):
+def plot_resource_consumption_trends(
+    experiment_data: Dict[str, Dict], output_dir: Union[str, Path]
+):
     """Plot resource consumption trends with separate subplots for each agent type."""
     # Ensure output directory exists
     output_dir = Path(output_dir)
@@ -347,7 +350,7 @@ def plot_resource_consumption_trends(experiment_data: Dict[str, Dict], output_di
 
 
 def plot_early_termination_analysis(
-    early_terminations: Dict[str, Dict], output_dir: str
+    early_terminations: Dict[str, Dict], output_dir: Union[str, Path]
 ):
     """
     Create visualizations for early termination analysis.
@@ -406,7 +409,7 @@ def plot_early_termination_analysis(
 
     plt.figure(figsize=(10, 8))
     plt.pie(
-        cause_counts.values(),
+        list(cause_counts.values()),
         labels=[f"{cause} ({count})" for cause, count in cause_counts.items()],
         autopct="%1.1f%%",
         startangle=90,
@@ -502,7 +505,9 @@ def plot_early_termination_analysis(
     logger.info(f"Early termination analysis saved to {output_dir}")
 
 
-def plot_final_agent_counts(final_counts: Dict[str, Dict], output_dir: str):
+def plot_final_agent_counts(
+    final_counts: Dict[str, Dict], output_dir: Union[str, Path]
+):
     """
     Create visualizations for final agent counts analysis.
 
@@ -624,7 +629,7 @@ def plot_final_agent_counts(final_counts: Dict[str, Dict], output_dir: str):
 
 
 def plot_rewards_by_generation(
-    rewards_data: Dict[str, Dict[int, float]], output_dir: str
+    rewards_data: Dict[str, Dict[int, float]], output_dir: Union[str, Path]
 ):
     """
     Create visualizations for rewards by generation.
@@ -788,7 +793,7 @@ def plot_rewards_by_generation(
 
 
 def plot_action_distributions(
-    action_data: Dict[str, Dict[str, Dict[str, float]]], output_dir: str
+    action_data: Dict[str, Dict[str, Dict[str, float]]], output_dir: Union[str, Path]
 ):
     """
     Create visualizations for action distributions by agent type.
@@ -916,7 +921,9 @@ def plot_action_distributions(
             f.write("\n")
 
 
-def plot_resource_level_trends(resource_level_data: Dict[str, List], output_path: str):
+def plot_resource_level_trends(
+    resource_level_data: Dict[str, Any], output_path: Union[str, Path]
+):
     """
     Plot resource level trends with confidence intervals.
 

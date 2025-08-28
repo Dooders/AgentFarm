@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine
 
 from farm.charts.chart_analyzer import ChartAnalyzer
+from farm.database.database import SimulationDatabase
 
 
 def setup_environment():
@@ -46,8 +47,8 @@ def run_analysis(database_path: str, output_dir: str, save_charts: bool = True):
 
     # Create output directory if saving charts
     if save_charts:
-        output_dir = Path(output_dir)
-        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = Path(output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
 
     # Load data
     print("Loading data from database...")
@@ -55,10 +56,13 @@ def run_analysis(database_path: str, output_dir: str, save_charts: bool = True):
 
     # Initialize analyzer and run analysis
     print("Initializing chart analyzer...")
-    analyzer = ChartAnalyzer(str(output_dir), save_charts=save_charts)
+    db = SimulationDatabase(database_path)
+    analyzer = ChartAnalyzer(
+        db, output_path if save_charts else None, save_charts=save_charts
+    )
 
     print("Running chart analysis...")
-    analyses = analyzer.analyze_all_charts(df)
+    analyses = analyzer.analyze_all_charts(output_path if save_charts else None)
 
     # Print summary
     print("\nAnalysis Complete!")
@@ -88,10 +92,11 @@ def main():
     )
 
     print("Initializing chart analyzer...")
-    analyzer = ChartAnalyzer()
+    db = SimulationDatabase("sqlite:///simulations/simulation.db")
+    analyzer = ChartAnalyzer(db)
 
     print("Running chart analysis...")
-    analyses = analyzer.analyze_all_charts(actions_df, agents_df)
+    analyses = analyzer.analyze_all_charts()
 
     print("\nAnalysis Complete!")
     print("Charts and analyses have been saved to: chart_analysis")

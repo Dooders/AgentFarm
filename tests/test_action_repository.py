@@ -42,7 +42,7 @@ class TestActionRepository(unittest.TestCase):
         )
 
         # Act
-        result = self.repository.get_actions_by_scope("episode", agent_id=1)
+        result = self.repository.get_actions_by_scope("episode", agent_id="1")
 
         # Assert
         self.assertEqual(len(result), 1)
@@ -70,7 +70,7 @@ class TestActionRepository(unittest.TestCase):
 
         # Act
         result = self.repository.get_actions_by_scope(
-            "episode", agent_id=1, step_range=step_range
+            "episode", agent_id="1", step_range=step_range
         )
 
         # Assert
@@ -103,7 +103,7 @@ class TestActionRepository(unittest.TestCase):
         # Arrange
         specific_step = 5
         mock_action = ActionModel(
-            agent_id=1, step_number=specific_step, action_type="gather"
+            agent_id="1", step_number=specific_step, action_type="gather"
         )
 
         self.mock_session.query.return_value.join.return_value.order_by.return_value.all.return_value = [
@@ -162,7 +162,7 @@ class TestActionRepository(unittest.TestCase):
         """Test conversion of database models to data types."""
         # Arrange
         mock_action = ActionModel(
-            agent_id=1,
+            agent_id="1",
             action_type="move",
             step_number=1,
             action_target_id=2,

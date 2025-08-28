@@ -11,7 +11,7 @@ import os
 import time
 import traceback
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, cast
 
 import joblib
 import psutil
@@ -126,7 +126,11 @@ class ParallelExperimentRunner:
             )
 
             # If using in-memory database, ensure it's persisted to disk
-            if self.use_in_memory_db and hasattr(environment, "db"):
+            if (
+                self.use_in_memory_db
+                and hasattr(environment, "db")
+                and environment.db is not None
+            ):
                 db_file = output_path / "simulation.db"
                 if hasattr(environment.db, "persist_to_disk"):
                     environment.db.persist_to_disk(str(db_file))
@@ -180,7 +184,11 @@ class ParallelExperimentRunner:
             )
 
             # If using in-memory database, ensure it's persisted to disk
-            if self.use_in_memory_db and hasattr(environment, "db"):
+            if (
+                self.use_in_memory_db
+                and hasattr(environment, "db")
+                and environment.db is not None
+            ):
                 db_file = output_path / "simulation.db"
                 if hasattr(environment.db, "persist_to_disk"):
                     environment.db.persist_to_disk(str(db_file))
@@ -390,21 +398,33 @@ class ParallelExperimentRunner:
             # Configure process pool
             pool_config = self._configure_process_pool()
             n_jobs = pool_config.pop("n_jobs")
-            
+
             # Remove the callback parameter if it exists in pool_config
             if "callback" in pool_config:
                 del pool_config["callback"]
-            
+
             # Create a progress bar but don't use it in the Parallel call
-            pbar = tqdm(total=num_iterations, desc=f"Running {self.experiment_name} iterations", 
-                      position=0, leave=True, unit="iter")
-            
-            # Run simulations in parallel without the callback
-            results = Parallel(n_jobs=n_jobs, **pool_config)(
-                delayed(self._run_with_error_handling)(config, steps, path, seed)
-                for config, steps, path, seed in configs
+            pbar = tqdm(
+                total=num_iterations,
+                desc=f"Running {self.experiment_name} iterations",
+                position=0,
+                leave=True,
+                unit="iter",
             )
-            
+
+            # Run simulations in parallel without the callback
+            results = cast(
+                List[Dict],
+                list(
+                    Parallel(n_jobs=n_jobs, **pool_config)(
+                        delayed(self._run_with_error_handling)(
+                            config, steps, path, seed
+                        )
+                        for config, steps, path, seed in configs
+                    )
+                ),
+            )
+
             # Update the progress bar to show completion
             pbar.update(num_iterations)
             pbar.close()

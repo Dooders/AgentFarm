@@ -2,7 +2,7 @@
 Agent Observation System for Multi-Agent Simulations
 
 This module provides a comprehensive observation system for agents in grid-based
-multi-agent simulations. It implements egocentric perception with multiple channels
+multi-agent simulations. It implements local perception with multiple channels
 for different types of environmental and social information.
 
 The observation system is designed around the concept of an agent-centered view,
@@ -14,7 +14,7 @@ Key Components:
     - Channel: Enumeration of observation channels (self HP, allies, enemies, etc.)
     - ObservationConfig: Configuration class for observation parameters
     - AgentObservation: Main class managing an agent's observation buffer
-    - Utility functions for egocentric cropping and mask generation
+    - Utility functions for local cropping and mask generation
 
 Observation Channels:
     The system supports multiple channels of information:
@@ -64,15 +64,15 @@ Usage:
 # observations.py
 from __future__ import annotations
 
+import logging
 from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn.functional as F
 from pydantic import BaseModel, Field, field_validator
-import logging
 
 from farm.core.channels import NUM_CHANNELS, Channel, get_channel_registry
-
+from farm.core.spatial_index import SpatialIndex
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +117,7 @@ class ObservationConfig(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
 
 
-def crop_egocentric(
+def crop_local(
     grid: torch.Tensor,  # (H, W)
     center: Tuple[int, int],  # (y, x) in world coords
     R: int,
@@ -126,7 +126,7 @@ def crop_egocentric(
     """
     Extract a square crop from a 2D grid centered at the specified position.
 
-    This function creates an egocentric view by extracting a (2R+1) x (2R+1) square
+    This function creates a local view by extracting a (2R+1) x (2R+1) square
     region centered at the given coordinates. When the crop extends beyond the grid
     boundaries, the out-of-bounds areas are filled with the specified padding value.
 
@@ -141,7 +141,7 @@ def crop_egocentric(
 
     Example:
         >>> grid = torch.randn(100, 100)
-        >>> crop = crop_egocentric(grid, center=(50, 50), R=5)
+        >>> crop = crop_local(grid, center=(50, 50), R=5)
         >>> crop.shape
         torch.Size([11, 11])
     """
@@ -178,7 +178,7 @@ def crop_egocentric(
     return patch
 
 
-def crop_egocentric_stack(
+def crop_local_stack(
     gridC: torch.Tensor,  # (C, H, W)
     center: Tuple[int, int],
     R: int,
@@ -187,8 +187,8 @@ def crop_egocentric_stack(
     """
     Extract square crops from a multi-channel 2D grid centered at the specified position.
 
-    This function applies crop_egocentric to each channel of a multi-channel tensor,
-    creating an egocentric view across all channels. The result is a stacked tensor
+    This function applies crop_local to each channel of a multi-channel tensor,
+    creating a local view across all channels. The result is a stacked tensor
     where each channel contains the corresponding cropped region.
 
     Args:
@@ -202,12 +202,12 @@ def crop_egocentric_stack(
 
     Example:
         >>> gridC = torch.randn(3, 100, 100)  # 3 channels
-        >>> crop = crop_egocentric_stack(gridC, center=(50, 50), R=5)
+        >>> crop = crop_local_stack(gridC, center=(50, 50), R=5)
         >>> crop.shape
         torch.Size([3, 11, 11])
     """
     return torch.stack(
-        [crop_egocentric(gridC[c], center, R, pad_val) for c in range(gridC.shape[0])],
+        [crop_local(gridC[c], center, R, pad_val) for c in range(gridC.shape[0])],
         dim=0,
     )
 
@@ -250,7 +250,7 @@ def make_disk_mask(
 
 class AgentObservation:
     """
-    Manages an agent's egocentric observation buffer with multiple perception channels.
+    Manages an agent's local observation buffer with multiple perception channels.
 
     This class maintains a multi-channel observation tensor that represents the agent's
     view of the world from its perspective. It handles both instantaneous observations
@@ -414,7 +414,7 @@ class AgentObservation:
             pass
 
     # ------------------------
-    # World → egocentric pass
+    # World → local pass
     # ------------------------
     def perceive_world(
         self,
@@ -472,9 +472,15 @@ class AgentObservation:
         # Optionally derive allies/enemies from spatial index if not provided
         final_allies = allies
         final_enemies = enemies
-        if (final_allies is None or final_enemies is None) and spatial_index is not None and agent_object is not None:
-            computed_allies, computed_enemies = self._compute_entities_from_spatial_index(
-                spatial_index, agent_object, agent_world_pos
+        if (
+            (final_allies is None or final_enemies is None)
+            and spatial_index is not None
+            and agent_object is not None
+        ):
+            computed_allies, computed_enemies = (
+                self._compute_entities_from_spatial_index(
+                    spatial_index, agent_object, agent_world_pos
+                )
             )
             if final_allies is None:
                 final_allies = computed_allies

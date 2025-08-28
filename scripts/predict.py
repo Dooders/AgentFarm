@@ -13,14 +13,14 @@ This script demonstrates how to:
        where survival time is (death_time - birth_time) for dead agents.
 3. Combine the simulation parameters (features) with the computed labels.
 4. Train and evaluate a Random Forest classifier for each dominance definition.
-   
+
 Before running, ensure:
 - Your master database (e.g., "master.db") contains a "simulations" table
   with simulation metadata, including a JSON field "parameters" and a field
   "simulation_db_path" (the path to the simulation's database file).
 - Each simulation database contains tables for SimulationStepModel and AgentModel.
 - The simulation parameters are stored as a JSON dictionary of numeric features.
-  
+
 Adjust connection strings and feature processing as needed.
 """
 
@@ -53,7 +53,7 @@ def compute_population_dominance(sim_session):
         "control": final_step.control_agents,
     }
     # Return the key with the maximum count
-    return max(counts, key=counts.get)
+    return max(counts, key=lambda k: counts.get(k, 0))
 
 
 def compute_survival_dominance(sim_session):
@@ -85,7 +85,7 @@ def compute_survival_dominance(sim_session):
     }
     if not avg_survival:
         return None
-    return max(avg_survival, key=avg_survival.get)
+    return max(avg_survival, key=lambda k: avg_survival.get(k, 0))
 
 
 def load_simulation_features_and_labels(master_session):

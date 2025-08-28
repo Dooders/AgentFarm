@@ -137,13 +137,13 @@ class ActionsService:
         # Decision patterns
         if "decision" in analysis_types:
             results["decision_patterns"] = self.decision_analyzer.analyze(
-                scope, agent_id, step, step_range
+                scope, str(agent_id) if agent_id is not None else None, step, step_range
             )
 
         # Resource impacts
         if "resource" in analysis_types:
             results["resource_impacts"] = self.resource_analyzer.analyze(
-                scope, agent_id, step, step_range
+                scope, str(agent_id) if agent_id is not None else None, step, step_range
             )
 
         # Sequence patterns
@@ -155,7 +155,7 @@ class ActionsService:
         # Temporal patterns
         if "temporal" in analysis_types:
             results["temporal_patterns"] = self.temporal_analyzer.analyze(
-                scope, agent_id, step, step_range
+                scope, str(agent_id) if agent_id is not None else None, step, step_range
             )
 
         return results
@@ -206,7 +206,9 @@ class ActionsService:
         action_stats = self.stats_analyzer.analyze(
             scope, str(agent_id) if agent_id is not None else None
         )
-        resource_impacts = self.resource_analyzer.analyze(scope, agent_id)
+        resource_impacts = self.resource_analyzer.analyze(
+            scope, str(agent_id) if agent_id is not None else None
+        )
 
         summary = {}
         for stat in action_stats:

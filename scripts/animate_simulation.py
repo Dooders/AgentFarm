@@ -9,18 +9,22 @@ Usage:
     python animate_simulation.py [iteration_number] [--gif]
 """
 
+import argparse
 import json
 import multiprocessing as mp
 import os
 import sqlite3
 import sys
 import tempfile
-import argparse
 from functools import partial
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-from moviepy import ImageSequenceClip
+
+try:
+    from moviepy import ImageSequenceClip
+except ImportError:
+    ImageSequenceClip = None
 import numpy as np
 import pandas as pd
 from matplotlib.patches import Circle
@@ -183,7 +187,7 @@ def create_frame(
     ax.legend(loc="upper right", bbox_to_anchor=(1.0, 1.0))
 
     # Use fixed layout to prevent sliding
-    plt.tight_layout(pad=1.5, rect=[0, 0, 1, 1])
+    plt.tight_layout(pad=1.5, rect=(0, 0, 1, 1))
     return fig
 
 
@@ -340,6 +344,10 @@ def create_simulation_video(
         # Create video from frames
         print("Creating video...")
         frame_list = sorted(frame_files)  # Ensure frames are in order
+        if ImageSequenceClip is None:
+            raise ImportError(
+                "moviepy is required for video creation but is not installed"
+            )
         clip = ImageSequenceClip([str(f) for f in frame_list], fps=fps)
 
         # Save as MP4
@@ -348,15 +356,15 @@ def create_simulation_video(
             output_path, codec="libx264", fps=fps, threads=4, logger=None
         )
         print(f"Video saved to: {output_path}")
-        
+
         # Also create a GIF if requested
         if create_gif:
             gif_output_path = os.path.join(output_dir, f"simulation_{iteration}.gif")
             print(f"Creating GIF animation...")
-            
+
             # For GIFs, we might want to reduce the size to keep file size reasonable
-            clip.resize(width=480)  # Resize to smaller width for GIF
-            
+            # clip.resize(width=480)  # Resize to smaller width for GIF
+
             # Write GIF with a reasonable fps for GIF animations
             clip.write_gif(gif_output_path, fps=10, opt="OptimizePlus", logger=None)
             print(f"GIF saved to: {gif_output_path}")
@@ -367,10 +375,13 @@ def main():
     parser = argparse.ArgumentParser(description="Animate simulation results.")
     parser.add_argument("iteration", type=int, help="Iteration number to animate")
     parser.add_argument("--gif", action="store_true", help="Also create a GIF version")
-    parser.add_argument("--experiment-path", type=str, 
-                      default="results/one_of_a_kind_500x3000/experiments/data/one_of_a_kind_20250320_192845",
-                      help="Path to experiment directory")
-    
+    parser.add_argument(
+        "--experiment-path",
+        type=str,
+        default="results/one_of_a_kind_500x3000/experiments/data/one_of_a_kind_20250320_192845",
+        help="Path to experiment directory",
+    )
+
     args = parser.parse_args()
 
     # Create video with optimized parameters
