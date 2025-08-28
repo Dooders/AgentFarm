@@ -85,7 +85,8 @@ class Identity:
             return AgentId(f"agent_{value}")
         return AgentId(f"agent_{self.short()}")
 
-    def agent_state_id(self, agent_id: str, step_number: int) -> AgentStateId:
+    @staticmethod
+    def agent_state_id(agent_id: str, step_number: int) -> AgentStateId:
         return AgentStateId(f"{agent_id}-{step_number}")
 
     def genome_id(
