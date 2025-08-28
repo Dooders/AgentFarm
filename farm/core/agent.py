@@ -5,9 +5,10 @@ from typing import TYPE_CHECKING, Optional, Tuple
 import numpy as np
 import torch
 
-from farm.actions.base_dqn import SharedEncoder
-from farm.actions.select import SelectConfig, SelectModule, create_selection_state
 from farm.core.action import *
+from farm.core.decision.base_dqn import SharedEncoder
+from farm.core.decision.config import DecisionConfig
+from farm.core.decision.decision import DecisionModule, create_decision_state
 from farm.core.genome import Genome
 from farm.core.perception import PerceptionData
 from farm.core.state import AgentState
@@ -104,9 +105,9 @@ class BaseAgent:
         )  # Use 8-dimensional input to match selection state
 
         #! change to ChoiceModule
-        self.select_module = SelectModule(
+        self.select_module = DecisionModule(
             num_actions=len(self.actions),
-            config=SelectConfig(),
+            config=DecisionConfig(),
             device=self.device,
             shared_encoder=self.shared_encoder,
         )
@@ -250,7 +251,7 @@ class BaseAgent:
         if not hasattr(
             self, "_cached_selection_state"
         ) or self.environment.time != getattr(self, "_cached_selection_time", -1):
-            self._cached_selection_state = create_selection_state(self)
+            self._cached_selection_state = create_decision_state(self)
             self._cached_selection_time = self.environment.time
 
         current_step = self.environment.time
@@ -262,7 +263,7 @@ class BaseAgent:
                         a for a in self.actions if a.name in phase["enabled_actions"]
                     ]
                     break
-        selected_action = self.select_module.select_action(
+        selected_action = self.select_module.decide_action(
             agent=self, actions=enabled_actions, state=self._cached_selection_state
         )
         return selected_action

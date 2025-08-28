@@ -4,7 +4,7 @@ from typing import Iterable, List, Tuple
 
 import numpy as np
 
-from farm.actions.algorithms.base import ActionAlgorithm
+from farm.core.decision.algorithms.base import ActionAlgorithm
 
 
 class AlgorithmTrainer:
@@ -32,4 +32,3 @@ class AlgorithmTrainer:
         y_rewards = np.asarray(rewards_list, dtype=float)
 
         algorithm.train(X, y_actions, rewards=y_rewards)
-

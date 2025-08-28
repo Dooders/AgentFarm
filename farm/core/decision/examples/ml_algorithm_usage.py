@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from farm.actions.algorithms import (
+from farm.core.decision.algorithms import (
     AlgorithmBenchmark,
     AlgorithmComparison,
     GradientBoostActionSelector,
@@ -20,9 +20,9 @@ from farm.actions.algorithms import (
     RandomForestActionSelector,
     SVMActionSelector,
 )
-from farm.actions.config import SelectConfig
-from farm.actions.select import SelectModule
-from farm.actions.training import AlgorithmTrainer, ExperienceCollector
+from farm.core.decision.config import DecisionConfig
+from farm.core.decision.decision import DecisionModule
+from farm.core.decision.training import AlgorithmTrainer, ExperienceCollector
 
 
 def example_basic_ml_usage():
@@ -33,7 +33,7 @@ def example_basic_ml_usage():
     configs = [
         {
             "name": "MLP Neural Network",
-            "config": SelectConfig(
+            "config": DecisionConfig(
                 algorithm_type="mlp",
                 algorithm_params={
                     "hidden_layer_sizes": (64, 32),
@@ -44,21 +44,21 @@ def example_basic_ml_usage():
         },
         {
             "name": "Support Vector Machine",
-            "config": SelectConfig(
+            "config": DecisionConfig(
                 algorithm_type="svm",
                 algorithm_params={"kernel": "rbf", "C": 1.0, "random_state": 42},
             ),
         },
         {
             "name": "Random Forest",
-            "config": SelectConfig(
+            "config": DecisionConfig(
                 algorithm_type="random_forest",
                 algorithm_params={"n_estimators": 100, "random_state": 42},
             ),
         },
         {
             "name": "Gradient Boosting",
-            "config": SelectConfig(
+            "config": DecisionConfig(
                 algorithm_type="gradient_boost",
                 algorithm_params={
                     "n_estimators": 100,
@@ -69,11 +69,11 @@ def example_basic_ml_usage():
         },
         {
             "name": "Naive Bayes",
-            "config": SelectConfig(algorithm_type="naive_bayes", algorithm_params={}),
+            "config": DecisionConfig(algorithm_type="naive_bayes", algorithm_params={}),
         },
         {
             "name": "K-Nearest Neighbors",
-            "config": SelectConfig(
+            "config": DecisionConfig(
                 algorithm_type="knn", algorithm_params={"n_neighbors": 5}
             ),
         },
@@ -83,7 +83,7 @@ def example_basic_ml_usage():
     for example in configs:
         print(f"\n{example['name']}:")
         try:
-            select_module = SelectModule(num_actions=6, config=example["config"])
+            select_module = DecisionModule(num_actions=6, config=example["config"])
             print(
                 f"  ✅ Successfully created SelectModule with {example['config'].algorithm_type}"
             )
@@ -101,7 +101,9 @@ def example_basic_ml_usage():
                 Action(f"action_{i}", 1.0, lambda a, **kwargs: None) for i in range(6)
             ]
 
-            action = select_module.select_action(mock_agent, mock_actions, sample_state)
+            action = select_module.decide_action(
+                agent=mock_agent, actions=mock_actions, state=sample_state
+            )
             print(f"  ✅ Selected action: {action}")
 
         except Exception as e:
@@ -206,10 +208,9 @@ def example_feature_engineering():
     """Demonstrate feature engineering capabilities."""
     print("\n=== Feature Engineering ===")
 
-    from farm.actions.feature_engineering import FeatureEngineer
-
     # Create a mock agent and environment for demonstration
     from farm.core.agent import BaseAgent
+    from farm.core.decision.feature_engineering import FeatureEngineer
     from farm.core.environment import Environment
 
     class MockAgent(BaseAgent):
@@ -267,10 +268,10 @@ def example_hybrid_approach():
 
     # Create configurations that combine ML with RL
     hybrid_configs = [
-        {"name": "DQN (existing RL)", "config": SelectConfig(algorithm_type="dqn")},
+        {"name": "DQN (existing RL)", "config": DecisionConfig(algorithm_type="dqn")},
         {
             "name": "PPO (new RL)",
-            "config": SelectConfig(
+            "config": DecisionConfig(
                 algorithm_type="ppo",
                 rl_state_dim=8,
                 algorithm_params={"learning_rate": 3e-4},
@@ -278,7 +279,7 @@ def example_hybrid_approach():
         },
         {
             "name": "Random Forest (ML)",
-            "config": SelectConfig(
+            "config": DecisionConfig(
                 algorithm_type="random_forest", algorithm_params={"n_estimators": 100}
             ),
         },

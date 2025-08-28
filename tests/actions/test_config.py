@@ -10,19 +10,19 @@ from unittest.mock import Mock, patch
 import pytest
 from pydantic import ValidationError
 
-from farm.actions.config import (
+from farm.core.decision.config import (
     DEFAULT_ATTACK_CONFIG,
+    DEFAULT_DECISION_CONFIG,
     DEFAULT_GATHER_CONFIG,
     DEFAULT_MOVE_CONFIG,
     DEFAULT_REPRODUCE_CONFIG,
-    DEFAULT_SELECT_CONFIG,
     DEFAULT_SHARE_CONFIG,
     AttackConfig,
     BaseDQNConfig,
+    DecisionConfig,
     GatherConfig,
     MoveConfig,
     ReproduceConfig,
-    SelectConfig,
     ShareConfig,
     create_config_from_dict,
     merge_configs,
@@ -351,7 +351,7 @@ class TestSelectConfig(unittest.TestCase):
 
     def test_default_config(self):
         """Test default configuration values."""
-        config = SelectConfig()
+        config = DecisionConfig()
 
         # Test inherited values
         self.assertEqual(config.memory_size, 10000)
@@ -381,7 +381,7 @@ class TestSelectConfig(unittest.TestCase):
 
     def test_custom_config(self):
         """Test custom configuration values."""
-        config = SelectConfig(
+        config = DecisionConfig(
             move_weight=0.4,
             gather_weight=0.2,
             share_weight=0.2,
@@ -420,16 +420,16 @@ class TestSelectConfig(unittest.TestCase):
     def test_weight_validation(self):
         """Test weight validation."""
         # Valid weights should work
-        config = SelectConfig(move_weight=0.5, gather_weight=0.5)
+        config = DecisionConfig(move_weight=0.5, gather_weight=0.5)
         self.assertEqual(config.move_weight, 0.5)
         self.assertEqual(config.gather_weight, 0.5)
 
         # Negative weights should raise validation error
         with self.assertRaises(ValidationError):
-            SelectConfig(move_weight=-0.1)
+            DecisionConfig(move_weight=-0.1)
 
         with self.assertRaises(ValidationError):
-            SelectConfig(gather_weight=-0.1)
+            DecisionConfig(gather_weight=-0.1)
 
 
 class TestShareConfig(unittest.TestCase):
@@ -500,7 +500,7 @@ class TestDefaultConfigs(unittest.TestCase):
         self.assertIsInstance(DEFAULT_GATHER_CONFIG, GatherConfig)
         self.assertIsInstance(DEFAULT_MOVE_CONFIG, MoveConfig)
         self.assertIsInstance(DEFAULT_REPRODUCE_CONFIG, ReproduceConfig)
-        self.assertIsInstance(DEFAULT_SELECT_CONFIG, SelectConfig)
+        self.assertIsInstance(DEFAULT_DECISION_CONFIG, DecisionConfig)
         self.assertIsInstance(DEFAULT_SHARE_CONFIG, ShareConfig)
 
     def test_default_configs_are_singletons(self):
@@ -509,7 +509,7 @@ class TestDefaultConfigs(unittest.TestCase):
         self.assertIs(DEFAULT_GATHER_CONFIG, DEFAULT_GATHER_CONFIG)
         self.assertIs(DEFAULT_MOVE_CONFIG, DEFAULT_MOVE_CONFIG)
         self.assertIs(DEFAULT_REPRODUCE_CONFIG, DEFAULT_REPRODUCE_CONFIG)
-        self.assertIs(DEFAULT_SELECT_CONFIG, DEFAULT_SELECT_CONFIG)
+        self.assertIs(DEFAULT_DECISION_CONFIG, DEFAULT_DECISION_CONFIG)
         self.assertIs(DEFAULT_SHARE_CONFIG, DEFAULT_SHARE_CONFIG)
 
 
@@ -593,7 +593,7 @@ class TestConfigInheritance(unittest.TestCase):
             GatherConfig(),
             MoveConfig(),
             ReproduceConfig(),
-            SelectConfig(),
+            DecisionConfig(),
             ShareConfig(),
         ]
 
@@ -618,7 +618,7 @@ class TestConfigInheritance(unittest.TestCase):
             GatherConfig(),
             MoveConfig(),
             ReproduceConfig(),
-            SelectConfig(),
+            DecisionConfig(),
             ShareConfig(),
         ]
 

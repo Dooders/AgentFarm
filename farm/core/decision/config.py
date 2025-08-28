@@ -213,7 +213,7 @@ class ReproduceConfig(BaseDQNConfig):
     )
 
 
-class SelectConfig(BaseDQNConfig):
+class DecisionConfig(BaseDQNConfig):
     """Configuration for select action module.
 
     Extends BaseDQNConfig with selection-specific parameters for action prioritization.
@@ -393,7 +393,7 @@ DEFAULT_ATTACK_CONFIG = AttackConfig()
 DEFAULT_GATHER_CONFIG = GatherConfig()
 DEFAULT_MOVE_CONFIG = MoveConfig()
 DEFAULT_REPRODUCE_CONFIG = ReproduceConfig()
-DEFAULT_SELECT_CONFIG = SelectConfig()
+DEFAULT_DECISION_CONFIG = DecisionConfig()
 DEFAULT_SHARE_CONFIG = ShareConfig()
 
 

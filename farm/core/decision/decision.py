@@ -25,12 +25,12 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 import numpy as np
 import torch
 
-from farm.actions.algorithms.base import ActionAlgorithm, AlgorithmRegistry
-from farm.actions.algorithms.rl_base import RLAlgorithm
-from farm.actions.base_dqn import BaseDQNModule, BaseQNetwork, SharedEncoder
-from farm.actions.config import DEFAULT_SELECT_CONFIG, SelectConfig
-from farm.actions.feature_engineering import FeatureEngineer
 from farm.core.action import Action
+from farm.core.decision.algorithms.base import ActionAlgorithm, AlgorithmRegistry
+from farm.core.decision.algorithms.rl_base import RLAlgorithm
+from farm.core.decision.base_dqn import BaseDQNModule, BaseQNetwork, SharedEncoder
+from farm.core.decision.config import DEFAULT_DECISION_CONFIG, DecisionConfig
+from farm.core.decision.feature_engineering import FeatureEngineer
 from farm.utils.config_utils import get_config_value
 
 if TYPE_CHECKING:
@@ -39,7 +39,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class SelectQNetwork(BaseQNetwork):
+class DecisionQNetwork(BaseQNetwork):
     """Neural network for learning action selection decisions.
 
     This network learns to predict Q-values for different action choices
@@ -64,7 +64,7 @@ class SelectQNetwork(BaseQNetwork):
         )
 
 
-class SelectModule(BaseDQNModule):
+class DecisionModule(BaseDQNModule):
     """Module for learning and executing intelligent action selection.
 
     This module combines rule-based probability adjustments with learned
@@ -87,7 +87,7 @@ class SelectModule(BaseDQNModule):
     def __init__(
         self,
         num_actions: int,
-        config: SelectConfig,
+        config: DecisionConfig,
         device: torch.device = torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"
         ),
@@ -110,13 +110,13 @@ class SelectModule(BaseDQNModule):
 
         if self._algo_name == "dqn":
             # Initialize Q-networks with shared encoder if provided
-            self.q_network = SelectQNetwork(
+            self.q_network = DecisionQNetwork(
                 input_dim=8,
                 num_actions=num_actions,
                 hidden_size=config.dqn_hidden_size,
                 shared_encoder=shared_encoder,
             ).to(device)
-            self.target_network = SelectQNetwork(
+            self.target_network = DecisionQNetwork(
                 input_dim=8,
                 num_actions=num_actions,
                 hidden_size=config.dqn_hidden_size,
@@ -148,7 +148,7 @@ class SelectModule(BaseDQNModule):
             )
             self._feature_engineer = FeatureEngineer()
 
-    def select_action(
+    def decide_action(
         self, agent: "BaseAgent", actions: List[Action], state: torch.Tensor
     ) -> Action:
         """Select an action using both predefined weights and learned preferences.
@@ -169,8 +169,8 @@ class SelectModule(BaseDQNModule):
             The selected action based on combined probabilities and Q-values
 
         Example:
-            >>> module = SelectModule(5, config)
-            >>> action = module.select_action(agent, available_actions, state)
+            >>> module = DecisionModule(5, config)
+            >>> action = module.decide_action(agent, available_actions, state)
         """
         # Cache action indices for this agent if not already done
         if agent.agent_id not in self.action_indices:
@@ -443,7 +443,7 @@ class SelectModule(BaseDQNModule):
                 self.target_network.load_state_dict(state_dict["target_network"])
 
 
-def create_selection_state(agent: "BaseAgent") -> torch.Tensor:
+def create_decision_state(agent: "BaseAgent") -> torch.Tensor:
     """Create state representation for action selection decisions.
 
     This function creates a normalized state vector that captures the key
@@ -464,7 +464,7 @@ def create_selection_state(agent: "BaseAgent") -> torch.Tensor:
         current situation for making intelligent action decisions.
 
     Example:
-        >>> state = create_selection_state(agent)
+        >>> state = create_decision_state(agent)
         >>> print(state.shape)  # torch.Size([8])
     """
     # Calculate normalized values with fallbacks

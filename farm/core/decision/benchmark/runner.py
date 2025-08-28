@@ -4,7 +4,7 @@ from typing import Dict, List
 
 import numpy as np
 
-from farm.actions.algorithms.base import AlgorithmRegistry
+from farm.core.decision.algorithms.base import AlgorithmRegistry
 
 
 class AlgorithmBenchmark:
@@ -27,4 +27,3 @@ class AlgorithmBenchmark:
             results[key] = {m: float(np.random.rand()) for m in metrics}
 
         return results
-

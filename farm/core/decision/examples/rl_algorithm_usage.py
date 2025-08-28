@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from farm.actions.algorithms import (
+from farm.core.decision.algorithms import (
     A2CWrapper,
     AlgorithmBenchmark,
     AlgorithmComparison,
@@ -18,8 +18,8 @@ from farm.actions.algorithms import (
     SACWrapper,
     TD3Wrapper,
 )
-from farm.actions.config import SelectConfig
-from farm.actions.select import SelectModule
+from farm.core.decision.config import DecisionConfig
+from farm.core.decision.decision import DecisionModule
 
 
 def example_basic_rl_usage():
@@ -27,7 +27,7 @@ def example_basic_rl_usage():
     print("=== Basic RL Algorithm Usage ===")
 
     # Configuration for RL algorithms
-    config = SelectConfig(
+    config = DecisionConfig(
         algorithm_type="ppo",  # Can be 'ppo', 'sac', 'a2c', 'td3'
         rl_state_dim=8,
         rl_buffer_size=1000,
@@ -40,7 +40,7 @@ def example_basic_rl_usage():
     )
 
     # Create SelectModule with PPO
-    select_module = SelectModule(
+    select_module = DecisionModule(
         num_actions=6, config=config  # DEFEND, ATTACK, GATHER, SHARE, MOVE, REPRODUCE
     )
 
@@ -115,21 +115,21 @@ def example_configuration_options():
     configs = [
         {
             "name": "PPO with custom learning rate",
-            "config": SelectConfig(
+            "config": DecisionConfig(
                 algorithm_type="ppo",
                 algorithm_params={"learning_rate": 1e-3, "n_steps": 256},
             ),
         },
         {
             "name": "SAC with entropy tuning",
-            "config": SelectConfig(
+            "config": DecisionConfig(
                 algorithm_type="sac",
                 algorithm_params={"ent_coef": "auto", "learning_starts": 100},
             ),
         },
         {
             "name": "TD3 with policy delay",
-            "config": SelectConfig(
+            "config": DecisionConfig(
                 algorithm_type="td3",
                 algorithm_params={"policy_delay": 3, "target_policy_noise": 0.3},
             ),

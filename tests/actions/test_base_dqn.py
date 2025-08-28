@@ -5,17 +5,18 @@ neural network architecture, experience replay, and training mechanisms.
 """
 
 import unittest
-from unittest.mock import Mock, patch, MagicMock
-import torch
-import numpy as np
 from collections import deque
+from unittest.mock import MagicMock, Mock, patch
 
-from farm.actions.base_dqn import (
+import numpy as np
+import torch
+
+from farm.core.decision.base_dqn import (
+    DEVICE,
     BaseDQNConfig,
-    SharedEncoder,
-    BaseQNetwork,
     BaseDQNModule,
-    DEVICE
+    BaseQNetwork,
+    SharedEncoder,
 )
 
 
@@ -25,7 +26,7 @@ class TestBaseDQNConfig(unittest.TestCase):
     def test_default_config(self):
         """Test default configuration values."""
         config = BaseDQNConfig()
-        
+
         self.assertEqual(config.target_update_freq, 100)
         self.assertEqual(config.memory_size, 10000)
         self.assertEqual(config.learning_rate, 0.001)
@@ -41,7 +42,7 @@ class TestBaseDQNConfig(unittest.TestCase):
     def test_custom_config(self):
         """Test custom configuration values."""
         config = BaseDQNConfig()
-        
+
         # Modify attributes directly
         config.target_update_freq = 50
         config.memory_size = 5000
@@ -54,7 +55,7 @@ class TestBaseDQNConfig(unittest.TestCase):
         config.batch_size = 64
         config.tau = 0.01
         config.seed = 42
-        
+
         self.assertEqual(config.target_update_freq, 50)
         self.assertEqual(config.memory_size, 5000)
         self.assertEqual(config.learning_rate, 0.0005)
@@ -74,7 +75,7 @@ class TestSharedEncoder(unittest.TestCase):
     def test_initialization(self):
         """Test SharedEncoder initialization."""
         encoder = SharedEncoder(input_dim=8, hidden_size=64)
-        
+
         self.assertEqual(encoder.input_dim, 8)
         self.assertEqual(encoder.hidden_size, 64)
         self.assertIsInstance(encoder.fc, torch.nn.Linear)
@@ -85,9 +86,9 @@ class TestSharedEncoder(unittest.TestCase):
         """Test SharedEncoder forward pass."""
         encoder = SharedEncoder(input_dim=8, hidden_size=64)
         x = torch.randn(2, 8)  # Batch size 2, input dim 8
-        
+
         output = encoder(x)
-        
+
         self.assertEqual(output.shape, (2, 64))
         self.assertTrue(torch.all(output >= 0))  # ReLU activation
 
@@ -95,9 +96,9 @@ class TestSharedEncoder(unittest.TestCase):
         """Test SharedEncoder forward pass with single sample."""
         encoder = SharedEncoder(input_dim=8, hidden_size=64)
         x = torch.randn(8)  # Single sample
-        
+
         output = encoder(x)
-        
+
         self.assertEqual(output.shape, (64,))
         self.assertTrue(torch.all(output >= 0))  # ReLU activation
 
@@ -108,54 +109,62 @@ class TestBaseQNetwork(unittest.TestCase):
     def test_initialization_without_shared_encoder(self):
         """Test BaseQNetwork initialization without shared encoder."""
         network = BaseQNetwork(input_dim=8, output_dim=4, hidden_size=64)
-        
+
         self.assertIsNone(network.shared_encoder)
-        self.assertEqual(len(network.network), 9)  # 3 layers + 3 LayerNorm + 3 ReLU + 3 Dropout
+        self.assertEqual(
+            len(network.network), 9
+        )  # 3 layers + 3 LayerNorm + 3 ReLU + 3 Dropout
 
     def test_initialization_with_shared_encoder(self):
         """Test BaseQNetwork initialization with shared encoder."""
         shared_encoder = SharedEncoder(input_dim=8, hidden_size=64)
-        network = BaseQNetwork(input_dim=8, output_dim=4, hidden_size=64, shared_encoder=shared_encoder)
-        
+        network = BaseQNetwork(
+            input_dim=8, output_dim=4, hidden_size=64, shared_encoder=shared_encoder
+        )
+
         self.assertIs(network.shared_encoder, shared_encoder)
 
     def test_forward_pass_without_shared_encoder(self):
         """Test BaseQNetwork forward pass without shared encoder."""
         network = BaseQNetwork(input_dim=8, output_dim=4, hidden_size=64)
         x = torch.randn(2, 8)
-        
+
         output = network(x)
-        
+
         self.assertEqual(output.shape, (2, 4))
 
     def test_forward_pass_with_shared_encoder(self):
         """Test BaseQNetwork forward pass with shared encoder."""
         shared_encoder = SharedEncoder(input_dim=8, hidden_size=64)
-        network = BaseQNetwork(input_dim=8, output_dim=4, hidden_size=64, shared_encoder=shared_encoder)
+        network = BaseQNetwork(
+            input_dim=8, output_dim=4, hidden_size=64, shared_encoder=shared_encoder
+        )
         x = torch.randn(2, 8)
-        
+
         output = network(x)
-        
+
         self.assertEqual(output.shape, (2, 4))
 
     def test_forward_pass_single_sample(self):
         """Test BaseQNetwork forward pass with single sample."""
         network = BaseQNetwork(input_dim=8, output_dim=4, hidden_size=64)
         x = torch.randn(8)  # Single sample
-        
+
         output = network(x)
-        
+
         self.assertEqual(output.shape, (4,))
 
     def test_weight_initialization(self):
         """Test that weights are properly initialized."""
         network = BaseQNetwork(input_dim=8, output_dim=4, hidden_size=64)
-        
+
         # Check that weights are not all zeros
         for module in network.modules():
             if isinstance(module, torch.nn.Linear):
                 self.assertFalse(torch.all(module.weight == 0))
-                self.assertTrue(torch.all(module.bias == 0))  # Bias should be initialized to 0
+                self.assertTrue(
+                    torch.all(module.bias == 0)
+                )  # Bias should be initialized to 0
 
 
 class TestBaseDQNModule(unittest.TestCase):
@@ -174,7 +183,7 @@ class TestBaseDQNModule(unittest.TestCase):
     def test_initialization(self):
         """Test BaseDQNModule initialization."""
         module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config)
-        
+
         self.assertEqual(module.output_dim, 4)
         self.assertEqual(module.config, self.config)
         self.assertEqual(module.epsilon, 1.0)
@@ -188,7 +197,7 @@ class TestBaseDQNModule(unittest.TestCase):
     def test_initialization_with_seed(self):
         """Test BaseDQNModule initialization with seed."""
         module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config)
-        
+
         # Check that networks are initialized
         self.assertIsInstance(module.q_network, BaseQNetwork)
         self.assertIsInstance(module.target_network, BaseQNetwork)
@@ -198,7 +207,7 @@ class TestBaseDQNModule(unittest.TestCase):
         """Test BaseDQNModule initialization with shared encoder."""
         shared_encoder = SharedEncoder(input_dim=8, hidden_size=64)
         module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config)
-        
+
         # Networks should be initialized
         self.assertIsInstance(module.q_network, BaseQNetwork)
         self.assertIsInstance(module.target_network, BaseQNetwork)
@@ -206,15 +215,15 @@ class TestBaseDQNModule(unittest.TestCase):
     def test_store_experience(self):
         """Test storing experiences in memory."""
         module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config)
-        
+
         state = torch.randn(8).to(module.device)
         action = 2
         reward = 1.0
         next_state = torch.randn(8).to(module.device)
         done = False
-        
+
         module.store_experience(state, action, reward, next_state, done)
-        
+
         self.assertEqual(len(module.memory), 1)
         stored_experience = module.memory[0]
         # Use torch.equal for tensor comparison
@@ -229,28 +238,37 @@ class TestBaseDQNModule(unittest.TestCase):
         mock_db = Mock()
         mock_logger = Mock()
         mock_db.logger = mock_logger
-        
-        module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config, db=mock_db)
-        
+
+        module = BaseDQNModule(
+            input_dim=8, output_dim=4, config=self.config, db=mock_db
+        )
+
         state = torch.randn(8).to(module.device)
         action = 2
         reward = 1.0
         next_state = torch.randn(8).to(module.device)
         done = False
-        
+
         module.store_experience(
-            state, action, reward, next_state, done,
-            step_number=10, agent_id="agent1", module_type="test",
-            module_id=123, action_taken_mapped=2
+            state,
+            action,
+            reward,
+            next_state,
+            done,
+            step_number=10,
+            agent_id="agent1",
+            module_type="test",
+            module_id=123,
+            action_taken_mapped=2,
         )
-        
+
         # Check that logger was called
         mock_logger.log_learning_experience.assert_called_once()
 
     def test_train_with_small_batch(self):
         """Test training with batch smaller than batch_size."""
         module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config)
-        
+
         # Add some experiences
         for i in range(2):  # Less than batch_size (4)
             state = torch.randn(8).to(module.device)
@@ -259,17 +277,17 @@ class TestBaseDQNModule(unittest.TestCase):
             next_state = torch.randn(8).to(module.device)
             done = False
             module.store_experience(state, action, reward, next_state, done)
-        
+
         # Try to train
         loss = module.train(list(module.memory))
-        
+
         # Should return None for small batch
         self.assertIsNone(loss)
 
     def test_train_with_sufficient_batch(self):
         """Test training with sufficient batch size."""
         module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config)
-        
+
         # Add experiences
         for i in range(4):  # Equal to batch_size
             state = torch.randn(8).to(module.device)
@@ -278,10 +296,10 @@ class TestBaseDQNModule(unittest.TestCase):
             next_state = torch.randn(8).to(module.device)
             done = False
             module.store_experience(state, action, reward, next_state, done)
-        
+
         # Train
         loss = module.train(list(module.memory))
-        
+
         # Should return a loss value
         self.assertIsNotNone(loss)
         self.assertIsInstance(loss, float)
@@ -293,15 +311,15 @@ class TestBaseDQNModule(unittest.TestCase):
         """Test action selection during exploration."""
         module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config)
         module.epsilon = 1.0  # Always explore
-        
+
         state = torch.randn(8).to(module.device)
-        
+
         # Test multiple selections to ensure randomness
         actions = set()
         for _ in range(10):
             action = module.select_action(state)
             actions.add(action)
-        
+
         # Should have some variety in actions
         self.assertGreater(len(actions), 1)
 
@@ -309,20 +327,20 @@ class TestBaseDQNModule(unittest.TestCase):
         """Test action selection during exploitation."""
         module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config)
         module.epsilon = 0.0  # Always exploit
-        
+
         state = torch.randn(8).to(module.device)
-        
+
         # Should always return the same action for the same state
         action1 = module.select_action(state)
         action2 = module.select_action(state)
-        
+
         self.assertEqual(action1, action2)
 
     def test_epsilon_decay(self):
         """Test epsilon decay during training."""
         module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config)
         initial_epsilon = module.epsilon
-        
+
         # Train to trigger epsilon decay
         for i in range(4):
             state = torch.randn(8).to(module.device)
@@ -331,63 +349,69 @@ class TestBaseDQNModule(unittest.TestCase):
             next_state = torch.randn(8).to(module.device)
             done = False
             module.store_experience(state, action, reward, next_state, done)
-        
+
         module.train(list(module.memory))
-        
+
         # Epsilon should have decreased
         self.assertLess(module.epsilon, initial_epsilon)
 
     def test_soft_update_target_network(self):
         """Test soft update of target network."""
         module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config)
-        
+
         # Get initial target network weights
         initial_target_weights = {}
         for name, param in module.target_network.named_parameters():
             initial_target_weights[name] = param.data.clone()
-        
+
         # Modify main network weights
         for param in module.q_network.parameters():
             param.data += torch.randn_like(param.data) * 0.1
-        
+
         # Perform soft update
         module._soft_update_target_network()
-        
+
         # Check that target network weights have changed
         for name, param in module.target_network.named_parameters():
             if name in initial_target_weights:
-                self.assertFalse(torch.allclose(
-                    param.data, initial_target_weights[name]
-                ))
+                self.assertFalse(
+                    torch.allclose(param.data, initial_target_weights[name])
+                )
 
     def test_get_state_dict(self):
         """Test getting state dictionary."""
         module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config)
-        
+
         state_dict = module.get_state_dict()
-        
+
         required_keys = [
-            "q_network_state", "target_network_state", "optimizer_state",
-            "epsilon", "steps", "losses", "episode_rewards", "seed"
+            "q_network_state",
+            "target_network_state",
+            "optimizer_state",
+            "epsilon",
+            "steps",
+            "losses",
+            "episode_rewards",
+            "seed",
         ]
-        
+
         for key in required_keys:
             self.assertIn(key, state_dict)
 
     def test_load_state_dict(self):
         """Test loading state dictionary."""
         module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config)
-        
+
         # Get current state
         original_state = module.get_state_dict()
-        
+
         # Modify some values
         original_state["epsilon"] = 0.5
         original_state["steps"] = 100
-        
+
         # Load the modified state
         module.load_state_dict(original_state)
-        
+
         # Check that values were updated
         self.assertEqual(module.epsilon, 0.5)
         self.assertEqual(module.steps, 100)
@@ -395,11 +419,13 @@ class TestBaseDQNModule(unittest.TestCase):
     def test_cleanup(self):
         """Test cleanup method."""
         mock_db = Mock()
-        module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config, db=mock_db)
-        
+        module = BaseDQNModule(
+            input_dim=8, output_dim=4, config=self.config, db=mock_db
+        )
+
         # Add some pending experiences
         module.pending_experiences = [Mock(), Mock()]
-        
+
         # Cleanup should not raise an exception
         module.cleanup()
 
@@ -407,21 +433,21 @@ class TestBaseDQNModule(unittest.TestCase):
         """Test state caching in select_action."""
         module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config)
         module.epsilon = 0.0  # Always exploit for consistent results
-        
+
         state = torch.randn(8).to(module.device)
-        
+
         # First call should cache the result
         action1 = module.select_action(state)
-        
+
         # Second call should use cached result
         action2 = module.select_action(state)
-        
+
         self.assertEqual(action1, action2)
 
     def test_memory_overflow(self):
         """Test that memory respects maxlen."""
         module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config)
-        
+
         # Add more experiences than memory size
         for i in range(150):  # More than memory_size (100)
             state = torch.randn(8).to(module.device)
@@ -430,10 +456,10 @@ class TestBaseDQNModule(unittest.TestCase):
             next_state = torch.randn(8).to(module.device)
             done = False
             module.store_experience(state, action, reward, next_state, done)
-        
+
         # Memory should not exceed maxlen
         self.assertLessEqual(len(module.memory), 100)
 
 
 if __name__ == "__main__":
-    unittest.main() 
+    unittest.main()
