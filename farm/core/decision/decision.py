@@ -351,7 +351,7 @@ class DecisionModule:
             state: Current state observation
 
         Returns:
-            np.ndarray: Probability distribution over actions
+            np.ndarray: Probability distribution over actions as a numpy array
         """
         try:
             # For SB3 algorithms that support it, get action probabilities
@@ -489,57 +489,6 @@ class DecisionModule:
             self.algorithm.reset()
 
 
-def create_decision_state(agent: "BaseAgent") -> torch.Tensor:
-    """Create a decision state tensor from an agent.
-
-    This function extracts relevant state information from an agent
-    and formats it as a tensor for the decision module.
-
-    Args:
-        agent: The agent to extract state from
-
-    Returns:
-        torch.Tensor: State tensor for decision making
-    """
-    try:
-        # Extract basic state features
-        state_features = [
-            agent.current_health / agent.starting_health,  # Health ratio
-            agent.resource_level / 50.0,  # Normalized resource level
-            agent.position[0] / 100.0,  # Normalized x position
-            agent.position[1] / 100.0,  # Normalized y position
-            float(agent.is_defending),  # Defense status
-            agent.starvation_threshold / agent.max_starvation,  # Starvation ratio
-        ]
-
-        # Add environment features if available
-        if hasattr(agent, "environment") and agent.environment:
-            env = agent.environment
-            nearby_resources = len(env.get_nearby_resources(agent.position, 20.0))
-            nearby_agents = len(env.get_nearby_agents(agent.position, 20.0))
-            total_resources = (
-                sum(r.amount for r in env.resources) if env.resources else 0
-            )
-
-            state_features.extend(
-                [
-                    nearby_resources / 10.0,  # Normalized nearby resources
-                    nearby_agents / 10.0,  # Normalized nearby agents
-                    total_resources / 1000.0,  # Normalized total resources
-                    env.time / 1000.0,  # Normalized time
-                ]
-            )
-
-        # Convert to tensor
-        state_tensor = torch.tensor(state_features, dtype=torch.float32)
-        return state_tensor
-
-    except Exception as e:
-        logger.error(f"Error creating decision state for agent {agent.agent_id}: {e}")
-        # Return a zero tensor as fallback
-        return torch.zeros(10, dtype=torch.float32)
-
-
 # Example usage and demonstration
 """
 Example: Using DecisionModule with BaseAgent
@@ -562,7 +511,7 @@ agent = BaseAgent(
 # Access it via agent.decision_module
 
 # Manual example of creating and using DecisionModule
-from farm.core.decision.decision import DecisionModule, create_decision_state
+from farm.core.decision.decision import DecisionModule
 
 # Create config
 config = DecisionConfig(
@@ -576,8 +525,8 @@ config = DecisionConfig(
 # Create DecisionModule
 decision_module = DecisionModule(agent=agent, config=config)
 
-# Create state tensor
-state = create_decision_state(agent)
+# Create state tensor using agent's method
+state = agent.create_decision_state()
 
 # Get action
 action_index = decision_module.decide_action(state)
@@ -585,7 +534,7 @@ print(f"Selected action index: {action_index}")
 
 # Update with experience (after action execution)
 reward = 1.0  # Some reward
-next_state = create_decision_state(agent)  # State after action
+next_state = agent.create_decision_state()  # State after action
 done = False  # Episode not done
 decision_module.update(state, action_index, reward, next_state, done)
 

@@ -123,17 +123,10 @@ In agent lifecycle:
 
 ```python
 # In BaseAgent.act()
-current_state_tensor = create_decision_state(self)
-action = self.decide_action()  # Uses DecisionModule
+action = self.decide_action()  # Uses DecisionModule with externally provided state
 action.execute(self)  # Performs the action
 reward = self._calculate_reward()
-next_state_tensor = create_decision_state(self)
-self.decision_module.update(
-    state=current_state_tensor,
-    action=action_index,
-    reward=reward,
-    next_state=next_state_tensor,
-    done=not self.alive
+# State management handled externally
 )
 ```
 
