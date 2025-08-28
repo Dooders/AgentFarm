@@ -34,10 +34,31 @@ class BenchmarkResult:
     total_steps: int = 0
     final_score: float = 0.0
     convergence_step: Optional[int] = None
+    # Computed fields (can be set during deserialization)
+    mean_reward: float = field(default=0.0)
+    std_reward: float = field(default=0.0)
+    max_reward: float = field(default=0.0)
+
+    def __post_init__(self):
+        """Compute derived fields after initialization."""
+        if self.episode_rewards:
+            self.mean_reward = float(np.mean(self.episode_rewards))
+            self.std_reward = float(np.std(self.episode_rewards))
+            self.max_reward = float(max(self.episode_rewards))
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
-        return {
+        # Ensure computed fields are up to date
+        if self.episode_rewards:
+            self.mean_reward = float(np.mean(self.episode_rewards))
+            self.std_reward = float(np.std(self.episode_rewards))
+            self.max_reward = float(max(self.episode_rewards))
+        else:
+            self.mean_reward = 0.0
+            self.std_reward = 0.0
+            self.max_reward = 0.0
+
+        base_data = {
             "algorithm_name": self.algorithm_name,
             "episode_rewards": self.episode_rewards,
             "episode_lengths": self.episode_lengths,
@@ -46,12 +67,18 @@ class BenchmarkResult:
             "total_steps": self.total_steps,
             "final_score": self.final_score,
             "convergence_step": self.convergence_step,
-            "mean_reward": (
-                np.mean(self.episode_rewards) if self.episode_rewards else 0.0
-            ),
-            "std_reward": np.std(self.episode_rewards) if self.episode_rewards else 0.0,
-            "max_reward": max(self.episode_rewards) if self.episode_rewards else 0.0,
         }
+
+        # Always include computed fields
+        base_data.update(
+            {
+                "mean_reward": self.mean_reward,
+                "std_reward": self.std_reward,
+                "max_reward": self.max_reward,
+            }
+        )
+
+        return base_data
 
 
 class AlgorithmBenchmark:
@@ -87,13 +114,16 @@ class AlgorithmBenchmark:
 
     def create_algorithm(self, name: str, kwargs: Dict[str, Any]) -> ActionAlgorithm:
         """Create an algorithm instance."""
+        kwargs = kwargs.copy()
+
         if name in ["ppo", "sac", "a2c", "td3"]:
             # RL algorithms need state_dim
-            kwargs = kwargs.copy()
             kwargs.setdefault("state_dim", self.state_dim)
-            kwargs.setdefault("num_actions", self.num_actions)
 
-        return AlgorithmRegistry.create(name, num_actions=self.num_actions, **kwargs)
+        # Always ensure num_actions is in kwargs
+        kwargs.setdefault("num_actions", self.num_actions)
+
+        return AlgorithmRegistry.create(name, **kwargs)
 
     def run_single_algorithm(
         self,

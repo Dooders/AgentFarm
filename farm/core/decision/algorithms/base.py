@@ -65,17 +65,17 @@ class AlgorithmRegistry:
 
     _algorithms: Dict[str, str] = {
         # Traditional ML algorithms
-        "mlp": "farm.actions.algorithms.mlp:MLPActionSelector",
-        "svm": "farm.actions.algorithms.svm:SVMActionSelector",
-        "random_forest": "farm.actions.algorithms.ensemble:RandomForestActionSelector",
-        "gradient_boost": "farm.actions.algorithms.ensemble:GradientBoostActionSelector",
-        "naive_bayes": "farm.actions.algorithms.ensemble:NaiveBayesActionSelector",
-        "knn": "farm.actions.algorithms.ensemble:KNNActionSelector",
+        "mlp": "farm.core.decision.algorithms.mlp:MLPActionSelector",
+        "svm": "farm.core.decision.algorithms.svm:SVMActionSelector",
+        "random_forest": "farm.core.decision.algorithms.ensemble:RandomForestActionSelector",
+        "gradient_boost": "farm.core.decision.algorithms.ensemble:GradientBoostActionSelector",
+        "naive_bayes": "farm.core.decision.algorithms.ensemble:NaiveBayesActionSelector",
+        "knn": "farm.core.decision.algorithms.ensemble:KNNActionSelector",
         # Reinforcement Learning algorithms
-        "ppo": "farm.actions.algorithms.stable_baselines:PPOWrapper",
-        "sac": "farm.actions.algorithms.stable_baselines:SACWrapper",
-        "a2c": "farm.actions.algorithms.stable_baselines:A2CWrapper",
-        "td3": "farm.actions.algorithms.stable_baselines:TD3Wrapper",
+        "ppo": "farm.core.decision.algorithms.stable_baselines:PPOWrapper",
+        "sac": "farm.core.decision.algorithms.stable_baselines:SACWrapper",
+        "a2c": "farm.core.decision.algorithms.stable_baselines:A2CWrapper",
+        "td3": "farm.core.decision.algorithms.stable_baselines:TD3Wrapper",
         # "dqn" is handled by the existing DQN infrastructure, not the registry
     }
 

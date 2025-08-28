@@ -22,6 +22,10 @@ class RLAlgorithm(ActionAlgorithm, ABC):
     replay, training on batches of experiences, and model management. It provides
     a unified interface for integrating various RL algorithms (PPO, SAC, DQN, etc.)
     with the AgentFarm action selection system.
+
+    Note: This class remains abstract as it doesn't implement ActionAlgorithm methods.
+    Concrete RL implementations should inherit from this class and implement all
+    required abstract methods.
     """
 
     def __init__(self, num_actions: int, **kwargs: Any) -> None:
@@ -111,7 +115,12 @@ class RLAlgorithm(ActionAlgorithm, ABC):
 
 
 class ExperienceReplayBuffer(ABC):
-    """Abstract base class for experience replay buffers."""
+    """Abstract base class for experience replay buffers.
+
+    This class defines the interface for experience replay functionality.
+    Concrete implementations like SimpleReplayBuffer should inherit from this class
+    and implement all required abstract methods.
+    """
 
     @abstractmethod
     def __len__(self) -> int:
