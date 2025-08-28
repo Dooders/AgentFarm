@@ -20,12 +20,13 @@ Classes:
 
 import logging
 import random
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 import numpy as np
 import torch
 
 from farm.actions.algorithms.base import ActionAlgorithm, AlgorithmRegistry
+from farm.actions.algorithms.rl_base import RLAlgorithm
 from farm.actions.base_dqn import BaseDQNModule, BaseQNetwork, SharedEncoder
 from farm.actions.config import DEFAULT_SELECT_CONFIG, SelectConfig
 from farm.actions.feature_engineering import FeatureEngineer
@@ -101,9 +102,10 @@ class SelectModule(BaseDQNModule):
         # Pre-compute action indices for faster lookup
         self.action_indices = {}
 
-        # Choose algorithm path: DQN (default) or traditional ML via registry
+        # Choose algorithm path: DQN (default), RL algorithms, or traditional ML via registry
         self._algo_name = getattr(config, "algorithm_type", "dqn")
         self._ml_algo: Optional[ActionAlgorithm] = None
+        self._rl_algo: Optional[RLAlgorithm] = None
         self._feature_engineer: Optional[FeatureEngineer] = None
 
         if self._algo_name == "dqn":
@@ -121,6 +123,23 @@ class SelectModule(BaseDQNModule):
                 shared_encoder=shared_encoder,
             ).to(device)
             self.target_network.load_state_dict(self.q_network.state_dict())
+        elif self._algo_name in ["ppo", "sac", "a2c", "td3"]:
+            # Initialize RL algorithm from Stable Baselines
+            rl_params = getattr(config, "algorithm_params", {}).copy()
+            rl_params.update(
+                {
+                    "state_dim": getattr(config, "rl_state_dim", 8),
+                    "buffer_size": getattr(config, "rl_buffer_size", 10000),
+                    "batch_size": getattr(config, "rl_batch_size", 32),
+                    "train_freq": getattr(config, "rl_train_freq", 4),
+                }
+            )
+            self._rl_algo = cast(
+                RLAlgorithm,
+                AlgorithmRegistry.create(
+                    self._algo_name, num_actions=num_actions, **rl_params
+                ),
+            )
         else:
             # Initialize traditional ML algorithm
             params = getattr(config, "algorithm_params", {}) or {}
@@ -167,8 +186,23 @@ class SelectModule(BaseDQNModule):
             agent, base_probs, self.action_indices[agent.agent_id]
         )
 
+        # If using RL algorithm (PPO, SAC, A2C, TD3)
+        if self._rl_algo is not None:
+            # Convert torch tensor to numpy for RL algorithms
+            state_np = state.cpu().numpy() if isinstance(state, torch.Tensor) else state
+
+            # Get action from RL algorithm
+            action_idx = self._rl_algo.select_action(state_np)
+
+            # Ensure action is within valid range
+            if 0 <= action_idx < len(actions):
+                return actions[action_idx]
+            else:
+                # Fallback to rule-based selection
+                return random.choices(actions, weights=adjusted_probs, k=1)[0]
+
         # If using ML algorithm, predict probabilities from engineered features
-        if self._ml_algo is not None and self._feature_engineer is not None:
+        elif self._ml_algo is not None and self._feature_engineer is not None:
             ml_state = self._feature_engineer.extract_features(agent, agent.environment)
             ml_probs = self._ml_algo.predict_proba(ml_state)
 
@@ -351,6 +385,62 @@ class SelectModule(BaseDQNModule):
 
         # Normalize
         return combined / combined.sum()
+
+    def store_experience(
+        self,
+        state: torch.Tensor,
+        action: int,
+        reward: float,
+        next_state: torch.Tensor,
+        done: bool,
+        **kwargs: Any
+    ) -> None:
+        """Store experience for RL algorithm training.
+
+        Args:
+            state: Current state observation
+            action: Action taken
+            reward: Reward received
+            next_state: Next state observation
+            done: Whether episode ended
+            **kwargs: Additional experience data
+        """
+        if self._rl_algo is not None:
+            self._rl_algo.store_experience(
+                state, action, reward, next_state, done, **kwargs
+            )
+            self._rl_algo.update_step_count()
+
+            # Train if needed
+            if self._rl_algo.should_train():
+                batch = self._rl_algo.replay_buffer.sample(
+                    min(self._rl_algo.batch_size, len(self._rl_algo.replay_buffer))
+                )
+                metrics = self._rl_algo.train_on_batch(batch)
+                # Could log metrics here if needed
+
+    def get_model_state(self) -> Dict[str, Any]:
+        """Get the current model state for saving."""
+        state_dict = {}
+
+        if self._rl_algo is not None:
+            state_dict["rl_model"] = self._rl_algo.get_model_state()
+        elif hasattr(self, "q_network"):
+            # For DQN, save network states
+            state_dict["q_network"] = self.q_network.state_dict()
+            if hasattr(self, "target_network"):
+                state_dict["target_network"] = self.target_network.state_dict()
+
+        return state_dict
+
+    def load_model_state(self, state_dict: Dict[str, Any]) -> None:
+        """Load a saved model state."""
+        if "rl_model" in state_dict and self._rl_algo is not None:
+            self._rl_algo.load_model_state(state_dict["rl_model"])
+        elif "q_network" in state_dict and hasattr(self, "q_network"):
+            self.q_network.load_state_dict(state_dict["q_network"])
+            if "target_network" in state_dict and hasattr(self, "target_network"):
+                self.target_network.load_state_dict(state_dict["target_network"])
 
 
 def create_selection_state(agent: "BaseAgent") -> torch.Tensor:

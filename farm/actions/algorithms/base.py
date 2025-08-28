@@ -51,9 +51,7 @@ class ActionAlgorithm(ABC):
 
             obj = joblib.load(path)
             if not isinstance(obj, ActionAlgorithm):
-                raise TypeError(
-                    f"Loaded object is not an ActionAlgorithm: {type(obj)}"
-                )
+                raise TypeError(f"Loaded object is not an ActionAlgorithm: {type(obj)}")
             return obj
         except Exception as exc:  # pragma: no cover - defensive
             raise RuntimeError(f"Failed to load model from {path}: {exc}")
@@ -66,13 +64,18 @@ class AlgorithmRegistry:
     """
 
     _algorithms: Dict[str, str] = {
-        # name -> "module_path:ClassName"
+        # Traditional ML algorithms
         "mlp": "farm.actions.algorithms.mlp:MLPActionSelector",
         "svm": "farm.actions.algorithms.svm:SVMActionSelector",
         "random_forest": "farm.actions.algorithms.ensemble:RandomForestActionSelector",
         "gradient_boost": "farm.actions.algorithms.ensemble:GradientBoostActionSelector",
         "naive_bayes": "farm.actions.algorithms.ensemble:NaiveBayesActionSelector",
         "knn": "farm.actions.algorithms.ensemble:KNNActionSelector",
+        # Reinforcement Learning algorithms
+        "ppo": "farm.actions.algorithms.stable_baselines:PPOWrapper",
+        "sac": "farm.actions.algorithms.stable_baselines:SACWrapper",
+        "a2c": "farm.actions.algorithms.stable_baselines:A2CWrapper",
+        "td3": "farm.actions.algorithms.stable_baselines:TD3Wrapper",
         # "dqn" is handled by the existing DQN infrastructure, not the registry
     }
 
@@ -81,14 +84,10 @@ class AlgorithmRegistry:
         cls._algorithms[name] = dotted_path
 
     @classmethod
-    def create(
-        cls, name: str, num_actions: int, **params: Any
-    ) -> ActionAlgorithm:
+    def create(cls, name: str, num_actions: int, **params: Any) -> ActionAlgorithm:
         if name not in cls._algorithms:
             valid = ", ".join(sorted(cls._algorithms.keys()))
-            raise ValueError(
-                f"Unknown algorithm '{name}'. Valid algorithms: {valid}"
-            )
+            raise ValueError(f"Unknown algorithm '{name}'. Valid algorithms: {valid}")
 
         module_path, _, class_name = cls._algorithms[name].partition(":")
         if not module_path or not class_name:
@@ -103,4 +102,3 @@ class AlgorithmRegistry:
                 f"Registry entry '{name}' does not resolve to a class: {algo_cls}"
             )
         return algo_cls(num_actions=num_actions, **params)
-

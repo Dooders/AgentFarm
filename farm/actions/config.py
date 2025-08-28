@@ -5,7 +5,7 @@ and type safety. It reduces duplication by providing a base DQN configuration
 that can be extended by specific action modules with only their unique parameters.
 """
 
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -236,15 +236,30 @@ class SelectConfig(BaseDQNConfig):
         default=0.15, description="Base probability weight for reproduce actions"
     )
 
-    # Algorithm selection (optional traditional ML path)
+    # Algorithm selection (traditional ML path)
     algorithm_type: str = Field(
         default="dqn",
         description=(
-            "Action algorithm type: one of ['dqn','mlp','svm','random_forest','gradient_boost','naive_bayes','knn']"
+            "Action algorithm type: one of ['dqn','mlp','svm','random_forest','gradient_boost','naive_bayes','knn','ppo','sac','a2c','td3']"
         ),
     )
     algorithm_params: Dict[str, Any] = Field(
-        default_factory=dict, description="Additional parameters for algorithm constructor"
+        default_factory=dict,
+        description="Additional parameters for algorithm constructor",
+    )
+
+    # RL algorithm configuration
+    rl_state_dim: int = Field(
+        default=8, description="State dimension for RL algorithms"
+    )
+    rl_buffer_size: int = Field(
+        default=10000, description="Experience replay buffer size for RL algorithms"
+    )
+    rl_batch_size: int = Field(
+        default=32, description="Batch size for RL algorithm training"
+    )
+    rl_train_freq: int = Field(
+        default=4, description="How often to train RL algorithms (every N steps)"
     )
     feature_engineering: List[str] = Field(
         default_factory=list, description="Optional feature engineering flags"
@@ -253,7 +268,8 @@ class SelectConfig(BaseDQNConfig):
         default=1, description="Optional ensemble size for algorithms that support it"
     )
     use_exploration_bonus: bool = Field(
-        default=True, description="If true, add small exploration bonus to probabilities"
+        default=True,
+        description="If true, add small exploration bonus to probabilities",
     )
 
     # State-based multipliers
@@ -316,6 +332,11 @@ class SelectConfig(BaseDQNConfig):
             "gradient_boost",
             "naive_bayes",
             "knn",
+            # RL algorithms
+            "ppo",
+            "sac",
+            "a2c",
+            "td3",
         ]
         if v not in valid:
             raise ValueError(f"Algorithm must be one of: {valid}")
