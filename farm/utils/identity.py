@@ -83,7 +83,7 @@ class Identity:
             value = self.short_deterministic(f"agent:{self._agent_counter}")
             self._agent_counter += 1
             return AgentId(f"agent_{value}")
-        return AgentId(self.short())
+        return AgentId(f"agent_{self.short()}")
 
     def agent_state_id(self, agent_id: str, step_number: int) -> AgentStateId:
         return AgentStateId(f"{agent_id}-{step_number}")

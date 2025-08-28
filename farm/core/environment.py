@@ -187,7 +187,7 @@ class Environment(AECEnv):
         # Setup database and get initialized database instance
         self.db = setup_db(db_path, self.simulation_id)
 
-        # Deprecated: id_generator replaced by self.identity
+        # id_generator removed; use self.identity for all ID needs
         self.next_resource_id = 0
         self.max_resource = max_resource
         self.config = config
