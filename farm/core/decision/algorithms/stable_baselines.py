@@ -11,8 +11,8 @@ from typing import Any, Dict, Optional, Union
 
 import gymnasium as gym
 import numpy as np
+import stable_baselines3 as sb3
 import torch
-from stable_baselines3 import A2C, PPO, SAC, TD3
 from stable_baselines3.common.base_class import BaseAlgorithm
 from stable_baselines3.common.policies import BasePolicy
 
@@ -64,10 +64,14 @@ class StableBaselinesWrapper(RLAlgorithm):
             algorithm_kwargs = {}
 
         # Set default policy for different algorithm types
-        if algorithm_class in [PPO, A2C]:
+        if algorithm_class in [sb3.PPO, sb3.A2C]:
             if "policy" not in algorithm_kwargs:
                 algorithm_kwargs["policy"] = "MlpPolicy"
-        elif algorithm_class in [SAC, TD3]:
+        elif algorithm_class in [sb3.SAC, sb3.TD3]:
+            if "policy" not in algorithm_kwargs:
+                algorithm_kwargs["policy"] = "MlpPolicy"
+        else:
+            # For unknown algorithm classes, provide a default policy if none specified
             if "policy" not in algorithm_kwargs:
                 algorithm_kwargs["policy"] = "MlpPolicy"
 
@@ -84,7 +88,40 @@ class StableBaselinesWrapper(RLAlgorithm):
 
     def _create_dummy_env(self) -> gym.Env:
         """Create a dummy environment for Stable Baselines initialization."""
-        return gym.make("Pendulum-v1")  # Simple continuous control env
+
+        # Create a simple dummy environment that implements the Gymnasium interface
+        class DummyEnv(gym.Env):
+            def __init__(self, state_dim: int, algorithm_class):
+                super().__init__()
+                self.state_dim = state_dim
+                self.observation_space = gym.spaces.Box(
+                    low=-np.inf, high=np.inf, shape=(state_dim,), dtype=np.float32
+                )
+
+                # Use appropriate action space based on algorithm type
+                # SAC and TD3 require continuous action spaces
+                if algorithm_class in [sb3.SAC, sb3.TD3]:
+                    self.action_space = gym.spaces.Box(
+                        low=-1.0, high=1.0, shape=(1,), dtype=np.float32
+                    )
+                else:
+                    # PPO and A2C can work with discrete actions
+                    self.action_space = gym.spaces.Discrete(
+                        2
+                    )  # Simple binary action for testing
+
+            def reset(self, seed=None, options=None):
+                super().reset(seed=seed)
+                return np.zeros(self.state_dim, dtype=np.float32), {}
+
+            def step(self, action):
+                state = np.random.randn(self.state_dim).astype(np.float32)
+                reward = 0.0
+                terminated = False
+                truncated = False
+                return state, reward, terminated, truncated, {}
+
+        return DummyEnv(self.state_dim, self.algorithm_class)
 
     def select_action(self, state: np.ndarray) -> int:
         """Select an action using the Stable Baselines algorithm.
@@ -205,16 +242,21 @@ class StableBaselinesWrapper(RLAlgorithm):
         """Check if the algorithm should train on the current step."""
         return (
             len(self.replay_buffer) >= self.batch_size
+            and self.step_count > 0
             and self.step_count % self.train_freq == 0
         )
 
     def get_model_state(self) -> Dict[str, Any]:
         """Get the current model state for saving."""
+        # Handle mock objects that don't have __name__ attribute
+        algorithm_class_name = getattr(
+            self.algorithm_class, "__name__", str(self.algorithm_class)
+        )
         return {
             "algorithm_state": self.algorithm.get_parameters(),
             "step_count": self.step_count,
             "buffer_size": len(self.replay_buffer),
-            "algorithm_class": self.algorithm_class.__name__,
+            "algorithm_class": algorithm_class_name,
         }
 
     def load_model_state(self, state: Dict[str, Any]) -> None:
@@ -271,7 +313,7 @@ class PPOWrapper(StableBaselinesWrapper):
 
         super().__init__(
             num_actions=num_actions,
-            algorithm_class=PPO,
+            algorithm_class=sb3.PPO,
             state_dim=state_dim,
             algorithm_kwargs=ppo_defaults,
             **kwargs,
@@ -317,7 +359,7 @@ class SACWrapper(StableBaselinesWrapper):
 
         super().__init__(
             num_actions=num_actions,
-            algorithm_class=SAC,
+            algorithm_class=sb3.SAC,
             state_dim=state_dim,
             algorithm_kwargs=sac_defaults,
             **kwargs,
@@ -361,7 +403,7 @@ class A2CWrapper(StableBaselinesWrapper):
 
         super().__init__(
             num_actions=num_actions,
-            algorithm_class=A2C,
+            algorithm_class=sb3.A2C,
             state_dim=state_dim,
             algorithm_kwargs=a2c_defaults,
             **kwargs,
@@ -407,7 +449,7 @@ class TD3Wrapper(StableBaselinesWrapper):
 
         super().__init__(
             num_actions=num_actions,
-            algorithm_class=TD3,
+            algorithm_class=sb3.TD3,
             state_dim=state_dim,
             algorithm_kwargs=td3_defaults,
             **kwargs,

@@ -380,6 +380,11 @@ class TestRLIntegration(unittest.TestCase):
 
         initial_training_calls = len(self.algorithm.training_calls)
 
+        # Ensure we're at a training step (step_count % 4 == 0)
+        while self.algorithm.step_count % 4 != 0:
+            state = np.random.randn(4)
+            self.algorithm.store_experience(state, 0, 0.0, state + 0.1, False)
+
         # Force a training step
         self.algorithm.train(np.array([[0.0, 0.0, 0.0, 0.0]]), np.array([0]))
 

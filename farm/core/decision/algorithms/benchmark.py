@@ -112,7 +112,9 @@ class AlgorithmBenchmark:
 
         self.results: Dict[str, BenchmarkResult] = {}
 
-    def create_algorithm(self, name: str, kwargs: Dict[str, Any]) -> ActionAlgorithm:
+    def create_algorithm(
+        self, name: str, kwargs: Dict[str, Any], seed: Optional[int] = None
+    ) -> ActionAlgorithm:
         """Create an algorithm instance."""
         kwargs = kwargs.copy()
 
@@ -122,6 +124,10 @@ class AlgorithmBenchmark:
 
         # Always ensure num_actions is in kwargs
         kwargs.setdefault("num_actions", self.num_actions)
+
+        # Set random_state if seed is provided and algorithm supports it
+        if seed is not None and name not in ["ppo", "sac", "a2c", "td3"]:
+            kwargs.setdefault("random_state", seed)
 
         return AlgorithmRegistry.create(name, **kwargs)
 
@@ -147,7 +153,7 @@ class AlgorithmBenchmark:
             np.random.seed(seed)
 
         # Create algorithm
-        algorithm = self.create_algorithm(algorithm_name, algorithm_kwargs)
+        algorithm = self.create_algorithm(algorithm_name, algorithm_kwargs, seed)
         result = BenchmarkResult(algorithm_name)
 
         start_time = time.time()
