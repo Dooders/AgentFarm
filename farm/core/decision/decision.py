@@ -20,7 +20,6 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 import numpy as np
 import torch
 
-from farm.core.decision.base_dqn import SharedEncoder
 from farm.core.decision.config import DecisionConfig
 
 if TYPE_CHECKING:
@@ -78,7 +77,6 @@ class DecisionModule:
         agent_id (str): Unique identifier of the associated agent
         config (DecisionConfig): Configuration object with algorithm settings
         algorithm: The underlying decision algorithm (SB3 DQN, etc.)
-        shared_encoder (Optional[SharedEncoder]): Shared feature encoder
         num_actions (int): Number of possible actions
         state_dim (int): Dimension of state/observation space
         _is_trained (bool): Whether the model has been trained
@@ -88,18 +86,15 @@ class DecisionModule:
         self,
         agent: "BaseAgent",
         config: DecisionConfig = DecisionConfig(),
-        shared_encoder: Optional[SharedEncoder] = None,
     ):
         """Initialize the DecisionModule.
 
         Args:
             agent: The BaseAgent instance this module serves
             config: Configuration object with algorithm parameters
-            shared_encoder: Optional shared encoder for feature extraction
         """
         self.agent_id = agent.agent_id
         self.config = config
-        self.shared_encoder = shared_encoder
         self.agent = agent
 
         # Get action space from environment

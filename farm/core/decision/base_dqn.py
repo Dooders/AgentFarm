@@ -62,31 +62,6 @@ if TYPE_CHECKING:
     from farm.database.database import SimulationDatabase
 
 
-class SharedEncoder(nn.Module):
-    """
-    Shared encoder for all action modules.
-
-    This class is used to extract common features across all action modules.
-    It is a simple feedforward neural network with one hidden layer.
-
-    Attributes:
-        input_dim (int): Input dimension for the encoder
-        hidden_size (int): Hidden layer size
-        fc (nn.Linear): Fully connected layer for common features
-    """
-
-    def __init__(self, input_dim: int, hidden_size: int):
-        super().__init__()
-        self.input_dim = input_dim
-        self.hidden_size = hidden_size
-        self.fc = nn.Linear(
-            input_dim, hidden_size
-        )  # Shared layer for common features like position/health
-
-    def forward(self, x):
-        return F.relu(self.fc(x))  # Shared features
-
-
 class BaseQNetwork(nn.Module):
     """Neural network architecture for Q-value approximation.
 
@@ -101,13 +76,9 @@ class BaseQNetwork(nn.Module):
 
     Attributes:
         network (nn.Sequential): The complete neural network architecture
-        shared_encoder (Optional[SharedEncoder]): Shared encoder for common features
-        effective_input (int): Effective input dimension based on shared encoder
-        network (nn.Sequential): The complete neural network architecture
 
     Usage:
-        shared_encoder = SharedEncoder(input_dim=8, hidden_size=64)
-        q_network = BaseQNetwork(input_dim=8, output_dim=4, hidden_size=64, shared_encoder=shared_encoder)
+        q_network = BaseQNetwork(input_dim=8, output_dim=4, hidden_size=64)
     """
 
     def __init__(
@@ -115,12 +86,8 @@ class BaseQNetwork(nn.Module):
         input_dim: int,
         output_dim: int,
         hidden_size: int = 64,
-        shared_encoder: Optional[SharedEncoder] = None,
     ) -> None:
         """Initialize the Q-network.
-
-        If a shared encoder is provided, the input dimension is reduced to the hidden size.
-        Otherwise, the input dimension is used directly.
 
         Parameters:
             input_dim (int): Dimension of the input state vector
@@ -128,8 +95,7 @@ class BaseQNetwork(nn.Module):
             hidden_size (int): Number of neurons in hidden layers
         """
         super().__init__()
-        self.shared_encoder = shared_encoder
-        effective_input = hidden_size if shared_encoder else input_dim
+        effective_input = input_dim
         self.network = nn.Sequential(
             nn.Linear(effective_input, hidden_size),
             nn.LayerNorm(hidden_size),
@@ -168,8 +134,6 @@ class BaseQNetwork(nn.Module):
         Returns:
             torch.Tensor: Q-values for all actions, shape (output_dim,) or (batch_size, output_dim)
         """
-        if self.shared_encoder:
-            x = self.shared_encoder(x)
         # Ensure deterministic behavior during inference by disabling dropout
         training_state = self.training
         self.eval()

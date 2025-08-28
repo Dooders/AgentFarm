@@ -6,7 +6,6 @@ import numpy as np
 import torch
 
 from farm.core.action import *
-from farm.core.decision.base_dqn import SharedEncoder
 from farm.core.decision.config import DecisionConfig
 from farm.core.decision.decision import DecisionModule, create_decision_state
 from farm.core.genome import Genome
@@ -100,9 +99,6 @@ class BaseAgent:
         #! make this a list of action modules that can be provided to the agent at init
         # Use the config's dqn_hidden_size to match the modules
         hidden_size = self.config.dqn_hidden_size if self.config else 64
-        self.shared_encoder = SharedEncoder(
-            input_dim=8, hidden_size=hidden_size
-        )  # Use 8-dimensional input to match selection state
 
         # Initialize DecisionModule for action selection
         decision_config = DecisionConfig()
@@ -113,7 +109,6 @@ class BaseAgent:
         self.decision_module = DecisionModule(
             agent=self,
             config=decision_config,
-            shared_encoder=self.shared_encoder,
         )
 
         # Initialize Redis memory if requested
