@@ -7,7 +7,9 @@ import numpy as np
 from .base import ActionAlgorithm
 
 
-def _align_proba(num_actions: int, classes: np.ndarray, proba_row: np.ndarray) -> np.ndarray:
+def _align_proba(
+    num_actions: int, classes: np.ndarray, proba_row: np.ndarray
+) -> np.ndarray:
     full = np.zeros(num_actions, dtype=float)
     for i, cls in enumerate(classes):
         idx = int(cls)
@@ -36,7 +38,10 @@ class RandomForestActionSelector(ActionAlgorithm):
         self._fitted: bool = False
 
     def train(
-        self, states: np.ndarray, actions: np.ndarray, rewards: Optional[np.ndarray] = None
+        self,
+        states: np.ndarray,
+        actions: np.ndarray,
+        rewards: Optional[np.ndarray] = None,
     ) -> None:
         self.model.fit(states, actions)
         self._fitted = True
@@ -64,7 +69,10 @@ class NaiveBayesActionSelector(ActionAlgorithm):
         self._fitted: bool = False
 
     def train(
-        self, states: np.ndarray, actions: np.ndarray, rewards: Optional[np.ndarray] = None
+        self,
+        states: np.ndarray,
+        actions: np.ndarray,
+        rewards: Optional[np.ndarray] = None,
     ) -> None:
         self.model.fit(states, actions)
         self._fitted = True
@@ -92,7 +100,10 @@ class KNNActionSelector(ActionAlgorithm):
         self._fitted: bool = False
 
     def train(
-        self, states: np.ndarray, actions: np.ndarray, rewards: Optional[np.ndarray] = None
+        self,
+        states: np.ndarray,
+        actions: np.ndarray,
+        rewards: Optional[np.ndarray] = None,
     ) -> None:
         self.model.fit(states, actions)
         self._fitted = True
@@ -130,6 +141,8 @@ class GradientBoostActionSelector(ActionAlgorithm):
             import xgboost as xgb  # type: ignore
 
             # XGBoost expects labels as integers 0..num_actions-1
+            # Filter out 'num_class' from params to prevent conflicts - we explicitly
+            # set it to match num_actions to ensure consistency with our action space
             self.model = xgb.XGBClassifier(
                 objective="multi:softprob",
                 num_class=num_actions,
@@ -141,6 +154,8 @@ class GradientBoostActionSelector(ActionAlgorithm):
             try:
                 import lightgbm as lgb  # type: ignore
 
+                # Filter out 'num_class' from params to prevent conflicts - we explicitly
+                # set it to match num_actions to ensure consistency with our action space
                 self.model = lgb.LGBMClassifier(
                     objective="multiclass",
                     num_class=num_actions,
@@ -154,7 +169,10 @@ class GradientBoostActionSelector(ActionAlgorithm):
                 ) from exc
 
     def train(
-        self, states: np.ndarray, actions: np.ndarray, rewards: Optional[np.ndarray] = None
+        self,
+        states: np.ndarray,
+        actions: np.ndarray,
+        rewards: Optional[np.ndarray] = None,
     ) -> None:
         self.model.fit(states, actions)
         self._fitted = True
@@ -168,11 +186,14 @@ class GradientBoostActionSelector(ActionAlgorithm):
         if proba.ndim == 1 and proba.shape[0] == self.num_actions:
             full = proba.astype(float)
             s = full.sum()
-            return full / s if s > 0 else np.full(self.num_actions, 1.0 / self.num_actions, dtype=float)
+            return (
+                full / s
+                if s > 0
+                else np.full(self.num_actions, 1.0 / self.num_actions, dtype=float)
+            )
         classes = getattr(self.model, "classes_", np.arange(self.num_actions))
         return _align_proba(self.num_actions, classes, proba)
 
     def select_action(self, state: np.ndarray) -> int:
         probs = self.predict_proba(state)
         return int(np.random.choice(self.num_actions, p=probs))
-
