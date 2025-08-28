@@ -1,0 +1,23 @@
+{
+  "timestamps": [
+    "2025-08-27T02:30:45.351929"
+  ],
+  "write_ops": [
+    2720.648445567623
+  ],
+  "read_ops": [
+    5776.068922209124
+  ],
+  "batch_ops": [
+    26031.52851220178
+  ],
+  "memory_per_entry": [
+    598.64
+  ],
+  "batch_sizes": [
+    0
+  ],
+  "notes": [
+    "Auto benchmark from GitHub Actions"
+  ]
+}
