@@ -185,11 +185,11 @@ apply_decay() -> None
 ```
 Apply temporal decay to dynamic channels.
 
-## Agents Module (`farm.agents`)
+## Agents Module (`farm.core.agent`)
 
 ### BaseAgent Class
 
-Abstract base class for all agent types.
+Unified agent class that handles all agent behaviors including movement, resource gathering, sharing, and combat.
 
 #### Constructor
 
@@ -241,16 +241,18 @@ Create offspring agent.
 - `is_terminated` (bool): Whether agent is terminated
 - `observation` (AgentObservation): Agent's observation system
 
-### SystemAgent Class
+### BaseAgent Class
 
-Standard agent with balanced behaviors and learning capabilities.
+Unified agent class that handles all agent behaviors including movement, resource gathering, sharing, and combat.
 
 #### Constructor
 
 ```python
-SystemAgent(agent_id: str, position: Tuple[int, int],
-           resource_level: int, environment: Environment,
-           learning_rate: float = 0.001, memory_size: int = 5000, **kwargs)
+BaseAgent(agent_id: str, position: Tuple[int, int],
+          resource_level: int, environment: Environment,
+          action_set: list[Action] = [], parent_ids: list[str] = [],
+          generation: int = 0, use_memory: bool = False,
+          memory_config: Optional[dict] = None)
 ```
 
 #### Additional Methods

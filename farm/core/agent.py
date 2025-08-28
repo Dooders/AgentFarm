@@ -5,13 +5,8 @@ from typing import TYPE_CHECKING, Optional, Tuple
 import numpy as np
 import torch
 
-from farm.actions.attack import DEFAULT_ATTACK_CONFIG, AttackActionSpace, AttackModule
 from farm.actions.base_dqn import SharedEncoder
-from farm.actions.gather import DEFAULT_GATHER_CONFIG, GatherModule
-from farm.actions.move import DEFAULT_MOVE_CONFIG, MoveModule
-from farm.actions.reproduce import DEFAULT_REPRODUCE_CONFIG, ReproduceModule
 from farm.actions.select import SelectConfig, SelectModule, create_selection_state
-from farm.actions.share import DEFAULT_SHARE_CONFIG, ShareModule
 from farm.core.action import *
 from farm.core.genome import Genome
 from farm.core.perception import PerceptionData
@@ -43,6 +38,8 @@ class BaseAgent:
         total_reward (float): Cumulative reward earned
         current_health (float): Current health points
         starting_health (float): Maximum possible health points
+        is_defending (bool): Whether the agent is currently in defensive stance
+        defense_timer (int): Turns remaining in defensive stance
     """
 
     def __init__(
@@ -92,6 +89,7 @@ class BaseAgent:
         self.starting_health = self.config.starting_health if self.config else 100
         self.current_health = self.starting_health
         self.is_defending = False
+        self.defense_timer = 0
 
         # Generate genome info
         self.generation = generation
@@ -104,27 +102,7 @@ class BaseAgent:
         self.shared_encoder = SharedEncoder(
             input_dim=8, hidden_size=hidden_size
         )  # Use 8-dimensional input to match selection state
-        self.move_module = MoveModule(
-            self.config if self.config else DEFAULT_MOVE_CONFIG,
-            db=environment.db,
-            shared_encoder=self.shared_encoder,
-        )
-        self.attack_module = AttackModule(
-            self.config if self.config else DEFAULT_ATTACK_CONFIG,
-            shared_encoder=self.shared_encoder,
-        )
-        self.share_module = ShareModule(
-            self.config if self.config else DEFAULT_SHARE_CONFIG,
-            shared_encoder=self.shared_encoder,
-        )
-        self.gather_module = GatherModule(
-            self.config if self.config else DEFAULT_GATHER_CONFIG,
-            shared_encoder=self.shared_encoder,
-        )
-        self.reproduce_module = ReproduceModule(
-            self.config if self.config else DEFAULT_REPRODUCE_CONFIG,
-            shared_encoder=self.shared_encoder,
-        )
+
         #! change to ChoiceModule
         self.select_module = SelectModule(
             num_actions=len(self.actions),
@@ -324,8 +302,12 @@ class BaseAgent:
         if not self.alive:
             return
 
-        # Reset defense status at start of turn
-        self.is_defending = False
+        # Update defense status based on timer
+        if self.defense_timer > 0:
+            self.defense_timer -= 1
+            self.is_defending = self.defense_timer > 0
+        else:
+            self.is_defending = False
 
         # Resource consumption
         self.resource_level -= self.config.base_consumption_rate if self.config else 1
@@ -534,7 +516,7 @@ class BaseAgent:
 
     def update_position(self, new_position):
         """Update agent position and mark spatial index as dirty.
-        
+
         Args:
             new_position (tuple): New (x, y) position
         """
@@ -622,56 +604,6 @@ class BaseAgent:
 
         return damage
 
-    def calculate_attack_reward(
-        self, target: "BaseAgent", damage_dealt: float, action: int
-    ) -> float:
-        """Calculate reward for an attack action based on outcome.
-
-        Reward components:
-        - Base cost: Negative value from config.attack_base_cost
-        - Successful hits: Positive reward scaled by damage ratio
-        - Killing blows: Additional bonus from config.attack_kill_reward
-        - Defensive actions: Positive when health below threshold, negative otherwise
-        - Missed attacks: Penalty from config.attack_failure_penalty
-
-        Args:
-            target (BaseAgent): The agent that was attacked
-            damage_dealt (float): Amount of damage successfully dealt
-            action (int): The attack action that was taken (from AttackActionSpace)
-
-        Returns:
-            float: The calculated reward value, combining all applicable components
-        """
-        # Base reward starts with the attack cost
-        reward = self.config.attack_base_cost if self.config else 1
-
-        # Defensive action reward
-        if action == AttackActionSpace.DEFEND:
-            if (
-                self.current_health
-                < self.starting_health * self.config.attack_defense_threshold
-                if self.config
-                else 0.5
-            ):
-                reward += (
-                    self.config.attack_success_reward if self.config else 1
-                )  # Good decision to defend when health is low
-            else:
-                reward += self.config.attack_failure_penalty if self.config else -1
-            return reward
-
-        # Attack success reward
-        if damage_dealt > 0:
-            reward += (self.config.attack_success_reward if self.config else 1) * (
-                damage_dealt / (self.config.attack_base_damage if self.config else 1)
-            )
-            if not target.alive:
-                reward += self.config.attack_kill_reward if self.config else 10
-        else:
-            reward += self.config.attack_failure_penalty if self.config else -1
-
-        return reward
-
     def to_genome(self) -> dict:
         """Convert agent's current state into a genome representation.
 
@@ -729,21 +661,6 @@ class BaseAgent:
         if self.current_health < 0:
             self.current_health = 0
         return True
-
-    def calculate_attack_position(self, action: int) -> Tuple[float, float]:
-        """Calculate the target position for an attack based on action.
-
-        Args:
-            action: Attack action index
-
-        Returns:
-            Tuple[float, float]: Target position coordinates
-        """
-        dx, dy = self.attack_module.action_space[action]
-        return (
-            self.position[0] + dx * self.config.attack_range if self.config else 10,
-            self.position[1] + dy * self.config.attack_range if self.config else 10,
-        )
 
     @property
     def attack_strength(self) -> float:
@@ -891,11 +808,6 @@ class BaseAgent:
 
     def train_all_modules(self):
         modules = [
-            self.move_module,
-            self.attack_module,
-            self.share_module,
-            self.gather_module,
-            self.reproduce_module,
             self.select_module,
         ]
         for module in modules:

@@ -17,7 +17,6 @@ class TestSimpleShareAction(unittest.TestCase):
         """Set up test fixtures."""
         self.agent = Mock()
         self.agent.agent_id = "test_agent"
-        self.agent.position = (0, 0)  # Add position attribute
         self.agent.resource_level = 10
         self.agent.total_reward = 0.0
 

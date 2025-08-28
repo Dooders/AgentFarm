@@ -22,8 +22,8 @@ from farm.core.resources import Resource
 from farm.core.spatial_index import SpatialIndex
 
 
-# Create a mock SystemAgent class
-class MockSystemAgent:
+# Create a mock BaseAgent class
+class MockBaseAgent:
     def __init__(self, agent_id, position, resource_level, environment, generation=0):
         self.agent_id = agent_id
         self.position = list(position)  # Convert to list for mutable assignment
@@ -118,7 +118,7 @@ class TestSpatialIndex(unittest.TestCase):
     def test_counts_changed_with_agents(self):
         """Test count change detection with agents."""
         # Add an agent
-        agent = MockSystemAgent(
+        agent = MockBaseAgent(
             agent_id="test_agent",
             position=(10, 10),
             resource_level=50,
@@ -139,7 +139,7 @@ class TestSpatialIndex(unittest.TestCase):
     def test_counts_changed_agent_death(self):
         """Test count change detection when agent dies."""
         # Add an agent
-        agent = MockSystemAgent(
+        agent = MockBaseAgent(
             agent_id="test_agent",
             position=(10, 10),
             resource_level=50,
@@ -176,7 +176,7 @@ class TestSpatialIndex(unittest.TestCase):
     def test_hash_positions_changed_with_agents(self):
         """Test hash change detection with agents."""
         # Add an agent
-        agent = MockSystemAgent(
+        agent = MockBaseAgent(
             agent_id="test_agent",
             position=(10, 10),
             resource_level=50,
@@ -195,7 +195,7 @@ class TestSpatialIndex(unittest.TestCase):
     def test_hash_positions_changed_position_update(self):
         """Test hash change detection when agent position changes."""
         # Add an agent
-        agent = MockSystemAgent(
+        agent = MockBaseAgent(
             agent_id="test_agent",
             position=(10, 10),
             resource_level=50,
@@ -231,14 +231,14 @@ class TestSpatialIndex(unittest.TestCase):
     def test_rebuild_kdtrees_with_agents(self):
         """Test KD-tree rebuilding with agents."""
         # Add agents
-        agent1 = MockSystemAgent(
+        agent1 = MockBaseAgent(
             agent_id="agent1",
             position=(10, 10),
             resource_level=50,
             environment=None,
             generation=0,
         )
-        agent2 = MockSystemAgent(
+        agent2 = MockBaseAgent(
             agent_id="agent2",
             position=(20, 20),
             resource_level=30,
@@ -260,14 +260,14 @@ class TestSpatialIndex(unittest.TestCase):
     def test_rebuild_kdtrees_with_dead_agents(self):
         """Test KD-tree rebuilding excludes dead agents."""
         # Add agents
-        agent1 = MockSystemAgent(
+        agent1 = MockBaseAgent(
             agent_id="agent1",
             position=(10, 10),
             resource_level=50,
             environment=None,
             generation=0,
         )
-        agent2 = MockSystemAgent(
+        agent2 = MockBaseAgent(
             agent_id="agent2",
             position=(20, 20),
             resource_level=30,
@@ -386,21 +386,21 @@ class TestSpatialIndex(unittest.TestCase):
     def test_get_nearby_agents_with_agents(self):
         """Test get_nearby_agents with actual agents."""
         # Add agents
-        agent1 = MockSystemAgent(
+        agent1 = MockBaseAgent(
             agent_id="agent1",
             position=(10, 10),
             resource_level=50,
             environment=None,
             generation=0,
         )
-        agent2 = MockSystemAgent(
+        agent2 = MockBaseAgent(
             agent_id="agent2",
             position=(15, 15),
             resource_level=30,
             environment=None,
             generation=0,
         )
-        agent3 = MockSystemAgent(
+        agent3 = MockBaseAgent(
             agent_id="agent3",
             position=(50, 50),
             resource_level=20,
@@ -425,14 +425,14 @@ class TestSpatialIndex(unittest.TestCase):
     def test_get_nearby_agents_excludes_dead_agents(self):
         """Test that get_nearby_agents excludes dead agents."""
         # Add agents
-        agent1 = MockSystemAgent(
+        agent1 = MockBaseAgent(
             agent_id="agent1",
             position=(10, 10),
             resource_level=50,
             environment=None,
             generation=0,
         )
-        agent2 = MockSystemAgent(
+        agent2 = MockBaseAgent(
             agent_id="agent2",
             position=(15, 15),
             resource_level=30,
@@ -456,14 +456,14 @@ class TestSpatialIndex(unittest.TestCase):
     def test_cache_invalidation_on_agent_death(self):
         """Test that cache is properly invalidated when agents die, preventing stale cache issues."""
         # Add agents
-        agent1 = MockSystemAgent(
+        agent1 = MockBaseAgent(
             agent_id="agent1",
             position=(10, 10),
             resource_level=50,
             environment=None,
             generation=0,
         )
-        agent2 = MockSystemAgent(
+        agent2 = MockBaseAgent(
             agent_id="agent2",
             position=(15, 15),
             resource_level=30,
@@ -475,26 +475,26 @@ class TestSpatialIndex(unittest.TestCase):
 
         # Build KD-tree with both agents alive
         self.spatial_index._rebuild_kdtrees()
-        
+
         # Verify both agents are in cache
         self.assertIsNotNone(self.spatial_index._cached_alive_agents)
         cached_agents = self.spatial_index._cached_alive_agents
         assert cached_agents is not None  # Type assertion for linter
         self.assertEqual(len(cached_agents), 2)
-        
+
         # Kill agent2 and trigger proper cache invalidation (simulating proper death handling)
         agent2.alive = False
         self.spatial_index.mark_positions_dirty()  # This is what Environment.remove_agent() does
         self.spatial_index.update()  # This rebuilds the cache with only alive agents
-        
+
         # Query with properly updated cache
         nearby = self.spatial_index.get_nearby_agents((10, 10), 10)
-        
+
         # Should only return alive agent since cache was properly invalidated
         self.assertEqual(len(nearby), 1)
         self.assertEqual(nearby[0].agent_id, "agent1")
         self.assertNotIn(agent2, nearby)
-        
+
         # Verify the dead agent is no longer in the updated cache
         updated_cache = self.spatial_index._cached_alive_agents
         assert updated_cache is not None  # Type assertion for linter
@@ -540,42 +540,42 @@ class TestSpatialIndex(unittest.TestCase):
         """Test that all spatial query methods have consistent input validation."""
         # Test boundary conditions
         boundary_positions = [
-            (-0.1, 50),   # Just outside left boundary
-            (100.1, 50),  # Just outside right boundary  
-            (50, -0.1),   # Just outside top boundary
+            (-0.1, 50),  # Just outside left boundary
+            (100.1, 50),  # Just outside right boundary
+            (50, -0.1),  # Just outside top boundary
             (50, 100.1),  # Just outside bottom boundary
-            (-1, -1),     # Outside all boundaries
-            (101, 101),   # Outside all boundaries
+            (-1, -1),  # Outside all boundaries
+            (101, 101),  # Outside all boundaries
         ]
-        
+
         # Test that all methods reject invalid positions consistently
         for pos in boundary_positions:
             # All methods should handle invalid positions gracefully
             agents_result = self.spatial_index.get_nearby_agents(pos, 5)
             resources_result = self.spatial_index.get_nearby_resources(pos, 5)
             nearest_result = self.spatial_index.get_nearest_resource(pos)
-            
+
             self.assertEqual(agents_result, [])
             self.assertEqual(resources_result, [])
             self.assertIsNone(nearest_result)
-        
+
         # Test valid boundary positions (should work)
         valid_boundary_positions = [
-            (0, 0),       # Top-left corner
-            (100, 100),   # Bottom-right corner
-            (0, 50),      # Left edge
-            (100, 50),    # Right edge
-            (50, 0),      # Top edge
-            (50, 100),    # Bottom edge
+            (0, 0),  # Top-left corner
+            (100, 100),  # Bottom-right corner
+            (0, 50),  # Left edge
+            (100, 50),  # Right edge
+            (50, 0),  # Top edge
+            (50, 100),  # Bottom edge
         ]
-        
+
         self.spatial_index._rebuild_kdtrees()
         for pos in valid_boundary_positions:
             # All methods should accept valid boundary positions
             agents_result = self.spatial_index.get_nearby_agents(pos, 5)
             resources_result = self.spatial_index.get_nearby_resources(pos, 5)
             nearest_result = self.spatial_index.get_nearest_resource(pos)
-            
+
             self.assertIsInstance(agents_result, list)
             self.assertIsInstance(resources_result, list)
             # nearest_result could be None if no resources, but should not crash
@@ -616,7 +616,7 @@ class TestSpatialIndex(unittest.TestCase):
         self.assertEqual(self.spatial_index.get_agent_count(), 0)
 
         # Add an agent
-        agent = MockSystemAgent(
+        agent = MockBaseAgent(
             agent_id="test_agent",
             position=(10, 10),
             resource_level=50,
@@ -678,7 +678,7 @@ class TestSpatialIndex(unittest.TestCase):
     def test_performance_optimization_no_rebuild(self):
         """Test that KD-trees are not rebuilt unnecessarily."""
         # Add an agent
-        agent = MockSystemAgent(
+        agent = MockBaseAgent(
             agent_id="test_agent",
             position=(10, 10),
             resource_level=50,
@@ -713,14 +713,14 @@ class TestSpatialIndex(unittest.TestCase):
     def test_cached_alive_agents(self):
         """Test that cached alive agents are properly used and invalidated."""
         # Add agents and rebuild
-        agent1 = MockSystemAgent(
+        agent1 = MockBaseAgent(
             agent_id="agent1",
             position=(10, 10),
             resource_level=50,
             environment=None,
             generation=0,
         )
-        agent2 = MockSystemAgent(
+        agent2 = MockBaseAgent(
             agent_id="agent2",
             position=(20, 20),
             resource_level=30,
@@ -729,10 +729,10 @@ class TestSpatialIndex(unittest.TestCase):
         )
         self.agents.append(agent1)
         self.agents.append(agent2)
-        
+
         # Force rebuild to set cache
         self.spatial_index.force_rebuild()
-        
+
         # Verify cache is set correctly
         self.assertIsNotNone(self.spatial_index._cached_alive_agents)
         cached_agents = self.spatial_index._cached_alive_agents
@@ -740,7 +740,7 @@ class TestSpatialIndex(unittest.TestCase):
         self.assertEqual(len(cached_agents), 2)
         self.assertIn(agent1, cached_agents)
         self.assertIn(agent2, cached_agents)
-        
+
         # Kill one agent and verify cache is updated on rebuild
         agent2.alive = False
         self.spatial_index.force_rebuild()
@@ -750,7 +750,7 @@ class TestSpatialIndex(unittest.TestCase):
         self.assertEqual(len(cached_agents), 1)
         self.assertIn(agent1, cached_agents)
         self.assertNotIn(agent2, cached_agents)
-        
+
         # Verify queries use cached agents correctly
         nearby = self.spatial_index.get_nearby_agents((10, 10), 5)
         self.assertEqual(len(nearby), 1)
@@ -763,7 +763,7 @@ class TestSpatialIndex(unittest.TestCase):
 
         # Add agents at duplicate position
         for i in range(num_duplicates):
-            agent = MockSystemAgent(
+            agent = MockBaseAgent(
                 agent_id=f"dup{i}",
                 position=duplicate_pos,
                 resource_level=50,
@@ -774,7 +774,7 @@ class TestSpatialIndex(unittest.TestCase):
 
         # Add some other agents
         for i in range(3):
-            agent = MockSystemAgent(
+            agent = MockBaseAgent(
                 agent_id=f"other{i}",
                 position=(i * 10, i * 10),
                 resource_level=50,
@@ -796,14 +796,14 @@ class TestSpatialIndex(unittest.TestCase):
     def test_floating_point_precision_in_hashes(self):
         """Test hash detection with floating-point precision issues."""
         # Add agents with precise positions
-        agent1 = MockSystemAgent(
+        agent1 = MockBaseAgent(
             agent_id="agent1",
             position=(10.0, 10.0),
             resource_level=50,
             environment=None,
             generation=0,
         )
-        agent2 = MockSystemAgent(
+        agent2 = MockBaseAgent(
             agent_id="agent2",
             position=(20.0, 20.0),
             resource_level=50,
@@ -843,7 +843,7 @@ class TestSpatialIndex(unittest.TestCase):
         for i in range(num_agents):
             x = np.random.uniform(0, 100)
             y = np.random.uniform(0, 100)
-            agent = MockSystemAgent(
+            agent = MockBaseAgent(
                 agent_id=f"agent{i}",
                 position=(x, y),
                 resource_level=50,
@@ -858,8 +858,11 @@ class TestSpatialIndex(unittest.TestCase):
         build_time = time.time() - start_time
         # Allow 0.5ms per agent for build time
         max_build_time = max(2.0, num_agents * 0.0005)
-        self.assertLess(build_time, max_build_time, 
-                       f"Build time {build_time:.2f}s exceeded threshold {max_build_time:.2f}s")
+        self.assertLess(
+            build_time,
+            max_build_time,
+            f"Build time {build_time:.2f}s exceeded threshold {max_build_time:.2f}s",
+        )
 
         # Measure query time with flexible threshold
         start_time = time.time()
@@ -870,8 +873,11 @@ class TestSpatialIndex(unittest.TestCase):
         query_time = time.time() - start_time
         # Allow 10ms per query
         max_query_time = max(1.0, num_queries * 0.01)
-        self.assertLess(query_time, max_query_time,
-                       f"Query time {query_time:.2f}s exceeded threshold {max_query_time:.2f}s")
+        self.assertLess(
+            query_time,
+            max_query_time,
+            f"Query time {query_time:.2f}s exceeded threshold {max_query_time:.2f}s",
+        )
 
         # Check count
         self.assertEqual(self.spatial_index.get_agent_count(), num_agents)
@@ -881,7 +887,7 @@ class TestSpatialIndex(unittest.TestCase):
         # Add many agents
         agents = []
         for i in range(50):
-            agent = MockSystemAgent(
+            agent = MockBaseAgent(
                 agent_id=f"agent{i}",
                 position=(i * 2, i * 2),
                 resource_level=50,
@@ -908,8 +914,11 @@ class TestSpatialIndex(unittest.TestCase):
 
         # Allow 10ms per query with minimum 1 second
         max_query_time = max(1.0, num_queries * 0.01)
-        self.assertLess(query_time, max_query_time,
-                       f"Query time {query_time:.2f}s exceeded threshold {max_query_time:.2f}s")
+        self.assertLess(
+            query_time,
+            max_query_time,
+            f"Query time {query_time:.2f}s exceeded threshold {max_query_time:.2f}s",
+        )
 
     def test_hash_collision_handling(self):
         """Test that hash-based change detection handles edge cases."""
@@ -932,7 +941,7 @@ class TestSpatialIndex(unittest.TestCase):
         self.assertTrue(result)  # Should return True when cached hash is None
 
         # Test with actual position changes
-        agent = MockSystemAgent(
+        agent = MockBaseAgent(
             agent_id="test_agent",
             position=(10, 10),
             resource_level=50,
@@ -950,7 +959,7 @@ class TestSpatialIndex(unittest.TestCase):
         # Test with maximum number of agents
         agents = []
         for i in range(1000):
-            agent = MockSystemAgent(
+            agent = MockBaseAgent(
                 agent_id=f"agent{i}",
                 position=(i % 100, i % 100),
                 resource_level=50,
@@ -986,7 +995,7 @@ class TestSpatialIndex(unittest.TestCase):
 
         # Add initial agents
         for i in range(10):
-            agent = MockSystemAgent(
+            agent = MockBaseAgent(
                 agent_id=f"agent{i}",
                 position=(i * 10, i * 10),
                 resource_level=50,

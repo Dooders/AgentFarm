@@ -15,12 +15,10 @@ Agents are autonomous entities that can:
 - Attack other agents
 - Reproduce to create offspring
 
-The codebase includes several agent types:
-- **SystemAgent**: The standard agent type with balanced behaviors
-- **IndependentAgent**: Agents that prioritize individual survival
-- **ControlAgent**: Agents with more regulated behaviors
+The codebase uses a unified agent system:
+- **BaseAgent**: The unified agent class that handles all agent behaviors including movement, resource gathering, sharing, and combat
 
-All agents inherit from the `BaseAgent` class, which provides core functionality including:
+The `BaseAgent` class provides core functionality including:
 - Decision-making mechanisms
 - Resource management
 - Reproduction capabilities
@@ -159,7 +157,7 @@ AgentFarm/
 You can create custom agent types by extending the `BaseAgent` class:
 
 ```python
-from farm.agents.base_agent import BaseAgent
+from farm.core.agent import BaseAgent
 
 class MyCustomAgent(BaseAgent):
     def __init__(self, agent_id, position, resource_level, environment, **kwargs):

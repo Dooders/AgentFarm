@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Optional, Union
 from farm.core.action import Action
 
 if TYPE_CHECKING:
-    from farm.agents.base_agent import BaseAgent
+    from farm.core.agent import BaseAgent
     from farm.core.environment import Environment
 
 
@@ -151,7 +151,9 @@ class Genome:
             return path
 
         # Check if it's a JSON string (starts with { or [)
-        if isinstance(path, str) and (path.strip().startswith('{') or path.strip().startswith('[')):
+        if isinstance(path, str) and (
+            path.strip().startswith("{") or path.strip().startswith("[")
+        ):
             return json.loads(path)
 
         # Otherwise treat as file path
@@ -199,9 +201,7 @@ class Genome:
         return mutated
 
     @staticmethod
-    def crossover(
-        genome1: dict, genome2: dict, mutation_rate: float = 0.0
-    ) -> dict:
+    def crossover(genome1: dict, genome2: dict, mutation_rate: float = 0.0) -> dict:
         """Create a child genome by crossing over two parent genomes.
 
         This method performs uniform crossover on the action weights of two parent
@@ -264,5 +264,7 @@ class Genome:
         """
         json_str = Genome.save(genome)
         # Since we're calling save() without a path, it should always return a string
-        assert json_str is not None, "Genome.save() should return a string when no path is provided"
+        assert (
+            json_str is not None
+        ), "Genome.save() should return a string when no path is provided"
         return Genome.load(json_str)

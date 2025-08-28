@@ -1,263 +1,246 @@
-# Gather Module Documentation
+# Gather Action Documentation
 
-The Gather Module is a resource gathering optimization system that leverages Deep Q-Learning (DQN) to enable agents to learn optimal gathering strategies. This module is designed to make intelligent decisions about when and where to gather resources based on environmental conditions, resource availability, and agent needs.
+The Gather Action is a simple resource gathering system that enables agents to gather resources from the nearest available source. This action uses straightforward rule-based logic for resource collection, making it lightweight and predictable.
 
 ---
 
 ## Overview
 
-The Gather Module implements a Deep Q-Learning approach with several enhancements:
+The Gather Action implements a simple rule-based approach:
 
-- **Intelligent Resource Selection**: Evaluates and ranks potential resource nodes based on multiple factors
-- **Temporal Decision Making**: Can choose to wait for better opportunities
-- **Efficiency-Based Rewards**: Rewards efficient gathering with minimal movement costs
-- **Adaptive Behavior**: Learns from past gathering experiences
-- **Resource-Aware**: Considers resource regeneration rates and density
+- **Nearest Resource Selection**: Finds and gathers from the closest available resource
+- **Distance-Based Prioritization**: Uses Euclidean distance to identify optimal targets
+- **Configurable Gathering**: Respects maximum gathering amounts and range limits
+- **Resource Validation**: Only gathers from non-depleted resources
+- **Efficient Spatial Queries**: Uses spatial index for fast proximity searches
 
 ---
 
-## Key Components
+## Simple Implementation
 
-### 1. `GatherQNetwork`
+### Core Logic
 
-Neural network architecture for Q-value approximation of gathering decisions:
+The gather action uses straightforward Python code:
 
-- **Input Layer**: 6-dimensional state vector representing:
-  - Distance to nearest resource
-  - Resource amount
-  - Agent's current resources
-  - Resource density in area
-  - Steps since last gather
-  - Resource regeneration rate
+```python
+def gather_action(agent: "BaseAgent") -> None:
+    # Find nearby resources using spatial index
+    nearby_resources = agent.environment.get_nearby_resources(
+        agent.position, gathering_range
+    )
 
-- **Hidden Layers**: Two layers with configurable size (default 64 neurons each)
-  - Layer Normalization
-  - ReLU activation
-  - Dropout (10%)
-  - Xavier/Glorot initialization
+    # Filter out depleted resources
+    available_resources = [
+        r for r in nearby_resources
+        if not r.is_depleted() and r.amount > 0
+    ]
 
-- **Output Layer**: 3 actions
-  - GATHER: Attempt to gather resources
-  - WAIT: Wait for better opportunity
-  - SKIP: Skip gathering this step
+    if not available_resources:
+        return  # No resources available
 
-### 2. `GatherModule`
+    # Find closest resource
+    closest_resource = min(
+        available_resources,
+        key=lambda r: math.sqrt(
+            (r.position[0] - agent.position[0]) ** 2 +
+            (r.position[1] - agent.position[1]) ** 2
+        )
+    )
 
-Main class handling gathering decisions and learning:
+    # Gather from the closest resource
+    gather_amount = min(max_gather, closest_resource.amount)
+    actual_gathered = closest_resource.consume(gather_amount)
+    agent.resource_level += actual_gathered
 
-**Key Methods:**
-- `get_gather_decision(agent, state)`: Determines whether to gather and from which resource
-- `_process_gather_state(agent)`: Creates state representation for gathering decisions
-- `_find_best_resource(agent)`: Identifies optimal resource node for gathering
-- `calculate_gather_reward(agent, initial_resources, target_resource)`: Computes gathering rewards
+    # Simple reward calculation
+    reward = actual_gathered * 0.1
+    agent.total_reward += reward
+```
 
-**Features:**
-- Tracks consecutive failed attempts
-- Manages waiting periods
-- Calculates gathering efficiency
-- Handles experience storage and training
+### Key Features
 
-### 3. Experience Replay
-
-Stores gathering experiences for stable learning:
-- State: 6-dimensional vector
-- Action: GATHER, WAIT, or SKIP
-- Reward: Based on gathering success and efficiency
-- Next State: Resulting environment state
-
-### 4. Reward System
-
-Complex reward structure considering multiple factors:
-- Base success/failure rewards
-- Efficiency multipliers
-- Movement cost penalties
-- Consecutive failure penalties
+- **Spatial Index Integration**: Uses `get_nearby_resources()` for efficient O(log n) queries
+- **Distance-Based Selection**: Finds closest resource using Euclidean distance
+- **Resource Validation**: Only gathers from non-depleted resources with amount > 0
+- **Configurable Limits**: Respects `max_amount` and `gathering_range` parameters
+- **Simple Rewards**: Linear reward based on amount gathered (0.1 per unit)
 
 ---
 
 ## Technical Details
 
-### State Space (6 dimensions)
-1. **Distance to Resource**: Normalized distance to nearest viable resource
-2. **Resource Amount**: Available amount at nearest resource
-3. **Agent Resources**: Current agent resource level
-4. **Resource Density**: Local resource concentration
-5. **Steps Since Gather**: Time since last successful gathering
-6. **Regeneration Rate**: Resource replenishment rate
+### Resource Selection Algorithm
+1. **Spatial Query**: Uses `get_nearby_resources()` within `gathering_range`
+2. **Resource Filtering**: Excludes depleted resources and those with amount ≤ 0
+3. **Distance Calculation**: Euclidean distance to find closest resource
+4. **Amount Limiting**: Respects `max_amount` configuration parameter
+5. **Resource Consumption**: Calls `resource.consume()` to gather resources
 
-### Action Space (3 discrete actions)
-- **GATHER (0)**: Attempt to gather from best available resource
-- **WAIT (1)**: Wait for better gathering opportunity
-- **SKIP (2)**: Skip gathering this step
+### Configuration Parameters
 
-### Configuration Parameters (`GatherConfig`)
+The gather action uses the following configuration parameters:
 
-**Reward Parameters:**
-```python
-gather_success_reward: float = 1.0
-gather_fail_penalty: float = -0.1
-gather_efficiency_multiplier: float = 0.5
-gather_cost_multiplier: float = 0.3
-```
+- **`gathering_range`**: Maximum distance to search for resources (default: 30)
+- **`max_amount`**: Maximum amount that can be gathered per action (default: 10)
 
-**Gathering Parameters:**
-```python
-min_resource_threshold: float = 0.1
-max_wait_steps: int = 5
-```
+### Reward System
 
-**Learning Parameters:**
-```python
-learning_rate: float = 0.001
-memory_size: int = 10000
-gamma: float = 0.99
-epsilon_start: float = 1.0
-epsilon_min: float = 0.01
-epsilon_decay: float = 0.995
-```
+Simple linear reward calculation:
+- **Reward per unit**: 0.1 points per resource unit gathered
+- **Total reward**: `gathered_amount * 0.1`
+- **Added to**: `agent.total_reward`
 
 ---
 
 ## Usage Example
 
 ```python
-# Initialize configuration
-config = GatherConfig(
-    gather_efficiency_multiplier=0.5,
-    gather_cost_multiplier=0.3,
-    min_resource_threshold=0.1,
-    max_wait_steps=5
-)
+# Simple gather action usage
+from farm.core.action import gather_action
 
-# Create gather module
-gather_module = GatherModule(config)
+# Agent will automatically find and gather from the nearest resource
+gather_action(agent)
 
-# Get gathering decision
-should_gather, target_resource = gather_module.get_gather_decision(agent, state)
-
-# Execute gathering if appropriate
-if should_gather and target_resource:
-    initial_resources = agent.resource_level
-    gather_amount = min(agent.config.max_gather_amount, target_resource.amount)
-    target_resource.consume(gather_amount)
-    agent.resource_level += gather_amount
-    
-    # Calculate and store reward
-    reward = gather_module.calculate_gather_reward(
-        agent, initial_resources, target_resource
-    )
-    
-    # Store experience
-    gather_module.store_experience(state, action, reward, next_state, done=False)
+# The action will:
+# 1. Find nearby resources within gathering_range
+# 2. Filter out depleted resources
+# 3. Select the closest available resource
+# 4. Gather up to max_amount from the resource
+# 5. Update agent's resource level and total reward
 ```
 
----
+## Integration with Action System
 
-## Integration with Agents
+The gather action integrates seamlessly with the action registry:
 
-### System Agent Configuration
 ```python
-# Sustainable gathering strategy
-gather_module.config.gather_efficiency_multiplier = 0.4
-gather_module.config.gather_cost_multiplier = 0.4
-gather_module.config.min_resource_threshold = 0.2
+from farm.core.action import action_registry
+
+# Get the gather action
+gather_action_func = action_registry.get("gather")
+
+# Execute gather action
+gather_action_func(agent)
 ```
 
-### Independent Agent Configuration
+## Configuration Examples
+
+### Basic Configuration
 ```python
-# Aggressive gathering strategy
-gather_module.config.gather_efficiency_multiplier = 0.7
-gather_module.config.gather_cost_multiplier = 0.2
-gather_module.config.min_resource_threshold = 0.05
+# Set gathering parameters in agent config
+agent.config.gathering_range = 30  # Search radius for resources
+agent.config.max_amount = 10       # Maximum amount to gather per action
+```
+
+### Environment Integration
+```python
+# Resources must implement:
+class Resource:
+    def is_depleted(self) -> bool:
+        return self.amount <= 0
+
+    def consume(self, amount: float) -> float:
+        # Return actual amount consumed
+        actual = min(amount, self.amount)
+        self.amount -= actual
+        return actual
 ```
 
 ---
 
 ## Best Practices
 
-1. **Resource Evaluation**
-   - Consider both quantity and accessibility
-   - Account for regeneration rates
-   - Factor in competition from other agents
+1. **Configuration Tuning**
+   - Set appropriate `gathering_range` for your environment size
+   - Adjust `max_amount` based on resource regeneration rates
+   - Balance range vs. efficiency for optimal gathering
 
-2. **Efficiency Optimization**
-   - Minimize movement costs
-   - Maximize gathering amounts
-   - Balance waiting vs. gathering
+2. **Resource Management**
+   - Monitor resource depletion patterns
+   - Consider agent density when setting gathering parameters
+   - Ensure resources implement proper `is_depleted()` and `consume()` methods
 
-3. **Learning Management**
-   - Maintain sufficient exploration
-   - Regular training updates
-   - Monitor reward trends
+3. **Performance Optimization**
+   - Spatial index provides O(log n) query performance
+   - Distance calculations are computationally efficient
+   - Simple reward system minimizes processing overhead
 
-4. **State Representation**
-   - Normalize input values
-   - Include temporal information
-   - Consider local resource density
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Inefficient Gathering**
-   - Check resource thresholds
-   - Adjust efficiency multipliers
-   - Review movement cost penalties
-
-2. **Excessive Waiting**
-   - Reduce max_wait_steps
-   - Adjust wait rewards
-   - Check resource regeneration rates
-
-3. **Poor Learning**
-   - Verify reward scaling
-   - Check state normalization
-   - Adjust learning rate
+4. **Environment Integration**
+   - Ensure `get_nearby_resources()` returns valid resource objects
+   - Validate resource positions and amounts
+   - Handle edge cases like no nearby resources gracefully
 
 ---
 
-## Performance Considerations
+## Migration from DQN
+
+### Previous DQN Implementation
+
+The original implementation used:
+- `GatherQNetwork` for Q-value approximation
+- `GatherModule` for training and decision making
+- Complex state representation (6+ dimensions)
+- Experience replay and target networks
+- Sophisticated reward calculations
+
+### Current Simple Implementation
+
+The new implementation uses:
+- Direct spatial queries for resource finding
+- Simple distance-based resource selection
+- Linear reward calculation (0.1 per unit)
+- No neural networks or training
+- Minimal computational overhead
+
+---
+
+## Performance Characteristics
 
 1. **Computational Efficiency**
-   - Vectorized distance calculations
-   - Efficient resource scoring
-   - Batch processing for learning
+   - O(log n) spatial index queries for resource finding
+   - O(k) distance calculations where k is number of nearby resources
+   - Minimal memory usage (no neural networks or replay buffers)
+   - No GPU requirements - runs entirely on CPU
 
-2. **Memory Management**
-   - Limited experience replay buffer
-   - Efficient state representation
-   - Regular memory cleanup
+2. **Scalability**
+   - Performance scales with environment size through spatial indexing
+   - Distance calculations are vectorized where possible
+   - Simple reward system has constant-time computation
+   - No training overhead or iterative learning processes
 
-3. **Learning Stability**
-   - Gradual epsilon decay
-   - Regular target network updates
-   - Balanced reward structure
+3. **Reliability**
+   - Deterministic behavior based on spatial relationships
+   - No neural network training instability
+   - Graceful handling of edge cases (no resources, depleted resources)
+   - Simple error handling and logging
 
 ---
 
-## Future Extensions
+## Future Enhancements
 
-1. **Enhanced Decision Making**
+While the current implementation is rule-based, future versions could include:
+
+1. **Resource Prioritization**
+   - Quality-based resource selection (regeneration rate, max capacity)
    - Multi-resource gathering strategies
+   - Resource competition awareness
+
+2. **Adaptive Behavior**
+   - Dynamic range adjustment based on resource density
+   - Learning-based reward scaling
+   - Agent specialization for different resource types
+
+3. **Environmental Integration**
+   - Weather/seasonal effects on gathering efficiency
+   - Terrain-based movement cost adjustments
    - Cooperative gathering behaviors
-   - Dynamic threshold adjustment
-
-2. **Advanced Learning**
-   - Prioritized experience replay
-   - Dueling network architecture
-   - Multi-step learning
-
-3. **Environmental Adaptation**
-   - Dynamic resource prediction
-   - Competition awareness
-   - Territory-based gathering
 
 ---
 
-## References
+## Benefits of Simple Implementation
 
-1. **Deep Q-Learning**: [Human-level control through deep reinforcement learning](https://www.nature.com/articles/nature14236)
-2. **Resource Management**: [Optimal foraging theory](https://en.wikipedia.org/wiki/Optimal_foraging_theory)
-3. **Multi-Agent Systems**: [Multiagent Systems](https://mitpress.mit.edu/books/multiagent-systems) 
+1. **Reduced Complexity**: No neural networks, training loops, or complex state management
+2. **Better Performance**: Instant decisions with minimal computational overhead
+3. **Easier Debugging**: Clear, predictable behavior based on simple rules
+4. **Lower Resource Usage**: No GPU requirements or large memory allocations
+5. **Maintainability**: Simple code that's easy to understand and modify 

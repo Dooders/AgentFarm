@@ -47,7 +47,7 @@ class SharedEncoder(nn.Module):
 - **`action_space.md`**: Documents the action space design and philosophy
 
 ### Action Modules
-- **`attack.py`**: Handles aggressive interactions between agents using DQN
+- **`attack action in core/action.py`**: Simple closest-agent combat (no DQN, spatial index)
 - **`gather.py`**: Manages resource collection with learning-based decisions
 - **`move.py`**: Controls agent movement and navigation with shared encoder
 - **`reproduce.py`**: **DQN-based** reproduction with population dynamics learning

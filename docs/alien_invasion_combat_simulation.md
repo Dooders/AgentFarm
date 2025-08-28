@@ -16,7 +16,7 @@ Your existing codebase provides an excellent foundation with:
 - Leverage existing resource distribution and regeneration systems
 
 **Agent Types:**
-- **Humans**: Extend existing agent types (SystemAgent, IndependentAgent, ControlAgent)
+- **Humans**: Use the unified `BaseAgent` class for all human agents
 - **Aliens**: Create new `AlienAgent` class inheriting from `BaseAgent`
 - Use existing health, resource, and combat systems
 
@@ -82,7 +82,7 @@ group_defense_bonus: 1.3  # Defense bonus for grouped humans
 
 **Existing Files to Modify:**
 - `config.yaml` - Add alien invasion parameters
-- `farm/actions/attack.py` - Enhance with surrounding mechanics
+- `farm/core/action.py` - Attack action uses spatial index for combat
 - `farm/core/config.py` - Add new configuration options
 
 ## **Advanced Features to Consider**

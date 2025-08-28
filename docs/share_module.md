@@ -1,308 +1,247 @@
-# Share Module Documentation
+# Share Action Documentation
 
-The Share Module is a cooperative behavior learning system that uses Deep Q-Learning (DQN) to enable agents to develop optimal resource sharing strategies. This module implements intelligent sharing policies that consider resource levels, agent relationships, and environmental conditions.
+The Share Action is a simple cooperative behavior system that enables agents to share resources with other agents in need. This action uses straightforward rule-based logic for resource distribution, making it lightweight and predictable.
 
 ---
 
 ## Overview
 
-The Share Module implements a Deep Q-Learning approach with several enhancements:
+The Share Action implements a simple rule-based approach:
 
-- **Intelligent Target Selection**: Uses weighted selection based on need and cooperation history
-- **Multi-Level Sharing**: Supports different sharing amounts (low/medium/high)
-- **Cooperation Tracking**: Maintains history of sharing interactions
-- **Experience Replay**: Stores past sharing experiences for stable learning
-- **Reward Shaping**: Encourages beneficial sharing through structured rewards
-
----
-
-## Key Components
-
-### 1. `ShareQNetwork`
-
-Neural network architecture for share decision making:
-
-- **Input Layer**: 6-dimensional state vector representing:
-  - Agent's normalized resource level
-  - Proportion of nearby agents
-  - Average neighbor resources
-  - Minimum neighbor resources
-  - Maximum neighbor resources
-  - Cooperation score
-
-- **Hidden Layers**: Two layers (64 neurons each) with:
-  - Layer Normalization
-  - ReLU activation
-  - Dropout (10%)
-  - Xavier/Glorot initialization
-
-- **Output Layer**: 4 actions:
-  - NO_SHARE
-  - SHARE_LOW
-  - SHARE_MEDIUM
-  - SHARE_HIGH
-
-### 2. `ShareModule`
-
-Main class handling sharing decisions and learning:
-
-- **Cooperation Tracking**: 
-  - Maintains history of sharing interactions
-  - Calculates cooperation scores
-  - Adapts sharing behavior based on past interactions
-
-- **Target Selection**:
-  - Identifies nearby agents within sharing range
-  - Weights selection based on need and cooperation history
-  - Considers resource levels and starvation risk
-
-- **Share Amount Calculation**:
-  - Determines appropriate share amounts
-  - Ensures minimum resource retention
-  - Scales sharing based on action level
+- **Need-Based Target Selection**: Finds agents with the lowest resource levels
+- **Fixed Sharing Amounts**: Shares a configurable amount of resources
+- **Resource Validation**: Ensures agents have sufficient resources to share
+- **Simple Rewards**: Linear reward based on amount shared
+- **Efficient Spatial Queries**: Uses spatial index for fast proximity searches
 
 ---
 
-## Configuration Parameters (`ShareConfig`)
+## Simple Implementation
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `share_range` | 30.0 | Maximum distance for sharing interactions |
-| `min_share_amount` | 1 | Minimum resources that can be shared |
-| `share_success_reward` | 0.3 | Base reward for successful sharing |
-| `share_failure_penalty` | -0.1 | Penalty for failed sharing attempts |
-| `altruism_bonus` | 0.2 | Extra reward for helping needy agents |
-| `cooperation_memory` | 100 | Number of past interactions to remember |
-| `max_resources` | 30 | Maximum agent resources (for normalization) |
+### Core Logic
 
----
-
-## State Representation
-
-The share module uses a 6-dimensional state vector:
-
-1. **Normalized Agent Resources**: `agent.resource_level / max_resources`
-2. **Nearby Agents Ratio**: `len(nearby_agents) / len(total_agents)`
-3. **Average Neighbor Resources**: Mean resources of nearby agents
-4. **Minimum Neighbor Resources**: Lowest resources among neighbors
-5. **Maximum Neighbor Resources**: Highest resources among neighbors
-6. **Cooperation Score**: Historical cooperation rating
-
----
-
-## Action Space
-
-The module supports four discrete actions:
+The share action uses straightforward Python code:
 
 ```python
-class ShareActionSpace:
-    NO_SHARE: int = 0    # Don't share resources
-    SHARE_LOW: int = 1   # Share minimum amount
-    SHARE_MEDIUM: int = 2  # Share moderate amount
-    SHARE_HIGH: int = 3   # Share larger amount
+def share_action(agent: "BaseAgent") -> None:
+    # Find nearby agents within sharing range
+    nearby_agents = agent.environment.get_nearby_agents(
+        agent.position, share_range
+    )
+
+    # Filter out self and find valid targets
+    valid_targets = [
+        target for target in nearby_agents
+        if target.agent_id != agent.agent_id and target.alive
+    ]
+
+    if not valid_targets:
+        return  # No one to share with
+
+    # Find agent with lowest resource level (simple need-based selection)
+    target = min(valid_targets, key=lambda a: a.resource_level)
+
+    # Check if agent has enough resources to share
+    share_amount = getattr(agent.config, "share_amount", 2)
+    min_keep = getattr(agent.config, "min_keep_resources", 5)
+
+    if agent.resource_level < min_keep + share_amount:
+        return  # Not enough resources
+
+    # Execute sharing
+    agent.resource_level -= share_amount
+    target.resource_level += share_amount
+
+    # Simple reward calculation
+    reward = share_amount * 0.05
+    agent.total_reward += reward
 ```
+
+### Key Features
+
+- **Spatial Index Integration**: Uses `get_nearby_agents()` for efficient O(log n) queries
+- **Need-Based Selection**: Targets the agent with lowest resource level
+- **Resource Validation**: Ensures sufficient resources before sharing
+- **Configurable Parameters**: Adjustable share amounts and minimum retention
+- **Simple Rewards**: Linear reward based on amount shared (0.05 per unit)
 
 ---
 
-## Reward System
+## Configuration Parameters
 
-The reward calculation considers multiple factors:
+The share action uses the following configuration parameters:
 
-1. **Base Rewards**:
-   - Successful sharing: +0.3
-   - Failed attempt: -0.1
+- **`share_range`**: Maximum distance to search for agents to share with (default: 30)
+- **`share_amount`**: Amount of resources to share per action (default: 2)
+- **`min_keep_resources`**: Minimum resources agent must keep for itself (default: 5)
 
-2. **Bonuses**:
-   - Altruism bonus (helping needy): +0.2
-   - Scaled by share amount
+### Reward System
 
-3. **Cooperation Impact**:
-   - Successful sharing increases cooperation score
-   - Affects future interaction probabilities
+Simple linear reward calculation:
+- **Reward per unit**: 0.05 points per resource unit shared
+- **Total reward**: `shared_amount * 0.05`
+- **Added to**: `agent.total_reward`
+
+---
+
+## Target Selection Algorithm
+
+The share action uses a simple algorithm to select sharing targets:
+
+1. **Spatial Query**: Uses `get_nearby_agents()` within `share_range`
+2. **Target Filtering**: Excludes self and non-alive agents
+3. **Need-Based Selection**: Selects agent with minimum `resource_level`
+4. **Resource Validation**: Ensures agent has sufficient resources to share
+5. **Amount Calculation**: Uses fixed `share_amount` parameter
 
 ---
 
 ## Usage Example
 
 ```python
-# Initialize module with config
-config = ShareConfig(
-    share_range=30.0,
-    min_share_amount=1,
-    share_success_reward=0.3,
-    altruism_bonus=0.2
-)
-share_module = ShareModule(config)
+# Simple share action usage
+from farm.core.action import share_action
 
-# Get sharing decision
-state = _get_share_state(agent)
-action, target, amount = share_module.get_share_decision(agent, state)
+# Agent will automatically find the nearest agent in need and share resources
+share_action(agent)
 
-# Execute sharing if applicable
-if target and amount > 0:
-    agent.resource_level -= amount
-    target.resource_level += amount
-    
-    # Update cooperation history
-    share_module.update_cooperation(target.agent_id, True)
+# The action will:
+# 1. Find nearby agents within share_range
+# 2. Filter out self and non-alive agents
+# 3. Select the agent with lowest resource level
+# 4. Share share_amount resources if agent has enough
+# 5. Update agent's resource level and total reward
+```
+
+## Integration with Action System
+
+The share action integrates seamlessly with the action registry:
+
+```python
+from farm.core.action import action_registry
+
+# Get the share action
+share_action_func = action_registry.get("share")
+
+# Execute share action
+share_action_func(agent)
+```
+
+## Configuration Examples
+
+### Basic Configuration
+```python
+# Set sharing parameters in agent config
+agent.config.share_range = 30      # Search radius for agents to help
+agent.config.share_amount = 2      # Amount to share per action
+agent.config.min_keep_resources = 5  # Minimum resources to keep
 ```
 
 ---
 
-## Technical Details
+## Performance Characteristics
 
-### Cooperation Tracking
+1. **Computational Efficiency**
+   - O(log n) spatial index queries for agent finding
+   - O(k) distance calculations where k is number of nearby agents
+   - Simple resource level comparison for target selection
+   - Minimal memory usage (no neural networks or complex state)
 
-The module maintains a cooperation history for each agent:
+2. **Scalability**
+   - Performance scales with environment size through spatial indexing
+   - Linear time complexity for target selection among nearby agents
+   - No training overhead or iterative learning processes
+   - Constant-time reward calculation
 
-```python
-def update_cooperation(self, agent_id: int, cooperative: bool):
-    """Update cooperation history for an agent."""
-    if agent_id not in self.cooperation_history:
-        self.cooperation_history[agent_id] = []
-    self.cooperation_history[agent_id].append(
-        1.0 if cooperative else -1.0
-    )
-```
-
-### Target Selection
-
-Agents are selected based on weighted probabilities:
-
-```python
-def _select_target(self, agent, nearby_agents):
-    """Select target based on need and cooperation history."""
-    weights = []
-    for target in nearby_agents:
-        weight = 1.0
-        # Increase weight for needy agents
-        if target.resource_level < target.config.starvation_threshold:
-            weight *= 2.0
-        # Consider past cooperation
-        weight *= (1.0 + self._get_cooperation_score(target.agent_id))
-        weights.append(weight)
-    return np.random.choice(nearby_agents, p=weights/sum(weights))
-```
+3. **Reliability**
+   - Deterministic behavior based on resource levels
+   - Graceful handling of edge cases (no nearby agents, insufficient resources)
+   - Simple error handling and logging
+   - No complex dependencies or external libraries required
 
 ---
 
-## Integration
+## Migration from DQN
 
-### With Base Agent
+### Previous DQN Implementation
 
-```python
-class BaseAgent:
-    def __init__(self, ...):
-        # Initialize share module
-        self.share_module = ShareModule(DEFAULT_SHARE_CONFIG)
-```
+The original implementation used:
+- `ShareQNetwork` for Q-value approximation
+- `ShareModule` for training and decision making
+- Complex state representation (8+ dimensions)
+- Cooperation history tracking and scoring
+- Experience replay and target networks
 
-### Share Action Function
+### Current Simple Implementation
 
-```python
-def share_action(agent):
-    """Execute sharing action using learned policy."""
-    state = _get_share_state(agent)
-    action, target, amount = agent.share_module.get_share_decision(
-        agent, state
-    )
-    
-    if target and amount > 0:
-        # Execute sharing
-        agent.resource_level -= amount
-        target.resource_level += amount
-        
-        # Calculate and store reward
-        reward = _calculate_share_reward(agent, target, amount)
-        agent.share_module.store_experience(
-            state, action, reward, _get_share_state(agent), False
-        )
-```
-
----
-
-## Performance Considerations
-
-1. **Memory Management**:
-   - Fixed-size cooperation history
-   - Efficient state calculations
-   - Vectorized distance computations
-
-2. **Computational Efficiency**:
-   - Cached cooperation scores
-   - Optimized nearby agent detection
-   - Batch processing for learning updates
-
-3. **Learning Stability**:
-   - Experience replay buffer
-   - Soft target network updates
-   - Gradient clipping
+The new implementation uses:
+- Direct spatial queries for agent finding
+- Simple resource-level based target selection
+- Fixed sharing amounts with resource validation
+- Linear reward calculation (0.05 per unit)
+- No neural networks or training
 
 ---
 
 ## Best Practices
 
-1. **Configuration**:
-   - Adjust share range based on environment size
-   - Balance rewards to encourage cooperation
-   - Set appropriate memory size for cooperation history
+1. **Configuration Tuning**
+   - Set appropriate `share_range` for your environment size
+   - Adjust `share_amount` based on typical resource levels
+   - Balance `min_keep_resources` to prevent agents from depleting themselves
 
-2. **Integration**:
-   - Initialize module early in agent lifecycle
-   - Update cooperation scores regularly
-   - Monitor sharing patterns
+2. **Resource Management**
+   - Monitor resource distribution across agents
+   - Ensure agents have sufficient resources to share
+   - Consider agent density when setting sharing parameters
 
-3. **Monitoring**:
-   - Track cooperation scores
-   - Monitor resource distribution
-   - Analyze sharing patterns
+3. **Performance Optimization**
+   - Spatial index provides O(log n) query performance
+   - Simple resource comparison is computationally efficient
+   - No complex dependencies or GPU requirements
+
+4. **Environment Integration**
+   - Ensure `get_nearby_agents()` returns valid agent objects
+   - Validate agent positions and resource levels
+   - Handle edge cases like no nearby agents gracefully
 
 ---
 
-## Troubleshooting
+## Benefits of Simple Implementation
 
-Common issues and solutions:
-
-1. **Low Sharing Rate**:
-   - Check share range
-   - Adjust rewards
-   - Verify resource availability
-
-2. **Unstable Learning**:
-   - Adjust learning rate
-   - Modify batch size
-   - Check reward scaling
-
-3. **Poor Cooperation**:
-   - Increase altruism bonus
-   - Adjust cooperation memory
-   - Review target selection weights
+1. **Reduced Complexity**: No neural networks, training loops, or complex state management
+2. **Better Performance**: Instant decisions with minimal computational overhead
+3. **Easier Debugging**: Clear, predictable behavior based on simple rules
+4. **Lower Resource Usage**: No GPU requirements or large memory allocations
+5. **Maintainability**: Simple code that's easy to understand and modify
 
 ---
 
 ## Future Enhancements
 
-Potential improvements:
+While the current implementation is rule-based, future versions could include:
 
-1. **Advanced Cooperation**:
-   - Reciprocal sharing tracking
-   - Group-based cooperation
-   - Dynamic reward adjustment
+1. **Resource Prioritization**
+   - Quality-based sharing (consider agent health, specialization)
+   - Multi-agent sharing strategies
+   - Resource type differentiation
 
-2. **Learning Enhancements**:
-   - Prioritized experience replay
-   - Multi-agent learning
-   - Meta-learning for adaptation
+2. **Adaptive Behavior**
+   - Dynamic sharing amounts based on resource availability
+   - Learning-based reward scaling
+   - Environmental context awareness
 
-3. **State Representation**:
-   - Additional environmental features
-   - Social network metrics
-   - Historical sharing patterns
+3. **Social Dynamics**
+   - Reciprocal relationship tracking
+   - Group formation and cooperation
+   - Reputation-based sharing decisions
 
 ---
 
-## References
+## Implementation Notes
 
-- **Deep Q-Learning**: [Original DQN Paper](https://www.nature.com/articles/nature14236)
-- **Cooperation in Multi-Agent Systems**: [Survey Paper](https://www.jair.org/index.php/jair/article/view/10166)
-- **Resource Sharing in MAS**: [Overview](https://www.sciencedirect.com/science/article/abs/pii/S0004370215001277) 
+- **No External Dependencies**: The simple implementation uses only standard Python
+- **Thread-Safe**: No shared state or complex data structures
+- **Memory Efficient**: Minimal memory usage with no neural network overhead
+- **Deterministic**: Same inputs produce same outputs (except for random tie-breaking if needed)
+- **Observable**: Clear logging and interaction tracking for analysis 

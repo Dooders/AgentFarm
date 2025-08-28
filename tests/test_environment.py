@@ -10,7 +10,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
 from supersuit import pettingzoo_env_to_vec_env_v1
 
-from farm.agents import ControlAgent, IndependentAgent, SystemAgent
+from farm.core.agent import BaseAgent
 from farm.core.environment import Action, Environment
 from farm.core.resources import Resource
 
@@ -19,9 +19,7 @@ class TestEnvironment(unittest.TestCase):
     def setUp(self):
         # Create a mock config with required attributes
         self.mock_config = Mock()
-        self.mock_config.system_agents = 1
-        self.mock_config.independent_agents = 1
-        self.mock_config.control_agents = 1
+        self.mock_config.total_agents = 3
         self.mock_config.max_steps = 100
         self.mock_config.max_resource_amount = 10
         self.mock_config.resource_regen_rate = 0.1
@@ -75,21 +73,21 @@ class TestEnvironment(unittest.TestCase):
 
         # Add a small set of agents explicitly (external agent management)
         initial_agents = [
-            SystemAgent(
+            BaseAgent(
                 agent_id=self.env.get_next_agent_id(),
                 position=(10, 10),
                 resource_level=5,
                 environment=self.env,
                 generation=0,
             ),
-            IndependentAgent(
+            BaseAgent(
                 agent_id=self.env.get_next_agent_id(),
                 position=(12, 12),
                 resource_level=5,
                 environment=self.env,
                 generation=0,
             ),
-            ControlAgent(
+            BaseAgent(
                 agent_id=self.env.get_next_agent_id(),
                 position=(14, 14),
                 resource_level=5,
@@ -494,7 +492,7 @@ class TestEnvironment(unittest.TestCase):
         initial_agent_count = len(self.env.agent_objects)
 
         # Test agent addition
-        new_agent = SystemAgent(
+        new_agent = BaseAgent(
             agent_id="test_agent_new",
             position=(25, 25),
             resource_level=5,

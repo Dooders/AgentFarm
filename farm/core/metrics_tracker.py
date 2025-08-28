@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
-from farm.agents import ControlAgent, IndependentAgent, SystemAgent
+from farm.core.agent import BaseAgent
 
 logger = logging.getLogger(__name__)
 
@@ -293,13 +293,7 @@ class MetricsTracker:
             total_agents = len(alive_agents)
 
             # Calculate agent type counts
-            system_agents = len([a for a in alive_agents if isinstance(a, SystemAgent)])
-            independent_agents = len(
-                [a for a in alive_agents if isinstance(a, IndependentAgent)]
-            )
-            control_agents = len(
-                [a for a in alive_agents if isinstance(a, ControlAgent)]
-            )
+            system_agents = len([a for a in alive_agents if isinstance(a, BaseAgent)])
 
             # Get metrics from tracker
             tracker_metrics = self.get_step_metrics()
@@ -387,8 +381,6 @@ class MetricsTracker:
             metrics = {
                 "total_agents": total_agents,
                 "system_agents": system_agents,
-                "independent_agents": independent_agents,
-                "control_agents": control_agents,
                 "total_resources": total_resources,
                 "average_agent_resources": average_agent_resources,
                 "resources_consumed": resources_consumed,

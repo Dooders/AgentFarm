@@ -13,8 +13,7 @@ Key Components:
     - Metrics tracking and database logging
     - Agent lifecycle management
 
-The environment supports various agent types (SystemAgent, IndependentAgent,
-ControlAgent) and provides observation spaces for reinforcement learning
+The environment supports various agent types and provides observation spaces for reinforcement learning
 training and evaluation.
 """
 
@@ -29,12 +28,13 @@ from gymnasium import spaces
 from pettingzoo import AECEnv
 
 # TODO: Simplify actions import.
-from farm.actions.attack import attack_action
-from farm.actions.gather import gather_action
-from farm.actions.move import move_action
-from farm.actions.reproduce import reproduce_action
-from farm.actions.share import share_action
-from farm.agents import ControlAgent, IndependentAgent, SystemAgent
+from farm.core.action import (
+    attack_action,
+    gather_action,
+    move_action,
+    reproduce_action,
+    share_action,
+)
 from farm.core.channels import NUM_CHANNELS
 from farm.core.metrics_tracker import MetricsTracker
 from farm.core.observations import AgentObservation, ObservationConfig
@@ -177,9 +177,7 @@ class Environment(AECEnv):
         self.time = 0
 
         # Initialize identity service (deterministic if seed provided)
-        self.identity = Identity(
-            IdentityConfig(deterministic_seed=self.seed_value)
-        )
+        self.identity = Identity(IdentityConfig(deterministic_seed=self.seed_value))
 
         # Store simulation ID
         self.simulation_id = simulation_id or self.identity.simulation_id()
@@ -863,17 +861,15 @@ class Environment(AECEnv):
 
         allies = []
         enemies = []
-        agent_type = type(agent)
+        # Since agent types are removed, treat all nearby agents as potential allies
+        # This can be enhanced later with other categorization logic
         for na in nearby:
             if na == agent or not na.alive:
                 continue
             ny = int(round(na.position[1]))
             nx = int(round(na.position[0]))
             hp01 = na.current_health / na.starting_health
-            if isinstance(na, agent_type):
-                allies.append((ny, nx, hp01))
-            else:
-                enemies.append((ny, nx, hp01))
+            allies.append((ny, nx, hp01))
 
         self_hp01 = agent.current_health / agent.starting_health
 
@@ -930,6 +926,7 @@ class Environment(AECEnv):
         def defend_action(ag):
             ag.is_defending = True
 
+        #! This should be the action registry.
         action_map = {
             Action.DEFEND: defend_action,
             Action.ATTACK: attack_action,

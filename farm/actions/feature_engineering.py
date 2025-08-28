@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, List
 import numpy as np
 
 if TYPE_CHECKING:
-    from farm.agents.base_agent import BaseAgent
+    from farm.core.agent import BaseAgent
     from farm.core.environment import Environment
 
 

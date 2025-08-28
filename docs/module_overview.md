@@ -16,7 +16,7 @@ AgentFarm/
 │   ├── Perception Channels (farm.core.channels)
 │   └── State Management (farm.core.state)
 ├── Agent System
-│   ├── Base Agents (farm.agents)
+│   ├── Base Agents (farm.core.agent)
 │   └── Decision Making (farm.actions)
 ├── Data & Analysis
 │   ├── Database (farm.database)
@@ -49,17 +49,12 @@ The Environment class is the heart of the simulation, managing:
 - Database logging for analysis
 - Support for different agent types
 
-### 2. Agent System (`farm.agents`)
+### 2. Agent System (`farm.core.agent`)
 
 Agents are autonomous entities with learning capabilities:
 
 **Basic Agent Types:**
-- **ControlAgent**: Standard agent with balanced behaviors
-- **IndependentAgent**: Self-interested survival-focused agent
-- **SystemAgent**: System-interested cooperation-focused agent
-- **RandomAgent**: Randomly acts around the environment<sup>*</sup>
-- **AlgorithmicAgent**: Agent that uses a predefined algorithm to make decisions<sup>*</sup>
-- **FreeAgent**: Agent that can make decisions based on its own observations and environment<sup>*</sup>
+- **BaseAgent**: Unified agent class that handles all agent behaviors including movement, resource gathering, sharing, and combat
 
 **Capabilities:**
 - Movement and navigation
@@ -177,7 +172,7 @@ channels:
 ```python
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
-from farm.agents import SystemAgent
+from farm.core.agent import BaseAgent
 import torch
 
 # Configure observations
@@ -193,7 +188,7 @@ env = Environment(
 
 # Add agents
 for i in range(10):
-    agent = SystemAgent(
+    agent = BaseAgent(
         agent_id=f"agent_{i}",
         position=(random.randint(0, 49), random.randint(0, 49)),
         resource_level=100,
@@ -210,7 +205,7 @@ for step in range(1000):
 ### Custom Agent Implementation
 
 ```python
-from farm.agents.base_agent import BaseAgent
+from farm.core.agent import BaseAgent
 from farm.core.channels import ChannelHandler, ChannelBehavior
 
 class CustomAgent(BaseAgent):

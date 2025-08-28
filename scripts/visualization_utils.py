@@ -22,36 +22,28 @@ COLOR_SCHEMES = {
         "background": "#ffffff",
         "resources": "#2ecc71",
         "agents": {
-            "SystemAgent": "#3498db",
-            "IndependentAgent": "#e74c3c",
-            "ControlAgent": "#f39c12",
+            "Agent": "#3498db",
         },
     },
     "dark": {
         "background": "#2c3e50",
         "resources": "#27ae60",
         "agents": {
-            "SystemAgent": "#3498db",
-            "IndependentAgent": "#e74c3c",
-            "ControlAgent": "#f39c12",
+            "Agent": "#3498db",
         },
     },
     "monochrome": {
         "background": "#000000",
         "resources": "#ffffff",
         "agents": {
-            "SystemAgent": "#cccccc",
-            "IndependentAgent": "#999999",
-            "ControlAgent": "#666666",
+            "Agent": "#cccccc",
         },
     },
     "colorblind_friendly": {
         "background": "#ffffff",
         "resources": "#117733",
         "agents": {
-            "SystemAgent": "#332288",
-            "IndependentAgent": "#aa4499",
-            "ControlAgent": "#ddcc77",
+            "Agent": "#332288",
         },
     },
 }

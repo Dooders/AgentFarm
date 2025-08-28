@@ -7,7 +7,7 @@ import numpy as np
 from farm.actions.feature_engineering import FeatureEngineer
 
 if TYPE_CHECKING:
-    from farm.agents.base_agent import BaseAgent
+    from farm.core.agent import BaseAgent
     from farm.core.environment import Environment
 
 

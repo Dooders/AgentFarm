@@ -12,6 +12,7 @@ The reproduction action now uses straightforward conditional logic:
 
 ```python
 def reproduce_action(agent: "BaseAgent") -> None:
+    # Simple rule-based reproduction in farm/core/action.py
     if random.random() < 0.5 and agent.resource_level >= agent.config.min_reproduction_resources:
         agent.reproduce()
 ```
@@ -94,12 +95,12 @@ The current system uses:
 
 ## Configuration Parameters
 
-| Parameter | Description | Default Value |
-|-----------|-------------|---------------|
-| `min_reproduction_resources` | Minimum resources required | 8 |
-| `offspring_cost` | Resources consumed per offspring | 3 |
-| `offspring_initial_resources` | Starting resources for offspring | 5 |
-| `max_population` | Maximum population limit | 3000 |
+| Parameter                     | Description                      | Default Value |
+| ----------------------------- | -------------------------------- | ------------- |
+| `min_reproduction_resources`  | Minimum resources required       | 8             |
+| `offspring_cost`              | Resources consumed per offspring | 3             |
+| `offspring_initial_resources` | Starting resources for offspring | 5             |
+| `max_population`              | Maximum population limit         | 3000          |
 
 ## Future Enhancements
 

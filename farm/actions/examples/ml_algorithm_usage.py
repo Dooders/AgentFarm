@@ -92,8 +92,8 @@ def example_basic_ml_usage():
             sample_state = torch.randn(8)
 
             # Create minimal mock objects
-            from farm.agents.base_agent import BaseAgent
             from farm.core.action import Action
+            from farm.core.agent import BaseAgent
 
             mock_agent = BaseAgent.__new__(BaseAgent)
             mock_agent.agent_id = "test"
@@ -209,7 +209,7 @@ def example_feature_engineering():
     from farm.actions.feature_engineering import FeatureEngineer
 
     # Create a mock agent and environment for demonstration
-    from farm.agents.base_agent import BaseAgent
+    from farm.core.agent import BaseAgent
     from farm.core.environment import Environment
 
     class MockAgent(BaseAgent):

@@ -69,11 +69,11 @@ def reproduce_action(agent: "BaseAgent") -> None:
 - **State**: Position, resource proximity, health
 - **Reward**: Movement cost + resource approach bonus
 
-### Attack Module (`attack.py`)
-- **Purpose**: Learn combat strategies
-- **Action Space**: 5 actions (4 directional attacks + defend)
-- **State**: Health ratio, target proximity, resource levels
-- **Reward**: Success/failure based on damage dealt
+### Attack Action (`action.py`)
+- **Purpose**: Simple closest-agent combat using spatial index
+- **Method**: Finds nearest valid target within range and attacks
+- **Features**: Health-based damage, defensive reduction, efficient spatial queries
+- **No DQN**: Direct spatial index-based implementation for simplicity
 
 ### Gather Module (`gather.py`)
 - **Purpose**: Learn resource collection strategies

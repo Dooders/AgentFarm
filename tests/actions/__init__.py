@@ -2,7 +2,7 @@
 
 This package contains comprehensive unit tests for all action modules:
 - test_base_dqn.py: Tests for the base DQN functionality
-- test_attack.py: Tests for the attack module
+- test_attack.py: Tests for the simple attack action (spatial index-based)
 - test_move.py: Tests for the movement module
 - test_gather.py: Tests for the gathering module
 - test_select.py: Tests for the action selection module
@@ -18,4 +18,4 @@ Each test module covers:
 - Reward calculations
 - State processing
 - Experience replay and learning
-""" 
+"""

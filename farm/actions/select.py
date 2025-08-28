@@ -34,7 +34,7 @@ from farm.core.action import Action
 from farm.utils.config_utils import get_config_value
 
 if TYPE_CHECKING:
-    from farm.agents.base_agent import BaseAgent
+    from farm.core.agent import BaseAgent
 
 logger = logging.getLogger(__name__)
 

@@ -15,7 +15,7 @@ Key Components:
 Available Actions:
     - move: Navigation and pathfinding with resource proximity rewards
     - gather: Resource collection with efficiency-based learning
-    - attack: Combat interactions with health-based defensive behavior
+    - attack: Simple closest-agent combat (no DQN, uses spatial index)
     - share: Cooperative resource sharing with altruism rewards
     - reproduce: Population dynamics with environmental constraints
     - select: High-level action selection meta-controller
@@ -28,4 +28,4 @@ from farm.core.action import action_registry
 
 # Actions are now registered dynamically through individual modules
 
-__all__ = ['action_registry']
+__all__ = ["action_registry"]

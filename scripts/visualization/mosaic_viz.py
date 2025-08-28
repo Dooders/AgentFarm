@@ -52,72 +52,56 @@ EXTENDED_COLOR_SCHEMES = {
         "background": "#f6e6e4",
         "resources": "#95a5a6",
         "agents": {
-            "SystemAgent": "#a8e6cf",
-            "IndependentAgent": "#ffd3b6",
-            "ControlAgent": "#ffaaa5",
+            "Agent": "#a8e6cf",
         },
     },
     "neon": {
         "background": "#000000",
         "resources": "#39ff14",
         "agents": {
-            "SystemAgent": "#00ffff",
-            "IndependentAgent": "#ff00ff",
-            "ControlAgent": "#ffff00",
+            "Agent": "#00ffff",
         },
     },
     "earth": {
         "background": "#2c1810",
         "resources": "#8b4513",
         "agents": {
-            "SystemAgent": "#d4ac0d",
-            "IndependentAgent": "#7d6608",
-            "ControlAgent": "#b9770e",
+            "Agent": "#d4ac0d",
         },
     },
     "ocean": {
         "background": "#000d1a",
         "resources": "#48d1cc",
         "agents": {
-            "SystemAgent": "#00ffff",
-            "IndependentAgent": "#4169e1",
-            "ControlAgent": "#87ceeb",
+            "Agent": "#00ffff",
         },
     },
     "sunset": {
         "background": "#1a0f1f",
         "resources": "#ff7e5f",
         "agents": {
-            "SystemAgent": "#feb47b",
-            "IndependentAgent": "#ff1361",
-            "ControlAgent": "#662d8c",
+            "Agent": "#feb47b",
         },
     },
     "vintage": {
         "background": "#2b1d0e",
         "resources": "#8c7355",
         "agents": {
-            "SystemAgent": "#d7cdb4",
-            "IndependentAgent": "#c5b9a0",
-            "ControlAgent": "#9b8174",
+            "Agent": "#d7cdb4",
         },
     },
     "cyberpunk": {
         "background": "#0b0221",
         "resources": "#0abdc6",
         "agents": {
-            "SystemAgent": "#ea00d9",
-            "IndependentAgent": "#711c91",
-            "ControlAgent": "#133e7c",
+            "Agent": "#ea00d9",
         },
     },
     "autumn": {
         "background": "#1a0f00",
         "resources": "#2c5530",
         "agents": {
-            "SystemAgent": "#c84c09",
-            "IndependentAgent": "#8b0000",
-            "ControlAgent": "#d35400",
+            "Agent": "#c84c09",
         },
     },
 }
@@ -295,9 +279,7 @@ def create_comparative_visualization(
             f"""
 Agents: {len(agents)}
 Resources: {len(resources)}
-Sys Res: {advantages.get('SystemAgent', {}).get('resource_amount_in_range', 0):.1f}
-Ind Res: {advantages.get('IndependentAgent', {}).get('resource_amount_in_range', 0):.1f}
-Ctrl Res: {advantages.get('ControlAgent', {}).get('resource_amount_in_range', 0):.1f}
+Total Res: {advantages.get('Agent', {}).get('resource_amount_in_range', 0):.1f}
 """
         )
 
@@ -381,13 +363,7 @@ def create_dominance_correlation_visualization(
                 advantages_data.append(
                     {
                         "iteration": iteration,
-                        "system_advantage": advantages.get("SystemAgent", {}).get(
-                            "resource_amount_in_range", 0
-                        ),
-                        "independent_advantage": advantages.get(
-                            "IndependentAgent", {}
-                        ).get("resource_amount_in_range", 0),
-                        "control_advantage": advantages.get("ControlAgent", {}).get(
+                        "agent_advantage": advantages.get("Agent", {}).get(
                             "resource_amount_in_range", 0
                         ),
                     }
@@ -422,26 +398,12 @@ def create_dominance_correlation_visualization(
                 agents, resources, config.get("gathering_range", 30)
             )
 
-            system_advantage = advantages.get("SystemAgent", {}).get(
-                "resource_amount_in_range", 0
-            )
-            independent_advantage = advantages.get("IndependentAgent", {}).get(
-                "resource_amount_in_range", 0
-            )
-            control_advantage = advantages.get("ControlAgent", {}).get(
+            agent_advantage = advantages.get("Agent", {}).get(
                 "resource_amount_in_range", 0
             )
 
-            # Determine which agent type has the advantage
-            max_advantage = max(
-                system_advantage, independent_advantage, control_advantage
-            )
-            if max_advantage == system_advantage:
-                predicted_dominant = "system"
-            elif max_advantage == independent_advantage:
-                predicted_dominant = "independent"
-            else:
-                predicted_dominant = "control"
+            # Since agent types are unified, we use a single advantage value
+            predicted_dominant = "agent"
 
             actual_dominant = row["population_dominance"]
 
