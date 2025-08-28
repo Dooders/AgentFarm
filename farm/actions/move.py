@@ -290,7 +290,9 @@ def move_action(agent: "BaseAgent") -> None:
 
     # Update position using the new method that marks spatial index as dirty.
     # Fallback to direct assignment if the agent mock doesn't implement it (tests).
-    if hasattr(agent, "update_position") and callable(getattr(agent, "update_position")):
+    if hasattr(agent, "update_position") and callable(
+        getattr(agent, "update_position")
+    ):
         agent.update_position(new_position)
         # In unit tests, agent may be a Mock whose update_position does not mutate state
         if getattr(agent, "position", None) == initial_position:
@@ -303,8 +305,9 @@ def move_action(agent: "BaseAgent") -> None:
     agent.total_reward = agent.total_reward + reward
 
     # Batch logging for better performance
-    if getattr(agent.environment, "db", None) is not None:
-        agent.environment.db.logger.log_agent_action(
+    db = getattr(agent.environment, "db", None)
+    if db is not None and hasattr(db, "logger") and db.logger is not None:
+        db.logger.log_agent_action(
             step_number=agent.environment.time,
             agent_id=agent.agent_id,
             action_type="move",

@@ -498,17 +498,12 @@ def attack_action(agent: "BaseAgent") -> None:
     except Exception:
         # Some test environments may not implement metrics tracking
         pass
-    if hasattr(agent.environment, "combat_encounters"):
-        agent.environment.combat_encounters += 1
 
     # Select a random target from valid candidates for attack
     target = random.choice(valid_targets)
 
     # Calculate and apply damage
     total_damage_dealt, successful_hits = _calculate_and_apply_damage(agent, target)
-    # Fallback increment for mocks that don't route through metrics tracker
-    if successful_hits > 0 and hasattr(agent.environment, "successful_attacks"):
-        agent.environment.successful_attacks += 1
 
     # Log comprehensive attack outcome for analysis and debugging
     try:

@@ -32,15 +32,13 @@ class MLPActionSelector(ActionAlgorithm):
         self._fitted: bool = False
 
     def train(
-        self, states: np.ndarray, actions: np.ndarray, rewards: Optional[np.ndarray] = None
+        self,
+        states: np.ndarray,
+        actions: np.ndarray,
+        rewards: Optional[np.ndarray] = None,
     ) -> None:
-        # Note: rewards can be incorporated as sample_weight if desired
-        sample_weight = None
-        if rewards is not None and rewards.shape[0] == actions.shape[0]:
-            # Shift and scale rewards to be non-negative sample weights
-            r = rewards - rewards.min()
-            sample_weight = (r / (r.max() + 1e-8)) + 1e-6
-        self.model.fit(states, actions, sample_weight=sample_weight)
+        # Note: MLPClassifier doesn't support sample_weight
+        self.model.fit(states, actions)
         self._fitted = True
 
     def predict_proba(self, state: np.ndarray) -> np.ndarray:
@@ -65,4 +63,3 @@ class MLPActionSelector(ActionAlgorithm):
     def select_action(self, state: np.ndarray) -> int:
         probs = self.predict_proba(state)
         return int(np.random.choice(self.num_actions, p=probs))
-
