@@ -10,7 +10,7 @@ import shutil
 import sqlite3
 import tempfile
 import time
-import uuid
+from farm.utils.identity import Identity
 from typing import Any, Dict, Optional
 
 from benchmarks.base.benchmark import Benchmark
@@ -79,7 +79,7 @@ class PragmaProfileBenchmark(Benchmark):
         self.open_connections = []
 
         # Generate a unique run ID for this benchmark run
-        self.run_id = str(uuid.uuid4())[:8]
+        self.run_id = Identity().run_id(8)
 
     def setup(self) -> None:
         """

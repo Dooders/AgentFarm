@@ -24,7 +24,7 @@ import json
 import logging
 import os
 import sqlite3
-import uuid
+from farm.utils.identity import Identity
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
@@ -148,7 +148,7 @@ class ExperimentTracker:
 
         try:
             # Generate unique ID and timestamp
-            experiment_id = str(uuid.uuid4())
+            experiment_id = Identity().experiment_id()
             timestamp = datetime.now(timezone.utc).isoformat()
 
             # Store experiment metadata

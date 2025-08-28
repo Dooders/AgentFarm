@@ -13,7 +13,7 @@ from typing import Dict, List, Optional
 
 from farm.core.config import SimulationConfig
 from farm.core.simulation import run_simulation
-from farm.utils.short_id import generate_simulation_id
+from farm.utils.identity import Identity
 
 
 class TestSimulationID(unittest.TestCase):
@@ -74,18 +74,18 @@ class TestSimulationID(unittest.TestCase):
 
     def test_simulation_id_generation(self):
         """Test that simulation_id is generated correctly."""
-        sim_id = generate_simulation_id()
+        sim_id = str(Identity().simulation_id())
         self.assertTrue(sim_id.startswith("sim_"))
         self.assertTrue(len(sim_id) > 5)  # Should have some length beyond the prefix
 
         # Test custom prefix
-        custom_id = generate_simulation_id(prefix="test")
+        custom_id = str(Identity().simulation_id(prefix="test"))
         self.assertTrue(custom_id.startswith("test_"))
 
     def test_simulation_id_propagation(self):
         """Test that simulation_id is propagated to all database records."""
         # Generate a unique simulation_id for this test
-        simulation_id = generate_simulation_id(prefix="test")
+        simulation_id = str(Identity().simulation_id(prefix="test"))
 
         # Run a minimal simulation with our simulation_id
         self.environment = run_simulation(

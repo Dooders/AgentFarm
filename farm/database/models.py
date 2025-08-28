@@ -220,7 +220,9 @@ class AgentStateModel(Base):
     @staticmethod
     def generate_id(agent_id: str, step_number: int) -> str:
         """Generate a unique ID for an agent state."""
-        return f"{agent_id}-{step_number}"
+        # Centralize via Identity for consistency
+        from farm.utils.identity import Identity
+        return str(Identity().agent_state_id(agent_id, step_number))
 
     def as_dict(self) -> Dict[str, Any]:
         """Convert agent state to dictionary."""

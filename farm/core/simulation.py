@@ -14,7 +14,7 @@ from farm.agents import IndependentAgent, SystemAgent
 from farm.agents.control_agent import ControlAgent
 from farm.core.config import SimulationConfig
 from farm.core.environment import Environment
-from farm.utils.short_id import generate_simulation_id
+from farm.utils.identity import Identity
 
 
 def setup_logging(log_dir: str = "logs") -> None:
@@ -199,7 +199,7 @@ def run_simulation(
     """
     # Generate simulation_id if not provided
     if simulation_id is None:
-        simulation_id = generate_simulation_id()
+        simulation_id = str(Identity().simulation_id())
 
     # Set seed for reproducibility if provided
     if seed is not None:
