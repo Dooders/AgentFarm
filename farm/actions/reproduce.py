@@ -390,8 +390,7 @@ def _get_reproduce_state(agent: "BaseAgent") -> torch.Tensor:
             agent.current_health / agent.starting_health,  # Health ratio
             local_density,  # Local population density
             resource_availability,  # Local resource availability
-            len(agent.environment.agents)
-            / config.max_population,  # Global population ratio
+            len(agents_list) / config.max_population,  # Global population ratio
             agent.starvation_threshold / agent.max_starvation,  # Starvation risk
             float(agent.is_defending),  # Defensive status
             agent.generation / 10.0,  # Normalized generation number
