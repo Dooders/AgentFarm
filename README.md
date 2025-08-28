@@ -6,6 +6,8 @@
 
 This repository is being developed to support research in the [Dooders](https://github.com/Dooders) project, focusing on complex adaptive systems and agent-based modeling approaches.
 
+> **Note**: This project is currently in active development. APIs and features may change between releases. See the [Contributing Guidelines](CONTRIBUTING.md) for information on getting involved.
+
 ## Key Features
 
 ### Agent-Based Modeling & Analysis
@@ -45,12 +47,20 @@ This repository is being developed to support research in the [Dooders](https://
 - **High-Level Services**: Coordinated analysis operations with built-in error handling
 - **Multi-Simulation Support**: Experiment database for comparing multiple simulation runs
 
+### Additional Tools
+- **Interactive Notebooks**: Jupyter notebooks for data exploration and analysis
+- **Web Dashboard**: Browser-based interface for monitoring and visualization
+- **Benchmarking Suite**: Performance testing and optimization tools
+- **Research Tools**: Advanced analysis modules for academic research
+- **Genome Embeddings**: Machine learning tools for agent evolution analysis
+
 ## Quick Start
 
 ### Prerequisites
-- Python 3.8 or higher
+- Python 3.8 or higher (3.9+ recommended for best performance)
 - pip (Python package installer)
 - Git
+- Redis (optional, for enhanced memory management)
 
 ### Installation
 
@@ -65,32 +75,59 @@ source venv/bin/activate  # On Windows use `venv\Scripts\activate`
 
 # Install dependencies
 pip install -r requirements.txt
+
+# Optional: Install Redis for enhanced memory management
+# Note: Redis is used for agent memory storage and can improve performance
+# On Ubuntu/Debian: sudo apt-get install redis-server
+# On macOS: brew install redis
+# On Windows: Download from https://redis.io/download
+# Then start Redis: redis-server
 ```
 
 ### Running Your First Simulation
 
-1. **Copy the template configuration**
-   ```bash
-   cd config
-   cp config_template.yaml my_simulation.yaml
-   ```
+AgentFarm provides multiple ways to run simulations:
 
-2. **Run the simulation**
-   ```bash
-   cd ..
-   python run_simulation.py --config config/my_simulation.yaml
-   ```
+**Command Line (Simple)**
+```bash
+python run_simulation.py --config config.yaml --steps 1000
+```
 
-Results will be saved in the `results` directory.
+**Command Line Interface (Advanced)**
+```bash
+# Run simulation with various options
+python farm/core/cli.py --mode simulate --config config.yaml --steps 1000
+
+# Run experiments with parameter variations
+python farm/core/cli.py --mode experiment --config config.yaml --experiment-name test --iterations 3
+
+# Visualize existing simulation results
+python farm/core/cli.py --mode visualize --db-path simulations/simulation.db
+
+# Generate analysis reports
+python farm/core/cli.py --mode analyze --db-path simulations/simulation.db
+```
+
+**GUI Interface**
+```bash
+python main.py
+```
+
+**Results**
+All simulation results are saved in the `simulations` directory with database files, logs, and analysis reports.
 
 ## Documentation
 
 For detailed documentation and advanced usage:
 - [Simulation Guide](docs/SimulationQuickStart.md)
 - [Experiment Guide](docs/ExperimentQuickStart.md)
+- [Core Architecture](docs/core_architecture.md)
+- [Configuration Guide](docs/configuration_guide.md)
 - [Data System Architecture](docs/data/data_api.md)
-- [Interaction Edge Logging](docs/data/interaction_edges.md)
-- [Full Documentation](docs/README.md)
+- [API Reference](docs/api_reference.md)
+- [Module Overview](docs/module_overview.md)
+- [Research Documentation](docs/research.md)
+- [Full Documentation Index](docs/README.md)
 
 ## Contributing
 
