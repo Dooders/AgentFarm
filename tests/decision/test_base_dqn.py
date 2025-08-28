@@ -16,7 +16,6 @@ from farm.core.decision.base_dqn import (
     BaseDQNConfig,
     BaseDQNModule,
     BaseQNetwork,
-    SharedEncoder,
 )
 
 
@@ -69,40 +68,6 @@ class TestBaseDQNConfig(unittest.TestCase):
         self.assertEqual(config.seed, 42)
 
 
-class TestSharedEncoder(unittest.TestCase):
-    """Test cases for SharedEncoder class."""
-
-    def test_initialization(self):
-        """Test SharedEncoder initialization."""
-        encoder = SharedEncoder(input_dim=8, hidden_size=64)
-
-        self.assertEqual(encoder.input_dim, 8)
-        self.assertEqual(encoder.hidden_size, 64)
-        self.assertIsInstance(encoder.fc, torch.nn.Linear)
-        self.assertEqual(encoder.fc.in_features, 8)
-        self.assertEqual(encoder.fc.out_features, 64)
-
-    def test_forward_pass(self):
-        """Test SharedEncoder forward pass."""
-        encoder = SharedEncoder(input_dim=8, hidden_size=64)
-        x = torch.randn(2, 8)  # Batch size 2, input dim 8
-
-        output = encoder(x)
-
-        self.assertEqual(output.shape, (2, 64))
-        self.assertTrue(torch.all(output >= 0))  # ReLU activation
-
-    def test_forward_pass_single_sample(self):
-        """Test SharedEncoder forward pass with single sample."""
-        encoder = SharedEncoder(input_dim=8, hidden_size=64)
-        x = torch.randn(8)  # Single sample
-
-        output = encoder(x)
-
-        self.assertEqual(output.shape, (64,))
-        self.assertTrue(torch.all(output >= 0))  # ReLU activation
-
-
 class TestBaseQNetwork(unittest.TestCase):
     """Test cases for BaseQNetwork class."""
 
@@ -117,28 +82,10 @@ class TestBaseQNetwork(unittest.TestCase):
 
     def test_initialization_with_shared_encoder(self):
         """Test BaseQNetwork initialization with shared encoder."""
-        shared_encoder = SharedEncoder(input_dim=8, hidden_size=64)
-        network = BaseQNetwork(
-            input_dim=8, output_dim=4, hidden_size=64, shared_encoder=shared_encoder
-        )
-
-        self.assertIs(network.shared_encoder, shared_encoder)
 
     def test_forward_pass_without_shared_encoder(self):
         """Test BaseQNetwork forward pass without shared encoder."""
         network = BaseQNetwork(input_dim=8, output_dim=4, hidden_size=64)
-        x = torch.randn(2, 8)
-
-        output = network(x)
-
-        self.assertEqual(output.shape, (2, 4))
-
-    def test_forward_pass_with_shared_encoder(self):
-        """Test BaseQNetwork forward pass with shared encoder."""
-        shared_encoder = SharedEncoder(input_dim=8, hidden_size=64)
-        network = BaseQNetwork(
-            input_dim=8, output_dim=4, hidden_size=64, shared_encoder=shared_encoder
-        )
         x = torch.randn(2, 8)
 
         output = network(x)
@@ -205,7 +152,6 @@ class TestBaseDQNModule(unittest.TestCase):
 
     def test_initialization_with_shared_encoder(self):
         """Test BaseDQNModule initialization with shared encoder."""
-        shared_encoder = SharedEncoder(input_dim=8, hidden_size=64)
         module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config)
 
         # Networks should be initialized
