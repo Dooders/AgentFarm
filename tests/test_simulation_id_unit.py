@@ -12,7 +12,10 @@ import unittest
 from farm.database.data_logging import DataLogger
 from farm.database.database import SimulationDatabase
 from farm.database.models import Simulation
-from farm.utils.short_id import generate_simulation_id
+from farm.utils.identity import Identity
+
+# Shared Identity instance for efficiency in tests
+_shared_identity = Identity()
 
 
 class TestSimulationIDPropagation(unittest.TestCase):
@@ -22,7 +25,7 @@ class TestSimulationIDPropagation(unittest.TestCase):
         """Set up temporary database for testing."""
         self.temp_dir = tempfile.mkdtemp()
         self.db_path = os.path.join(self.temp_dir, "test.db")
-        self.simulation_id = generate_simulation_id(prefix="unit_test")
+        self.simulation_id = str(_shared_identity.simulation_id(prefix="unit_test"))
         self.db = None
 
     def tearDown(self):

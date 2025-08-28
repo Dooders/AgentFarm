@@ -679,17 +679,18 @@ class TestEnvironment(unittest.TestCase):
 
     def test_get_next_resource_id(self):
         """Test resource ID generation"""
-        initial_id = self.env.next_resource_id
+        initial_id = self.env.resource_manager.next_resource_id
 
-        # Test ID generation
-        new_id = self.env.get_next_resource_id()
-        self.assertEqual(new_id, initial_id)
-        self.assertEqual(self.env.next_resource_id, initial_id + 1)
+        # Test ID generation - resource manager handles ID generation internally
+        # The test verifies that the resource manager maintains proper ID sequence
+        self.assertEqual(
+            initial_id, 10
+        )  # Based on resource_distribution["amount"] = 10
 
-        # Test sequential IDs
-        next_id = self.env.get_next_resource_id()
-        self.assertEqual(next_id, initial_id + 1)
-        self.assertEqual(self.env.next_resource_id, initial_id + 2)
+        # Create a new resource to test ID increment
+        new_resource = self.env.resource_manager.add_resource((5, 5), 5.0)
+        self.assertEqual(new_resource.resource_id, initial_id)
+        self.assertEqual(self.env.resource_manager.next_resource_id, initial_id + 1)
 
     def test_position_dirty_marking(self):
         """Test spatial index dirty position marking"""
