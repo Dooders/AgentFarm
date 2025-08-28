@@ -42,7 +42,7 @@ from farm.core.resource_manager import ResourceManager
 from farm.core.spatial_index import SpatialIndex
 from farm.core.state import EnvironmentState
 from farm.database.utilities import setup_db
-from farm.utils.short_id import ShortUUID
+from farm.utils.identity import Identity, IdentityConfig
 
 
 class Action(IntEnum):
@@ -176,13 +176,18 @@ class Environment(AECEnv):
         self.resources = []
         self.time = 0
 
+        # Initialize identity service (deterministic if seed provided)
+        self.identity = Identity(
+            IdentityConfig(deterministic_seed=self.seed_value)
+        )
+
         # Store simulation ID
-        self.simulation_id = simulation_id or ShortUUID().uuid()
+        self.simulation_id = simulation_id or self.identity.simulation_id()
 
         # Setup database and get initialized database instance
         self.db = setup_db(db_path, self.simulation_id)
 
-        self.id_generator = ShortUUID()
+        # Deprecated: id_generator replaced by self.identity
         self.next_resource_id = 0
         self.max_resource = max_resource
         self.config = config
@@ -550,25 +555,8 @@ class Environment(AECEnv):
         str
             A unique short ID string
         """
-        if hasattr(self, "seed_value") and self.seed_value is not None:
-            # For deterministic mode, create IDs based on a counter
-            if not hasattr(self, "agent_id_counter"):
-                self.agent_id_counter = 0
-
-            # Use agent counter and seed to create a deterministic ID
-            agent_seed = f"{self.seed_value}_{self.agent_id_counter}"
-            # Increment counter for next agent
-            self.agent_id_counter += 1
-
-            # Use a deterministic hash function
-            import hashlib
-
-            # Create a hash and use the first 10 characters
-            agent_hash = hashlib.md5(agent_seed.encode()).hexdigest()[:10]
-            return f"agent_{agent_hash}"
-        else:
-            # Non-deterministic mode uses random short ID
-            return self.id_generator.id()
+        # Delegate to identity service (respects deterministic seed if set)
+        return self.identity.agent_id()
 
     def get_state(self) -> EnvironmentState:
         """Get current environment state."""
