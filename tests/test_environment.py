@@ -10,8 +10,9 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
 from supersuit import pettingzoo_env_to_vec_env_v1
 
+from farm.core.action import ActionType
 from farm.core.agent import BaseAgent
-from farm.core.environment import Action, Environment
+from farm.core.environment import Environment
 from farm.core.resources import Resource
 
 
@@ -214,16 +215,16 @@ class TestEnvironment(unittest.TestCase):
         initial_resources = agent.resource_level
 
         # Test defend action
-        self.env._process_action(agent_id, Action.DEFEND)
+        self.env._process_action(agent_id, ActionType.DEFEND)
         self.assertTrue(agent.is_defending)
 
         # Test other actions (they should execute without error)
         for action in [
-            Action.ATTACK,
-            Action.GATHER,
-            Action.SHARE,
-            Action.MOVE,
-            Action.REPRODUCE,
+            ActionType.ATTACK,
+            ActionType.GATHER,
+            ActionType.SHARE,
+            ActionType.MOVE,
+            ActionType.REPRODUCE,
         ]:
             self.env._process_action(agent_id, action)
 
@@ -558,7 +559,7 @@ class TestEnvironment(unittest.TestCase):
             self.env._process_action(agent_id, 999)  # Invalid action
 
             # Test action on non-existent agent
-            self.env._process_action("non_existent", Action.DEFEND)
+            self.env._process_action("non_existent", ActionType.DEFEND)
 
         # Test observation for dead agent
         if self.env.agent_objects:
@@ -765,18 +766,18 @@ class TestEnvironment(unittest.TestCase):
         expected_actions = ["DEFEND", "ATTACK", "GATHER", "SHARE", "MOVE", "REPRODUCE"]
 
         for action_name in expected_actions:
-            self.assertTrue(hasattr(Action, action_name))
+            self.assertTrue(hasattr(ActionType, action_name))
 
         # Test action values
-        self.assertEqual(Action.DEFEND, 0)
-        self.assertEqual(Action.ATTACK, 1)
-        self.assertEqual(Action.GATHER, 2)
-        self.assertEqual(Action.SHARE, 3)
-        self.assertEqual(Action.MOVE, 4)
-        self.assertEqual(Action.REPRODUCE, 5)
+        self.assertEqual(ActionType.DEFEND, 0)
+        self.assertEqual(ActionType.ATTACK, 1)
+        self.assertEqual(ActionType.GATHER, 2)
+        self.assertEqual(ActionType.SHARE, 3)
+        self.assertEqual(ActionType.MOVE, 4)
+        self.assertEqual(ActionType.REPRODUCE, 5)
 
         # Test action space matches enum
-        self.assertEqual(len(Action), self.env.action_space().n)
+        self.assertEqual(len(ActionType), self.env.action_space().n)
 
     def test_configuration_edge_cases(self):
         """Test various configuration edge cases"""
