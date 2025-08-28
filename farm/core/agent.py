@@ -104,11 +104,15 @@ class BaseAgent:
             input_dim=8, hidden_size=hidden_size
         )  # Use 8-dimensional input to match selection state
 
-        #! change to ChoiceModule
-        self.select_module = DecisionModule(
-            num_actions=len(self.actions),
-            config=DecisionConfig(),
-            device=self.device,
+        # Initialize DecisionModule for action selection
+        decision_config = DecisionConfig()
+        if self.config and hasattr(self.config, "decision"):
+            # Use config from environment if available
+            decision_config = self.config.decision
+
+        self.decision_module = DecisionModule(
+            agent=self,
+            config=decision_config,
             shared_encoder=self.shared_encoder,
         )
 
@@ -236,13 +240,13 @@ class BaseAgent:
         )
 
     def decide_action(self):
-        """Select an action using the SelectModule's intelligent decision making.
+        """Select an action using the DecisionModule's intelligent decision making.
 
         The selection process involves:
         1. Getting current state representation
-        2. Passing state through SelectModule's neural network
-        3. Combining learned preferences with predefined action weights
-        4. Choosing optimal action based on current circumstances
+        2. Passing state through DecisionModule's algorithm (DDQN, PPO, etc.)
+        3. Mapping action index to Action object
+        4. Handling curriculum phases if configured
 
         Returns:
             Action: Selected action object to execute
@@ -254,6 +258,7 @@ class BaseAgent:
             self._cached_selection_state = create_decision_state(self)
             self._cached_selection_time = self.environment.time
 
+        # Get enabled actions based on curriculum phases if configured
         current_step = self.environment.time
         enabled_actions = self.actions  # Default all
         if self.config and hasattr(self.config, "curriculum_phases"):
@@ -263,10 +268,73 @@ class BaseAgent:
                         a for a in self.actions if a.name in phase["enabled_actions"]
                     ]
                     break
-        selected_action = self.select_module.decide_action(
-            agent=self, actions=enabled_actions, state=self._cached_selection_state
-        )
+
+        # Use DecisionModule to select action index
+        action_index = self.decision_module.decide_action(self._cached_selection_state)
+
+        # Map action index to Action object, considering only enabled actions
+        if action_index < len(enabled_actions):
+            selected_action = enabled_actions[action_index]
+        else:
+            # Fallback to random enabled action if index is out of bounds
+            selected_action = (
+                random.choice(enabled_actions)
+                if enabled_actions
+                else random.choice(self.actions)
+            )
+
         return selected_action
+
+    def _calculate_reward(self) -> float:
+        """Calculate reward for the current state transition.
+
+        Returns:
+            float: Calculated reward based on state changes
+        """
+        if not hasattr(self, "previous_state") or self.previous_state is None:
+            return 0.0
+
+        # Basic reward components
+        resource_reward = (
+            self.resource_level - self.previous_state.resource_level
+        ) * 0.1
+        health_reward = (self.current_health - self.previous_state.current_health) * 0.5
+        survival_reward = 0.1 if self.alive else -10.0
+
+        # Action-specific bonuses (simplified)
+        action_bonus = 0.0
+        if hasattr(self, "previous_action") and self.previous_action:
+            # Small bonus for non-idle actions
+            if self.previous_action.name != "pass":
+                action_bonus = 0.05
+
+        total_reward = resource_reward + health_reward + survival_reward + action_bonus
+
+        # Update total reward tracking
+        self.total_reward += total_reward
+
+        return total_reward
+
+    def _action_to_index(self, action) -> int:
+        """Convert Action object to index for DecisionModule.
+
+        Args:
+            action: Action object to convert
+
+        Returns:
+            int: Action index
+        """
+        # Map action names to indices based on Action enum
+        action_name_to_index = {
+            "defend": 0,
+            "attack": 1,
+            "gather": 2,
+            "share": 3,
+            "move": 4,
+            "reproduce": 5,
+        }
+
+        return action_name_to_index.get(action.name, 0)  # Default to defend if unknown
 
     def check_starvation(self) -> bool:
         """Check and handle agent starvation state.
@@ -317,18 +385,40 @@ class BaseAgent:
         if self.check_starvation():
             return
 
-        # Get current state before action
+        # Get current state before action for learning
         current_state = self.get_state()
+        current_state_tensor = create_decision_state(self)
 
         # Select and execute action
         action = self.decide_action()
         action.execute(self)
 
-        # Store state for learning
+        # Calculate reward based on state changes
+        reward = self._calculate_reward()
+
+        # Store state and action for learning
         self.previous_state = current_state
+        self.previous_state_tensor = current_state_tensor
         self.previous_action = action
 
-        # Train all modules
+        # Get next state after action
+        next_state_tensor = create_decision_state(self)
+        done = not self.alive
+
+        # Update DecisionModule with experience
+        if (
+            hasattr(self, "previous_state_tensor")
+            and self.previous_state_tensor is not None
+        ):
+            self.decision_module.update(
+                state=self.previous_state_tensor,
+                action=self._action_to_index(action),
+                reward=reward,
+                next_state=next_state_tensor,
+                done=done,
+            )
+
+        # Train all modules (including DecisionModule learning)
         self.train_all_modules()
 
     def clone(self) -> "BaseAgent":
@@ -808,13 +898,14 @@ class BaseAgent:
             return []
 
     def train_all_modules(self):
-        modules = [
-            self.select_module,
-        ]
-        for module in modules:
-            if len(module.memory) >= module.config.batch_size:
-                batch = random.sample(module.memory, module.config.batch_size)
-                module.train(batch)
+        """Train all learning modules.
+
+        Note: DecisionModule handles its own training through SB3's built-in mechanisms
+        during the update() calls in the act() method. No additional training needed here.
+        """
+        # DecisionModule training is handled automatically in SB3 during update() calls
+        # No additional training logic needed for the new DecisionModule
+        pass
 
     #! part of context manager, commented out for now
     # def __enter__(self):

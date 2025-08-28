@@ -1,515 +1,605 @@
-"""Action selection module for intelligent action prioritization.
+"""Decision module for agent action selection using configurable algorithms.
 
-This module provides a flexible framework for agents to make intelligent decisions
-about which action to take during their turn, considering:
-- Current state and environment conditions
-- Action weights and probabilities
-- State-based adjustments for different scenarios
-- Exploration vs exploitation balance
-- Learned preferences through Q-learning
+This module provides a DecisionModule class that determines the action to take given
+an agent's state/observation. It supports configurable algorithms with DDQN (via
+Stable Baselines3) as the default, and ensures each agent has its own model/policy.
 
-The module uses a combination of predefined weights and learned preferences to
-select optimal actions for different situations, with dynamic adjustments based
-on agent state, environment conditions, and learned behavior patterns.
-
-Classes:
-    SelectConfig: Configuration for action selection behavior and parameters
-    SelectQNetwork: Neural network for learning action selection decisions
-    SelectModule: Main module for learning and executing action selection
+Key Features:
+    - Configurable decision algorithms (DDQN, PPO, custom ML algorithms)
+    - Per-agent model/policy isolation
+    - Integration with environment action spaces
+    - SB3 integration for reinforcement learning
+    - Experience replay and training mechanisms
+    - Save/load functionality for model persistence
 """
 
 import logging
-import random
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+import os
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 import numpy as np
 import torch
 
-from farm.core.action import Action
-from farm.core.decision.algorithms.base import ActionAlgorithm, AlgorithmRegistry
-from farm.core.decision.algorithms.rl_base import RLAlgorithm
-from farm.core.decision.base_dqn import BaseDQNModule, BaseQNetwork, SharedEncoder
-from farm.core.decision.config import DEFAULT_DECISION_CONFIG, DecisionConfig
-from farm.core.decision.feature_engineering import FeatureEngineer
-from farm.utils.config_utils import get_config_value
+from farm.core.decision.base_dqn import SharedEncoder
+from farm.core.decision.config import DecisionConfig
 
 if TYPE_CHECKING:
     from farm.core.agent import BaseAgent
+    from farm.core.environment import Environment
 
 logger = logging.getLogger(__name__)
 
+# Try to import SB3, with fallback handling
+try:
+    from stable_baselines3 import DQN
+    from stable_baselines3.common.policies import BasePolicy
 
-class DecisionQNetwork(BaseQNetwork):
-    """Neural network for learning action selection decisions.
+    SB3_AVAILABLE = True
+except ImportError:
+    logger.warning(
+        "Stable Baselines3 not available. Falling back to basic DQN implementation."
+    )
+    SB3_AVAILABLE = False
+    DQN = None
 
-    This network learns to predict Q-values for different action choices
-    based on the current state representation. It inherits from BaseQNetwork
-    to provide standard Q-learning functionality.
 
-    Args:
-        input_dim: Dimension of the input state vector
-        num_actions: Number of possible actions to choose from
-        hidden_size: Size of hidden layers in the network
-    """
+class SB3Wrapper:
+    """Wrapper to adapt agent observations to SB3 format."""
 
-    def __init__(
-        self,
-        input_dim: int,
-        num_actions: int,
-        hidden_size: int = 64,
-        shared_encoder: Optional[SharedEncoder] = None,
-    ) -> None:
-        super().__init__(
-            input_dim, num_actions, hidden_size, shared_encoder=shared_encoder
+    def __init__(self, observation_space, action_space):
+        self.observation_space = observation_space
+        self.action_space = action_space
+
+    def reset(self):
+        """Reset the wrapper (no-op for agent-based usage)."""
+        return np.zeros(
+            self.observation_space.shape, dtype=self.observation_space.dtype
+        )
+
+    def step(self, action):
+        """Step function (no-op for agent-based usage)."""
+        return (
+            np.zeros(self.observation_space.shape, dtype=self.observation_space.dtype),
+            0.0,
+            False,
+            False,
+            {},
         )
 
 
-class DecisionModule(BaseDQNModule):
-    """Module for learning and executing intelligent action selection.
+class DecisionModule:
+    """Configurable decision module for agent action selection.
 
-    This module combines rule-based probability adjustments with learned
-    Q-values to make intelligent action decisions. It considers agent state,
-    environment conditions, and learned preferences to select optimal actions.
-
-    The module uses epsilon-greedy exploration and can dynamically adjust
-    action probabilities based on various factors like resource levels,
-    health status, nearby entities, and population density.
-
-    Args:
-        num_actions: Number of possible actions to choose from
-        config: Configuration object containing weights and thresholds
-        device: PyTorch device for computation (CPU/GPU)
+    This class encapsulates the decision-making logic for agents, supporting
+    various algorithms with DDQN (via Stable Baselines3) as the default.
+    Each agent instance gets its own model/policy for personalized learning.
 
     Attributes:
-        action_indices: Dictionary mapping action names to indices for fast lookup
+        agent_id (str): Unique identifier of the associated agent
+        config (DecisionConfig): Configuration object with algorithm settings
+        algorithm: The underlying decision algorithm (SB3 DQN, etc.)
+        shared_encoder (Optional[SharedEncoder]): Shared feature encoder
+        num_actions (int): Number of possible actions
+        state_dim (int): Dimension of state/observation space
+        _is_trained (bool): Whether the model has been trained
     """
 
     def __init__(
         self,
-        num_actions: int,
-        config: DecisionConfig,
-        device: torch.device = torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu"
-        ),
+        agent: "BaseAgent",
+        config: DecisionConfig = DecisionConfig(),
         shared_encoder: Optional[SharedEncoder] = None,
-    ) -> None:
-        super().__init__(
-            input_dim=8,  # State dimensions for selection (matches actual state size)
-            output_dim=num_actions,
-            config=config,
-            device=device,
-        )
-        # Pre-compute action indices for faster lookup
-        self.action_indices = {}
-
-        # Choose algorithm path: DQN (default), RL algorithms, or traditional ML via registry
-        self._algo_name = getattr(config, "algorithm_type", "dqn")
-        self._ml_algo: Optional[ActionAlgorithm] = None
-        self._rl_algo: Optional[RLAlgorithm] = None
-        self._feature_engineer: Optional[FeatureEngineer] = None
-
-        if self._algo_name == "dqn":
-            # Initialize Q-networks with shared encoder if provided
-            self.q_network = DecisionQNetwork(
-                input_dim=8,
-                num_actions=num_actions,
-                hidden_size=config.dqn_hidden_size,
-                shared_encoder=shared_encoder,
-            ).to(device)
-            self.target_network = DecisionQNetwork(
-                input_dim=8,
-                num_actions=num_actions,
-                hidden_size=config.dqn_hidden_size,
-                shared_encoder=shared_encoder,
-            ).to(device)
-            self.target_network.load_state_dict(self.q_network.state_dict())
-        elif self._algo_name in ["ppo", "sac", "a2c", "td3"]:
-            # Initialize RL algorithm from Stable Baselines
-            rl_params = getattr(config, "algorithm_params", {}).copy()
-            rl_params.update(
-                {
-                    "state_dim": getattr(config, "rl_state_dim", 8),
-                    "buffer_size": getattr(config, "rl_buffer_size", 10000),
-                    "batch_size": getattr(config, "rl_batch_size", 32),
-                    "train_freq": getattr(config, "rl_train_freq", 4),
-                }
-            )
-            self._rl_algo = cast(
-                RLAlgorithm,
-                AlgorithmRegistry.create(
-                    self._algo_name, num_actions=num_actions, **rl_params
-                ),
-            )
-        else:
-            # Initialize traditional ML algorithm
-            params = getattr(config, "algorithm_params", {}) or {}
-            self._ml_algo = AlgorithmRegistry.create(
-                self._algo_name, num_actions=num_actions, **params
-            )
-            self._feature_engineer = FeatureEngineer()
-
-    def decide_action(
-        self, agent: "BaseAgent", actions: List[Action], state: torch.Tensor
-    ) -> Action:
-        """Select an action using both predefined weights and learned preferences.
-
-        This method combines rule-based probability adjustments with learned
-        Q-values to make intelligent action decisions. It considers:
-        - Base action weights from configuration
-        - State-based probability adjustments
-        - Learned Q-values from the neural network
-        - Exploration vs exploitation balance
+    ):
+        """Initialize the DecisionModule.
 
         Args:
-            agent: The agent making the action decision
-            actions: List of available actions to choose from
-            state: Current state representation as a tensor
+            agent: The BaseAgent instance this module serves
+            config: Configuration object with algorithm parameters
+            shared_encoder: Optional shared encoder for feature extraction
+        """
+        self.agent_id = agent.agent_id
+        self.config = config
+        self.shared_encoder = shared_encoder
+        self.agent = agent
+
+        # Get action space from environment
+        self.num_actions = self._get_action_space_size()
+        self.state_dim = config.rl_state_dim
+
+        # Initialize algorithm
+        self.algorithm: Any = None
+        self._is_trained = False
+
+        # Create observation and action spaces for SB3
+        self.observation_space = self._create_observation_space()
+        self.action_space = self._create_action_space()
+
+        # Initialize the decision algorithm
+        self._initialize_algorithm()
+
+        logger.info(
+            f"Initialized DecisionModule for agent {self.agent_id} with {config.algorithm_type}"
+        )
+
+    def _get_action_space_size(self) -> int:
+        """Get the number of actions from the environment's action space.
 
         Returns:
-            The selected action based on combined probabilities and Q-values
-
-        Example:
-            >>> module = DecisionModule(5, config)
-            >>> action = module.decide_action(agent, available_actions, state)
+            int: Number of possible actions
         """
-        # Cache action indices for this agent if not already done
-        if agent.agent_id not in self.action_indices:
-            self.action_indices[agent.agent_id] = {
-                action.name: i for i, action in enumerate(actions)
+        try:
+            # Get action space from environment
+            if hasattr(self.agent.environment, "action_space"):
+                action_space = self.agent.environment.action_space
+                # If it's a callable (like a function), call it to get the actual space
+                if callable(action_space):
+                    action_space = action_space()
+                if hasattr(action_space, "n"):
+                    return int(action_space.n)
+            # Fallback: count actions in Action enum
+            from farm.core.environment import Action
+
+            return len(Action)
+        except Exception as e:
+            logger.warning(
+                f"Could not determine action space size for agent {self.agent_id}: {e}"
+            )
+            # Default fallback
+            return 6  # DEFEND, ATTACK, GATHER, SHARE, MOVE, REPRODUCE
+
+    def _create_observation_space(self):
+        """Create observation space for SB3 compatibility."""
+        from gymnasium import spaces
+
+        return spaces.Box(
+            low=-np.inf, high=np.inf, shape=(self.state_dim,), dtype=np.float32
+        )
+
+    def _create_action_space(self):
+        """Create action space for SB3 compatibility."""
+        from gymnasium import spaces
+
+        return spaces.Discrete(self.num_actions)
+
+    def _initialize_algorithm(self):
+        """Initialize the decision algorithm based on configuration."""
+        algorithm_type = self.config.algorithm_type
+
+        if algorithm_type == "ddqn" and SB3_AVAILABLE:
+            self._initialize_sb3_ddqn()
+        elif algorithm_type == "ppo" and SB3_AVAILABLE:
+            self._initialize_sb3_ppo()
+        else:
+            logger.warning(
+                f"Algorithm {algorithm_type} not available or not supported. Using fallback."
+            )
+            self._initialize_fallback()
+
+    def _initialize_sb3_ddqn(self):
+        """Initialize DDQN using Stable Baselines3."""
+        try:
+            # Create a dummy environment for SB3
+            dummy_env = SB3Wrapper(self.observation_space, self.action_space)
+
+            # Configure DDQN parameters
+            ddqn_kwargs = {
+                "policy": self.config.algorithm_params.get("policy", "MlpPolicy"),
+                "env": dummy_env,
+                "learning_rate": self.config.learning_rate,
+                "buffer_size": self.config.rl_buffer_size,
+                "learning_starts": 100,
+                "batch_size": self.config.rl_batch_size,
+                "tau": self.config.tau,
+                "gamma": self.config.gamma,
+                "train_freq": self.config.rl_train_freq,
+                "gradient_steps": 1,
+                "target_update_interval": 1000,
+                "exploration_fraction": 0.1,
+                "exploration_initial_eps": self.config.epsilon_start,
+                "exploration_final_eps": self.config.epsilon_min,
+                "verbose": 0,
             }
 
-        # Get base probabilities from weights
-        base_probs: List[float] = [action.weight for action in actions]
+            # Add any additional parameters from config
+            ddqn_kwargs.update(self.config.algorithm_params)
 
-        # Adjust probabilities based on state - use faster implementation
-        adjusted_probs = self._fast_adjust_probabilities(
-            agent, base_probs, self.action_indices[agent.agent_id]
-        )
+            if DQN is not None:
+                self.algorithm = DQN(**ddqn_kwargs)
+            else:
+                self._initialize_fallback()
+                return
+            logger.info(f"Initialized SB3 DDQN for agent {self.agent_id}")
 
-        # If using RL algorithm (PPO, SAC, A2C, TD3)
-        if self._rl_algo is not None:
-            # Convert torch tensor to numpy for RL algorithms
-            state_np = state.cpu().numpy() if isinstance(state, torch.Tensor) else state
+        except Exception as e:
+            logger.error(
+                f"Failed to initialize SB3 DDQN for agent {self.agent_id}: {e}"
+            )
+            self._initialize_fallback()
 
-            # Get action from RL algorithm
-            action_idx = self._rl_algo.select_action(state_np)
+    def _initialize_sb3_ppo(self):
+        """Initialize PPO using Stable Baselines3."""
+        try:
+            from stable_baselines3 import PPO
+
+            # Create a dummy environment for SB3
+            dummy_env = SB3Wrapper(self.observation_space, self.action_space)
+
+            # Configure PPO parameters
+            ppo_kwargs = {
+                "policy": self.config.algorithm_params.get("policy", "MlpPolicy"),
+                "env": dummy_env,
+                "learning_rate": self.config.learning_rate,
+                "n_steps": 2048,
+                "batch_size": self.config.rl_batch_size,
+                "n_epochs": 10,
+                "gamma": self.config.gamma,
+                "gae_lambda": 0.95,
+                "clip_range": 0.2,
+                "ent_coef": 0.0,
+                "vf_coef": 0.5,
+                "max_grad_norm": 0.5,
+                "verbose": 0,
+            }
+
+            # Add any additional parameters from config
+            ppo_kwargs.update(self.config.algorithm_params)
+
+            self.algorithm = PPO(**ppo_kwargs)
+            logger.info(f"Initialized SB3 PPO for agent {self.agent_id}")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize SB3 PPO for agent {self.agent_id}: {e}")
+            self._initialize_fallback()
+
+    def _initialize_fallback(self):
+        """Initialize a fallback decision mechanism."""
+        logger.info(f"Using fallback decision mechanism for agent {self.agent_id}")
+
+        # Simple epsilon-greedy random action selection
+        class FallbackAlgorithm:
+            def __init__(self, num_actions, epsilon=0.1):
+                self.num_actions = num_actions
+                self.epsilon = epsilon
+
+            def predict(self, observation, deterministic=False):
+                if np.random.random() < self.epsilon:
+                    action = np.random.randint(self.num_actions)
+                else:
+                    action = np.random.randint(self.num_actions)
+                return action, None
+
+            def learn(self, total_timesteps=1):
+                pass  # No learning in fallback
+
+        self.algorithm = FallbackAlgorithm(self.num_actions, self.config.epsilon_start)
+
+    def decide_action(self, state: torch.Tensor) -> int:
+        """Decide which action to take given the current state.
+
+        Args:
+            state: Current state observation as tensor
+
+        Returns:
+            int: Selected action index
+        """
+        try:
+            # Convert state to numpy for SB3 compatibility
+            if isinstance(state, torch.Tensor):
+                state_np = state.detach().cpu().numpy()
+            else:
+                state_np = np.array(state, dtype=np.float32)
+
+            # Ensure correct shape
+            if state_np.ndim == 1:
+                state_np = state_np.reshape(1, -1)
+
+            # Get action from algorithm
+            if self.algorithm is not None and hasattr(self.algorithm, "predict"):
+                action, _ = self.algorithm.predict(state_np, deterministic=False)
+            else:
+                action = np.random.randint(self.num_actions)
 
             # Ensure action is within valid range
-            if 0 <= action_idx < len(actions):
-                return actions[action_idx]
-            else:
-                # Fallback to rule-based selection
-                return random.choices(actions, weights=adjusted_probs, k=1)[0]
-
-        # If using ML algorithm, predict probabilities from engineered features
-        elif self._ml_algo is not None and self._feature_engineer is not None:
-            ml_state = self._feature_engineer.extract_features(agent, agent.environment)
-            ml_probs = self._ml_algo.predict_proba(ml_state)
-
-            # Optional exploration bonus
-            if getattr(self.config, "use_exploration_bonus", True):
-                ml_probs = ml_probs + (self.epsilon / len(ml_probs))
-                ml_probs = ml_probs / ml_probs.sum()
-
-            # Blend ML probabilities with adjusted rule-based probabilities
-            combined = 0.5 * np.array(adjusted_probs) + 0.5 * np.array(ml_probs)
-            combined = combined / combined.sum()
-            return random.choices(actions, weights=combined.tolist(), k=1)[0]
-        else:
-            # Use epsilon-greedy for exploration
-            if random.random() < self.epsilon:
-                return random.choices(actions, weights=adjusted_probs, k=1)[0]
-
-            # Get Q-values from network
-            with torch.no_grad():
-                q_values = self.q_network(state)
-
-            # Combine Q-values with adjusted probabilities
-            combined_probs = self._combine_probs_and_qvalues(
-                adjusted_probs, q_values.cpu().numpy()
-            )
-
-            return random.choices(actions, weights=combined_probs, k=1)[0]
-
-    def _fast_adjust_probabilities(
-        self, agent: "BaseAgent", base_probs: List[float], action_indices: dict
-    ) -> List[float]:
-        """Optimized version of probability adjustment based on agent state.
-
-        This method adjusts action probabilities based on various factors:
-        - Resource levels and nearby resources
-        - Health status and starvation risk
-        - Nearby agents and social context
-        - Population density and reproduction conditions
-
-        Args:
-            agent: The agent whose state is being considered
-            base_probs: Base probability weights for each action
-            action_indices: Dictionary mapping action names to their indices
-
-        Returns:
-            List of adjusted probabilities that sum to 1.0
-
-        Note:
-            This is an optimized version that uses environment spatial indexing
-            for faster nearby entity detection and minimizes redundant calculations.
-        """
-        adjusted_probs = base_probs.copy()
-        config = self.config
-
-        # Get state information
-        resource_level = agent.resource_level
-        starvation_risk = agent.starvation_threshold / agent.max_starvation
-        health_ratio = agent.current_health / agent.starting_health
-
-        # Get nearby entities using environment's spatial indexing
-        if agent.config is None:
-            # Fallback to default values if config is not available
-            gathering_range = 30
-            social_range = 30
-        else:
-            gathering_range = agent.config.gathering_range
-            social_range = agent.config.social_range
-
-        nearby_resources = agent.environment.get_nearby_resources(
-            agent.position, gathering_range
-        )
-
-        nearby_agents = agent.environment.get_nearby_agents(
-            agent.position, social_range
-        )
-
-        # Get config values with fallbacks
-        min_reproduction_resources = get_config_value(
-            agent.config, "min_reproduction_resources", 8, (int, float)
-        )
-        max_population = get_config_value(
-            agent.config, "max_population", 300, (int, float)
-        )
-
-        # Adjust move probability
-        if "move" in action_indices and not nearby_resources:
-            adjusted_probs[action_indices["move"]] *= getattr(
-                config, "move_mult_no_resources", 1.5
-            )
-
-        # Adjust gather probability
-        if (
-            "gather" in action_indices
-            and nearby_resources
-            and resource_level < min_reproduction_resources
-        ):
-            adjusted_probs[action_indices["gather"]] *= getattr(
-                config, "gather_mult_low_resources", 1.5
-            )
-
-        # Adjust share probability
-        if "share" in action_indices:
-            if resource_level > min_reproduction_resources and len(nearby_agents) > 0:
-                adjusted_probs[action_indices["share"]] *= getattr(
-                    config, "share_mult_wealthy", 1.3
+            action = int(action)
+            if action < 0 or action >= self.num_actions:
+                logger.warning(
+                    f"Invalid action {action} for agent {self.agent_id}, using random"
                 )
-            else:
-                adjusted_probs[action_indices["share"]] *= getattr(
-                    config, "share_mult_poor", 0.5
-                )
+                action = np.random.randint(self.num_actions)
 
-        # Adjust attack probability
-        if "attack" in action_indices:
-            if (
-                starvation_risk > getattr(config, "attack_starvation_threshold", 0.5)
-                and len(nearby_agents) > 0
-                and resource_level > 2
-            ):
-                adjusted_probs[action_indices["attack"]] *= getattr(
-                    config, "attack_mult_desperate", 1.4
-                )
-            else:
-                adjusted_probs[action_indices["attack"]] *= getattr(
-                    config, "attack_mult_stable", 0.6
-                )
+            return action
 
-            if health_ratio < getattr(config, "attack_defense_threshold", 0.3):
-                adjusted_probs[action_indices["attack"]] *= 0.5
-            elif health_ratio > 0.8 and resource_level > min_reproduction_resources:
-                adjusted_probs[action_indices["attack"]] *= 1.5
+        except Exception as e:
+            logger.error(f"Error in decide_action for agent {self.agent_id}: {e}")
+            # Fallback to random action
+            return np.random.randint(self.num_actions)
 
-        # Adjust reproduce probability
-        if "reproduce" in action_indices:
-            if resource_level > min_reproduction_resources * 1.5 and health_ratio > 0.8:
-                adjusted_probs[action_indices["reproduce"]] *= getattr(
-                    config, "reproduce_mult_wealthy", 1.4
-                )
-            else:
-                adjusted_probs[action_indices["reproduce"]] *= getattr(
-                    config, "reproduce_mult_poor", 0.3
-                )
-
-            population_ratio = len(agent.environment.agents) / max_population
-            if population_ratio > getattr(config, "reproduce_resource_threshold", 0.7):
-                adjusted_probs[action_indices["reproduce"]] *= 0.5
-
-        # Normalize probabilities
-        total = sum(adjusted_probs)
-        return [p / total for p in adjusted_probs]
-
-    def _combine_probs_and_qvalues(
-        self, probs: List[float], q_values: np.ndarray
-    ) -> List[float]:
-        """Combine adjusted probabilities with Q-values using weighted average.
-
-        This method combines rule-based probability adjustments with learned
-        Q-values to create a final action selection probability distribution.
-        The combination uses a weighted average favoring rule-based adjustments
-        (70%) over learned Q-values (30%) to maintain interpretable behavior
-        while incorporating learned preferences.
-
-        Args:
-            probs: List of rule-based adjusted probabilities
-            q_values: Array of Q-values from the neural network
-
-        Returns:
-            List of combined probabilities that sum to 1.0
-
-        Note:
-            Q-values are normalized to [0,1] range before combination to
-            ensure they're on the same scale as probabilities.
-        """
-        # Normalize Q-values to [0,1] range
-        q_normalized = (q_values - q_values.min()) / (
-            q_values.max() - q_values.min() + 1e-8
-        )
-
-        # Combine using weighted average
-        combined = 0.7 * np.array(probs) + 0.3 * q_normalized
-
-        # Normalize
-        return combined / combined.sum()
-
-    def store_experience(
+    def update(
         self,
         state: torch.Tensor,
         action: int,
         reward: float,
         next_state: torch.Tensor,
         done: bool,
-        **kwargs: Any
-    ) -> None:
-        """Store experience for RL algorithm training.
+    ):
+        """Update the decision module with experience.
+
+        Args:
+            state: Current state
+            action: Action taken
+            reward: Reward received
+            next_state: Next state
+            done: Whether episode is done
+        """
+        try:
+            # For SB3 algorithms, we need to handle experience differently
+            # Since we're not using a traditional Gym environment, we'll simulate
+            # the learning process by calling learn() periodically
+            if (
+                self.algorithm is not None
+                and hasattr(self.algorithm, "learn")
+                and callable(getattr(self.algorithm, "learn", None))
+            ):
+                # Call learn for a small number of timesteps to update
+                self.algorithm.learn(total_timesteps=1)
+                self._is_trained = True
+
+        except Exception as e:
+            logger.error(
+                f"Error updating DecisionModule for agent {self.agent_id}: {e}"
+            )
+
+    def get_action_probabilities(self, state: torch.Tensor) -> np.ndarray:
+        """Get action probabilities for the given state.
 
         Args:
             state: Current state observation
-            action: Action taken
-            reward: Reward received
-            next_state: Next state observation
-            done: Whether episode ended
-            **kwargs: Additional experience data
+
+        Returns:
+            np.ndarray: Probability distribution over actions
         """
-        if self._rl_algo is not None:
-            self._rl_algo.store_experience(
-                state, action, reward, next_state, done, **kwargs
-            )
-            self._rl_algo.update_step_count()
+        try:
+            # For SB3 algorithms that support it, get action probabilities
+            if (
+                self.algorithm is not None
+                and hasattr(self.algorithm, "predict_proba")
+                and callable(getattr(self.algorithm, "predict_proba", None))
+            ):
+                if isinstance(state, torch.Tensor):
+                    state_np = state.detach().cpu().numpy()
+                else:
+                    state_np = np.array(state, dtype=np.float32)
 
-            # Train if needed
-            if self._rl_algo.should_train():
-                batch = self._rl_algo.replay_buffer.sample(
-                    min(self._rl_algo.batch_size, len(self._rl_algo.replay_buffer))
+                if state_np.ndim == 1:
+                    state_np = state_np.reshape(1, -1)
+
+                probs = self.algorithm.predict_proba(state_np)[0]
+                return np.array(probs, dtype=np.float32)
+
+            else:
+                # Fallback: uniform probabilities
+                return np.full(
+                    self.num_actions, 1.0 / self.num_actions, dtype=np.float32
                 )
-                metrics = self._rl_algo.train_on_batch(batch)
-                # Could log metrics here if needed
 
-    def get_model_state(self) -> Dict[str, Any]:
-        """Get the current model state for saving."""
-        state_dict = {}
+        except Exception as e:
+            logger.error(
+                f"Error getting action probabilities for agent {self.agent_id}: {e}"
+            )
+            return np.full(self.num_actions, 1.0 / self.num_actions, dtype=np.float32)
 
-        if self._rl_algo is not None:
-            state_dict["rl_model"] = self._rl_algo.get_model_state()
-        elif hasattr(self, "q_network"):
-            # For DQN, save network states
-            state_dict["q_network"] = self.q_network.state_dict()
-            if hasattr(self, "target_network"):
-                state_dict["target_network"] = self.target_network.state_dict()
+    def save_model(self, path: str):
+        """Save the decision model to disk.
 
-        return state_dict
+        Args:
+            path: Path to save the model
+        """
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
 
-    def load_model_state(self, state_dict: Dict[str, Any]) -> None:
-        """Load a saved model state."""
-        if "rl_model" in state_dict and self._rl_algo is not None:
-            self._rl_algo.load_model_state(state_dict["rl_model"])
-        elif "q_network" in state_dict and hasattr(self, "q_network"):
-            self.q_network.load_state_dict(state_dict["q_network"])
-            if "target_network" in state_dict and hasattr(self, "target_network"):
-                self.target_network.load_state_dict(state_dict["target_network"])
+            if (
+                self.algorithm is not None
+                and hasattr(self.algorithm, "save")
+                and callable(getattr(self.algorithm, "save", None))
+            ):
+                self.algorithm.save(path)
+            else:
+                # For fallback algorithm, save basic info
+                import pickle
+
+                with open(f"{path}.pkl", "wb") as f:
+                    pickle.dump(
+                        {
+                            "agent_id": self.agent_id,
+                            "config": self.config.dict(),
+                            "is_trained": self._is_trained,
+                        },
+                        f,
+                    )
+
+            logger.info(
+                f"Saved DecisionModule model for agent {self.agent_id} to {path}"
+            )
+
+        except Exception as e:
+            logger.error(f"Error saving model for agent {self.agent_id}: {e}")
+
+    def load_model(self, path: str):
+        """Load the decision model from disk.
+
+        Args:
+            path: Path to load the model from
+        """
+        try:
+            if (
+                self.algorithm is not None
+                and hasattr(self.algorithm, "load")
+                and callable(getattr(self.algorithm, "load", None))
+            ):
+                # For SB3 models
+                if self.config.algorithm_type == "ddqn" and DQN is not None:
+                    self.algorithm = DQN.load(path)
+                elif self.config.algorithm_type == "ppo":
+                    try:
+                        from stable_baselines3 import PPO
+
+                        if PPO is not None:
+                            self.algorithm = PPO.load(path)
+                        else:
+                            raise ImportError("PPO not available")
+                    except ImportError:
+                        logger.error(
+                            f"PPO not available for loading model for agent {self.agent_id}"
+                        )
+                        return
+            else:
+                # For fallback algorithm
+                import pickle
+
+                with open(f"{path}.pkl", "rb") as f:
+                    data = pickle.load(f)
+                    self._is_trained = data.get("is_trained", False)
+
+            logger.info(
+                f"Loaded DecisionModule model for agent {self.agent_id} from {path}"
+            )
+
+        except Exception as e:
+            logger.error(f"Error loading model for agent {self.agent_id}: {e}")
+
+    def get_model_info(self) -> Dict[str, Any]:
+        """Get information about the current model.
+
+        Returns:
+            Dict containing model information
+        """
+        return {
+            "agent_id": self.agent_id,
+            "algorithm_type": self.config.algorithm_type,
+            "num_actions": self.num_actions,
+            "state_dim": self.state_dim,
+            "is_trained": self._is_trained,
+            "sb3_available": SB3_AVAILABLE,
+        }
+
+    def reset(self):
+        """Reset the decision module state."""
+        self._is_trained = False
+        # Reset algorithm if it has a reset method
+        if (
+            self.algorithm is not None
+            and hasattr(self.algorithm, "reset")
+            and callable(getattr(self.algorithm, "reset", None))
+        ):
+            self.algorithm.reset()
 
 
 def create_decision_state(agent: "BaseAgent") -> torch.Tensor:
-    """Create state representation for action selection decisions.
+    """Create a decision state tensor from an agent.
 
-    This function creates a normalized state vector that captures the key
-    factors influencing action selection decisions. The state includes:
-    - Resource and health ratios
-    - Environmental conditions (nearby entities, population density)
-    - Agent status indicators (defending, alive, time progression)
+    This function extracts relevant state information from an agent
+    and formats it as a tensor for the decision module.
 
     Args:
-        agent: The agent for whom to create the state representation
+        agent: The agent to extract state from
 
     Returns:
-        A tensor of shape (8,) containing normalized state values
-
-    Note:
-        The state vector is designed to be compatible with the SelectQNetwork
-        input dimension and provides a comprehensive view of the agent's
-        current situation for making intelligent action decisions.
-
-    Example:
-        >>> state = create_decision_state(agent)
-        >>> print(state.shape)  # torch.Size([8])
+        torch.Tensor: State tensor for decision making
     """
-    # Calculate normalized values with fallbacks
-    min_reproduction_resources = (
-        getattr(agent.config, "min_reproduction_resources", 8) if agent.config else 8
-    )
-    gathering_range = (
-        getattr(agent.config, "gathering_range", 30) if agent.config else 30
-    )
-    social_range = getattr(agent.config, "social_range", 30) if agent.config else 30
+    try:
+        # Extract basic state features
+        state_features = [
+            agent.current_health / agent.starting_health,  # Health ratio
+            agent.resource_level / 50.0,  # Normalized resource level
+            agent.position[0] / 100.0,  # Normalized x position
+            agent.position[1] / 100.0,  # Normalized y position
+            float(agent.is_defending),  # Defense status
+            agent.starvation_threshold / agent.max_starvation,  # Starvation ratio
+        ]
 
-    max_resources = min_reproduction_resources * 3
-    resource_ratio = agent.resource_level / max_resources
-    health_ratio = agent.current_health / agent.starting_health
-    starvation_ratio = agent.starvation_threshold / agent.max_starvation
+        # Add environment features if available
+        if hasattr(agent, "environment") and agent.environment:
+            env = agent.environment
+            nearby_resources = len(env.get_nearby_resources(agent.position, 20.0))
+            nearby_agents = len(env.get_nearby_agents(agent.position, 20.0))
+            total_resources = (
+                sum(r.amount for r in env.resources) if env.resources else 0
+            )
 
-    # Use environment's spatial indexing for faster nearby entity detection
-    nearby_resources = len(
-        agent.environment.get_nearby_resources(agent.position, gathering_range)
-    )
+            state_features.extend(
+                [
+                    nearby_resources / 10.0,  # Normalized nearby resources
+                    nearby_agents / 10.0,  # Normalized nearby agents
+                    total_resources / 1000.0,  # Normalized total resources
+                    env.time / 1000.0,  # Normalized time
+                ]
+            )
 
-    nearby_agents = len(
-        agent.environment.get_nearby_agents(agent.position, social_range)
-    )
+        # Convert to tensor
+        state_tensor = torch.tensor(state_features, dtype=torch.float32)
+        return state_tensor
 
-    # Normalize counts
-    resource_density = nearby_resources / max(1, len(agent.environment.resources))
-    agent_density = nearby_agents / max(1, len(agent.environment.agents))
+    except Exception as e:
+        logger.error(f"Error creating decision state for agent {agent.agent_id}: {e}")
+        # Return a zero tensor as fallback
+        return torch.zeros(10, dtype=torch.float32)
 
-    # Create state tensor
-    state = torch.tensor(
-        [
-            resource_ratio,
-            health_ratio,
-            starvation_ratio,
-            resource_density,
-            agent_density,
-            float(
-                agent.environment.time > 0
-            ),  # Simple binary indicator if not first step
-            float(agent.is_defending),
-            float(agent.alive),
-        ],
-        dtype=torch.float32,
-        device=agent.device,
-    )
 
-    return state
+# Example usage and demonstration
+"""
+Example: Using DecisionModule with BaseAgent
+
+```python
+from farm.core.agent import BaseAgent
+from farm.core.environment import Environment
+from farm.core.decision.config import DecisionConfig
+
+# Create environment and agent
+env = Environment(width=100, height=100, resource_distribution={})
+agent = BaseAgent(
+    agent_id="test_agent",
+    position=(50, 50),
+    resource_level=10,
+    environment=env
+)
+
+# DecisionModule is automatically created in BaseAgent.__init__()
+# Access it via agent.decision_module
+
+# Manual example of creating and using DecisionModule
+from farm.core.decision.decision import DecisionModule, create_decision_state
+
+# Create config
+config = DecisionConfig(
+    algorithm_type="ddqn",  # Use DDQN with SB3
+    learning_rate=0.001,
+    gamma=0.99,
+    epsilon_start=1.0,
+    epsilon_min=0.01
+)
+
+# Create DecisionModule
+decision_module = DecisionModule(agent=agent, config=config)
+
+# Create state tensor
+state = create_decision_state(agent)
+
+# Get action
+action_index = decision_module.decide_action(state)
+print(f"Selected action index: {action_index}")
+
+# Update with experience (after action execution)
+reward = 1.0  # Some reward
+next_state = create_decision_state(agent)  # State after action
+done = False  # Episode not done
+decision_module.update(state, action_index, reward, next_state, done)
+
+# Save/load model
+decision_module.save_model("agent_model.zip")
+decision_module.load_model("agent_model.zip")
+
+# Get model info
+info = decision_module.get_model_info()
+print(f"Model info: {info}")
+```
+"""

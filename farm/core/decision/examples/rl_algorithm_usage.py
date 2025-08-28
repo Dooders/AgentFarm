@@ -39,10 +39,14 @@ def example_basic_rl_usage():
         },
     )
 
+    # Create mock agent
+    from farm.core.agent import BaseAgent
+
+    mock_agent = BaseAgent.__new__(BaseAgent)
+    mock_agent.agent_id = "test"
+
     # Create SelectModule with PPO
-    select_module = DecisionModule(
-        num_actions=6, config=config  # DEFEND, ATTACK, GATHER, SHARE, MOVE, REPRODUCE
-    )
+    select_module = DecisionModule(agent=mock_agent, config=config)
 
     # Create a sample state
     state = torch.randn(8)
@@ -58,7 +62,7 @@ def example_basic_rl_usage():
         next_state = torch.randn(8)
         done = i == 9
 
-        select_module.store_experience(state, action, reward, next_state, done)
+        select_module.update(state, action, reward, next_state, done)
 
     print("Stored 10 experiences for training")
 

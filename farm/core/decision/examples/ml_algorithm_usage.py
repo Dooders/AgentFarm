@@ -79,11 +79,17 @@ def example_basic_ml_usage():
         },
     ]
 
+    # Create mock agent once
+    from farm.core.agent import BaseAgent
+
+    mock_agent = BaseAgent.__new__(BaseAgent)
+    mock_agent.agent_id = "test"
+
     # Test each algorithm
     for example in configs:
         print(f"\n{example['name']}:")
         try:
-            select_module = DecisionModule(num_actions=6, config=example["config"])
+            select_module = DecisionModule(agent=mock_agent, config=example["config"])
             print(
                 f"  ✅ Successfully created SelectModule with {example['config'].algorithm_type}"
             )
@@ -91,19 +97,7 @@ def example_basic_ml_usage():
             # Test with sample data
             sample_state = torch.randn(8)
 
-            # Create minimal mock objects
-            from farm.core.action import Action
-            from farm.core.agent import BaseAgent
-
-            mock_agent = BaseAgent.__new__(BaseAgent)
-            mock_agent.agent_id = "test"
-            mock_actions = [
-                Action(f"action_{i}", 1.0, lambda a, **kwargs: None) for i in range(6)
-            ]
-
-            action = select_module.decide_action(
-                agent=mock_agent, actions=mock_actions, state=sample_state
-            )
+            action = select_module.decide_action(state=sample_state)
             print(f"  ✅ Selected action: {action}")
 
         except Exception as e:
