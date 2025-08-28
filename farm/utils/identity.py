@@ -2,13 +2,49 @@
 
 Provides a single API for generating, parsing, and validating identifiers
 across the codebase, with optional deterministic behavior.
+
+This module implements short ID generation directly without depending on
+the legacy ShortUUID class, centralizing all ID generation logic here.
 """
 
+import hashlib
+import math
+import uuid as _uu
 from dataclasses import dataclass
 from typing import NewType, Optional, Sequence, Tuple
-import hashlib
 
-from .short_id import ShortUUID
+# Default alphabet for short ID generation (same as ShortUUID)
+DEFAULT_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+
+def _int_to_string(number: int, alphabet: str, padding: Optional[int] = None) -> str:
+    """
+    Convert a number to a string, using the given alphabet.
+    The output has the most significant digit first.
+    """
+    output = ""
+    alpha_len = len(alphabet)
+    while number:
+        number, digit = divmod(number, alpha_len)
+        output += alphabet[digit]
+    if padding:
+        remainder = max(padding - len(output), 0)
+        output = output + alphabet[0] * remainder
+    return output[::-1]
+
+
+def _generate_short_uuid(alphabet: str, pad_length: Optional[int] = None) -> str:
+    """
+    Generate and return a short UUID using the given alphabet.
+    """
+    alpha_len = len(alphabet)
+    if pad_length is None:
+        # Calculate the necessary length to fit the entire UUID
+        pad_length = int(math.ceil(math.log(2**128, alpha_len)))
+
+    # Generate a random UUID and convert to int
+    u = _uu.uuid4()
+    return _int_to_string(u.int, alphabet, padding=pad_length)
 
 
 # Strongly-typed string aliases for clarity
@@ -27,7 +63,7 @@ class IdentityConfig:
     deterministic_seed: If provided, agent IDs generated sequentially via
         Identity.agent_id() will be deterministic and reproducible for the
         same seed and creation order.
-    alphabet: Optional custom alphabet for short IDs (forwarded to ShortUUID).
+    alphabet: Optional custom alphabet for short IDs.
     default_length: Default length for short IDs when truncating.
     """
 
@@ -46,14 +82,18 @@ class Identity:
 
     def __init__(self, config: Optional[IdentityConfig] = None) -> None:
         self.config = config or IdentityConfig()
-        self._short_uuid = ShortUUID(self.config.alphabet)
+        self._alphabet = (
+            self.config.alphabet
+            if self.config.alphabet is not None
+            else DEFAULT_ALPHABET
+        )
         self._agent_counter = 0
 
     # ----- Core helpers -----
     def short(self, length: Optional[int] = None) -> str:
         """Generate a short, random identifier with a default length."""
-        value = self._short_uuid.uuid()
         target_len = length if length is not None else self.config.default_length
+        value = _generate_short_uuid(self._alphabet, pad_length=target_len)
         return value[:target_len]
 
     def short_deterministic(self, key: str, length: Optional[int] = None) -> str:
@@ -62,8 +102,14 @@ class Identity:
         Uses BLAKE2b for stable, fast hashing. The same seed and key yield the
         same output; different seeds or keys produce different outputs.
         """
-        seed_str = "" if self.config.deterministic_seed is None else str(self.config.deterministic_seed)
-        digest = hashlib.blake2b(f"{seed_str}:{key}".encode("utf-8"), digest_size=16).hexdigest()
+        seed_str = (
+            ""
+            if self.config.deterministic_seed is None
+            else str(self.config.deterministic_seed)
+        )
+        digest = hashlib.blake2b(
+            f"{seed_str}:{key}".encode("utf-8"), digest_size=16
+        ).hexdigest()
         target_len = length if length is not None else self.config.default_length
         return digest[:target_len]
 
@@ -105,4 +151,3 @@ class Identity:
         """Parse an agent state id of the form '<agent_id>-<step_number>'."""
         agent_id, step_str = agent_state_id.rsplit("-", 1)
         return agent_id, int(step_str)
-
