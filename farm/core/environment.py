@@ -187,8 +187,7 @@ class Environment(AECEnv):
         # Setup database and get initialized database instance
         self.db = setup_db(db_path, self.simulation_id)
 
-        # id_generator removed; use self.identity for all ID needs
-        self.next_resource_id = 0
+        # Use self.identity for all ID needs
         self.max_resource = max_resource
         self.config = config
         self.resource_distribution = resource_distribution
@@ -312,20 +311,7 @@ class Environment(AECEnv):
         # Use spatial index for efficient O(log n) queries
         return self.spatial_index.get_nearest_resource(position)
 
-    def get_next_resource_id(self) -> int:
-        """Generate the next unique resource ID.
-
-        Returns a monotonically increasing integer ID for new resources
-        and increments the internal counter.
-
-        Returns
-        -------
-        int
-            Unique resource ID
-        """
-        resource_id = self.next_resource_id
-        self.next_resource_id += 1
-        return resource_id
+    # Resource IDs are managed by ResourceManager
 
     def consume_resource(self, resource: Any, amount: float) -> float:
         """Consume resources from a specific resource node.
@@ -372,8 +358,7 @@ class Environment(AECEnv):
         # Update environment's resource list to match ResourceManager
         self.resources = self.resource_manager.resources
 
-        # Update next_resource_id to match ResourceManager
-        self.next_resource_id = self.resource_manager.next_resource_id
+        # Resource IDs are fully managed by ResourceManager
 
     def remove_agent(self, agent: Any) -> None:
         """Remove an agent from the environment.
