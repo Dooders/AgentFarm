@@ -1,156 +1,176 @@
 
-# Actions Module
+# Decision Module Documentation
 
 ## Overview
 
-The `actions` module implements a hierarchical reinforcement learning system for agent behaviors in the AgentFarm simulation. The system follows the Options Framework where agents learn both high-level action selection and low-level action execution using Deep Q-Learning (DQN) with shared feature extraction.
+The decision module provides a flexible framework for agent action selection in the AgentFarm simulation. It supports both traditional machine learning (ML) algorithms and reinforcement learning (RL) algorithms through integration with Stable Baselines3. The module enables agents to make intelligent decisions based on their state and environment, with support for training, benchmarking, and easy algorithm switching.
 
-## Hierarchical Architecture
+Key features:
+- Unified interface for ML and RL algorithms
+- Experience replay and training mechanisms
+- Benchmarking and comparison tools
+- Flexible configuration system
+- Integration with agent and environment states
 
-### High-Level Policy (Select Module)
-- **Purpose**: Choose which action to execute
-- **Method**: DQN-based meta-controller
-- **Input**: Current situation and available actions
-- **Output**: Selected action type
+## Architecture
 
-### Low-Level Policies (Action Modules)
-- **Purpose**: Execute specific actions optimally
-- **Method**: DQN-based sub-policies
-- **Input**: Action-specific state representation
-- **Output**: Action parameters (direction, amount, etc.)
+### Core Components
+- **ActionAlgorithm**: Abstract base class for all algorithms, defining select_action, train, and predict_proba methods.
+- **AlgorithmRegistry**: Factory for creating algorithm instances by name.
+- **RLAlgorithm**: Extension for RL-specific methods like store_experience and train_on_batch.
+- **StableBaselinesWrapper**: Base wrapper for integrating Stable Baselines3 algorithms.
+- **FeatureEngineer**: Utility for extracting normalized features from agent and environment states.
+- **AlgorithmBenchmark**: Tool for comparing algorithm performance.
+- **DecisionModule**: High-level module that uses configured algorithms for action selection.
 
-## Shared Feature Extraction
-
-The system uses a `SharedEncoder` to extract common features across all modules:
-
-```python
-class SharedEncoder(nn.Module):
-    def __init__(self, input_dim: int, hidden_size: int):
-        super().__init__()
-        self.fc = nn.Linear(input_dim, hidden_size)
-    
-    def forward(self, x):
-        return F.relu(self.fc(x))  # Shared features
+### File Structure
+```
+farm/core/decision/
+├── algorithms/
+│   ├── base.py          # Core interface and registry
+│   ├── ensemble.py      # Tree-based and ensemble ML algorithms
+│   ├── mlp.py           # Neural network classifier
+│   ├── rl_base.py       # RL base classes
+│   ├── stable_baselines.py # Stable Baselines3 wrappers
+│   ├── svm.py           # Support vector machine
+│   └── benchmark.py     # Benchmarking utilities
+├── config.py            # Configuration classes
+├── decision.py          # Main decision module
+├── feature_engineering.py # State feature extraction
+├── training/            # Data collection and training utilities
+└── README.md            # This documentation
 ```
 
-**Benefits:**
-- Reduces parameter count across modules
-- Enables shared learning of common features
-- Improves training stability
-- Better computational efficiency
+## Available Algorithms
 
-## Components
+### Traditional ML Algorithms
+- **MLP** (Multi-Layer Perceptron): Neural network classifier
+- **SVM** (Support Vector Machine): Kernel-based classification
+- **Random Forest**: Ensemble of decision trees
+- **Gradient Boosting**: Sequential tree boosting (XGBoost/LightGBM)
+- **Naive Bayes**: Probabilistic classifier
+- **KNN** (K-Nearest Neighbors): Instance-based learning
 
-### Core Infrastructure
-- **`__init__.py`**: Exports main action functions for easy import
-- **`base_dqn.py`**: Provides base classes for DQN implementation with shared encoder support
-- **`action_space.md`**: Documents the action space design and philosophy
+### Reinforcement Learning Algorithms
+- **PPO** (Proximal Policy Optimization): Policy gradient method
+- **SAC** (Soft Actor-Critic): Entropy-regularized actor-critic
+- **A2C** (Advantage Actor-Critic): Synchronous actor-critic
+- **TD3** (Twin Delayed DDPG): Deterministic policy gradient
+- **DQN** (Deep Q-Network): Value-based RL (existing implementation)
 
-### Action Modules
-- **`attack action in core/action.py`**: Simple closest-agent combat (no DQN, spatial index)
-- **`gather.py`**: Manages resource collection with learning-based decisions
-- **`move.py`**: Controls agent movement and navigation with shared encoder
-- **`reproduce.py`**: **DQN-based** reproduction with population dynamics learning
-- **`select.py`**: High-level action selection policy
-- **`share.py`**: Manages cooperative resource sharing between agents
-
-## Curriculum Learning
-
-Actions are gradually enabled based on simulation progress:
-
-```python
-curriculum_phases = [
-    {"steps": 100, "enabled_actions": ["move", "gather"]},
-    {"steps": 200, "enabled_actions": ["move", "gather", "share", "attack"]},
-    {"steps": -1, "enabled_actions": ["move", "gather", "share", "attack", "reproduce"]}
-]
-```
-
-**Benefits:**
-- Easier training with reduced complexity
-- Stable learning progression
-- Progressive introduction of sophisticated behaviors
-
-## Unified Training
-
-The `BaseAgent` class implements centralized training for all modules:
-
-```python
-def train_all_modules(self):
-    """Unified training for all action modules."""
-    for module in [self.move_module, self.attack_module, self.share_module, 
-                   self.gather_module, self.select_module]:
-        if hasattr(module, 'train') and len(module.memory) >= module.config.batch_size:
-            batch = random.sample(module.memory, module.config.batch_size)
-            module.train(batch)
-```
-
-## Key Features
-
-- **Hierarchical Learning**: Separate policies for selection and execution
-- **Shared Feature Extraction**: Common encoder reduces computational overhead
-- **Curriculum Learning**: Progressive action enablement
-- **Unified Training**: Centralized learning across all modules
-- **State Representation**: Normalized state vectors for decision making
-- **Reward Systems**: Custom rewards encourage desired behaviors
-- **Configuration**: Extensible config classes for tuning behavior
-- **Logging**: Integration with simulation database for action tracking
+All algorithms implement probabilistic action selection for exploration.
 
 ## Usage
 
-Actions are typically called from the agent's decision loop:
-
+### Creating a Decision Module
 ```python
-from farm.actions import move_action, gather_action, reproduce_action
+from farm.core.decision import DecisionConfig, DecisionModule
+from farm.core.agent import BaseAgent  # Assuming agent class
 
-# In agent update method
-state = agent.get_state()
-if condition:
-    move_action(agent)
-elif other_condition:
-    gather_action(agent)
-else:
-    reproduce_action(agent)  # DQN-based
+# Create config for PPO
+config = DecisionConfig(
+    algorithm_type="ppo",
+    rl_state_dim=8,
+    algorithm_params={'learning_rate': 3e-4}
+)
+
+# Create mock agent
+agent = BaseAgent(agent_id="test_agent")  # Simplified
+
+# Create decision module
+decision = DecisionModule(agent=agent, config=config)
 ```
 
-For custom configurations with shared encoder:
-
+### Selecting Actions
 ```python
-from farm.actions.base_dqn import BaseDQNConfig, SharedEncoder
-from farm.actions.move import MoveModule
+# Create state tensor (example)
+state = torch.randn(8)  # Replace with actual state creation
 
-# Initialize shared encoder
-shared_encoder = SharedEncoder(input_dim=8, hidden_size=64)
-
-# Create module with shared encoder
-config = BaseDQNConfig(learning_rate=0.001)
-move_module = MoveModule(config, shared_encoder=shared_encoder)
+# Select action
+action_index = decision.decide_action(state)
 ```
 
-## Dependencies
+### Updating with Experience
+```python
+reward = 1.0
+next_state = torch.randn(8)
+done = False
 
-- PyTorch: For neural network implementation
-- NumPy: For numerical computations
-- farm.core: For base agent and environment classes
+decision.update(state, action_index, reward, next_state, done)
+```
 
-## Development Notes
+### Saving/Loading Models
+```python
+decision.save_model("agent_model.zip")
+decision.load_model("agent_model.zip")
+```
 
-- Each action module extends `BaseDQNModule` for consistent learning implementation
-- State spaces are action-specific but follow similar normalization patterns
-- Rewards are designed to promote balanced agent behaviors
-- Shared encoder reduces computational overhead across modules
-- Curriculum learning eases training complexity
+## Configuration
 
-For more details, see individual module docstrings and the documentation in `docs/`. 
+### Basic Configuration
+```python
+config = DecisionConfig(
+    algorithm_type="random_forest",  # Or 'ppo', 'svm', etc.
+    
+    # ML parameters (for traditional algorithms)
+    algorithm_params={
+        'n_estimators': 100,  # Random Forest specific
+        'random_state': 42
+    },
+    
+    # RL parameters (for RL algorithms)
+    rl_state_dim=8,
+    rl_buffer_size=10000,
+    rl_batch_size=32,
+    rl_train_freq=4
+)
+```
 
-## Adding New Actions
+See README_RL_INTEGRATION.md and README_ML_INTEGRATION.md for algorithm-specific parameters.
 
-To add a new action easily:
+## Benchmarking
 
-1. Create newaction.py in farm/actions/
+### Running Benchmarks
+```python
+from farm.core.decision.algorithms import AlgorithmBenchmark
 
-2. Define def newaction_action(agent): # implementation
+benchmark = AlgorithmBenchmark(
+    algorithms=[
+        ("ppo", {"learning_rate": 3e-4}),
+        ("random_forest", {"n_estimators": 50})
+    ],
+    num_actions=6,
+    state_dim=8,
+    num_episodes=100
+)
 
-3. At the end: from farm.core.action import action_registry; action_registry.register('newaction', 0.1, newaction_action)
+results = benchmark.run_benchmark()
+```
 
-That's it! It will be automatically included in agents' action sets. 
+### Analyzing Results
+```python
+from farm.core.decision.algorithms import AlgorithmComparison
+
+df = AlgorithmComparison.compare_results(results)
+best = AlgorithmComparison.find_best_algorithm(results)
+AlgorithmComparison.plot_comparison(results)
+```
+
+## Integration with AgentFarm
+
+The decision module integrates seamlessly with AgentFarm's agent system:
+- Use in BaseAgent's decision loop
+- Automatic state creation from agent/environment
+- Supports curriculum learning
+- Compatible with existing DQN implementations
+
+For complete examples, see examples/rl_algorithm_usage.py and examples/ml_algorithm_usage.py.
+
+## Future Extensions
+- Additional RL algorithms (e.g., Rainbow DQN)
+- Hybrid ML+RL approaches
+- Advanced feature engineering
+- Multi-agent coordination
+- Transfer learning support
+
+For issues or contributions, see CONTRIBUTING.md. 
