@@ -25,21 +25,17 @@ from typing import TYPE_CHECKING, List, Optional
 import numpy as np
 import torch
 
-from farm.utils.config_utils import get_config_value
-
+from farm.actions.algorithms.base import ActionAlgorithm, AlgorithmRegistry
 from farm.actions.base_dqn import BaseDQNModule, BaseQNetwork, SharedEncoder
-from farm.actions.config import SelectConfig, DEFAULT_SELECT_CONFIG
-from farm.core.action import Action
+from farm.actions.config import DEFAULT_SELECT_CONFIG, SelectConfig
 from farm.actions.feature_engineering import FeatureEngineer
-from farm.actions.algorithms.base import AlgorithmRegistry, ActionAlgorithm
+from farm.core.action import Action
+from farm.utils.config_utils import get_config_value
 
 if TYPE_CHECKING:
     from farm.agents.base_agent import BaseAgent
 
 logger = logging.getLogger(__name__)
-
-
-
 
 
 class SelectQNetwork(BaseQNetwork):
@@ -55,8 +51,16 @@ class SelectQNetwork(BaseQNetwork):
         hidden_size: Size of hidden layers in the network
     """
 
-    def __init__(self, input_dim: int, num_actions: int, hidden_size: int = 64, shared_encoder: Optional[SharedEncoder] = None) -> None:
-        super().__init__(input_dim, num_actions, hidden_size, shared_encoder=shared_encoder)
+    def __init__(
+        self,
+        input_dim: int,
+        num_actions: int,
+        hidden_size: int = 64,
+        shared_encoder: Optional[SharedEncoder] = None,
+    ) -> None:
+        super().__init__(
+            input_dim, num_actions, hidden_size, shared_encoder=shared_encoder
+        )
 
 
 class SelectModule(BaseDQNModule):
@@ -105,16 +109,24 @@ class SelectModule(BaseDQNModule):
         if self._algo_name == "dqn":
             # Initialize Q-networks with shared encoder if provided
             self.q_network = SelectQNetwork(
-                input_dim=8, num_actions=num_actions, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
+                input_dim=8,
+                num_actions=num_actions,
+                hidden_size=config.dqn_hidden_size,
+                shared_encoder=shared_encoder,
             ).to(device)
             self.target_network = SelectQNetwork(
-                input_dim=8, num_actions=num_actions, hidden_size=config.dqn_hidden_size, shared_encoder=shared_encoder
+                input_dim=8,
+                num_actions=num_actions,
+                hidden_size=config.dqn_hidden_size,
+                shared_encoder=shared_encoder,
             ).to(device)
             self.target_network.load_state_dict(self.q_network.state_dict())
         else:
             # Initialize traditional ML algorithm
             params = getattr(config, "algorithm_params", {}) or {}
-            self._ml_algo = AlgorithmRegistry.create(self._algo_name, num_actions=num_actions, **params)
+            self._ml_algo = AlgorithmRegistry.create(
+                self._algo_name, num_actions=num_actions, **params
+            )
             self._feature_engineer = FeatureEngineer()
 
     def select_action(
@@ -162,7 +174,7 @@ class SelectModule(BaseDQNModule):
 
             # Optional exploration bonus
             if getattr(self.config, "use_exploration_bonus", True):
-                ml_probs = (ml_probs + (self.epsilon / max(1, len(ml_probs))))
+                ml_probs = ml_probs + (self.epsilon / len(ml_probs))
                 ml_probs = ml_probs / ml_probs.sum()
 
             # Blend ML probabilities with adjusted rule-based probabilities
