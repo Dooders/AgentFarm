@@ -10,7 +10,6 @@ import shutil
 import sqlite3
 import tempfile
 import time
-from farm.utils.identity import Identity
 from typing import Any, Dict, Optional
 
 from benchmarks.base.benchmark import Benchmark
@@ -18,6 +17,10 @@ from farm.core.config import SimulationConfig
 from farm.core.simulation import run_simulation
 from farm.database import InMemorySimulationDatabase, SimulationDatabase
 from farm.database.pragma_docs import PRAGMA_PROFILES, get_pragma_profile
+from farm.utils.identity import Identity
+
+# Shared Identity instance for efficiency
+_shared_identity = Identity()
 
 
 class PragmaProfileBenchmark(Benchmark):
@@ -79,7 +82,7 @@ class PragmaProfileBenchmark(Benchmark):
         self.open_connections = []
 
         # Generate a unique run ID for this benchmark run
-        self.run_id = Identity().run_id(8)
+        self.run_id = _shared_identity.run_id(8)
 
     def setup(self) -> None:
         """

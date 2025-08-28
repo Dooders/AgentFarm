@@ -24,11 +24,15 @@ import json
 import logging
 import os
 import sqlite3
-from farm.utils.identity import Identity
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from jinja2 import Environment, FileSystemLoader
+
+from farm.utils.identity import Identity
+
+# Shared Identity instance for efficiency
+_shared_identity = Identity()
 
 # Add logging configuration at the module level
 logging.basicConfig(
@@ -148,7 +152,7 @@ class ExperimentTracker:
 
         try:
             # Generate unique ID and timestamp
-            experiment_id = Identity().experiment_id()
+            experiment_id = _shared_identity.experiment_id()
             timestamp = datetime.now(timezone.utc).isoformat()
 
             # Store experiment metadata

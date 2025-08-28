@@ -16,6 +16,9 @@ from farm.core.config import SimulationConfig
 from farm.core.environment import Environment
 from farm.utils.identity import Identity
 
+# Shared Identity instance for efficiency
+_shared_identity = Identity()
+
 
 def setup_logging(log_dir: str = "logs") -> None:
     """
@@ -173,6 +176,7 @@ def run_simulation(
     save_config: bool = True,
     seed: Optional[int] = None,
     simulation_id: Optional[str] = None,
+    identity: Optional[Identity] = None,
 ) -> Environment:
     """
     Run the main simulation loop.
@@ -191,6 +195,8 @@ def run_simulation(
         Random seed for reproducibility, by default None
     simulation_id : Optional[str], optional
         Unique ID for this simulation run. If None, one will be generated.
+    identity : Optional[Identity], optional
+        Identity service instance for ID generation. If None, uses shared instance.
 
     Returns
     -------
@@ -199,7 +205,8 @@ def run_simulation(
     """
     # Generate simulation_id if not provided
     if simulation_id is None:
-        simulation_id = str(Identity().simulation_id())
+        identity_service = identity if identity is not None else _shared_identity
+        simulation_id = str(identity_service.simulation_id())
 
     # Set seed for reproducibility if provided
     if seed is not None:
