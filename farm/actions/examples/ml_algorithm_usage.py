@@ -258,7 +258,7 @@ def example_feature_engineering():
     ]
 
     for name, value in zip(feature_names, features):
-        print(".4f")
+        print(f"{name}: {value:.4f}")
 
 
 def example_hybrid_approach():

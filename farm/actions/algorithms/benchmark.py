@@ -176,7 +176,9 @@ class AlgorithmBenchmark:
             np.mean(result.episode_rewards[-10:])
         )  # Average of last 10 episodes
 
-        logger.info(".2f")
+        logger.info(
+            f"Completed {algorithm_name} benchmark with final score: {result.final_score:.2f}"
+        )
 
         return result
 
