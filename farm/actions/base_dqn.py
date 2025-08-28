@@ -49,8 +49,8 @@ from typing import TYPE_CHECKING, Any, Deque, Optional
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
+import torch.optim as optim
 
 from .config import BaseDQNConfig
 
@@ -74,11 +74,14 @@ class SharedEncoder(nn.Module):
         hidden_size (int): Hidden layer size
         fc (nn.Linear): Fully connected layer for common features
     """
+
     def __init__(self, input_dim: int, hidden_size: int):
         super().__init__()
         self.input_dim = input_dim
         self.hidden_size = hidden_size
-        self.fc = nn.Linear(input_dim, hidden_size)  # Shared layer for common features like position/health
+        self.fc = nn.Linear(
+            input_dim, hidden_size
+        )  # Shared layer for common features like position/health
 
     def forward(self, x):
         return F.relu(self.fc(x))  # Shared features
@@ -107,9 +110,15 @@ class BaseQNetwork(nn.Module):
         q_network = BaseQNetwork(input_dim=8, output_dim=4, hidden_size=64, shared_encoder=shared_encoder)
     """
 
-    def __init__(self, input_dim: int, output_dim: int, hidden_size: int = 64, shared_encoder: Optional[SharedEncoder] = None) -> None:
+    def __init__(
+        self,
+        input_dim: int,
+        output_dim: int,
+        hidden_size: int = 64,
+        shared_encoder: Optional[SharedEncoder] = None,
+    ) -> None:
         """Initialize the Q-network.
-        
+
         If a shared encoder is provided, the input dimension is reduced to the hidden size.
         Otherwise, the input dimension is used directly.
 
@@ -163,8 +172,8 @@ class BaseQNetwork(nn.Module):
             x = self.shared_encoder(x)
         # Ensure deterministic behavior during inference by disabling dropout
         training_state = self.training
+        self.eval()
         try:
-            self.eval()
             if x.dim() == 1:
                 x = x.unsqueeze(0)
                 result = self.network(x)
