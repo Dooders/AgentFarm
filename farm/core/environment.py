@@ -42,7 +42,7 @@ from farm.core.resource_manager import ResourceManager
 from farm.core.spatial_index import SpatialIndex
 from farm.core.state import EnvironmentState
 from farm.database.utilities import setup_db
-from farm.utils.short_id import ShortUUID
+from farm.utils.identity import Identity, IdentityConfig
 
 
 class Action(IntEnum):
@@ -176,14 +176,18 @@ class Environment(AECEnv):
         self.resources = []
         self.time = 0
 
+        # Initialize identity service (deterministic if seed provided)
+        self.identity = Identity(
+            IdentityConfig(deterministic_seed=self.seed_value)
+        )
+
         # Store simulation ID
-        self.simulation_id = simulation_id or ShortUUID().uuid()
+        self.simulation_id = simulation_id or self.identity.simulation_id()
 
         # Setup database and get initialized database instance
         self.db = setup_db(db_path, self.simulation_id)
 
-        self.id_generator = ShortUUID()
-        self.next_resource_id = 0
+        # Use self.identity for all ID needs
         self.max_resource = max_resource
         self.config = config
         self.resource_distribution = resource_distribution
@@ -307,20 +311,7 @@ class Environment(AECEnv):
         # Use spatial index for efficient O(log n) queries
         return self.spatial_index.get_nearest_resource(position)
 
-    def get_next_resource_id(self) -> int:
-        """Generate the next unique resource ID.
-
-        Returns a monotonically increasing integer ID for new resources
-        and increments the internal counter.
-
-        Returns
-        -------
-        int
-            Unique resource ID
-        """
-        resource_id = self.next_resource_id
-        self.next_resource_id += 1
-        return resource_id
+    # Resource IDs are managed by ResourceManager
 
     def consume_resource(self, resource: Any, amount: float) -> float:
         """Consume resources from a specific resource node.
@@ -367,8 +358,7 @@ class Environment(AECEnv):
         # Update environment's resource list to match ResourceManager
         self.resources = self.resource_manager.resources
 
-        # Update next_resource_id to match ResourceManager
-        self.next_resource_id = self.resource_manager.next_resource_id
+        # Resource IDs are fully managed by ResourceManager
 
     def remove_agent(self, agent: Any) -> None:
         """Remove an agent from the environment.
@@ -550,25 +540,8 @@ class Environment(AECEnv):
         str
             A unique short ID string
         """
-        if hasattr(self, "seed_value") and self.seed_value is not None:
-            # For deterministic mode, create IDs based on a counter
-            if not hasattr(self, "agent_id_counter"):
-                self.agent_id_counter = 0
-
-            # Use agent counter and seed to create a deterministic ID
-            agent_seed = f"{self.seed_value}_{self.agent_id_counter}"
-            # Increment counter for next agent
-            self.agent_id_counter += 1
-
-            # Use a deterministic hash function
-            import hashlib
-
-            # Create a hash and use the first 10 characters
-            agent_hash = hashlib.md5(agent_seed.encode()).hexdigest()[:10]
-            return f"agent_{agent_hash}"
-        else:
-            # Non-deterministic mode uses random short ID
-            return self.id_generator.id()
+        # Delegate to identity service (respects deterministic seed if set)
+        return self.identity.agent_id()
 
     def get_state(self) -> EnvironmentState:
         """Get current environment state."""
