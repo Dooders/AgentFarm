@@ -95,29 +95,7 @@ class BaseAgent:
         )
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.previous_state: AgentState | None = None
-        self.previous_action = None
-        self.max_movement = (
-            getattr(self.config, "max_movement", 8) if self.config else 8
-        )  # Default value
-        self.total_reward = 0.0
-        self.episode_rewards = []
-        self.losses = []
-        self.starvation_threshold = (
-            getattr(self.config, "starvation_threshold", 10) if self.config else 10
-        )
-        self.max_starvation = (
-            getattr(self.config, "max_starvation_time", 100) if self.config else 100
-        )
-        self.birth_time = self.time_service.current_time() if self.time_service else 0
-
-        # Initialize health tracking first
-        self.starting_health = (
-            getattr(self.config, "starting_health", 100) if self.config else 100
-        )
-        self.current_health = self.starting_health
-        self.is_defending = False
-        self.defense_timer = 0
+        self._initialize_agent_state()
 
         # Generate genome info
         self.generation = generation
@@ -156,6 +134,32 @@ class BaseAgent:
 
         if self.metrics_service:
             self.metrics_service.record_birth()
+
+    def _initialize_agent_state(self) -> None:
+        """Initialize agent state variables and configuration."""
+        self.previous_state: AgentState | None = None
+        self.previous_action = None
+        self.max_movement = (
+            getattr(self.config, "max_movement", 8) if self.config else 8
+        )  # Default value
+        self.total_reward = 0.0
+        self.episode_rewards = []
+        self.losses = []
+        self.starvation_threshold = (
+            getattr(self.config, "starvation_threshold", 10) if self.config else 10
+        )
+        self.max_starvation = (
+            getattr(self.config, "max_starvation_time", 100) if self.config else 100
+        )
+        self.birth_time = self.time_service.current_time() if self.time_service else 0
+
+        # Initialize health tracking first
+        self.starting_health = (
+            getattr(self.config, "starting_health", 100) if self.config else 100
+        )
+        self.current_health = self.starting_health
+        self.is_defending = False
+        self.defense_timer = 0
 
     def _initialize_services(
         self,
