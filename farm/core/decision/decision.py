@@ -123,10 +123,10 @@ class DecisionModule:
             int: Number of possible actions
         """
         try:
-            # Get action space from environment
-            if hasattr(self.agent.environment, "action_space"):
-                action_space = self.agent.environment.action_space
-                # If it's a callable (like a function), call it to get the actual space
+            # Prefer environment action space if available on the agent
+            env = getattr(self.agent, "environment", None)
+            if env is not None and hasattr(env, "action_space"):
+                action_space = env.action_space
                 if callable(action_space):
                     action_space = action_space()
                 if hasattr(action_space, "n"):

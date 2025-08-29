@@ -24,6 +24,11 @@ class ISpatialQueryService(ABC):
         """Find the nearest resource to a position if any exist."""
         pass
 
+    @abstractmethod
+    def mark_positions_dirty(self) -> None:
+        """Mark spatial structures as needing an update after position changes."""
+        pass
+
 
 class IValidationService(ABC):
     """Interface for common validation checks related to the environment."""

@@ -85,9 +85,9 @@ def log_interaction_safely(agent: "BaseAgent", **kwargs) -> None:
         **kwargs: Arguments to pass to log_interaction_edge
     """
     try:
-        agent.environment.log_interaction_edge(**kwargs)
+        if hasattr(agent, "logging_service") and agent.logging_service:
+            agent.logging_service.log_interaction_edge(**kwargs)
     except Exception:
-        # Some environments may not have logging infrastructure
         pass
 
 
@@ -248,7 +248,7 @@ def attack_action(agent: "BaseAgent") -> None:
     attack_range = getattr(agent.config, "attack_range", 20.0)
 
     # Find nearby agents using spatial index
-    nearby_agents = agent.environment.get_nearby_agents(agent.position, attack_range)
+    nearby_agents = agent.spatial_service.get_nearby_agents(agent.position, attack_range)
 
     # Filter out self and find valid targets
     valid_targets = [
@@ -292,12 +292,11 @@ def attack_action(agent: "BaseAgent") -> None:
     actual_damage = closest_target.take_damage(base_damage)
 
     # Update combat statistics
-    if actual_damage > 0:
+    if actual_damage > 0 and hasattr(agent, "metrics_service") and agent.metrics_service:
         try:
-            agent.environment.record_combat_encounter()
-            agent.environment.record_successful_attack()
+            agent.metrics_service.record_combat_encounter()
+            agent.metrics_service.record_successful_attack()
         except Exception:
-            # Some test environments may not implement metrics tracking
             pass
 
     # Log the attack interaction using helper function
@@ -339,9 +338,7 @@ def gather_action(agent: "BaseAgent") -> None:
     gathering_range = getattr(agent.config, "gathering_range", 30)
 
     # Find nearby resources using spatial index
-    nearby_resources = agent.environment.get_nearby_resources(
-        agent.position, gathering_range
-    )
+    nearby_resources = agent.spatial_service.get_nearby_resources(agent.position, gathering_range)
 
     # Filter out depleted resources
     available_resources = [
@@ -441,7 +438,7 @@ def share_action(agent: "BaseAgent") -> None:
     share_range = getattr(agent.config, "share_range", 30)
 
     # Find nearby agents using spatial index
-    nearby_agents = agent.environment.get_nearby_agents(agent.position, share_range)
+    nearby_agents = agent.spatial_service.get_nearby_agents(agent.position, share_range)
 
     # Filter out self and find valid targets
     valid_targets = [
@@ -478,11 +475,11 @@ def share_action(agent: "BaseAgent") -> None:
     agent.total_reward += reward
 
     # Update environment's resources_shared counter
-    try:
-        agent.environment.record_resources_shared(share_amount)
-    except Exception:
-        # Some environments may not implement metrics tracking
-        pass
+    if hasattr(agent, "metrics_service") and agent.metrics_service:
+        try:
+            agent.metrics_service.record_resources_shared(share_amount)
+        except Exception:
+            pass
 
     # Log the share interaction using helper function
     log_interaction_safely(
@@ -538,14 +535,18 @@ def move_action(agent: "BaseAgent") -> None:
     new_y = agent.position[1] + dy * move_distance
 
     # Ensure position stays within environment bounds
-    if hasattr(agent.environment, "width") and hasattr(agent.environment, "height"):
-        new_x = max(0, min(agent.environment.width - 1, new_x))
-        new_y = max(0, min(agent.environment.height - 1, new_y))
+    # Bound by config width/height if provided
+    if hasattr(agent, "config") and agent.config:
+        env_width = getattr(agent.config, "width", None)
+        env_height = getattr(agent.config, "height", None)
+        if env_width is not None and env_height is not None:
+            new_x = max(0, min(env_width - 1, new_x))
+            new_y = max(0, min(env_height - 1, new_y))
 
     new_position = (new_x, new_y)
 
     # Check if the new position is valid
-    if agent.environment.is_valid_position(new_position):
+    if hasattr(agent, "validation_service") and agent.validation_service and agent.validation_service.is_valid_position(new_position):
         # Move the agent
         agent.update_position(new_position)
         logger.debug(

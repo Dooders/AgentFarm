@@ -8,6 +8,22 @@ import torch
 from farm.core.action import *
 from farm.core.decision.config import DecisionConfig
 from farm.core.decision.decision import DecisionModule, create_decision_state
+from farm.core.services.interfaces import (
+    IAgentLifecycleService,
+    ILoggingService,
+    IMetricsService,
+    ISpatialQueryService,
+    ITimeService,
+    IValidationService,
+)
+from farm.core.services.implementations import (
+    EnvironmentAgentLifecycleService,
+    EnvironmentLoggingService,
+    EnvironmentMetricsService,
+    EnvironmentSpatialQueryService,
+    EnvironmentTimeService,
+    EnvironmentValidationService,
+)
 from farm.core.genome import Genome
 from farm.core.perception import PerceptionData
 from farm.core.state import AgentState
@@ -47,7 +63,15 @@ class BaseAgent:
         agent_id: str,
         position: tuple[float, float],
         resource_level: int,
-        environment: "Environment",
+        environment: "Environment" | None = None,
+        *,
+        spatial_service: ISpatialQueryService | None = None,
+        metrics_service: IMetricsService | None = None,
+        logging_service: ILoggingService | None = None,
+        validation_service: IValidationService | None = None,
+        time_service: ITimeService | None = None,
+        lifecycle_service: IAgentLifecycleService | None = None,
+        config: object | None = None,
         action_set: list[Action] = [],
         parent_ids: list[str] = [],
         generation: int = 0,
@@ -67,8 +91,23 @@ class BaseAgent:
         self.position = position
         self.resource_level = resource_level
         self.alive = True
-        self.environment = environment
-        self.config = environment.config
+        # Derive services from environment if provided and not explicitly passed
+        if environment is not None:
+            spatial_service = spatial_service or EnvironmentSpatialQueryService(environment)
+            metrics_service = metrics_service or EnvironmentMetricsService(environment)
+            logging_service = logging_service or EnvironmentLoggingService(environment)
+            validation_service = validation_service or EnvironmentValidationService(environment)
+            time_service = time_service or EnvironmentTimeService(environment)
+            lifecycle_service = lifecycle_service or EnvironmentAgentLifecycleService(environment)
+            config = config or getattr(environment, "config", None)
+
+        self.spatial_service = spatial_service
+        self.metrics_service = metrics_service
+        self.logging_service = logging_service
+        self.validation_service = validation_service
+        self.time_service = time_service
+        self.lifecycle_service = lifecycle_service
+        self.config = config
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.previous_state: AgentState | None = None
@@ -83,7 +122,7 @@ class BaseAgent:
             self.config.starvation_threshold if self.config else 10
         )
         self.max_starvation = self.config.max_starvation_time if self.config else 100
-        self.birth_time = environment.time
+        self.birth_time = self.time_service.current_time() if self.time_service else 0
 
         # Initialize health tracking first
         self.starting_health = self.config.starting_health if self.config else 100
@@ -116,8 +155,8 @@ class BaseAgent:
         if use_memory:
             self._init_memory(memory_config)
 
-        # self.environment.batch_add_agents([self])
-        self.environment.record_birth()
+        if self.metrics_service:
+            self.metrics_service.record_birth()
 
         #! part of context manager, commented out for now
         # Context management
@@ -142,7 +181,7 @@ class BaseAgent:
             agent_type=self.__class__.__name__,
             generation=self.generation,
             parent_ids=parent_ids,
-            creation_time=self.environment.time,
+            creation_time=self.time_service.current_time() if self.time_service else 0,
         )
         return genome_id.to_string()
 
@@ -167,9 +206,17 @@ class BaseAgent:
         size = 2 * radius + 1
         perception = np.zeros((size, size), dtype=np.int8)
 
-        # Get nearby entities using environment's spatial indexing
-        nearby_resources = self.environment.get_nearby_resources(self.position, radius)
-        nearby_agents = self.environment.get_nearby_agents(self.position, radius)
+        # Get nearby entities using spatial service
+        nearby_resources = (
+            self.spatial_service.get_nearby_resources(self.position, radius)
+            if self.spatial_service
+            else []
+        )
+        nearby_agents = (
+            self.spatial_service.get_nearby_agents(self.position, radius)
+            if self.spatial_service
+            else []
+        )
 
         # Helper function to convert world coordinates to grid coordinates
         def world_to_grid(wx: float, wy: float) -> tuple[int, int]:
@@ -200,7 +247,7 @@ class BaseAgent:
             for j in range(size):
                 world_x = x_min + j
                 world_y = y_min + i
-                if not self.environment.is_valid_position((world_x, world_y)):
+                if not (self.validation_service and self.validation_service.is_valid_position((world_x, world_y))):
                     perception[i, j] = 3
 
         return PerceptionData(perception)
@@ -223,7 +270,7 @@ class BaseAgent:
         """
         return AgentState(
             agent_id=self.agent_id,
-            step_number=self.environment.time,
+            step_number=self.time_service.current_time() if self.time_service else 0,
             position_x=self.position[0],
             position_y=self.position[1],
             position_z=self.position[2] if len(self.position) > 2 else 0,
@@ -231,7 +278,7 @@ class BaseAgent:
             current_health=self.current_health,
             is_defending=self.is_defending,
             total_reward=self.total_reward,
-            age=self.environment.time - self.birth_time,
+            age=(self.time_service.current_time() if self.time_service else 0) - self.birth_time,
         )
 
     def decide_action(self):
@@ -247,14 +294,13 @@ class BaseAgent:
             Action: Selected action object to execute
         """
         # Cache state tensor to avoid recreating it multiple times
-        if not hasattr(
-            self, "_cached_selection_state"
-        ) or self.environment.time != getattr(self, "_cached_selection_time", -1):
+        current_time = self.time_service.current_time() if self.time_service else -1
+        if not hasattr(self, "_cached_selection_state") or current_time != getattr(self, "_cached_selection_time", -1):
             self._cached_selection_state = create_decision_state(self)
-            self._cached_selection_time = self.environment.time
+            self._cached_selection_time = current_time
 
         # Get enabled actions based on curriculum phases if configured
-        current_step = self.environment.time
+        current_step = current_time if current_time != -1 else 0
         enabled_actions = self.actions  # Default all
         if self.config and hasattr(self.config, "curriculum_phases"):
             for phase in self.config.curriculum_phases:
@@ -429,12 +475,26 @@ class BaseAgent:
         """
         cloned_genome = Genome.clone(self.to_genome())
         mutated_genome = Genome.mutate(cloned_genome, mutation_rate=0.1)
-        return Genome.to_agent(
-            mutated_genome,
-            self.agent_id,
-            (int(self.position[0]), int(self.position[1])),
-            self.environment,
+        # Recreate using current config and services by manually constructing agent
+        # rather than delegating to Genome.to_agent (which expects environment)
+        action_set = [
+            Action(name, weight, globals()[f"{name}_action"]) for name, weight in mutated_genome["action_set"]
+        ]
+        new_agent = BaseAgent(
+            agent_id=self.agent_id,
+            position=(int(self.position[0]), int(self.position[1])),
+            resource_level=mutated_genome.get("resource_level", self.resource_level),
+            spatial_service=self.spatial_service,
+            metrics_service=self.metrics_service,
+            logging_service=self.logging_service,
+            validation_service=self.validation_service,
+            time_service=self.time_service,
+            lifecycle_service=self.lifecycle_service,
+            config=self.config,
+            action_set=action_set,
         )
+        new_agent.current_health = mutated_genome.get("current_health", self.current_health)
+        return new_agent
 
     def reproduce(self) -> bool:
         """Attempt reproduction. Returns True if successful."""
@@ -451,9 +511,9 @@ class BaseAgent:
             failure_reason = "Insufficient resources"
 
             # Record failed reproduction attempt
-            if self.environment.db:
-                self.environment.db.log_reproduction_event(
-                    step_number=self.environment.time,
+            if self.logging_service:
+                self.logging_service.log_reproduction_event(
+                    step_number=self.time_service.current_time() if self.time_service else 0,
                     parent_id=self.agent_id,
                     offspring_id="",  # Empty string for failed reproduction
                     success=False,
@@ -472,9 +532,9 @@ class BaseAgent:
             failure_reason = "Insufficient resources for offspring cost"
 
             # Record failed reproduction attempt
-            if self.environment.db:
-                self.environment.db.log_reproduction_event(
-                    step_number=self.environment.time,
+            if self.logging_service:
+                self.logging_service.log_reproduction_event(
+                    step_number=self.time_service.current_time() if self.time_service else 0,
                     parent_id=self.agent_id,
                     offspring_id="",  # Empty string for failed reproduction
                     success=False,
@@ -492,9 +552,9 @@ class BaseAgent:
         new_agent = self.create_offspring()
 
         # Record successful reproduction
-        if self.environment.db:
-            self.environment.db.log_reproduction_event(
-                step_number=self.environment.time,
+        if self.logging_service:
+            self.logging_service.log_reproduction_event(
+                step_number=self.time_service.current_time() if self.time_service else 0,
                 parent_id=self.agent_id,
                 offspring_id=new_agent.agent_id,
                 success=True,
@@ -510,7 +570,7 @@ class BaseAgent:
             )
 
         logger.info(
-            f"Agent {self.agent_id} reproduced at {self.position} during step {self.environment.time} creating agent {new_agent.agent_id}"
+            f"Agent {self.agent_id} reproduced at {self.position} during step {self.time_service.current_time() if self.time_service else 0} creating agent {new_agent.agent_id}"
         )
         return True
 
@@ -521,7 +581,7 @@ class BaseAgent:
 
         # Generate unique ID and genome info first
         #! need to update this since we are using strings now
-        new_id = self.environment.get_next_agent_id()
+        new_id = self.lifecycle_service.get_next_agent_id() if self.lifecycle_service else self.agent_id + "_child"
         generation = self.generation + 1
 
         # Create new agent with all info
@@ -531,19 +591,26 @@ class BaseAgent:
             resource_level=(
                 self.config.offspring_initial_resources if self.config else 10
             ),
-            environment=self.environment,
+            spatial_service=self.spatial_service,
+            metrics_service=self.metrics_service,
+            logging_service=self.logging_service,
+            validation_service=self.validation_service,
+            time_service=self.time_service,
+            lifecycle_service=self.lifecycle_service,
+            config=self.config,
             generation=generation,
         )
 
         # Add new agent to environment
-        self.environment.add_agent(new_agent)
+        if self.lifecycle_service:
+            self.lifecycle_service.add_agent(new_agent)
 
         # Subtract offspring cost from parent's resources
         self.resource_level -= self.config.offspring_cost if self.config else 5
 
         # Log creation
         logger.info(
-            f"Agent {new_id} created at {self.position} during step {self.environment.time} of type {agent_class.__name__}"
+            f"Agent {new_id} created at {self.position} during step {self.time_service.current_time() if self.time_service else 0} of type {agent_class.__name__}"
         )
 
         return new_agent
@@ -553,19 +620,21 @@ class BaseAgent:
 
         if self.alive:
             self.alive = False
-            self.death_time = self.environment.time
+            self.death_time = self.time_service.current_time() if self.time_service else 0
             # Record the death in environment
             # Log death in database
-            if self.environment.db:
-                self.environment.db.update_agent_death(self.agent_id, self.death_time)
+            if self.logging_service:
+                self.logging_service.update_agent_death(self.agent_id, self.death_time)
 
             logger.info(
-                f"Agent {self.agent_id} died at {self.position} during step {self.environment.time}"
+                f"Agent {self.agent_id} died at {self.position} during step {self.time_service.current_time() if self.time_service else 0}"
             )
-            self.environment.remove_agent(self)
+            if self.lifecycle_service:
+                self.lifecycle_service.remove_agent(self)
 
     def get_environment(self) -> "Environment":
-        return self._environment
+        # Deprecated: kept for backward compatibility in rare uses
+        raise AttributeError("BaseAgent no longer holds a direct environment reference; use injected services instead.")
 
     def set_environment(self, environment: "Environment") -> None:
         self._environment = environment
@@ -595,8 +664,14 @@ class BaseAgent:
         dy *= self.config.max_movement if self.config else 1
 
         # Calculate new position
-        new_x = max(0, min(self.environment.width, self.position[0] + dx))
-        new_y = max(0, min(self.environment.height, self.position[1] + dy))
+        env_width = getattr(self.config, "width", None)
+        env_height = getattr(self.config, "height", None)
+        if env_width is not None and env_height is not None:
+            new_x = max(0, min(env_width, self.position[0] + dx))
+            new_y = max(0, min(env_height, self.position[1] + dy))
+        else:
+            new_x = self.position[0] + dx
+            new_y = self.position[1] + dy
 
         return (new_x, new_y)
 
@@ -608,8 +683,9 @@ class BaseAgent:
         """
         if self.position != new_position:
             self.position = new_position
-            # Mark spatial index as dirty when position changes
-            self.environment.mark_positions_dirty()
+            # Mark spatial structures as dirty when position changes
+            if self.spatial_service:
+                self.spatial_service.mark_positions_dirty()
 
     def calculate_move_reward(self, old_pos, new_pos):
         """Calculate reward for a movement action.
@@ -637,13 +713,11 @@ class BaseAgent:
 
         if distance_moved > 0:
             # Find closest non-depleted resource
-            closest_resource = min(
-                [r for r in self.environment.resources if not r.is_depleted()],
-                key=lambda r: np.sqrt(
-                    (r.position[0] - new_pos[0]) ** 2
-                    + (r.position[1] - new_pos[1]) ** 2
-                ),
-                default=None,
+            # Use spatial service to get nearest resource
+            closest_resource = (
+                self.spatial_service.get_nearest_resource(new_pos)
+                if self.spatial_service
+                else None
             )
 
             if closest_resource:
@@ -830,7 +904,7 @@ class BaseAgent:
             # Create state representation
             current_state = AgentState(
                 agent_id=self.agent_id,
-                step_number=self.environment.time,
+                step_number=self.time_service.current_time() if self.time_service else 0,
                 position_x=self.position[0],
                 position_y=self.position[1],
                 position_z=self.position[2] if len(self.position) > 2 else 0,
@@ -838,7 +912,7 @@ class BaseAgent:
                 current_health=self.current_health,
                 is_defending=self.is_defending,
                 total_reward=self.total_reward,
-                age=self.environment.time - self.birth_time,
+                age=(self.time_service.current_time() if self.time_service else 0) - self.birth_time,
             )
 
             # Add default metadata if not provided
@@ -854,7 +928,7 @@ class BaseAgent:
 
             # Remember in Redis
             return self.memory.remember_state(
-                step=self.environment.time,
+                step=self.time_service.current_time() if self.time_service else 0,
                 state=current_state,
                 action=action_name,
                 reward=reward,

@@ -36,6 +36,14 @@ from farm.core.spatial_index import SpatialIndex
 from farm.core.state import EnvironmentState
 from farm.database.utilities import setup_db
 from farm.utils.identity import Identity, IdentityConfig
+from farm.core.services.implementations import (
+    EnvironmentAgentLifecycleService,
+    EnvironmentLoggingService,
+    EnvironmentMetricsService,
+    EnvironmentSpatialQueryService,
+    EnvironmentTimeService,
+    EnvironmentValidationService,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -645,6 +653,27 @@ class Environment(AECEnv):
         The agent data logged includes birth time, position, resources, health,
         genome information (if applicable), and action weights.
         """
+        # If the agent supports dependency injection, supply services and config
+        try:
+            # Provide services if the agent has the corresponding attributes
+            if hasattr(agent, "spatial_service") and agent.spatial_service is None:
+                agent.spatial_service = EnvironmentSpatialQueryService(self)
+            if hasattr(agent, "metrics_service") and agent.metrics_service is None:
+                agent.metrics_service = EnvironmentMetricsService(self)
+            if hasattr(agent, "logging_service") and agent.logging_service is None:
+                agent.logging_service = EnvironmentLoggingService(self)
+            if hasattr(agent, "validation_service") and agent.validation_service is None:
+                agent.validation_service = EnvironmentValidationService(self)
+            if hasattr(agent, "time_service") and agent.time_service is None:
+                agent.time_service = EnvironmentTimeService(self)
+            if hasattr(agent, "lifecycle_service") and agent.lifecycle_service is None:
+                agent.lifecycle_service = EnvironmentAgentLifecycleService(self)
+            if hasattr(agent, "config") and getattr(agent, "config", None) is None:
+                agent.config = self.config
+        except Exception:
+            # Agent may not support DI; ignore silently to maintain backward compatibility
+            pass
+
         agent_data = [
             {
                 "simulation_id": self.simulation_id,

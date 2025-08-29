@@ -23,6 +23,9 @@ class EnvironmentSpatialQueryService(ISpatialQueryService):
     def get_nearest_resource(self, position: Tuple[float, float]) -> Optional[Any]:
         return self._env.get_nearest_resource(position)
 
+    def mark_positions_dirty(self) -> None:
+        self._env.mark_positions_dirty()
+
 
 class EnvironmentValidationService(IValidationService):
     def __init__(self, environment: Any) -> None:
