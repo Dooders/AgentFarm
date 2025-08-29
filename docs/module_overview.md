@@ -186,7 +186,7 @@ env = Environment(
     obs_config=obs_config
 )
 
-# Add agents
+# Add agents (environment is accepted and services are auto-injected)
 for i in range(10):
     agent = BaseAgent(
         agent_id=f"agent_{i}",
