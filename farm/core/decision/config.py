@@ -215,6 +215,9 @@ class DecisionConfig(BaseDQNConfig):
             "sac",
             "a2c",
             "td3",
+            # Additional supported algorithms
+            "ddqn",  # Double DQN (alias for dqn with DDQN features)
+            "fallback",  # Fallback random algorithm
         ]
         if v not in valid:
             raise ValueError(f"Algorithm must be one of: {valid}")
@@ -263,6 +266,6 @@ def merge_configs(
     Returns:
         New configuration instance with merged values
     """
-    base_dict = base_config.dict()
+    base_dict = base_config.model_dump()
     base_dict.update(override_config)
     return type(base_config)(**base_dict)

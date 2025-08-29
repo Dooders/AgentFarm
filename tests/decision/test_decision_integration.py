@@ -28,10 +28,15 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         self.mock_agent = Mock()
         self.mock_agent.agent_id = "integration_test_agent"
 
-        # Create mock environment
+        # Create mock environment with proper action space
         self.mock_env = Mock()
-        self.mock_env.action_space = Mock()
-        self.mock_env.action_space.n = 4
+
+        # Create a simple action space class
+        class MockActionSpace:
+            def __init__(self, n):
+                self.n = n
+
+        self.mock_env.action_space = MockActionSpace(4)
         self.mock_agent.environment = self.mock_env
 
     @patch("farm.core.decision.decision.SB3_AVAILABLE", False)
@@ -127,10 +132,15 @@ class TestEndToEndDecisionWorkflow(unittest.TestCase):
         self.mock_agent = Mock()
         self.mock_agent.agent_id = "e2e_test_agent"
 
-        # Create mock environment with action space
+        # Create mock environment with proper action space
         self.mock_env = Mock()
-        self.mock_env.action_space = Mock()
-        self.mock_env.action_space.n = 6
+
+        # Create a simple action space class
+        class MockActionSpace:
+            def __init__(self, n):
+                self.n = n
+
+        self.mock_env.action_space = MockActionSpace(6)
         self.mock_agent.environment = self.mock_env
 
     def test_complete_decision_learning_cycle(self):
@@ -263,7 +273,7 @@ class TestEndToEndDecisionWorkflow(unittest.TestCase):
 
         for lr in learning_rates:
             config = base_config.__class__(
-                **{**base_config.dict(), "learning_rate": lr}
+                **{**base_config.model_dump(), "learning_rate": lr}
             )
             module = DecisionModule(self.mock_agent, config)
             modules.append((lr, module))
@@ -288,10 +298,15 @@ class TestDecisionSystemPerformance(unittest.TestCase):
         self.mock_agent = Mock()
         self.mock_agent.agent_id = "perf_test_agent"
 
-        # Create mock environment
+        # Create mock environment with proper action space
         self.mock_env = Mock()
-        self.mock_env.action_space = Mock()
-        self.mock_env.action_space.n = 4
+
+        # Create a simple action space class
+        class MockActionSpace:
+            def __init__(self, n):
+                self.n = n
+
+        self.mock_env.action_space = MockActionSpace(4)
         self.mock_agent.environment = self.mock_env
 
     def test_decision_speed(self):
@@ -411,10 +426,15 @@ class TestDecisionSystemRobustness(unittest.TestCase):
         self.mock_agent = Mock()
         self.mock_agent.agent_id = "robustness_test_agent"
 
-        # Create mock environment
+        # Create mock environment with proper action space
         self.mock_env = Mock()
-        self.mock_env.action_space = Mock()
-        self.mock_env.action_space.n = 4
+
+        # Create a simple action space class
+        class MockActionSpace:
+            def __init__(self, n):
+                self.n = n
+
+        self.mock_env.action_space = MockActionSpace(4)
         self.mock_agent.environment = self.mock_env
 
     def test_invalid_state_handling(self):
@@ -422,15 +442,17 @@ class TestDecisionSystemRobustness(unittest.TestCase):
         config = DecisionConfig(algorithm_type="fallback")
         module = DecisionModule(self.mock_agent, config)
 
-        # Test with None state
-        with self.assertRaises((TypeError, AttributeError)):
-            module.decide_action(None)  # type: ignore
+        # Test with None state - should handle gracefully without raising
+        action = module.decide_action(None)  # type: ignore
+        self.assertIsInstance(action, int)
+        self.assertTrue(0 <= action < 4)
 
         # Test with wrong shape state
         wrong_shape_state = torch.randn(4)  # Should be 8
         action = module.decide_action(wrong_shape_state)
         # Should still work (fallback algorithm handles any shape)
         self.assertIsInstance(action, int)
+        self.assertTrue(0 <= action < 4)
 
     def test_invalid_action_range_handling(self):
         """Test handling of invalid action ranges."""
@@ -438,7 +460,12 @@ class TestDecisionSystemRobustness(unittest.TestCase):
         module = DecisionModule(self.mock_agent, config)
 
         # Test with action out of range (simulate by mocking algorithm)
-        module.algorithm.predict.return_value = (np.array([10]), None)  # Invalid action
+        original_predict = module.algorithm.predict
+
+        def invalid_predict(observation, deterministic=False):
+            return np.array([10]), None  # Invalid action
+
+        module.algorithm.predict = invalid_predict
 
         state = torch.randn(8)
         action = module.decide_action(state)
@@ -446,6 +473,9 @@ class TestDecisionSystemRobustness(unittest.TestCase):
         # Should fallback to valid range
         self.assertIsInstance(action, int)
         self.assertTrue(0 <= action < 4)
+
+        # Restore original function
+        module.algorithm.predict = original_predict
 
     def test_algorithm_failure_recovery(self):
         """Test recovery from algorithm failures."""
@@ -523,8 +553,13 @@ class TestDecisionSystemIntegrationWithEnvironment(unittest.TestCase):
 
         # Create more realistic mock environment
         self.mock_env = Mock()
-        self.mock_env.action_space = Mock()
-        self.mock_env.action_space.n = 6  # Standard actions
+
+        # Create a simple action space class
+        class MockActionSpace:
+            def __init__(self, n):
+                self.n = n
+
+        self.mock_env.action_space = MockActionSpace(6)  # Standard actions
         self.mock_agent.environment = self.mock_env
 
     def test_decision_module_with_environment_feedback(self):

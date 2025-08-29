@@ -142,7 +142,7 @@ class TestBaseDQNConfig(unittest.TestCase):
     def test_dict_conversion(self):
         """Test conversion to dictionary."""
         config = BaseDQNConfig(learning_rate=0.002, seed=123)
-        config_dict = config.dict()
+        config_dict = config.model_dump()
 
         self.assertIsInstance(config_dict, dict)
         self.assertEqual(config_dict["learning_rate"], 0.002)

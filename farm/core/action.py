@@ -560,8 +560,8 @@ def move_action(agent: "BaseAgent") -> None:
         env_width = getattr(agent.config, "width", None)
         env_height = getattr(agent.config, "height", None)
         if env_width is not None and env_height is not None:
-            new_x = max(0, min(env_width - 1, new_x))
-            new_y = max(0, min(env_height - 1, new_y))
+            new_x = max(0, min(int(env_width) - 1, new_x))
+            new_y = max(0, min(int(env_height) - 1, new_y))
 
     new_position = (new_x, new_y)
 
