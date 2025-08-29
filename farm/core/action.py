@@ -1,12 +1,120 @@
 import logging
 import math
 from enum import IntEnum
-from typing import TYPE_CHECKING, Callable, List, Optional, Tuple
+from typing import TYPE_CHECKING, Callable, List
 
 if TYPE_CHECKING:
     from farm.core.agent import BaseAgent
 
 logger = logging.getLogger(__name__)
+
+
+# Helper Functions for Common Action Patterns
+
+
+def validate_agent_config(agent: "BaseAgent", action_name: str) -> bool:
+    """Validate that agent has a configuration. Logs error and returns False if missing.
+
+    Args:
+        agent: The agent to validate
+        action_name: Name of the action for logging purposes
+
+    Returns:
+        bool: True if config is valid, False otherwise
+    """
+    if agent.config is None:
+        logger.error(
+            f"Agent {agent.agent_id} has no config, skipping {action_name} action"
+        )
+        return False
+    return True
+
+
+def calculate_euclidean_distance(pos1: tuple, pos2: tuple) -> float:
+    """Calculate Euclidean distance between two positions.
+
+    Args:
+        pos1: First position as (x, y) tuple
+        pos2: Second position as (x, y) tuple
+
+    Returns:
+        float: Euclidean distance between positions
+    """
+    dx = pos2[0] - pos1[0]
+    dy = pos2[1] - pos1[1]
+    return math.sqrt(dx * dx + dy * dy)
+
+
+def find_closest_entity(
+    agent: "BaseAgent", entities: list, entity_type: str = "target"
+) -> tuple:
+    """Find the closest entity to the agent from a list of entities.
+
+    Args:
+        agent: The agent looking for closest entity
+        entities: List of entities with position attribute
+        entity_type: Type name for logging purposes
+
+    Returns:
+        tuple: (closest_entity, distance) or (None, inf) if no valid entities
+    """
+    if not entities:
+        return None, float("inf")
+
+    closest_entity = None
+    min_distance = float("inf")
+
+    for entity in entities:
+        distance = calculate_euclidean_distance(agent.position, entity.position)
+        if distance < min_distance:
+            min_distance = distance
+            closest_entity = entity
+
+    if closest_entity is None:
+        logger.debug(f"Agent {agent.agent_id} could not find a closest {entity_type}")
+        return None, float("inf")
+
+    return closest_entity, min_distance
+
+
+def log_interaction_safely(agent: "BaseAgent", **kwargs) -> None:
+    """Safely log an interaction edge, handling environments without logging infrastructure.
+
+    Args:
+        agent: The agent performing the action
+        **kwargs: Arguments to pass to log_interaction_edge
+    """
+    try:
+        agent.environment.log_interaction_edge(**kwargs)
+    except Exception:
+        # Some environments may not have logging infrastructure
+        pass
+
+
+def check_resource_requirement(
+    agent: "BaseAgent",
+    required_amount: float,
+    action_name: str,
+    requirement_type: str = "resources",
+) -> bool:
+    """Check if agent has sufficient resources for an action.
+
+    Args:
+        agent: The agent to check
+        required_amount: Minimum required resource level
+        action_name: Name of the action for logging
+        requirement_type: Type of requirement for logging
+
+    Returns:
+        bool: True if agent has sufficient resources, False otherwise
+    """
+    if agent.resource_level < required_amount:
+        logger.debug(
+            f"Agent {agent.agent_id} has insufficient {requirement_type} "
+            f"({agent.resource_level} < {required_amount}) for {action_name}"
+        )
+        return False
+    return True
 
 
 """Action management module for agent behaviors in a multi-agent environment.
@@ -133,8 +241,7 @@ def attack_action(agent: "BaseAgent") -> None:
     for efficient proximity queries.
     """
     # Validate agent configuration
-    if agent.config is None:
-        logger.error(f"Agent {agent.agent_id} has no config, skipping attack action")
+    if not validate_agent_config(agent, "attack"):
         return
 
     # Get attack range from config
@@ -156,22 +263,10 @@ def attack_action(agent: "BaseAgent") -> None:
         )
         return
 
-    # Find the closest target
-    closest_target = None
-    min_distance = float("inf")
-
-    for target in valid_targets:
-        # Calculate Euclidean distance
-        dx = target.position[0] - agent.position[0]
-        dy = target.position[1] - agent.position[1]
-        distance = math.sqrt(dx * dx + dy * dy)
-
-        if distance < min_distance:
-            min_distance = distance
-            closest_target = target
+    # Find the closest target using helper function
+    closest_target, min_distance = find_closest_entity(agent, valid_targets, "target")
 
     if closest_target is None:
-        logger.debug(f"Agent {agent.agent_id} could not find a closest target")
         return
 
     # Calculate attack direction towards the closest target
@@ -205,28 +300,25 @@ def attack_action(agent: "BaseAgent") -> None:
             # Some test environments may not implement metrics tracking
             pass
 
-    # Log the attack interaction
-    try:
-        agent.environment.log_interaction_edge(
-            source_type="agent",
-            source_id=agent.agent_id,
-            target_type="agent",
-            target_id=closest_target.agent_id,
-            interaction_type="attack" if actual_damage > 0 else "attack_failed",
-            action_type="attack",
-            details={
-                "success": actual_damage > 0,
-                "damage_dealt": actual_damage,
-                "distance": min_distance,
-                "attack_range": attack_range,
-                "target_position": closest_target.position,
-                "attacker_position": agent.position,
-                "attack_direction": attack_direction,
-            },
-        )
-    except Exception:
-        # Some environments may not have logging infrastructure
-        pass
+    # Log the attack interaction using helper function
+    log_interaction_safely(
+        agent,
+        source_type="agent",
+        source_id=agent.agent_id,
+        target_type="agent",
+        target_id=closest_target.agent_id,
+        interaction_type="attack" if actual_damage > 0 else "attack_failed",
+        action_type="attack",
+        details={
+            "success": actual_damage > 0,
+            "damage_dealt": actual_damage,
+            "distance": min_distance,
+            "attack_range": attack_range,
+            "target_position": closest_target.position,
+            "attacker_position": agent.position,
+            "attack_direction": attack_direction,
+        },
+    )
 
     logger.debug(
         f"Agent {agent.agent_id} attacked {closest_target.agent_id} "
@@ -239,11 +331,8 @@ def gather_action(agent: "BaseAgent") -> None:
 
     Simple rule-based gathering that finds the nearest resource and gathers from it.
     """
-    import math
-
     # Validate agent configuration
-    if agent.config is None:
-        logger.error(f"Agent {agent.agent_id} has no config, skipping gather action")
+    if not validate_agent_config(agent, "gather"):
         return
 
     # Get gathering range from config
@@ -265,22 +354,12 @@ def gather_action(agent: "BaseAgent") -> None:
         )
         return
 
-    # Find the closest resource
-    closest_resource = None
-    min_distance = float("inf")
-
-    for resource in available_resources:
-        # Calculate Euclidean distance
-        dx = resource.position[0] - agent.position[0]
-        dy = resource.position[1] - agent.position[1]
-        distance = math.sqrt(dx * dx + dy * dy)
-
-        if distance < min_distance:
-            min_distance = distance
-            closest_resource = resource
+    # Find the closest resource using helper function
+    closest_resource, min_distance = find_closest_entity(
+        agent, available_resources, "resource"
+    )
 
     if closest_resource is None:
-        logger.debug(f"Agent {agent.agent_id} could not find a closest resource")
         return
 
     # Record initial resource levels
@@ -307,26 +386,23 @@ def gather_action(agent: "BaseAgent") -> None:
         reward = actual_gathered * 0.1  # Simple reward per unit gathered
         agent.total_reward += reward
 
-        # Log successful gather action
-        try:
-            agent.environment.log_interaction_edge(
-                source_type="agent",
-                source_id=agent.agent_id,
-                target_type="resource",
-                target_id=str(getattr(closest_resource, "resource_id", "unknown")),
-                interaction_type="gather",
-                action_type="gather",
-                details={
-                    "amount_gathered": actual_gathered,
-                    "resource_before": resource_amount_before,
-                    "resource_after": closest_resource.amount,
-                    "distance": min_distance,
-                    "success": True,
-                },
-            )
-        except Exception:
-            # Some environments may not have logging infrastructure
-            pass
+        # Log successful gather action using helper function
+        log_interaction_safely(
+            agent,
+            source_type="agent",
+            source_id=agent.agent_id,
+            target_type="resource",
+            target_id=str(getattr(closest_resource, "resource_id", "unknown")),
+            interaction_type="gather",
+            action_type="gather",
+            details={
+                "amount_gathered": actual_gathered,
+                "resource_before": resource_amount_before,
+                "resource_after": closest_resource.amount,
+                "distance": min_distance,
+                "success": True,
+            },
+        )
 
         logger.debug(
             f"Agent {agent.agent_id} gathered {actual_gathered} resources from {min_distance:.2f} units away"
@@ -335,24 +411,21 @@ def gather_action(agent: "BaseAgent") -> None:
     except Exception as e:
         logger.error(f"Gathering failed for agent {agent.agent_id}: {str(e)}")
 
-        # Log failed gather action
-        try:
-            agent.environment.log_interaction_edge(
-                source_type="agent",
-                source_id=agent.agent_id,
-                target_type="resource",
-                target_id=str(getattr(closest_resource, "resource_id", "unknown")),
-                interaction_type="gather_failed",
-                action_type="gather",
-                details={
-                    "reason": "gathering_error",
-                    "error": str(e),
-                    "success": False,
-                },
-            )
-        except Exception:
-            # Some environments may not have logging infrastructure
-            pass
+        # Log failed gather action using helper function
+        log_interaction_safely(
+            agent,
+            source_type="agent",
+            source_id=agent.agent_id,
+            target_type="resource",
+            target_id=str(getattr(closest_resource, "resource_id", "unknown")),
+            interaction_type="gather_failed",
+            action_type="gather",
+            details={
+                "reason": "gathering_error",
+                "error": str(e),
+                "success": False,
+            },
+        )
 
 
 def share_action(agent: "BaseAgent") -> None:
@@ -361,8 +434,7 @@ def share_action(agent: "BaseAgent") -> None:
     Simple rule-based sharing that finds agents in need and shares resources with them.
     """
     # Validate agent configuration
-    if agent.config is None:
-        logger.error(f"Agent {agent.agent_id} has no config, skipping share action")
+    if not validate_agent_config(agent, "share"):
         return
 
     # Get sharing range from config
@@ -392,11 +464,9 @@ def share_action(agent: "BaseAgent") -> None:
     min_keep = getattr(agent.config, "min_keep_resources", 5)
 
     # Only share if agent has enough resources to keep minimum and share
-    if agent.resource_level < min_keep + share_amount:
-        logger.debug(
-            f"Agent {agent.agent_id} has insufficient resources to share "
-            f"({agent.resource_level} < {min_keep + share_amount})"
-        )
+    if not check_resource_requirement(
+        agent, min_keep + share_amount, "share", "resources to share"
+    ):
         return
 
     # Execute sharing
@@ -414,25 +484,22 @@ def share_action(agent: "BaseAgent") -> None:
         # Some environments may not implement metrics tracking
         pass
 
-    # Log the share interaction
-    try:
-        agent.environment.log_interaction_edge(
-            source_type="agent",
-            source_id=agent.agent_id,
-            target_type="agent",
-            target_id=target.agent_id,
-            interaction_type="share",
-            action_type="share",
-            details={
-                "amount_shared": share_amount,
-                "target_resources_before": target.resource_level - share_amount,
-                "target_resources_after": target.resource_level,
-                "success": True,
-            },
-        )
-    except Exception:
-        # Some environments may not have logging infrastructure
-        pass
+    # Log the share interaction using helper function
+    log_interaction_safely(
+        agent,
+        source_type="agent",
+        source_id=agent.agent_id,
+        target_type="agent",
+        target_id=target.agent_id,
+        interaction_type="share",
+        action_type="share",
+        details={
+            "amount_shared": share_amount,
+            "target_resources_before": target.resource_level - share_amount,
+            "target_resources_after": target.resource_level,
+            "success": True,
+        },
+    )
 
     logger.debug(
         f"Agent {agent.agent_id} shared {share_amount} resources with {target.agent_id} "
@@ -449,8 +516,7 @@ def move_action(agent: "BaseAgent") -> None:
     import random
 
     # Validate agent configuration
-    if agent.config is None:
-        logger.error(f"Agent {agent.agent_id} has no config, skipping move action")
+    if not validate_agent_config(agent, "move"):
         return
 
     # Define movement directions (right, left, up, down)
@@ -500,16 +566,12 @@ def reproduce_action(agent: "BaseAgent") -> None:
     import random
 
     # Validate agent configuration
-    if agent.config is None:
-        logger.error(f"Agent {agent.agent_id} has no config, skipping reproduce action")
+    if not validate_agent_config(agent, "reproduce"):
         return
 
     # Check if agent has enough resources for reproduction
     min_resources = getattr(agent.config, "min_reproduction_resources", 8)
-    if agent.resource_level < min_resources:
-        logger.debug(
-            f"Agent {agent.agent_id} has insufficient resources ({agent.resource_level} < {min_resources})"
-        )
+    if not check_resource_requirement(agent, min_resources, "reproduce"):
         return
 
     # Simple rule: 50% chance to attempt reproduction if conditions are met
@@ -530,8 +592,7 @@ def defend_action(agent: "BaseAgent") -> None:
     reducing damage taken and providing recovery benefits.
     """
     # Validate agent configuration
-    if agent.config is None:
-        logger.error(f"Agent {agent.agent_id} has no config, skipping defend action")
+    if not validate_agent_config(agent, "defend"):
         return
 
     # Get defense parameters from config
@@ -540,10 +601,7 @@ def defend_action(agent: "BaseAgent") -> None:
     defense_cost = getattr(agent.config, "defense_cost", 0)
 
     # Check if agent has enough resources for defense cost
-    if agent.resource_level < defense_cost:
-        logger.debug(
-            f"Agent {agent.agent_id} has insufficient resources ({agent.resource_level} < {defense_cost}) for defense"
-        )
+    if not check_resource_requirement(agent, defense_cost, "defend"):
         return
 
     # Pay the defense cost
@@ -568,25 +626,22 @@ def defend_action(agent: "BaseAgent") -> None:
     reward = 0.02  # Small reward for successful defense
     agent.total_reward += reward
 
-    # Log the defend action
-    try:
-        agent.environment.log_interaction_edge(
-            source_type="agent",
-            source_id=agent.agent_id,
-            target_type="agent",
-            target_id=agent.agent_id,  # Self-targeted for defense
-            interaction_type="defend",
-            action_type="defend",
-            details={
-                "duration": defense_duration,
-                "healing": defense_healing,
-                "cost": defense_cost,
-                "success": True,
-            },
-        )
-    except Exception:
-        # Some environments may not have logging infrastructure
-        pass
+    # Log the defend action using helper function
+    log_interaction_safely(
+        agent,
+        source_type="agent",
+        source_id=agent.agent_id,
+        target_type="agent",
+        target_id=agent.agent_id,  # Self-targeted for defense
+        interaction_type="defend",
+        action_type="defend",
+        details={
+            "duration": defense_duration,
+            "healing": defense_healing,
+            "cost": defense_cost,
+            "success": True,
+        },
+    )
 
     logger.debug(
         f"Agent {agent.agent_id} entered defensive stance for {defense_duration} turns "
@@ -601,31 +656,27 @@ def pass_action(agent: "BaseAgent") -> None:
     Useful for waiting, observing, or strategic inaction.
     """
     # Validate agent configuration
-    if agent.config is None:
-        logger.error(f"Agent {agent.agent_id} has no config, skipping pass action")
+    if not validate_agent_config(agent, "pass"):
         return
 
     # Calculate small reward for strategic inaction
     reward = 0.01  # Minimal reward for passing
     agent.total_reward += reward
 
-    # Log the pass action
-    try:
-        agent.environment.log_interaction_edge(
-            source_type="agent",
-            source_id=agent.agent_id,
-            target_type="agent",
-            target_id=agent.agent_id,  # Self-targeted for pass
-            interaction_type="pass",
-            action_type="pass",
-            details={
-                "reason": "strategic_inaction",
-                "success": True,
-            },
-        )
-    except Exception:
-        # Some environments may not have logging infrastructure
-        pass
+    # Log the pass action using helper function
+    log_interaction_safely(
+        agent,
+        source_type="agent",
+        source_id=agent.agent_id,
+        target_type="agent",
+        target_id=agent.agent_id,  # Self-targeted for pass
+        interaction_type="pass",
+        action_type="pass",
+        details={
+            "reason": "strategic_inaction",
+            "success": True,
+        },
+    )
 
     logger.debug(f"Agent {agent.agent_id} chose to pass this turn")
 
