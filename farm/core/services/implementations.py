@@ -10,69 +10,6 @@ from farm.core.services.interfaces import (
 )
 
 
-class EnvironmentSpatialQueryService(ISpatialQueryService):
-    """Service for querying spatial relationships between agents and resources in the environment.
-
-    This service acts as an adapter between the environment and spatial query operations,
-    delegating calls to the underlying environment's spatial methods.
-    """
-
-    def __init__(self, environment: Any) -> None:
-        """Initialize the spatial query service with an environment instance.
-
-        Args:
-            environment: The environment object that contains spatial query methods.
-        """
-        self._env = environment
-
-    def get_nearby_agents(
-        self, position: Tuple[float, float], radius: float
-    ) -> List[Any]:
-        """Get all agents within a specified radius of a position.
-
-        Args:
-            position: A tuple of (x, y) coordinates representing the center point.
-            radius: The search radius around the position.
-
-        Returns:
-            A list of agents within the specified radius.
-        """
-        return self._env.get_nearby_agents(position, radius)
-
-    def get_nearby_resources(
-        self, position: Tuple[float, float], radius: float
-    ) -> List[Any]:
-        """Get all resources within a specified radius of a position.
-
-        Args:
-            position: A tuple of (x, y) coordinates representing the center point.
-            radius: The search radius around the position.
-
-        Returns:
-            A list of resources within the specified radius.
-        """
-        return self._env.get_nearby_resources(position, radius)
-
-    def get_nearest_resource(self, position: Tuple[float, float]) -> Optional[Any]:
-        """Find the nearest resource to a given position.
-
-        Args:
-            position: A tuple of (x, y) coordinates to search from.
-
-        Returns:
-            The nearest resource object, or None if no resources are found.
-        """
-        return self._env.get_nearest_resource(position)
-
-    def mark_positions_dirty(self) -> None:
-        """Mark that agent/resource positions have changed and spatial index needs updating.
-
-        This method should be called when positions are modified to ensure
-        spatial queries remain accurate.
-        """
-        self._env.mark_positions_dirty()
-
-
 class EnvironmentValidationService(IValidationService):
     """Service for validating positions and other environmental constraints.
 
@@ -311,16 +248,6 @@ class EnvironmentLoggingService(ILoggingService):
         self._env.db.update_agent_death(agent_id, death_time, cause)
 
 
-__all__ = [
-    "EnvironmentSpatialQueryService",
-    "EnvironmentValidationService",
-    "EnvironmentMetricsService",
-    "EnvironmentAgentLifecycleService",
-    "EnvironmentTimeService",
-    "EnvironmentLoggingService",
-]
-
-
 class SpatialIndexAdapter(ISpatialQueryService):
     """Adapter that exposes `SpatialIndex` as an `ISpatialQueryService`.
 
@@ -382,3 +309,13 @@ class SpatialIndexAdapter(ISpatialQueryService):
         that the spatial index remains accurate for subsequent queries.
         """
         self._index.mark_positions_dirty()
+
+
+__all__ = [
+    "EnvironmentValidationService",
+    "EnvironmentMetricsService",
+    "EnvironmentAgentLifecycleService",
+    "EnvironmentTimeService",
+    "EnvironmentLoggingService",
+    "SpatialIndexAdapter",
+]

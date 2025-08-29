@@ -36,7 +36,6 @@ from farm.core.services.implementations import (
     EnvironmentAgentLifecycleService,
     EnvironmentLoggingService,
     EnvironmentMetricsService,
-    EnvironmentSpatialQueryService,
     EnvironmentTimeService,
     EnvironmentValidationService,
     SpatialIndexAdapter,
