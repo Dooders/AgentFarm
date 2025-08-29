@@ -457,12 +457,16 @@ class BaseAgent:
         current_step = current_time if current_time != -1 else 0
         enabled_actions = self.actions  # Default all
         if self.config and hasattr(self.config, "curriculum_phases"):
-            for phase in getattr(self.config, "curriculum_phases", []):
-                if current_step < phase["steps"] or phase["steps"] == -1:
-                    enabled_actions = [
-                        a for a in self.actions if a.name in phase["enabled_actions"]
-                    ]
-                    break
+            curriculum_phases = getattr(self.config, "curriculum_phases", [])
+            if isinstance(curriculum_phases, (list, tuple)):
+                for phase in curriculum_phases:
+                    if current_step < phase["steps"] or phase["steps"] == -1:
+                        enabled_actions = [
+                            a
+                            for a in self.actions
+                            if a.name in phase["enabled_actions"]
+                        ]
+                        break
 
         # Use DecisionModule to select action index
         action_index = self.decision_module.decide_action(self._cached_selection_state)
