@@ -147,3 +147,23 @@ __all__ = [
     "EnvironmentLoggingService",
 ]
 
+
+class SpatialIndexAdapter(ISpatialQueryService):
+    """Adapter that exposes `SpatialIndex` as an `ISpatialQueryService`."""
+
+    def __init__(self, spatial_index: Any) -> None:
+        self._index = spatial_index
+
+    def get_nearby_agents(self, position: Tuple[float, float], radius: float) -> List[Any]:
+        return self._index.get_nearby_agents(position, radius)
+
+    def get_nearby_resources(self, position: Tuple[float, float], radius: float) -> List[Any]:
+        return self._index.get_nearby_resources(position, radius)
+
+    def get_nearest_resource(self, position: Tuple[float, float]) -> Optional[Any]:
+        return self._index.get_nearest_resource(position)
+
+    def mark_positions_dirty(self) -> None:
+        self._index.mark_positions_dirty()
+
+

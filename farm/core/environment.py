@@ -43,6 +43,7 @@ from farm.core.services.implementations import (
     EnvironmentSpatialQueryService,
     EnvironmentTimeService,
     EnvironmentValidationService,
+    SpatialIndexAdapter,
 )
 
 logger = logging.getLogger(__name__)
@@ -181,9 +182,13 @@ class Environment(AECEnv):
 
         # Initialize spatial index for efficient spatial queries
         self.spatial_index = SpatialIndex(self.width, self.height)
+        # Provide spatial service via adapter around spatial_index
+        self.spatial_service = SpatialIndexAdapter(self.spatial_index)
 
         # Initialize metrics tracker
         self.metrics_tracker = MetricsTracker()
+        # Provide metrics service delegating to the environment
+        self.metrics_service = EnvironmentMetricsService(self)
 
         # Initialize resource sharing counters
         self.resources_shared = 0.0
@@ -655,11 +660,10 @@ class Environment(AECEnv):
         """
         # If the agent supports dependency injection, supply services and config
         try:
-            # Provide services if the agent has the corresponding attributes
             if hasattr(agent, "spatial_service") and agent.spatial_service is None:
-                agent.spatial_service = EnvironmentSpatialQueryService(self)
+                agent.spatial_service = self.spatial_service
             if hasattr(agent, "metrics_service") and agent.metrics_service is None:
-                agent.metrics_service = EnvironmentMetricsService(self)
+                agent.metrics_service = self.metrics_service
             if hasattr(agent, "logging_service") and agent.logging_service is None:
                 agent.logging_service = EnvironmentLoggingService(self)
             if hasattr(agent, "validation_service") and agent.validation_service is None:
@@ -671,7 +675,6 @@ class Environment(AECEnv):
             if hasattr(agent, "config") and getattr(agent, "config", None) is None:
                 agent.config = self.config
         except Exception:
-            # Agent may not support DI; ignore silently to maintain backward compatibility
             pass
 
         agent_data = [
