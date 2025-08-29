@@ -92,7 +92,11 @@ def _find_valid_targets(
     """
     if agent.config is None:
         return []
-    targets = agent.environment.get_nearby_agents(target_position, agent.config.range)
+    targets = (
+        agent.spatial_service.get_nearby_agents(target_position, agent.config.range)
+        if getattr(agent, "spatial_service", None) is not None
+        else []
+    )
     return [target for target in targets if target.agent_id != agent.agent_id]
 
 
@@ -124,20 +128,21 @@ def _log_no_targets_attempt(
         reason=reason,
     )
     # Log interaction edge (attempt with no target)
-    agent.environment.log_interaction_edge(
-        source_type="agent",
-        source_id=agent.agent_id,
-        target_type="agent",
-        target_id="none",
-        interaction_type="attack_attempt",
-        action_type="attack",
-        details={
-            "success": False,
-            "reason": reason,
-            "targets_found": 0,
-            "target_position": target_position,
-        },
-    )
+    if getattr(agent, "logging_service", None) is not None:
+        agent.logging_service.log_interaction_edge(
+            source_type="agent",
+            source_id=agent.agent_id,
+            target_type="agent",
+            target_id="none",
+            interaction_type="attack_attempt",
+            action_type="attack",
+            details={
+                "success": False,
+                "reason": reason,
+                "targets_found": 0,
+                "target_position": target_position,
+            },
+        )
 
 
 def _apply_attack_cost(agent: "BaseAgent") -> None:
@@ -158,7 +163,8 @@ def _update_combat_counters(agent: "BaseAgent") -> None:
     Args:
         agent: The agent involved in combat
     """
-    agent.environment.record_combat_encounter()
+    if getattr(agent, "metrics_service", None) is not None:
+        agent.metrics_service.record_combat_encounter()
 
 
 def _calculate_and_apply_damage(
@@ -189,8 +195,8 @@ def _calculate_and_apply_damage(
         successful_hits += 1
 
     # Update global successful attack counters if damage was dealt
-    if successful_hits > 0:
-        agent.environment.record_successful_attack()
+    if successful_hits > 0 and getattr(agent, "metrics_service", None) is not None:
+        agent.metrics_service.record_successful_attack()
 
     return total_damage_dealt, successful_hits
 
@@ -232,20 +238,21 @@ def _log_attack_outcome(
         reason="hit" if successful_hits > 0 else "missed",
     )
     # Log interaction edge for attack outcome
-    agent.environment.log_interaction_edge(
-        source_type="agent",
-        source_id=agent.agent_id,
-        target_type="agent",
-        target_id=target.agent_id,
-        interaction_type="attack" if successful_hits > 0 else "attack_failed",
-        action_type="attack",
-        details={
-            "success": successful_hits > 0,
-            "damage_dealt": total_damage_dealt,
-            "targets_found": valid_targets_count,
-            "target_position": target_position,
-        },
-    )
+    if getattr(agent, "logging_service", None) is not None:
+        agent.logging_service.log_interaction_edge(
+            source_type="agent",
+            source_id=agent.agent_id,
+            target_type="agent",
+            target_id=target.agent_id,
+            interaction_type="attack" if successful_hits > 0 else "attack_failed",
+            action_type="attack",
+            details={
+                "success": successful_hits > 0,
+                "damage_dealt": total_damage_dealt,
+                "targets_found": valid_targets_count,
+                "target_position": target_position,
+            },
+        )
 
 
 def _find_closest_target(

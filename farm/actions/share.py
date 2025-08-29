@@ -247,8 +247,10 @@ class ShareModule(BaseDQNModule):
         from typing import cast
 
         share_config = cast(ShareConfig, self.config)
-        nearby_agents = agent.environment.get_nearby_agents(
-            agent.position, share_config.range
+        nearby_agents = (
+            agent.spatial_service.get_nearby_agents(agent.position, share_config.range)
+            if getattr(agent, "spatial_service", None) is not None
+            else []
         )
         # Filter out self to prevent agents from sharing with themselves
         return [a for a in nearby_agents if a.agent_id != agent.agent_id]
@@ -403,19 +405,20 @@ def share_action(agent: "BaseAgent") -> None:
                 },
             )
         # Log interaction edge (attempt)
-        agent.environment.log_interaction_edge(
-            source_type="agent",
-            source_id=agent.agent_id,
-            target_type="agent" if target else "unknown",
-            target_id="unknown" if not target else target.agent_id,
-            interaction_type="share_attempt",
-            action_type="share",
-            details={
-                "success": False,
-                "attempted_amount": share_amount,
-                "reason": "invalid_share_conditions",
-            },
-        )
+        if getattr(agent, "logging_service", None) is not None:
+            agent.logging_service.log_interaction_edge(
+                source_type="agent",
+                source_id=agent.agent_id,
+                target_type="agent" if target else "unknown",
+                target_id="unknown" if not target else target.agent_id,
+                interaction_type="share_attempt",
+                action_type="share",
+                details={
+                    "success": False,
+                    "attempted_amount": share_amount,
+                    "reason": "invalid_share_conditions",
+                },
+            )
         return
 
     # Execute sharing
@@ -424,7 +427,8 @@ def share_action(agent: "BaseAgent") -> None:
     target.resource_level += share_amount
 
     # Update environment's resources_shared counter
-    agent.environment.record_resources_shared(share_amount)
+    if getattr(agent, "metrics_service", None) is not None:
+        agent.metrics_service.record_resources_shared(share_amount)
 
     # Calculate reward
     reward = _calculate_share_reward(agent, target, share_amount)
@@ -453,19 +457,20 @@ def share_action(agent: "BaseAgent") -> None:
             },
         )
     # Log interaction edge (success)
-    agent.environment.log_interaction_edge(
-        source_type="agent",
-        source_id=agent.agent_id,
-        target_type="agent",
-        target_id=target.agent_id,
-        interaction_type="share",
-        action_type="share",
-        details={
-            "amount_shared": share_amount,
-            "target_resources_before": target_initial_resources,
-            "target_resources_after": target.resource_level,
-        },
-    )
+    if getattr(agent, "logging_service", None) is not None:
+        agent.logging_service.log_interaction_edge(
+            source_type="agent",
+            source_id=agent.agent_id,
+            target_type="agent",
+            target_id=target.agent_id,
+            interaction_type="share",
+            action_type="share",
+            details={
+                "amount_shared": share_amount,
+                "target_resources_before": target_initial_resources,
+                "target_resources_after": target.resource_level,
+            },
+        )
 
 
 def _get_share_state(agent: "BaseAgent") -> List[float]:
@@ -491,8 +496,10 @@ def _get_share_state(agent: "BaseAgent") -> List[float]:
     Returns:
         List[float]: 8-dimensional state vector for sharing decisions
     """
-    nearby_agents = agent.environment.get_nearby_agents(
-        agent.position, DEFAULT_SHARE_CONFIG.range
+    nearby_agents = (
+        agent.spatial_service.get_nearby_agents(agent.position, DEFAULT_SHARE_CONFIG.range)
+        if getattr(agent, "spatial_service", None) is not None
+        else []
     )
 
     neighbor_resources = (

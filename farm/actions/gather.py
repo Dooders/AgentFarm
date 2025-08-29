@@ -291,15 +291,17 @@ class GatherModule(BaseDQNModule):
             return torch.zeros(8, device=self.device)
 
         # Calculate resource density using KD-tree
-        if agent.environment is None or agent.environment.config is None:
+        if agent.config is None:
             return torch.zeros(8, device=self.device)
 
         # Type assertion to help linter understand config structure
         config = agent.config
         assert config is not None, "Agent config cannot be None"
 
-        resources_in_range = agent.environment.get_nearby_resources(
-            agent.position, config.range
+        resources_in_range = (
+            agent.spatial_service.get_nearby_resources(agent.position, config.range)
+            if getattr(agent, "spatial_service", None) is not None
+            else []
         )
         resource_density = len(resources_in_range) / (np.pi * config.range**2)
 
@@ -355,15 +357,17 @@ class GatherModule(BaseDQNModule):
             Optional[Resource]: The best resource to gather from, or None if none available
         """
         # Get resources within gathering range using KD-tree
-        if agent.environment is None or agent.environment.config is None:
+        if agent.config is None:
             return None
 
         # Type assertion to help linter understand config structure
         config = agent.config
         assert config is not None, "Agent config cannot be None"
 
-        resources_in_range = agent.environment.get_nearby_resources(
-            agent.position, config.gathering_range
+        resources_in_range = (
+            agent.spatial_service.get_nearby_resources(agent.position, config.gathering_range)
+            if getattr(agent, "spatial_service", None) is not None
+            else []
         )
 
         # Filter depleted resources

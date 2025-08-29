@@ -197,12 +197,16 @@ class SelectModule(BaseDQNModule):
             gathering_range = agent.config.gathering_range
             social_range = agent.config.social_range
 
-        nearby_resources = agent.environment.get_nearby_resources(
-            agent.position, gathering_range
+        nearby_resources = (
+            agent.spatial_service.get_nearby_resources(agent.position, gathering_range)
+            if getattr(agent, "spatial_service", None) is not None
+            else []
         )
 
-        nearby_agents = agent.environment.get_nearby_agents(
-            agent.position, social_range
+        nearby_agents = (
+            agent.spatial_service.get_nearby_agents(agent.position, social_range)
+            if getattr(agent, "spatial_service", None) is not None
+            else []
         )
 
         # Get config values with fallbacks
@@ -352,12 +356,16 @@ def create_selection_state(agent: "BaseAgent") -> torch.Tensor:
     starvation_ratio = agent.starvation_threshold / agent.max_starvation
 
     # Use environment's spatial indexing for faster nearby entity detection
-    nearby_resources = len(
-        agent.environment.get_nearby_resources(agent.position, gathering_range)
+    nearby_resources = (
+        len(agent.spatial_service.get_nearby_resources(agent.position, gathering_range))
+        if getattr(agent, "spatial_service", None) is not None
+        else 0
     )
 
-    nearby_agents = len(
-        agent.environment.get_nearby_agents(agent.position, social_range)
+    nearby_agents = (
+        len(agent.spatial_service.get_nearby_agents(agent.position, social_range))
+        if getattr(agent, "spatial_service", None) is not None
+        else 0
     )
 
     # Normalize counts

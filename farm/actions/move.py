@@ -196,8 +196,12 @@ class MoveModule(BaseDQNModule):
         dy *= agent.max_movement
 
         # Calculate new position within bounds
-        new_x = max(0, min(agent.environment.width, agent.position[0] + dx))
-        new_y = max(0, min(agent.environment.height, agent.position[1] + dy))
+        if getattr(agent, "spatial_service", None) is not None:
+            width, height = agent.spatial_service.get_dimensions()
+        else:
+            width, height = getattr(agent.environment, "width", 0), getattr(agent.environment, "height", 0)
+        new_x = max(0, min(width, agent.position[0] + dx))
+        new_y = max(0, min(height, agent.position[1] + dy))
 
         # Store state for learning (already a tensor)
         self.previous_state = state

@@ -243,7 +243,8 @@ def reproduce_action(agent: "BaseAgent") -> None:
                 },
             )
         # Reproduction is a self-contained action; log as self-edge for lineage attempt
-        agent.environment.log_interaction_edge(
+        if getattr(agent, "logging_service", None) is not None:
+            agent.logging_service.log_interaction_edge(
             source_type="agent",
             source_id=agent.agent_id,
             target_type="agent",
@@ -281,7 +282,8 @@ def reproduce_action(agent: "BaseAgent") -> None:
                 },
             )
         # Log lineage interaction edge parent -> offspring
-        agent.environment.log_interaction_edge(
+        if getattr(agent, "logging_service", None) is not None:
+            agent.logging_service.log_interaction_edge(
             source_type="agent",
             source_id=agent.agent_id,
             target_type="agent",
@@ -309,7 +311,8 @@ def reproduce_action(agent: "BaseAgent") -> None:
                     "error": str(e),
                 },
             )
-        agent.environment.log_interaction_edge(
+        if getattr(agent, "logging_service", None) is not None:
+            agent.logging_service.log_interaction_edge(
             source_type="agent",
             source_id=agent.agent_id,
             target_type="agent",
