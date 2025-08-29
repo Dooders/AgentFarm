@@ -616,6 +616,39 @@ class Environment(AECEnv):
         The agent data logged includes birth time, position, resources, health,
         genome information (if applicable), and action weights.
         """
+        # Inject services for decoupling if agent lacks them
+        try:
+            from farm.core.services import (
+                SpatialIndexAdapter,
+                EnvironmentMetricsAdapter,
+                EnvironmentLoggingAdapter,
+            )
+        except Exception:
+            SpatialIndexAdapter = None  # type: ignore
+            EnvironmentMetricsAdapter = None  # type: ignore
+            EnvironmentLoggingAdapter = None  # type: ignore
+
+        if not hasattr(agent, "spatial_service") or getattr(agent, "spatial_service") is None:
+            if SpatialIndexAdapter is not None:
+                try:
+                    agent.spatial_service = SpatialIndexAdapter(
+                        self.spatial_index, self.width, self.height
+                    )
+                except Exception:
+                    pass
+        if not hasattr(agent, "metrics_service") or getattr(agent, "metrics_service") is None:
+            if EnvironmentMetricsAdapter is not None:
+                try:
+                    agent.metrics_service = EnvironmentMetricsAdapter(self)
+                except Exception:
+                    pass
+        if not hasattr(agent, "logging_service") or getattr(agent, "logging_service") is None:
+            if EnvironmentLoggingAdapter is not None:
+                try:
+                    agent.logging_service = EnvironmentLoggingAdapter(self)
+                except Exception:
+                    pass
+
         agent_data = [
             {
                 "simulation_id": self.simulation_id,

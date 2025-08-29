@@ -56,6 +56,11 @@ class BaseAgent:
         generation: int = 0,
         use_memory: bool = False,
         memory_config: Optional[dict] = None,
+        *,
+        spatial_service: Optional["SpatialService"] = None,
+        metrics_service: Optional["MetricsService"] = None,
+        logging_service: Optional["LoggingService"] = None,
+        config: Optional[object] = None,
     ):
         """Initialize a new agent with given parameters."""
         # Add default actions
@@ -70,8 +75,33 @@ class BaseAgent:
         self.position = position
         self.resource_level = resource_level
         self.alive = True
+        # Backward-compat: keep environment until full refactor completes
         self.environment = environment
-        self.config = environment.config
+        # Services (DI). If not provided, fall back to environment-backed adapters
+        try:
+            from farm.core.services import (
+                SpatialIndexAdapter,
+                EnvironmentMetricsAdapter,
+                EnvironmentLoggingAdapter,
+            )
+        except Exception:
+            SpatialIndexAdapter = None  # type: ignore
+            EnvironmentMetricsAdapter = None  # type: ignore
+            EnvironmentLoggingAdapter = None  # type: ignore
+
+        self.spatial_service = spatial_service or (
+            SpatialIndexAdapter(environment.spatial_index, environment.width, environment.height)
+            if SpatialIndexAdapter is not None
+            else None
+        )
+        self.metrics_service = metrics_service or (
+            EnvironmentMetricsAdapter(environment) if EnvironmentMetricsAdapter is not None else None
+        )
+        self.logging_service = logging_service or (
+            EnvironmentLoggingAdapter(environment) if EnvironmentLoggingAdapter is not None else None
+        )
+        # Config may be injected; fall back to environment.config
+        self.config = config if config is not None else environment.config
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.previous_state: AgentState | None = None
@@ -189,9 +219,13 @@ class BaseAgent:
         size = 2 * radius + 1
         perception = np.zeros((size, size), dtype=np.int8)
 
-        # Get nearby entities using environment's spatial indexing
-        nearby_resources = self.environment.get_nearby_resources(self.position, radius)
-        nearby_agents = self.environment.get_nearby_agents(self.position, radius)
+        # Get nearby entities using injected spatial service
+        if self.spatial_service is not None:
+            nearby_resources = self.spatial_service.get_nearby_resources(self.position, radius)
+            nearby_agents = self.spatial_service.get_nearby_agents(self.position, radius)
+        else:
+            nearby_resources = []
+            nearby_agents = []
 
         # Helper function to convert world coordinates to grid coordinates
         def world_to_grid(wx: float, wy: float) -> tuple[int, int]:
@@ -222,7 +256,7 @@ class BaseAgent:
             for j in range(size):
                 world_x = x_min + j
                 world_y = y_min + i
-                if not self.environment.is_valid_position((world_x, world_y)):
+                if self.spatial_service is None or not self.spatial_service.is_valid_position((world_x, world_y)):
                     perception[i, j] = 3
 
         return PerceptionData(perception)
