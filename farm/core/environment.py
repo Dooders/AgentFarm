@@ -32,10 +32,6 @@ from farm.core.channels import NUM_CHANNELS
 from farm.core.metrics_tracker import MetricsTracker
 from farm.core.observations import AgentObservation, ObservationConfig
 from farm.core.resource_manager import ResourceManager
-from farm.core.spatial_index import SpatialIndex
-from farm.core.state import EnvironmentState
-from farm.database.utilities import setup_db
-from farm.utils.identity import Identity, IdentityConfig
 from farm.core.services.implementations import (
     EnvironmentAgentLifecycleService,
     EnvironmentLoggingService,
@@ -45,6 +41,10 @@ from farm.core.services.implementations import (
     EnvironmentValidationService,
     SpatialIndexAdapter,
 )
+from farm.core.spatial_index import SpatialIndex
+from farm.core.state import EnvironmentState
+from farm.database.utilities import setup_db
+from farm.utils.identity import Identity, IdentityConfig
 
 logger = logging.getLogger(__name__)
 
@@ -666,7 +666,10 @@ class Environment(AECEnv):
                 agent.metrics_service = self.metrics_service
             if hasattr(agent, "logging_service") and agent.logging_service is None:
                 agent.logging_service = EnvironmentLoggingService(self)
-            if hasattr(agent, "validation_service") and agent.validation_service is None:
+            if (
+                hasattr(agent, "validation_service")
+                and agent.validation_service is None
+            ):
                 agent.validation_service = EnvironmentValidationService(self)
             if hasattr(agent, "time_service") and agent.time_service is None:
                 agent.time_service = EnvironmentTimeService(self)
@@ -674,6 +677,9 @@ class Environment(AECEnv):
                 agent.lifecycle_service = EnvironmentAgentLifecycleService(self)
             if hasattr(agent, "config") and getattr(agent, "config", None) is None:
                 agent.config = self.config
+            # Set environment reference for action/observation space access
+            if hasattr(agent, "environment"):
+                agent.environment = self
         except Exception:
             pass
 

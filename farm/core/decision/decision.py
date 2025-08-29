@@ -86,28 +86,40 @@ class DecisionModule:
         self,
         agent: "BaseAgent",
         config: DecisionConfig = DecisionConfig(),
+        action_space: Optional[Any] = None,
+        observation_space: Optional[Any] = None,
     ):
         """Initialize the DecisionModule.
 
         Args:
             agent: The BaseAgent instance this module serves
             config: Configuration object with algorithm parameters
+            action_space: The action space for the agent (optional, will be derived if not provided)
+            observation_space: The observation space for the agent (optional, will be derived if not provided)
         """
         self.agent_id = agent.agent_id
         self.config = config
         self.agent = agent
 
-        # Get action space from environment
-        self.num_actions = self._get_action_space_size()
+        # Get action space from parameter or derive from environment
+        if action_space is not None:
+            self.action_space = action_space
+            self.num_actions = self._get_action_space_size_from_space(action_space)
+        else:
+            self.num_actions = self._get_action_space_size()
+            self.action_space = self._create_action_space()
+
+        # Get observation space from parameter or create default
+        if observation_space is not None:
+            self.observation_space = observation_space
+        else:
+            self.observation_space = self._create_observation_space()
+
         self.state_dim = config.rl_state_dim
 
         # Initialize algorithm
         self.algorithm: Any = None
         self._is_trained = False
-
-        # Create observation and action spaces for SB3
-        self.observation_space = self._create_observation_space()
-        self.action_space = self._create_action_space()
 
         # Initialize the decision algorithm
         self._initialize_algorithm()
@@ -115,6 +127,31 @@ class DecisionModule:
         logger.info(
             f"Initialized DecisionModule for agent {self.agent_id} with {config.algorithm_type}"
         )
+
+    def _get_action_space_size_from_space(self, action_space: Any) -> int:
+        """Get the number of actions from a provided action space object.
+
+        Args:
+            action_space: The action space object to extract size from
+
+        Returns:
+            int: Number of possible actions
+        """
+        try:
+            if callable(action_space):
+                action_space = action_space()
+            if hasattr(action_space, "n"):
+                return int(action_space.n)
+            # Fallback: count actions in Action enum
+            from farm.core.action import ActionType
+
+            return len(ActionType)
+        except Exception as e:
+            logger.warning(
+                f"Could not determine action space size from provided space for agent {self.agent_id}: {e}"
+            )
+            # Default fallback
+            return 6  # DEFEND, ATTACK, GATHER, SHARE, MOVE, REPRODUCE
 
     def _get_action_space_size(self) -> int:
         """Get the number of actions from the environment's action space.

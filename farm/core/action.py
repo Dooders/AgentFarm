@@ -248,7 +248,13 @@ def attack_action(agent: "BaseAgent") -> None:
     attack_range = getattr(agent.config, "attack_range", 20.0)
 
     # Find nearby agents using spatial index
-    nearby_agents = agent.spatial_service.get_nearby_agents(agent.position, attack_range)
+    if not agent.spatial_service:
+        logger.debug(f"Agent {agent.agent_id} has no spatial service, skipping attack")
+        return
+
+    nearby_agents = agent.spatial_service.get_nearby_agents(
+        agent.position, attack_range
+    )
 
     # Filter out self and find valid targets
     valid_targets = [
@@ -292,7 +298,11 @@ def attack_action(agent: "BaseAgent") -> None:
     actual_damage = closest_target.take_damage(base_damage)
 
     # Update combat statistics
-    if actual_damage > 0 and hasattr(agent, "metrics_service") and agent.metrics_service:
+    if (
+        actual_damage > 0
+        and hasattr(agent, "metrics_service")
+        and agent.metrics_service
+    ):
         try:
             agent.metrics_service.record_combat_encounter()
             agent.metrics_service.record_successful_attack()
@@ -338,7 +348,13 @@ def gather_action(agent: "BaseAgent") -> None:
     gathering_range = getattr(agent.config, "gathering_range", 30)
 
     # Find nearby resources using spatial index
-    nearby_resources = agent.spatial_service.get_nearby_resources(agent.position, gathering_range)
+    if not agent.spatial_service:
+        logger.debug(f"Agent {agent.agent_id} has no spatial service, skipping gather")
+        return
+
+    nearby_resources = agent.spatial_service.get_nearby_resources(
+        agent.position, gathering_range
+    )
 
     # Filter out depleted resources
     available_resources = [
@@ -438,6 +454,10 @@ def share_action(agent: "BaseAgent") -> None:
     share_range = getattr(agent.config, "share_range", 30)
 
     # Find nearby agents using spatial index
+    if not agent.spatial_service:
+        logger.debug(f"Agent {agent.agent_id} has no spatial service, skipping share")
+        return
+
     nearby_agents = agent.spatial_service.get_nearby_agents(agent.position, share_range)
 
     # Filter out self and find valid targets
@@ -546,7 +566,11 @@ def move_action(agent: "BaseAgent") -> None:
     new_position = (new_x, new_y)
 
     # Check if the new position is valid
-    if hasattr(agent, "validation_service") and agent.validation_service and agent.validation_service.is_valid_position(new_position):
+    if (
+        hasattr(agent, "validation_service")
+        and agent.validation_service
+        and agent.validation_service.is_valid_position(new_position)
+    ):
         # Move the agent
         agent.update_position(new_position)
         logger.debug(

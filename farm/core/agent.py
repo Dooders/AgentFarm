@@ -7,15 +7,9 @@ import torch
 
 from farm.core.action import *
 from farm.core.decision.config import DecisionConfig
-from farm.core.decision.decision import DecisionModule, create_decision_state
-from farm.core.services.interfaces import (
-    IAgentLifecycleService,
-    ILoggingService,
-    IMetricsService,
-    ISpatialQueryService,
-    ITimeService,
-    IValidationService,
-)
+from farm.core.decision.decision import DecisionModule
+from farm.core.genome import Genome
+from farm.core.perception import PerceptionData
 from farm.core.services.implementations import (
     EnvironmentAgentLifecycleService,
     EnvironmentLoggingService,
@@ -24,8 +18,14 @@ from farm.core.services.implementations import (
     EnvironmentTimeService,
     EnvironmentValidationService,
 )
-from farm.core.genome import Genome
-from farm.core.perception import PerceptionData
+from farm.core.services.interfaces import (
+    IAgentLifecycleService,
+    ILoggingService,
+    IMetricsService,
+    ISpatialQueryService,
+    ITimeService,
+    IValidationService,
+)
 from farm.core.state import AgentState
 from farm.database.data_types import GenomeId
 from farm.memory.redis_memory import AgentMemoryManager, RedisMemoryConfig
@@ -63,7 +63,7 @@ class BaseAgent:
         agent_id: str,
         position: tuple[float, float],
         resource_level: int,
-        environment: "Environment" | None = None,
+        environment: Optional["Environment"] = None,
         *,
         spatial_service: ISpatialQueryService | None = None,
         metrics_service: IMetricsService | None = None,
@@ -93,12 +93,18 @@ class BaseAgent:
         self.alive = True
         # Derive services from environment if provided and not explicitly passed
         if environment is not None:
-            spatial_service = spatial_service or EnvironmentSpatialQueryService(environment)
+            spatial_service = spatial_service or EnvironmentSpatialQueryService(
+                environment
+            )
             metrics_service = metrics_service or EnvironmentMetricsService(environment)
             logging_service = logging_service or EnvironmentLoggingService(environment)
-            validation_service = validation_service or EnvironmentValidationService(environment)
+            validation_service = validation_service or EnvironmentValidationService(
+                environment
+            )
             time_service = time_service or EnvironmentTimeService(environment)
-            lifecycle_service = lifecycle_service or EnvironmentAgentLifecycleService(environment)
+            lifecycle_service = lifecycle_service or EnvironmentAgentLifecycleService(
+                environment
+            )
             config = config or getattr(environment, "config", None)
 
         self.spatial_service = spatial_service
@@ -113,19 +119,23 @@ class BaseAgent:
         self.previous_state: AgentState | None = None
         self.previous_action = None
         self.max_movement = (
-            self.config.max_movement if self.config else 8
+            getattr(self.config, "max_movement", 8) if self.config else 8
         )  # Default value
         self.total_reward = 0.0
         self.episode_rewards = []
         self.losses = []
         self.starvation_threshold = (
-            self.config.starvation_threshold if self.config else 10
+            getattr(self.config, "starvation_threshold", 10) if self.config else 10
         )
-        self.max_starvation = self.config.max_starvation_time if self.config else 100
+        self.max_starvation = (
+            getattr(self.config, "max_starvation_time", 100) if self.config else 100
+        )
         self.birth_time = self.time_service.current_time() if self.time_service else 0
 
         # Initialize health tracking first
-        self.starting_health = self.config.starting_health if self.config else 100
+        self.starting_health = (
+            getattr(self.config, "starting_health", 100) if self.config else 100
+        )
         self.current_health = self.starting_health
         self.is_defending = False
         self.defense_timer = 0
@@ -137,17 +147,27 @@ class BaseAgent:
         # Initialize all modules first
         #! make this a list of action modules that can be provided to the agent at init
         # Use the config's dqn_hidden_size to match the modules
-        hidden_size = self.config.dqn_hidden_size if self.config else 64
+        hidden_size = getattr(self.config, "dqn_hidden_size", 64) if self.config else 64
 
         # Initialize DecisionModule for action selection
         decision_config = DecisionConfig()
         if self.config and hasattr(self.config, "decision"):
             # Use config from environment if available
-            decision_config = self.config.decision
+            decision_config = getattr(self.config, "decision", DecisionConfig())
+
+        # Get action and observation spaces from config if available
+        action_space = (
+            getattr(self.config, "action_space", None) if self.config else None
+        )
+        observation_space = (
+            getattr(self.config, "observation_space", None) if self.config else None
+        )
 
         self.decision_module = DecisionModule(
             agent=self,
             config=decision_config,
+            action_space=action_space,
+            observation_space=observation_space,
         )
 
         # Initialize Redis memory if requested
@@ -200,7 +220,7 @@ class BaseAgent:
                 (2 * perception_radius + 1) x (2 * perception_radius + 1)
         """
         # Get perception radius from config
-        radius = self.config.perception_radius if self.config else 5
+        radius = getattr(self.config, "perception_radius", 5) if self.config else 5
 
         # Create perception grid centered on agent
         size = 2 * radius + 1
@@ -247,10 +267,35 @@ class BaseAgent:
             for j in range(size):
                 world_x = x_min + j
                 world_y = y_min + i
-                if not (self.validation_service and self.validation_service.is_valid_position((world_x, world_y))):
+                if not (
+                    self.validation_service
+                    and self.validation_service.is_valid_position((world_x, world_y))
+                ):
                     perception[i, j] = 3
 
         return PerceptionData(perception)
+
+    def create_decision_state(self):
+        """Create a state representation suitable for the DecisionModule.
+
+        Returns:
+            torch.Tensor: State tensor for decision making
+        """
+        # Create a simple state representation with basic agent info
+        state = [
+            self.position[0] / 100.0,  # Normalize position
+            self.position[1] / 100.0,
+            self.resource_level / 100.0,  # Normalize resources
+            self.current_health / self.starting_health,  # Health ratio
+            float(self.is_defending),
+            self.total_reward / 100.0,  # Normalize reward
+        ]
+
+        # Add perception data if available
+        perception = self.get_perception()
+        state.extend(perception.grid.flatten() / 2.0)  # Normalize perception
+
+        return torch.tensor(state, dtype=torch.float32, device=self.device)
 
     def get_state(self) -> AgentState:
         """Returns the current state of the agent as an AgentState object.
@@ -278,7 +323,8 @@ class BaseAgent:
             current_health=self.current_health,
             is_defending=self.is_defending,
             total_reward=self.total_reward,
-            age=(self.time_service.current_time() if self.time_service else 0) - self.birth_time,
+            age=(self.time_service.current_time() if self.time_service else 0)
+            - self.birth_time,
         )
 
     def decide_action(self):
@@ -295,15 +341,17 @@ class BaseAgent:
         """
         # Cache state tensor to avoid recreating it multiple times
         current_time = self.time_service.current_time() if self.time_service else -1
-        if not hasattr(self, "_cached_selection_state") or current_time != getattr(self, "_cached_selection_time", -1):
-            self._cached_selection_state = create_decision_state(self)
+        if not hasattr(self, "_cached_selection_state") or current_time != getattr(
+            self, "_cached_selection_time", -1
+        ):
+            self._cached_selection_state = self.create_decision_state()
             self._cached_selection_time = current_time
 
         # Get enabled actions based on curriculum phases if configured
         current_step = current_time if current_time != -1 else 0
         enabled_actions = self.actions  # Default all
         if self.config and hasattr(self.config, "curriculum_phases"):
-            for phase in self.config.curriculum_phases:
+            for phase in getattr(self.config, "curriculum_phases", []):
                 if current_step < phase["steps"] or phase["steps"] == -1:
                     enabled_actions = [
                         a for a in self.actions if a.name in phase["enabled_actions"]
@@ -420,7 +468,9 @@ class BaseAgent:
             self.is_defending = False
 
         # Resource consumption
-        self.resource_level -= self.config.base_consumption_rate if self.config else 1
+        self.resource_level -= (
+            getattr(self.config, "base_consumption_rate", 1) if self.config else 1
+        )
 
         # Check starvation state - exit early if agent dies
         if self.check_starvation():
@@ -428,7 +478,7 @@ class BaseAgent:
 
         # Get current state before action for learning
         current_state = self.get_state()
-        current_state_tensor = create_decision_state(self)
+        current_state_tensor = self.create_decision_state()
 
         # Select and execute action
         action = self.decide_action()
@@ -443,7 +493,7 @@ class BaseAgent:
         self.previous_action = action
 
         # Get next state after action
-        next_state_tensor = create_decision_state(self)
+        next_state_tensor = self.create_decision_state()
         done = not self.alive
 
         # Update DecisionModule with experience
@@ -478,7 +528,8 @@ class BaseAgent:
         # Recreate using current config and services by manually constructing agent
         # rather than delegating to Genome.to_agent (which expects environment)
         action_set = [
-            Action(name, weight, globals()[f"{name}_action"]) for name, weight in mutated_genome["action_set"]
+            Action(name, weight, globals()[f"{name}_action"])
+            for name, weight in mutated_genome["action_set"]
         ]
         new_agent = BaseAgent(
             agent_id=self.agent_id,
@@ -493,7 +544,9 @@ class BaseAgent:
             config=self.config,
             action_set=action_set,
         )
-        new_agent.current_health = mutated_genome.get("current_health", self.current_health)
+        new_agent.current_health = mutated_genome.get(
+            "current_health", self.current_health
+        )
         return new_agent
 
     def reproduce(self) -> bool:
@@ -504,7 +557,7 @@ class BaseAgent:
 
         # Check resource requirements
         if (
-            self.resource_level < self.config.min_reproduction_resources
+            self.resource_level < getattr(self.config, "min_reproduction_resources", 10)
             if self.config
             else 10
         ):
@@ -513,7 +566,9 @@ class BaseAgent:
             # Record failed reproduction attempt
             if self.logging_service:
                 self.logging_service.log_reproduction_event(
-                    step_number=self.time_service.current_time() if self.time_service else 0,
+                    step_number=(
+                        self.time_service.current_time() if self.time_service else 0
+                    ),
                     parent_id=self.agent_id,
                     offspring_id="",  # Empty string for failed reproduction
                     success=False,
@@ -528,13 +583,19 @@ class BaseAgent:
             return False
 
         # Check if enough resources for offspring cost
-        if self.resource_level < self.config.offspring_cost + 2 if self.config else 10:
+        if (
+            self.resource_level < getattr(self.config, "offspring_cost", 5) + 2
+            if self.config
+            else 10
+        ):
             failure_reason = "Insufficient resources for offspring cost"
 
             # Record failed reproduction attempt
             if self.logging_service:
                 self.logging_service.log_reproduction_event(
-                    step_number=self.time_service.current_time() if self.time_service else 0,
+                    step_number=(
+                        self.time_service.current_time() if self.time_service else 0
+                    ),
                     parent_id=self.agent_id,
                     offspring_id="",  # Empty string for failed reproduction
                     success=False,
@@ -554,14 +615,18 @@ class BaseAgent:
         # Record successful reproduction
         if self.logging_service:
             self.logging_service.log_reproduction_event(
-                step_number=self.time_service.current_time() if self.time_service else 0,
+                step_number=(
+                    self.time_service.current_time() if self.time_service else 0
+                ),
                 parent_id=self.agent_id,
                 offspring_id=new_agent.agent_id,
                 success=True,
                 parent_resources_before=initial_resources,
                 parent_resources_after=self.resource_level,
                 offspring_initial_resources=(
-                    self.config.offspring_initial_resources if self.config else 10
+                    getattr(self.config, "offspring_initial_resources", 10)
+                    if self.config
+                    else 10
                 ),
                 failure_reason="",  # Empty string for successful reproduction
                 parent_generation=self.generation,
@@ -581,7 +646,11 @@ class BaseAgent:
 
         # Generate unique ID and genome info first
         #! need to update this since we are using strings now
-        new_id = self.lifecycle_service.get_next_agent_id() if self.lifecycle_service else self.agent_id + "_child"
+        new_id = (
+            self.lifecycle_service.get_next_agent_id()
+            if self.lifecycle_service
+            else self.agent_id + "_child"
+        )
         generation = self.generation + 1
 
         # Create new agent with all info
@@ -589,7 +658,9 @@ class BaseAgent:
             agent_id=new_id,
             position=self.position,
             resource_level=(
-                self.config.offspring_initial_resources if self.config else 10
+                getattr(self.config, "offspring_initial_resources", 10)
+                if self.config
+                else 10
             ),
             spatial_service=self.spatial_service,
             metrics_service=self.metrics_service,
@@ -606,7 +677,9 @@ class BaseAgent:
             self.lifecycle_service.add_agent(new_agent)
 
         # Subtract offspring cost from parent's resources
-        self.resource_level -= self.config.offspring_cost if self.config else 5
+        self.resource_level -= (
+            getattr(self.config, "offspring_cost", 5) if self.config else 5
+        )
 
         # Log creation
         logger.info(
@@ -620,7 +693,9 @@ class BaseAgent:
 
         if self.alive:
             self.alive = False
-            self.death_time = self.time_service.current_time() if self.time_service else 0
+            self.death_time = (
+                self.time_service.current_time() if self.time_service else 0
+            )
             # Record the death in environment
             # Log death in database
             if self.logging_service:
@@ -634,7 +709,9 @@ class BaseAgent:
 
     def get_environment(self) -> "Environment":
         # Deprecated: kept for backward compatibility in rare uses
-        raise AttributeError("BaseAgent no longer holds a direct environment reference; use injected services instead.")
+        raise AttributeError(
+            "BaseAgent no longer holds a direct environment reference; use injected services instead."
+        )
 
     def set_environment(self, environment: "Environment") -> None:
         self._environment = environment
@@ -660,8 +737,8 @@ class BaseAgent:
         dx, dy = action_vectors[action]
 
         # Scale by max_movement
-        dx *= self.config.max_movement if self.config else 1
-        dy *= self.config.max_movement if self.config else 1
+        dx *= getattr(self.config, "max_movement", 1) if self.config else 1
+        dy *= getattr(self.config, "max_movement", 1) if self.config else 1
 
         # Calculate new position
         env_width = getattr(self.config, "width", None)
@@ -825,15 +902,15 @@ class BaseAgent:
     @property
     def attack_strength(self) -> float:
         """Calculate the agent's current attack strength."""
-        return (self.config.base_attack_strength if self.config else 10) * (
-            self.current_health / self.starting_health
-        )
+        return (
+            getattr(self.config, "base_attack_strength", 10) if self.config else 10
+        ) * (self.current_health / self.starting_health)
 
     @property
     def defense_strength(self) -> float:
         """Calculate the agent's current defense strength."""
         return (
-            (self.config.base_defense_strength if self.config else 5)
+            (getattr(self.config, "base_defense_strength", 5) if self.config else 5)
             if self.is_defending
             else 0.0
         )
@@ -904,7 +981,9 @@ class BaseAgent:
             # Create state representation
             current_state = AgentState(
                 agent_id=self.agent_id,
-                step_number=self.time_service.current_time() if self.time_service else 0,
+                step_number=(
+                    self.time_service.current_time() if self.time_service else 0
+                ),
                 position_x=self.position[0],
                 position_y=self.position[1],
                 position_z=self.position[2] if len(self.position) > 2 else 0,
@@ -912,7 +991,8 @@ class BaseAgent:
                 current_health=self.current_health,
                 is_defending=self.is_defending,
                 total_reward=self.total_reward,
-                age=(self.time_service.current_time() if self.time_service else 0) - self.birth_time,
+                age=(self.time_service.current_time() if self.time_service else 0)
+                - self.birth_time,
             )
 
             # Add default metadata if not provided
