@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, List, Tuple
 
 import numpy as np
 
+from farm.core.action import action_name_to_index
 from farm.core.decision.feature_engineering import FeatureEngineer
 
 if TYPE_CHECKING:
@@ -37,16 +38,8 @@ class ExperienceCollector:
             # Agent selects an action based on the current state
             selected_action = agent.decide_action()
 
-            # Map action name to environment action index
-            action_name_to_index = {
-                "defend": 0,
-                "attack": 1,
-                "gather": 2,
-                "share": 3,
-                "move": 4,
-                "reproduce": 5,
-            }
-            action_index = action_name_to_index.get(selected_action.name.lower(), 0)
+            # Map action name to environment action index using centralized mapping
+            action_index = action_name_to_index(selected_action.name)
 
             # Apply the action to the environment and get reward
             next_state, reward, terminated, truncated, info = environment.step(

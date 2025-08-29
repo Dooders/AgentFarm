@@ -1,12 +1,13 @@
 import logging
 import random
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 import torch
 
 from farm.core.action import (
     Action,
+    action_name_to_index,
     action_registry,
     attack_action,
     defend_action,
@@ -92,7 +93,31 @@ class BaseAgent:
         use_memory: bool = False,
         memory_config: Optional[dict] = None,
     ):
-        """Initialize a new agent with given parameters."""
+        """Initialize a new BaseAgent with the specified parameters and services.
+
+        This constructor sets up a complete agent instance with all necessary services,
+        state management, and decision-making capabilities. The agent is configured
+        with spatial awareness, optional services for metrics/logging/validation,
+        and memory systems if requested.
+
+        Args:
+            agent_id: Unique string identifier for this agent
+            position: Initial (x, y) coordinates as a tuple of floats
+            resource_level: Starting amount of resources the agent possesses
+            spatial_service: Service for performing spatial queries on nearby entities
+            environment: Optional reference to the simulation environment
+            metrics_service: Optional service for recording simulation metrics
+            logging_service: Optional service for logging agent activities and events
+            validation_service: Optional service for validating agent actions and positions
+            time_service: Optional service for accessing current simulation time
+            lifecycle_service: Optional service for managing agent creation/removal
+            config: Optional configuration object containing agent parameters
+            action_set: List of available actions (uses defaults if empty)
+            parent_ids: List of parent agent IDs for genome tracking
+            generation: Generation number for evolutionary tracking
+            use_memory: Whether to initialize Redis-based memory system
+            memory_config: Configuration dictionary for memory system
+        """
         # Add default actions (already normalized by default)
         self.actions = (
             action_set if action_set else action_registry.get_all(normalized=True)
@@ -231,7 +256,17 @@ class BaseAgent:
         return genome_id.to_string()
 
     def _initialize_decision_module(self):
-        """Initialize the decision module for action selection."""
+        """Initialize the DecisionModule for intelligent action selection.
+
+        Sets up the decision-making system that uses reinforcement learning
+        algorithms (DDQN, PPO, etc.) to select optimal actions based on the
+        current state. The module is configured with action/observation spaces
+        and uses the agent's current configuration for hyperparameters.
+
+        The decision module integrates with the environment's multi-channel
+        observation system and supports curriculum learning through configurable
+        action restrictions based on simulation progress.
+        """
         decision_config = DecisionConfig()
         if self.config and hasattr(self.config, "decision"):
             # Use config from environment if available
@@ -450,6 +485,9 @@ class BaseAgent:
 
         Returns:
             float: Calculated reward based on state changes
+
+        Notes:
+        - TODO: Seperate rewards logic from agent
         """
         if not hasattr(self, "previous_state") or self.previous_state is None:
             return 0.0
@@ -484,17 +522,8 @@ class BaseAgent:
         Returns:
             int: Action index
         """
-        # Map action names to indices based on Action enum
-        action_name_to_index = {
-            "defend": 0,
-            "attack": 1,
-            "gather": 2,
-            "share": 3,
-            "move": 4,
-            "reproduce": 5,
-        }
-
-        return action_name_to_index.get(action.name, 0)  # Default to defend if unknown
+        # Use centralized action space mapping
+        return action_name_to_index(action.name)
 
     def check_starvation(self) -> bool:
         """Check and handle agent starvation state.
@@ -510,24 +539,33 @@ class BaseAgent:
         if self.resource_level <= 0:
             self.starvation_threshold += 1
             if self.starvation_threshold >= self.max_starvation:
-                self.die()
+                self.terminate()
                 return True
         else:
             self.starvation_threshold = 0
         return False
 
     def act(self) -> None:
-        #! Need to review
-        """Execute the agent's turn in the simulation.
+        """Execute the agent's complete turn in the simulation.
 
-        This method handles the core action loop including:
-        1. Resource consumption and starvation checks
-        2. State observation
-        3. Action selection and execution
-        4. State/action memory for learning
+        This method orchestrates the full agent lifecycle for a single simulation step,
+        including resource management, decision-making, action execution, and learning.
+        The agent will not act if it's not alive.
 
-        The agent will not act if it's not alive. Each turn consumes base resources
-        and can potentially lead to death if resources are depleted.
+        The execution flow follows this sequence:
+        1. Defense timer countdown and status updates
+        2. Base resource consumption for turn maintenance
+        3. Starvation check - agent dies if resources are depleted beyond threshold
+        4. State observation and caching for decision-making efficiency
+        5. Intelligent action selection using DecisionModule (DDQN/PPO algorithms)
+        6. Action execution with environmental interaction
+        7. Reward calculation based on state transitions
+        8. Experience storage for reinforcement learning updates
+        9. DecisionModule training with new experience tuple
+
+        Each turn consumes configurable base resources and can lead to death
+        through starvation mechanics. The method integrates curriculum learning
+        by restricting available actions based on simulation progress when configured.
         """
         if not self.alive:
             return
@@ -581,9 +619,6 @@ class BaseAgent:
                 done=done,
             )
 
-        # Train all modules (including DecisionModule learning)
-        self.train_all_modules()
-
     def clone(self) -> "BaseAgent":
         """Create a mutated copy of this agent.
 
@@ -628,7 +663,7 @@ class BaseAgent:
 
         try:
             # Attempt to create offspring
-            new_agent = self.create_offspring()
+            new_agent = self._create_offspring()
 
             # Record successful reproduction
             if self.logging_service:
@@ -679,7 +714,7 @@ class BaseAgent:
             logger.error(f"Reproduction failed for agent {self.agent_id}: {e}")
             return False
 
-    def create_offspring(self):
+    def _create_offspring(self):
         """Create a new agent as offspring."""
         # Get the agent's class (IndependentAgent, SystemAgent, etc)
         agent_class = type(self)
@@ -727,7 +762,7 @@ class BaseAgent:
 
         return new_agent
 
-    def die(self):
+    def terminate(self):
         """Handle agent death."""
 
         if self.alive:
@@ -746,51 +781,6 @@ class BaseAgent:
             if self.lifecycle_service:
                 self.lifecycle_service.remove_agent(self)
 
-    def get_environment(self) -> "Environment":
-        # Deprecated: kept for backward compatibility in rare uses
-        raise AttributeError(
-            "BaseAgent no longer holds a direct environment reference; use injected services instead."
-        )
-
-    def set_environment(self, environment: "Environment") -> None:
-        self._environment = environment
-
-    def calculate_new_position(self, action):
-        """Calculate new position based on action.
-
-        Args:
-            action (int): Action index (0-3 for movement actions)
-
-        Returns:
-            tuple: New (x, y) position
-        """
-        # Define movement vectors for each action
-        action_vectors = {
-            0: (1, 0),  # Right
-            1: (-1, 0),  # Left
-            2: (0, 1),  # Up
-            3: (0, -1),  # Down
-        }
-
-        # Get movement vector for the action
-        dx, dy = action_vectors[action]
-
-        # Scale by max_movement
-        dx *= getattr(self.config, "max_movement", 1) if self.config else 1
-        dy *= getattr(self.config, "max_movement", 1) if self.config else 1
-
-        # Calculate new position
-        env_width = getattr(self.config, "width", None)
-        env_height = getattr(self.config, "height", None)
-        if env_width is not None and env_height is not None:
-            new_x = max(0, min(env_width, self.position[0] + dx))
-            new_y = max(0, min(env_height, self.position[1] + dy))
-        else:
-            new_x = self.position[0] + dx
-            new_y = self.position[1] + dy
-
-        return (new_x, new_y)
-
     def update_position(self, new_position):
         """Update agent position and mark spatial index as dirty.
 
@@ -801,51 +791,6 @@ class BaseAgent:
             self.position = new_position
             # Mark spatial structures as dirty when position changes
             self.spatial_service.mark_positions_dirty()
-
-    def calculate_move_reward(self, old_pos, new_pos):
-        """Calculate reward for a movement action.
-
-        Reward calculation considers:
-        1. Base movement cost (-0.1)
-        2. Distance to nearest resource before and after move
-        3. Positive reward (0.3) for moving closer to resources
-        4. Negative reward (-0.2) for moving away from resources
-
-        Args:
-            old_pos (tuple): Previous (x, y) position
-            new_pos (tuple): New (x, y) position
-
-        Returns:
-            float: Movement reward value
-        """
-        # Base cost for moving
-        reward = -0.1
-
-        # Calculate movement distance
-        distance_moved = np.sqrt(
-            (new_pos[0] - old_pos[0]) ** 2 + (new_pos[1] - old_pos[1]) ** 2
-        )
-
-        if distance_moved > 0:
-            # Find closest non-depleted resource
-            # Use spatial service to get nearest resource
-            closest_resource = self.spatial_service.get_nearest_resource(new_pos)
-
-            if closest_resource:
-                # Calculate distances to resource before and after move
-                old_distance = np.sqrt(
-                    (closest_resource.position[0] - old_pos[0]) ** 2
-                    + (closest_resource.position[1] - old_pos[1]) ** 2
-                )
-                new_distance = np.sqrt(
-                    (closest_resource.position[0] - new_pos[0]) ** 2
-                    + (closest_resource.position[1] - new_pos[1]) ** 2
-                )
-
-                # Reward for moving closer to resources, penalty for moving away
-                reward += 0.3 if new_distance < old_distance else -0.2
-
-        return reward
 
     def handle_combat(self, attacker: "BaseAgent", damage: float) -> float:
         """Handle incoming attack and calculate actual damage taken.
@@ -861,6 +806,9 @@ class BaseAgent:
 
         Returns:
             float: Actual damage dealt after defensive calculations
+
+        Notes:
+        - TO-DO: Implement more realistic combat mechanics as a separate module
         """
         # Reduce damage if defending
         if self.is_defending:
@@ -871,7 +819,7 @@ class BaseAgent:
 
         # Check for death
         if self.current_health <= 0:
-            self.die()
+            self.terminate()
 
         return damage
 
@@ -896,21 +844,21 @@ class BaseAgent:
         position: tuple[float, float],
         environment: "Environment",
     ) -> "BaseAgent":
-        """Create a new agent instance from a genome.
+        """Create a new agent instance from a genome dictionary.
 
-        Factory method that:
-        1. Decodes genome into agent parameters
-        2. Initializes new agent with those parameters
-        3. Sets up required environment connections
+        Factory method that reconstructs an agent from its serialized genome representation.
+        The genome dictionary contains all necessary information to recreate the agent's
+        state, including action preferences, neural network parameters, and physical attributes.
 
         Args:
-            genome (Genome): Genetic encoding of agent parameters
-            agent_id (str): Unique identifier for new agent
-            position (tuple[int, int]): Starting coordinates
-            environment (Environment): Simulation environment reference
+            genome: Dictionary containing serialized agent genome with action_set,
+                   module_states, agent_type, resource_level, and current_health
+            agent_id: Unique string identifier for the new agent
+            position: Starting (x, y) coordinates as floats (will be converted to ints)
+            environment: Simulation environment reference for agent integration
 
         Returns:
-            BaseAgent: New agent instance with genome's characteristics
+            BaseAgent: New agent instance with characteristics decoded from the genome
         """
         return Genome.to_agent(
             genome, agent_id, (int(position[0]), int(position[1])), environment
@@ -1007,6 +955,9 @@ class BaseAgent:
 
         Returns:
             bool: True if successfully recorded, False otherwise
+
+        Notes:
+        - NOT USED: This is a placeholder for future memory implementation
         """
         if not self.memory:
             return False
@@ -1055,151 +1006,3 @@ class BaseAgent:
                 f"Failed to remember experience for agent {self.agent_id}: {e}"
             )
             return False
-
-    def recall_similar_situations(self, position=None, limit=5):
-        """Retrieve memories similar to current situation.
-
-        Args:
-            position (tuple, optional): Position to search around, or current position if None
-            limit (int): Maximum number of memories to retrieve
-
-        Returns:
-            list: List of similar memories, or empty list if memory not available
-        """
-        if not self.memory:
-            return []
-
-        try:
-            # Use provided position or current position
-            pos = position or self.position
-
-            # Search memories by position
-            return self.memory.search_by_position(pos, radius=10.0, limit=limit)
-
-        except Exception as e:
-            logger.error(f"Failed to recall memories for agent {self.agent_id}: {e}")
-            return []
-
-    def train_all_modules(self):
-        """Train all learning modules.
-
-        Note: DecisionModule handles its own training through SB3's built-in mechanisms
-        during the update() calls in the act() method. No additional training needed here.
-        """
-        # DecisionModule training is handled automatically in SB3 during update() calls
-        # No additional training logic needed for the new DecisionModule
-        pass
-
-    #! part of context manager, commented out for now
-    # def __enter__(self):
-    #     """Enter agent context.
-
-    #     Activates agent in environment, initializes resources, and sets up context tracking.
-
-    #     Raises:
-    #         RuntimeError: If agent is already in an active context
-    #     """
-    #     if self._active:
-    #         raise RuntimeError(f"Agent {self.agent_id} is already in an active context")
-
-    #     self._active = True
-    #     self._context_depth += 1
-
-    #     # Register with environment's context tracker
-    #     self.environment.register_active_context(self)
-
-    #     # Add to environment and record birth
-    #     self.environment.batch_add_agents([self])
-    #     self.environment.record_birth()
-
-    #     self._context_logger.info(
-    #         f"Agent {self.agent_id} entered context (depth: {self._context_depth})"
-    #     )
-
-    #     return self
-
-    # def __exit__(self, exc_type, exc_val, exc_tb):
-    #     """Exit agent context.
-
-    #     Ensures proper cleanup of agent resources and state. Also handles nested contexts
-    #     and relationship cleanup.
-
-    #     Args:
-    #         exc_type: Type of exception that occurred, if any
-    #         exc_val: Exception instance that occurred, if any
-    #         exc_tb: Exception traceback, if any
-    #     """
-    #     try:
-    #         # Clean up child contexts first
-    #         for child in self._child_contexts.copy():
-    #             if child._active:
-    #                 child.__exit__(None, None, None)
-
-    #         # Clean up agent state
-    #         if self.alive:
-    #             self.die()
-
-    #         # Remove from environment's context tracker
-    #         self.environment.unregister_active_context(self)
-
-    #         # Clear relationship tracking
-    #         if self._parent_context:
-    #             self._parent_context._child_contexts.remove(self)
-    #         self._parent_context = None
-    #         self._child_contexts.clear()
-
-    #         self._context_logger.info(
-    #             f"Agent {self.agent_id} exited context (depth: {self._context_depth})"
-    #         )
-
-    #         if exc_type:
-    #             self._context_logger.error(
-    #                 f"Agent {self.agent_id} context exited with error: {exc_val}"
-    #             )
-
-    #     finally:
-    #         self._active = False
-    #         self._context_depth -= 1
-
-    #     return False  # Don't suppress exceptions
-
-    # def create_child_context(self, child_agent: "BaseAgent") -> None:
-    #     """Create parent-child relationship between agent contexts.
-
-    #     Args:
-    #         child_agent: Agent to establish as child context
-
-    #     Raises:
-    #         RuntimeError: If either agent is not in an active context
-    #     """
-    #     if not self._active:
-    #         raise RuntimeError("Parent agent must be in active context")
-    #     if not child_agent._active:
-    #         raise RuntimeError("Child agent must be in active context")
-
-    #     child_agent._parent_context = self
-    #     self._child_contexts.add(child_agent)
-
-    #     self._context_logger.info(
-    #         f"Established parent-child context: {self.agent_id} -> {child_agent.agent_id}"
-    #     )
-
-    # def validate_context(self) -> None:
-    #     """Validate agent's context state.
-
-    #     Raises:
-    #         RuntimeError: If agent's context state is invalid
-    #     """
-    #     if not self._active:
-    #         raise RuntimeError("Agent must be used within context manager")
-
-    #     if self._context_depth <= 0:
-    #         raise RuntimeError("Invalid context depth")
-
-    #     # Validate parent-child relationships
-    #     if self._parent_context and self not in self._parent_context._child_contexts:
-    #         raise RuntimeError("Inconsistent parent-child relationship")
-
-    #     for child in self._child_contexts:
-    #         if child._parent_context is not self:
-    #             raise RuntimeError("Inconsistent child-parent relationship")
