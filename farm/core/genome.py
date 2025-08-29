@@ -2,11 +2,31 @@ import json
 import random
 from typing import TYPE_CHECKING, Optional, Union
 
-from farm.core.action import Action
+from farm.core.action import (
+    Action,
+    attack_action,
+    defend_action,
+    gather_action,
+    move_action,
+    pass_action,
+    reproduce_action,
+    share_action,
+)
 
 if TYPE_CHECKING:
     from farm.core.agent import BaseAgent
     from farm.core.environment import Environment
+
+# Action registry for secure function resolution
+ACTION_FUNCTIONS = {
+    "attack": attack_action,
+    "gather": gather_action,
+    "share": share_action,
+    "move": move_action,
+    "reproduce": reproduce_action,
+    "defend": defend_action,
+    "pass": pass_action,
+}
 
 
 class Genome:
@@ -93,7 +113,7 @@ class Genome:
         """
         # Reconstruct action set
         action_set = [
-            Action(name, weight, globals()[f"{name}_action"])
+            Action(name, weight, ACTION_FUNCTIONS[name])
             for name, weight in genome["action_set"]
         ]
 
@@ -102,6 +122,7 @@ class Genome:
             agent_id=agent_id,
             position=position,
             resource_level=genome["resource_level"],
+            spatial_service=environment.spatial_service,
             environment=environment,
             action_set=action_set,
         )

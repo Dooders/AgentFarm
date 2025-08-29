@@ -5,7 +5,28 @@ from typing import TYPE_CHECKING, Optional, Tuple
 import numpy as np
 import torch
 
-from farm.core.action import *
+from farm.core.action import (
+    Action,
+    action_registry,
+    attack_action,
+    defend_action,
+    gather_action,
+    move_action,
+    pass_action,
+    reproduce_action,
+    share_action,
+)
+
+# Action registry for secure function resolution
+ACTION_FUNCTIONS = {
+    "attack": attack_action,
+    "gather": gather_action,
+    "share": share_action,
+    "move": move_action,
+    "reproduce": reproduce_action,
+    "defend": defend_action,
+    "pass": pass_action,
+}
 from farm.core.decision.config import DecisionConfig
 from farm.core.decision.decision import DecisionModule
 from farm.core.genome import Genome
@@ -101,31 +122,8 @@ class BaseAgent:
         self.generation = generation
         self.genome_id = self._generate_genome_id(parent_ids)
 
-        # Initialize all modules first
-        #! make this a list of action modules that can be provided to the agent at init
-        # Use the config's dqn_hidden_size to match the modules
-        hidden_size = getattr(self.config, "dqn_hidden_size", 64) if self.config else 64
-
         # Initialize DecisionModule for action selection
-        decision_config = DecisionConfig()
-        if self.config and hasattr(self.config, "decision"):
-            # Use config from environment if available
-            decision_config = getattr(self.config, "decision", DecisionConfig())
-
-        # Get action and observation spaces from config if available
-        action_space = (
-            getattr(self.config, "action_space", None) if self.config else None
-        )
-        observation_space = (
-            getattr(self.config, "observation_space", None) if self.config else None
-        )
-
-        self.decision_module = DecisionModule(
-            agent=self,
-            config=decision_config,
-            action_space=action_space,
-            observation_space=observation_space,
-        )
+        self._initialize_decision_module()
 
         # Initialize Redis memory if requested
         self.memory = None
@@ -213,6 +211,7 @@ class BaseAgent:
         self.time_service = time_service
         self.lifecycle_service = lifecycle_service
         self.config = config
+        self.environment = environment
 
     def _generate_genome_id(self, parent_ids: list[str]) -> str:
         """Generate a unique genome ID for this agent.
@@ -231,7 +230,29 @@ class BaseAgent:
         )
         return genome_id.to_string()
 
-    def get_perception(self) -> PerceptionData:
+    def _initialize_decision_module(self):
+        """Initialize the decision module for action selection."""
+        decision_config = DecisionConfig()
+        if self.config and hasattr(self.config, "decision"):
+            # Use config from environment if available
+            decision_config = getattr(self.config, "decision", DecisionConfig())
+
+        # Get action and observation spaces from config if available
+        action_space = (
+            getattr(self.config, "action_space", None) if self.config else None
+        )
+        observation_space = (
+            getattr(self.config, "observation_space", None) if self.config else None
+        )
+
+        self.decision_module = DecisionModule(
+            agent=self,
+            config=decision_config,
+            action_space=action_space,
+            observation_space=observation_space,
+        )
+
+    def get_fallback_perception(self) -> PerceptionData:
         """Get agent's perception of nearby environment elements.
 
         Creates a grid representation of the agent's surroundings within its perception radius.
@@ -298,8 +319,38 @@ class BaseAgent:
     def create_decision_state(self):
         """Create a state representation suitable for the DecisionModule.
 
+        Uses the environment's multi-channel observation system that provides
+        rich information about the agent's surroundings including health,
+        allies, enemies, resources, obstacles, and dynamic channels like
+        trails and damage heat.
+
         Returns:
-            torch.Tensor: State tensor for decision making
+            torch.Tensor: Multi-channel observation tensor for decision making
+        """
+        if self.environment is None:
+            # Fallback to simple state if no environment available
+            return self._create_fallback_state()
+
+        # Get the multi-channel observation from the environment
+        observation_np = self.environment.observe(self.agent_id)
+
+        # Convert to torch tensor and ensure proper device/dtype
+        # Keep multi-dimensional structure for CNN backbones
+        # Shape: (NUM_CHANNELS, S, S)
+        observation_tensor = torch.from_numpy(observation_np).to(
+            device=self.device, dtype=torch.float32
+        )
+
+        return observation_tensor
+
+    def _create_fallback_state(self):
+        """Create a simple fallback state representation when environment is not available.
+
+        This maintains backward compatibility and provides a basic state representation
+        using agent properties and simple perception data.
+
+        Returns:
+            torch.Tensor: Simple 1D state tensor for fallback scenarios
         """
         # Create a simple state representation with basic agent info
         state = [
@@ -312,7 +363,7 @@ class BaseAgent:
         ]
 
         # Add perception data if available
-        perception = self.get_perception()
+        perception = self.get_fallback_perception()
         state.extend(perception.grid.flatten() / 2.0)  # Normalize perception
 
         return torch.tensor(state, dtype=torch.float32, device=self.device)
@@ -466,6 +517,7 @@ class BaseAgent:
         return False
 
     def act(self) -> None:
+        #! Need to review
         """Execute the agent's turn in the simulation.
 
         This method handles the core action loop including:
@@ -548,7 +600,7 @@ class BaseAgent:
         # Recreate using current config and services by manually constructing agent
         # rather than delegating to Genome.to_agent (which expects environment)
         action_set = [
-            Action(name, weight, globals()[f"{name}_action"])
+            Action(name, weight, ACTION_FUNCTIONS[name])
             for name, weight in mutated_genome["action_set"]
         ]
         new_agent = BaseAgent(
@@ -570,94 +622,62 @@ class BaseAgent:
         return new_agent
 
     def reproduce(self) -> bool:
-        """Attempt reproduction. Returns True if successful."""
+        """Create offspring agent. Assumes resource requirements already checked by action."""
         # Store initial resources for tracking
         initial_resources = self.resource_level
-        failure_reason = None
 
-        # Check resource requirements
-        if (
-            self.resource_level < getattr(self.config, "min_reproduction_resources", 10)
-            if self.config
-            else 10
-        ):
-            failure_reason = "Insufficient resources"
+        try:
+            # Attempt to create offspring
+            new_agent = self.create_offspring()
 
-            # Record failed reproduction attempt
+            # Record successful reproduction
             if self.logging_service:
                 self.logging_service.log_reproduction_event(
                     step_number=(
                         self.time_service.current_time() if self.time_service else 0
                     ),
                     parent_id=self.agent_id,
-                    offspring_id="",  # Empty string for failed reproduction
-                    success=False,
+                    offspring_id=new_agent.agent_id,
+                    success=True,
                     parent_resources_before=initial_resources,
-                    parent_resources_after=initial_resources,
-                    offspring_initial_resources=0.0,  # Default value for failed reproduction
-                    failure_reason=failure_reason,
-                    parent_generation=self.generation,
-                    offspring_generation=0,  # Default value for failed reproduction
-                    parent_position=self.position,
-                )
-            return False
-
-        # Check if enough resources for offspring cost
-        if (
-            self.resource_level < getattr(self.config, "offspring_cost", 5) + 2
-            if self.config
-            else 10
-        ):
-            failure_reason = "Insufficient resources for offspring cost"
-
-            # Record failed reproduction attempt
-            if self.logging_service:
-                self.logging_service.log_reproduction_event(
-                    step_number=(
-                        self.time_service.current_time() if self.time_service else 0
+                    parent_resources_after=self.resource_level,
+                    offspring_initial_resources=(
+                        getattr(self.config, "offspring_initial_resources", 10)
+                        if self.config
+                        else 10
                     ),
-                    parent_id=self.agent_id,
-                    offspring_id="",  # Empty string for failed reproduction
-                    success=False,
-                    parent_resources_before=initial_resources,
-                    parent_resources_after=initial_resources,
-                    offspring_initial_resources=0.0,  # Default value for failed reproduction
-                    failure_reason=failure_reason,
+                    failure_reason="",  # Empty string for successful reproduction
                     parent_generation=self.generation,
-                    offspring_generation=0,  # Default value for failed reproduction
+                    offspring_generation=new_agent.generation,
                     parent_position=self.position,
                 )
-            return False
 
-        # Attempt reproduction
-        new_agent = self.create_offspring()
-
-        # Record successful reproduction
-        if self.logging_service:
-            self.logging_service.log_reproduction_event(
-                step_number=(
-                    self.time_service.current_time() if self.time_service else 0
-                ),
-                parent_id=self.agent_id,
-                offspring_id=new_agent.agent_id,
-                success=True,
-                parent_resources_before=initial_resources,
-                parent_resources_after=self.resource_level,
-                offspring_initial_resources=(
-                    getattr(self.config, "offspring_initial_resources", 10)
-                    if self.config
-                    else 10
-                ),
-                failure_reason="",  # Empty string for successful reproduction
-                parent_generation=self.generation,
-                offspring_generation=new_agent.generation,
-                parent_position=self.position,
+            logger.info(
+                f"Agent {self.agent_id} reproduced at {self.position} during step {self.time_service.current_time() if self.time_service else 0} creating agent {new_agent.agent_id}"
             )
+            return True
 
-        logger.info(
-            f"Agent {self.agent_id} reproduced at {self.position} during step {self.time_service.current_time() if self.time_service else 0} creating agent {new_agent.agent_id}"
-        )
-        return True
+        except Exception as e:
+            # Log failed reproduction attempt
+            if self.logging_service:
+                self.logging_service.log_reproduction_event(
+                    step_number=(
+                        self.time_service.current_time() if self.time_service else 0
+                    ),
+                    parent_id=self.agent_id,
+                    offspring_id="",  # Empty string for failed reproduction
+                    success=False,
+                    parent_resources_before=initial_resources,
+                    parent_resources_after=self.resource_level,  # May have changed if partial creation occurred
+                    offspring_initial_resources=0.0,  # Default value for failed reproduction
+                    failure_reason=str(e),
+                    parent_generation=self.generation,
+                    offspring_generation=0,  # Default value for failed reproduction
+                    parent_position=self.position,
+                )
+
+            logger.error(f"Reproduction failed for agent {self.agent_id}: {e}")
+            return False
 
     def create_offspring(self):
         """Create a new agent as offspring."""
@@ -665,7 +685,6 @@ class BaseAgent:
         agent_class = type(self)
 
         # Generate unique ID and genome info first
-        #! need to update this since we are using strings now
         new_id = (
             self.lifecycle_service.get_next_agent_id()
             if self.lifecycle_service

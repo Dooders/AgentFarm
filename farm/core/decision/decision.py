@@ -286,11 +286,15 @@ class DecisionModule:
         # Get observation space from parameter or create default
         if observation_space is not None:
             self.observation_space = observation_space
-            # Update state_dim to match the custom observation space
+            # Store the full observation shape for multi-dimensional support
             if hasattr(observation_space, "shape"):
-                self.state_dim = observation_space.shape[0]
+                self.observation_shape = observation_space.shape
+                # For backward compatibility, set state_dim to total elements
+                self.state_dim = int(np.prod(observation_space.shape))
         else:
             self.observation_space = self._create_observation_space()
+            self.observation_shape = self.observation_space.shape
+            self.state_dim = int(np.prod(self.observation_shape))
 
         # Initialize algorithm
         self.algorithm: Any = None
@@ -409,8 +413,14 @@ class DecisionModule:
             dummy_env = SB3Wrapper(self.observation_space, self.action_space)
 
             # Configure DDQN parameters
+            # Auto-select policy based on observation space dimensionality
+            default_policy = (
+                "CnnPolicy" if len(self.observation_shape) > 1 else "MlpPolicy"
+            )
+            policy = self.config.algorithm_params.get("policy", default_policy)
+
             ddqn_kwargs = {
-                "policy": self.config.algorithm_params.get("policy", "MlpPolicy"),
+                "policy": policy,
                 "env": dummy_env,
                 "learning_rate": self.config.learning_rate,
                 "buffer_size": self.config.rl_buffer_size,
@@ -525,9 +535,19 @@ class DecisionModule:
             else:
                 state_np = np.array(state, dtype=np.float32)
 
-            # Ensure correct shape
+            # Ensure correct shape for algorithm input
+            # Handle multi-dimensional observations (e.g., for CNNs)
             if state_np.ndim == 1:
                 state_np = state_np.reshape(1, -1)
+            elif state_np.ndim > 1:
+                # For multi-dimensional inputs, add batch dimension
+                # Shape: (C, H, W) -> (1, C, H, W) for CNNs
+                # or keep as is if algorithm expects different format
+                if state_np.shape != self.observation_shape:
+                    # If shape doesn't match expected, try to reshape
+                    if np.prod(state_np.shape) == self.state_dim:
+                        state_np = state_np.reshape(self.observation_shape)
+                state_np = state_np[np.newaxis, ...]  # Add batch dimension
 
             # Get action from algorithm
             if self.algorithm is not None and hasattr(self.algorithm, "predict"):

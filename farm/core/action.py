@@ -585,8 +585,8 @@ def move_action(agent: "BaseAgent") -> None:
 def reproduce_action(agent: "BaseAgent") -> None:
     """Execute the reproduce action for the given agent.
 
-    Simple rule-based reproduction that checks resource requirements
-    and uses a random chance for reproduction attempts.
+    Rule-based reproduction that consolidates resource checking and decision logic
+    before attempting to create offspring.
     """
     import random
 
@@ -594,20 +594,28 @@ def reproduce_action(agent: "BaseAgent") -> None:
     if not validate_agent_config(agent, "reproduce"):
         return
 
-    # Check if agent has enough resources for reproduction
+    # Get reproduction parameters from config
     min_resources = getattr(agent.config, "min_reproduction_resources", 8)
-    if not check_resource_requirement(agent, min_resources, "reproduce"):
+    offspring_cost = getattr(agent.config, "offspring_cost", 5)
+    reproduction_chance = getattr(agent.config, "reproduction_chance", 0.5)
+
+    # Check total resource requirements (minimum + offspring cost)
+    total_required = min_resources + offspring_cost
+    if not check_resource_requirement(agent, total_required, "reproduce"):
         return
 
-    # Simple rule: 50% chance to attempt reproduction if conditions are met
-    if random.random() < 0.5:
-        success = agent.reproduce()
-        if success:
-            logger.debug(f"Agent {agent.agent_id} successfully reproduced")
-        else:
-            logger.debug(f"Agent {agent.agent_id} reproduction attempt failed")
-    else:
+    # Random chance to attempt reproduction
+    if random.random() >= reproduction_chance:
         logger.debug(f"Agent {agent.agent_id} chose not to reproduce this turn")
+        return
+
+    # Attempt reproduction using the agent's method
+    success = agent.reproduce()
+
+    if success:
+        logger.debug(f"Agent {agent.agent_id} successfully reproduced")
+    else:
+        logger.debug(f"Agent {agent.agent_id} reproduction attempt failed")
 
 
 def defend_action(agent: "BaseAgent") -> None:
