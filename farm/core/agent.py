@@ -10,13 +10,7 @@ from farm.core.decision.config import DecisionConfig
 from farm.core.decision.decision import DecisionModule
 from farm.core.genome import Genome
 from farm.core.perception import PerceptionData
-from farm.core.services.implementations import (
-    EnvironmentAgentLifecycleService,
-    EnvironmentLoggingService,
-    EnvironmentMetricsService,
-    EnvironmentTimeService,
-    EnvironmentValidationService,
-)
+from farm.core.services.factory import AgentServiceFactory
 from farm.core.services.interfaces import (
     IAgentLifecycleService,
     ILoggingService,
@@ -78,38 +72,27 @@ class BaseAgent:
         memory_config: Optional[dict] = None,
     ):
         """Initialize a new agent with given parameters."""
-        # Add default actions
-        self.actions = action_set if action_set else action_registry.get_all()
-
-        # Normalize weights
-        total_weight = sum(action.weight for action in self.actions)
-        for action in self.actions:
-            action.weight /= total_weight
+        # Add default actions (already normalized by default)
+        self.actions = (
+            action_set if action_set else action_registry.get_all(normalized=True)
+        )
 
         self.agent_id = agent_id
         self.position = position
         self.resource_level = resource_level
         self.alive = True
-        # Derive services from environment if provided and not explicitly passed
-        if environment is not None:
-            metrics_service = metrics_service or EnvironmentMetricsService(environment)
-            logging_service = logging_service or EnvironmentLoggingService(environment)
-            validation_service = validation_service or EnvironmentValidationService(
-                environment
-            )
-            time_service = time_service or EnvironmentTimeService(environment)
-            lifecycle_service = lifecycle_service or EnvironmentAgentLifecycleService(
-                environment
-            )
-            config = config or getattr(environment, "config", None)
 
-        self.spatial_service = spatial_service
-        self.metrics_service = metrics_service
-        self.logging_service = logging_service
-        self.validation_service = validation_service
-        self.time_service = time_service
-        self.lifecycle_service = lifecycle_service
-        self.config = config
+        # Initialize services
+        self._initialize_services(
+            environment=environment,
+            spatial_service=spatial_service,
+            metrics_service=metrics_service,
+            logging_service=logging_service,
+            validation_service=validation_service,
+            time_service=time_service,
+            lifecycle_service=lifecycle_service,
+            config=config,
+        )
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.previous_state: AgentState | None = None
@@ -174,15 +157,58 @@ class BaseAgent:
         if self.metrics_service:
             self.metrics_service.record_birth()
 
-        #! part of context manager, commented out for now
-        # Context management
-        # self._active = False  # Track if agent is in context
-        # self._parent_context = None  # Track parent agent context
-        # self._child_contexts = set()  # Track child agent contexts
-        # self._context_depth = 0  # Track nesting level
+    def _initialize_services(
+        self,
+        environment: Optional["Environment"],
+        spatial_service: ISpatialQueryService,
+        metrics_service: IMetricsService | None,
+        logging_service: ILoggingService | None,
+        validation_service: IValidationService | None,
+        time_service: ITimeService | None,
+        lifecycle_service: IAgentLifecycleService | None,
+        config: object | None,
+    ) -> None:
+        """Initialize agent services using the factory pattern.
 
-        # # Context-specific logging
-        # self._context_logger = logging.getLogger(f"agent.{agent_id}.context")
+        Args:
+            environment: Reference to the simulation environment
+            spatial_service: Service for spatial queries
+            metrics_service: Service for metrics collection
+            logging_service: Service for logging
+            validation_service: Service for validation
+            time_service: Service for time management
+            lifecycle_service: Service for lifecycle management
+            config: Configuration object
+        """
+        # Create services using factory - use local variables for performance
+        services = AgentServiceFactory.create_services(
+            environment=environment,
+            metrics_service=metrics_service,
+            logging_service=logging_service,
+            validation_service=validation_service,
+            time_service=time_service,
+            lifecycle_service=lifecycle_service,
+            config=config,
+        )
+
+        # Unpack services to local variables for efficient assignment
+        (
+            metrics_service,
+            logging_service,
+            validation_service,
+            time_service,
+            lifecycle_service,
+            config,
+        ) = services
+
+        # Assign to instance attributes
+        self.spatial_service = spatial_service
+        self.metrics_service = metrics_service
+        self.logging_service = logging_service
+        self.validation_service = validation_service
+        self.time_service = time_service
+        self.lifecycle_service = lifecycle_service
+        self.config = config
 
     def _generate_genome_id(self, parent_ids: list[str]) -> str:
         """Generate a unique genome ID for this agent.

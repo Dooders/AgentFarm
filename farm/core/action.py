@@ -229,9 +229,21 @@ class action_registry:
         return cls._registry.get(name)
 
     @classmethod
-    def get_all(cls) -> List[Action]:
-        """Get all registered actions."""
-        return list(cls._registry.values())
+    def get_all(cls, normalized: bool = True) -> List[Action]:
+        """Get all registered actions.
+
+        Args:
+            normalized: If True, normalize action weights to sum to 1. Default is True.
+        """
+        actions = list(cls._registry.values())
+
+        if normalized and actions:
+            # Normalize weights
+            total_weight = sum(action.weight for action in actions)
+            for action in actions:
+                action.weight /= total_weight
+
+        return actions
 
 
 def attack_action(agent: "BaseAgent") -> None:
