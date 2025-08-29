@@ -15,7 +15,7 @@ Key Features:
 
 import logging
 import os
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -305,11 +305,11 @@ class DecisionModule:
 
         self.algorithm = FallbackAlgorithm(self.num_actions, self.config.epsilon_start)
 
-    def decide_action(self, state: torch.Tensor) -> int:
+    def decide_action(self, state: Union[torch.Tensor, np.ndarray]) -> int:
         """Decide which action to take given the current state.
 
         Args:
-            state: Current state observation as tensor
+            state: Current state observation as tensor or numpy array
 
         Returns:
             int: Selected action index

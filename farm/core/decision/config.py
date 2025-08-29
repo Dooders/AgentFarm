@@ -5,7 +5,7 @@ and type safety. It reduces duplication by providing a base DQN configuration
 that can be extended by specific action modules with only their unique parameters.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TypeVar
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -221,14 +221,18 @@ class DecisionConfig(BaseDQNConfig):
         return v
 
 
+# Type variable for configuration classes
+ConfigT = TypeVar("ConfigT", bound=BaseDQNConfig)
+
+
 # Default configuration instances
 DEFAULT_DECISION_CONFIG = DecisionConfig()
 DEFAULT_DQN_CONFIG = BaseDQNConfig()
 
 
 def create_config_from_dict(
-    config_dict: Dict[str, Any], config_class: type
-) -> BaseDQNConfig:
+    config_dict: Dict[str, Any], config_class: type[ConfigT]
+) -> ConfigT:
     """Create a configuration instance from a dictionary.
 
     This function allows creating configuration instances from dictionaries,
