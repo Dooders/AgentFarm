@@ -660,7 +660,8 @@ class Environment(AECEnv):
         """
         # If the agent supports dependency injection, supply services and config
         try:
-            if hasattr(agent, "spatial_service") and agent.spatial_service is None:
+            # Spatial service is required - always provide it
+            if hasattr(agent, "spatial_service"):
                 agent.spatial_service = self.spatial_service
             if hasattr(agent, "metrics_service") and agent.metrics_service is None:
                 agent.metrics_service = self.metrics_service

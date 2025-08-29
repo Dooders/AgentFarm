@@ -248,10 +248,6 @@ def attack_action(agent: "BaseAgent") -> None:
     attack_range = getattr(agent.config, "attack_range", 20.0)
 
     # Find nearby agents using spatial index
-    if not agent.spatial_service:
-        logger.debug(f"Agent {agent.agent_id} has no spatial service, skipping attack")
-        return
-
     nearby_agents = agent.spatial_service.get_nearby_agents(
         agent.position, attack_range
     )
@@ -348,10 +344,6 @@ def gather_action(agent: "BaseAgent") -> None:
     gathering_range = getattr(agent.config, "gathering_range", 30)
 
     # Find nearby resources using spatial index
-    if not agent.spatial_service:
-        logger.debug(f"Agent {agent.agent_id} has no spatial service, skipping gather")
-        return
-
     nearby_resources = agent.spatial_service.get_nearby_resources(
         agent.position, gathering_range
     )
@@ -454,10 +446,6 @@ def share_action(agent: "BaseAgent") -> None:
     share_range = getattr(agent.config, "share_range", 30)
 
     # Find nearby agents using spatial index
-    if not agent.spatial_service:
-        logger.debug(f"Agent {agent.agent_id} has no spatial service, skipping share")
-        return
-
     nearby_agents = agent.spatial_service.get_nearby_agents(agent.position, share_range)
 
     # Filter out self and find valid targets

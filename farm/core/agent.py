@@ -63,9 +63,9 @@ class BaseAgent:
         agent_id: str,
         position: tuple[float, float],
         resource_level: int,
+        spatial_service: ISpatialQueryService,
         environment: Optional["Environment"] = None,
         *,
-        spatial_service: ISpatialQueryService | None = None,
         metrics_service: IMetricsService | None = None,
         logging_service: ILoggingService | None = None,
         validation_service: IValidationService | None = None,
@@ -93,9 +93,6 @@ class BaseAgent:
         self.alive = True
         # Derive services from environment if provided and not explicitly passed
         if environment is not None:
-            spatial_service = spatial_service or EnvironmentSpatialQueryService(
-                environment
-            )
             metrics_service = metrics_service or EnvironmentMetricsService(environment)
             logging_service = logging_service or EnvironmentLoggingService(environment)
             validation_service = validation_service or EnvironmentValidationService(
@@ -227,16 +224,10 @@ class BaseAgent:
         perception = np.zeros((size, size), dtype=np.int8)
 
         # Get nearby entities using spatial service
-        nearby_resources = (
-            self.spatial_service.get_nearby_resources(self.position, radius)
-            if self.spatial_service
-            else []
+        nearby_resources = self.spatial_service.get_nearby_resources(
+            self.position, radius
         )
-        nearby_agents = (
-            self.spatial_service.get_nearby_agents(self.position, radius)
-            if self.spatial_service
-            else []
-        )
+        nearby_agents = self.spatial_service.get_nearby_agents(self.position, radius)
 
         # Helper function to convert world coordinates to grid coordinates
         def world_to_grid(wx: float, wy: float) -> tuple[int, int]:
@@ -761,8 +752,7 @@ class BaseAgent:
         if self.position != new_position:
             self.position = new_position
             # Mark spatial structures as dirty when position changes
-            if self.spatial_service:
-                self.spatial_service.mark_positions_dirty()
+            self.spatial_service.mark_positions_dirty()
 
     def calculate_move_reward(self, old_pos, new_pos):
         """Calculate reward for a movement action.
@@ -791,11 +781,7 @@ class BaseAgent:
         if distance_moved > 0:
             # Find closest non-depleted resource
             # Use spatial service to get nearest resource
-            closest_resource = (
-                self.spatial_service.get_nearest_resource(new_pos)
-                if self.spatial_service
-                else None
-            )
+            closest_resource = self.spatial_service.get_nearest_resource(new_pos)
 
             if closest_resource:
                 # Calculate distances to resource before and after move
