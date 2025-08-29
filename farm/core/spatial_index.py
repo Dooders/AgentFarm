@@ -240,6 +240,29 @@ class SpatialIndex:
         indices = self.resource_kdtree.query_ball_point(position, radius)
         return [self._resources[i] for i in indices]
 
+    def get_nearest_agent(self, position: Tuple[float, float]):
+        """Find nearest alive agent to position.
+
+        Parameters
+        ----------
+        position : tuple
+            (x, y) coordinates to search from
+
+        Returns
+        -------
+        Agent or None
+            Nearest alive agent if any exist
+        """
+        # Input validation
+        if not self._is_valid_position(position):
+            return None
+
+        if self.agent_kdtree is None or self._cached_alive_agents is None:
+            return None
+
+        distance, index = self.agent_kdtree.query(position)
+        return self._cached_alive_agents[index]
+
     def get_nearest_resource(self, position: Tuple[float, float]):
         """Find nearest resource to position.
 

@@ -26,6 +26,10 @@ class SpatialService(Protocol):
         """
         ...
 
+    def get_nearest_agent(self, position: Tuple[float, float]) -> Optional[object]:
+        """Return the nearest alive agent to ``position`` or ``None`` if none exist."""
+        ...
+
     def get_nearby_resources(self, position: Tuple[float, float], radius: float) -> List["Resource"]:
         """Return resources within ``radius`` of ``position``."""
         ...
@@ -61,6 +65,11 @@ class SpatialIndexAdapter(SpatialService):
 
     def get_nearby_agents(self, position: Tuple[float, float], radius: float) -> List[object]:
         return self._index.get_nearby_agents(position, radius)
+
+    def get_nearest_agent(self, position: Tuple[float, float]) -> Optional[object]:
+        if hasattr(self._index, "get_nearest_agent"):
+            return self._index.get_nearest_agent(position)  # type: ignore[no-any-return]
+        return None
 
     def get_nearby_resources(self, position: Tuple[float, float], radius: float) -> List["Resource"]:
         return self._index.get_nearby_resources(position, radius)

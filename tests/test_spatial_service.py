@@ -83,6 +83,22 @@ class TestSpatialServiceAdapter(unittest.TestCase):
         self.assertIn("a0", ids)
         self.assertNotIn("a1", ids)
 
+    def test_get_nearest_agent(self) -> None:
+        # From (9,10) nearest should be a0 at (10,10)
+        nearest = self.service.get_nearest_agent((9, 10))
+        self.assertIsNotNone(nearest)
+        if nearest is not None:
+            self.assertEqual(nearest.agent_id, "a0")
+
+    def test_get_nearest_agent_excludes_dead(self) -> None:
+        # Kill a0, nearest from (9,10) should be a1
+        self.agents[0].alive = False
+        self.index.force_rebuild()
+        nearest = self.service.get_nearest_agent((9, 10))
+        self.assertIsNotNone(nearest)
+        if nearest is not None:
+            self.assertEqual(nearest.agent_id, "a1")
+
 
 if __name__ == "__main__":
     unittest.main()
