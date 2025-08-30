@@ -15,6 +15,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import numpy as np
 import torch
+from pydantic import ValidationError
 
 from farm.core.decision.config import DecisionConfig
 from farm.core.decision.decision import TIANSHOU_AVAILABLE, DecisionModule
@@ -393,108 +394,103 @@ class TestDecisionModule(unittest.TestCase):
 
         self.assertEqual(module.num_actions, 10)
 
-    @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
-    def test_initialization_with_tianshou_ppo(self, mock_tianshou):
+    def test_initialization_with_tianshou_ppo(self):
         """Test DecisionModule initialization with Tianshou PPO."""
-        with patch("farm.core.decision.algorithms.tianshou.PPOWrapper") as mock_ppo:
-            mock_algorithm = Mock()
-            mock_ppo.return_value = mock_algorithm
+        with patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True):
+            with patch("farm.core.decision.algorithms.tianshou.PPOWrapper") as mock_ppo:
+                mock_algorithm = Mock()
+                mock_ppo.return_value = mock_algorithm
 
-            config = DecisionConfig(algorithm_type="ppo")
-            module = DecisionModule(
-                self.mock_agent,
-                self.mock_env.action_space,
-                self.observation_space,
-                config,
-            )
+                config = DecisionConfig(algorithm_type="ppo")
+                module = DecisionModule(
+                    self.mock_agent,
+                    self.mock_env.action_space,
+                    self.observation_space,
+                    config,
+                )
 
-            mock_ppo.assert_called_once()
-            self.assertEqual(module.config.algorithm_type, "ppo")
+                mock_ppo.assert_called_once()
+                self.assertEqual(module.config.algorithm_type, "ppo")
 
-    @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
-    def test_initialization_with_tianshou_sac(self, mock_tianshou):
+    def test_initialization_with_tianshou_sac(self):
         """Test DecisionModule initialization with Tianshou SAC."""
-        with patch("farm.core.decision.algorithms.tianshou.SACWrapper") as mock_sac:
-            mock_algorithm = Mock()
-            mock_sac.return_value = mock_algorithm
+        with patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True):
+            with patch("farm.core.decision.algorithms.tianshou.SACWrapper") as mock_sac:
+                mock_algorithm = Mock()
+                mock_sac.return_value = mock_algorithm
 
-            config = DecisionConfig(algorithm_type="sac")
-            module = DecisionModule(
-                self.mock_agent,
-                self.mock_env.action_space,
-                self.observation_space,
-                config,
-            )
+                config = DecisionConfig(algorithm_type="sac")
+                module = DecisionModule(
+                    self.mock_agent,
+                    self.mock_env.action_space,
+                    self.observation_space,
+                    config,
+                )
 
-            mock_sac.assert_called_once()
-            self.assertEqual(module.config.algorithm_type, "sac")
+                mock_sac.assert_called_once()
+                self.assertEqual(module.config.algorithm_type, "sac")
 
-    @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
-    def test_initialization_with_tianshou_dqn(self, mock_tianshou):
+    def test_initialization_with_tianshou_dqn(self):
         """Test DecisionModule initialization with Tianshou DQN."""
-        with patch("farm.core.decision.algorithms.tianshou.DQNWrapper") as mock_dqn:
-            mock_algorithm = Mock()
-            mock_dqn.return_value = mock_algorithm
+        with patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True):
+            with patch("farm.core.decision.algorithms.tianshou.DQNWrapper") as mock_dqn:
+                mock_algorithm = Mock()
+                mock_dqn.return_value = mock_algorithm
 
-            config = DecisionConfig(algorithm_type="dqn")
-            module = DecisionModule(
-                self.mock_agent,
-                self.mock_env.action_space,
-                self.observation_space,
-                config,
-            )
+                config = DecisionConfig(algorithm_type="dqn")
+                module = DecisionModule(
+                    self.mock_agent,
+                    self.mock_env.action_space,
+                    self.observation_space,
+                    config,
+                )
 
-            mock_dqn.assert_called_once()
-            self.assertEqual(module.config.algorithm_type, "dqn")
+                mock_dqn.assert_called_once()
+                self.assertEqual(module.config.algorithm_type, "dqn")
 
-    @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
-    def test_initialization_with_tianshou_a2c(self, mock_tianshou):
+    def test_initialization_with_tianshou_a2c(self):
         """Test DecisionModule initialization with Tianshou A2C."""
-        with patch("farm.core.decision.algorithms.tianshou.A2CWrapper") as mock_a2c:
-            mock_algorithm = Mock()
-            mock_a2c.return_value = mock_algorithm
+        with patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True):
+            with patch("farm.core.decision.algorithms.tianshou.A2CWrapper") as mock_a2c:
+                mock_algorithm = Mock()
+                mock_a2c.return_value = mock_algorithm
 
-            config = DecisionConfig(algorithm_type="a2c")
-            module = DecisionModule(
-                self.mock_agent,
-                self.mock_env.action_space,
-                self.observation_space,
-                config,
-            )
+                config = DecisionConfig(algorithm_type="a2c")
+                module = DecisionModule(
+                    self.mock_agent,
+                    self.mock_env.action_space,
+                    self.observation_space,
+                    config,
+                )
 
-            mock_a2c.assert_called_once()
-            self.assertEqual(module.config.algorithm_type, "a2c")
+                mock_a2c.assert_called_once()
+                self.assertEqual(module.config.algorithm_type, "a2c")
 
-    @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
-    def test_initialization_with_tianshou_ddpg(self, mock_tianshou):
+    def test_initialization_with_tianshou_ddpg(self):
         """Test DecisionModule initialization with Tianshou DDPG."""
-        with patch("farm.core.decision.algorithms.tianshou.DDPGWrapper") as mock_ddpg:
-            mock_algorithm = Mock()
-            mock_ddpg.return_value = mock_algorithm
+        with patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True):
+            with patch(
+                "farm.core.decision.algorithms.tianshou.DDPGWrapper"
+            ) as mock_ddpg:
+                mock_algorithm = Mock()
+                mock_ddpg.return_value = mock_algorithm
 
-            config = DecisionConfig(algorithm_type="ddpg")
-            module = DecisionModule(
-                self.mock_agent,
-                self.mock_env.action_space,
-                self.observation_space,
-                config,
-            )
+                config = DecisionConfig(algorithm_type="ddpg")
+                module = DecisionModule(
+                    self.mock_agent,
+                    self.mock_env.action_space,
+                    self.observation_space,
+                    config,
+                )
 
-            mock_ddpg.assert_called_once()
-            self.assertEqual(module.config.algorithm_type, "ddpg")
+                mock_ddpg.assert_called_once()
+                self.assertEqual(module.config.algorithm_type, "ddpg")
 
     def test_initialization_algorithm_fallback(self):
-        """Test that invalid algorithm falls back to fallback."""
-        config = DecisionConfig(algorithm_type="invalid_algorithm")
-
-        # This should work since DecisionConfig validates algorithm_type
-        with self.assertRaises(ValueError):  # Pydantic validation error
-            module = DecisionModule(
-                self.mock_agent,
-                self.mock_env.action_space,
-                self.observation_space,
-                config,
-            )
+        """Test that invalid algorithm is rejected by config validation."""
+        # DecisionConfig validates algorithm_type and rejects invalid values
+        with self.assertRaises(ValidationError):
+            config = DecisionConfig(algorithm_type="invalid_algorithm")
 
     def test_decide_action_with_multi_dimensional_state(self):
         """Test decide_action with multi-dimensional state."""

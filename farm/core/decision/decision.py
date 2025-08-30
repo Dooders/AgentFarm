@@ -88,9 +88,6 @@ class DecisionModule:
         self.config = config
         self.agent = agent
 
-        # Set state dimension first (needed for observation space creation)
-        self.state_dim = config.rl_state_dim
-
         # Use provided action space
         self.action_space = action_space
         # Get number of actions directly from action space
@@ -107,11 +104,14 @@ class DecisionModule:
         # Store the full observation shape for multi-dimensional support
         if hasattr(observation_space, "shape"):
             self.observation_shape = observation_space.shape
-            # For backward compatibility, set state_dim to total elements
-            self.state_dim = int(np.prod(observation_space.shape))
+            # Use rl_state_dim from config if provided, otherwise use observation space shape
+            if config.rl_state_dim > 0:
+                self.state_dim = config.rl_state_dim
+            else:
+                self.state_dim = int(np.prod(observation_space.shape))
         else:
-            self.observation_shape = (self.state_dim,)
-            self.state_dim = int(np.prod(self.observation_shape))
+            self.observation_shape = (config.rl_state_dim,)
+            self.state_dim = config.rl_state_dim
 
         # Initialize algorithm
         self.algorithm: Any = None
