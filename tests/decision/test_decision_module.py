@@ -78,8 +78,10 @@ class TestDecisionModule(unittest.TestCase):
         from gymnasium import spaces
 
         custom_obs_space = spaces.Box(low=-1, high=1, shape=(16,), dtype=np.float32)
+        # Create config that doesn't override observation space shape
+        config = DecisionConfig(rl_state_dim=0)
         module = DecisionModule(
-            self.mock_agent, self.mock_env.action_space, custom_obs_space, self.config
+            self.mock_agent, self.mock_env.action_space, custom_obs_space, config
         )
 
         self.assertEqual(module.state_dim, 16)
@@ -397,7 +399,7 @@ class TestDecisionModule(unittest.TestCase):
     def test_initialization_with_tianshou_ppo(self):
         """Test DecisionModule initialization with Tianshou PPO."""
         with patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True):
-            with patch("farm.core.decision.algorithms.tianshou.PPOWrapper") as mock_ppo:
+            with patch("farm.core.decision.decision.PPOWrapper") as mock_ppo:
                 mock_algorithm = Mock()
                 mock_ppo.return_value = mock_algorithm
 
@@ -415,7 +417,7 @@ class TestDecisionModule(unittest.TestCase):
     def test_initialization_with_tianshou_sac(self):
         """Test DecisionModule initialization with Tianshou SAC."""
         with patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True):
-            with patch("farm.core.decision.algorithms.tianshou.SACWrapper") as mock_sac:
+            with patch("farm.core.decision.decision.SACWrapper") as mock_sac:
                 mock_algorithm = Mock()
                 mock_sac.return_value = mock_algorithm
 
@@ -433,7 +435,7 @@ class TestDecisionModule(unittest.TestCase):
     def test_initialization_with_tianshou_dqn(self):
         """Test DecisionModule initialization with Tianshou DQN."""
         with patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True):
-            with patch("farm.core.decision.algorithms.tianshou.DQNWrapper") as mock_dqn:
+            with patch("farm.core.decision.decision.DQNWrapper") as mock_dqn:
                 mock_algorithm = Mock()
                 mock_dqn.return_value = mock_algorithm
 
@@ -451,7 +453,7 @@ class TestDecisionModule(unittest.TestCase):
     def test_initialization_with_tianshou_a2c(self):
         """Test DecisionModule initialization with Tianshou A2C."""
         with patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True):
-            with patch("farm.core.decision.algorithms.tianshou.A2CWrapper") as mock_a2c:
+            with patch("farm.core.decision.decision.A2CWrapper") as mock_a2c:
                 mock_algorithm = Mock()
                 mock_a2c.return_value = mock_algorithm
 
@@ -469,9 +471,7 @@ class TestDecisionModule(unittest.TestCase):
     def test_initialization_with_tianshou_ddpg(self):
         """Test DecisionModule initialization with Tianshou DDPG."""
         with patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True):
-            with patch(
-                "farm.core.decision.algorithms.tianshou.DDPGWrapper"
-            ) as mock_ddpg:
+            with patch("farm.core.decision.decision.DDPGWrapper") as mock_ddpg:
                 mock_algorithm = Mock()
                 mock_ddpg.return_value = mock_algorithm
 
@@ -636,10 +636,9 @@ class TestDecisionModuleIntegration(unittest.TestCase):
             # Check state was restored
             self.assertEqual(new_module._is_trained, module._is_trained)
 
-    @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
-    def test_integration_with_tianshou_algorithm(self, mock_tianshou):
+    def test_integration_with_tianshou_algorithm(self):
         """Test integration with Tianshou algorithm."""
-        with patch("farm.core.decision.algorithms.tianshou.PPOWrapper") as mock_ppo:
+        with patch("farm.core.decision.decision.PPOWrapper") as mock_ppo:
             mock_algorithm = Mock()
             mock_algorithm.select_action.return_value = 2
             mock_ppo.return_value = mock_algorithm

@@ -85,8 +85,8 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         # Verify DDQN was initialized
         mock_dqn_class.assert_called_once()
         call_kwargs = mock_dqn_class.call_args[1]
-        self.assertEqual(call_kwargs["learning_rate"], config.learning_rate)
-        self.assertEqual(call_kwargs["gamma"], config.gamma)
+        self.assertEqual(call_kwargs["algorithm_config"]["lr"], config.learning_rate)
+        self.assertEqual(call_kwargs["algorithm_config"]["gamma"], config.gamma)
 
         # Test functionality
         state = torch.randn(8)
@@ -99,6 +99,9 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         """Test DecisionModule with Tianshou PPO."""
         mock_algorithm = Mock()
         mock_algorithm.select_action.return_value = 2
+        # Remove the automatically created select_action_with_mask to ensure
+        # the code uses the fallback path that calls select_action
+        delattr(mock_algorithm, "select_action_with_mask")
         mock_ppo_class.return_value = mock_algorithm
 
         config = DecisionConfig(algorithm_type="ppo")
@@ -112,8 +115,8 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         # Verify PPO was initialized
         mock_ppo_class.assert_called_once()
         call_kwargs = mock_ppo_class.call_args[1]
-        self.assertEqual(call_kwargs["learning_rate"], config.learning_rate)
-        self.assertEqual(call_kwargs["gamma"], config.gamma)
+        self.assertEqual(call_kwargs["algorithm_config"]["lr"], config.learning_rate)
+        self.assertEqual(call_kwargs["algorithm_config"]["gamma"], config.gamma)
 
         # Test functionality
         state = torch.randn(8)
@@ -126,6 +129,9 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         """Test DecisionModule with Tianshou SAC."""
         mock_algorithm = Mock()
         mock_algorithm.select_action.return_value = 3
+        # Remove the automatically created select_action_with_mask to ensure
+        # the code uses the fallback path that calls select_action
+        delattr(mock_algorithm, "select_action_with_mask")
         mock_sac_class.return_value = mock_algorithm
 
         config = DecisionConfig(algorithm_type="sac")
