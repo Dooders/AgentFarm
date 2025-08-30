@@ -398,9 +398,11 @@ class DecisionModule:
                         "selecting random enabled action"
                     )
                     # Select random action from enabled set
-                    action = np.random.choice(enabled_actions)
+                    selected_action = np.random.choice(enabled_actions)
+                else:
+                    selected_action = action
                 # Convert the action index to its position within the enabled_actions list
-                action = enabled_actions.index(action)
+                action = enabled_actions.index(selected_action)
 
             return action
 
