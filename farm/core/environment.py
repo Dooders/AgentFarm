@@ -757,9 +757,13 @@ class Environment(AECEnv):
         """
         # If the agent supports dependency injection, supply services and config
         try:
-            # Spatial service is required - always provide it
+            # Spatial service is required for agent act()/perception; ensure present
             if hasattr(agent, "spatial_service"):
                 agent.spatial_service = self.spatial_service
+            else:
+                setattr(agent, "spatial_service", self.spatial_service)
+
+            # Optional services: inject only when missing/None
             if hasattr(agent, "metrics_service") and agent.metrics_service is None:
                 agent.metrics_service = self.metrics_service
             if hasattr(agent, "logging_service") and agent.logging_service is None:
@@ -771,15 +775,30 @@ class Environment(AECEnv):
                 agent.validation_service = EnvironmentValidationService(self)
             if hasattr(agent, "time_service") and agent.time_service is None:
                 agent.time_service = EnvironmentTimeService(self)
-            if hasattr(agent, "lifecycle_service") and agent.lifecycle_service is None:
+            if (
+                hasattr(agent, "lifecycle_service")
+                and agent.lifecycle_service is None
+            ):
                 agent.lifecycle_service = EnvironmentAgentLifecycleService(self)
             if hasattr(agent, "config") and getattr(agent, "config", None) is None:
                 agent.config = self.config
-            # Set environment reference for action/observation space access
+
+            # Environment reference for action/observation space access
             if hasattr(agent, "environment"):
                 agent.environment = self
-        except Exception:
-            pass
+            else:
+                setattr(agent, "environment", self)
+
+            # Validate required dependencies after injection
+            if getattr(agent, "spatial_service", None) is None:
+                raise ValueError(
+                    f"Agent {getattr(agent, 'agent_id', '?')} missing spatial_service after injection"
+                )
+        except Exception as e:
+            logger.error(
+                f"Failed to inject services for agent {getattr(agent, 'agent_id', '?')}: {e}"
+            )
+            raise
 
         agent_data = [
             {
