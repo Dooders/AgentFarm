@@ -72,6 +72,9 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         """Test DecisionModule with Tianshou DQN."""
         mock_algorithm = Mock()
         mock_algorithm.select_action.return_value = 1
+        # Remove the automatically created select_action_with_mask to ensure
+        # the code uses the fallback path that calls select_action
+        delattr(mock_algorithm, "select_action_with_mask")
         mock_dqn_class.return_value = mock_algorithm
 
         config = DecisionConfig(algorithm_type="dqn")
@@ -159,6 +162,9 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         """Test DecisionModule with Tianshou A2C."""
         mock_algorithm = Mock()
         mock_algorithm.select_action.return_value = 0
+        # Remove the automatically created select_action_with_mask to ensure
+        # the code uses the fallback path that calls select_action
+        delattr(mock_algorithm, "select_action_with_mask")
         mock_a2c_class.return_value = mock_algorithm
 
         config = DecisionConfig(algorithm_type="a2c")
@@ -186,6 +192,9 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         """Test DecisionModule with Tianshou DDPG."""
         mock_algorithm = Mock()
         mock_algorithm.select_action.return_value = 1
+        # Remove the automatically created select_action_with_mask to ensure
+        # the code uses the fallback path that calls select_action
+        delattr(mock_algorithm, "select_action_with_mask")
         mock_ddpg_class.return_value = mock_algorithm
 
         config = DecisionConfig(algorithm_type="ddpg")

@@ -242,7 +242,9 @@ class TestDecisionConfig(unittest.TestCase):
             "ppo",
             "sac",
             "a2c",
-            "td3",
+            "ddpg",
+            "ddqn",
+            "fallback",
         ]
 
         for algo in valid_algorithms:

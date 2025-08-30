@@ -639,8 +639,17 @@ class TestDecisionModuleIntegration(unittest.TestCase):
     def test_integration_with_tianshou_algorithm(self):
         """Test integration with Tianshou algorithm."""
         with patch("farm.core.decision.decision.PPOWrapper") as mock_ppo:
+            # Create a proper mock algorithm that behaves like the real one
             mock_algorithm = Mock()
             mock_algorithm.select_action.return_value = 2
+            mock_algorithm.select_action_with_mask.return_value = 2
+            mock_algorithm.predict_proba.return_value = np.full(
+                (1, 7), 1.0 / 7, dtype=np.float32
+            )
+            mock_algorithm.update = Mock()
+            mock_algorithm.learn = Mock()
+
+            # Make the mock constructor return the mock algorithm
             mock_ppo.return_value = mock_algorithm
 
             config = DecisionConfig(algorithm_type="ppo")
