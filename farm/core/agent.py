@@ -375,9 +375,11 @@ class BaseAgent:
                 world_x = x_min + j
                 world_y = y_min + i
                 try:
-                    if not (
+                    # If validation_service is None, assume infinite bounds (all positions valid)
+                    # Only mark as obstacle if validation service exists AND position is invalid
+                    if (
                         self.validation_service
-                        and self.validation_service.is_valid_position(
+                        and not self.validation_service.is_valid_position(
                             (world_x, world_y)
                         )
                     ):
