@@ -167,8 +167,8 @@ class TianshouWrapper(RLAlgorithm):
 
                 actor_net = TianshouNet(
                     self.state_dim,
-                    self.num_actions,
-                    [64, 64],
+                    64,  # Output to hidden layer size, final layer handled by DiscreteActor
+                    [64],  # Single hidden layer: input -> 64 -> 64 -> final_output
                     device=self.algorithm_config["device"],
                 )
                 actor = DiscreteActor(
@@ -178,8 +178,8 @@ class TianshouWrapper(RLAlgorithm):
 
                 critic_net = TianshouNet(
                     self.state_dim,
-                    1,  # Critic outputs a single value
-                    [64, 64],
+                    64,  # Output to hidden layer size, final layer handled by DiscreteCritic
+                    [64],  # Single hidden layer: input -> 64 -> 64 -> final_output
                     device=self.algorithm_config["device"],
                 )
                 critic = DiscreteCritic(
@@ -335,8 +335,8 @@ class TianshouWrapper(RLAlgorithm):
 
                 actor_net = TianshouNet(
                     self.state_dim,
-                    self.num_actions,
-                    [64, 64],
+                    64,  # Output to hidden layer size, final layer handled by DiscreteActor
+                    [64],  # Single hidden layer: input -> 64 -> 64 -> final_output
                     device=self.algorithm_config["device"],
                 )
                 actor = DiscreteActor(
@@ -346,8 +346,8 @@ class TianshouWrapper(RLAlgorithm):
 
                 critic_net = TianshouNet(
                     self.state_dim,
-                    1,  # Critic outputs a single value
-                    [64, 64],
+                    64,  # Output to hidden layer size, final layer handled by DiscreteCritic
+                    [64],  # Single hidden layer: input -> 64 -> 64 -> final_output
                     device=self.algorithm_config["device"],
                 )
                 critic = DiscreteCritic(
