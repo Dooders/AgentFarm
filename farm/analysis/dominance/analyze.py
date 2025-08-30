@@ -6,20 +6,60 @@ This file has been refactored. Use the following modules instead:
  - farm.analysis.dominance.validation for data validation
 """
 
-from farm.analysis.dominance.pipeline import (
-    process_single_simulation,
-    process_dominance_data,
+import logging
+import traceback
+
+import pandas as pd
+
+from farm.analysis.base_module import (
+    BaseAnalysisModule,
+    analyze_correlations,
+    get_valid_numeric_columns,
+    group_and_analyze,
+    split_and_compare_groups,
+)
+from farm.analysis.dominance.compute import (
+    aggregate_reproduction_analysis_results,
+    compute_comprehensive_dominance,
+    compute_dominance_switch_factors,
+    compute_dominance_switches,
+    compute_population_dominance,
+    compute_survival_dominance,
+)
+from farm.analysis.dominance.data import (
+    get_agent_survival_stats,
+    get_final_population_counts,
+    get_initial_positions_and_resources,
+    get_reproduction_stats,
 )
 from farm.analysis.dominance.db_io import save_dominance_data_to_db
 from farm.analysis.dominance.features import (
-    analyze_dominance_switch_factors,
-    analyze_reproduction_dominance_switching,
-    analyze_high_vs_low_switching,
-    analyze_reproduction_timing,
-    analyze_reproduction_efficiency,
-    analyze_reproduction_advantage,
     analyze_by_agent_type,
+    analyze_dominance_switch_factors,
+    analyze_high_vs_low_switching,
+    analyze_reproduction_advantage,
+    analyze_reproduction_dominance_switching,
+    analyze_reproduction_efficiency,
+    analyze_reproduction_timing,
 )
+from farm.analysis.dominance.models import DominanceDataModel
+from farm.analysis.dominance.pipeline import (
+    process_dominance_data,
+    process_single_simulation,
+)
+from farm.analysis.dominance.sqlalchemy_models import (
+    AgentPopulation,
+    CorrelationAnalysis,
+    DominanceMetrics,
+    DominanceSwitching,
+    HighLowSwitchingComparison,
+    ReproductionStats,
+    ResourceDistribution,
+    Simulation,
+    get_session,
+    init_db,
+)
+from scripts.analysis_config import setup_and_process_simulations
 
 
 def process_single_simulation(session, iteration, config, **kwargs):

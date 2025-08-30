@@ -73,7 +73,9 @@ def split_and_compare_groups(
             high_mean = high_group[metric].mean()
             low_mean = low_group[metric].mean()
             difference = high_mean - low_mean
-            percent_diff = (difference / low_mean * 100) if low_mean != 0 else float("inf")
+            percent_diff = (
+                (difference / low_mean * 100) if low_mean != 0 else float("inf")
+            )
 
             comparison[metric] = {
                 "high_group_mean": high_mean,
@@ -113,11 +115,13 @@ def analyze_correlations(
     correlations: Dict[str, float] = {}
     for col in metric_columns:
         try:
-            valid_data = filtered_df[filtered_df[col].notna() & filtered_df[target_column].notna()]
+            valid_data = filtered_df[
+                filtered_df[col].notna() & filtered_df[target_column].notna()
+            ]
             if len(valid_data) >= min_data_points:
                 corr = valid_data[[col, target_column]].corr().iloc[0, 1]
                 if not pd.isna(corr):
-                    correlations[col] = corr
+                    correlations[col] = pd.to_numeric(corr, errors="coerce")
         except Exception as exc:
             logging.warning(f"Error calculating correlation for {col}: {exc}")
 
@@ -157,5 +161,3 @@ def find_top_correlations(
     top_positive = dict(list(positive_corrs.items())[:top_n])
     top_negative = dict(list(negative_corrs.items())[:top_n])
     return {"top_positive": top_positive, "top_negative": top_negative}
-
-

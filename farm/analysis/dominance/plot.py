@@ -1,14 +1,18 @@
 import logging
 import os
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib import pyplot as plt
+
 from farm.analysis.common.context import AnalysisContext
 
 
-def plot_dominance_distribution(df, output_path=None, ctx: AnalysisContext = None):
+def plot_dominance_distribution(
+    df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None
+):
     """
     Plot the distribution of dominance types as percentages.
     """
@@ -138,7 +142,13 @@ def plot_dominance_distribution(df, output_path=None, ctx: AnalysisContext = Non
     plt.close()
 
 
-def plot_feature_importance(df=None, output_path=None, feat_imp=None, label_name=None, ctx: AnalysisContext = None):
+def plot_feature_importance(
+    df=None,
+    output_path: Optional[str] = None,
+    feat_imp=None,
+    label_name=None,
+    ctx: Optional[AnalysisContext] = None,
+):
     """
     Plot feature importance for a classifier.
 
@@ -183,13 +193,17 @@ def plot_feature_importance(df=None, output_path=None, feat_imp=None, label_name
     # Adjust layout to make room for caption
     plt.tight_layout(rect=(0, 0.05, 1, 0.95))
     output_dir = ctx.output_path if (ctx and ctx.output_path) else output_path
+    if not output_dir:
+        raise ValueError("output_path is required")
     output_file = os.path.join(output_dir, f"{label_name}_feature_importance.png")
     plt.savefig(output_file)
     logging.info(f"Saved feature importance plot to {output_file}")
     plt.close()
 
 
-def plot_resource_proximity_vs_dominance(df, output_path=None, ctx: AnalysisContext = None):
+def plot_resource_proximity_vs_dominance(
+    df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None
+):
     """
     Plot the relationship between initial resource proximity and dominance.
     """
@@ -233,8 +247,14 @@ def plot_resource_proximity_vs_dominance(df, output_path=None, ctx: AnalysisCont
     plt.close()
 
 
-def plot_reproduction_vs_dominance(df, output_path=None, ctx: AnalysisContext = None):
-    if ctx is not None and getattr(ctx, "output_path", None) and (output_path is None or output_path == ""):
+def plot_reproduction_vs_dominance(
+    df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None
+):
+    if (
+        ctx is not None
+        and getattr(ctx, "output_path", None)
+        and (output_path is None or output_path == "")
+    ):
         output_path = ctx.output_path
     """
     Plot reproduction metrics vs dominance.
@@ -343,14 +363,25 @@ def plot_reproduction_vs_dominance(df, output_path=None, ctx: AnalysisContext = 
     plt.tight_layout(rect=(0, 0.03, 1, 0.97))
 
     # Save a single figure with the most important metrics
+    if not output_path:
+        raise ValueError("output_path is required")
     output_file = os.path.join(output_path, "reproduction_metrics_boxplots.png")
     plt.savefig(output_file)
     logging.info(f"Saved key reproduction metrics boxplots to {output_file}")
     plt.close()
 
 
-def plot_correlation_matrix(df, label_name, output_path=None, ctx: AnalysisContext = None):
-    if ctx is not None and getattr(ctx, "output_path", None) and (output_path is None or output_path == ""):
+def plot_correlation_matrix(
+    df,
+    label_name,
+    output_path: Optional[str] = None,
+    ctx: Optional[AnalysisContext] = None,
+):
+    if (
+        ctx is not None
+        and getattr(ctx, "output_path", None)
+        and (output_path is None or output_path == "")
+    ):
         output_path = ctx.output_path
     """
     Plot correlation matrix between features and the target label.
@@ -444,7 +475,9 @@ def plot_correlation_matrix(df, label_name, output_path=None, ctx: AnalysisConte
     plt.close()
 
 
-def plot_dominance_comparison(df, output_path=None, ctx: AnalysisContext = None):
+def plot_dominance_comparison(
+    df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None
+):
     """
     Create visualizations to compare different dominance measures.
 
@@ -607,13 +640,17 @@ def plot_dominance_comparison(df, output_path=None, ctx: AnalysisContext = None)
 
     # Adjust layout and save
     plt.tight_layout(rect=(0, 0.05, 1, 0.97))
+    if not output_path:
+        raise ValueError("output_path is required")
     output_file = os.path.join(output_path, "dominance_comparison.png")
     plt.savefig(output_file, dpi=300)
     logging.info(f"Saved dominance comparison plot to {output_file}")
     plt.close()
 
 
-def plot_dominance_switches(df, output_path=None, ctx: AnalysisContext = None):
+def plot_dominance_switches(
+    df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None
+):
     """
     Create visualizations for dominance switching patterns.
 
@@ -645,6 +682,8 @@ def plot_dominance_switches(df, output_path=None, ctx: AnalysisContext = None):
 
     # Adjust layout to make room for caption
     plt.tight_layout(rect=(0, 0.07, 1, 0.95))
+    if not output_path:
+        raise ValueError("output_path is required")
     output_file = os.path.join(output_path, "dominance_switches_distribution.png")
     plt.savefig(output_file)
     plt.close()
@@ -683,6 +722,8 @@ def plot_dominance_switches(df, output_path=None, ctx: AnalysisContext = None):
 
     # Adjust layout to make room for caption
     plt.tight_layout(rect=(0, 0.07, 1, 0.95))
+    if not output_path:
+        raise ValueError("output_path is required")
     output_file = os.path.join(output_path, "avg_dominance_period.png")
     plt.savefig(output_file)
     plt.close()
@@ -722,6 +763,8 @@ def plot_dominance_switches(df, output_path=None, ctx: AnalysisContext = None):
 
         # Adjust layout to make room for caption
         plt.tight_layout(rect=(0, 0.07, 1, 0.95))
+        if not output_path:
+            raise ValueError("output_path is required")
         output_file = os.path.join(output_path, "phase_switches.png")
         plt.savefig(output_file)
         plt.close()
@@ -773,6 +816,8 @@ def plot_dominance_switches(df, output_path=None, ctx: AnalysisContext = None):
 
         # Adjust layout to make room for caption
         plt.tight_layout(rect=(0, 0.05, 1, 0.95))
+        if not output_path:
+            raise ValueError("output_path is required")
         output_file = os.path.join(output_path, "dominance_transitions.png")
         plt.savefig(output_file)
         plt.close()
@@ -781,7 +826,9 @@ def plot_dominance_switches(df, output_path=None, ctx: AnalysisContext = None):
     plot_dominance_stability(df, output_path)
 
 
-def plot_dominance_stability(df, output_path=None, ctx: AnalysisContext = None):
+def plot_dominance_stability(
+    df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None
+):
     """
     Create a scatter plot showing the relationship between dominance stability
     (inverse of switches per step) and dominance score for different agent types.
@@ -823,6 +870,8 @@ def plot_dominance_stability(df, output_path=None, ctx: AnalysisContext = None):
     plt.legend()
     plt.tight_layout()
 
+    if not output_path:
+        raise ValueError("output_path is required")
     output_file = os.path.join(output_path, "dominance_stability_analysis.png")
     plt.savefig(output_file)
     plt.close()
@@ -831,8 +880,14 @@ def plot_dominance_stability(df, output_path=None, ctx: AnalysisContext = None):
     return output_file
 
 
-def plot_reproduction_advantage_vs_stability(df, output_path=None, ctx: AnalysisContext = None):
-    if ctx is not None and getattr(ctx, "output_path", None) and (output_path is None or output_path == ""):
+def plot_reproduction_advantage_vs_stability(
+    df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None
+):
+    if (
+        ctx is not None
+        and getattr(ctx, "output_path", None)
+        and (output_path is None or output_path == "")
+    ):
         output_path = ctx.output_path
     """
     Create a visualization showing the relationship between reproduction advantage
@@ -984,6 +1039,8 @@ def plot_reproduction_advantage_vs_stability(df, output_path=None, ctx: Analysis
     # Adjust layout to make room for caption
     plt.tight_layout(rect=(0, 0.07, 1, 0.95))
 
+    if not output_path:
+        raise ValueError("output_path is required")
     output_file = os.path.join(output_path, "reproduction_advantage_stability.png")
     plt.savefig(output_file)
     plt.close()
@@ -994,8 +1051,14 @@ def plot_reproduction_advantage_vs_stability(df, output_path=None, ctx: Analysis
     return output_file
 
 
-def plot_comprehensive_score_breakdown(df, output_path=None, ctx: AnalysisContext = None):
-    if ctx is not None and getattr(ctx, "output_path", None) and (output_path is None or output_path == ""):
+def plot_comprehensive_score_breakdown(
+    df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None
+):
+    if (
+        ctx is not None
+        and getattr(ctx, "output_path", None)
+        and (output_path is None or output_path == "")
+    ):
         output_path = ctx.output_path
     """
     Generate a chart showing the breakdown of average comprehensive dominance scores for each agent type.
@@ -1132,6 +1195,8 @@ def plot_comprehensive_score_breakdown(df, output_path=None, ctx: AnalysisContex
     plt.tight_layout(rect=(0, 0.08, 1, 0.95))  # Adjust layout to make room for caption
 
     # Save the chart
+    if not output_path:
+        raise ValueError("output_path is required")
     output_file = os.path.join(output_path, "comprehensive_score_breakdown.png")
     plt.savefig(output_file, dpi=300, bbox_inches="tight")
     logging.info(f"Comprehensive score breakdown chart saved to {output_file}")
@@ -1144,8 +1209,14 @@ def plot_comprehensive_score_breakdown(df, output_path=None, ctx: AnalysisContex
     return weighted_scores
 
 
-def plot_reproduction_success_vs_switching(df, output_path=None, ctx: AnalysisContext = None):
-    if ctx is not None and getattr(ctx, "output_path", None) and (output_path is None or output_path == ""):
+def plot_reproduction_success_vs_switching(
+    df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None
+):
+    if (
+        ctx is not None
+        and getattr(ctx, "output_path", None)
+        and (output_path is None or output_path == "")
+    ):
         output_path = ctx.output_path
     """
     Create a visualization showing the relationship between reproduction success rate and dominance switching.
@@ -1278,6 +1349,8 @@ def plot_reproduction_success_vs_switching(df, output_path=None, ctx: AnalysisCo
 
     # Adjust layout to make room for caption
     plt.tight_layout(rect=(0, 0.07, 1, 0.95))
+    if not output_path:
+        raise ValueError("output_path is required")
     output_file = os.path.join(output_path, "reproduction_vs_switching.png")
     plt.savefig(output_file)
     plt.close()
