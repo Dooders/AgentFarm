@@ -814,6 +814,72 @@ class TestEnvironment(unittest.TestCase):
         except Exception as e:
             self.fail(f"Environment creation with partial config failed: {e}")
 
+    def test_position_discretization(self):
+        """Test position discretization methods work correctly."""
+        from farm.core.environment import discretize_position_continuous
+
+        grid_size = (10, 10)
+
+        # Test floor discretization (default)
+        pos = (2.7, 3.9)
+        x_idx, y_idx = discretize_position_continuous(pos, grid_size, "floor")
+        self.assertEqual(x_idx, 2)
+        self.assertEqual(y_idx, 3)
+
+        # Test round discretization
+        x_idx, y_idx = discretize_position_continuous(pos, grid_size, "round")
+        self.assertEqual(x_idx, 3)
+        self.assertEqual(y_idx, 4)
+
+        # Test ceil discretization
+        x_idx, y_idx = discretize_position_continuous(pos, grid_size, "ceil")
+        self.assertEqual(x_idx, 3)
+        self.assertEqual(y_idx, 4)
+
+        # Test boundary conditions
+        pos_boundary = (9.9, 9.9)
+        x_idx, y_idx = discretize_position_continuous(pos_boundary, grid_size, "floor")
+        self.assertEqual(x_idx, 9)
+        self.assertEqual(y_idx, 9)
+
+        # Test out of bounds (should clamp)
+        pos_oob = (15.0, 15.0)
+        x_idx, y_idx = discretize_position_continuous(pos_oob, grid_size, "floor")
+        self.assertEqual(x_idx, 9)
+        self.assertEqual(y_idx, 9)
+
+    def test_bilinear_interpolation(self):
+        """Test bilinear interpolation for resource distribution."""
+        import torch
+
+        from farm.core.environment import bilinear_distribute_value
+
+        grid = torch.zeros((5, 5))
+        grid_size = (5, 5)
+
+        # Test interpolation at center
+        pos = (2.5, 2.5)
+        bilinear_distribute_value(pos, 4.0, grid, grid_size)
+
+        # Check that value is distributed across 4 cells
+        self.assertGreater(grid[2, 2].item(), 0)  # top-left
+        self.assertGreater(grid[2, 3].item(), 0)  # top-right
+        self.assertGreater(grid[3, 2].item(), 0)  # bottom-left
+        self.assertGreater(grid[3, 3].item(), 0)  # bottom-right
+
+        # Check that total distributed value equals input
+        total = torch.sum(grid).item()
+        self.assertAlmostEqual(total, 4.0, places=5)
+
+        # Test interpolation at integer position (should go to single cell)
+        grid.fill_(0)
+        pos = (2.0, 2.0)
+        bilinear_distribute_value(pos, 2.0, grid, grid_size)
+
+        # Should be concentrated in one cell
+        self.assertEqual(grid[2, 2].item(), 2.0)
+        self.assertEqual(torch.sum(grid).item(), 2.0)
+
 
 if __name__ == "__main__":
     unittest.main()

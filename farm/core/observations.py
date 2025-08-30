@@ -65,6 +65,7 @@ Usage:
 from __future__ import annotations
 
 import logging
+import math
 from typing import Dict, List, Optional, Tuple
 
 import torch
@@ -343,8 +344,20 @@ class AgentObservation:
                 # Skip invalid positions
                 continue
 
-            ny = int(round(position[1]))
-            nx = int(round(position[0]))
+            # Use configurable discretization method for consistent mapping to grid cells
+            # This avoids overlap issues and preserves sub-grid precision
+            discretization_method = getattr(
+                self.config, "position_discretization_method", "floor"
+            )
+            if discretization_method == "round":
+                nx = int(round(position[0]))
+                ny = int(round(position[1]))
+            elif discretization_method == "ceil":
+                nx = int(math.ceil(position[0]))
+                ny = int(math.ceil(position[1]))
+            else:  # "floor" (default)
+                nx = int(math.floor(position[0]))
+                ny = int(math.floor(position[1]))
 
             starting_health = getattr(other, "starting_health", 0)
             current_health = getattr(other, "current_health", 0)

@@ -68,6 +68,12 @@ class SimulationConfig:
     width: int = 100
     height: int = 100
 
+    # Position discretization settings
+    position_discretization_method: str = "floor"  # Options: "floor", "round", "ceil"
+    use_bilinear_interpolation: bool = (
+        True  # Whether to use bilinear interpolation for resources
+    )
+
     # Agent settings
     system_agents: int = 10
     independent_agents: int = 10

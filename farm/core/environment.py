@@ -18,6 +18,7 @@ training and evaluation.
 """
 
 import logging
+import math
 import random
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -46,6 +47,86 @@ from farm.database.utilities import setup_db
 from farm.utils.identity import Identity, IdentityConfig
 
 logger = logging.getLogger(__name__)
+
+
+def discretize_position_continuous(
+    position: Tuple[float, float], grid_size: Tuple[int, int], method: str = "floor"
+) -> Tuple[int, int]:
+    """
+    Convert continuous position to discrete grid coordinates using specified method.
+
+    Args:
+        position: (x, y) continuous coordinates
+        grid_size: (width, height) of the grid
+        method: Discretization method - "floor", "round", or "ceil"
+
+    Returns:
+        (x_idx, y_idx) discrete grid coordinates
+    """
+    x, y = position
+    width, height = grid_size
+
+    if method == "round":
+        x_idx = max(0, min(int(round(x)), width - 1))
+        y_idx = max(0, min(int(round(y)), height - 1))
+    elif method == "ceil":
+        x_idx = max(0, min(int(math.ceil(x)), width - 1))
+        y_idx = max(0, min(int(math.ceil(y)), height - 1))
+    else:  # "floor" (default)
+        x_idx = max(0, min(int(math.floor(x)), width - 1))
+        y_idx = max(0, min(int(math.floor(y)), height - 1))
+
+    return x_idx, y_idx
+
+
+def bilinear_distribute_value(
+    position: Tuple[float, float],
+    value: float,
+    grid: torch.Tensor,
+    grid_size: Tuple[int, int],
+) -> None:
+    """
+    Distribute a value across grid cells using bilinear interpolation.
+
+    This preserves continuous position information by distributing values
+    across the four nearest grid cells based on the fractional position components.
+
+    Args:
+        position: (x, y) continuous coordinates
+        value: Value to distribute
+        grid: Target grid tensor of shape (H, W)
+        grid_size: (width, height) of the grid
+    """
+    x, y = position
+    width, height = grid_size
+
+    # Get the four nearest grid cells
+    x_floor = int(math.floor(x))
+    y_floor = int(math.floor(y))
+    x_ceil = min(x_floor + 1, width - 1)
+    y_ceil = min(y_floor + 1, height - 1)
+
+    # Calculate interpolation weights
+    x_frac = x - x_floor
+    y_frac = y - y_floor
+
+    # Ensure we don't go out of bounds
+    x_floor = max(0, min(x_floor, width - 1))
+    y_floor = max(0, min(y_floor, height - 1))
+    x_ceil = max(0, min(x_ceil, width - 1))
+    y_ceil = max(0, min(y_ceil, height - 1))
+
+    # Bilinear interpolation weights
+    w00 = (1 - x_frac) * (1 - y_frac)  # bottom-left
+    w01 = (1 - x_frac) * y_frac  # top-left
+    w10 = x_frac * (1 - y_frac)  # bottom-right
+    w11 = x_frac * y_frac  # top-right
+
+    # Distribute the value
+    grid[y_floor, x_floor] += value * w00
+    grid[y_ceil, x_floor] += value * w01
+    grid[y_floor, x_ceil] += value * w10
+    grid[y_ceil, x_ceil] += value * w11
 
 
 class Environment(AECEnv):
@@ -157,7 +238,11 @@ class Environment(AECEnv):
         self.simulation_id = simulation_id or self.identity.simulation_id()
 
         # Setup database and get initialized database instance
-        self.db = setup_db(db_path, self.simulation_id)
+        db_result = setup_db(db_path, self.simulation_id)
+        if isinstance(db_result, tuple):
+            self.db = db_result[0]  # Extract database object from tuple
+        else:
+            self.db = db_result
 
         # Use self.identity for all ID needs
         self.max_resource = max_resource
@@ -192,6 +277,13 @@ class Environment(AECEnv):
         # Initialize resource sharing counters
         self.resources_shared = 0.0
         self.resources_shared_this_step = 0.0
+
+        # Cache total resources to avoid recomputing on every step
+        self.cached_total_resources = 0.0
+
+        # Initialize cycle tracking for proper timestep semantics
+        self._agents_acted_this_cycle = 0
+        self._cycle_complete = False
 
         # Initialize resource manager
         self.resource_manager = ResourceManager(
@@ -252,7 +344,7 @@ class Environment(AECEnv):
 
         # Get enabled actions from config, or use all available if not specified
         if self.config and hasattr(self.config, "enabled_actions"):
-            enabled_actions = self.config.enabled_actions
+            enabled_actions = getattr(self.config, "enabled_actions")
             if isinstance(enabled_actions, list):
                 # Convert list of action names to mapping
                 self._action_mapping = {}
@@ -399,6 +491,9 @@ class Environment(AECEnv):
         # Update environment's resource list to match ResourceManager
         self.resources = self.resource_manager.resources
 
+        # Update cached total resources after initialization
+        self.cached_total_resources = sum(r.amount for r in self.resources)
+
         # Resource IDs are fully managed by ResourceManager
 
     def remove_agent(self, agent: Any) -> None:
@@ -513,6 +608,9 @@ class Environment(AECEnv):
         try:
             # Update resources using ResourceManager
             resource_stats = self.resource_manager.update_resources(self.time)
+
+            # Update cached total resources after resource regeneration
+            self.cached_total_resources = sum(r.amount for r in self.resources)
 
             # Log resource update statistics if needed
             if resource_stats["regeneration_events"] > 0:
@@ -822,7 +920,63 @@ class Environment(AECEnv):
 
     def _setup_action_space(self) -> None:
         """Setup the action space with all available actions."""
-        self._action_space = spaces.Discrete(len(ActionType))
+        # Use only the enabled actions from the mapping instead of full ActionType enum
+        self._action_space = spaces.Discrete(len(self._action_mapping))
+
+        # Create a list of enabled ActionType values for dynamic remapping
+        # This ensures consistent ordering: action index 0 maps to first enabled action, etc.
+        self._enabled_action_types = list(self._action_mapping.keys())
+
+    def update_action_space(
+        self, new_enabled_actions: Optional[List[str]] = None
+    ) -> None:
+        """Update the action space when enabled actions configuration changes.
+
+        This method should be called when the curriculum or configuration
+        changes the set of enabled actions mid-simulation. It updates the
+        action mapping, recreates the enabled action types list, and resizes
+        the action space accordingly.
+
+        Parameters
+        ----------
+        new_enabled_actions : list of str, optional
+            New list of action names to enable. If None, uses current config.
+            Each action name should correspond to an action in the registry
+            (e.g., ["move", "gather", "attack"]).
+
+        Notes
+        -----
+        This method:
+        - Updates self.config.enabled_actions if new_enabled_actions provided
+        - Reinitializes the action mapping with the new configuration
+        - Recreates the enabled action types list for dynamic remapping
+        - Resizes the action space to match the new number of enabled actions
+        - Logs the updated action space size and available actions
+
+        Warning: This changes the action space size, which may affect RL agents
+        that are not designed to handle dynamic action spaces.
+        """
+        # Update config if new enabled actions provided
+        if new_enabled_actions is not None:
+            if self.config is None:
+                # Create a basic config object if none exists
+                from farm.core.config import SimulationConfig
+
+                self.config = SimulationConfig()
+            # Use setattr for dynamic attribute assignment (same pattern as original code)
+            setattr(self.config, "enabled_actions", new_enabled_actions)
+
+        # Reinitialize action mapping with new configuration
+        self._initialize_action_mapping()
+
+        # Update action space and enabled action types list
+        self._setup_action_space()
+
+        # Log the update
+        available_actions = list(self._action_mapping.values())
+        logging.info(
+            f"Action space updated: {len(available_actions)} actions available: {available_actions}"
+        )
 
     def get_initial_agent_count(self) -> int:
         """Calculate the number of initial agents (born at time 0) dynamically.
@@ -895,7 +1049,7 @@ class Environment(AECEnv):
         # Assume width and height are integers for grid
         height, width = int(self.height), int(self.width)
 
-        # Create resource grid
+        # Create resource grid with continuous position support
         resource_grid = torch.zeros(
             (height, width),
             dtype=self.observation_config.torch_dtype,
@@ -904,11 +1058,33 @@ class Environment(AECEnv):
         max_amount = self.max_resource or (
             self.config.max_resource_amount if self.config else 10
         )
+        grid_size = (width, height)
+
+        # Get discretization method from config
+        discretization_method = (
+            getattr(self.config, "position_discretization_method", "floor")
+            if self.config
+            else "floor"
+        )
+        use_bilinear = (
+            getattr(self.config, "use_bilinear_interpolation", True)
+            if self.config
+            else True
+        )
+
         for r in self.resources:
-            y = int(round(r.position[1]))
-            x = int(round(r.position[0]))
-            if 0 <= y < height and 0 <= x < width:
-                resource_grid[y, x] = r.amount / max_amount
+            if use_bilinear:
+                # Use bilinear interpolation for continuous positions
+                bilinear_distribute_value(
+                    r.position, r.amount / max_amount, resource_grid, grid_size
+                )
+            else:
+                # Use simple discretization method
+                x, y = discretize_position_continuous(
+                    r.position, grid_size, discretization_method
+                )
+                if 0 <= x < width and 0 <= y < height:
+                    resource_grid[y, x] += r.amount / max_amount
 
         # Empty layers
         obstacles = torch.zeros_like(resource_grid)
@@ -920,8 +1096,11 @@ class Environment(AECEnv):
             "TERRAIN_COST": terrain_cost,
         }
 
-        # Agent position as (y, x)
-        ay, ax = int(round(agent.position[1])), int(round(agent.position[0]))
+        # Agent position as (y, x) using configured discretization method
+        grid_size = (width, height)
+        ax, ay = discretize_position_continuous(
+            agent.position, grid_size, discretization_method
+        )
 
         # Ensure spatial index is up to date before observation generation
         self.spatial_index.update()
@@ -950,21 +1129,22 @@ class Environment(AECEnv):
         """Process an action for a specific agent.
 
         Executes the specified action for the given agent by calling the
-        appropriate action function. Actions are mapped to their corresponding
-        implementation functions and executed if the agent is alive.
+        appropriate action function. Actions are dynamically remapped from
+        the enabled action space to their corresponding ActionType values.
 
         Parameters
         ----------
         agent_id : str
             The ID of the agent performing the action.
         action : int
-            The action to perform (from Action enum). Must be one of:
-            DEFEND, ATTACK, GATHER, SHARE, MOVE, REPRODUCE, or PASS.
+            The action index within the enabled action space (0 to len(enabled_actions)-1).
+            This gets remapped to the corresponding ActionType for execution.
 
         Notes
         -----
         This method:
         - Validates that the agent exists and is alive
+        - Dynamically remaps action indices to enabled ActionType values
         - Maps actions to their implementation functions
         - Executes the action with the agent as parameter
         - Logs warnings for invalid actions
@@ -978,8 +1158,19 @@ class Environment(AECEnv):
         if agent is None or not agent.alive or action is None:
             return
 
+        # Validate action is within enabled action space bounds
+        if action < 0 or action >= len(self._enabled_action_types):
+            logging.debug(
+                f"Action {action} is out of bounds for enabled action space "
+                f"(size: {len(self._enabled_action_types)})"
+            )
+            return
+
+        # Dynamically remap action index to corresponding ActionType
+        action_type = self._enabled_action_types[action]
+
         # Get action name from dynamic mapping
-        action_name = self._action_mapping.get(ActionType(action))
+        action_name = self._action_mapping.get(action_type)
         if action_name:
             action_obj = action_registry.get(action_name)
             if action_obj:
@@ -988,52 +1179,85 @@ class Environment(AECEnv):
                 logging.warning(f"Action '{action_name}' not found in action registry")
         else:
             logging.debug(
-                f"Action {action} not available in current simulation configuration"
+                f"Action {action} (mapped to {action_type}) not available in current simulation configuration"
             )
 
-    def _calculate_reward(self, agent_id: str) -> float:
+    def _calculate_reward(
+        self, agent_id: str, pre_action_state: Optional[Dict[str, Any]] = None
+    ) -> float:
         """Calculate the reward for a specific agent.
 
         Computes a reward signal for reinforcement learning based on the agent's
-        current state including resource level, health, and survival status.
-        The reward encourages resource accumulation, health maintenance, and survival.
+        state changes and current status. Uses delta-based rewards when pre-action
+        state is available (better for RL), otherwise falls back to state-based rewards.
 
         Parameters
         ----------
         agent_id : str
             The ID of the agent to calculate reward for.
+        pre_action_state : dict, optional
+            Agent's state before the action was processed. If provided, uses
+            delta-based rewards; otherwise uses state-based rewards.
 
         Returns
         -------
         float
             The calculated reward value. Returns -10.0 if agent is dead or missing.
-            Positive rewards for resource accumulation, health, and survival.
+            Uses delta rewards when pre_action_state is available, otherwise state-based.
 
         Notes
         -----
-        The reward function includes:
+        Delta-based rewards (when pre_action_state provided):
+        - Resource delta: direct resource change from action
+        - Health delta: health change (scaled by 0.5)
+        - Survival bonus: +0.1 for staying alive, -10 penalty for death
+        - Better for reinforcement learning as it directly measures action impact
+
+        State-based rewards (fallback when no pre_action_state):
         - Resource reward: 0.1 * resource_level
         - Survival reward: 0.1 for being alive
         - Health reward: current_health / starting_health ratio
-
-        Additional rewards for combat success and cooperation could be added
-        by tracking agent-specific metrics in action implementations.
+        - Used for initial state or when delta calculation unavailable
         """
         agent = self._agent_objects.get(agent_id)
-        if agent is None or not agent.alive:
+        if agent is None:
+            return -10.0
+
+        # Use delta-based rewards if pre-action state is available
+        if pre_action_state is not None:
+            resource_delta = agent.resource_level - pre_action_state["resource_level"]
+            health_delta = agent.current_health - pre_action_state["health"]
+            was_alive = pre_action_state["alive"]
+
+            # Base delta rewards
+            reward = resource_delta + health_delta * 0.5
+
+            # Survival handling
+            if agent.alive:
+                reward += 0.1  # Survival bonus for staying alive
+            else:
+                reward -= 10.0  # Death penalty
+                return reward  # Early return for dead agents
+
+            # TODO: Add action-specific bonuses here when action tracking is implemented
+            # For example:
+            # - Combat success bonus if agent.last_action_success == ActionType.ATTACK
+            # - Cooperation bonus if agent.last_action_success == ActionType.SHARE
+
+            return reward
+
+        # Fallback to state-based rewards when no pre-action state
+        if not agent.alive:
             return -10.0
 
         resource_reward = agent.resource_level * 0.1
         survival_reward = 0.1
         health_reward = agent.current_health / agent.starting_health
-        # For combat and cooperation, add if successful_attacks_this_step or resources_shared_this_step, but since global, divide by num agents or something, but poor.
-        # Assume 0 for now.
 
         reward = resource_reward + survival_reward + health_reward
 
-        # Add bonuses if did combat or share, but to detect, perhaps add agent metrics like agent.successful_attacks = 0, incremented in action.
-
-        # Since can't modify actions, for this edit, use the simple formula.
+        # TODO: Add state-based action bonuses here when action tracking is implemented
+        # This would require tracking last action and success status on the agent
 
         return reward
 
@@ -1051,6 +1275,7 @@ class Environment(AECEnv):
         - Cycles through agents in order starting from the next position
         - Skips agents marked as terminated or truncated
         - Sets agent_selection to None if no active agents remain
+        - Detects when a complete cycle of all agents has occurred
 
         The round-robin scheduling ensures fair time allocation among all
         active agents. Dead or removed agents are automatically skipped.
@@ -1058,10 +1283,15 @@ class Environment(AECEnv):
         if not self.agents:
             self.agent_selection = None
             return
+
+        # Store previous agent for cycle detection
+        previous_agent = self.agent_selection
+
         try:
             current_idx = self.agents.index(self.agent_selection)
         except ValueError:
             current_idx = -1
+
         for i in range(1, len(self.agents) + 1):
             next_idx = (current_idx + i) % len(self.agents)
             next_agent = self.agents[next_idx]
@@ -1070,6 +1300,14 @@ class Environment(AECEnv):
                 or self.truncations.get(next_agent, False)
             ):
                 self.agent_selection = next_agent
+
+                # Detect if we've completed a full cycle
+                # This happens when we wrap around to the first agent
+                if previous_agent is not None and next_idx < current_idx:
+                    self._cycle_complete = True
+                else:
+                    self._cycle_complete = False
+
                 return
         self.agent_selection = None
 
@@ -1126,6 +1364,10 @@ class Environment(AECEnv):
         )
         self.spatial_index.update()
 
+        # Reset cycle tracking for proper timestep semantics
+        self._agents_acted_this_cycle = 0
+        self._cycle_complete = False
+
         # Rebuild PettingZoo agent lists from current alive agents
         self.agents = [a.agent_id for a in self._agent_objects.values() if a.alive]
         self.agent_selection = self.agents[0] if self.agents else None
@@ -1135,8 +1377,6 @@ class Environment(AECEnv):
         self.truncations = {a: False for a in self.agents}
         self.infos = {a: {} for a in self.agents}
         self.observations = {a: self._get_observation(a) for a in self.agents}
-
-        self.previous_agent_states = {}
 
         if self.agent_selection is None:
             dummy_obs = np.zeros(
@@ -1175,42 +1415,37 @@ class Environment(AECEnv):
 
         agent_id = self.agent_selection
         agent = self._agent_objects.get(agent_id)
+
+        # Capture pre-action state for delta calculations
+        pre_action_state = None
         if agent:
-            self.previous_agent_states[agent_id] = {
+            pre_action_state = {
                 "resource_level": agent.resource_level,
                 "health": agent.current_health,
                 "alive": agent.alive,
             }
-        self._process_action(agent_id, action)
-        self.update()
 
-        # Add resource check to terminated:
-        alive_agents = [a for a in self._agent_objects.values() if a.alive]
-        total_resources = sum(r.amount for r in self.resources)
-        terminated = len(alive_agents) == 0 or total_resources == 0
+        # Process the action
+        self._process_action(agent_id, action)
+
+        # Initialize terminated to False (will be updated when cycle completes)
+        terminated = False
+
+        # Only update environment state when all agents have acted (cycle complete)
+        # This ensures proper timestep semantics in AECEnv
+        if self._cycle_complete:
+            self.update()
+
+            # Check termination conditions only after all agents have acted
+            # This prevents premature termination if resources hit zero mid-cycle
+            alive_agents = [a for a in self._agent_objects.values() if a.alive]
+            terminated = len(alive_agents) == 0 or self.cached_total_resources == 0
+
+            self._cycle_complete = False  # Reset for next cycle
         truncated = self.time >= self.max_steps
 
-        reward = self._calculate_reward(agent_id)
-
-        if agent:
-            resource_delta = (
-                agent.resource_level
-                - self.previous_agent_states[agent_id]["resource_level"]
-            )
-            health_delta = (
-                agent.current_health - self.previous_agent_states[agent_id]["health"]
-            )
-            survival_bonus = 0.1 if agent.alive else 0
-
-            # Assume for combat success, if resource_delta >0 and health_delta >=0, +2 (possible successful attack)
-            # For cooperation, if resource_delta <0 and health_delta >=0, +1 (possible share)
-
-            reward = resource_delta + health_delta * 0.5 + survival_bonus
-
-            if not agent.alive:
-                reward -= 10
-
-            # Add more if needed.
+        # Calculate reward using consolidated method
+        reward = self._calculate_reward(agent_id, pre_action_state)
 
         # Get observation for current agent
         observation = (
@@ -1220,6 +1455,19 @@ class Environment(AECEnv):
                 self._observation_space.shape, dtype=self._observation_space.dtype
             )
         )
+
+        # Update internal PettingZoo state dictionaries (required for AECEnv API)
+        self.observations[agent_id] = observation
+        self.rewards[agent_id] = reward
+        self.terminations[agent_id] = terminated
+        self.truncations[agent_id] = truncated
+        self.infos[agent_id] = {}
+
+        # Handle cumulative rewards
+        self._cumulative_rewards[agent_id] += reward
+
+        # Advance to next agent in the cycle (required for AECEnv API)
+        self._next_agent()
 
         return observation, reward, terminated, truncated, {}
 
@@ -1234,5 +1482,5 @@ class Environment(AECEnv):
         if mode == "human":
             print(f"Time: {self.time}")
             print(f"Active agents: {len(self.agents)}")
-            print(f"Total resources: {sum(r.amount for r in self.resources)}")
+            print(f"Total resources: {self.cached_total_resources}")
         # TODO: Implement proper visualization if needed

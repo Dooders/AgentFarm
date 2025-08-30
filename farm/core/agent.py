@@ -1,4 +1,5 @@
 import logging
+import math
 import random
 from typing import TYPE_CHECKING, Optional
 
@@ -358,8 +359,22 @@ class BaseAgent:
         # Helper function to convert world coordinates to grid coordinates
         def world_to_grid(wx: float, wy: float) -> tuple[int, int]:
             # Convert world position to grid position relative to agent
-            gx = int(round(wx - self.position[0] + radius))
-            gy = int(round(wy - self.position[1] + radius))
+            # Use configurable discretization method for consistency
+            discretization_method = (
+                getattr(self.config, "position_discretization_method", "floor")
+                if self.config
+                else "floor"
+            )
+
+            if discretization_method == "round":
+                gx = int(round(wx - self.position[0] + radius))
+                gy = int(round(wy - self.position[1] + radius))
+            elif discretization_method == "ceil":
+                gx = int(math.ceil(wx - self.position[0] + radius))
+                gy = int(math.ceil(wy - self.position[1] + radius))
+            else:  # "floor" (default)
+                gx = int(math.floor(wx - self.position[0] + radius))
+                gy = int(math.floor(wy - self.position[1] + radius))
             return gx, gy
 
         # Add resources to perception
