@@ -57,9 +57,11 @@ class TestSimulation(unittest.TestCase):
             db_path=self.db_path,
         )
 
-        system_agent = BaseAgent("0", (25, 25), self.config.initial_resource_level, env)
+        system_agent = BaseAgent(
+            "0", (25, 25), self.config.initial_resource_level, env.spatial_service
+        )
         independent_agent = BaseAgent(
-            "1", (25, 25), self.config.initial_resource_level, env
+            "1", (25, 25), self.config.initial_resource_level, env.spatial_service
         )
 
         self.assertTrue(system_agent.alive)
@@ -83,7 +85,9 @@ class TestSimulation(unittest.TestCase):
         resource = Resource(0, (25, 25), amount=10)
         env.resources = [resource]
 
-        agent = BaseAgent("0", (25, 25), self.config.initial_resource_level, env)
+        agent = BaseAgent(
+            "0", (25, 25), self.config.initial_resource_level, env.spatial_service
+        )
         env.add_agent(agent)
 
         agent.act()
@@ -100,7 +104,7 @@ class TestSimulation(unittest.TestCase):
             db_path=self.db_path,
         )
 
-        agent = BaseAgent("0", (25, 25), 1, env)
+        agent = BaseAgent("0", (25, 25), 1, env.spatial_service)
         env.add_agent(agent)
 
         for _ in range(20):
@@ -121,7 +125,7 @@ class TestSimulation(unittest.TestCase):
             db_path=self.db_path,
         )
 
-        agent = BaseAgent("0", (25, 25), 20, env)
+        agent = BaseAgent("0", (25, 25), 20, env.spatial_service)
         env.add_agent(agent)
 
         initial_agent_count = len(env.agents)
@@ -141,7 +145,9 @@ class TestSimulation(unittest.TestCase):
             db_path=self.db_path,
         )
 
-        agent = BaseAgent("0", (25, 25), self.config.initial_resource_level, env)
+        agent = BaseAgent(
+            "0", (25, 25), self.config.initial_resource_level, env.spatial_service
+        )
         env.add_agent(agent)
 
         for _ in range(5):
@@ -169,7 +175,12 @@ class TestSimulation(unittest.TestCase):
         )
 
         agents = [
-            BaseAgent(str(i), (25, 25), self.config.initial_resource_level, env)
+            BaseAgent(
+                str(i),
+                (25, 25),
+                self.config.initial_resource_level,
+                env.spatial_service,
+            )
             for i in range(10)
         ]
 

@@ -2,7 +2,7 @@ import faiss
 import numpy as np
 import torch
 from PIL import Image
-from transformers import ViTFeatureExtractor, ViTModel
+from transformers.models.vit import ViTFeatureExtractor, ViTModel
 
 
 class LatentSpace:

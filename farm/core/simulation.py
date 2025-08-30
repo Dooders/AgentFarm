@@ -95,6 +95,7 @@ def create_initial_agents(
             agent_id=environment.get_next_agent_id(),
             position=position,
             resource_level=1,
+            spatial_service=environment.spatial_service,
             environment=environment,
             generation=0,
         )
@@ -110,6 +111,7 @@ def create_initial_agents(
             agent_id=environment.get_next_agent_id(),
             position=position,
             resource_level=1,
+            spatial_service=environment.spatial_service,
             environment=environment,
             generation=0,
         )
@@ -125,6 +127,7 @@ def create_initial_agents(
             agent_id=environment.get_next_agent_id(),
             position=position,
             resource_level=1,
+            spatial_service=environment.spatial_service,
             environment=environment,
             generation=0,
         )
