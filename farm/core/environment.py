@@ -1126,8 +1126,23 @@ class Environment(AECEnv):
             nearby_resources = self.spatial_index.get_nearby_resources(
                 agent.position, R + 1
             )
+        except AttributeError as e:
+            # Handle case where spatial_index or its attributes are None
+            logger.warning("Spatial index not properly initialized: %s", e)
+            nearby_resources = []
+        except (ValueError, TypeError) as e:
+            # Handle invalid input parameters (position format, radius type)
+            logger.warning("Invalid parameters for spatial query: %s", e)
+            nearby_resources = []
+        except IndexError as e:
+            # Handle case where KD-tree indices are out of bounds
+            logger.warning("Index error in spatial query: %s", e)
+            nearby_resources = []
         except Exception as e:
-            logger.exception("Error querying nearby resources in spatial index")
+            # Catch any other unexpected errors for debugging
+            logger.exception(
+                "Unexpected error querying nearby resources in spatial index"
+            )
             nearby_resources = []
 
         if use_bilinear:
@@ -1149,7 +1164,9 @@ class Environment(AECEnv):
                 lx = rx - (ax - R)
                 ly = ry - (ay - R)
                 if 0 <= lx < S and 0 <= ly < S:
-                    resource_local[ly, lx] += float(res.amount) / float(max_amount)
+                    resource_local[int(ly), int(lx)] += float(res.amount) / float(
+                        max_amount
+                    )
 
         # Empty local layers
         obstacles_local = torch.zeros_like(resource_local)
