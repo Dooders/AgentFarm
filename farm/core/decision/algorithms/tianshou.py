@@ -166,7 +166,7 @@ class TianshouWrapper(RLAlgorithm):
                         nn.Linear(64, 64),
                         nn.ReLU(),
                     ),
-                    action_shape=self.num_actions,
+                    action_shape=(self.num_actions,),
                 )
 
                 critic = DiscreteCritic(
@@ -176,7 +176,7 @@ class TianshouWrapper(RLAlgorithm):
                         nn.Linear(64, 64),
                         nn.ReLU(),
                     ),
-                    action_shape=self.num_actions,  # type: ignore
+                    action_shape=(self.num_actions,),  # type: ignore
                 )
 
                 # Create optimizers
@@ -216,7 +216,7 @@ class TianshouWrapper(RLAlgorithm):
                         nn.Linear(128, 128),
                         nn.ReLU(),
                     ),
-                    action_shape=1,  # Single continuous action, will be discretized
+                    action_shape=(1,),  # Single continuous action, will be discretized
                     max_action=1.0,
                     device=self.algorithm_config["device"],
                 )
@@ -312,7 +312,7 @@ class TianshouWrapper(RLAlgorithm):
                         nn.Linear(64, 64),
                         nn.ReLU(),
                     ),
-                    action_shape=self.num_actions,
+                    action_shape=(self.num_actions,),
                 )
 
                 critic = DiscreteCritic(
@@ -322,7 +322,7 @@ class TianshouWrapper(RLAlgorithm):
                         nn.Linear(64, 64),
                         nn.ReLU(),
                     ),
-                    action_shape=self.num_actions,  # type: ignore
+                    action_shape=(self.num_actions,),  # type: ignore
                 )
 
                 # Create optimizers
@@ -538,12 +538,17 @@ class TianshouWrapper(RLAlgorithm):
 
                 # Extract metrics
                 metrics = {}
-                if hasattr(result, "loss"):
-                    metrics["loss"] = float(result.loss.item())
-                if hasattr(result, "actor_loss"):
-                    metrics["actor_loss"] = float(result.actor_loss.item())
-                if hasattr(result, "critic_loss"):
-                    metrics["critic_loss"] = float(result.critic_loss.item())
+                if isinstance(result, dict):
+                    for key in ["loss", "actor_loss", "critic_loss"]:
+                        if key in result:
+                            value = result[key]
+                            try:
+                                if hasattr(value, "item"):
+                                    metrics[key] = float(value.item())  # type: ignore
+                                else:
+                                    metrics[key] = float(value)  # type: ignore
+                            except (TypeError, AttributeError):
+                                pass  # Skip if conversion fails
 
                 return metrics
 

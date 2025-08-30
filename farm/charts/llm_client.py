@@ -109,10 +109,10 @@ Action Distribution Analysis:
         best_action = reward_stats["mean"].idxmax()
         worst_action = reward_stats["mean"].idxmin()
 
-        best_reward = reward_stats.loc[best_action, "mean"].item()  # type: ignore
-        worst_reward = reward_stats.loc[worst_action, "mean"].item()  # type: ignore
+        best_reward = reward_stats.loc[best_action, "mean"]
+        worst_reward = reward_stats.loc[worst_action, "mean"]
         effectiveness_ratio = (
-            best_reward / worst_reward if worst_reward != 0 else float("inf")
+            best_reward / worst_reward if worst_reward != 0 else float("inf")  # type: ignore
         )
 
         return f"""
@@ -190,8 +190,8 @@ Target Selection Analysis:
         avg_lifespan = lifespan.mean()
         max_lifespan = lifespan.max()
 
-        skew_value = lifespan.skew().item()  # type: ignore
-        skew_direction = "Right-skewed" if skew_value > 0 else "Left-skewed"
+        skew_value = lifespan.skew()
+        skew_direction = "Right-skewed" if skew_value > 0 else "Left-skewed"  # type: ignore
         return f"""
 Lifespan Distribution Analysis:
 - Average lifespan: {avg_lifespan:.1f} time units

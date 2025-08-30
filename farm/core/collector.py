@@ -109,7 +109,9 @@ class DataCollector:
             return 1.0
 
         recent_population = [d["total_agent_count"] for d in self.data[-10:]]
-        return 1.0 - np.std(recent_population) / max(np.mean(recent_population), 1)
+        return 1.0 - np.std(recent_population) / max(
+            float(np.mean(recent_population)), 1.0
+        )
 
     def _calculate_avg_resource_accumulation(self):
         if not self.agent_resource_history:

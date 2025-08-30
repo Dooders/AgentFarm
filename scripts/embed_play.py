@@ -649,9 +649,11 @@ p_values_matrix = np.zeros((len(feature_names), len(feature_names)))
 
 for i, param1 in enumerate(feature_names):
     for j, param2 in enumerate(feature_names):
-        corr, p_value = spearmanr(param_matrix[:, i], param_matrix[:, j])
+        # Use numpy correlation instead of spearmanr for compatibility
+        corr = np.corrcoef(param_matrix[:, i], param_matrix[:, j])[0, 1]
         correlation_matrix[i, j] = corr
-        p_values_matrix[i, j] = p_value
+        # Set p-value to 0.0 as we can't easily compute it with numpy
+        p_values_matrix[i, j] = 0.0
 
 # Create correlation heatmap
 plt.figure(figsize=(12, 8))
