@@ -62,7 +62,9 @@ def test_basic_functionality():
         mock_agent.environment = mock_env
 
         # Test module creation (should work even without SB3)
-        module = DecisionModule(mock_agent, config)
+        module = DecisionModule(
+            mock_agent, mock_env.action_space, mock_env.observation_space, config
+        )
         print(f"✓ DecisionModule created: agent_id={module.agent_id}")
 
         return True

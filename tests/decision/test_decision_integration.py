@@ -36,14 +36,25 @@ class TestDecisionModuleIntegration(unittest.TestCase):
             def __init__(self, n):
                 self.n = n
 
+        # Create a simple observation space class
+        class MockObservationSpace:
+            def __init__(self, shape):
+                self.shape = shape
+
         self.mock_env.action_space = MockActionSpace(4)
+        self.mock_env.observation_space = MockObservationSpace((8,))
         self.mock_agent.environment = self.mock_env
 
     @patch("farm.core.decision.decision.SB3_AVAILABLE", False)
     def test_decision_module_with_fallback_algorithm(self):
         """Test DecisionModule with fallback algorithm (no SB3)."""
         config = DecisionConfig(algorithm_type="ddqn")  # Should fallback
-        module = DecisionModule(self.mock_agent, config)
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
 
         # Test basic functionality
         state = torch.randn(8)
@@ -64,7 +75,12 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         mock_dqn_class.return_value = mock_algorithm
 
         config = DecisionConfig(algorithm_type="ddqn")
-        module = DecisionModule(self.mock_agent, config)
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
 
         # Verify DDQN was initialized
         mock_dqn_class.assert_called_once()
@@ -86,7 +102,12 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         mock_ppo_class.return_value = mock_algorithm
 
         config = DecisionConfig(algorithm_type="ppo")
-        module = DecisionModule(self.mock_agent, config)
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
 
         # Verify PPO was initialized
         mock_ppo_class.assert_called_once()
@@ -112,7 +133,12 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         }
 
         config = create_config_from_dict(config_dict, DecisionConfig)
-        module = DecisionModule(self.mock_agent, config)
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
 
         # Verify config was applied
         self.assertEqual(module.config.learning_rate, 0.0005)
@@ -151,7 +177,12 @@ class TestEndToEndDecisionWorkflow(unittest.TestCase):
             epsilon_min=0.1,
             epsilon_decay=0.9,
         )
-        module = DecisionModule(self.mock_agent, config)
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
 
         # Simulate multiple decision episodes
         num_episodes = 10
@@ -199,7 +230,12 @@ class TestEndToEndDecisionWorkflow(unittest.TestCase):
     def test_decision_module_persistence_workflow(self):
         """Test save/load workflow for decision modules."""
         config = DecisionConfig(algorithm_type="fallback")
-        module = DecisionModule(self.mock_agent, config)
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
 
         # Train the module a bit
         for _ in range(5):
@@ -217,7 +253,12 @@ class TestEndToEndDecisionWorkflow(unittest.TestCase):
 
             # Create new module and load
             new_config = DecisionConfig(algorithm_type="fallback")
-            new_module = DecisionModule(self.mock_agent, new_config)
+            new_module = DecisionModule(
+                self.mock_agent,
+                self.mock_env.action_space,
+                self.mock_env.observation_space,
+                new_config,
+            )
 
             # Verify it's untrained initially
             self.assertFalse(new_module._is_trained)
@@ -249,7 +290,12 @@ class TestEndToEndDecisionWorkflow(unittest.TestCase):
             mock_agent.environment = self.mock_env
 
             # Create module
-            module = DecisionModule(mock_agent, config)
+            module = DecisionModule(
+                mock_agent,
+                mock_agent.environment.action_space,
+                mock_agent.environment.observation_space,
+                config,
+            )
             modules.append((agent_id, module, config))
 
         # Test that each module has its own configuration
@@ -275,7 +321,12 @@ class TestEndToEndDecisionWorkflow(unittest.TestCase):
             config = base_config.__class__(
                 **{**base_config.model_dump(), "learning_rate": lr}
             )
-            module = DecisionModule(self.mock_agent, config)
+            module = DecisionModule(
+                self.mock_agent,
+                self.mock_env.action_space,
+                self.mock_env.observation_space,
+                config,
+            )
             modules.append((lr, module))
 
         # Verify configurations are different
@@ -306,13 +357,24 @@ class TestDecisionSystemPerformance(unittest.TestCase):
             def __init__(self, n):
                 self.n = n
 
+        # Create a simple observation space class
+        class MockObservationSpace:
+            def __init__(self, shape):
+                self.shape = shape
+
         self.mock_env.action_space = MockActionSpace(4)
+        self.mock_env.observation_space = MockObservationSpace((8,))
         self.mock_agent.environment = self.mock_env
 
     def test_decision_speed(self):
         """Test the speed of decision making."""
         config = DecisionConfig(algorithm_type="fallback")
-        module = DecisionModule(self.mock_agent, config)
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
 
         # Test decision speed with multiple states
         num_decisions = 1000
@@ -339,7 +401,12 @@ class TestDecisionSystemPerformance(unittest.TestCase):
     def test_probability_computation_speed(self):
         """Test the speed of probability computation."""
         config = DecisionConfig(algorithm_type="fallback")
-        module = DecisionModule(self.mock_agent, config)
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
 
         # Test probability computation speed
         num_computations = 500
@@ -366,7 +433,12 @@ class TestDecisionSystemPerformance(unittest.TestCase):
     def test_update_speed(self):
         """Test the speed of module updates."""
         config = DecisionConfig(algorithm_type="fallback")
-        module = DecisionModule(self.mock_agent, config)
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
 
         # Test update speed
         num_updates = 500
@@ -398,7 +470,12 @@ class TestDecisionSystemPerformance(unittest.TestCase):
     def test_memory_usage_stability(self):
         """Test that memory usage remains stable during operation."""
         config = DecisionConfig(algorithm_type="fallback")
-        module = DecisionModule(self.mock_agent, config)
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
 
         # Perform many operations
         num_operations = 1000
@@ -434,13 +511,24 @@ class TestDecisionSystemRobustness(unittest.TestCase):
             def __init__(self, n):
                 self.n = n
 
+        # Create a simple observation space class
+        class MockObservationSpace:
+            def __init__(self, shape):
+                self.shape = shape
+
         self.mock_env.action_space = MockActionSpace(4)
+        self.mock_env.observation_space = MockObservationSpace((8,))
         self.mock_agent.environment = self.mock_env
 
     def test_invalid_state_handling(self):
         """Test handling of invalid state inputs."""
         config = DecisionConfig(algorithm_type="fallback")
-        module = DecisionModule(self.mock_agent, config)
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
 
         # Test with None state - should handle gracefully without raising
         action = module.decide_action(None)  # type: ignore
@@ -457,7 +545,12 @@ class TestDecisionSystemRobustness(unittest.TestCase):
     def test_invalid_action_range_handling(self):
         """Test handling of invalid action ranges."""
         config = DecisionConfig(algorithm_type="fallback")
-        module = DecisionModule(self.mock_agent, config)
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
 
         # Test with action out of range (simulate by mocking algorithm)
         original_predict = module.algorithm.predict
@@ -480,7 +573,12 @@ class TestDecisionSystemRobustness(unittest.TestCase):
     def test_algorithm_failure_recovery(self):
         """Test recovery from algorithm failures."""
         config = DecisionConfig(algorithm_type="fallback")
-        module = DecisionModule(self.mock_agent, config)
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
 
         # Simulate algorithm failure
         original_predict = module.algorithm.predict
@@ -510,7 +608,12 @@ class TestDecisionSystemRobustness(unittest.TestCase):
             learning_rate=1e-6,  # Very small learning rate
         )
 
-        module = DecisionModule(self.mock_agent, config)
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
 
         # Should still work
         state = torch.randn(8)
@@ -529,7 +632,12 @@ class TestDecisionSystemRobustness(unittest.TestCase):
             mock_agent.agent_id = f"concurrent_agent_{i}"
             mock_agent.environment = self.mock_env
 
-            module = DecisionModule(mock_agent, config)
+            module = DecisionModule(
+                mock_agent,
+                mock_agent.environment.action_space,
+                mock_agent.environment.observation_space,
+                config,
+            )
             modules.append(module)
 
         # Use modules concurrently (simulated)
@@ -565,7 +673,12 @@ class TestDecisionSystemIntegrationWithEnvironment(unittest.TestCase):
     def test_decision_module_with_environment_feedback(self):
         """Test decision module with simulated environment feedback."""
         config = DecisionConfig(algorithm_type="fallback")
-        module = DecisionModule(self.mock_agent, config)
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
 
         # Simulate environment interaction
         state = torch.randn(8)
@@ -607,7 +720,12 @@ class TestDecisionSystemIntegrationWithEnvironment(unittest.TestCase):
     def test_decision_module_adaptation_to_rewards(self):
         """Test that decision module adapts to reward patterns."""
         config = DecisionConfig(algorithm_type="fallback")
-        module = DecisionModule(self.mock_agent, config)
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
 
         # Train with consistent reward pattern
         good_action = 1  # Always give high reward
