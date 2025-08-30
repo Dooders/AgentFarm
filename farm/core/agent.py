@@ -964,31 +964,39 @@ class BaseAgent:
         Returns:
             BaseAgent: A new agent with slightly modified characteristics
         """
+        # Clone and mutate the genome using Genome class operations
         cloned_genome = Genome.clone(self.to_genome())
         mutated_genome = Genome.mutate(cloned_genome, mutation_rate=0.1)
-        # Recreate using current config and services by manually constructing agent
-        # rather than delegating to Genome.to_agent (which expects environment)
-        action_set = [
-            Action(name, weight, ACTION_FUNCTIONS[name])
-            for name, weight in mutated_genome["action_set"]
-        ]
-        new_agent = BaseAgent(
-            agent_id=self.agent_id,
-            position=self.position,
-            resource_level=mutated_genome.get("resource_level", self.resource_level),
-            spatial_service=self.spatial_service,
-            agent_type=getattr(self, "agent_type", "BaseAgent"),
-            metrics_service=self.metrics_service,
-            logging_service=self.logging_service,
-            validation_service=self.validation_service,
-            time_service=self.time_service,
-            lifecycle_service=self.lifecycle_service,
-            config=self.config,
-            action_set=action_set,
+
+        # Generate a new agent ID for the clone (should be different from original)
+        new_agent_id = (
+            self.lifecycle_service.get_next_agent_id()
+            if self.lifecycle_service
+            else f"{self.agent_id}_clone_{self.time_service.current_time() if self.time_service else 0}"
         )
-        new_agent.current_health = mutated_genome.get(
-            "current_health", self.current_health
+
+        # Use Genome.to_agent to properly reconstruct the agent with all module states
+        if self.environment is None:
+            raise ValueError("Cannot clone agent without environment reference")
+
+        new_agent = Genome.to_agent(
+            mutated_genome,
+            new_agent_id,
+            (int(self.position[0]), int(self.position[1])),  # Convert to int tuple
+            self.environment,
         )
+
+        # Preserve additional services and configuration that aren't in the genome
+        new_agent.metrics_service = self.metrics_service
+        new_agent.logging_service = self.logging_service
+        new_agent.validation_service = self.validation_service
+        new_agent.time_service = self.time_service
+        new_agent.lifecycle_service = self.lifecycle_service
+        new_agent.config = self.config
+
+        # Generate proper genome ID with parent relationship
+        new_agent.genome_id = new_agent._generate_genome_id([self.agent_id])
+
         return new_agent
 
     def reproduce(self) -> bool:
