@@ -174,7 +174,7 @@ def format_agent_state(
         "position_y": position[1],
         "is_defending": state_data.get("is_defending", False),
         "total_reward": state_data.get("total_reward", 0.0),
-        "starvation_threshold": state_data.get("starvation_threshold", 0),
+        "starvation_counter": state_data.get("starvation_counter", 0),
         "age": step,
     }
 

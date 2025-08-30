@@ -74,8 +74,7 @@ class SimulationConfig:
     control_agents: int = 10
     initial_resource_level: int = 0
     max_population: int = 3000
-    starvation_threshold: int = 0
-    max_starvation_time: int = 15
+    starvation_threshold: int = 100
     offspring_cost: int = 3
     min_reproduction_resources: int = 8
     offspring_initial_resources: int = 5
@@ -178,16 +177,28 @@ class SimulationConfig:
 
     # Database configuration
     use_in_memory_db: bool = False  # Whether to use in-memory database
-    persist_db_on_completion: bool = True  # Whether to persist in-memory DB to disk after simulation
-    in_memory_db_memory_limit_mb: Optional[int] = None  # Memory limit for in-memory DB (None = no limit)
-    in_memory_tables_to_persist: Optional[List[str]] = None  # Tables to persist (None = all tables)
-    
+    persist_db_on_completion: bool = (
+        True  # Whether to persist in-memory DB to disk after simulation
+    )
+    in_memory_db_memory_limit_mb: Optional[int] = (
+        None  # Memory limit for in-memory DB (None = no limit)
+    )
+    in_memory_tables_to_persist: Optional[List[str]] = (
+        None  # Tables to persist (None = all tables)
+    )
+
     # Database pragma settings
-    db_pragma_profile: str = "balanced"  # Options: "balanced", "performance", "safety", "memory"
+    db_pragma_profile: str = (
+        "balanced"  # Options: "balanced", "performance", "safety", "memory"
+    )
     db_cache_size_mb: int = 200  # Cache size in MB
     db_synchronous_mode: str = "NORMAL"  # Options: "OFF", "NORMAL", "FULL"
-    db_journal_mode: str = "WAL"  # Options: "DELETE", "TRUNCATE", "PERSIST", "MEMORY", "WAL", "OFF"
-    db_custom_pragmas: Dict[str, str] = field(default_factory=dict)  # Custom pragma overrides
+    db_journal_mode: str = (
+        "WAL"  # Options: "DELETE", "TRUNCATE", "PERSIST", "MEMORY", "WAL", "OFF"
+    )
+    db_custom_pragmas: Dict[str, str] = field(
+        default_factory=dict
+    )  # Custom pragma overrides
 
     # Redis configuration
     redis: RedisMemoryConfig = field(default_factory=RedisMemoryConfig)
@@ -277,11 +288,16 @@ class SimulationConfig:
 
     simulation_steps: int = 100  # Default value
 
-    curriculum_phases: List[Dict[str, Any]] = field(default_factory=lambda: [
-        {"steps": 100, "enabled_actions": ["move", "gather"]},
-        {"steps": 200, "enabled_actions": ["move", "gather", "share", "attack"]},
-        {"steps": -1, "enabled_actions": ["move", "gather", "share", "attack", "reproduce"]}
-    ])  # -1 for remaining steps
+    curriculum_phases: List[Dict[str, Any]] = field(
+        default_factory=lambda: [
+            {"steps": 100, "enabled_actions": ["move", "gather"]},
+            {"steps": 200, "enabled_actions": ["move", "gather", "share", "attack"]},
+            {
+                "steps": -1,
+                "enabled_actions": ["move", "gather", "share", "attack", "reproduce"],
+            },
+        ]
+    )  # -1 for remaining steps
 
     @classmethod
     def from_yaml(cls, file_path: str) -> "SimulationConfig":

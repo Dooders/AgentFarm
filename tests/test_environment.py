@@ -44,8 +44,7 @@ class TestEnvironment(unittest.TestCase):
         # Add agent parameters
         self.mock_config.agent_parameters = {}
         # Add other agent-related config attributes needed by BaseAgent
-        self.mock_config.starvation_threshold = 10
-        self.mock_config.max_starvation_time = 100
+        self.mock_config.starvation_threshold = 100
         self.mock_config.starting_health = 100
         self.mock_config.max_movement = 8
         self.mock_config.gathering_range = 30

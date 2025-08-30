@@ -858,7 +858,7 @@ class SimulationDatabase:
             - position: Tuple[float, float]
             - is_defending: bool
             - total_reward: float
-            - starvation_threshold: int
+            - starvation_counter: int
         """
 
         def _update(session):

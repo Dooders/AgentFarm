@@ -42,7 +42,7 @@ def generate_agent_states(num_agents: int, step: int) -> List[Tuple]:
         resource_level = random.uniform(10, 100)
         current_health = random.uniform(50, 100)
         starting_health = 100
-        starvation_threshold = 10
+        starvation_counter = 10
         is_defending = random.choice([0, 1])
         total_reward = random.uniform(0, 1000)
         age = step
@@ -55,7 +55,7 @@ def generate_agent_states(num_agents: int, step: int) -> List[Tuple]:
                 resource_level,
                 current_health,
                 starting_health,
-                starvation_threshold,
+                starvation_counter,
                 is_defending,
                 total_reward,
                 age,
@@ -204,7 +204,7 @@ def run_simulation(
             position=(random.uniform(0, 100), random.uniform(0, 100)),
             initial_resources=random.uniform(50, 100),
             starting_health=100,
-            starvation_threshold=10,
+            starvation_counter=10,
             genome_id=f"genome_{random.randint(0, 5)}",
             generation=0,
             action_weights={

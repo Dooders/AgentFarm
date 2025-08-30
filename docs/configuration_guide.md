@@ -96,7 +96,7 @@ agents:
   inheritance_factor: 0.8           # Trait inheritance (0-1)
 
   # Death and survival
-  starvation_threshold: 10          # Resources causing starvation
+  starvation_threshold: 100         # Max steps agent can survive without resources
   max_age: 1000                     # Maximum agent age (steps)
   damage_multiplier: 1.0            # Combat damage scaling
 ```

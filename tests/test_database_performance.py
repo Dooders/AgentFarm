@@ -53,7 +53,7 @@ class TestDatabasePerformance(unittest.TestCase):
             "position": (random.uniform(0, 100), random.uniform(0, 100)),
             "initial_resources": random.uniform(0, 100),
             "starting_health": random.uniform(50, 100),
-            "starvation_threshold": random.randint(10, 50),
+            "starvation_counter": random.randint(10, 50),
             "genome_id": f"genome_{random.randint(1, 1000)}",
             "generation": random.randint(0, 10),
         }
@@ -66,7 +66,7 @@ class TestDatabasePerformance(unittest.TestCase):
             "position": (random.uniform(0, 100), random.uniform(0, 100)),
             "is_defending": random.choice([True, False]),
             "total_reward": random.uniform(-100, 100),
-            "starvation_threshold": random.randint(10, 50),
+            "starvation_counter": random.randint(10, 50),
         }
 
     def test_batch_agent_creation_performance(self):

@@ -58,7 +58,7 @@ class LLMClient:
                 "lifespan_distribution": self._analyze_lifespan_distribution,
                 "spatial_distribution": self._analyze_spatial_distribution,
                 "resources_by_generation": self._analyze_resources_by_generation,
-                "starvation_thresholds": self._analyze_starvation_thresholds,
+                "starvation_counters": self._analyze_starvation_counters,
                 "lineage_size": self._analyze_lineage_size,
                 "health_vs_resources": self._analyze_health_vs_resources,
                 "agent_types_over_time": self._analyze_agent_types_over_time,
@@ -242,25 +242,25 @@ Resource Evolution Analysis:
         except Exception as e:
             return f"Error analyzing resource evolution: {str(e)}"
 
-    def _analyze_starvation_thresholds(self) -> str:
+    def _analyze_starvation_counters(self) -> str:
         if self.agents_df is None:
             return "Error: Agents data not available"
-        thresholds = self.agents_df.groupby("agent_type")["starvation_threshold"].agg(
+        thresholds = self.agents_df.groupby("agent_type")["starvation_counter"].agg(
             ["mean", "count"]
         )
         if thresholds["mean"].isna().all() or (thresholds["mean"] == 0).all():
             return f"""
-Starvation Threshold Analysis:
-- No meaningful threshold variation detected
+Starvation Counter Analysis:
+- No meaningful counter variation detected
 - Agent types present: {len(thresholds)} types
-- Data quality note: All thresholds are zero or missing
-- Recommendation: Check starvation_threshold data collection"""
+- Data quality note: All counters are zero or missing
+- Recommendation: Check starvation_counter data collection"""
 
         return f"""
-Starvation Threshold Analysis:
-- Highest threshold: {thresholds['mean'].max():.1f} ({thresholds['mean'].idxmax()})
-- Lowest threshold: {thresholds['mean'].min():.1f} ({thresholds['mean'].idxmin()})
-- Threshold range: {thresholds['mean'].max() - thresholds['mean'].min():.1f}
+Starvation Counter Analysis:
+- Highest counter: {thresholds['mean'].max():.1f} ({thresholds['mean'].idxmax()})
+- Lowest counter: {thresholds['mean'].min():.1f} ({thresholds['mean'].idxmin()})
+- Counter range: {thresholds['mean'].max() - thresholds['mean'].min():.1f}
 - Type distribution: {', '.join(f"{idx}: {val:,.0f}" for idx, val in thresholds['count'].items())}"""
 
     def _analyze_health_vs_resources(self) -> str:

@@ -47,7 +47,7 @@ class AgentAnalysis:
                 - lifespan: Duration between birth and death
                 - initial_resources: Starting resource allocation
                 - starting_health: Initial health value
-                - starvation_threshold: Minimum resource threshold
+                - starvation_counter: Counter for consecutive zero-resource steps
                 - generation: Genealogical generation number
                 - genome_id: Unique identifier of agent's genome
         """
@@ -77,7 +77,7 @@ class AgentAnalysis:
             lifespan=lifespan,
             initial_resources=float(getattr(agent, "initial_resources", 0.0)),
             starting_health=float(getattr(agent, "starting_health", 0.0)),
-            starvation_threshold=float(getattr(agent, "starvation_threshold", 0)),
+            starvation_counter=float(getattr(agent, "starvation_counter", 0)),
             # Genealogy
             generation=int(getattr(agent, "generation", 0)),
             genome_id=str(getattr(agent, "genome_id", "")),

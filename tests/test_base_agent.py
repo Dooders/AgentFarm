@@ -93,8 +93,7 @@ def mock_config():
     """Mock configuration object for testing."""
     config = Mock()
     config.max_movement = 8
-    config.starvation_threshold = 10
-    config.max_starvation_time = 100
+    config.starvation_threshold = 100
     config.starting_health = 100
     config.base_consumption_rate = 1
     config.offspring_initial_resources = 10
@@ -595,19 +594,19 @@ class TestBaseAgentLifeCycle:
     def test_check_starvation_no_starvation(self, sample_base_agent):
         """Test starvation check when agent has resources."""
         sample_base_agent.resource_level = 20
-        sample_base_agent.starvation_threshold = 5
+        sample_base_agent.starvation_counter = 5
 
         died = sample_base_agent.check_starvation()
 
         assert died == False
         assert (
-            sample_base_agent.starvation_threshold == 0
+            sample_base_agent.starvation_counter == 0
         )  # Reset when resources available
 
     def test_check_starvation_with_starvation(self, sample_base_agent):
         """Test starvation check when agent runs out of resources."""
         sample_base_agent.resource_level = 0
-        sample_base_agent.starvation_threshold = (
+        sample_base_agent.starvation_counter = (
             99  # Near max starvation (will reach 100 and die)
         )
 

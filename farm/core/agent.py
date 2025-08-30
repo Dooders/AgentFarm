@@ -171,12 +171,10 @@ class BaseAgent:
         self.total_reward = 0.0
         self.episode_rewards = []
         self.losses = []
+        self.starvation_counter = 0  # Counter for consecutive steps with zero resources
         self.starvation_threshold = (
-            getattr(self.config, "starvation_threshold", 10) if self.config else 10
-        )
-        self.max_starvation = (
-            getattr(self.config, "max_starvation_time", 100) if self.config else 100
-        )
+            getattr(self.config, "starvation_threshold", 100) if self.config else 100
+        )  # Max steps agent can survive without resources
         self.birth_time = self.time_service.current_time() if self.time_service else 0
 
         # Initialize health tracking first
@@ -535,21 +533,21 @@ class BaseAgent:
     def check_starvation(self) -> bool:
         """Check and handle agent starvation state.
 
-        Manages the agent's starvation threshold based on resource levels:
-        - Increments threshold when resources are depleted
-        - Resets threshold when resources are available
-        - Triggers death if threshold exceeds maximum starvation time
+        Manages the agent's starvation counter based on resource levels:
+        - Increments counter when resources are depleted
+        - Resets counter when resources are available
+        - Triggers death if counter exceeds starvation threshold
 
         Returns:
             bool: True if agent died from starvation, False otherwise
         """
         if self.resource_level <= 0:
-            self.starvation_threshold += 1
-            if self.starvation_threshold >= self.max_starvation:
+            self.starvation_counter += 1
+            if self.starvation_counter >= self.starvation_threshold:
                 self.terminate()
                 return True
         else:
-            self.starvation_threshold = 0
+            self.starvation_counter = 0
         return False
 
     def act(self) -> None:
