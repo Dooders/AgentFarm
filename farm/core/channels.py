@@ -599,9 +599,21 @@ class WorldLayerHandler(ChannelHandler):
             crop_local,
         )  # Import here to avoid circular import
 
+        # Accept either a full world grid (H, W) or a pre-cropped local grid (S, S)
+        layer = world_layers[self.layer_key]
+
+        # Convert numpy arrays to torch on the configured device/dtype
+        if not isinstance(layer, torch.Tensor):
+            layer = torch.as_tensor(layer, device=config.device, dtype=config.torch_dtype)
+
+        # If already local sized (2R+1, 2R+1), copy directly; otherwise crop from world
         R = config.R
-        crop = crop_local(world_layers[self.layer_key], agent_world_pos, R, pad_val=0.0)
-        observation[channel_idx].copy_(crop)
+        expected_size = (2 * R + 1, 2 * R + 1)
+        if tuple(layer.shape[-2:]) == expected_size:
+            observation[channel_idx].copy_(layer)
+        else:
+            crop = crop_local(layer, agent_world_pos, R, pad_val=0.0)
+            observation[channel_idx].copy_(crop)
 
 
 class VisibilityHandler(ChannelHandler):
