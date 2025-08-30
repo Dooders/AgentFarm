@@ -163,8 +163,11 @@ class BaseAnalyzer(ABC):
         return self._results
 
     @abstractmethod
-    def analyze(self) -> Dict[str, Any]:
-        """Perform the analysis.
+    def analyze(self, data: pd.DataFrame) -> Dict[str, Any]:
+        """Perform the analysis on the provided data.
+
+        Args:
+            data: DataFrame to analyze
 
         Returns:
             Dict[str, Any]: Analysis results
@@ -331,10 +334,8 @@ class AnalysisTask(ABC):
 
         # Run analysis
         if self.analyzer is not None:
-            # Set the processed data for the analyzer
-            self.analyzer._data = self._processed_data
-            # Run the analysis
-            self._analysis_results = self.analyzer.analyze()
+            # Run the analysis with explicit data parameter
+            self._analysis_results = self.analyzer.analyze(self._processed_data)
         else:
             self._analysis_results = {}
 

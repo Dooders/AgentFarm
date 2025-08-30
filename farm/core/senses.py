@@ -1,8 +1,12 @@
+from typing import Optional
+
 import faiss
 import numpy as np
 import torch
 from PIL import Image
 from transformers.models.vit import ViTFeatureExtractor, ViTModel
+
+from farm.core.device_utils import get_device
 
 
 class LatentSpace:
@@ -40,11 +44,21 @@ class LatentSpace:
 
 
 class Senses:
-    def __init__(self, latent_space, model_name="google/vit-base-patch16-224-in21k"):
+    def __init__(
+        self,
+        latent_space,
+        model_name="google/vit-base-patch16-224-in21k",
+        device: Optional[torch.device] = None,
+    ):
         """
         Initialize the Senses module for visual chart embedding and comparison.
+
+        Args:
+            latent_space: Centralized latent space for storing embeddings
+            model_name: Pretrained ViT model name
+            device: Device for neural network computations (auto-detected if None)
         """
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = device if device is not None else get_device()
         self.extractor = ViTFeatureExtractor.from_pretrained(model_name)
         self.model = ViTModel.from_pretrained(model_name).to(self.device).eval()  # type: ignore
         self.latent_space = latent_space  # Connect to the centralized latent space

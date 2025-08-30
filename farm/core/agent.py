@@ -17,6 +17,7 @@ from farm.core.action import (
     reproduce_action,
     share_action,
 )
+from farm.core.device_utils import create_device_from_config
 
 # Action registry for secure function resolution
 ACTION_FUNCTIONS = {
@@ -89,6 +90,7 @@ class BaseAgent:
         lifecycle_service: IAgentLifecycleService | None = None,
         config: object | None = None,
         action_set: list[Action] = [],
+        device: Optional[torch.device] = None,
         parent_ids: list[str] = [],
         generation: int = 0,
         use_memory: bool = False,
@@ -115,6 +117,7 @@ class BaseAgent:
             lifecycle_service: Optional service for managing agent creation/removal
             config: Optional configuration object containing agent parameters
             action_set: List of available actions (uses defaults if empty)
+            device: Optional device for neural network computations (auto-detected if None)
             parent_ids: List of parent agent IDs for genome tracking
             generation: Generation number for evolutionary tracking
             use_memory: Whether to initialize Redis-based memory system
@@ -143,7 +146,14 @@ class BaseAgent:
             config=config,
         )
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # Set up device for neural network computations
+        if device is not None:
+            self.device = device
+        elif config is not None:
+            self.device = create_device_from_config(config)
+        else:
+            # Fallback to auto-detection if no config provided
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._initialize_agent_state()
 
         # Generate genome info
@@ -159,7 +169,12 @@ class BaseAgent:
             self._init_memory(memory_config)
 
         if self.metrics_service:
-            self.metrics_service.record_birth()
+            try:
+                self.metrics_service.record_birth()
+            except Exception as e:
+                logger.warning(
+                    f"Failed to record birth metrics for agent {self.agent_id}: {e}"
+                )
 
     def _initialize_agent_state(self) -> None:
         """Initialize agent state variables and configuration."""
@@ -310,10 +325,25 @@ class BaseAgent:
         perception = np.zeros((size, size), dtype=np.int8)
 
         # Get nearby entities using spatial service
-        nearby_resources = self.spatial_service.get_nearby_resources(
-            self.position, radius
-        )
-        nearby_agents = self.spatial_service.get_nearby_agents(self.position, radius)
+        try:
+            nearby_resources = self.spatial_service.get_nearby_resources(
+                self.position, radius
+            )
+        except Exception as e:
+            logger.warning(
+                f"Failed to get nearby resources for agent {self.agent_id}: {e}"
+            )
+            nearby_resources = []  # Use empty list as fallback
+
+        try:
+            nearby_agents = self.spatial_service.get_nearby_agents(
+                self.position, radius
+            )
+        except Exception as e:
+            logger.warning(
+                f"Failed to get nearby agents for agent {self.agent_id}: {e}"
+            )
+            nearby_agents = []  # Use empty list as fallback
 
         # Helper function to convert world coordinates to grid coordinates
         def world_to_grid(wx: float, wy: float) -> tuple[int, int]:
@@ -344,10 +374,21 @@ class BaseAgent:
             for j in range(size):
                 world_x = x_min + j
                 world_y = y_min + i
-                if not (
-                    self.validation_service
-                    and self.validation_service.is_valid_position((world_x, world_y))
-                ):
+                try:
+                    # If validation_service is None, assume infinite bounds (all positions valid)
+                    # Only mark as obstacle if validation service exists AND position is invalid
+                    if (
+                        self.validation_service
+                        and not self.validation_service.is_valid_position(
+                            (world_x, world_y)
+                        )
+                    ):
+                        perception[i, j] = 3
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to validate position ({world_x}, {world_y}) for agent {self.agent_id}: {e}"
+                    )
+                    # Mark as obstacle by default when validation fails
                     perception[i, j] = 3
 
         return PerceptionData(perception)
@@ -360,10 +401,18 @@ class BaseAgent:
         allies, enemies, resources, obstacles, and dynamic channels like
         trails and damage heat.
 
+        When environment is not available, falls back to a simplified state
+        representation that matches the expected observation space shape.
+
         Returns:
             torch.Tensor: Multi-channel observation tensor for decision making
         """
         if self.environment is None:
+            # Log fallback usage for debugging
+            logger.warning(
+                f"Agent {self.agent_id} using fallback state - no environment available. "
+                "This may impact decision quality."
+            )
             # Fallback to simple state if no environment available
             return self._create_fallback_state()
 
@@ -380,29 +429,118 @@ class BaseAgent:
         return observation_tensor
 
     def _create_fallback_state(self):
-        """Create a simple fallback state representation when environment is not available.
+        """Create a fallback state representation when environment is not available.
 
-        This maintains backward compatibility and provides a basic state representation
-        using agent properties and simple perception data.
+        Creates a multi-channel observation tensor that matches the expected shape
+        from the DecisionModule's observation space. This ensures compatibility
+        with CNN backbones and other multi-dimensional input architectures.
+
+        The fallback uses agent properties and perception data arranged in channels
+        to maintain shape consistency with the environment's multi-channel observations.
 
         Returns:
-            torch.Tensor: Simple 1D state tensor for fallback scenarios
+            torch.Tensor: Multi-channel observation tensor matching expected shape
         """
-        # Create a simple state representation with basic agent info
-        state = [
-            self.position[0] / 100.0,  # Normalize position
-            self.position[1] / 100.0,
-            self.resource_level / 100.0,  # Normalize resources
+        # Get expected observation shape from DecisionModule if available
+        if hasattr(self, "decision_module") and hasattr(
+            self.decision_module, "observation_shape"
+        ):
+            expected_shape = self.decision_module.observation_shape
+            if len(expected_shape) >= 3:
+                # Multi-channel case: (channels, height, width)
+                num_channels, size = expected_shape[0], expected_shape[1]
+            elif len(expected_shape) == 2:
+                # 2D case: (height, width) - assume single channel
+                num_channels, size = 1, expected_shape[0]
+            else:
+                # 1D case: (features,) - reshape to square grid
+                feature_count = expected_shape[0]
+                size = int(np.ceil(np.sqrt(feature_count)))
+                num_channels = 1
+        else:
+            # Fallback to default values if DecisionModule not initialized
+            from farm.core.channels import NUM_CHANNELS
+
+            radius = getattr(self.config, "perception_radius", 5) if self.config else 5
+            size = 2 * radius + 1
+            num_channels = NUM_CHANNELS
+
+        # Create multi-channel observation array
+        observation = np.zeros((num_channels, size, size), dtype=np.float32)
+
+        # Channel 0: Agent properties (position, health, resources, etc.)
+        # Normalize and place in center of the grid
+        center = size // 2
+
+        # Only store agent properties if we have enough channels
+        agent_properties = [
+            self.position[0] / 100.0,  # X position
+            self.position[1] / 100.0,  # Y position
+            self.resource_level / 100.0,  # Resources
             self.current_health / self.starting_health,  # Health ratio
-            float(self.is_defending),
-            self.total_reward / 100.0,  # Normalize reward
+            float(self.is_defending),  # Defense status
+            min(self.total_reward / 100.0, 1.0),  # Reward (capped)
         ]
 
-        # Add perception data if available
-        perception = self.get_fallback_perception()
-        state.extend(perception.grid.flatten() / 2.0)  # Normalize perception
+        # Store as many agent properties as we have channels
+        for i, prop_value in enumerate(agent_properties):
+            if i < num_channels:
+                observation[i, center, center] = prop_value
 
-        return torch.tensor(state, dtype=torch.float32, device=self.device)
+        # Get perception data - use grid size that matches expected shape
+        # Temporarily override config to get correct perception radius
+        original_config = getattr(self, "config", None)
+        try:
+            if hasattr(self, "decision_module") and hasattr(
+                self.decision_module, "observation_shape"
+            ):
+                expected_shape = self.decision_module.observation_shape
+                if len(expected_shape) >= 3:
+                    # Calculate radius from expected grid size: radius = (size - 1) / 2
+                    expected_size = expected_shape[1]  # Assuming square grid
+                    expected_radius = (expected_size - 1) // 2
+
+                    # Create a temporary config with the correct radius
+                    class TempConfig:
+                        perception_radius = expected_radius
+
+                    self.config = TempConfig()
+
+            perception = self.get_fallback_perception()
+        finally:
+            # Always restore original config to prevent inconsistent state
+            self.config = original_config
+
+        # Map perception grid to remaining channels (up to available channels)
+        # 0: Empty, 1: Resource, 2: Agent, 3: Obstacle
+        available_channels = max(
+            0, num_channels - 6
+        )  # Reserve channels for agent properties
+        perception_channels = min(4, available_channels)
+
+        for c in range(perception_channels):
+            channel_idx = 6 + c
+            if channel_idx < num_channels:
+                # Extract specific perception type and normalize
+                mask = (perception.grid == c).astype(np.float32)
+                # Resize mask to fit the expected grid size if necessary
+                if mask.shape != (size, size):
+                    # Use center crop/pad to match expected size
+                    mask_resized = np.zeros((size, size), dtype=np.float32)
+                    min_size = min(mask.shape[0], size)
+                    offset = (size - min_size) // 2
+                    mask_resized[
+                        offset : offset + min_size, offset : offset + min_size
+                    ] = mask[:min_size, :min_size]
+                    mask = mask_resized
+                observation[channel_idx] = mask
+
+        # Fill remaining channels with zeros (for future extensibility)
+        for c in range(6 + perception_channels, num_channels):
+            observation[c] = 0.0
+
+        # Convert to torch tensor
+        return torch.from_numpy(observation).to(device=self.device, dtype=torch.float32)
 
     def get_state(self) -> AgentState:
         """Returns the current state of the agent as an AgentState object.
@@ -583,13 +721,6 @@ class BaseAgent:
         if not self.alive:
             return
 
-        # Update defense status based on timer
-        if self.defense_timer > 0:
-            self.defense_timer -= 1
-            self.is_defending = self.defense_timer > 0
-        else:
-            self.is_defending = False
-
         # Resource consumption
         self.resource_level -= (
             getattr(self.config, "base_consumption_rate", 1) if self.config else 1
@@ -606,6 +737,13 @@ class BaseAgent:
         # Select and execute action
         action = self.decide_action()
         action.execute(self)
+
+        # Update defense status based on timer AFTER action execution
+        if self.defense_timer > 0:
+            self.defense_timer -= 1
+            self.is_defending = self.defense_timer > 0
+        else:
+            self.is_defending = False
 
         # Get post-action state for reward calculation
         post_action_state = self.get_state()
@@ -737,40 +875,63 @@ class BaseAgent:
         agent_class = type(self)
 
         # Generate unique ID and genome info first
-        new_id = (
-            self.lifecycle_service.get_next_agent_id()
-            if self.lifecycle_service
-            else self.agent_id + "_child"
-        )
+        try:
+            new_id = (
+                self.lifecycle_service.get_next_agent_id()
+                if self.lifecycle_service
+                else self.agent_id + "_child"
+            )
+        except Exception as e:
+            logger.error(f"Failed to get next agent ID for offspring creation: {e}")
+            raise RuntimeError(f"Failed to obtain agent ID for offspring: {e}")
+
         generation = self.generation + 1
 
         # Create new agent with all info
-        new_agent = agent_class(
-            agent_id=new_id,
-            position=self.position,
-            resource_level=(
-                getattr(self.config, "offspring_initial_resources", 10)
-                if self.config
-                else 10
-            ),
-            spatial_service=self.spatial_service,
-            metrics_service=self.metrics_service,
-            logging_service=self.logging_service,
-            validation_service=self.validation_service,
-            time_service=self.time_service,
-            lifecycle_service=self.lifecycle_service,
-            config=self.config,
-            generation=generation,
-        )
+        try:
+            new_agent = agent_class(
+                agent_id=new_id,
+                position=self.position,
+                resource_level=(
+                    getattr(self.config, "offspring_initial_resources", 10)
+                    if self.config
+                    else 10
+                ),
+                spatial_service=self.spatial_service,
+                metrics_service=self.metrics_service,
+                logging_service=self.logging_service,
+                validation_service=self.validation_service,
+                time_service=self.time_service,
+                lifecycle_service=self.lifecycle_service,
+                config=self.config,
+                generation=generation,
+            )
+        except Exception as e:
+            logger.error(f"Failed to create offspring agent instance: {e}")
+            raise RuntimeError(f"Failed to instantiate offspring agent: {e}")
 
         # Add new agent to environment
         if self.lifecycle_service:
-            self.lifecycle_service.add_agent(new_agent)
+            try:
+                self.lifecycle_service.add_agent(new_agent)
+            except Exception as e:
+                logger.error(f"Failed to add offspring agent to lifecycle service: {e}")
+                # Agent was created but not added to lifecycle service
+                # This is a critical failure that should prevent reproduction
+                raise RuntimeError(f"Failed to register offspring agent: {e}")
 
         # Subtract offspring cost from parent's resources
-        self.resource_level -= (
-            getattr(self.config, "offspring_cost", 5) if self.config else 5
-        )
+        try:
+            offspring_cost = (
+                getattr(self.config, "offspring_cost", 5) if self.config else 5
+            )
+            self.resource_level -= offspring_cost
+        except Exception as e:
+            logger.error(
+                f"Failed to update parent resources after offspring creation: {e}"
+            )
+            # Don't raise here as the offspring is already created and registered
+            # Just log the issue
 
         # Log creation
         logger.info(
@@ -790,13 +951,23 @@ class BaseAgent:
             # Record the death in environment
             # Log death in database
             if self.logging_service:
-                self.logging_service.update_agent_death(self.agent_id, self.death_time)
+                try:
+                    self.logging_service.update_agent_death(
+                        self.agent_id, self.death_time
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to log agent death for {self.agent_id}: {e}")
 
             logger.info(
                 f"Agent {self.agent_id} died at {self.position} during step {self.time_service.current_time() if self.time_service else 0}"
             )
             if self.lifecycle_service:
-                self.lifecycle_service.remove_agent(self)
+                try:
+                    self.lifecycle_service.remove_agent(self)
+                except Exception as e:
+                    logger.error(
+                        f"Failed to remove agent {self.agent_id} from lifecycle service: {e}"
+                    )
 
     def update_position(self, new_position):
         """Update agent position and mark spatial index as dirty.
@@ -807,7 +978,14 @@ class BaseAgent:
         if self.position != new_position:
             self.position = new_position
             # Mark spatial structures as dirty when position changes
-            self.spatial_service.mark_positions_dirty()
+            try:
+                self.spatial_service.mark_positions_dirty()
+            except Exception as e:
+                logger.warning(
+                    f"Failed to mark spatial positions as dirty for agent {self.agent_id}: {e}"
+                )
+                # Position was updated but spatial index wasn't marked dirty
+                # This is not critical but should be logged
 
     def handle_combat(self, attacker: "BaseAgent", damage: float) -> float:
         """Handle incoming attack and calculate actual damage taken.

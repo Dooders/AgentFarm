@@ -11,12 +11,7 @@ from unittest.mock import MagicMock, Mock, patch
 import numpy as np
 import torch
 
-from farm.core.decision.base_dqn import (
-    DEVICE,
-    BaseDQNConfig,
-    BaseDQNModule,
-    BaseQNetwork,
-)
+from farm.core.decision.base_dqn import BaseDQNConfig, BaseDQNModule, BaseQNetwork
 
 
 class TestBaseDQNConfig(unittest.TestCase):
