@@ -983,7 +983,7 @@ class BaseAgent:
                 self, "_current_enabled_actions", None
             )
 
-    def clone(self) -> "BaseAgent":
+    def clone(self, environment: Optional["Environment"] = None) -> "BaseAgent":
         """Create a mutated copy of this agent.
 
         Creates a new agent by:
@@ -991,29 +991,41 @@ class BaseAgent:
         2. Applying random mutations with 10% probability
         3. Converting mutated genome back to agent instance
 
+        Args:
+            environment: Optional environment reference for the cloned agent.
+                        If None, uses self.environment. Required for genome reconstruction.
+
         Returns:
             BaseAgent: A new agent with slightly modified characteristics
+
+        Raises:
+            ValueError: If neither environment parameter nor self.environment is available
         """
+        # Determine which environment to use
+        target_environment = environment or self.environment
+
+        if target_environment is None:
+            raise ValueError("Cannot clone agent without environment reference")
+
         # Clone and mutate the genome using Genome class operations
         cloned_genome = Genome.clone(self.to_genome())
         mutated_genome = Genome.mutate(cloned_genome, mutation_rate=0.1)
 
         # Generate a new agent ID for the clone (should be different from original)
-        new_agent_id = (
-            self.lifecycle_service.get_next_agent_id()
-            if self.lifecycle_service
-            else f"{self.agent_id}_clone_{self.time_service.current_time() if self.time_service else 0}_{random.randint(1000, 9999)}"
-        )
+        if self.lifecycle_service:
+            new_agent_id = self.lifecycle_service.get_next_agent_id()
+        else:
+            # Fallback ID generation when lifecycle_service is unavailable
+            current_time = self.time_service.current_time() if self.time_service else 0
+            random_suffix = random.randint(1000, 9999)
+            new_agent_id = f"{self.agent_id}_clone_{current_time}_{random_suffix}"
 
         # Use Genome.to_agent to properly reconstruct the agent with all module states
-        if self.environment is None:
-            raise ValueError("Cannot clone agent without environment reference")
-
         new_agent = Genome.to_agent(
             mutated_genome,
             new_agent_id,
             (int(self.position[0]), int(self.position[1])),  # Convert to int tuple
-            self.environment,
+            target_environment,
         )
 
         # Preserve additional services and configuration that aren't in the genome
