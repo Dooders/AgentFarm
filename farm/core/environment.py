@@ -34,9 +34,13 @@ from farm.core.metrics_tracker import MetricsTracker
 from farm.core.observations import AgentObservation, ObservationConfig
 from farm.core.resource_manager import ResourceManager
 from farm.core.services.implementations import (
-    EnvironmentAgentLifecycleService, EnvironmentLoggingService,
-    EnvironmentMetricsService, EnvironmentTimeService,
-    EnvironmentValidationService, SpatialIndexAdapter)
+    EnvironmentAgentLifecycleService,
+    EnvironmentLoggingService,
+    EnvironmentMetricsService,
+    EnvironmentTimeService,
+    EnvironmentValidationService,
+    SpatialIndexAdapter,
+)
 from farm.core.spatial_index import SpatialIndex
 from farm.core.state import EnvironmentState
 from farm.database.utilities import setup_db
@@ -1424,6 +1428,9 @@ class Environment(AECEnv):
         # Process the action
         self._process_action(agent_id, action)
 
+        # Initialize terminated to False (will be updated when cycle completes)
+        terminated = False
+
         # Only update environment state when all agents have acted (cycle complete)
         # This ensures proper timestep semantics in AECEnv
         if self._cycle_complete:
@@ -1435,9 +1442,6 @@ class Environment(AECEnv):
             terminated = len(alive_agents) == 0 or self.cached_total_resources == 0
 
             self._cycle_complete = False  # Reset for next cycle
-
-        # Default termination state (will be updated when cycle completes)
-        terminated = terminated if "terminated" in locals() else False
         truncated = self.time >= self.max_steps
 
         # Calculate reward using consolidated method
