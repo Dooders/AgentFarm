@@ -875,7 +875,7 @@ class Environment(AECEnv):
 
         Notes
         -----
-        TODO: Deprecate. The observation will come from the spatial index.
+        TODO: #! Deprecate. The observation will come from the spatial index.
 
         The observation includes:
         - Resource distribution in the agent's field of view

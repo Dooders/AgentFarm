@@ -17,49 +17,7 @@ import numpy as np
 import torch
 
 from farm.core.decision.config import DecisionConfig
-from farm.core.decision.decision import SB3_AVAILABLE, DecisionModule, SB3Wrapper
-
-
-class TestSB3Wrapper(unittest.TestCase):
-    """Test cases for SB3Wrapper class."""
-
-    def setUp(self):
-        """Set up test fixtures."""
-        from gymnasium import spaces
-
-        self.observation_space = spaces.Box(
-            low=-1, high=1, shape=(8,), dtype=np.float32
-        )
-        self.action_space = spaces.Discrete(4)
-        self.wrapper = SB3Wrapper(self.observation_space, self.action_space)
-
-    def test_initialization(self):
-        """Test SB3Wrapper initialization."""
-        self.assertEqual(self.wrapper.observation_space, self.observation_space)
-        self.assertEqual(self.wrapper.action_space, self.action_space)
-
-    def test_reset(self):
-        """Test wrapper reset method."""
-        result = self.wrapper.reset()
-        # Gymnasium API returns (obs, info)
-        obs, info = result
-        expected = np.zeros(
-            self.observation_space.shape, dtype=self.observation_space.dtype
-        )
-        np.testing.assert_array_equal(obs, expected)
-
-    def test_step(self):
-        """Test wrapper step method."""
-        action = 1
-        result = self.wrapper.step(action)
-
-        # Gymnasium API returns (obs, reward, terminated, truncated, info)
-        self.assertEqual(len(result), 5)
-        obs, reward, terminated, truncated, info = result
-        self.assertEqual(reward, 0.0)
-        self.assertFalse(terminated)
-        self.assertFalse(truncated)
-        self.assertEqual(info, {})
+from farm.core.decision.decision import DecisionModule
 
 
 class TestDecisionModule(unittest.TestCase):
@@ -80,9 +38,8 @@ class TestDecisionModule(unittest.TestCase):
         # Default config
         self.config = DecisionConfig()
 
-    @patch("farm.core.decision.decision.SB3_AVAILABLE", False)
-    def test_initialization_without_sb3(self):
-        """Test DecisionModule initialization when SB3 is not available."""
+    def test_initialization_without_tianshou(self):
+        """Test DecisionModule initialization when Tianshou is not available."""
         module = DecisionModule(self.mock_agent, self.config)
 
         self.assertEqual(module.agent_id, "test_agent_1")
@@ -91,38 +48,6 @@ class TestDecisionModule(unittest.TestCase):
             module.algorithm, type(module.algorithm)
         )  # Fallback algorithm
         self.assertFalse(module._is_trained)
-
-    @patch("farm.core.decision.decision.SB3_AVAILABLE", True)
-    @patch("farm.core.decision.decision.DQN")
-    @patch("farm.core.decision.decision.SB3Wrapper")
-    def test_initialization_with_sb3_ddqn(self, mock_wrapper_class, mock_dqn_class):
-        """Test DecisionModule initialization with SB3 DDQN."""
-        mock_algorithm = Mock()
-        mock_dqn_class.return_value = mock_algorithm
-        mock_wrapper_class.return_value = Mock()
-
-        config = DecisionConfig(algorithm_type="ddqn")
-        module = DecisionModule(self.mock_agent, config)
-
-        self.assertEqual(module.agent_id, "test_agent_1")
-        mock_dqn_class.assert_called_once()
-        self.assertEqual(module.algorithm, mock_algorithm)
-
-    @patch("farm.core.decision.decision.SB3_AVAILABLE", True)
-    @patch("farm.core.decision.decision.PPO")
-    @patch("farm.core.decision.decision.SB3Wrapper")
-    def test_initialization_with_sb3_ppo(self, mock_wrapper_class, mock_ppo_class):
-        """Test DecisionModule initialization with SB3 PPO."""
-        mock_algorithm = Mock()
-        mock_ppo_class.return_value = mock_algorithm
-        mock_wrapper_class.return_value = Mock()
-
-        config = DecisionConfig(algorithm_type="ppo")
-        module = DecisionModule(self.mock_agent, config)
-
-        self.assertEqual(module.agent_id, "test_agent_1")
-        mock_ppo_class.assert_called_once()
-        self.assertEqual(module.algorithm, mock_algorithm)
 
     def test_initialization_with_custom_action_space(self):
         """Test initialization with custom action space."""

@@ -1,14 +1,14 @@
 """Decision module for agent action selection using configurable algorithms.
 
 This module provides a DecisionModule class that determines the action to take given
-an agent's state/observation. It supports configurable algorithms with DDQN (via
-Stable Baselines3) as the default, and ensures each agent has its own model/policy.
+an agent's state/observation. It supports configurable algorithms with Tianshou
+as the default RL library, and ensures each agent has its own model/policy.
 
 Key Features:
-    - Configurable decision algorithms (DDQN, PPO, custom ML algorithms)
+    - Configurable decision algorithms (PPO, SAC, DQN, A2C, DDPG via Tianshou)
     - Per-agent model/policy isolation
     - Integration with environment action spaces
-    - SB3 integration for reinforcement learning
+    - Tianshou integration for reinforcement learning
     - Experience replay and training mechanisms
     - Save/load functionality for model persistence
 """
@@ -22,231 +22,48 @@ import torch
 
 from farm.core.decision.config import DecisionConfig
 
+# Check Tianshou availability
+try:
+    import tianshou
+
+    TIANSHOU_AVAILABLE = True
+except ImportError:
+    TIANSHOU_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("Tianshou not available. Using fallback algorithms.")
+
+# Import Tianshou wrappers if available
+if TIANSHOU_AVAILABLE:
+    try:
+        from farm.core.decision.algorithms.tianshou import (
+            A2CWrapper,
+            DDPGWrapper,
+            DQNWrapper,
+            PPOWrapper,
+            SACWrapper,
+        )
+    except ImportError:
+        logger = logging.getLogger(__name__)
+        logger.warning("Could not import Tianshou wrappers. Using fallback algorithms.")
+        TIANSHOU_AVAILABLE = False
+
 if TYPE_CHECKING:
     from farm.core.agent import BaseAgent
-    from farm.core.environment import Environment
 
 logger = logging.getLogger(__name__)
-
-# Try to import SB3, with fallback handling
-try:
-    from stable_baselines3 import DQN, PPO
-    from stable_baselines3.common.policies import BasePolicy
-
-    SB3_AVAILABLE = True
-except ImportError:
-    logger.warning(
-        "Stable Baselines3 not available. Falling back to basic DQN implementation."
-    )
-    SB3_AVAILABLE = False
-    DQN = None
-    PPO = None
-
-
-# Create SB3Wrapper that properly inherits from gymnasium.Env
-try:
-    import gymnasium as gym
-    from gymnasium import Env
-
-    class SB3WrapperGymnasium(Env):
-        """Wrapper to adapt agent observations to SB3 format."""
-
-        def __init__(self, observation_space, action_space):
-            super().__init__()
-            self.observation_space = observation_space
-            self.action_space = action_space
-            self._current_obs = None
-
-        @property
-        def unwrapped(self):
-            """Return self to satisfy SB3 requirements."""
-            return self
-
-        def reset(self, seed=None, options=None):
-            """Reset the wrapper (no-op for agent-based usage)."""
-            # Create a zero observation with the correct shape and dtype
-            shape = (
-                self.observation_space.shape
-                if hasattr(self.observation_space, "shape")
-                and self.observation_space.shape is not None
-                else (1,)
-            )
-            dtype = (
-                self.observation_space.dtype
-                if hasattr(self.observation_space, "dtype")
-                else np.float32
-            )
-            self._current_obs = np.zeros(shape, dtype=dtype)
-            return self._current_obs, {}
-
-        def step(self, action):
-            """Step function (no-op for agent-based usage)."""
-            # Return the same observation, zero reward, not done, not truncated
-            shape = (
-                self.observation_space.shape
-                if hasattr(self.observation_space, "shape")
-                and self.observation_space.shape is not None
-                else (1,)
-            )
-            dtype = (
-                self.observation_space.dtype
-                if hasattr(self.observation_space, "dtype")
-                else np.float32
-            )
-            obs = np.zeros(shape, dtype=dtype)
-            reward = 0.0
-            terminated = False
-            truncated = False
-            info = {}
-            return obs, reward, terminated, truncated, info
-
-        def render(self):
-            """Render the environment (no-op)."""
-            pass
-
-        def close(self):
-            """Close the environment (no-op)."""
-            pass
-
-except ImportError:
-    # Fallback to gym if gymnasium not available
-    try:
-        import gym
-        from gym import Env
-
-        class SB3WrapperGym(Env):
-            """Wrapper to adapt agent observations to SB3 format."""
-
-            def __init__(self, observation_space, action_space):
-                super().__init__()
-                self.observation_space = observation_space
-                self.action_space = action_space
-                self._current_obs = None
-
-            @property
-            def unwrapped(self):
-                """Return self to satisfy SB3 requirements."""
-                return self
-
-            def reset(self, seed=None, options=None):
-                """Reset the wrapper (no-op for agent-based usage)."""
-                # Create a zero observation with the correct shape and dtype
-                shape = (
-                    self.observation_space.shape
-                    if hasattr(self.observation_space, "shape")
-                    and self.observation_space.shape is not None
-                    else (1,)
-                )
-                dtype = (
-                    self.observation_space.dtype
-                    if hasattr(self.observation_space, "dtype")
-                    else np.float32
-                )
-                self._current_obs = np.zeros(shape, dtype=dtype)
-                return self._current_obs, {}
-
-            def step(self, action):
-                """Step function (no-op for agent-based usage)."""
-                # Return the same observation, zero reward, not done, not truncated
-                shape = (
-                    self.observation_space.shape
-                    if hasattr(self.observation_space, "shape")
-                    and self.observation_space.shape is not None
-                    else (1,)
-                )
-                dtype = (
-                    self.observation_space.dtype
-                    if hasattr(self.observation_space, "dtype")
-                    else np.float32
-                )
-                obs = np.zeros(shape, dtype=dtype)
-                reward = 0.0
-                terminated = False
-                truncated = False
-                info = {}
-                return obs, reward, terminated, truncated, info
-
-            def render(self):
-                """Render the environment (no-op)."""
-                pass
-
-            def close(self):
-                """Close the environment (no-op)."""
-                pass
-
-    except ImportError:
-        # If neither gymnasium nor gym is available, create a basic wrapper
-        class SB3Wrapper:
-            """Basic wrapper when gym libraries are not available."""
-
-            def __init__(self, observation_space, action_space):
-                self.observation_space = observation_space
-                self.action_space = action_space
-                self._current_obs = None
-
-            @property
-            def unwrapped(self):
-                """Return self to satisfy SB3 requirements."""
-                return self
-
-            def reset(self, seed=None, options=None):
-                """Reset the wrapper (no-op for agent-based usage)."""
-                # Create a zero observation with the correct shape and dtype
-                shape = (
-                    self.observation_space.shape
-                    if hasattr(self.observation_space, "shape")
-                    and self.observation_space.shape is not None
-                    else (1,)
-                )
-                dtype = (
-                    self.observation_space.dtype
-                    if hasattr(self.observation_space, "dtype")
-                    else np.float32
-                )
-                self._current_obs = np.zeros(shape, dtype=dtype)
-                return self._current_obs, {}
-
-            def step(self, action):
-                """Step function (no-op for agent-based usage)."""
-                # Return the same observation, zero reward, not done, not truncated
-                shape = (
-                    self.observation_space.shape
-                    if hasattr(self.observation_space, "shape")
-                    and self.observation_space.shape is not None
-                    else (1,)
-                )
-                dtype = (
-                    self.observation_space.dtype
-                    if hasattr(self.observation_space, "dtype")
-                    else np.float32
-                )
-                obs = np.zeros(shape, dtype=dtype)
-                reward = 0.0
-                terminated = False
-                truncated = False
-                info = {}
-                return obs, reward, terminated, truncated, info
-
-            def render(self):
-                """Render the environment (no-op)."""
-                pass
-
-            def close(self):
-                """Close the environment (no-op)."""
-                pass
 
 
 class DecisionModule:
     """Configurable decision module for agent action selection.
 
     This class encapsulates the decision-making logic for agents, supporting
-    various algorithms with DDQN (via Stable Baselines3) as the default.
+    various algorithms with Tianshou as the default RL library.
     Each agent instance gets its own model/policy for personalized learning.
 
     Attributes:
         agent_id (str): Unique identifier of the associated agent
         config (DecisionConfig): Configuration object with algorithm settings
-        algorithm: The underlying decision algorithm (SB3 DQN, etc.)
+        algorithm: The underlying decision algorithm (Tianshou PPO, SAC, etc.)
         num_actions (int): Number of possible actions
         state_dim (int): Dimension of state/observation space
         _is_trained (bool): Whether the model has been trained
@@ -255,17 +72,17 @@ class DecisionModule:
     def __init__(
         self,
         agent: "BaseAgent",
+        action_space: Any,
+        observation_space: Any,
         config: DecisionConfig = DecisionConfig(),
-        action_space: Optional[Any] = None,
-        observation_space: Optional[Any] = None,
     ):
         """Initialize the DecisionModule.
 
         Args:
             agent: The BaseAgent instance this module serves
+            action_space: The action space for the agent (required)
+            observation_space: The observation space for the agent (required)
             config: Configuration object with algorithm parameters
-            action_space: The action space for the agent (optional, will be derived if not provided)
-            observation_space: The observation space for the agent (optional, will be derived if not provided)
         """
         self.agent_id = agent.agent_id
         self.config = config
@@ -274,25 +91,26 @@ class DecisionModule:
         # Set state dimension first (needed for observation space creation)
         self.state_dim = config.rl_state_dim
 
-        # Get action space from parameter or derive from environment
-        if action_space is not None:
-            self.action_space = action_space
-            self.num_actions = self._get_action_space_size_from_space(action_space)
+        # Use provided action space
+        self.action_space = action_space
+        # Get number of actions directly from action space
+        if hasattr(action_space, "n"):
+            self.num_actions = int(action_space.n)
         else:
-            self.num_actions = self._get_action_space_size()
-            self.action_space = self._create_action_space()
+            # Fallback: count actions in Action enum
+            from farm.core.action import ActionType
 
-        # Get observation space from parameter or create default
-        if observation_space is not None:
-            self.observation_space = observation_space
-            # Store the full observation shape for multi-dimensional support
-            if hasattr(observation_space, "shape"):
-                self.observation_shape = observation_space.shape
-                # For backward compatibility, set state_dim to total elements
-                self.state_dim = int(np.prod(observation_space.shape))
+            self.num_actions = len(ActionType)
+
+        # Use provided observation space
+        self.observation_space = observation_space
+        # Store the full observation shape for multi-dimensional support
+        if hasattr(observation_space, "shape"):
+            self.observation_shape = observation_space.shape
+            # For backward compatibility, set state_dim to total elements
+            self.state_dim = int(np.prod(observation_space.shape))
         else:
-            self.observation_space = self._create_observation_space()
-            self.observation_shape = self.observation_space.shape
+            self.observation_shape = (self.state_dim,)
             self.state_dim = int(np.prod(self.observation_shape))
 
         # Initialize algorithm
@@ -306,83 +124,20 @@ class DecisionModule:
             f"Initialized DecisionModule for agent {self.agent_id} with {config.algorithm_type}"
         )
 
-    def _get_action_space_size_from_space(self, action_space: Any) -> int:
-        """Get the number of actions from a provided action space object.
-
-        Args:
-            action_space: The action space object to extract size from
-
-        Returns:
-            int: Number of possible actions
-        """
-        try:
-            if callable(action_space):
-                action_space = action_space()
-            if hasattr(action_space, "n"):
-                return int(action_space.n)
-            # Fallback: count actions in Action enum
-            from farm.core.action import ActionType
-
-            return len(ActionType)
-        except Exception as e:
-            logger.warning(
-                f"Could not determine action space size from provided space for agent {self.agent_id}: {e}"
-            )
-            # Default fallback
-            return 6  # DEFEND, ATTACK, GATHER, SHARE, MOVE, REPRODUCE
-
-    def _get_action_space_size(self) -> int:
-        """Get the number of actions from the environment's action space.
-
-        Returns:
-            int: Number of possible actions
-        """
-        try:
-            # Prefer environment action space if available on the agent
-            env = getattr(self.agent, "environment", None)
-            if env is not None and hasattr(env, "action_space"):
-                action_space = env.action_space
-                if callable(action_space):
-                    action_space = action_space()
-                if hasattr(action_space, "n"):
-                    try:
-                        return int(action_space.n)
-                    except (TypeError, ValueError, AttributeError):
-                        # If we can't get the action space size, continue to fallback
-                        pass
-            # Fallback: count actions in Action enum
-            from farm.core.action import ActionType
-
-            return len(ActionType)
-        except Exception as e:
-            logger.warning(
-                f"Could not determine action space size for agent {self.agent_id}: {e}"
-            )
-            # Default fallback
-            return 6  # DEFEND, ATTACK, GATHER, SHARE, MOVE, REPRODUCE
-
-    def _create_observation_space(self):
-        """Create observation space for SB3 compatibility."""
-        from gymnasium import spaces
-
-        return spaces.Box(
-            low=-np.inf, high=np.inf, shape=(self.state_dim,), dtype=np.float32
-        )
-
-    def _create_action_space(self):
-        """Create action space for SB3 compatibility."""
-        from gymnasium import spaces
-
-        return spaces.Discrete(self.num_actions)
-
     def _initialize_algorithm(self):
         """Initialize the decision algorithm based on configuration."""
         algorithm_type = self.config.algorithm_type
 
-        if algorithm_type == "ddqn" and SB3_AVAILABLE:
-            self._initialize_sb3_ddqn()
-        elif algorithm_type == "ppo" and SB3_AVAILABLE:
-            self._initialize_sb3_ppo()
+        if algorithm_type == "ppo" and TIANSHOU_AVAILABLE:
+            self._initialize_tianshou_ppo()
+        elif algorithm_type == "sac" and TIANSHOU_AVAILABLE:
+            self._initialize_tianshou_sac()
+        elif algorithm_type == "dqn" and TIANSHOU_AVAILABLE:
+            self._initialize_tianshou_dqn()
+        elif algorithm_type == "a2c" and TIANSHOU_AVAILABLE:
+            self._initialize_tianshou_a2c()
+        elif algorithm_type == "ddpg" and TIANSHOU_AVAILABLE:
+            self._initialize_tianshou_ddpg()
         elif algorithm_type == "fallback":
             # Explicit fallback algorithm
             self._initialize_fallback()
@@ -392,88 +147,166 @@ class DecisionModule:
             )
             self._initialize_fallback()
 
-    def _initialize_sb3_ddqn(self):
-        """Initialize DDQN using Stable Baselines3."""
+    def _initialize_tianshou_ppo(self):
+        """Initialize PPO using Tianshou."""
         try:
-            # Create a dummy environment for SB3
-            dummy_env = SB3Wrapper(self.observation_space, self.action_space)
-
-            # Configure DDQN parameters
-            # Auto-select policy based on observation space dimensionality
-            default_policy = (
-                "CnnPolicy" if len(self.observation_shape) > 1 else "MlpPolicy"
-            )
-            policy = self.config.algorithm_params.get("policy", default_policy)
-
-            ddqn_kwargs = {
-                "policy": policy,
-                "env": dummy_env,
-                "learning_rate": self.config.learning_rate,
-                "buffer_size": self.config.rl_buffer_size,
-                "learning_starts": 100,
-                "batch_size": self.config.rl_batch_size,
-                "tau": self.config.tau,
+            # Configure PPO parameters
+            algorithm_config = {
+                "lr": self.config.learning_rate,
                 "gamma": self.config.gamma,
-                "train_freq": self.config.rl_train_freq,
-                "gradient_steps": 1,
-                "target_update_interval": 1000,
-                "exploration_fraction": 0.1,
-                "exploration_initial_eps": self.config.epsilon_start,
-                "exploration_final_eps": self.config.epsilon_min,
-                "verbose": 0,
+                "eps_clip": 0.2,
+                "max_grad_norm": 0.5,
+                "vf_coef": 0.5,
+                "ent_coef": 0.01,
+                "gae_lambda": 0.95,
+                "max_batchsize": self.config.rl_batch_size,
             }
 
             # Add any additional parameters from config
-            ddqn_kwargs.update(self.config.algorithm_params)
+            algorithm_config.update(self.config.algorithm_params)
 
-            if DQN is not None:
-                self.algorithm = DQN(**ddqn_kwargs)
-            else:
-                self._initialize_fallback()
-                return
-            logger.info(f"Initialized SB3 DDQN for agent {self.agent_id}")
+            self.algorithm = PPOWrapper(
+                num_actions=self.num_actions,
+                state_dim=self.state_dim,
+                algorithm_config=algorithm_config,
+                buffer_size=self.config.rl_buffer_size,
+                batch_size=self.config.rl_batch_size,
+                train_freq=self.config.rl_train_freq,
+            )
+            logger.info(f"Initialized Tianshou PPO for agent {self.agent_id}")
 
         except Exception as e:
             logger.error(
-                f"Failed to initialize SB3 DDQN for agent {self.agent_id}: {e}"
+                f"Failed to initialize Tianshou PPO for agent {self.agent_id}: {e}"
             )
             self._initialize_fallback()
 
-    def _initialize_sb3_ppo(self):
-        """Initialize PPO using Stable Baselines3."""
+    def _initialize_tianshou_sac(self):
+        """Initialize SAC using Tianshou."""
         try:
-            # Create a dummy environment for SB3
-            dummy_env = SB3Wrapper(self.observation_space, self.action_space)
-
-            # Configure PPO parameters
-            ppo_kwargs = {
-                "policy": self.config.algorithm_params.get("policy", "MlpPolicy"),
-                "env": dummy_env,
-                "learning_rate": self.config.learning_rate,
-                "n_steps": 2048,
-                "batch_size": self.config.rl_batch_size,
-                "n_epochs": 10,
+            # Configure SAC parameters
+            algorithm_config = {
+                "lr": self.config.learning_rate,
                 "gamma": self.config.gamma,
-                "gae_lambda": 0.95,
-                "clip_range": 0.2,
-                "ent_coef": 0.0,
-                "vf_coef": 0.5,
-                "max_grad_norm": 0.5,
-                "verbose": 0,
+                "tau": 0.005,
+                "alpha": 0.2,
+                "auto_alpha": True,
+                "target_entropy": "auto",
             }
 
             # Add any additional parameters from config
-            ppo_kwargs.update(self.config.algorithm_params)
+            algorithm_config.update(self.config.algorithm_params)
 
-            if PPO is not None:
-                self.algorithm = PPO(**ppo_kwargs)
-                logger.info(f"Initialized SB3 PPO for agent {self.agent_id}")
-            else:
-                self._initialize_fallback()
-                return
+            self.algorithm = SACWrapper(
+                num_actions=self.num_actions,
+                state_dim=self.state_dim,
+                algorithm_config=algorithm_config,
+                buffer_size=self.config.rl_buffer_size,
+                batch_size=self.config.rl_batch_size,
+                train_freq=self.config.rl_train_freq,
+            )
+            logger.info(f"Initialized Tianshou SAC for agent {self.agent_id}")
 
         except Exception as e:
-            logger.error(f"Failed to initialize SB3 PPO for agent {self.agent_id}: {e}")
+            logger.error(
+                f"Failed to initialize Tianshou SAC for agent {self.agent_id}: {e}"
+            )
+            self._initialize_fallback()
+
+    def _initialize_tianshou_dqn(self):
+        """Initialize DQN using Tianshou."""
+        try:
+            # Configure DQN parameters
+            algorithm_config = {
+                "lr": self.config.learning_rate,
+                "gamma": self.config.gamma,
+                "n_step": 3,
+                "target_update_freq": 500,
+                "eps_test": self.config.epsilon_min,
+                "eps_train": self.config.epsilon_start,
+                "eps_train_final": self.config.epsilon_min,
+            }
+
+            # Add any additional parameters from config
+            algorithm_config.update(self.config.algorithm_params)
+
+            self.algorithm = DQNWrapper(
+                num_actions=self.num_actions,
+                state_dim=self.state_dim,
+                algorithm_config=algorithm_config,
+                buffer_size=self.config.rl_buffer_size,
+                batch_size=self.config.rl_batch_size,
+                train_freq=self.config.rl_train_freq,
+            )
+            logger.info(f"Initialized Tianshou DQN for agent {self.agent_id}")
+
+        except Exception as e:
+            logger.error(
+                f"Failed to initialize Tianshou DQN for agent {self.agent_id}: {e}"
+            )
+            self._initialize_fallback()
+
+    def _initialize_tianshou_a2c(self):
+        """Initialize A2C using Tianshou."""
+        try:
+            # Configure A2C parameters
+            algorithm_config = {
+                "lr": self.config.learning_rate,
+                "gamma": self.config.gamma,
+                "gae_lambda": 1.0,
+                "max_grad_norm": 0.5,
+                "vf_coef": 0.5,
+                "ent_coef": 0.01,
+                "max_batchsize": self.config.rl_batch_size,
+            }
+
+            # Add any additional parameters from config
+            algorithm_config.update(self.config.algorithm_params)
+
+            self.algorithm = A2CWrapper(
+                num_actions=self.num_actions,
+                state_dim=self.state_dim,
+                algorithm_config=algorithm_config,
+                buffer_size=self.config.rl_buffer_size,
+                batch_size=self.config.rl_batch_size,
+                train_freq=self.config.rl_train_freq,
+            )
+            logger.info(f"Initialized Tianshou A2C for agent {self.agent_id}")
+
+        except Exception as e:
+            logger.error(
+                f"Failed to initialize Tianshou A2C for agent {self.agent_id}: {e}"
+            )
+            self._initialize_fallback()
+
+    def _initialize_tianshou_ddpg(self):
+        """Initialize DDPG using Tianshou."""
+        try:
+            # Configure DDPG parameters
+            algorithm_config = {
+                "lr": self.config.learning_rate,
+                "gamma": self.config.gamma,
+                "tau": 0.005,
+                "exploration_noise": 0.1,
+            }
+
+            # Add any additional parameters from config
+            algorithm_config.update(self.config.algorithm_params)
+
+            self.algorithm = DDPGWrapper(
+                num_actions=self.num_actions,
+                state_dim=self.state_dim,
+                algorithm_config=algorithm_config,
+                buffer_size=self.config.rl_buffer_size,
+                batch_size=self.config.rl_batch_size,
+                train_freq=self.config.rl_train_freq,
+            )
+            logger.info(f"Initialized Tianshou DDPG for agent {self.agent_id}")
+
+        except Exception as e:
+            logger.error(
+                f"Failed to initialize Tianshou DDPG for agent {self.agent_id}: {e}"
+            )
             self._initialize_fallback()
 
     def _initialize_fallback(self):
@@ -515,20 +348,18 @@ class DecisionModule:
             int: Selected action index
         """
         try:
-            # Convert state to numpy for SB3 compatibility
+            # Convert state to numpy for algorithm compatibility
             if isinstance(state, torch.Tensor):
                 state_np = state.detach().cpu().numpy()
             else:
                 state_np = np.array(state, dtype=np.float32)
 
             # Ensure correct shape for algorithm input
-            # Handle multi-dimensional observations (e.g., for CNNs)
+            # Handle multi-dimensional observations
             if state_np.ndim == 1:
                 state_np = state_np.reshape(1, -1)
             elif state_np.ndim > 1:
                 # For multi-dimensional inputs, add batch dimension
-                # Shape: (C, H, W) -> (1, C, H, W) for CNNs
-                # or keep as is if algorithm expects different format
                 if state_np.shape != self.observation_shape:
                     # If shape doesn't match expected, try to reshape
                     if np.prod(state_np.shape) == self.state_dim:
@@ -536,8 +367,9 @@ class DecisionModule:
                 state_np = state_np[np.newaxis, ...]  # Add batch dimension
 
             # Get action from algorithm
-            if self.algorithm is not None and hasattr(self.algorithm, "predict"):
-                action, _ = self.algorithm.predict(state_np, deterministic=False)
+            if self.algorithm is not None and hasattr(self.algorithm, "select_action"):
+                # For Tianshou algorithms
+                action = self.algorithm.select_action(state_np)
             else:
                 action = np.random.randint(self.num_actions)
 
@@ -574,10 +406,31 @@ class DecisionModule:
             done: Whether episode is done
         """
         try:
-            # For SB3 algorithms, we need to handle experience differently
-            # Since we're not using a traditional Gym environment, we'll simulate
-            # the learning process by calling learn() periodically
+            # For Tianshou algorithms, store experience and train
             if (
+                self.algorithm is not None
+                and hasattr(self.algorithm, "store_experience")
+                and callable(getattr(self.algorithm, "store_experience", None))
+            ):
+                # Store experience in Tianshou buffer
+                self.algorithm.store_experience(
+                    state=state,
+                    action=action,
+                    reward=reward,
+                    next_state=next_state,
+                    done=done,
+                )
+
+                # Train if it's time to train
+                if (
+                    hasattr(self.algorithm, "should_train")
+                    and self.algorithm.should_train()
+                ):
+                    self.algorithm.train()
+                    self._is_trained = True
+
+            # For SB3 algorithms (fallback), simulate learning process
+            elif (
                 self.algorithm is not None
                 and hasattr(self.algorithm, "learn")
                 and callable(getattr(self.algorithm, "learn", None))
@@ -601,8 +454,26 @@ class DecisionModule:
             np.ndarray: Probability distribution over actions as a numpy array
         """
         try:
-            # For SB3 algorithms that support it, get action probabilities
+            # For Tianshou algorithms that support it, get action probabilities
             if (
+                self.algorithm is not None
+                and hasattr(self.algorithm, "predict_proba")
+                and callable(getattr(self.algorithm, "predict_proba", None))
+            ):
+                if isinstance(state, torch.Tensor):
+                    state_np = state.detach().cpu().numpy()
+                else:
+                    state_np = np.array(state, dtype=np.float32)
+
+                if state_np.ndim == 1:
+                    state_np = state_np.reshape(1, -1)
+
+                # Get probabilities from Tianshou algorithm
+                probs = self.algorithm.predict_proba(state_np)
+                return np.array(probs, dtype=np.float32)
+
+            # For SB3 algorithms that support it, get action probabilities
+            elif (
                 self.algorithm is not None
                 and hasattr(self.algorithm, "predict_proba")
                 and callable(getattr(self.algorithm, "predict_proba", None))
@@ -641,9 +512,30 @@ class DecisionModule:
 
             if (
                 self.algorithm is not None
+                and hasattr(self.algorithm, "get_model_state")
+                and callable(getattr(self.algorithm, "get_model_state", None))
+            ):
+                # For Tianshou algorithms, get model state and save
+                model_state = self.algorithm.get_model_state()
+                import pickle
+
+                with open(f"{path}.pkl", "wb") as f:
+                    pickle.dump(
+                        {
+                            "agent_id": self.agent_id,
+                            "config": self.config.model_dump(),
+                            "is_trained": self._is_trained,
+                            "algorithm_type": self.config.algorithm_type,
+                            "model_state": model_state,
+                        },
+                        f,
+                    )
+            elif (
+                self.algorithm is not None
                 and hasattr(self.algorithm, "save")
                 and callable(getattr(self.algorithm, "save", None))
             ):
+                # For SB3 algorithms (fallback)
                 self.algorithm.save(path)
             else:
                 # For fallback algorithm, save basic info
@@ -673,28 +565,42 @@ class DecisionModule:
             path: Path to load the model from
         """
         try:
-            if (
+            # Try to load pickle file first (for Tianshou models)
+            import pickle
+
+            pickle_path = f"{path}.pkl"
+
+            if os.path.exists(pickle_path):
+                with open(pickle_path, "rb") as f:
+                    data = pickle.load(f)
+                    self._is_trained = data.get("is_trained", False)
+
+                    # If this is a Tianshou model, load the state
+                    if "model_state" in data and self.algorithm is not None:
+                        if hasattr(self.algorithm, "load_model_state"):
+                            self.algorithm.load_model_state(data["model_state"])
+                            logger.info(
+                                f"Loaded Tianshou model state for agent {self.agent_id}"
+                            )
+
+            elif (
                 self.algorithm is not None
                 and hasattr(self.algorithm, "load")
                 and callable(getattr(self.algorithm, "load", None))
             ):
-                # For SB3 models
-                if self.config.algorithm_type == "ddqn" and DQN is not None:
-                    self.algorithm = DQN.load(path)
-                elif self.config.algorithm_type == "ppo" and PPO is not None:
-                    self.algorithm = PPO.load(path)
-                elif self.config.algorithm_type == "ppo" and PPO is None:
+                # For SB3 models (fallback) - try to load directly
+                try:
+                    # This is a fallback for any algorithm that supports load
+                    if hasattr(self.algorithm, "load"):
+                        self.algorithm.load(path)
+                except Exception as load_error:
                     logger.error(
-                        f"PPO not available for loading model for agent {self.agent_id}"
+                        f"Failed to load SB3 model for agent {self.agent_id}: {load_error}"
                     )
                     return
             else:
-                # For fallback algorithm
-                import pickle
-
-                with open(f"{path}.pkl", "rb") as f:
-                    data = pickle.load(f)
-                    self._is_trained = data.get("is_trained", False)
+                # For fallback algorithm without saved state
+                self._is_trained = False
 
             logger.info(
                 f"Loaded DecisionModule model for agent {self.agent_id} from {path}"
@@ -715,7 +621,7 @@ class DecisionModule:
             "num_actions": self.num_actions,
             "state_dim": self.state_dim,
             "is_trained": self._is_trained,
-            "sb3_available": SB3_AVAILABLE,
+            "tianshou_available": TIANSHOU_AVAILABLE,
         }
 
     def reset(self):
@@ -754,9 +660,9 @@ agent = BaseAgent(
 # Manual example of creating and using DecisionModule
 from farm.core.decision.decision import DecisionModule
 
-# Create config
+# Create config for Tianshou PPO
 config = DecisionConfig(
-    algorithm_type="ddqn",  # Use DDQN with SB3
+    algorithm_type="ppo",  # Use PPO with Tianshou
     learning_rate=0.001,
     gamma=0.99,
     epsilon_start=1.0,
@@ -780,11 +686,19 @@ done = False  # Episode not done
 decision_module.update(state, action_index, reward, next_state, done)
 
 # Save/load model
-decision_module.save_model("agent_model.zip")
-decision_module.load_model("agent_model.zip")
+decision_module.save_model("agent_model")
+decision_module.load_model("agent_model")
 
 # Get model info
 info = decision_module.get_model_info()
 print(f"Model info: {info}")
+
+# Available algorithm types:
+# - "ppo": Proximal Policy Optimization (default)
+# - "sac": Soft Actor-Critic
+# - "dqn": Deep Q-Network
+# - "a2c": Advantage Actor-Critic
+# - "ddpg": Deep Deterministic Policy Gradient
+# - "fallback": Simple epsilon-greedy random action selection
 ```
 """
