@@ -352,7 +352,7 @@ class DecisionModule:
                            all actions in the full action space are considered valid.
 
         Returns:
-            int: Selected action index (always within enabled_actions if provided)
+            int: Selected action index within enabled_actions if provided, otherwise full action space index
         """
         try:
             # Convert state to numpy for algorithm compatibility
@@ -373,48 +373,127 @@ class DecisionModule:
                         state_np = state_np.reshape(self.observation_shape)
                 state_np = state_np[np.newaxis, ...]  # Add batch dimension
 
-            # Get action from algorithm
+            # Create action mask for curriculum restrictions
+            action_mask = self._create_action_mask(enabled_actions)
+
+            # Get action from algorithm with masking support
             if self.algorithm is not None and hasattr(self.algorithm, "select_action"):
-                # For Tianshou algorithms
-                action = self.algorithm.select_action(state_np)
-            else:
-                action = np.random.randint(self.num_actions)
-
-            # Ensure action is within valid range
-            action = int(action)
-            if action < 0 or action >= self.num_actions:
-                logger.warning(
-                    f"Invalid action {action} for agent {self.agent_id}, using random"
-                )
-                action = np.random.randint(self.num_actions)
-
-            # Handle curriculum restrictions - if enabled_actions is provided,
-            # return the index within the enabled_actions list, not the full action space index
-            if enabled_actions is not None and len(enabled_actions) > 0:
-                # Check if the selected action is in the enabled set
-                if action not in enabled_actions:
-                    logger.debug(
-                        f"Action {action} not in enabled actions {enabled_actions} for agent {self.agent_id}, "
-                        "selecting random enabled action"
+                # For Tianshou algorithms - pass action mask if supported
+                if hasattr(self.algorithm, "select_action_with_mask"):
+                    action = self.algorithm.select_action_with_mask(
+                        state_np, action_mask
                     )
-                    # Select random action from enabled set
-                    selected_action = np.random.choice(enabled_actions)
                 else:
-                    selected_action = action
-                # Convert the action index to its position within the enabled_actions list
-                action = enabled_actions.index(selected_action)
+                    # Fallback: get action and filter manually
+                    action = self.algorithm.select_action(state_np)
+                    action = self._filter_action_with_mask(action, enabled_actions)
+            else:
+                # Fallback algorithm - respect enabled actions
+                action = self._filter_action_with_mask(
+                    np.random.randint(self.num_actions), enabled_actions
+                )
 
-            return action
+            # Ensure action is within valid range after masking
+            action = int(action)
+            if enabled_actions is not None and len(enabled_actions) > 0:
+                # Return index within enabled_actions list
+                if action < len(enabled_actions):
+                    return action
+                else:
+                    # Fallback to random valid action
+                    return np.random.randint(len(enabled_actions))
+            else:
+                # Full action space - ensure valid range
+                if action < 0 or action >= self.num_actions:
+                    logger.warning(
+                        f"Invalid action {action} for agent {self.agent_id}, using random"
+                    )
+                    return np.random.randint(self.num_actions)
+                return action
 
         except Exception as e:
             logger.error(f"Error in decide_action for agent {self.agent_id}: {e}")
             # Fallback to random action (respect enabled_actions if provided)
             if enabled_actions is not None and len(enabled_actions) > 0:
-                # Return index within enabled_actions list
-                random_action = np.random.choice(enabled_actions)
-                return enabled_actions.index(random_action)
+                return np.random.randint(len(enabled_actions))
             else:
                 return np.random.randint(self.num_actions)
+
+    def _create_action_mask(
+        self, enabled_actions: Optional[List[int]] = None
+    ) -> np.ndarray:
+        """Create a boolean mask for valid actions based on curriculum restrictions.
+
+        Args:
+            enabled_actions: Optional list of enabled action indices
+
+        Returns:
+            np.ndarray: Boolean mask where True indicates valid actions
+        """
+        if enabled_actions is None or len(enabled_actions) == 0:
+            # All actions are valid
+            return np.ones(self.num_actions, dtype=bool)
+
+        # Create mask for full action space
+        mask = np.zeros(self.num_actions, dtype=bool)
+        mask[enabled_actions] = True
+        return mask
+
+    def _filter_action_with_mask(
+        self, action: int, enabled_actions: Optional[List[int]] = None
+    ) -> int:
+        """Filter an action through curriculum restrictions.
+
+        Args:
+            action: Original action index from algorithm
+            enabled_actions: Optional list of enabled action indices
+
+        Returns:
+            int: Valid action index, either original or remapped to enabled set
+        """
+        if enabled_actions is None or len(enabled_actions) == 0:
+            # No restrictions, return original action
+            return action
+
+        # Check if the selected action is enabled
+        if action in enabled_actions:
+            # Action is valid, return its index within the enabled_actions list
+            return enabled_actions.index(action)
+        else:
+            # Action not enabled, select random enabled action
+            logger.debug(
+                f"Action {action} not in enabled actions {enabled_actions} for agent {self.agent_id}, "
+                "selecting random enabled action"
+            )
+            selected_action = np.random.choice(enabled_actions)
+            return enabled_actions.index(selected_action)
+
+    def _convert_to_full_action_space(
+        self, action_index: int, enabled_actions: Optional[List[int]] = None
+    ) -> int:
+        """Convert an action index from enabled_actions space back to full action space.
+
+        Args:
+            action_index: Action index within enabled_actions list
+            enabled_actions: Optional list of enabled action indices
+
+        Returns:
+            int: Action index in full action space
+        """
+        if enabled_actions is None or len(enabled_actions) == 0:
+            # No curriculum restrictions, action_index is already in full space
+            return action_index
+
+        # Validate action_index is within enabled_actions bounds
+        if action_index < 0 or action_index >= len(enabled_actions):
+            logger.warning(
+                f"Invalid action index {action_index} for enabled actions {enabled_actions}, "
+                f"using first enabled action for agent {self.agent_id}"
+            )
+            return enabled_actions[0] if enabled_actions else 0
+
+        # Convert to full action space
+        return enabled_actions[action_index]
 
     def update(
         self,
@@ -423,27 +502,34 @@ class DecisionModule:
         reward: float,
         next_state: torch.Tensor,
         done: bool,
+        enabled_actions: Optional[List[int]] = None,
     ):
-        """Update the decision module with experience.
+        """Update the decision module with experience, respecting curriculum restrictions.
 
         Args:
             state: Current state
-            action: Action taken
+            action: Action taken (index within enabled_actions if curriculum active)
             reward: Reward received
             next_state: Next state
             done: Whether episode is done
+            enabled_actions: Optional list of enabled action indices at time of action
         """
         try:
+            # Convert action index back to full action space if curriculum is active
+            full_action_index = self._convert_to_full_action_space(
+                action, enabled_actions
+            )
+
             # For Tianshou algorithms, store experience and train
             if (
                 self.algorithm is not None
                 and hasattr(self.algorithm, "store_experience")
                 and callable(getattr(self.algorithm, "store_experience", None))
             ):
-                # Store experience in Tianshou buffer
+                # Store experience in Tianshou buffer with full action space index
                 self.algorithm.store_experience(
                     state=state,
-                    action=action,
+                    action=full_action_index,
                     reward=reward,
                     next_state=next_state,
                     done=done,
