@@ -10,9 +10,11 @@ from sqlalchemy.orm import sessionmaker
 
 from farm.analysis.base_module import (
     BaseAnalysisModule,
-    analyze_correlations,
     get_valid_numeric_columns,
     group_and_analyze,
+)
+from farm.analysis.common.metrics import (
+    analyze_correlations,
     split_and_compare_groups,
 )
 from farm.analysis.dominance.compute import (

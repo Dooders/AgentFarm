@@ -5,9 +5,10 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib import pyplot as plt
+from farm.analysis.common.context import AnalysisContext
 
 
-def plot_dominance_distribution(df, output_path):
+def plot_dominance_distribution(df, output_path=None, ctx: AnalysisContext = None):
     """
     Plot the distribution of dominance types as percentages.
     """
@@ -127,13 +128,17 @@ def plot_dominance_distribution(df, output_path):
 
     # Adjust layout to make room for caption
     plt.tight_layout(rect=(0, 0.05, 1, 1))
-    output_file = os.path.join(output_path, "dominance_distribution.png")
+    if ctx is not None and hasattr(ctx, "output_path") and ctx.output_path:
+        output_dir = ctx.output_path
+    else:
+        output_dir = output_path or ""
+    output_file = os.path.join(output_dir, "dominance_distribution.png")
     plt.savefig(output_file)
     logging.info(f"Saved dominance distribution plot to {output_file}")
     plt.close()
 
 
-def plot_feature_importance(df=None, output_path=None, feat_imp=None, label_name=None):
+def plot_feature_importance(df=None, output_path=None, feat_imp=None, label_name=None, ctx: AnalysisContext = None):
     """
     Plot feature importance for a classifier.
 
@@ -153,7 +158,7 @@ def plot_feature_importance(df=None, output_path=None, feat_imp=None, label_name
         raise ValueError("feat_imp parameter is required")
     if label_name is None:
         raise ValueError("label_name parameter is required")
-    if output_path is None:
+    if (ctx is None or not getattr(ctx, "output_path", None)) and output_path is None:
         raise ValueError("output_path parameter is required")
 
     top_features = feat_imp[:15]
@@ -177,13 +182,14 @@ def plot_feature_importance(df=None, output_path=None, feat_imp=None, label_name
 
     # Adjust layout to make room for caption
     plt.tight_layout(rect=(0, 0.05, 1, 0.95))
-    output_file = os.path.join(output_path, f"{label_name}_feature_importance.png")
+    output_dir = ctx.output_path if (ctx and ctx.output_path) else output_path
+    output_file = os.path.join(output_dir, f"{label_name}_feature_importance.png")
     plt.savefig(output_file)
     logging.info(f"Saved feature importance plot to {output_file}")
     plt.close()
 
 
-def plot_resource_proximity_vs_dominance(df, output_path):
+def plot_resource_proximity_vs_dominance(df, output_path=None, ctx: AnalysisContext = None):
     """
     Plot the relationship between initial resource proximity and dominance.
     """
@@ -220,7 +226,8 @@ def plot_resource_proximity_vs_dominance(df, output_path):
 
     # Adjust layout to make room for caption
     plt.tight_layout(rect=(0, 0.03, 1, 0.97))
-    output_file = os.path.join(output_path, "resource_proximity_vs_dominance.png")
+    output_dir = ctx.output_path if (ctx and ctx.output_path) else (output_path or "")
+    output_file = os.path.join(output_dir, "resource_proximity_vs_dominance.png")
     plt.savefig(output_file)
     logging.info(f"Saved resource proximity plot to {output_file}")
     plt.close()
@@ -433,7 +440,7 @@ def plot_correlation_matrix(df, label_name, output_path=None):
     plt.close()
 
 
-def plot_dominance_comparison(df, output_path):
+def plot_dominance_comparison(df, output_path=None, ctx: AnalysisContext = None):
     """
     Create visualizations to compare different dominance measures.
 
@@ -602,7 +609,7 @@ def plot_dominance_comparison(df, output_path):
     plt.close()
 
 
-def plot_dominance_switches(df, output_path):
+def plot_dominance_switches(df, output_path=None, ctx: AnalysisContext = None):
     """
     Create visualizations for dominance switching patterns.
 
@@ -770,7 +777,7 @@ def plot_dominance_switches(df, output_path):
     plot_dominance_stability(df, output_path)
 
 
-def plot_dominance_stability(df, output_path):
+def plot_dominance_stability(df, output_path=None, ctx: AnalysisContext = None):
     """
     Create a scatter plot showing the relationship between dominance stability
     (inverse of switches per step) and dominance score for different agent types.

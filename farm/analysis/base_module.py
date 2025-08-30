@@ -12,6 +12,8 @@ import pandas as pd
 from farm.analysis.common.context import AnalysisContext
 from farm.analysis.common.metrics import (
     get_valid_numeric_columns as _common_get_valid_numeric_columns,
+    split_and_compare_groups as _common_split_and_compare_groups,
+    analyze_correlations as _common_analyze_correlations,
 )
 
 
@@ -403,65 +405,14 @@ def analyze_correlations(
     min_data_points: int = 5,
     filter_condition: Optional[Callable[[pd.DataFrame], pd.DataFrame]] = None,
 ) -> Dict[str, float]:
-    """
-    Analyze correlations between a target column and multiple metric columns.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame with analysis results
-    target_column : str
-        Target column to correlate with metrics
-    metric_columns : list, optional
-        List of metric columns to correlate. If None, uses all numeric columns
-    min_data_points : int, optional
-        Minimum number of valid data points required for correlation analysis
-    filter_condition : callable, optional
-        Function to filter the DataFrame before analysis, accepts DataFrame and returns filtered DataFrame
-
-    Returns
-    -------
-    dict
-        Dictionary mapping metric column names to correlation coefficients
-    """
-    if df.empty or target_column not in df.columns:
-        logging.warning(f"Cannot perform correlation analysis: missing {target_column}")
-        return {}
-
-    # Determine which metrics to correlate
-    if metric_columns is None:
-        metric_columns = get_valid_numeric_columns(df, df.columns.tolist())
-        # Remove the target column from metrics
-        if target_column in metric_columns:
-            metric_columns.remove(target_column)
-
-    # Apply filter condition if provided
-    if filter_condition is not None:
-        filtered_df = filter_condition(df)
-    else:
-        filtered_df = df
-
-    # Calculate correlations
-    correlations = {}
-    for col in metric_columns:
-        try:
-            # Filter out rows with NaN values in either column
-            valid_data = filtered_df[
-                filtered_df[col].notna() & filtered_df[target_column].notna()
-            ]
-
-            if len(valid_data) >= min_data_points:
-                corr = valid_data[[col, target_column]].corr().iloc[0, 1]
-                if not pd.isna(corr):
-                    correlations[col] = corr
-            else:
-                logging.debug(
-                    f"Not enough valid data points for {col} correlation analysis"
-                )
-        except Exception as e:
-            logging.warning(f"Error calculating correlation for {col}: {e}")
-
-    return correlations
+    """Delegate to shared implementation in common.metrics."""
+    return _common_analyze_correlations(
+        df,
+        target_column,
+        metric_columns=metric_columns,
+        min_data_points=min_data_points,
+        filter_condition=filter_condition,
+    )
 
 
 def group_and_analyze(
@@ -632,7 +583,7 @@ class BaseAnalysisModule:
         if self.df is None:
             return {}
 
-        return split_and_compare_groups(
+        return _common_split_and_compare_groups(
             self.df, split_column, metrics=metrics, split_method=split_method
         )
 
