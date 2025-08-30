@@ -89,6 +89,10 @@ class AnalysisModule(ABC):
         """
         pass
 
+    def supports_database(self) -> bool:
+        """Whether this module uses a database for intermediate storage."""
+        return self.get_db_filename() is not None
+
     def get_analysis_function(self, name: str) -> Optional[Callable]:
         """
         Get a specific analysis function by name.
