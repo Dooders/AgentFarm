@@ -17,6 +17,7 @@ from farm.core.action import (
     reproduce_action,
     share_action,
 )
+from farm.core.device_utils import create_device_from_config
 
 # Action registry for secure function resolution
 ACTION_FUNCTIONS = {
@@ -89,6 +90,7 @@ class BaseAgent:
         lifecycle_service: IAgentLifecycleService | None = None,
         config: object | None = None,
         action_set: list[Action] = [],
+        device: Optional[torch.device] = None,
         parent_ids: list[str] = [],
         generation: int = 0,
         use_memory: bool = False,
@@ -115,6 +117,7 @@ class BaseAgent:
             lifecycle_service: Optional service for managing agent creation/removal
             config: Optional configuration object containing agent parameters
             action_set: List of available actions (uses defaults if empty)
+            device: Optional device for neural network computations (auto-detected if None)
             parent_ids: List of parent agent IDs for genome tracking
             generation: Generation number for evolutionary tracking
             use_memory: Whether to initialize Redis-based memory system
@@ -143,7 +146,14 @@ class BaseAgent:
             config=config,
         )
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # Set up device for neural network computations
+        if device is not None:
+            self.device = device
+        elif config is not None:
+            self.device = create_device_from_config(config)
+        else:
+            # Fallback to auto-detection if no config provided
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._initialize_agent_state()
 
         # Generate genome info
