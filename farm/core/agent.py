@@ -360,10 +360,18 @@ class BaseAgent:
         allies, enemies, resources, obstacles, and dynamic channels like
         trails and damage heat.
 
+        When environment is not available, falls back to a simplified state
+        representation that matches the expected observation space shape.
+
         Returns:
             torch.Tensor: Multi-channel observation tensor for decision making
         """
         if self.environment is None:
+            # Log fallback usage for debugging
+            logger.warning(
+                f"Agent {self.agent_id} using fallback state - no environment available. "
+                "This may impact decision quality."
+            )
             # Fallback to simple state if no environment available
             return self._create_fallback_state()
 
@@ -380,29 +388,117 @@ class BaseAgent:
         return observation_tensor
 
     def _create_fallback_state(self):
-        """Create a simple fallback state representation when environment is not available.
+        """Create a fallback state representation when environment is not available.
 
-        This maintains backward compatibility and provides a basic state representation
-        using agent properties and simple perception data.
+        Creates a multi-channel observation tensor that matches the expected shape
+        from the DecisionModule's observation space. This ensures compatibility
+        with CNN backbones and other multi-dimensional input architectures.
+
+        The fallback uses agent properties and perception data arranged in channels
+        to maintain shape consistency with the environment's multi-channel observations.
 
         Returns:
-            torch.Tensor: Simple 1D state tensor for fallback scenarios
+            torch.Tensor: Multi-channel observation tensor matching expected shape
         """
-        # Create a simple state representation with basic agent info
-        state = [
-            self.position[0] / 100.0,  # Normalize position
-            self.position[1] / 100.0,
-            self.resource_level / 100.0,  # Normalize resources
+        # Get expected observation shape from DecisionModule if available
+        if hasattr(self, "decision_module") and hasattr(
+            self.decision_module, "observation_shape"
+        ):
+            expected_shape = self.decision_module.observation_shape
+            if len(expected_shape) >= 3:
+                # Multi-channel case: (channels, height, width)
+                num_channels, size = expected_shape[0], expected_shape[1]
+            elif len(expected_shape) == 2:
+                # 2D case: (height, width) - assume single channel
+                num_channels, size = 1, expected_shape[0]
+            else:
+                # 1D case: (features,) - reshape to square grid
+                feature_count = expected_shape[0]
+                size = int(np.ceil(np.sqrt(feature_count)))
+                num_channels = 1
+        else:
+            # Fallback to default values if DecisionModule not initialized
+            from farm.core.channels import NUM_CHANNELS
+
+            radius = getattr(self.config, "perception_radius", 5) if self.config else 5
+            size = 2 * radius + 1
+            num_channels = NUM_CHANNELS
+
+        # Create multi-channel observation array
+        observation = np.zeros((num_channels, size, size), dtype=np.float32)
+
+        # Channel 0: Agent properties (position, health, resources, etc.)
+        # Normalize and place in center of the grid
+        center = size // 2
+
+        # Only store agent properties if we have enough channels
+        agent_properties = [
+            self.position[0] / 100.0,  # X position
+            self.position[1] / 100.0,  # Y position
+            self.resource_level / 100.0,  # Resources
             self.current_health / self.starting_health,  # Health ratio
-            float(self.is_defending),
-            self.total_reward / 100.0,  # Normalize reward
+            float(self.is_defending),  # Defense status
+            min(self.total_reward / 100.0, 1.0),  # Reward (capped)
         ]
 
-        # Add perception data if available
-        perception = self.get_fallback_perception()
-        state.extend(perception.grid.flatten() / 2.0)  # Normalize perception
+        # Store as many agent properties as we have channels
+        for i, prop_value in enumerate(agent_properties):
+            if i < num_channels:
+                observation[i, center, center] = prop_value
 
-        return torch.tensor(state, dtype=torch.float32, device=self.device)
+        # Get perception data - use grid size that matches expected shape
+        # Temporarily override config to get correct perception radius
+        original_config = getattr(self, "config", None)
+        if hasattr(self, "decision_module") and hasattr(
+            self.decision_module, "observation_shape"
+        ):
+            expected_shape = self.decision_module.observation_shape
+            if len(expected_shape) >= 3:
+                # Calculate radius from expected grid size: radius = (size - 1) / 2
+                expected_size = expected_shape[1]  # Assuming square grid
+                expected_radius = (expected_size - 1) // 2
+
+                # Create a temporary config with the correct radius
+                class TempConfig:
+                    perception_radius = expected_radius
+
+                self.config = TempConfig()
+
+        perception = self.get_fallback_perception()
+
+        # Restore original config
+        self.config = original_config
+
+        # Map perception grid to remaining channels (up to available channels)
+        # 0: Empty, 1: Resource, 2: Agent, 3: Obstacle
+        available_channels = max(
+            0, num_channels - 6
+        )  # Reserve channels for agent properties
+        perception_channels = min(4, available_channels)
+
+        for c in range(perception_channels):
+            channel_idx = 6 + c
+            if channel_idx < num_channels:
+                # Extract specific perception type and normalize
+                mask = (perception.grid == c).astype(np.float32)
+                # Resize mask to fit the expected grid size if necessary
+                if mask.shape != (size, size):
+                    # Use center crop/pad to match expected size
+                    mask_resized = np.zeros((size, size), dtype=np.float32)
+                    min_size = min(mask.shape[0], size)
+                    offset = (size - min_size) // 2
+                    mask_resized[
+                        offset : offset + min_size, offset : offset + min_size
+                    ] = mask[:min_size, :min_size]
+                    mask = mask_resized
+                observation[channel_idx] = mask
+
+        # Fill remaining channels with zeros (for future extensibility)
+        for c in range(6 + perception_channels, num_channels):
+            observation[c] = 0.0
+
+        # Convert to torch tensor
+        return torch.from_numpy(observation).to(device=self.device, dtype=torch.float32)
 
     def get_state(self) -> AgentState:
         """Returns the current state of the agent as an AgentState object.
