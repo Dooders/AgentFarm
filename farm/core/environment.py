@@ -18,6 +18,7 @@ training and evaluation.
 """
 
 import logging
+import math
 import random
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -46,6 +47,86 @@ from farm.database.utilities import setup_db
 from farm.utils.identity import Identity, IdentityConfig
 
 logger = logging.getLogger(__name__)
+
+
+def discretize_position_continuous(
+    position: Tuple[float, float], grid_size: Tuple[int, int], method: str = "floor"
+) -> Tuple[int, int]:
+    """
+    Convert continuous position to discrete grid coordinates using specified method.
+
+    Args:
+        position: (x, y) continuous coordinates
+        grid_size: (width, height) of the grid
+        method: Discretization method - "floor", "round", or "ceil"
+
+    Returns:
+        (x_idx, y_idx) discrete grid coordinates
+    """
+    x, y = position
+    width, height = grid_size
+
+    if method == "round":
+        x_idx = max(0, min(int(round(x)), width - 1))
+        y_idx = max(0, min(int(round(y)), height - 1))
+    elif method == "ceil":
+        x_idx = max(0, min(int(math.ceil(x)), width - 1))
+        y_idx = max(0, min(int(math.ceil(y)), height - 1))
+    else:  # "floor" (default)
+        x_idx = max(0, min(int(math.floor(x)), width - 1))
+        y_idx = max(0, min(int(math.floor(y)), height - 1))
+
+    return x_idx, y_idx
+
+
+def bilinear_distribute_value(
+    position: Tuple[float, float],
+    value: float,
+    grid: torch.Tensor,
+    grid_size: Tuple[int, int],
+) -> None:
+    """
+    Distribute a value across grid cells using bilinear interpolation.
+
+    This preserves continuous position information by distributing values
+    across the four nearest grid cells based on the fractional position components.
+
+    Args:
+        position: (x, y) continuous coordinates
+        value: Value to distribute
+        grid: Target grid tensor of shape (H, W)
+        grid_size: (width, height) of the grid
+    """
+    x, y = position
+    height, width = grid_size
+
+    # Get the four nearest grid cells
+    x_floor = int(math.floor(x))
+    y_floor = int(math.floor(y))
+    x_ceil = min(x_floor + 1, width - 1)
+    y_ceil = min(y_floor + 1, height - 1)
+
+    # Calculate interpolation weights
+    x_frac = x - x_floor
+    y_frac = y - y_floor
+
+    # Ensure we don't go out of bounds
+    x_floor = max(0, min(x_floor, width - 1))
+    y_floor = max(0, min(y_floor, height - 1))
+    x_ceil = max(0, min(x_ceil, width - 1))
+    y_ceil = max(0, min(y_ceil, height - 1))
+
+    # Bilinear interpolation weights
+    w00 = (1 - x_frac) * (1 - y_frac)  # bottom-left
+    w01 = (1 - x_frac) * y_frac  # top-left
+    w10 = x_frac * (1 - y_frac)  # bottom-right
+    w11 = x_frac * y_frac  # top-right
+
+    # Distribute the value
+    grid[y_floor, x_floor] += value * w00
+    grid[y_ceil, x_floor] += value * w01
+    grid[y_floor, x_ceil] += value * w10
+    grid[y_ceil, x_ceil] += value * w11
 
 
 class Environment(AECEnv):
@@ -968,7 +1049,7 @@ class Environment(AECEnv):
         # Assume width and height are integers for grid
         height, width = int(self.height), int(self.width)
 
-        # Create resource grid
+        # Create resource grid with continuous position support
         resource_grid = torch.zeros(
             (height, width),
             dtype=self.observation_config.torch_dtype,
@@ -977,11 +1058,33 @@ class Environment(AECEnv):
         max_amount = self.max_resource or (
             self.config.max_resource_amount if self.config else 10
         )
+        grid_size = (width, height)
+
+        # Get discretization method from config
+        discretization_method = (
+            getattr(self.config, "position_discretization_method", "floor")
+            if self.config
+            else "floor"
+        )
+        use_bilinear = (
+            getattr(self.config, "use_bilinear_interpolation", True)
+            if self.config
+            else True
+        )
+
         for r in self.resources:
-            y = int(round(r.position[1]))
-            x = int(round(r.position[0]))
-            if 0 <= y < height and 0 <= x < width:
-                resource_grid[y, x] = r.amount / max_amount
+            if use_bilinear:
+                # Use bilinear interpolation for continuous positions
+                bilinear_distribute_value(
+                    r.position, r.amount / max_amount, resource_grid, grid_size
+                )
+            else:
+                # Use simple discretization method
+                x, y = discretize_position_continuous(
+                    r.position, grid_size, discretization_method
+                )
+                if 0 <= x < width and 0 <= y < height:
+                    resource_grid[y, x] += r.amount / max_amount
 
         # Empty layers
         obstacles = torch.zeros_like(resource_grid)
@@ -993,8 +1096,11 @@ class Environment(AECEnv):
             "TERRAIN_COST": terrain_cost,
         }
 
-        # Agent position as (y, x)
-        ay, ax = int(round(agent.position[1])), int(round(agent.position[0]))
+        # Agent position as (y, x) using configured discretization method
+        grid_size = (width, height)
+        ax, ay = discretize_position_continuous(
+            agent.position, grid_size, discretization_method
+        )
 
         # Ensure spatial index is up to date before observation generation
         self.spatial_index.update()
