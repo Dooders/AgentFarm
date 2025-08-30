@@ -62,6 +62,22 @@ class TestEnvironment(unittest.TestCase):
         self.mock_config.offspring_survival_bonus = 0.5
         self.mock_config.population_balance_bonus = 0.2
 
+        # Mock action and observation spaces to prevent DecisionModule errors
+        mock_action_space = Mock()
+        mock_action_space.n = len(ActionType)  # Number of actions from ActionType enum
+        self.mock_config.action_space = mock_action_space
+
+        mock_observation_space = Mock()
+        mock_observation_space.shape = (10, 21, 21)  # Typical observation shape
+        self.mock_config.observation_space = mock_observation_space
+
+        # Mock decision config to prevent DecisionModule config errors
+        mock_decision_config = Mock()
+        mock_decision_config.rl_state_dim = 8  # Default value from DecisionConfig
+        mock_decision_config.algorithm_type = "dqn"
+        mock_decision_config.algorithm_params = {}
+        self.mock_config.decision = mock_decision_config
+
         self.env = Environment(
             width=100,
             height=100,
