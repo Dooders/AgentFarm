@@ -233,7 +233,9 @@ def plot_resource_proximity_vs_dominance(df, output_path=None, ctx: AnalysisCont
     plt.close()
 
 
-def plot_reproduction_vs_dominance(df, output_path):
+def plot_reproduction_vs_dominance(df, output_path=None, ctx: AnalysisContext = None):
+    if ctx is not None and getattr(ctx, "output_path", None) and (output_path is None or output_path == ""):
+        output_path = ctx.output_path
     """
     Plot reproduction metrics vs dominance.
     """
@@ -347,7 +349,9 @@ def plot_reproduction_vs_dominance(df, output_path):
     plt.close()
 
 
-def plot_correlation_matrix(df, label_name, output_path=None):
+def plot_correlation_matrix(df, label_name, output_path=None, ctx: AnalysisContext = None):
+    if ctx is not None and getattr(ctx, "output_path", None) and (output_path is None or output_path == ""):
+        output_path = ctx.output_path
     """
     Plot correlation matrix between features and the target label.
 
@@ -827,7 +831,9 @@ def plot_dominance_stability(df, output_path=None, ctx: AnalysisContext = None):
     return output_file
 
 
-def plot_reproduction_advantage_vs_stability(df, output_path):
+def plot_reproduction_advantage_vs_stability(df, output_path=None, ctx: AnalysisContext = None):
+    if ctx is not None and getattr(ctx, "output_path", None) and (output_path is None or output_path == ""):
+        output_path = ctx.output_path
     """
     Create a visualization showing the relationship between reproduction advantage
     and dominance stability.
@@ -988,7 +994,9 @@ def plot_reproduction_advantage_vs_stability(df, output_path):
     return output_file
 
 
-def plot_comprehensive_score_breakdown(df, output_path):
+def plot_comprehensive_score_breakdown(df, output_path=None, ctx: AnalysisContext = None):
+    if ctx is not None and getattr(ctx, "output_path", None) and (output_path is None or output_path == ""):
+        output_path = ctx.output_path
     """
     Generate a chart showing the breakdown of average comprehensive dominance scores for each agent type.
 
@@ -1136,7 +1144,9 @@ def plot_comprehensive_score_breakdown(df, output_path):
     return weighted_scores
 
 
-def plot_reproduction_success_vs_switching(df, output_path):
+def plot_reproduction_success_vs_switching(df, output_path=None, ctx: AnalysisContext = None):
+    if ctx is not None and getattr(ctx, "output_path", None) and (output_path is None or output_path == ""):
+        output_path = ctx.output_path
     """
     Create a visualization showing the relationship between reproduction success rate and dominance switching.
 
