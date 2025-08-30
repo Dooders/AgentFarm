@@ -429,10 +429,21 @@ class TestBaseAgentDecisionMaking:
             Action("attack", 1.0, lambda agent: None),  # Should be restricted
         ]
 
+        # Mock decision module to return index 0 (move action)
+        mock_decision_module.decide_action.return_value = 0
+
         action = sample_base_agent.decide_action()
 
         # Should only consider enabled actions (move, gather)
         assert action.name in ["move", "gather"]
+
+        # Verify decision module was called with enabled action indices [0, 1]
+        mock_decision_module.decide_action.assert_called_once()
+        call_args = mock_decision_module.decide_action.call_args
+        # Check that enabled_actions parameter was passed
+        assert len(call_args[0]) == 2  # state and enabled_actions
+        enabled_indices = call_args[0][1]  # Second argument is enabled_actions
+        assert enabled_indices == [0, 1]  # Indices of move and gather actions
 
     def test_create_decision_state_with_environment(
         self, sample_base_agent, mock_environment
@@ -535,14 +546,32 @@ class TestBaseAgentActionExecution:
 
     def test_calculate_reward_no_previous_state(self, sample_base_agent):
         """Test reward calculation without previous state."""
-        reward = sample_base_agent._calculate_reward()
+        # Create mock states and action for new signature
+        pre_state = AgentState(
+            agent_id="test_agent_001",
+            step_number=100,
+            position_x=5.0,
+            position_y=5.0,
+            position_z=0.0,
+            resource_level=50,
+            current_health=100,
+            is_defending=False,
+            total_reward=0.0,
+            age=0,
+        )
+        post_state = pre_state  # Same state for no change case
+        action = Mock()
+        action.name = "pass"
 
-        assert reward == 0.0
+        reward = sample_base_agent._calculate_reward(pre_state, post_state, action)
+
+        # Should be 0.1 for survival reward only (no state changes)
+        assert reward == 0.1
 
     def test_calculate_reward_with_changes(self, sample_base_agent, mock_time_service):
         """Test reward calculation with state changes."""
-        # Setup previous state
-        previous_state = AgentState(
+        # Setup pre-action state (less resources and health than current state)
+        pre_state = AgentState(
             agent_id="test_agent_001",
             step_number=99,
             position_x=5.0,
@@ -554,11 +583,26 @@ class TestBaseAgentActionExecution:
             total_reward=0.0,
             age=0,
         )
-        sample_base_agent.previous_state = previous_state
-        sample_base_agent.previous_action = Mock()
-        sample_base_agent.previous_action.name = "gather"
 
-        reward = sample_base_agent._calculate_reward()
+        # Post-action state (current agent state)
+        post_state = AgentState(
+            agent_id="test_agent_001",
+            step_number=100,
+            position_x=5.0,
+            position_y=5.0,
+            position_z=0.0,
+            resource_level=50,  # Current resource level
+            current_health=100,  # Current health level
+            is_defending=False,
+            total_reward=0.0,
+            age=0,
+        )
+
+        # Mock action taken
+        action = Mock()
+        action.name = "gather"
+
+        reward = sample_base_agent._calculate_reward(pre_state, post_state, action)
 
         # Should have positive reward from resource and health gains
         assert reward > 0
@@ -1048,7 +1092,7 @@ class TestBaseAgentEdgeCases:
         sample_base_agent.starting_health = 0
         sample_base_agent.current_health = 0
 
-        previous_state = AgentState(
+        pre_state = AgentState(
             agent_id="test",
             step_number=99,
             position_x=5.0,
@@ -1060,10 +1104,25 @@ class TestBaseAgentEdgeCases:
             total_reward=0.0,
             age=0,
         )
-        sample_base_agent.previous_state = previous_state
 
-        # Should handle division by zero gracefully
-        reward = sample_base_agent._calculate_reward()
+        post_state = AgentState(
+            agent_id="test",
+            step_number=100,
+            position_x=5.0,
+            position_y=5.0,
+            position_z=0.0,
+            resource_level=50,  # Same resources
+            current_health=0,  # Same health
+            is_defending=False,
+            total_reward=0.0,
+            age=0,
+        )
+
+        action = Mock()
+        action.name = "pass"
+
+        # Should handle zero division gracefully
+        reward = sample_base_agent._calculate_reward(pre_state, post_state, action)
 
         assert isinstance(reward, float)
 

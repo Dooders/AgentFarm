@@ -469,47 +469,55 @@ class BaseAgent:
                         ]
                         break
 
-        # Use DecisionModule to select action index
-        action_index = self.decision_module.decide_action(self._cached_selection_state)
+        # Use DecisionModule to select action index, passing enabled actions for curriculum support
+        enabled_action_indices = [
+            self.actions.index(action) for action in enabled_actions
+        ]
+        action_index = self.decision_module.decide_action(
+            self._cached_selection_state, enabled_action_indices
+        )
 
-        # Map action index to Action object, considering only enabled actions
-        if action_index < len(enabled_actions):
+        # Map action index to Action object
+        # Since decision_module now respects enabled_actions, action_index should always be valid
+        if enabled_actions:
             selected_action = enabled_actions[action_index]
         else:
-            # Fallback to random enabled action if index is out of bounds
-            selected_action = (
-                random.choice(enabled_actions)
-                if enabled_actions
-                else random.choice(self.actions)
-            )
+            selected_action = self.actions[action_index]
 
         return selected_action
 
-    def _calculate_reward(self) -> float:
+    def _calculate_reward(
+        self, pre_action_state: AgentState, post_action_state: AgentState, action_taken
+    ) -> float:
         """Calculate reward for the current state transition.
 
+        Args:
+            pre_action_state: Agent state before action execution
+            post_action_state: Agent state after action execution
+            action_taken: Action that was executed
+
         Returns:
-            float: Calculated reward based on state changes
+            float: Calculated reward based on state changes from pre to post action
 
         Notes:
-        - TODO: Seperate rewards logic from agent
+        - This method calculates reward based on the immediate effect of the action
+        - Reward reflects changes within a single turn, not across turns
+        - TODO: Separate rewards logic from agent
         """
-        if not hasattr(self, "previous_state") or self.previous_state is None:
-            return 0.0
-
-        # Basic reward components
+        # Basic reward components based on state deltas
         resource_reward = (
-            self.resource_level - self.previous_state.resource_level
+            post_action_state.resource_level - pre_action_state.resource_level
         ) * 0.1
-        health_reward = (self.current_health - self.previous_state.current_health) * 0.5
+        health_reward = (
+            post_action_state.current_health - pre_action_state.current_health
+        ) * 0.5
         survival_reward = 0.1 if self.alive else -10.0
 
         # Action-specific bonuses (simplified)
         action_bonus = 0.0
-        if hasattr(self, "previous_action") and self.previous_action:
+        if action_taken and action_taken.name != "pass":
             # Small bonus for non-idle actions
-            if self.previous_action.name != "pass":
-                action_bonus = 0.05
+            action_bonus = 0.05
 
         total_reward = resource_reward + health_reward + survival_reward + action_bonus
 
@@ -599,8 +607,11 @@ class BaseAgent:
         action = self.decide_action()
         action.execute(self)
 
-        # Calculate reward based on state changes
-        reward = self._calculate_reward()
+        # Get post-action state for reward calculation
+        post_action_state = self.get_state()
+
+        # Calculate reward based on state changes from pre-action to post-action
+        reward = self._calculate_reward(current_state, post_action_state, action)
 
         # Store state and action for learning
         self.previous_state = current_state
@@ -645,7 +656,7 @@ class BaseAgent:
         ]
         new_agent = BaseAgent(
             agent_id=self.agent_id,
-            position=(int(self.position[0]), int(self.position[1])),
+            position=self.position,
             resource_level=mutated_genome.get("resource_level", self.resource_level),
             spatial_service=self.spatial_service,
             agent_type=getattr(self, "agent_type", "BaseAgent"),
@@ -860,7 +871,7 @@ class BaseAgent:
             genome: Dictionary containing serialized agent genome with action_set,
                    module_states, agent_type, resource_level, and current_health
             agent_id: Unique string identifier for the new agent
-            position: Starting (x, y) coordinates as floats (will be converted to ints)
+            position: Starting (x, y) coordinates as floats
             environment: Simulation environment reference for agent integration
 
         Returns:
