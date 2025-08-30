@@ -14,12 +14,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from farm.analysis.common.context import AnalysisContext
 
 
 def plot_advantage_results(
     df: pd.DataFrame,
     analysis_results: Dict[str, Any],
-    output_path: str,
+    output_path: str = "",
+    ctx: AnalysisContext = None,
     data_cleaned: bool = False,
 ):
     """
@@ -37,28 +39,29 @@ def plot_advantage_results(
         Flag indicating whether the data has been cleaned of NaN and infinity values
     """
     # Create output directory if it doesn't exist
-    os.makedirs(output_path, exist_ok=True)
+    out_dir = ctx.output_path if (ctx and ctx.output_path) else output_path
+    os.makedirs(out_dir, exist_ok=True)
 
     # 1. Correlation matrix between advantages and dominance scores
-    plot_advantage_correlation_matrix(df, output_path, data_cleaned)
+    plot_advantage_correlation_matrix(df, out_dir, data_cleaned)
 
     # 2. Advantage category importance by agent type
-    plot_advantage_category_importance(analysis_results, output_path, data_cleaned)
+    plot_advantage_category_importance(analysis_results, out_dir, data_cleaned)
 
     # 3. Top predictors of dominance for each agent type
-    plot_top_dominance_predictors(analysis_results, output_path, data_cleaned)
+    plot_top_dominance_predictors(analysis_results, out_dir, data_cleaned)
 
     # 4. Advantage thresholds and dominance
-    plot_advantage_thresholds(analysis_results, output_path, data_cleaned)
+    plot_advantage_thresholds(analysis_results, out_dir, data_cleaned)
 
     # 5. Timing of advantages across simulation phases
-    plot_advantage_timing(analysis_results, output_path, data_cleaned)
+    plot_advantage_timing(analysis_results, out_dir, data_cleaned)
 
     # 6. Composite advantage breakdown
-    plot_composite_advantage_breakdown(df, output_path, data_cleaned)
+    plot_composite_advantage_breakdown(df, out_dir, data_cleaned)
 
     # 7. Advantage trajectory over simulation
-    plot_advantage_trajectories(df, output_path, data_cleaned)
+    plot_advantage_trajectories(df, out_dir, data_cleaned)
 
 
 def add_data_cleaning_watermark(fig, ax=None):
@@ -78,7 +81,7 @@ def add_data_cleaning_watermark(fig, ax=None):
 
 
 def plot_advantage_correlation_matrix(
-    df: pd.DataFrame, output_path: str, data_cleaned: bool = False
+    df: pd.DataFrame, output_path: str = "", data_cleaned: bool = False, ctx: AnalysisContext = None
 ):
     """
     Plot correlation matrix between advantages and dominance scores.
@@ -184,14 +187,15 @@ def plot_advantage_correlation_matrix(
         add_data_cleaning_watermark(fig)
 
     # Save the figure
-    output_file = os.path.join(output_path, "advantage_correlation_matrix.png")
+    out_dir = ctx.output_path if (ctx and ctx.output_path) else output_path
+    output_file = os.path.join(out_dir, "advantage_correlation_matrix.png")
     plt.savefig(output_file, dpi=300, bbox_inches="tight")
     plt.close()
     logging.info(f"Saved advantage correlation matrix to {output_file}")
 
 
 def plot_advantage_category_importance(
-    analysis_results: Dict[str, Any], output_path: str, data_cleaned: bool = False
+    analysis_results: Dict[str, Any], output_path: str = "", data_cleaned: bool = False, ctx: AnalysisContext = None
 ):
     """
     Plot the importance of different advantage categories for each agent type.
@@ -262,14 +266,15 @@ def plot_advantage_category_importance(
         add_data_cleaning_watermark(fig)
 
     # Save the figure
-    output_file = os.path.join(output_path, "advantage_category_importance.png")
+    out_dir = ctx.output_path if (ctx and ctx.output_path) else output_path
+    output_file = os.path.join(out_dir, "advantage_category_importance.png")
     plt.savefig(output_file, dpi=300, bbox_inches="tight")
     plt.close()
     logging.info(f"Saved advantage category importance to {output_file}")
 
 
 def plot_top_dominance_predictors(
-    analysis_results: Dict[str, Any], output_path: str, data_cleaned: bool = False
+    analysis_results: Dict[str, Any], output_path: str = "", data_cleaned: bool = False, ctx: AnalysisContext = None
 ):
     """
     Plot the top predictors of dominance for each agent type.
@@ -359,16 +364,15 @@ def plot_top_dominance_predictors(
             add_data_cleaning_watermark(fig)
 
         # Save the figure
-        output_file = os.path.join(
-            output_path, f"{agent_type}_dominance_predictors.png"
-        )
+        out_dir = ctx.output_path if (ctx and ctx.output_path) else output_path
+        output_file = os.path.join(out_dir, f"{agent_type}_dominance_predictors.png")
         plt.savefig(output_file, dpi=300, bbox_inches="tight")
         plt.close()
         logging.info(f"Saved {agent_type} dominance predictors to {output_file}")
 
 
 def plot_advantage_thresholds(
-    analysis_results: Dict[str, Any], output_path: str, data_cleaned: bool = False
+    analysis_results: Dict[str, Any], output_path: str = "", data_cleaned: bool = False, ctx: AnalysisContext = None
 ):
     """
     Plot advantage thresholds and their relationship with dominance likelihood.
@@ -472,16 +476,15 @@ def plot_advantage_thresholds(
             )
 
         # Save the figure
-        output_file = os.path.join(
-            output_path, f"{agent_type}_advantage_thresholds.png"
-        )
+        out_dir = ctx.output_path if (ctx and ctx.output_path) else output_path
+        output_file = os.path.join(out_dir, f"{agent_type}_advantage_thresholds.png")
         plt.savefig(output_file, dpi=300, bbox_inches="tight")
         plt.close()
         logging.info(f"Saved {agent_type} advantage thresholds to {output_file}")
 
 
 def plot_advantage_timing(
-    analysis_results: Dict[str, Any], output_path: str, data_cleaned: bool = False
+    analysis_results: Dict[str, Any], output_path: str = "", data_cleaned: bool = False, ctx: AnalysisContext = None
 ):
     """
     Plot the importance of advantages across different simulation phases.
@@ -549,14 +552,15 @@ def plot_advantage_timing(
         add_data_cleaning_watermark(fig)
 
     # Save the figure
-    output_file = os.path.join(output_path, "advantage_timing_analysis.png")
+    out_dir = ctx.output_path if (ctx and ctx.output_path) else output_path
+    output_file = os.path.join(out_dir, "advantage_timing_analysis.png")
     plt.savefig(output_file, dpi=300, bbox_inches="tight")
     plt.close()
     logging.info(f"Saved advantage timing analysis to {output_file}")
 
 
 def plot_composite_advantage_breakdown(
-    df: pd.DataFrame, output_path: str, data_cleaned: bool = False
+    df: pd.DataFrame, output_path: str = "", data_cleaned: bool = False, ctx: AnalysisContext = None
 ):
     """
     Plot breakdown of components contributing to composite advantage scores.
@@ -651,14 +655,15 @@ def plot_composite_advantage_breakdown(
             add_data_cleaning_watermark(fig)
 
         # Save the figure
-        output_file = os.path.join(output_path, f"{pair}_advantage_breakdown.png")
+        out_dir = ctx.output_path if (ctx and ctx.output_path) else output_path
+        output_file = os.path.join(out_dir, f"{pair}_advantage_breakdown.png")
         plt.savefig(output_file, dpi=300, bbox_inches="tight")
         plt.close()
         logging.info(f"Saved {pair} advantage breakdown to {output_file}")
 
 
 def plot_advantage_trajectories(
-    df: pd.DataFrame, output_path: str, data_cleaned: bool = False
+    df: pd.DataFrame, output_path: str = "", data_cleaned: bool = False, ctx: AnalysisContext = None
 ):
     """
     Plot advantage trajectories over the course of the simulation.
@@ -780,7 +785,8 @@ def plot_advantage_trajectories(
             add_data_cleaning_watermark(fig)
 
         # Save the figure
-        output_file = os.path.join(output_path, f"{category}_advantage_trajectory.png")
+        out_dir = ctx.output_path if (ctx and ctx.output_path) else output_path
+        output_file = os.path.join(out_dir, f"{category}_advantage_trajectory.png")
         plt.savefig(output_file, dpi=300, bbox_inches="tight")
         plt.close()
         logging.info(f"Saved {category} advantage trajectory to {output_file}")

@@ -5,7 +5,7 @@ Dominance analysis module implementation.
 from typing import Callable, Dict, List, Optional
 
 from farm.analysis.base_module import AnalysisModule
-from farm.analysis.dominance.analyze import process_dominance_data
+from farm.analysis.dominance.pipeline import process_dominance_data
 from farm.analysis.dominance.ml import run_dominance_classification
 from farm.analysis.dominance.plot import (
     plot_comprehensive_score_breakdown,
