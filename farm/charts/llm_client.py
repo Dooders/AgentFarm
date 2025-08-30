@@ -225,7 +225,7 @@ Spatial Distribution Analysis:
                 x = np.array(gen_stats.index, dtype=float)
                 y = np.array(gen_stats["mean"], dtype=float)
                 mask = ~np.isnan(y)  # Remove NaN values
-                if np.sum(mask) > 1:  # Need at least 2 valid points for trend
+                if np.sum(mask, out=None) > 1:  # Need at least 2 valid points for trend
                     trend = np.polyfit(x[mask], y[mask], 1)[0]
                 else:
                     trend = 0
