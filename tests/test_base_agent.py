@@ -1086,6 +1086,42 @@ class TestBaseAgentEdgeCases:
         assert isinstance(perception, PerceptionData)
         # Should have boundary markers (value 3) at invalid positions
 
+    def test_perception_without_validation_service(
+        self, sample_base_agent, mock_spatial_service
+    ):
+        """Test perception generation when validation_service is None (infinite bounds)."""
+        # Ensure validation_service is None
+        sample_base_agent.validation_service = None
+
+        # Setup mock spatial service with some nearby entities
+        mock_resource = Mock()
+        mock_resource.position = (6.0, 5.0)  # Adjacent to agent at (5,5)
+
+        mock_agent = Mock()
+        mock_agent.agent_id = "other_agent"
+        mock_agent.position = (5.0, 6.0)  # Adjacent to agent
+
+        mock_spatial_service.get_nearby_resources.return_value = [mock_resource]
+        mock_spatial_service.get_nearby_agents.return_value = [mock_agent]
+
+        perception = sample_base_agent.get_fallback_perception()
+
+        assert isinstance(perception, PerceptionData)
+        assert perception.grid.shape == (11, 11)  # 2*5+1 = 11
+
+        # When validation_service is None, no positions should be marked as obstacles (3)
+        # Only resources (1) and other agents (2) should be marked
+        obstacle_count = (perception.grid == 3).sum()
+        assert (
+            obstacle_count == 0
+        ), "No obstacles should be marked when validation_service is None"
+
+        # Verify that resources and agents are still properly marked
+        resource_count = (perception.grid == 1).sum()
+        agent_count = (perception.grid == 2).sum()
+        assert resource_count == 1, "Should have one resource marked"
+        assert agent_count == 1, "Should have one other agent marked"
+
     def test_reward_calculation_with_zero_division(self, sample_base_agent):
         """Test reward calculation edge cases."""
         # Setup state with zero starting health (edge case)

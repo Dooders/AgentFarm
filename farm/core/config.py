@@ -288,6 +288,20 @@ class SimulationConfig:
 
     simulation_steps: int = 100  # Default value
 
+    # Device configuration for neural network computations
+    device_preference: str = (
+        "auto"  # Options: "auto", "cpu", "cuda", "cuda:X" (specific GPU)
+    )
+    device_fallback: bool = (
+        True  # Whether to fallback to CPU if preferred device unavailable
+    )
+    device_memory_fraction: Optional[float] = (
+        None  # GPU memory fraction to use (0.0-1.0)
+    )
+    device_validate_compatibility: bool = (
+        True  # Whether to validate tensor compatibility when moving devices
+    )
+
     curriculum_phases: List[Dict[str, Any]] = field(
         default_factory=lambda: [
             {"steps": 100, "enabled_actions": ["move", "gather"]},

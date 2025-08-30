@@ -52,11 +52,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
+from farm.core.device_utils import get_device
+
 from .config import BaseDQNConfig
 
 logger = logging.getLogger(__name__)
-
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 if TYPE_CHECKING:
     from farm.database.database import SimulationDatabase
@@ -187,7 +187,7 @@ class BaseDQNModule:
         input_dim: int,
         output_dim: int,
         config: BaseDQNConfig,
-        device: torch.device = DEVICE,
+        device: Optional[torch.device] = None,
         db: Optional["SimulationDatabase"] = None,
     ) -> None:
         """Initialize the DQN module.
@@ -196,10 +196,10 @@ class BaseDQNModule:
             input_dim (int): Dimension of the input state vector
             output_dim (int): Number of possible actions
             config (BaseDQNConfig): Configuration object with hyperparameters
-            device (torch.device): Device to run computations on (default: auto-detect)
+            device (torch.device): Device to run computations on (auto-detected if None)
             db (Optional[SimulationDatabase]): Database for logging experiences
         """
-        self.device = device
+        self.device = device if device is not None else get_device()
         self.config = config
         self.db = db
         self.module_id = id(self.__class__)
