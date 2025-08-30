@@ -891,7 +891,37 @@ class BaseAgent:
             action = enabled_actions[action_index]
         else:
             action = self.actions[action_index]
-        action.execute(self)
+
+        # Execute action and capture result
+        action_result = action.execute(self)
+
+        # Validate action result if validation service is available
+        validation_result = None
+        if hasattr(self, "validation_service") and self.validation_service:
+            try:
+                from farm.core.action import validate_action_result
+
+                validation_result = validate_action_result(
+                    self, action.name, action_result
+                )
+            except Exception as e:
+                logger.warning(f"Action validation failed for {action.name}: {str(e)}")
+
+        # Log warnings and errors from validation
+        if validation_result and not validation_result.get("valid", True):
+            logger.warning(
+                f"Action validation failed for {action.name} on agent {self.agent_id}: "
+                f"Issues: {validation_result.get('issues', [])}"
+            )
+
+        # Log action success/failure for debugging
+        if action_result.get("success", False):
+            logger.debug(f"Agent {self.agent_id} successfully executed {action.name}")
+        else:
+            logger.info(
+                f"Agent {self.agent_id} failed to execute {action.name}: "
+                f"{action_result.get('error', 'Unknown error')}"
+            )
 
         # Store the action index for learning (relative to enabled actions)
         self._current_action_index = action_index
