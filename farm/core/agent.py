@@ -1002,7 +1002,7 @@ class BaseAgent:
         new_agent_id = (
             self.lifecycle_service.get_next_agent_id()
             if self.lifecycle_service
-            else f"{self.agent_id}_clone_{self.time_service.current_time() if self.time_service else 0}"
+            else f"{self.agent_id}_clone_{self.time_service.current_time() if self.time_service else 0}_{random.randint(1000, 9999)}"
         )
 
         # Use Genome.to_agent to properly reconstruct the agent with all module states

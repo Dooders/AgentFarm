@@ -352,7 +352,7 @@ class DecisionModule:
                            all actions in the full action space are considered valid.
 
         Returns:
-            int: Selected action index within enabled_actions if provided, otherwise full action space index
+            int: Index of the selected action within the `enabled_actions` list if provided (i.e., 0 to len(enabled_actions)-1), otherwise index within the full action space (0 to num_actions-1)
         """
         try:
             # Convert state to numpy for algorithm compatibility
@@ -385,6 +385,10 @@ class DecisionModule:
                     )
                 else:
                     # Fallback: get action and filter manually
+                    logger.warning(
+                        f"Algorithm {type(self.algorithm).__name__} does not implement select_action_with_mask; using manual action masking. "
+                        "Consider implementing select_action_with_mask for better masking support."
+                    )
                     action = self.algorithm.select_action(state_np)
                     action = self._filter_action_with_mask(action, enabled_actions)
             else:

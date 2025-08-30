@@ -459,6 +459,10 @@ class Action:
             if isinstance(result, dict):
                 return result
             else:
+                logger.warning(
+                    f"Action {self.name} for agent {agent.agent_id} returned {type(result).__name__} instead of dict. "
+                    f"Assuming success. Please update action function to return proper result dictionary."
+                )
                 return {"success": True, "error": None, "details": {}}
 
         except Exception as e:
