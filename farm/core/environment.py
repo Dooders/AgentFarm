@@ -34,13 +34,9 @@ from farm.core.metrics_tracker import MetricsTracker
 from farm.core.observations import AgentObservation, ObservationConfig
 from farm.core.resource_manager import ResourceManager
 from farm.core.services.implementations import (
-    EnvironmentAgentLifecycleService,
-    EnvironmentLoggingService,
-    EnvironmentMetricsService,
-    EnvironmentTimeService,
-    EnvironmentValidationService,
-    SpatialIndexAdapter,
-)
+    EnvironmentAgentLifecycleService, EnvironmentLoggingService,
+    EnvironmentMetricsService, EnvironmentTimeService,
+    EnvironmentValidationService, SpatialIndexAdapter)
 from farm.core.spatial_index import SpatialIndex
 from farm.core.state import EnvironmentState
 from farm.database.utilities import setup_db
@@ -98,7 +94,7 @@ def bilinear_distribute_value(
         grid_size: (width, height) of the grid
     """
     x, y = position
-    height, width = grid_size
+    width, height = grid_size
 
     # Get the four nearest grid cells
     x_floor = int(math.floor(x))
