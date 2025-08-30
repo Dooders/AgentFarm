@@ -45,10 +45,10 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         self.mock_env.observation_space = MockObservationSpace((8,))
         self.mock_agent.environment = self.mock_env
 
-    @patch("farm.core.decision.decision.SB3_AVAILABLE", False)
+    @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", False)
     def test_decision_module_with_fallback_algorithm(self):
-        """Test DecisionModule with fallback algorithm (no SB3)."""
-        config = DecisionConfig(algorithm_type="ddqn")  # Should fallback
+        """Test DecisionModule with fallback algorithm (no Tianshou)."""
+        config = DecisionConfig(algorithm_type="dqn")  # Should fallback
         module = DecisionModule(
             self.mock_agent,
             self.mock_env.action_space,
@@ -66,15 +66,15 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         self.assertEqual(len(probs), 4)
         self.assertAlmostEqual(np.sum(probs), 1.0, places=6)
 
-    @patch("farm.core.decision.decision.SB3_AVAILABLE", True)
-    @patch("stable_baselines3.DQN")
-    def test_decision_module_with_sb3_ddqn(self, mock_dqn_class):
-        """Test DecisionModule with SB3 DDQN."""
+    @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
+    @patch("farm.core.decision.algorithms.tianshou.DQNWrapper")
+    def test_decision_module_with_tianshou_dqn(self, mock_dqn_class):
+        """Test DecisionModule with Tianshou DQN."""
         mock_algorithm = Mock()
-        mock_algorithm.predict.return_value = (np.array([1]), None)
+        mock_algorithm.select_action.return_value = 1
         mock_dqn_class.return_value = mock_algorithm
 
-        config = DecisionConfig(algorithm_type="ddqn")
+        config = DecisionConfig(algorithm_type="dqn")
         module = DecisionModule(
             self.mock_agent,
             self.mock_env.action_space,
@@ -93,12 +93,12 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         action = module.decide_action(state)
         self.assertEqual(action, 1)  # From mock
 
-    @patch("farm.core.decision.decision.SB3_AVAILABLE", True)
-    @patch("stable_baselines3.PPO")
-    def test_decision_module_with_sb3_ppo(self, mock_ppo_class):
-        """Test DecisionModule with SB3 PPO."""
+    @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
+    @patch("farm.core.decision.algorithms.tianshou.PPOWrapper")
+    def test_decision_module_with_tianshou_ppo(self, mock_ppo_class):
+        """Test DecisionModule with Tianshou PPO."""
         mock_algorithm = Mock()
-        mock_algorithm.predict.return_value = (np.array([2]), None)
+        mock_algorithm.select_action.return_value = 2
         mock_ppo_class.return_value = mock_algorithm
 
         config = DecisionConfig(algorithm_type="ppo")
@@ -119,6 +119,87 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         state = torch.randn(8)
         action = module.decide_action(state)
         self.assertEqual(action, 2)  # From mock
+
+    @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
+    @patch("farm.core.decision.algorithms.tianshou.SACWrapper")
+    def test_decision_module_with_tianshou_sac(self, mock_sac_class):
+        """Test DecisionModule with Tianshou SAC."""
+        mock_algorithm = Mock()
+        mock_algorithm.select_action.return_value = 3
+        mock_sac_class.return_value = mock_algorithm
+
+        config = DecisionConfig(algorithm_type="sac")
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
+
+        # Verify SAC was initialized
+        mock_sac_class.assert_called_once()
+        call_kwargs = mock_sac_class.call_args[1]
+        self.assertEqual(call_kwargs["num_actions"], 4)
+        self.assertEqual(call_kwargs["state_dim"], 8)
+
+        # Test functionality
+        state = torch.randn(8)
+        action = module.decide_action(state)
+        self.assertEqual(action, 3)  # From mock
+
+    @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
+    @patch("farm.core.decision.algorithms.tianshou.A2CWrapper")
+    def test_decision_module_with_tianshou_a2c(self, mock_a2c_class):
+        """Test DecisionModule with Tianshou A2C."""
+        mock_algorithm = Mock()
+        mock_algorithm.select_action.return_value = 0
+        mock_a2c_class.return_value = mock_algorithm
+
+        config = DecisionConfig(algorithm_type="a2c")
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
+
+        # Verify A2C was initialized
+        mock_a2c_class.assert_called_once()
+        call_kwargs = mock_a2c_class.call_args[1]
+        self.assertEqual(call_kwargs["num_actions"], 4)
+        self.assertEqual(call_kwargs["state_dim"], 8)
+
+        # Test functionality
+        state = torch.randn(8)
+        action = module.decide_action(state)
+        self.assertEqual(action, 0)  # From mock
+
+    @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
+    @patch("farm.core.decision.algorithms.tianshou.DDPGWrapper")
+    def test_decision_module_with_tianshou_ddpg(self, mock_ddpg_class):
+        """Test DecisionModule with Tianshou DDPG."""
+        mock_algorithm = Mock()
+        mock_algorithm.select_action.return_value = 1
+        mock_ddpg_class.return_value = mock_algorithm
+
+        config = DecisionConfig(algorithm_type="ddpg")
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
+
+        # Verify DDPG was initialized
+        mock_ddpg_class.assert_called_once()
+        call_kwargs = mock_ddpg_class.call_args[1]
+        self.assertEqual(call_kwargs["num_actions"], 4)
+        self.assertEqual(call_kwargs["state_dim"], 8)
+
+        # Test functionality
+        state = torch.randn(8)
+        action = module.decide_action(state)
+        self.assertEqual(action, 1)  # From mock
 
     def test_decision_module_with_custom_config_dict(self):
         """Test DecisionModule with config created from dictionary."""
@@ -273,6 +354,177 @@ class TestEndToEndDecisionWorkflow(unittest.TestCase):
                 new_info["algorithm_type"], original_info["algorithm_type"]
             )
             self.assertEqual(new_info["is_trained"], original_info["is_trained"])
+
+    def test_persistence_with_different_algorithms(self):
+        """Test save/load with different algorithm types."""
+        algorithms_to_test = ["fallback", "ppo", "sac", "dqn", "a2c", "ddpg"]
+
+        for algorithm in algorithms_to_test:
+            with self.subTest(algorithm=algorithm):
+                # Create module with specific algorithm
+                config = DecisionConfig(algorithm_type=algorithm)
+
+                # Use appropriate patch based on algorithm
+                if algorithm in ["ppo", "sac", "dqn", "a2c", "ddpg"]:
+                    with patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True):
+                        with patch(
+                            f"farm.core.decision.algorithms.tianshou.{algorithm.upper()}Wrapper"
+                        ) as mock_wrapper:
+                            mock_algorithm = Mock()
+                            mock_wrapper.return_value = mock_algorithm
+
+                            module = DecisionModule(
+                                self.mock_agent,
+                                self.mock_env.action_space,
+                                self.mock_env.observation_space,
+                                config,
+                            )
+
+                            # Train briefly
+                            for _ in range(3):
+                                state = torch.randn(8)
+                                action = module.decide_action(state)
+                                module.update(state, action, 0.5, torch.randn(8), False)
+                else:
+                    # Fallback algorithm
+                    module = DecisionModule(
+                        self.mock_agent,
+                        self.mock_env.action_space,
+                        self.mock_env.observation_space,
+                        config,
+                    )
+
+                    # Train briefly
+                    for _ in range(3):
+                        state = torch.randn(8)
+                        action = module.decide_action(state)
+                        module.update(state, action, 0.5, torch.randn(8), False)
+
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    model_path = f"{temp_dir}/test_{algorithm}_model"
+
+                    # Save model
+                    module.save_model(model_path)
+
+                    # Create new module and load
+                    new_config = DecisionConfig(algorithm_type=algorithm)
+                    if algorithm in ["ppo", "sac", "dqn", "a2c", "ddpg"]:
+                        with patch(
+                            "farm.core.decision.decision.TIANSHOU_AVAILABLE", True
+                        ):
+                            with patch(
+                                f"farm.core.decision.algorithms.tianshou.{algorithm.upper()}Wrapper"
+                            ) as mock_wrapper:
+                                mock_new_algorithm = Mock()
+                                mock_wrapper.return_value = mock_new_algorithm
+
+                                new_module = DecisionModule(
+                                    self.mock_agent,
+                                    self.mock_env.action_space,
+                                    self.mock_env.observation_space,
+                                    new_config,
+                                )
+
+                                # Load model
+                                new_module.load_model(model_path)
+
+                                # Verify basic functionality
+                                state = torch.randn(8)
+                                action = new_module.decide_action(state)
+                                self.assertIsInstance(action, int)
+                    else:
+                        new_module = DecisionModule(
+                            self.mock_agent,
+                            self.mock_env.action_space,
+                            self.mock_env.observation_space,
+                            new_config,
+                        )
+
+                        # Load model
+                        new_module.load_model(model_path)
+
+                        # Verify basic functionality
+                        state = torch.randn(8)
+                        action = new_module.decide_action(state)
+                        self.assertIsInstance(action, int)
+
+    def test_persistence_error_handling(self):
+        """Test error handling in save/load operations."""
+        config = DecisionConfig(algorithm_type="fallback")
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
+
+        # Test save to invalid path
+        invalid_path = "/invalid/path/that/does/not/exist/model"
+        module.save_model(invalid_path)  # Should not crash
+
+        # Test load from non-existent file
+        non_existent_path = "/non/existent/path/model"
+        module.load_model(non_existent_path)  # Should not crash
+
+        # Test load from empty file
+        with tempfile.TemporaryDirectory() as temp_dir:
+            empty_file = f"{temp_dir}/empty.pkl"
+            with open(empty_file, "w") as f:
+                f.write("")
+
+            module.load_model(empty_file)  # Should not crash
+
+        # Verify module still works after error handling
+        state = torch.randn(8)
+        action = module.decide_action(state)
+        self.assertIsInstance(action, int)
+
+    def test_model_info_persistence(self):
+        """Test that model info is preserved across save/load."""
+        config = DecisionConfig(
+            algorithm_type="fallback",
+            learning_rate=0.002,
+            gamma=0.95,
+            epsilon_start=0.9,
+        )
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
+
+        # Train a bit
+        for _ in range(5):
+            state = torch.randn(8)
+            action = module.decide_action(state)
+            module.update(state, action, 1.0, torch.randn(8), False)
+
+        original_info = module.get_model_info()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            model_path = f"{temp_dir}/info_test_model"
+
+            # Save and load
+            module.save_model(model_path)
+
+            new_module = DecisionModule(
+                self.mock_agent,
+                self.mock_env.action_space,
+                self.mock_env.observation_space,
+                config,
+            )
+            new_module.load_model(model_path)
+
+            new_info = new_module.get_model_info()
+
+            # Verify key info is preserved
+            self.assertEqual(new_info["agent_id"], original_info["agent_id"])
+            self.assertEqual(
+                new_info["algorithm_type"], original_info["algorithm_type"]
+            )
+            self.assertEqual(new_info["num_actions"], original_info["num_actions"])
+            self.assertEqual(new_info["state_dim"], original_info["state_dim"])
 
     def test_multiple_agents_different_configs(self):
         """Test multiple agents with different configurations."""
@@ -597,6 +849,191 @@ class TestDecisionSystemRobustness(unittest.TestCase):
 
         # Restore original function
         module.algorithm.predict = original_predict
+
+    def test_algorithm_initialization_failure_recovery(self):
+        """Test recovery when algorithm initialization fails."""
+        config = DecisionConfig(
+            algorithm_type="ppo"
+        )  # Should fallback if Tianshou fails
+
+        with patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True):
+            with patch(
+                "farm.core.decision.algorithms.tianshou.PPOWrapper",
+                side_effect=Exception("Init failed"),
+            ):
+                module = DecisionModule(
+                    self.mock_agent,
+                    self.mock_env.action_space,
+                    self.mock_env.observation_space,
+                    config,
+                )
+
+                # Should have fallen back to fallback algorithm
+                self.assertIsNotNone(module.algorithm)
+                self.assertEqual(module.config.algorithm_type, "ppo")
+
+                # Should still work
+                state = torch.randn(8)
+                action = module.decide_action(state)
+                self.assertIsInstance(action, int)
+
+    def test_invalid_algorithm_type_fallback(self):
+        """Test fallback when invalid algorithm type is specified."""
+        # This should work since DecisionConfig validates algorithm_type
+        with self.assertRaises(Exception):  # Pydantic validation error
+            config = DecisionConfig(algorithm_type="invalid_algorithm")
+            module = DecisionModule(
+                self.mock_agent,
+                self.mock_env.action_space,
+                self.mock_env.observation_space,
+                config,
+            )
+
+    def test_empty_experience_buffer_handling(self):
+        """Test handling when experience buffer is empty."""
+        config = DecisionConfig(algorithm_type="fallback")
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
+
+        # Try to train with empty buffer
+        module.update(torch.randn(8), 0, 1.0, torch.randn(8), False)
+
+        # Should not crash
+        self.assertIsNotNone(module.algorithm)
+
+    def test_tensor_conversion_errors(self):
+        """Test handling of tensor conversion errors."""
+        config = DecisionConfig(algorithm_type="fallback")
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
+
+        # Test with various input types
+        test_inputs = [
+            torch.randn(8),  # torch tensor
+            np.random.randn(8),  # numpy array
+            [1, 2, 3, 4, 5, 6, 7, 8],  # python list
+            np.array([1, 2, 3, 4, 5, 6, 7, 8], dtype=np.float32),  # numpy array
+        ]
+
+        for state_input in test_inputs:
+            action = module.decide_action(state_input)
+            self.assertIsInstance(action, int)
+            self.assertTrue(0 <= action < 4)
+
+
+class TestDecisionSystemObservationSpaces(unittest.TestCase):
+    """Tests for different observation space configurations."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        # Create mock agent
+        self.mock_agent = Mock()
+        self.mock_agent.agent_id = "obs_space_test_agent"
+
+        # Create mock environment with different observation spaces
+        self.mock_env = Mock()
+        self.mock_agent.environment = self.mock_env
+
+    def test_1d_observation_space(self):
+        """Test with 1D observation space."""
+
+        # Create a simple action space class
+        class MockActionSpace:
+            def __init__(self, n):
+                self.n = n
+
+        # Create 1D observation space
+        class MockObservationSpace:
+            def __init__(self, shape):
+                self.shape = shape
+
+        self.mock_env.action_space = MockActionSpace(4)
+        self.mock_env.observation_space = MockObservationSpace((8,))
+
+        config = DecisionConfig(algorithm_type="fallback", rl_state_dim=8)
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
+
+        # Test with 1D state
+        state = torch.randn(8)
+        action = module.decide_action(state)
+        self.assertIsInstance(action, int)
+        self.assertTrue(0 <= action < 4)
+
+    def test_2d_observation_space(self):
+        """Test with 2D observation space."""
+
+        # Create a simple action space class
+        class MockActionSpace:
+            def __init__(self, n):
+                self.n = n
+
+        # Create 2D observation space
+        class MockObservationSpace:
+            def __init__(self, shape):
+                self.shape = shape
+
+        self.mock_env.action_space = MockActionSpace(4)
+        self.mock_env.observation_space = MockObservationSpace((4, 4))
+
+        config = DecisionConfig(algorithm_type="fallback", rl_state_dim=16)
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
+
+        # Test with 2D state
+        state = torch.randn(4, 4)
+        action = module.decide_action(state)
+        self.assertIsInstance(action, int)
+        self.assertTrue(0 <= action < 4)
+
+    def test_observation_space_without_shape_attribute(self):
+        """Test observation space without shape attribute."""
+
+        # Create a simple action space class
+        class MockActionSpace:
+            def __init__(self, n):
+                self.n = n
+
+        # Create observation space without shape
+        class MockObservationSpaceNoShape:
+            pass
+
+        self.mock_env.action_space = MockActionSpace(4)
+        self.mock_env.observation_space = MockObservationSpaceNoShape()
+
+        config = DecisionConfig(algorithm_type="fallback", rl_state_dim=8)
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
+
+        # Should use default shape
+        self.assertEqual(module.observation_shape, (8,))
+        self.assertEqual(module.state_dim, 8)
+
+        # Should still work
+        state = torch.randn(8)
+        action = module.decide_action(state)
+        self.assertIsInstance(action, int)
+        self.assertTrue(0 <= action < 4)
 
     def test_configuration_edge_cases(self):
         """Test edge cases in configuration."""

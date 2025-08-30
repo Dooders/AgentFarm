@@ -172,8 +172,8 @@ class TestDecisionModule(unittest.TestCase):
             self.assertIsInstance(action, int)
             self.assertTrue(0 <= action < module.num_actions)
 
-    def test_update_with_sb3_algorithm(self):
-        """Test update method with SB3 algorithm."""
+    def test_update_with_algorithm(self):
+        """Test update method with algorithm."""
         module = DecisionModule(
             self.mock_agent,
             self.mock_env.action_space,
@@ -280,7 +280,7 @@ class TestDecisionModule(unittest.TestCase):
 
     def test_get_model_info(self):
         """Test get_model_info method."""
-        config = DecisionConfig(algorithm_type="ddqn", rl_state_dim=16)
+        config = DecisionConfig(algorithm_type="dqn", rl_state_dim=16)
         module = DecisionModule(
             self.mock_agent, self.mock_env.action_space, self.observation_space, config
         )
@@ -293,14 +293,14 @@ class TestDecisionModule(unittest.TestCase):
             "num_actions",
             "state_dim",
             "is_trained",
-            "sb3_available",
+            "tianshou_available",
         ]
 
         for key in expected_keys:
             self.assertIn(key, info)
 
         self.assertEqual(info["agent_id"], "test_agent_1")
-        self.assertEqual(info["algorithm_type"], "ddqn")
+        self.assertEqual(info["algorithm_type"], "dqn")
         self.assertEqual(info["state_dim"], 16)
         self.assertEqual(info["tianshou_available"], TIANSHOU_AVAILABLE)
 
@@ -356,6 +356,165 @@ class TestDecisionModule(unittest.TestCase):
         )
 
         self.assertEqual(module.num_actions, 10)
+
+    @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
+    def test_initialization_with_tianshou_ppo(self, mock_tianshou):
+        """Test DecisionModule initialization with Tianshou PPO."""
+        with patch("farm.core.decision.algorithms.tianshou.PPOWrapper") as mock_ppo:
+            mock_algorithm = Mock()
+            mock_ppo.return_value = mock_algorithm
+
+            config = DecisionConfig(algorithm_type="ppo")
+            module = DecisionModule(
+                self.mock_agent,
+                self.mock_env.action_space,
+                self.observation_space,
+                config,
+            )
+
+            mock_ppo.assert_called_once()
+            self.assertEqual(module.config.algorithm_type, "ppo")
+
+    @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
+    def test_initialization_with_tianshou_sac(self, mock_tianshou):
+        """Test DecisionModule initialization with Tianshou SAC."""
+        with patch("farm.core.decision.algorithms.tianshou.SACWrapper") as mock_sac:
+            mock_algorithm = Mock()
+            mock_sac.return_value = mock_algorithm
+
+            config = DecisionConfig(algorithm_type="sac")
+            module = DecisionModule(
+                self.mock_agent,
+                self.mock_env.action_space,
+                self.observation_space,
+                config,
+            )
+
+            mock_sac.assert_called_once()
+            self.assertEqual(module.config.algorithm_type, "sac")
+
+    @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
+    def test_initialization_with_tianshou_dqn(self, mock_tianshou):
+        """Test DecisionModule initialization with Tianshou DQN."""
+        with patch("farm.core.decision.algorithms.tianshou.DQNWrapper") as mock_dqn:
+            mock_algorithm = Mock()
+            mock_dqn.return_value = mock_algorithm
+
+            config = DecisionConfig(algorithm_type="dqn")
+            module = DecisionModule(
+                self.mock_agent,
+                self.mock_env.action_space,
+                self.observation_space,
+                config,
+            )
+
+            mock_dqn.assert_called_once()
+            self.assertEqual(module.config.algorithm_type, "dqn")
+
+    @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
+    def test_initialization_with_tianshou_a2c(self, mock_tianshou):
+        """Test DecisionModule initialization with Tianshou A2C."""
+        with patch("farm.core.decision.algorithms.tianshou.A2CWrapper") as mock_a2c:
+            mock_algorithm = Mock()
+            mock_a2c.return_value = mock_algorithm
+
+            config = DecisionConfig(algorithm_type="a2c")
+            module = DecisionModule(
+                self.mock_agent,
+                self.mock_env.action_space,
+                self.observation_space,
+                config,
+            )
+
+            mock_a2c.assert_called_once()
+            self.assertEqual(module.config.algorithm_type, "a2c")
+
+    @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
+    def test_initialization_with_tianshou_ddpg(self, mock_tianshou):
+        """Test DecisionModule initialization with Tianshou DDPG."""
+        with patch("farm.core.decision.algorithms.tianshou.DDPGWrapper") as mock_ddpg:
+            mock_algorithm = Mock()
+            mock_ddpg.return_value = mock_algorithm
+
+            config = DecisionConfig(algorithm_type="ddpg")
+            module = DecisionModule(
+                self.mock_agent,
+                self.mock_env.action_space,
+                self.observation_space,
+                config,
+            )
+
+            mock_ddpg.assert_called_once()
+            self.assertEqual(module.config.algorithm_type, "ddpg")
+
+    def test_initialization_algorithm_fallback(self):
+        """Test that invalid algorithm falls back to fallback."""
+        config = DecisionConfig(algorithm_type="invalid_algorithm")
+
+        # This should work since DecisionConfig validates algorithm_type
+        with self.assertRaises(ValueError):  # Pydantic validation error
+            module = DecisionModule(
+                self.mock_agent,
+                self.mock_env.action_space,
+                self.observation_space,
+                config,
+            )
+
+    def test_decide_action_with_multi_dimensional_state(self):
+        """Test decide_action with multi-dimensional state."""
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.observation_space,
+            self.config,
+        )
+
+        # Test with different state shapes
+        state_2d = torch.randn(4, 2)  # Should be flattened to 8 elements
+        action = module.decide_action(state_2d)
+        self.assertIsInstance(action, int)
+        self.assertTrue(0 <= action < module.num_actions)
+
+    def test_update_with_none_algorithm(self):
+        """Test update method when algorithm is None."""
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.observation_space,
+            self.config,
+        )
+
+        # Set algorithm to None
+        module.algorithm = None
+
+        state = torch.randn(8)
+        action = 1
+        reward = 1.0
+        next_state = torch.randn(8)
+        done = False
+
+        # Should not crash
+        module.update(state, action, reward, next_state, done)
+        self.assertFalse(module._is_trained)
+
+    def test_get_action_probabilities_with_none_algorithm(self):
+        """Test get_action_probabilities when algorithm is None."""
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.observation_space,
+            self.config,
+        )
+
+        # Set algorithm to None
+        module.algorithm = None
+
+        state = torch.randn(8)
+        probs = module.get_action_probabilities(state)
+
+        # Should return uniform distribution
+        expected = np.full(7, 1.0 / 7)
+        np.testing.assert_array_almost_equal(probs, expected)
 
 
 class TestDecisionModuleIntegration(unittest.TestCase):
@@ -444,6 +603,105 @@ class TestDecisionModuleIntegration(unittest.TestCase):
 
             # Check state was restored
             self.assertEqual(new_module._is_trained, module._is_trained)
+
+    @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
+    def test_integration_with_tianshou_algorithm(self, mock_tianshou):
+        """Test integration with Tianshou algorithm."""
+        with patch("farm.core.decision.algorithms.tianshou.PPOWrapper") as mock_ppo:
+            mock_algorithm = Mock()
+            mock_algorithm.select_action.return_value = 2
+            mock_ppo.return_value = mock_algorithm
+
+            config = DecisionConfig(algorithm_type="ppo")
+            module = DecisionModule(
+                self.mock_agent,
+                self.mock_env.action_space,
+                self.observation_space,
+                config,
+            )
+
+            # Test full cycle
+            state = torch.randn(8)
+            action = module.decide_action(state)
+            self.assertEqual(action, 2)  # From mock
+
+            probs = module.get_action_probabilities(state)
+            self.assertEqual(len(probs), 7)
+
+            # Test update
+            module.update(state, action, 1.0, torch.randn(8), False)
+
+            # Test model info
+            info = module.get_model_info()
+            self.assertEqual(info["algorithm_type"], "ppo")
+
+    def test_integration_with_custom_config(self):
+        """Test integration with custom configuration."""
+        custom_config = DecisionConfig(
+            algorithm_type="fallback",
+            learning_rate=0.002,
+            gamma=0.95,
+            epsilon_start=0.9,
+            epsilon_min=0.1,
+            rl_state_dim=12,
+        )
+
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.observation_space,
+            custom_config,
+        )
+
+        # Verify custom config was applied
+        self.assertEqual(module.config.learning_rate, 0.002)
+        self.assertEqual(module.config.gamma, 0.95)
+        self.assertEqual(module.config.epsilon_start, 0.9)
+        self.assertEqual(module.state_dim, 12)
+
+        # Test functionality
+        state = torch.randn(12)
+        action = module.decide_action(state)
+        self.assertIsInstance(action, int)
+        self.assertTrue(0 <= action < 7)
+
+    def test_integration_performance_stress_test(self):
+        """Test performance with multiple decision cycles."""
+        config = DecisionConfig(algorithm_type="fallback")
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.observation_space,
+            config,
+        )
+
+        # Stress test with many decisions
+        num_cycles = 100
+        states = [torch.randn(8) for _ in range(num_cycles)]
+
+        import time
+
+        start_time = time.time()
+
+        for i, state in enumerate(states):
+            action = module.decide_action(state)
+            self.assertIsInstance(action, int)
+            self.assertTrue(0 <= action < 7)
+
+            # Update occasionally
+            if i % 10 == 0:
+                module.update(state, action, 0.5, torch.randn(8), False)
+
+        end_time = time.time()
+        duration = end_time - start_time
+
+        # Should complete in reasonable time (< 1 second for 100 cycles)
+        self.assertLess(
+            duration,
+            1.0,
+            f"Performance test failed: {duration:.3f}s for {num_cycles} cycles",
+        )
+        self.assertTrue(module._is_trained)
 
 
 if __name__ == "__main__":
