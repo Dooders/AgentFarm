@@ -445,7 +445,7 @@ class TestConfigurationIntegration(unittest.TestCase):
         base_config = BaseDQNConfig(learning_rate=0.001, gamma=0.99)
 
         # Convert to dict for modification
-        config_dict = base_config.dict()
+        config_dict = base_config.model_dump()
 
         # Modify some values
         config_dict.update(

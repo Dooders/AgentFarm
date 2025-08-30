@@ -434,9 +434,9 @@ class Environment(AECEnv):
     def log_interaction_edge(
         self,
         source_type: str,
-        source_id: Union[str, int],
+        source_id: str,
         target_type: str,
-        target_id: Union[str, int],
+        target_id: str,
         interaction_type: str,
         action_type: Optional[str] = None,
         details: Optional[Dict[str, Any]] = None,
@@ -450,11 +450,11 @@ class Environment(AECEnv):
         ----------
         source_type : str
             Type of the source entity (e.g., 'agent', 'resource')
-        source_id : str or int
+        source_id : str
             Unique identifier of the source entity
         target_type : str
             Type of the target entity (e.g., 'agent', 'resource')
-        target_id : str or int
+        target_id : str
             Unique identifier of the target entity
         interaction_type : str
             Type of interaction (e.g., 'attack', 'share', 'gather')
@@ -475,9 +475,9 @@ class Environment(AECEnv):
             self.db.logger.log_interaction_edge(
                 step_number=self.time,
                 source_type=source_type,
-                source_id=str(source_id),
+                source_id=source_id,
                 target_type=target_type,
-                target_id=str(target_id),
+                target_id=target_id,
                 interaction_type=interaction_type,
                 action_type=action_type,
                 details=details,

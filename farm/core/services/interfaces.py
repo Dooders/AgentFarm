@@ -268,9 +268,9 @@ class ILoggingService(ABC):
     def log_interaction_edge(
         self,
         source_type: str,
-        source_id: str | int,
+        source_id: str,
         target_type: str,
-        target_id: str | int,
+        target_id: str,
         interaction_type: str,
         action_type: Optional[str] = None,
         details: Optional[Dict[str, Any]] = None,
