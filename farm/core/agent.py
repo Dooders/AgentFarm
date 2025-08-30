@@ -655,7 +655,7 @@ class BaseAgent:
         ]
         new_agent = BaseAgent(
             agent_id=self.agent_id,
-            position=(int(self.position[0]), int(self.position[1])),
+            position=self.position,
             resource_level=mutated_genome.get("resource_level", self.resource_level),
             spatial_service=self.spatial_service,
             agent_type=getattr(self, "agent_type", "BaseAgent"),
@@ -870,7 +870,7 @@ class BaseAgent:
             genome: Dictionary containing serialized agent genome with action_set,
                    module_states, agent_type, resource_level, and current_health
             agent_id: Unique string identifier for the new agent
-            position: Starting (x, y) coordinates as floats (will be converted to ints)
+            position: Starting (x, y) coordinates as floats
             environment: Simulation environment reference for agent integration
 
         Returns:
