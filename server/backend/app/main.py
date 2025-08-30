@@ -1,11 +1,13 @@
+import logging
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from .routers import simulation
-from .db import engine
+
 from . import models
-import logging
-from pathlib import Path
+from .db import engine
+from .routers import simulation
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -21,7 +23,7 @@ CORS_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://192.168.1.182:3000",
-    "*"  # Temporarily allow all origins for testing
+    "*",  # Temporarily allow all origins for testing
 ]
 
 # Configure CORS with more specific settings
@@ -43,15 +45,18 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Include routers
 app.include_router(simulation.router)
 
+
 @app.get("/")
 async def root():
     logger.info("Root endpoint accessed")
     return {"message": "Welcome to the Simulation API"}
 
+
 @app.get("/health")
 async def health_check():
     logger.info("Health check endpoint accessed")
     return {"status": "healthy"}
+
 
 @app.on_event("startup")
 async def startup_event():

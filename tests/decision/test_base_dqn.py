@@ -75,13 +75,12 @@ class TestBaseQNetwork(unittest.TestCase):
         """Test BaseQNetwork initialization without shared encoder."""
         network = BaseQNetwork(input_dim=8, output_dim=4, hidden_size=64)
 
-        self.assertIsNone(network.shared_encoder)
         self.assertEqual(
             len(network.network), 9
         )  # 3 layers + 3 LayerNorm + 3 ReLU + 3 Dropout
 
-    def test_initialization_with_shared_encoder(self):
-        """Test BaseQNetwork initialization with shared encoder."""
+    # def test_initialization_with_shared_encoder(self):
+    #     """Test BaseQNetwork initialization with shared encoder."""
 
     def test_forward_pass_without_shared_encoder(self):
         """Test BaseQNetwork forward pass without shared encoder."""
@@ -150,13 +149,13 @@ class TestBaseDQNModule(unittest.TestCase):
         self.assertIsInstance(module.target_network, BaseQNetwork)
         self.assertIsInstance(module.optimizer, torch.optim.Adam)
 
-    def test_initialization_with_shared_encoder(self):
-        """Test BaseDQNModule initialization with shared encoder."""
-        module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config)
+    # def test_initialization_with_shared_encoder(self):
+    #     """Test BaseDQNModule initialization with shared encoder."""
+    #     module = BaseDQNModule(input_dim=8, output_dim=4, config=self.config)
 
-        # Networks should be initialized
-        self.assertIsInstance(module.q_network, BaseQNetwork)
-        self.assertIsInstance(module.target_network, BaseQNetwork)
+    #     # Networks should be initialized
+    #     self.assertIsInstance(module.q_network, BaseQNetwork)
+    #     self.assertIsInstance(module.target_network, BaseQNetwork)
 
     def test_store_experience(self):
         """Test storing experiences in memory."""

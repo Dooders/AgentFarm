@@ -32,6 +32,14 @@ from farm.core.channels import NUM_CHANNELS
 from farm.core.metrics_tracker import MetricsTracker
 from farm.core.observations import AgentObservation, ObservationConfig
 from farm.core.resource_manager import ResourceManager
+from farm.core.services.implementations import (
+    EnvironmentAgentLifecycleService,
+    EnvironmentLoggingService,
+    EnvironmentMetricsService,
+    EnvironmentTimeService,
+    EnvironmentValidationService,
+    SpatialIndexAdapter,
+)
 from farm.core.spatial_index import SpatialIndex
 from farm.core.state import EnvironmentState
 from farm.database.utilities import setup_db
@@ -173,9 +181,13 @@ class Environment(AECEnv):
 
         # Initialize spatial index for efficient spatial queries
         self.spatial_index = SpatialIndex(self.width, self.height)
+        # Provide spatial service via adapter around spatial_index
+        self.spatial_service = SpatialIndexAdapter(self.spatial_index)
 
         # Initialize metrics tracker
         self.metrics_tracker = MetricsTracker()
+        # Provide metrics service delegating to the environment
+        self.metrics_service = EnvironmentMetricsService(self)
 
         # Initialize resource sharing counters
         self.resources_shared = 0.0
@@ -422,9 +434,9 @@ class Environment(AECEnv):
     def log_interaction_edge(
         self,
         source_type: str,
-        source_id: Union[str, int],
+        source_id: str,
         target_type: str,
-        target_id: Union[str, int],
+        target_id: str,
         interaction_type: str,
         action_type: Optional[str] = None,
         details: Optional[Dict[str, Any]] = None,
@@ -438,11 +450,11 @@ class Environment(AECEnv):
         ----------
         source_type : str
             Type of the source entity (e.g., 'agent', 'resource')
-        source_id : str or int
+        source_id : str
             Unique identifier of the source entity
         target_type : str
             Type of the target entity (e.g., 'agent', 'resource')
-        target_id : str or int
+        target_id : str
             Unique identifier of the target entity
         interaction_type : str
             Type of interaction (e.g., 'attack', 'share', 'gather')
@@ -463,9 +475,9 @@ class Environment(AECEnv):
             self.db.logger.log_interaction_edge(
                 step_number=self.time,
                 source_type=source_type,
-                source_id=str(source_id),
+                source_id=source_id,
                 target_type=target_type,
-                target_id=str(target_id),
+                target_id=target_id,
                 interaction_type=interaction_type,
                 action_type=action_type,
                 details=details,
@@ -645,6 +657,32 @@ class Environment(AECEnv):
         The agent data logged includes birth time, position, resources, health,
         genome information (if applicable), and action weights.
         """
+        # If the agent supports dependency injection, supply services and config
+        try:
+            # Spatial service is required - always provide it
+            if hasattr(agent, "spatial_service"):
+                agent.spatial_service = self.spatial_service
+            if hasattr(agent, "metrics_service") and agent.metrics_service is None:
+                agent.metrics_service = self.metrics_service
+            if hasattr(agent, "logging_service") and agent.logging_service is None:
+                agent.logging_service = EnvironmentLoggingService(self)
+            if (
+                hasattr(agent, "validation_service")
+                and agent.validation_service is None
+            ):
+                agent.validation_service = EnvironmentValidationService(self)
+            if hasattr(agent, "time_service") and agent.time_service is None:
+                agent.time_service = EnvironmentTimeService(self)
+            if hasattr(agent, "lifecycle_service") and agent.lifecycle_service is None:
+                agent.lifecycle_service = EnvironmentAgentLifecycleService(self)
+            if hasattr(agent, "config") and getattr(agent, "config", None) is None:
+                agent.config = self.config
+            # Set environment reference for action/observation space access
+            if hasattr(agent, "environment"):
+                agent.environment = self
+        except Exception:
+            pass
+
         agent_data = [
             {
                 "simulation_id": self.simulation_id,
@@ -837,7 +875,7 @@ class Environment(AECEnv):
 
         Notes
         -----
-        TODO: Deprecate. The observation will come from the spatial index.
+        TODO: #! Deprecate. The observation will come from the spatial index.
 
         The observation includes:
         - Resource distribution in the agent's field of view

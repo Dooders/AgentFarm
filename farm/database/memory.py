@@ -16,7 +16,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 import redis
 
@@ -237,7 +237,9 @@ class AgentMemory:
             timeline_key = f"{self._agent_key_prefix}:timeline"
 
             # Get the most recent step numbers from the timeline
-            recent_steps = self.redis_client.zrevrange(timeline_key, 0, count - 1)
+            recent_steps = cast(
+                List[str], self.redis_client.zrevrange(timeline_key, 0, count - 1)
+            )
 
             # Retrieve each state
             results = []
@@ -272,8 +274,11 @@ class AgentMemory:
             timeline_key = f"{self._agent_key_prefix}:timeline"
 
             # Get steps in the specified range
-            steps = self.redis_client.zrangebyscore(
-                timeline_key, min=start_step, max=end_step
+            steps = cast(
+                List[str],
+                self.redis_client.zrangebyscore(
+                    timeline_key, min=start_step, max=end_step
+                ),
             )
 
             # Retrieve each state
@@ -310,7 +315,7 @@ class AgentMemory:
             timeline_key = f"{self._agent_key_prefix}:timeline"
 
             # Get all steps from the timeline
-            all_steps = self.redis_client.zrange(timeline_key, 0, -1)
+            all_steps = cast(List[str], self.redis_client.zrange(timeline_key, 0, -1))
 
             # Search through states for matching metadata
             results = []
@@ -350,7 +355,7 @@ class AgentMemory:
             timeline_key = f"{self._agent_key_prefix}:timeline"
 
             # Get all steps from the timeline
-            all_steps = self.redis_client.zrange(timeline_key, 0, -1)
+            all_steps = cast(List[str], self.redis_client.zrange(timeline_key, 0, -1))
 
             # Search through states for matching value
             results = []
@@ -393,7 +398,7 @@ class AgentMemory:
             target_x, target_y = position
 
             # Get all steps from the timeline
-            all_steps = self.redis_client.zrange(timeline_key, 0, -1)
+            all_steps = cast(List[str], self.redis_client.zrange(timeline_key, 0, -1))
 
             # Search through states for positions within radius
             results = []
@@ -439,7 +444,9 @@ class AgentMemory:
             timeline_key = f"{self._agent_key_prefix}:timeline"
 
             # Get the most recent step numbers from the timeline
-            recent_steps = self.redis_client.zrevrange(timeline_key, 0, limit - 1)
+            recent_steps = cast(
+                List[str], self.redis_client.zrevrange(timeline_key, 0, limit - 1)
+            )
 
             # Extract action from each state
             actions = []
@@ -492,7 +499,7 @@ class AgentMemory:
         try:
             # Get all keys for this agent
             pattern = f"{self._agent_key_prefix}:*"
-            keys = self.redis_client.keys(pattern)
+            keys = cast(List[str], self.redis_client.keys(pattern))
 
             # Delete all keys
             if keys:
@@ -516,7 +523,7 @@ class AgentMemory:
             timeline_key = f"{self._agent_key_prefix}:timeline"
 
             # Get total count of memories
-            memory_count = self.redis_client.zcard(timeline_key)
+            memory_count = cast(int, self.redis_client.zcard(timeline_key))
 
             # If we're under the limit, no cleanup needed
             if memory_count <= self.config.memory_limit:
@@ -526,7 +533,9 @@ class AgentMemory:
             to_remove = memory_count - self.config.memory_limit
 
             # Get the oldest entries
-            oldest_steps = self.redis_client.zrange(timeline_key, 0, to_remove - 1)
+            oldest_steps = cast(
+                List[str], self.redis_client.zrange(timeline_key, 0, to_remove - 1)
+            )
 
             # Remove each entry
             for step in oldest_steps:
@@ -613,7 +622,7 @@ class AgentMemoryManager:
         try:
             # Get all keys for the namespace
             pattern = f"{self.config.namespace}:*"
-            keys = self.redis.keys(pattern)
+            keys = cast(List[str], self.redis.keys(pattern))
 
             # Delete all keys
             if keys:

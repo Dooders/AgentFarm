@@ -5,7 +5,7 @@ and type safety. It reduces duplication by providing a base DQN configuration
 that can be extended by specific action modules with only their unique parameters.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TypeVar
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -215,10 +215,17 @@ class DecisionConfig(BaseDQNConfig):
             "sac",
             "a2c",
             "td3",
+            # Additional supported algorithms
+            "ddqn",  # Double DQN (alias for dqn with DDQN features)
+            "fallback",  # Fallback random algorithm
         ]
         if v not in valid:
             raise ValueError(f"Algorithm must be one of: {valid}")
         return v
+
+
+# Type variable for configuration classes
+ConfigT = TypeVar("ConfigT", bound=BaseDQNConfig)
 
 
 # Default configuration instances
@@ -227,8 +234,8 @@ DEFAULT_DQN_CONFIG = BaseDQNConfig()
 
 
 def create_config_from_dict(
-    config_dict: Dict[str, Any], config_class: type
-) -> BaseDQNConfig:
+    config_dict: Dict[str, Any], config_class: type[ConfigT]
+) -> ConfigT:
     """Create a configuration instance from a dictionary.
 
     This function allows creating configuration instances from dictionaries,
@@ -259,6 +266,6 @@ def merge_configs(
     Returns:
         New configuration instance with merged values
     """
-    base_dict = base_config.dict()
+    base_dict = base_config.model_dump()
     base_dict.update(override_config)
     return type(base_config)(**base_dict)

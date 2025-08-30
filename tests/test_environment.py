@@ -8,7 +8,6 @@ from gymnasium import spaces
 from pettingzoo.test import api_test
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
-from supersuit import pettingzoo_env_to_vec_env_v1
 
 from farm.core.action import ActionType
 from farm.core.agent import BaseAgent
@@ -80,6 +79,7 @@ class TestEnvironment(unittest.TestCase):
                 resource_level=5,
                 environment=self.env,
                 generation=0,
+                spatial_service=self.env.spatial_service,
             ),
             BaseAgent(
                 agent_id=self.env.get_next_agent_id(),
@@ -87,6 +87,7 @@ class TestEnvironment(unittest.TestCase):
                 resource_level=5,
                 environment=self.env,
                 generation=0,
+                spatial_service=self.env.spatial_service,
             ),
             BaseAgent(
                 agent_id=self.env.get_next_agent_id(),
@@ -94,6 +95,7 @@ class TestEnvironment(unittest.TestCase):
                 resource_level=5,
                 environment=self.env,
                 generation=0,
+                spatial_service=self.env.spatial_service,
             ),
         ]
         for a in initial_agents:
@@ -499,6 +501,7 @@ class TestEnvironment(unittest.TestCase):
             resource_level=5,
             environment=self.env,
             generation=1,
+            spatial_service=self.env.spatial_service,
         )
 
         self.env.add_agent(new_agent)

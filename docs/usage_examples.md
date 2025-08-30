@@ -42,15 +42,13 @@ def create_basic_simulation():
         resource_regeneration_rate=0.02   # 2% regeneration per step
     )
 
-    # 3. Add agents
+    # 3. Add agents (environment is accepted and services are auto-injected)
     for i in range(10):
         agent = BaseAgent(
             agent_id=f"agent_{i:02d}",
             position=(random.randint(0, 49), random.randint(0, 49)),
-            resource_level=100,  # Start with 100 resource units
+            resource_level=100,
             environment=environment,
-            learning_rate=0.001,
-            memory_size=5000
         )
         environment.add_agent(agent)
 

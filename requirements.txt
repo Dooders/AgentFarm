@@ -43,9 +43,9 @@ plotly>=5.3.0  # Interactive visualizations
 dash>=2.0.0  # Dashboard for visualization
 
 # Reinforcement Learning
-stable-baselines3>=2.0.0  # Modern RL algorithms (PPO, SAC, A2C, TD3, etc.)
+tianshou>=0.5.0  # Tianshou RL library (PPO, SAC, A2C, DQN, DDPG, etc.)
 gymnasium>=0.28.0  # Modern Gym replacement for environments
-shimmy>=1.0.0  # Environment wrappers for Stable Baselines compatibility
+shimmy>=1.0.0  # Environment wrappers for compatibility
 
 # Optional dependencies
 # tensorflow>=2.7.0  # Uncomment if needed for specific implementations

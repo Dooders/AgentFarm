@@ -7,8 +7,8 @@ from .ensemble import (
     RandomForestActionSelector,
 )
 from .mlp import MLPActionSelector
+from .tianshou import A2CWrapper, DDPGWrapper, DQNWrapper, PPOWrapper, SACWrapper
 from .rl_base import RLAlgorithm, SimpleReplayBuffer
-from .stable_baselines import A2CWrapper, PPOWrapper, SACWrapper, TD3Wrapper
 from .svm import SVMActionSelector
 
 __all__ = [
@@ -28,7 +28,8 @@ __all__ = [
     "PPOWrapper",
     "SACWrapper",
     "A2CWrapper",
-    "TD3Wrapper",
+    "DQNWrapper",
+    "DDPGWrapper",
     # Benchmarking utilities
     "AlgorithmBenchmark",
     "BenchmarkResult",

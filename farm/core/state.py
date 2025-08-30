@@ -206,7 +206,6 @@ class EnvironmentState(BaseState):
     """
 
     normalized_resource_density: float = Field(
-        ...,
         ge=0.0,
         le=1.0,
         description="Density of resources relative to environment area. "
@@ -214,7 +213,6 @@ class EnvironmentState(BaseState):
     )
 
     normalized_agent_density: float = Field(
-        ...,
         ge=0.0,
         le=1.0,
         description="Density of agents relative to environment area. "
@@ -222,7 +220,6 @@ class EnvironmentState(BaseState):
     )
 
     normalized_system_ratio: float = Field(
-        ...,
         ge=0.0,
         le=1.0,
         description="Ratio of system agents to total agents. "
@@ -230,7 +227,6 @@ class EnvironmentState(BaseState):
     )
 
     normalized_resource_availability: float = Field(
-        ...,
         ge=0.0,
         le=1.0,
         description="Average resource amount across all resources. "
@@ -238,7 +234,6 @@ class EnvironmentState(BaseState):
     )
 
     normalized_time: float = Field(
-        ...,
         ge=0.0,
         le=1.0,
         description="Current simulation time normalized by maximum steps. "

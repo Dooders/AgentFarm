@@ -228,7 +228,7 @@ class AgentMemory:
             data = self.redis_client.get(memory_key)
 
             if data:
-                return json.loads(data)
+                return json.loads(str(data))  # type: ignore
             return None
 
         except Exception as e:
@@ -252,7 +252,7 @@ class AgentMemory:
 
             # Retrieve each state
             results = []
-            for step in recent_steps:
+            for step in recent_steps:  # type: ignore
                 state = self.retrieve_state(int(step))
                 if state:
                     results.append(state)
@@ -287,7 +287,7 @@ class AgentMemory:
 
             # Retrieve each state
             results = []
-            for step in steps:
+            for step in steps:  # type: ignore
                 state = self.retrieve_state(int(step))
                 if state:
                     results.append(state)
@@ -321,7 +321,7 @@ class AgentMemory:
 
             # Search through states for matching metadata
             results = []
-            for step in all_steps:
+            for step in all_steps:  # type: ignore
                 state = self.retrieve_state(int(step))
                 if not state or "metadata" not in state:
                     continue
@@ -359,7 +359,7 @@ class AgentMemory:
 
             # Search through states for matching value
             results = []
-            for step in all_steps:
+            for step in list(all_steps):  # type: ignore
                 state_data = self.retrieve_state(int(step))
                 if not state_data or "state" not in state_data:
                     continue
@@ -400,7 +400,7 @@ class AgentMemory:
 
             # Search through states for positions within radius
             results = []
-            for step in all_steps:
+            for step in list(all_steps):  # type: ignore
                 state_data = self.retrieve_state(int(step))
                 if (
                     not state_data
@@ -444,7 +444,7 @@ class AgentMemory:
 
             # Extract action from each state
             actions = []
-            for step in recent_steps:
+            for step in list(recent_steps):  # type: ignore
                 state = self.retrieve_state(int(step))
                 if state and "action" in state:
                     actions.append(state["action"])
@@ -495,7 +495,7 @@ class AgentMemory:
 
             # Delete all keys
             if keys:
-                self.redis_client.delete(*keys)
+                self.redis_client.delete(*list(keys))  # type: ignore
 
             logger.info(f"Cleared memory for agent {self.agent_id}")
             return True
@@ -514,7 +514,7 @@ class AgentMemory:
             timeline_key = f"{self._agent_key_prefix}:timeline"
 
             # Get total count of memories
-            memory_count = self.redis_client.zcard(timeline_key)
+            memory_count = int(self.redis_client.zcard(timeline_key))  # type: ignore
 
             # If we're under the limit, no cleanup needed
             if memory_count <= self.config.memory_limit:
@@ -527,16 +527,16 @@ class AgentMemory:
             oldest_steps = self.redis_client.zrange(timeline_key, 0, to_remove - 1)
 
             # Remove each entry
-            for step in oldest_steps:
+            for step in list(oldest_steps):  # type: ignore
                 memory_key = f"{self._agent_key_prefix}:memory:{step}"
                 self.redis_client.delete(memory_key)
 
             # Remove from timeline
             if oldest_steps:
-                self.redis_client.zrem(timeline_key, *oldest_steps)
+                self.redis_client.zrem(timeline_key, *list(oldest_steps))  # type: ignore
 
             logger.debug(
-                f"Cleaned up {len(oldest_steps)} old memories for agent {self.agent_id}"
+                f"Cleaned up {len(list(oldest_steps))} old memories for agent {self.agent_id}"  # type: ignore
             )
 
         except Exception as e:
@@ -610,7 +610,7 @@ class AgentMemoryManager:
 
             # Delete all keys
             if keys:
-                self.redis.delete(*keys)
+                self.redis.delete(*list(keys))  # type: ignore
 
             # Reset local cache
             self.memories = {}

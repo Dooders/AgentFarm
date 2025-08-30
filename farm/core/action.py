@@ -85,9 +85,9 @@ def log_interaction_safely(agent: "BaseAgent", **kwargs) -> None:
         **kwargs: Arguments to pass to log_interaction_edge
     """
     try:
-        agent.environment.log_interaction_edge(**kwargs)
+        if hasattr(agent, "logging_service") and agent.logging_service:
+            agent.logging_service.log_interaction_edge(**kwargs)
     except Exception:
-        # Some environments may not have logging infrastructure
         pass
 
 
@@ -225,20 +225,51 @@ class action_registry:
 
     @classmethod
     def get(cls, name: str) -> Action | None:
-        """Get a registered action by name."""
+        """Get a registered action by name.
+
+        Args:
+            name: The name of the action to retrieve
+
+        Returns:
+            The Action object if found, None if no action with that name exists
+        """
         return cls._registry.get(name)
 
     @classmethod
-    def get_all(cls) -> List[Action]:
-        """Get all registered actions."""
-        return list(cls._registry.values())
+    def get_all(cls, normalized: bool = True) -> List[Action]:
+        """Get all registered actions.
+
+        Args:
+            normalized: If True, normalize action weights to sum to 1. Default is True.
+        """
+        actions = list(cls._registry.values())
+
+        if normalized and actions:
+            # Normalize weights
+            total_weight = sum(action.weight for action in actions)
+            for action in actions:
+                action.weight /= total_weight
+
+        return actions
 
 
 def attack_action(agent: "BaseAgent") -> None:
     """Execute the attack action for the given agent.
 
-    Finds the closest agent within attack range and attacks it using the spatial index
-    for efficient proximity queries.
+    This action implements aggressive behavior where the agent seeks out and attacks
+    the nearest enemy within its attack range. The action uses spatial indexing for
+    efficient proximity queries to find valid targets.
+
+    Behavior details:
+    - Uses configurable attack_range (default: 20.0 units) to find nearby agents
+    - Filters targets to exclude self and non-living agents
+    - Selects the closest valid target using Euclidean distance
+    - Calculates damage based on agent's attack strength and current health ratio
+    - Applies defensive damage reduction (50% reduction when target is defending)
+    - Records combat metrics and logs the interaction for analysis
+    - Provides small reward bonus for successful attacks
+
+    The action fails silently if no valid targets are found within range.
     """
     # Validate agent configuration
     if not validate_agent_config(agent, "attack"):
@@ -248,7 +279,9 @@ def attack_action(agent: "BaseAgent") -> None:
     attack_range = getattr(agent.config, "attack_range", 20.0)
 
     # Find nearby agents using spatial index
-    nearby_agents = agent.environment.get_nearby_agents(agent.position, attack_range)
+    nearby_agents = agent.spatial_service.get_nearby_agents(
+        agent.position, attack_range
+    )
 
     # Filter out self and find valid targets
     valid_targets = [
@@ -292,12 +325,15 @@ def attack_action(agent: "BaseAgent") -> None:
     actual_damage = closest_target.take_damage(base_damage)
 
     # Update combat statistics
-    if actual_damage > 0:
+    if (
+        actual_damage > 0
+        and hasattr(agent, "metrics_service")
+        and agent.metrics_service
+    ):
         try:
-            agent.environment.record_combat_encounter()
-            agent.environment.record_successful_attack()
+            agent.metrics_service.record_combat_encounter()
+            agent.metrics_service.record_successful_attack()
         except Exception:
-            # Some test environments may not implement metrics tracking
             pass
 
     # Log the attack interaction using helper function
@@ -329,7 +365,21 @@ def attack_action(agent: "BaseAgent") -> None:
 def gather_action(agent: "BaseAgent") -> None:
     """Execute the gather action for the given agent.
 
-    Simple rule-based gathering that finds the nearest resource and gathers from it.
+    This action implements resource collection behavior where the agent seeks out
+    and gathers resources from the nearest available resource node. The action uses
+    spatial indexing for efficient proximity queries to find resource locations.
+
+    Behavior details:
+    - Uses configurable gathering_range (default: 30 units) to find nearby resources
+    - Filters resources to exclude depleted or empty resource nodes
+    - Selects the closest available resource using Euclidean distance
+    - Gathers up to max_gather amount (configurable, default: 10) or available amount
+    - Transfers gathered resources directly to agent's resource pool
+    - Calculates reward based on amount gathered (0.1 per unit)
+    - Records resource gathering metrics and logs the interaction for analysis
+
+    The action fails silently if no available resources are found within range
+    or if the selected resource becomes depleted during gathering.
     """
     # Validate agent configuration
     if not validate_agent_config(agent, "gather"):
@@ -339,7 +389,7 @@ def gather_action(agent: "BaseAgent") -> None:
     gathering_range = getattr(agent.config, "gathering_range", 30)
 
     # Find nearby resources using spatial index
-    nearby_resources = agent.environment.get_nearby_resources(
+    nearby_resources = agent.spatial_service.get_nearby_resources(
         agent.position, gathering_range
     )
 
@@ -431,7 +481,22 @@ def gather_action(agent: "BaseAgent") -> None:
 def share_action(agent: "BaseAgent") -> None:
     """Execute the share action for the given agent.
 
-    Simple rule-based sharing that finds agents in need and shares resources with them.
+    This action implements cooperative behavior where the agent shares resources
+    with nearby allies. The agent finds the most resource-depleted nearby agent
+    and transfers a portion of its resources to help that agent survive.
+
+    Behavior details:
+    - Uses configurable share_range (default: 30 units) to find nearby agents
+    - Filters targets to exclude self and non-living agents
+    - Selects the agent with the lowest resource level (greatest need)
+    - Shares a fixed share_amount (configurable, default: 2) or available amount
+    - Requires agent to keep minimum resources (min_keep_resources, default: 5)
+    - Transfers resources directly from agent's pool to target's pool
+    - Calculates small reward for cooperative behavior (0.05 per resource shared)
+    - Records resource sharing metrics and logs the interaction for analysis
+
+    The action fails silently if the agent lacks sufficient resources to share
+    while maintaining its own minimum requirements.
     """
     # Validate agent configuration
     if not validate_agent_config(agent, "share"):
@@ -441,7 +506,7 @@ def share_action(agent: "BaseAgent") -> None:
     share_range = getattr(agent.config, "share_range", 30)
 
     # Find nearby agents using spatial index
-    nearby_agents = agent.environment.get_nearby_agents(agent.position, share_range)
+    nearby_agents = agent.spatial_service.get_nearby_agents(agent.position, share_range)
 
     # Filter out self and find valid targets
     valid_targets = [
@@ -478,11 +543,11 @@ def share_action(agent: "BaseAgent") -> None:
     agent.total_reward += reward
 
     # Update environment's resources_shared counter
-    try:
-        agent.environment.record_resources_shared(share_amount)
-    except Exception:
-        # Some environments may not implement metrics tracking
-        pass
+    if hasattr(agent, "metrics_service") and agent.metrics_service:
+        try:
+            agent.metrics_service.record_resources_shared(share_amount)
+        except Exception:
+            pass
 
     # Log the share interaction using helper function
     log_interaction_safely(
@@ -510,8 +575,21 @@ def share_action(agent: "BaseAgent") -> None:
 def move_action(agent: "BaseAgent") -> None:
     """Execute the move action for the given agent.
 
-    Simple rule-based movement that randomly selects a direction
-    and moves the agent within environment bounds.
+    This action implements basic movement behavior where the agent randomly selects
+    a direction and attempts to move to a new position within the environment.
+    The movement is constrained by environment boundaries and validation rules.
+
+    Behavior details:
+    - Randomly selects from four cardinal directions (up, down, left, right)
+    - Uses configurable max_movement distance (default: 1 unit) for movement magnitude
+    - Calculates new position by applying movement vector to current position
+    - Validates new position against environment boundaries and obstacles
+    - Updates agent's position if the move is valid, otherwise logs failure
+    - Marks spatial index as dirty to trigger updates for nearby agent queries
+
+    The action provides spatial mobility for exploration, resource seeking,
+    and combat positioning. Movement fails silently if the target position
+    is invalid (outside bounds or blocked by obstacles).
     """
     import random
 
@@ -538,14 +616,22 @@ def move_action(agent: "BaseAgent") -> None:
     new_y = agent.position[1] + dy * move_distance
 
     # Ensure position stays within environment bounds
-    if hasattr(agent.environment, "width") and hasattr(agent.environment, "height"):
-        new_x = max(0, min(agent.environment.width - 1, new_x))
-        new_y = max(0, min(agent.environment.height - 1, new_y))
+    # Bound by config width/height if provided
+    if hasattr(agent, "config") and agent.config:
+        env_width = getattr(agent.config, "width", None)
+        env_height = getattr(agent.config, "height", None)
+        if env_width is not None and env_height is not None:
+            new_x = max(0, min(int(env_width) - 1, new_x))
+            new_y = max(0, min(int(env_height) - 1, new_y))
 
     new_position = (new_x, new_y)
 
     # Check if the new position is valid
-    if agent.environment.is_valid_position(new_position):
+    if (
+        hasattr(agent, "validation_service")
+        and agent.validation_service
+        and agent.validation_service.is_valid_position(new_position)
+    ):
         # Move the agent
         agent.update_position(new_position)
         logger.debug(
@@ -560,8 +646,22 @@ def move_action(agent: "BaseAgent") -> None:
 def reproduce_action(agent: "BaseAgent") -> None:
     """Execute the reproduce action for the given agent.
 
-    Simple rule-based reproduction that checks resource requirements
-    and uses a random chance for reproduction attempts.
+    This action implements reproductive behavior where the agent attempts to create
+    offspring if it has sufficient resources. The action consolidates resource checking,
+    probability-based decision making, and offspring creation into a complete lifecycle.
+
+    Behavior details:
+    - Checks minimum resource requirements (min_reproduction_resources, default: 8)
+    - Verifies total cost including offspring_cost (default: 5) can be met
+    - Applies reproduction chance probability (reproduction_chance, default: 0.5)
+    - Creates offspring using agent's _create_offspring method if conditions met
+    - Transfers offspring_cost from parent to pay for reproduction
+    - Records reproduction event with detailed metrics and logging
+    - Offspring inherits parent's position and receives initial resources
+
+    The action supports evolutionary dynamics by allowing agents to pass on
+    their traits while maintaining population resource constraints. Reproduction
+    fails silently if resource requirements aren't met or probability check fails.
     """
     import random
 
@@ -569,27 +669,49 @@ def reproduce_action(agent: "BaseAgent") -> None:
     if not validate_agent_config(agent, "reproduce"):
         return
 
-    # Check if agent has enough resources for reproduction
+    # Get reproduction parameters from config
     min_resources = getattr(agent.config, "min_reproduction_resources", 8)
-    if not check_resource_requirement(agent, min_resources, "reproduce"):
+    offspring_cost = getattr(agent.config, "offspring_cost", 5)
+    reproduction_chance = getattr(agent.config, "reproduction_chance", 0.5)
+
+    # Check total resource requirements (minimum + offspring cost)
+    total_required = min_resources + offspring_cost
+    if not check_resource_requirement(agent, total_required, "reproduce"):
         return
 
-    # Simple rule: 50% chance to attempt reproduction if conditions are met
-    if random.random() < 0.5:
-        success = agent.reproduce()
-        if success:
-            logger.debug(f"Agent {agent.agent_id} successfully reproduced")
-        else:
-            logger.debug(f"Agent {agent.agent_id} reproduction attempt failed")
-    else:
+    # Random chance to attempt reproduction
+    if random.random() >= reproduction_chance:
         logger.debug(f"Agent {agent.agent_id} chose not to reproduce this turn")
+        return
+
+    # Attempt reproduction using the agent's method
+    success = agent.reproduce()
+
+    if success:
+        logger.debug(f"Agent {agent.agent_id} successfully reproduced")
+    else:
+        logger.debug(f"Agent {agent.agent_id} reproduction attempt failed")
 
 
 def defend_action(agent: "BaseAgent") -> None:
     """Execute the defend action for the given agent.
 
-    Simple rule-based defense that allows agents to enter a defensive stance,
-    reducing damage taken and providing recovery benefits.
+    This action implements defensive behavior where the agent enters a protective
+    stance that reduces incoming damage and provides healing benefits. The defense
+    lasts for a configurable duration and consumes resources to activate.
+
+    Behavior details:
+    - Checks and pays defense cost (defense_cost, default: 0) if configured
+    - Activates defensive stance by setting is_defending flag to True
+    - Sets defense timer to configured duration (defense_duration, default: 3 turns)
+    - Applies healing effect (defense_healing, default: 1 health) if configured
+    - Healing is capped by maximum health to prevent overhealing
+    - Provides small reward (0.02) for successful defensive action
+    - Records defense activation with detailed logging and metrics
+
+    The defensive stance provides 50% damage reduction when the agent is attacked
+    (implemented in handle_combat method). Defense automatically expires after
+    the timer runs out, requiring reactivation to maintain protection.
     """
     # Validate agent configuration
     if not validate_agent_config(agent, "defend"):
@@ -652,8 +774,22 @@ def defend_action(agent: "BaseAgent") -> None:
 def pass_action(agent: "BaseAgent") -> None:
     """Execute the pass action for the given agent.
 
-    Simple action where the agent does nothing this turn.
-    Useful for waiting, observing, or strategic inaction.
+    This action implements strategic inaction where the agent chooses to do nothing
+    during its turn. While seemingly passive, passing can be a deliberate strategy
+    for observation, resource conservation, or waiting for better opportunities.
+
+    Behavior details:
+    - Agent takes no physical action (no movement, combat, or resource interaction)
+    - Conserves energy by avoiding action costs and resource consumption
+    - Provides minimal reward (0.01) to encourage occasional strategic inaction
+    - Records pass action in interaction logs for behavioral analysis
+    - Useful for agents that are waiting, observing environment changes,
+      conserving resources, or implementing more sophisticated strategies
+
+    The pass action serves as a baseline behavior that allows agents to maintain
+    their current state while still participating in the simulation turn cycle.
+    It can be strategically valuable in complex scenarios where immediate action
+    might be disadvantageous.
     """
     # Validate agent configuration
     if not validate_agent_config(agent, "pass"):
@@ -679,6 +815,55 @@ def pass_action(agent: "BaseAgent") -> None:
     )
 
     logger.debug(f"Agent {agent.agent_id} chose to pass this turn")
+
+
+# Centralized action space utilities
+def get_action_space() -> dict[str, int]:
+    """Get the centralized mapping of action names to indices.
+
+    Returns:
+        dict[str, int]: Mapping from action name strings to ActionType enum values
+    """
+    return {
+        "defend": ActionType.DEFEND.value,
+        "attack": ActionType.ATTACK.value,
+        "gather": ActionType.GATHER.value,
+        "share": ActionType.SHARE.value,
+        "move": ActionType.MOVE.value,
+        "reproduce": ActionType.REPRODUCE.value,
+        "pass": ActionType.PASS.value,
+    }
+
+
+def action_name_to_index(action_name: str) -> int:
+    """Convert action name to index using the centralized action space.
+
+    Args:
+        action_name: Name of the action (case-insensitive)
+
+    Returns:
+        int: Action index from ActionType enum, defaults to DEFEND (0) if unknown
+    """
+    action_space = get_action_space()
+    return action_space.get(action_name.lower(), ActionType.DEFEND.value)
+
+
+def get_action_names() -> list[str]:
+    """Get list of all valid action names in the action space.
+
+    Returns:
+        list[str]: List of action names in the order defined by ActionType enum
+    """
+    return list(get_action_space().keys())
+
+
+def get_action_count() -> int:
+    """Get the total number of actions in the action space.
+
+    Returns:
+        int: Number of actions defined in the action space
+    """
+    return len(ActionType)
 
 
 action_registry.register("attack", 0.1, attack_action)
