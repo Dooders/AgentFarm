@@ -9,6 +9,10 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
+from farm.analysis.common.context import AnalysisContext
+from farm.analysis.common.metrics import (
+    get_valid_numeric_columns as _common_get_valid_numeric_columns,
+)
 
 
 class AnalysisModule(ABC):
@@ -253,6 +257,9 @@ class AnalysisModule(ABC):
         logging.info("\nSummary statistics:")
         logging.info(df.describe().to_string())
 
+        # Prepare analysis context for standardized function calls
+        ctx = AnalysisContext(output_path=output_path)
+
         # Run each analysis function
         for func in analysis_functions:
             try:
@@ -271,8 +278,14 @@ class AnalysisModule(ABC):
                 logging.info(f"Running {func_name}...")
 
                 # Handle different function signatures properly
-                if "output_path" in params:
-                    # Pass output_path as a named parameter
+                if "ctx" in params:
+                    # Preferred: function accepts standardized context
+                    func(df=df, ctx=ctx, **func_kwargs)
+                elif "context" in params:
+                    # Alternate naming
+                    func(df=df, context=ctx, **func_kwargs)
+                elif "output_path" in params:
+                    # Legacy: pass output_path directly
                     func(df=df, output_path=output_path, **func_kwargs)
                 elif len(params) >= 2:
                     # Function expects positional args (old style)
@@ -297,25 +310,11 @@ class AnalysisModule(ABC):
 
 def get_valid_numeric_columns(df: pd.DataFrame, column_list: List[str]) -> List[str]:
     """
-    Filter a list of column names to only include those that are numeric in the DataFrame.
+    Delegates to the shared helper in `farm.analysis.common.metrics` to avoid duplication.
 
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame to check for numeric columns
-    column_list : list
-        List of column names to filter
-
-    Returns
-    -------
-    list
-        List of column names that exist in the DataFrame and are numeric
+    See `farm.analysis.common.metrics.get_valid_numeric_columns` for details.
     """
-    numeric_cols = []
-    for col in column_list:
-        if col in df.columns and pd.api.types.is_numeric_dtype(df[col]):
-            numeric_cols.append(col)
-    return numeric_cols
+    return _common_get_valid_numeric_columns(df, column_list)
 
 
 def split_and_compare_groups(
