@@ -71,8 +71,8 @@ class AgentModel(Base):
         Starting resource level of the agent
     starting_health : float
         Maximum health capacity of the agent
-    starvation_threshold : int
-        Resource level below which agent begins to starve
+    starvation_counter : int
+        Counter for consecutive steps agent has had zero resources
     genome_id : str
         Unique identifier for agent's genetic code
     generation : int
@@ -110,7 +110,7 @@ class AgentModel(Base):
     position_y = Column(Float(precision=6))
     initial_resources = Column(Float(precision=6))
     starting_health = Column(Float(precision=4))
-    starvation_threshold = Column(Integer)
+    starvation_counter = Column(Integer)
     genome_id = Column(String(64))
     generation = Column(Integer)
     action_weights = Column(JSON, nullable=True)
@@ -222,6 +222,7 @@ class AgentStateModel(Base):
         """Generate a unique ID for an agent state."""
         # Centralize via Identity for consistency without instantiation
         from farm.utils.identity import Identity
+
         return str(Identity.agent_state_id(agent_id, step_number))
 
     def as_dict(self) -> Dict[str, Any]:
@@ -319,10 +320,13 @@ class InteractionModel(Base):
     target_id = Column(String(64), nullable=False)
 
     # Semantics
-    interaction_type = Column(String(50), nullable=False)  # e.g., 'share', 'attack', 'gather', 'reproduce'
+    interaction_type = Column(
+        String(50), nullable=False
+    )  # e.g., 'share', 'attack', 'gather', 'reproduce'
     action_type = Column(String(50), nullable=True)  # Optional action grouping
     details = Column(JSON, nullable=True)
     timestamp = Column(DateTime, default=func.now(), nullable=False)
+
 
 class SimulationStepModel(Base):
     """Records simulation-wide metrics for each time step.

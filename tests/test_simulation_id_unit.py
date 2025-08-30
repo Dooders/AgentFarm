@@ -119,7 +119,7 @@ class TestSimulationIDPropagation(unittest.TestCase):
             position=(10.0, 20.0),
             initial_resources=100.0,
             starting_health=100.0,
-            starvation_threshold=10,
+            starvation_counter=10,
         )
 
         # Flush data to database
@@ -171,7 +171,7 @@ class TestSimulationIDPropagation(unittest.TestCase):
             position=(10.0, 20.0),
             initial_resources=100.0,
             starting_health=100.0,
-            starvation_threshold=10,
+            starvation_counter=10,
         )
 
         # Flush agent data

@@ -142,154 +142,154 @@ with Session() as session:
 
 Stores experiment-level metadata and groups related simulations.
 
-| Column             | Type                | Description                                     |
-| ------------------ | ------------------- | ----------------------------------------------- |
-| experiment_id      | STRING(64) PRIMARY KEY | Unique identifier for the experiment         |
-| name               | STRING(255)         | Human-readable name of the experiment          |
-| description        | STRING(4096)        | Detailed description of the experiment's purpose |
-| hypothesis         | STRING(2048)        | The research hypothesis being tested            |
-| creation_date      | DATETIME            | When the experiment was created                 |
-| last_updated       | DATETIME            | When the experiment was last modified           |
-| status             | STRING(50)          | Current status (planned/running/completed/analyzed) |
-| tags               | JSON                | List of keywords/tags for categorization        |
-| variables          | JSON                | Dictionary of variables being manipulated       |
-| results_summary    | JSON                | High-level findings from the experiment         |
-| notes              | STRING(4096)        | Additional research notes or observations       |
+| Column          | Type                   | Description                                         |
+| --------------- | ---------------------- | --------------------------------------------------- |
+| experiment_id   | STRING(64) PRIMARY KEY | Unique identifier for the experiment                |
+| name            | STRING(255)            | Human-readable name of the experiment               |
+| description     | STRING(4096)           | Detailed description of the experiment's purpose    |
+| hypothesis      | STRING(2048)           | The research hypothesis being tested                |
+| creation_date   | DATETIME               | When the experiment was created                     |
+| last_updated    | DATETIME               | When the experiment was last modified               |
+| status          | STRING(50)             | Current status (planned/running/completed/analyzed) |
+| tags            | JSON                   | List of keywords/tags for categorization            |
+| variables       | JSON                   | Dictionary of variables being manipulated           |
+| results_summary | JSON                   | High-level findings from the experiment             |
+| notes           | STRING(4096)           | Additional research notes or observations           |
 
 ### Simulations Table
 
 Stores metadata about simulation runs.
 
-| Column             | Type                | Description                                     |
-| ------------------ | ------------------- | ----------------------------------------------- |
-| simulation_id      | STRING(64) PRIMARY KEY | Unique identifier for the simulation         |
-| experiment_id      | STRING(64)          | Reference to Experiments table                  |
-| start_time         | DATETIME            | When simulation started                         |
-| end_time           | DATETIME            | When simulation ended                           |
-| status             | STRING(50)          | Current simulation status                       |
-| parameters         | JSON                | Simulation parameters                           |
-| results_summary    | JSON                | Summary of results                              |
-| simulation_db_path | STRING(255)         | Path to simulation database                     |
+| Column             | Type                   | Description                          |
+| ------------------ | ---------------------- | ------------------------------------ |
+| simulation_id      | STRING(64) PRIMARY KEY | Unique identifier for the simulation |
+| experiment_id      | STRING(64)             | Reference to Experiments table       |
+| start_time         | DATETIME               | When simulation started              |
+| end_time           | DATETIME               | When simulation ended                |
+| status             | STRING(50)             | Current simulation status            |
+| parameters         | JSON                   | Simulation parameters                |
+| results_summary    | JSON                   | Summary of results                   |
+| simulation_db_path | STRING(255)            | Path to simulation database          |
 
 ### Agents Table
 
 Stores metadata and lifecycle information for each agent.
 
-| Column               | Type                | Description                                     |
-| -------------------- | ------------------- | ----------------------------------------------- |
-| simulation_id        | STRING(64)          | Reference to Simulations table                  |
-| agent_id             | STRING(64) PRIMARY KEY | Unique identifier for each agent             |
-| birth_time           | INTEGER             | Simulation step when agent was created          |
-| death_time           | INTEGER             | Simulation step when agent died (NULL if alive) |
-| agent_type           | STRING(50)          | Type of agent (system/independent/control)      |
-| position_x           | FLOAT               | Initial X coordinate                            |
-| position_y           | FLOAT               | Initial Y coordinate                            |
-| initial_resources    | FLOAT               | Starting resource amount                        |
-| starting_health      | FLOAT               | Starting health points                          |
-| starvation_threshold | INTEGER             | Steps agent can survive without resources       |
-| genome_id            | STRING(64)          | Unique identifier for agent's genome            |
-| generation           | INTEGER             | Generation number in evolutionary lineage       |
-| action_weights       | JSON                | Dictionary of action names to their weights     |
+| Column             | Type                   | Description                                       |
+| ------------------ | ---------------------- | ------------------------------------------------- |
+| simulation_id      | STRING(64)             | Reference to Simulations table                    |
+| agent_id           | STRING(64) PRIMARY KEY | Unique identifier for each agent                  |
+| birth_time         | INTEGER                | Simulation step when agent was created            |
+| death_time         | INTEGER                | Simulation step when agent died (NULL if alive)   |
+| agent_type         | STRING(50)             | Type of agent (system/independent/control)        |
+| position_x         | FLOAT                  | Initial X coordinate                              |
+| position_y         | FLOAT                  | Initial Y coordinate                              |
+| initial_resources  | FLOAT                  | Starting resource amount                          |
+| starting_health    | FLOAT                  | Starting health points                            |
+| starvation_counter | INTEGER                | Counter for consecutive steps with zero resources |
+| genome_id          | STRING(64)             | Unique identifier for agent's genome              |
+| generation         | INTEGER                | Generation number in evolutionary lineage         |
+| action_weights     | JSON                   | Dictionary of action names to their weights       |
 
 ### AgentStates Table
 
 Tracks the state of each agent at each simulation step.
 
-| Column               | Type                | Description                          |
-| -------------------- | ------------------- | ------------------------------------ |
-| simulation_id        | STRING(64)          | Reference to Simulations table       |
-| id                   | STRING(128) PRIMARY KEY | Unique identifier (agent_id-step_number) |
-| step_number          | INTEGER             | Simulation step number               |
-| agent_id             | STRING(64)          | Reference to Agents table            |
-| position_x           | FLOAT               | X coordinate                         |
-| position_y           | FLOAT               | Y coordinate                         |
-| position_z           | FLOAT               | Z coordinate                         |
-| resource_level       | FLOAT               | Current resource amount              |
-| current_health       | FLOAT               | Current health points                |
-| is_defending         | BOOLEAN             | Whether agent is in defensive stance |
-| total_reward         | FLOAT               | Accumulated reward                   |
-| age                  | INTEGER             | Agent's current age in steps         |
+| Column         | Type                    | Description                              |
+| -------------- | ----------------------- | ---------------------------------------- |
+| simulation_id  | STRING(64)              | Reference to Simulations table           |
+| id             | STRING(128) PRIMARY KEY | Unique identifier (agent_id-step_number) |
+| step_number    | INTEGER                 | Simulation step number                   |
+| agent_id       | STRING(64)              | Reference to Agents table                |
+| position_x     | FLOAT                   | X coordinate                             |
+| position_y     | FLOAT                   | Y coordinate                             |
+| position_z     | FLOAT                   | Z coordinate                             |
+| resource_level | FLOAT                   | Current resource amount                  |
+| current_health | FLOAT                   | Current health points                    |
+| is_defending   | BOOLEAN                 | Whether agent is in defensive stance     |
+| total_reward   | FLOAT                   | Accumulated reward                       |
+| age            | INTEGER                 | Agent's current age in steps             |
 
 ### ResourceStates Table
 
 Tracks the state of resources at each simulation step.
 
-| Column      | Type                | Description                        |
-| ----------- | ------------------- | ---------------------------------- |
-| simulation_id | STRING(64)         | Reference to Simulations table     |
-| id          | INTEGER PRIMARY KEY | Unique identifier for state record |
-| step_number | INTEGER             | Simulation step number             |
-| resource_id | INTEGER             | Unique resource identifier         |
-| amount      | FLOAT               | Current resource amount            |
-| position_x  | FLOAT               | X coordinate                       |
-| position_y  | FLOAT               | Y coordinate                       |
+| Column        | Type                | Description                        |
+| ------------- | ------------------- | ---------------------------------- |
+| simulation_id | STRING(64)          | Reference to Simulations table     |
+| id            | INTEGER PRIMARY KEY | Unique identifier for state record |
+| step_number   | INTEGER             | Simulation step number             |
+| resource_id   | INTEGER             | Unique resource identifier         |
+| amount        | FLOAT               | Current resource amount            |
+| position_x    | FLOAT               | X coordinate                       |
+| position_y    | FLOAT               | Y coordinate                       |
 
 ### SimulationSteps Table
 
 Stores aggregate metrics for each simulation step.
 
-| Column                        | Type                | Description                               |
-| ----------------------------- | ------------------- | ----------------------------------------- |
-| simulation_id                 | STRING(64)          | Reference to Simulations table            |
-| step_number                   | INTEGER             | Simulation step number                    |
-| total_agents                  | INTEGER             | Total number of alive agents              |
-| system_agents                 | INTEGER             | Number of system agents                   |
-| independent_agents            | INTEGER             | Number of independent agents              |
-| control_agents                | INTEGER             | Number of control agents                  |
-| total_resources               | FLOAT               | Total resources in environment            |
-| average_agent_resources       | FLOAT               | Mean resources per agent                  |
-| births                        | INTEGER             | New agents this step                      |
-| deaths                        | INTEGER             | Agent deaths this step                    |
-| current_max_generation        | INTEGER             | Highest generation number                 |
-| resource_efficiency           | FLOAT               | Resource utilization (0-1)                |
-| resource_distribution_entropy | FLOAT               | Measure of resource distribution evenness |
-| average_agent_health          | FLOAT               | Mean health across agents                 |
-| average_agent_age             | INTEGER             | Mean age of agents                        |
-| average_reward                | FLOAT               | Mean reward accumulated                   |
-| combat_encounters             | INTEGER             | Number of combat interactions             |
-| successful_attacks            | INTEGER             | Number of successful attacks              |
-| resources_shared              | FLOAT               | Amount of resources shared                |
-| resources_shared_this_step    | FLOAT               | Resources shared in current step          |
-| combat_encounters_this_step   | INTEGER             | Combat encounters in current step         |
-| successful_attacks_this_step  | INTEGER             | Successful attacks in current step        |
-| genetic_diversity             | FLOAT               | Measure of genome variety (0-1)           |
-| dominant_genome_ratio         | FLOAT               | Prevalence of most common genome (0-1)    |
-| resources_consumed            | FLOAT               | Total resources consumed                  |
+| Column                        | Type       | Description                               |
+| ----------------------------- | ---------- | ----------------------------------------- |
+| simulation_id                 | STRING(64) | Reference to Simulations table            |
+| step_number                   | INTEGER    | Simulation step number                    |
+| total_agents                  | INTEGER    | Total number of alive agents              |
+| system_agents                 | INTEGER    | Number of system agents                   |
+| independent_agents            | INTEGER    | Number of independent agents              |
+| control_agents                | INTEGER    | Number of control agents                  |
+| total_resources               | FLOAT      | Total resources in environment            |
+| average_agent_resources       | FLOAT      | Mean resources per agent                  |
+| births                        | INTEGER    | New agents this step                      |
+| deaths                        | INTEGER    | Agent deaths this step                    |
+| current_max_generation        | INTEGER    | Highest generation number                 |
+| resource_efficiency           | FLOAT      | Resource utilization (0-1)                |
+| resource_distribution_entropy | FLOAT      | Measure of resource distribution evenness |
+| average_agent_health          | FLOAT      | Mean health across agents                 |
+| average_agent_age             | INTEGER    | Mean age of agents                        |
+| average_reward                | FLOAT      | Mean reward accumulated                   |
+| combat_encounters             | INTEGER    | Number of combat interactions             |
+| successful_attacks            | INTEGER    | Number of successful attacks              |
+| resources_shared              | FLOAT      | Amount of resources shared                |
+| resources_shared_this_step    | FLOAT      | Resources shared in current step          |
+| combat_encounters_this_step   | INTEGER    | Combat encounters in current step         |
+| successful_attacks_this_step  | INTEGER    | Successful attacks in current step        |
+| genetic_diversity             | FLOAT      | Measure of genome variety (0-1)           |
+| dominant_genome_ratio         | FLOAT      | Prevalence of most common genome (0-1)    |
+| resources_consumed            | FLOAT      | Total resources consumed                  |
 
 ### AgentActions Table
 
 Records actions taken by agents during simulation.
 
-| Column           | Type                | Description                          |
-| ---------------- | ------------------- | ------------------------------------ |
-| simulation_id    | STRING(64)          | Reference to Simulations table       |
-| action_id        | INTEGER PRIMARY KEY | Unique identifier for action         |
-| step_number      | INTEGER             | When action occurred                 |
-| agent_id         | STRING(64)          | Agent that took action               |
-| action_type      | STRING(20)          | Type of action taken                 |
-| action_target_id | STRING(64)          | Target of action (if any)           |
-| state_before_id  | STRING(128)         | Reference to state before action     |
-| state_after_id   | STRING(128)         | Reference to state after action      |
-| resources_before | FLOAT               | Resources before action              |
-| resources_after  | FLOAT               | Resources after action               |
-| reward           | FLOAT               | Reward received for action           |
-| details          | STRING(1024)        | Additional action details            |
+| Column           | Type                | Description                      |
+| ---------------- | ------------------- | -------------------------------- |
+| simulation_id    | STRING(64)          | Reference to Simulations table   |
+| action_id        | INTEGER PRIMARY KEY | Unique identifier for action     |
+| step_number      | INTEGER             | When action occurred             |
+| agent_id         | STRING(64)          | Agent that took action           |
+| action_type      | STRING(20)          | Type of action taken             |
+| action_target_id | STRING(64)          | Target of action (if any)        |
+| state_before_id  | STRING(128)         | Reference to state before action |
+| state_after_id   | STRING(128)         | Reference to state after action  |
+| resources_before | FLOAT               | Resources before action          |
+| resources_after  | FLOAT               | Resources after action           |
+| reward           | FLOAT               | Reward received for action       |
+| details          | STRING(1024)        | Additional action details        |
 
 ### LearningExperiences Table
 
 Records learning experiences and outcomes.
 
-| Column             | Type                | Description                          |
-| ----------------- | ------------------- | ------------------------------------ |
-| simulation_id     | STRING(64)          | Reference to Simulations table       |
-| experience_id     | INTEGER PRIMARY KEY | Unique identifier for experience     |
-| step_number       | INTEGER             | When experience occurred             |
-| agent_id          | STRING(64)          | Agent that had experience            |
-| module_type       | STRING(50)          | Type of learning module              |
-| module_id         | STRING(64)          | Identifier for specific module       |
-| action_taken      | INTEGER             | Action index taken                   |
-| action_taken_mapped| STRING(20)         | Human-readable action description    |
-| reward            | FLOAT               | Reward received                      |
+| Column              | Type                | Description                       |
+| ------------------- | ------------------- | --------------------------------- |
+| simulation_id       | STRING(64)          | Reference to Simulations table    |
+| experience_id       | INTEGER PRIMARY KEY | Unique identifier for experience  |
+| step_number         | INTEGER             | When experience occurred          |
+| agent_id            | STRING(64)          | Agent that had experience         |
+| module_type         | STRING(50)          | Type of learning module           |
+| module_id           | STRING(64)          | Identifier for specific module    |
+| action_taken        | INTEGER             | Action index taken                |
+| action_taken_mapped | STRING(20)          | Human-readable action description |
+| reward              | FLOAT               | Reward received                   |
 
 ### HealthIncidents Table
 
@@ -310,58 +310,58 @@ Tracks changes in agent health status.
 
 Stores simulation configuration data.
 
-| Column      | Type                | Description                  |
-| ----------- | ------------------- | ---------------------------- |
-| simulation_id | STRING(64)         | Reference to Simulations table |
-| config_id   | INTEGER PRIMARY KEY | Unique identifier for config |
-| timestamp   | INTEGER             | When config was created      |
-| config_data | STRING(4096)        | JSON configuration data      |
+| Column        | Type                | Description                    |
+| ------------- | ------------------- | ------------------------------ |
+| simulation_id | STRING(64)          | Reference to Simulations table |
+| config_id     | INTEGER PRIMARY KEY | Unique identifier for config   |
+| timestamp     | INTEGER             | When config was created        |
+| config_data   | STRING(4096)        | JSON configuration data        |
 
 ### ReproductionEvents Table
 
 Records reproduction attempts and outcomes in the simulation.
 
-| Column                    | Type                | Description                                    |
-| ------------------------- | ------------------- | ---------------------------------------------- |
-| simulation_id             | STRING(64)          | Reference to Simulations table                 |
-| event_id                  | INTEGER PRIMARY KEY | Unique identifier for the reproduction event   |
-| step_number               | INTEGER             | Simulation step when the reproduction occurred |
-| parent_id                 | STRING(64)          | ID of the agent attempting reproduction        |
-| offspring_id              | STRING(64)          | ID of the created offspring (if successful)   |
-| success                   | BOOLEAN             | Whether the reproduction attempt succeeded     |
-| parent_resources_before   | FLOAT               | Parent's resource level before reproduction    |
-| parent_resources_after    | FLOAT               | Parent's resource level after reproduction     |
-| offspring_initial_resources| FLOAT               | Resources given to offspring (if successful)   |
-| failure_reason            | STRING(255)         | Reason for failed reproduction attempt         |
-| parent_generation         | INTEGER             | Generation number of parent agent              |
-| offspring_generation      | INTEGER             | Generation number of offspring (if successful) |
-| parent_position_x         | FLOAT               | X-coordinate where reproduction occurred       |
-| parent_position_y         | FLOAT               | Y-coordinate where reproduction occurred       |
-| timestamp                 | DATETIME            | When the event occurred                        |
+| Column                      | Type                | Description                                    |
+| --------------------------- | ------------------- | ---------------------------------------------- |
+| simulation_id               | STRING(64)          | Reference to Simulations table                 |
+| event_id                    | INTEGER PRIMARY KEY | Unique identifier for the reproduction event   |
+| step_number                 | INTEGER             | Simulation step when the reproduction occurred |
+| parent_id                   | STRING(64)          | ID of the agent attempting reproduction        |
+| offspring_id                | STRING(64)          | ID of the created offspring (if successful)    |
+| success                     | BOOLEAN             | Whether the reproduction attempt succeeded     |
+| parent_resources_before     | FLOAT               | Parent's resource level before reproduction    |
+| parent_resources_after      | FLOAT               | Parent's resource level after reproduction     |
+| offspring_initial_resources | FLOAT               | Resources given to offspring (if successful)   |
+| failure_reason              | STRING(255)         | Reason for failed reproduction attempt         |
+| parent_generation           | INTEGER             | Generation number of parent agent              |
+| offspring_generation        | INTEGER             | Generation number of offspring (if successful) |
+| parent_position_x           | FLOAT               | X-coordinate where reproduction occurred       |
+| parent_position_y           | FLOAT               | Y-coordinate where reproduction occurred       |
+| timestamp                   | DATETIME            | When the event occurred                        |
 
 ### SocialInteractions Table
 
 Records social interactions between agents in the simulation.
 
-| Column                      | Type                | Description                                    |
-| --------------------------- | ------------------- | ---------------------------------------------- |
-| simulation_id               | STRING(64)          | Reference to Simulations table                 |
-| interaction_id              | INTEGER PRIMARY KEY | Unique identifier for the social interaction   |
-| step_number                 | INTEGER             | Simulation step when the interaction occurred  |
-| initiator_id                | STRING(64)          | ID of the agent that initiated the interaction |
-| recipient_id                | STRING(64)          | ID of the agent that received the interaction  |
-| interaction_type            | STRING(50)          | Type of social interaction                     |
-| subtype                     | STRING(50)          | Specific subtype of the interaction            |
-| outcome                     | STRING(50)          | Outcome of the interaction                     |
-| resources_transferred       | FLOAT               | Amount of resources exchanged                  |
-| distance                    | FLOAT               | Distance between agents during interaction     |
-| initiator_resources_before  | FLOAT               | Initiator's resource level before interaction  |
-| initiator_resources_after   | FLOAT               | Initiator's resource level after interaction   |
-| recipient_resources_before  | FLOAT               | Recipient's resource level before interaction  |
-| recipient_resources_after   | FLOAT               | Recipient's resource level after interaction   |
-| group_id                    | STRING(64)          | Identifier for group/cluster behavior          |
-| details                     | JSON                | Additional interaction-specific details        |
-| timestamp                   | DATETIME            | When the interaction occurred                  |
+| Column                     | Type                | Description                                    |
+| -------------------------- | ------------------- | ---------------------------------------------- |
+| simulation_id              | STRING(64)          | Reference to Simulations table                 |
+| interaction_id             | INTEGER PRIMARY KEY | Unique identifier for the social interaction   |
+| step_number                | INTEGER             | Simulation step when the interaction occurred  |
+| initiator_id               | STRING(64)          | ID of the agent that initiated the interaction |
+| recipient_id               | STRING(64)          | ID of the agent that received the interaction  |
+| interaction_type           | STRING(50)          | Type of social interaction                     |
+| subtype                    | STRING(50)          | Specific subtype of the interaction            |
+| outcome                    | STRING(50)          | Outcome of the interaction                     |
+| resources_transferred      | FLOAT               | Amount of resources exchanged                  |
+| distance                   | FLOAT               | Distance between agents during interaction     |
+| initiator_resources_before | FLOAT               | Initiator's resource level before interaction  |
+| initiator_resources_after  | FLOAT               | Initiator's resource level after interaction   |
+| recipient_resources_before | FLOAT               | Recipient's resource level before interaction  |
+| recipient_resources_after  | FLOAT               | Recipient's resource level after interaction   |
+| group_id                   | STRING(64)          | Identifier for group/cluster behavior          |
+| details                    | JSON                | Additional interaction-specific details        |
+| timestamp                  | DATETIME            | When the interaction occurred                  |
 
 ## Relationships
 

@@ -8,8 +8,7 @@ independent_agents: 10
 control_agents: 10
 initial_resource_level: 5
 max_population: 300
-starvation_threshold: 0
-max_starvation_time: 15
+starvation_threshold: 100
 offspring_cost: 3 # down form 6
 min_reproduction_resources: 8 # down from 10
 offspring_initial_resources: 5
@@ -168,8 +167,8 @@ max_share_amount: 5
 share_threshold: 0.3
 share_cooperation_bonus: 0.2
 share_altruism_factor: 1.2
-cooperation_memory: 100  # Number of past interactions to remember
-cooperation_score_threshold: 0.5  # Threshold for considering an agent cooperative
+cooperation_memory: 100 # Number of past interactions to remember
+cooperation_score_threshold: 0.5 # Threshold for considering an agent cooperative
 
 # Agent-specific parameters
 agent_parameters:
@@ -200,4 +199,3 @@ redis:
   password: null
   decode_responses: true
   environment: default
-

@@ -33,7 +33,8 @@ class MockBaseAgent:
         self.alive = True
         self.current_health = 100.0
         self.starting_health = 100.0
-        self.starvation_threshold = 10.0
+        self.starvation_counter = 0
+        self.starvation_threshold = 100.0
         self.total_reward = 0.0
         self.birth_time = 0
         self.is_defending = False

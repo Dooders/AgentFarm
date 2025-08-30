@@ -24,8 +24,8 @@ from farm.database.models import (
     ActionModel,
     AgentModel,
     AgentStateModel,
-    InteractionModel,
     HealthIncident,
+    InteractionModel,
     LearningExperienceModel,
     ReproductionEventModel,
     ResourceModel,
@@ -37,9 +37,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class DataLoggingConfig:
     """Configuration for data logging."""
+
     buffer_size: int = 1000  # Maximum size of buffers before auto-flush
     commit_interval: int = 30  # Maximum time (in seconds) between commits
 
@@ -69,12 +71,12 @@ class DataLogger:
 
         self.simulation_id = simulation_id
         self.db = database
-        
+
         # Use provided config or create default
         config = config or DataLoggingConfig()
         self._buffer_size = config.buffer_size
         self._commit_interval = config.commit_interval
-        
+
         self._last_commit_time = time.time()
         #! Is there a better way to manage all these buffers?
         self._action_buffer = []
@@ -415,7 +417,7 @@ class DataLogger:
         position: Tuple[float, float],
         initial_resources: float,
         starting_health: float,
-        starvation_threshold: int,
+        starvation_counter: int,
         genome_id: Optional[str] = None,
         generation: int = 0,
         action_weights: Optional[Dict[str, float]] = None,
@@ -436,8 +438,8 @@ class DataLogger:
             Starting resource level
         starting_health : float
             Maximum health points
-        starvation_threshold : int
-            Steps agent can survive without resources
+        starvation_counter : int
+            Current count of consecutive steps with zero resources
         genome_id : Optional[str]
             Unique identifier for agent's genome
         generation : int
@@ -485,7 +487,7 @@ class DataLogger:
             "position": position,
             "initial_resources": initial_resources,
             "starting_health": starting_health,
-            "starvation_threshold": starvation_threshold,
+            "starvation_counter": starvation_counter,
             "genome_id": genome_id,
             "generation": generation,
             "action_weights": serialized_action_weights,
@@ -505,7 +507,7 @@ class DataLogger:
             - position: Tuple[float, float]
             - initial_resources: float
             - starting_health: float
-            - starvation_threshold: int
+            - starvation_counter: int
             - genome_id: Optional[str]
             - generation: int
             - action_weights: Optional[Dict[str, float]]
@@ -530,7 +532,7 @@ class DataLogger:
                         "position",
                         "initial_resources",
                         "starting_health",
-                        "starvation_threshold",
+                        "starvation_counter",
                     ]
                     for field in required_fields:
                         if field not in data:
@@ -558,7 +560,7 @@ class DataLogger:
                         "position_y": data["position"][1],
                         "initial_resources": data["initial_resources"],
                         "starting_health": data["starting_health"],
-                        "starvation_threshold": data["starvation_threshold"],
+                        "starvation_counter": data["starvation_counter"],
                         "genome_id": data.get("genome_id"),
                         "generation": data.get("generation", 0),
                         "action_weights": action_weights,
@@ -614,7 +616,7 @@ class DataLogger:
                             "resource_level": state[3],
                             "current_health": state[4],
                             "starting_health": state[5],
-                            "starvation_threshold": state[6],
+                            "starvation_counter": state[6],
                             "is_defending": bool(state[7]),
                             "total_reward": state[8],
                             "age": state[9],

@@ -51,7 +51,7 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
             "position": (50, 50),
             "initial_resources": 10,
             "starting_health": 100,
-            "starvation_threshold": 0,
+            "starvation_counter": 0,
             "genome_id": "genome_1",
             "generation": 1,
         }
@@ -131,7 +131,7 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
             position=self.sample_agent_data["position"],
             initial_resources=self.sample_agent_data["initial_resources"],
             starting_health=self.sample_agent_data["starting_health"],
-            starvation_threshold=self.sample_agent_data["starvation_threshold"],
+            starvation_counter=self.sample_agent_data["starvation_counter"],
             genome_id=self.sample_agent_data["genome_id"],
             generation=self.sample_agent_data["generation"],
         )
@@ -211,7 +211,7 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
             position=self.sample_agent_data["position"],
             initial_resources=self.sample_agent_data["initial_resources"],
             starting_health=self.sample_agent_data["starting_health"],
-            starvation_threshold=self.sample_agent_data["starvation_threshold"],
+            starvation_counter=self.sample_agent_data["starvation_counter"],
             genome_id=self.sample_agent_data["genome_id"],
             generation=self.sample_agent_data["generation"],
         )
@@ -294,7 +294,7 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
             position=self.sample_agent_data["position"],
             initial_resources=self.sample_agent_data["initial_resources"],
             starting_health=self.sample_agent_data["starting_health"],
-            starvation_threshold=self.sample_agent_data["starvation_threshold"],
+            starvation_counter=self.sample_agent_data["starvation_counter"],
             genome_id=self.sample_agent_data["genome_id"],
             generation=self.sample_agent_data["generation"],
         )

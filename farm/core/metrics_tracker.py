@@ -269,7 +269,7 @@ class MetricsTracker:
             agent.resource_level,
             agent.current_health,
             agent.starting_health,
-            agent.starvation_threshold,
+            agent.starvation_counter,
             int(agent.is_defending),
             agent.total_reward,
             time - agent.birth_time,  # age

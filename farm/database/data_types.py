@@ -1453,8 +1453,8 @@ class BasicAgentInfo:
         Starting resource amount
     starting_health : float
         Maximum possible health value
-    starvation_threshold : float
-        Resource level below which agent starts starving
+    starvation_counter : float
+        Counter for consecutive steps agent has had zero resources
     last_known_position : Tuple[float, float]
         Last recorded position (x, y) coordinates
     generation : int
@@ -1478,7 +1478,7 @@ class BasicAgentInfo:
     lifespan: Optional[timedelta]
     initial_resources: float
     starting_health: float
-    starvation_threshold: float
+    starvation_counter: float
     genome_id: str
     generation: int
 

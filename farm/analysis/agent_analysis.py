@@ -256,7 +256,7 @@ class AgentAnalysis:
                     "generation": agent.generation,
                     "initial_resources": agent.initial_resources,
                     "starting_health": agent.starting_health,
-                    "starvation_threshold": agent.starvation_threshold,
+                    "starvation_counter": agent.starvation_counter,
                     "genome_id": agent.genome_id,
                 }
             return {}

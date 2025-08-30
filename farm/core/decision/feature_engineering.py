@@ -77,8 +77,8 @@ class FeatureEngineer:
         resource_density = float(len(nearby_resources)) / float(total_resources)
 
         # Starvation/consumption context
-        starvation_ratio = float(agent.starvation_threshold) / max(
-            1.0, float(agent.max_starvation)
+        starvation_ratio = float(agent.starvation_counter) / max(
+            1.0, float(agent.starvation_threshold)
         )
 
         return [resource_density, starvation_ratio]

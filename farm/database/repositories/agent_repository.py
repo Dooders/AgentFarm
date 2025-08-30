@@ -57,7 +57,7 @@ class AgentRepository(BaseRepository[AgentModel]):
             - position_y: float
             - initial_resources: float
             - starting_health: float
-            - starvation_threshold: int
+            - starvation_counter: int
             - genome_id: str
             - generation: int
 

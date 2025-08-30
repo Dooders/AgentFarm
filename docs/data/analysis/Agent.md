@@ -135,7 +135,7 @@ The fundamental metrics that define an agent's characteristics and state:
 - **Resource Metrics**
   - `initial_resources`: Starting resource allocation
   - `starting_health`: Initial health value
-  - `starvation_threshold`: Critical resource level that triggers survival behaviors
+  - `starvation_counter`: Current count of consecutive steps with zero resources
 
 - **Genealogical Data**
   - `generation`: Agent's position in evolutionary lineage
