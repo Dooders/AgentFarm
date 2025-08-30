@@ -197,6 +197,9 @@ class Environment(AECEnv):
         self.resources_shared = 0.0
         self.resources_shared_this_step = 0.0
 
+        # Cache total resources to avoid recomputing on every step
+        self.cached_total_resources = 0.0
+
         # Initialize cycle tracking for proper timestep semantics
         self._agents_acted_this_cycle = 0
         self._cycle_complete = False
@@ -407,6 +410,9 @@ class Environment(AECEnv):
         # Update environment's resource list to match ResourceManager
         self.resources = self.resource_manager.resources
 
+        # Update cached total resources after initialization
+        self.cached_total_resources = sum(r.amount for r in self.resources)
+
         # Resource IDs are fully managed by ResourceManager
 
     def remove_agent(self, agent: Any) -> None:
@@ -521,6 +527,9 @@ class Environment(AECEnv):
         try:
             # Update resources using ResourceManager
             resource_stats = self.resource_manager.update_resources(self.time)
+
+            # Update cached total resources after resource regeneration
+            self.cached_total_resources = sum(r.amount for r in self.resources)
 
             # Log resource update statistics if needed
             if resource_stats["regeneration_events"] > 0:
@@ -1249,12 +1258,16 @@ class Environment(AECEnv):
         # This ensures proper timestep semantics in AECEnv
         if self._cycle_complete:
             self.update()
+
+            # Check termination conditions only after all agents have acted
+            # This prevents premature termination if resources hit zero mid-cycle
+            alive_agents = [a for a in self._agent_objects.values() if a.alive]
+            terminated = len(alive_agents) == 0 or self.cached_total_resources == 0
+
             self._cycle_complete = False  # Reset for next cycle
 
-        # Add resource check to terminated:
-        alive_agents = [a for a in self._agent_objects.values() if a.alive]
-        total_resources = sum(r.amount for r in self.resources)
-        terminated = len(alive_agents) == 0 or total_resources == 0
+        # Default termination state (will be updated when cycle completes)
+        terminated = terminated if "terminated" in locals() else False
         truncated = self.time >= self.max_steps
 
         # Calculate reward using consolidated method
@@ -1295,5 +1308,5 @@ class Environment(AECEnv):
         if mode == "human":
             print(f"Time: {self.time}")
             print(f"Active agents: {len(self.agents)}")
-            print(f"Total resources: {sum(r.amount for r in self.resources)}")
+            print(f"Total resources: {self.cached_total_resources}")
         # TODO: Implement proper visualization if needed
