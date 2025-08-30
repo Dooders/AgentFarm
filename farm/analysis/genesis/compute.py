@@ -286,7 +286,7 @@ def compute_initial_state_metrics(session: Session) -> Dict[str, Any]:
 
             # Count connections for each resource
             connections = (
-                np.sum(adjacency_matrix, axis=1) - 1
+                np.sum(adjacency_matrix, axis=1, out=None) - 1
             )  # Subtract 1 to exclude self-connection
             possible_connections = len(resource_positions) - 1
 

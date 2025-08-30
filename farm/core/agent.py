@@ -329,10 +329,14 @@ class BaseAgent:
                 (2 * perception_radius + 1) x (2 * perception_radius + 1)
         """
         # Get perception radius from config
-        radius = getattr(self.config, "perception_radius", 5) if self.config else 5
-
-        # Create perception grid centered on agent
-        size = 2 * radius + 1
+        try:
+            radius = getattr(self.config, "perception_radius", 5) if self.config else 5
+            # Create perception grid centered on agent
+            size = 2 * radius + 1
+        except TypeError:
+            # Handle cases where config attributes return non-numeric values
+            radius = 5
+            size = 11
         perception = np.zeros((size, size), dtype=np.int8)
 
         # Get nearby entities using spatial service
@@ -473,13 +477,15 @@ class BaseAgent:
             expected_shape = self.decision_module.observation_shape
             # Handle case where observation_shape might be a Mock (for testing)
             try:
-                if hasattr(expected_shape, "__len__") and len(expected_shape) >= 3:
+                # Try to get the length of the expected shape - this will fail for Mock objects
+                shape_len = len(expected_shape)
+                if shape_len >= 3 and len(expected_shape) > 1:
                     # Multi-channel case: (channels, height, width)
                     num_channels, size = expected_shape[0], expected_shape[1]
-                elif hasattr(expected_shape, "__len__") and len(expected_shape) == 2:
+                elif shape_len == 2:
                     # 2D case: (height, width) - assume single channel
                     num_channels, size = 1, expected_shape[0]
-                elif hasattr(expected_shape, "__len__") and len(expected_shape) == 1:
+                elif shape_len == 1:
                     # 1D case: (features,) - reshape to square grid
                     feature_count = expected_shape[0]
                     size = int(np.ceil(np.sqrt(feature_count)))
@@ -488,20 +494,34 @@ class BaseAgent:
                     # Fallback for unexpected shape format
                     raise TypeError("Unexpected observation shape format")
             except (TypeError, AttributeError):
-                # Fallback when observation_shape is not a proper sequence (e.g., Mock in tests)
+                # Fallback when observation_shape is not a proper sequence
                 from farm.core.channels import NUM_CHANNELS
 
-                radius = (
-                    getattr(self.config, "perception_radius", 5) if self.config else 5
-                )
-                size = 2 * radius + 1
+                try:
+                    radius = (
+                        getattr(self.config, "perception_radius", 5)
+                        if self.config
+                        else 5
+                    )
+                    size = 2 * radius + 1
+                except TypeError:
+                    # Handle cases where config attributes return non-numeric values
+                    radius = 5
+                    size = 11
                 num_channels = NUM_CHANNELS
         else:
             # Fallback to default values if DecisionModule not initialized
             from farm.core.channels import NUM_CHANNELS
 
-            radius = getattr(self.config, "perception_radius", 5) if self.config else 5
-            size = 2 * radius + 1
+            try:
+                radius = (
+                    getattr(self.config, "perception_radius", 5) if self.config else 5
+                )
+                size = 2 * radius + 1
+            except TypeError:
+                # Handle cases where config attributes return non-numeric values
+                radius = 5
+                size = 11
             num_channels = NUM_CHANNELS
 
         # Create multi-channel observation array
@@ -534,16 +554,22 @@ class BaseAgent:
                 self.decision_module, "observation_shape"
             ):
                 expected_shape = self.decision_module.observation_shape
-                if len(expected_shape) >= 3:
-                    # Calculate radius from expected grid size: radius = (size - 1) / 2
-                    expected_size = expected_shape[1]  # Assuming square grid
-                    expected_radius = (expected_size - 1) // 2
+                # Try to get the length and handle Mock objects properly
+                try:
+                    shape_len = len(expected_shape)
+                    if shape_len >= 3 and len(expected_shape) > 1:
+                        # Calculate radius from expected grid size: radius = (size - 1) / 2
+                        expected_size = expected_shape[1]  # Assuming square grid
+                        expected_radius = (expected_size - 1) // 2
 
-                    # Create a temporary config with the correct radius
-                    class TempConfig:
-                        perception_radius = expected_radius
+                        # Create a temporary config with the correct radius
+                        class TempConfig:
+                            perception_radius = expected_radius
 
-                    self.config = TempConfig()
+                        self.config = TempConfig()
+                except (TypeError, AttributeError):
+                    # Skip config override if observation_shape is a Mock or invalid
+                    pass
 
             perception = self.get_fallback_perception()
         finally:

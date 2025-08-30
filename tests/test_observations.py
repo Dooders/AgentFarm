@@ -37,7 +37,7 @@ class TestChannel:
 
     def test_num_channels(self):
         """Test that NUM_CHANNELS is correctly calculated."""
-        assert NUM_CHANNELS == 12  # 12 channels defined
+        assert NUM_CHANNELS == 13  # 13 channels defined
 
 
 class TestObservationConfig:

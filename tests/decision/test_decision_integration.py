@@ -67,11 +67,14 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         self.assertAlmostEqual(np.sum(probs), 1.0, places=6)
 
     @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
-    @patch("farm.core.decision.algorithms.tianshou.DQNWrapper")
+    @patch("farm.core.decision.decision.DQNWrapper")
     def test_decision_module_with_tianshou_dqn(self, mock_dqn_class):
         """Test DecisionModule with Tianshou DQN."""
         mock_algorithm = Mock()
         mock_algorithm.select_action.return_value = 1
+        # Remove the automatically created select_action_with_mask to ensure
+        # the code uses the fallback path that calls select_action
+        delattr(mock_algorithm, "select_action_with_mask")
         mock_dqn_class.return_value = mock_algorithm
 
         config = DecisionConfig(algorithm_type="dqn")
@@ -85,8 +88,8 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         # Verify DDQN was initialized
         mock_dqn_class.assert_called_once()
         call_kwargs = mock_dqn_class.call_args[1]
-        self.assertEqual(call_kwargs["learning_rate"], config.learning_rate)
-        self.assertEqual(call_kwargs["gamma"], config.gamma)
+        self.assertEqual(call_kwargs["algorithm_config"]["lr"], config.learning_rate)
+        self.assertEqual(call_kwargs["algorithm_config"]["gamma"], config.gamma)
 
         # Test functionality
         state = torch.randn(8)
@@ -94,11 +97,14 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         self.assertEqual(action, 1)  # From mock
 
     @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
-    @patch("farm.core.decision.algorithms.tianshou.PPOWrapper")
+    @patch("farm.core.decision.decision.PPOWrapper")
     def test_decision_module_with_tianshou_ppo(self, mock_ppo_class):
         """Test DecisionModule with Tianshou PPO."""
         mock_algorithm = Mock()
         mock_algorithm.select_action.return_value = 2
+        # Remove the automatically created select_action_with_mask to ensure
+        # the code uses the fallback path that calls select_action
+        delattr(mock_algorithm, "select_action_with_mask")
         mock_ppo_class.return_value = mock_algorithm
 
         config = DecisionConfig(algorithm_type="ppo")
@@ -112,8 +118,8 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         # Verify PPO was initialized
         mock_ppo_class.assert_called_once()
         call_kwargs = mock_ppo_class.call_args[1]
-        self.assertEqual(call_kwargs["learning_rate"], config.learning_rate)
-        self.assertEqual(call_kwargs["gamma"], config.gamma)
+        self.assertEqual(call_kwargs["algorithm_config"]["lr"], config.learning_rate)
+        self.assertEqual(call_kwargs["algorithm_config"]["gamma"], config.gamma)
 
         # Test functionality
         state = torch.randn(8)
@@ -121,11 +127,14 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         self.assertEqual(action, 2)  # From mock
 
     @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
-    @patch("farm.core.decision.algorithms.tianshou.SACWrapper")
+    @patch("farm.core.decision.decision.SACWrapper")
     def test_decision_module_with_tianshou_sac(self, mock_sac_class):
         """Test DecisionModule with Tianshou SAC."""
         mock_algorithm = Mock()
         mock_algorithm.select_action.return_value = 3
+        # Remove the automatically created select_action_with_mask to ensure
+        # the code uses the fallback path that calls select_action
+        delattr(mock_algorithm, "select_action_with_mask")
         mock_sac_class.return_value = mock_algorithm
 
         config = DecisionConfig(algorithm_type="sac")
@@ -148,11 +157,14 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         self.assertEqual(action, 3)  # From mock
 
     @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
-    @patch("farm.core.decision.algorithms.tianshou.A2CWrapper")
+    @patch("farm.core.decision.decision.A2CWrapper")
     def test_decision_module_with_tianshou_a2c(self, mock_a2c_class):
         """Test DecisionModule with Tianshou A2C."""
         mock_algorithm = Mock()
         mock_algorithm.select_action.return_value = 0
+        # Remove the automatically created select_action_with_mask to ensure
+        # the code uses the fallback path that calls select_action
+        delattr(mock_algorithm, "select_action_with_mask")
         mock_a2c_class.return_value = mock_algorithm
 
         config = DecisionConfig(algorithm_type="a2c")
@@ -175,11 +187,14 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         self.assertEqual(action, 0)  # From mock
 
     @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
-    @patch("farm.core.decision.algorithms.tianshou.DDPGWrapper")
+    @patch("farm.core.decision.decision.DDPGWrapper")
     def test_decision_module_with_tianshou_ddpg(self, mock_ddpg_class):
         """Test DecisionModule with Tianshou DDPG."""
         mock_algorithm = Mock()
         mock_algorithm.select_action.return_value = 1
+        # Remove the automatically created select_action_with_mask to ensure
+        # the code uses the fallback path that calls select_action
+        delattr(mock_algorithm, "select_action_with_mask")
         mock_ddpg_class.return_value = mock_algorithm
 
         config = DecisionConfig(algorithm_type="ddpg")
@@ -247,7 +262,13 @@ class TestEndToEndDecisionWorkflow(unittest.TestCase):
             def __init__(self, n):
                 self.n = n
 
+        # Create a simple observation space class
+        class MockObservationSpace:
+            def __init__(self, shape):
+                self.shape = shape
+
         self.mock_env.action_space = MockActionSpace(6)
+        self.mock_env.observation_space = MockObservationSpace((8,))
         self.mock_agent.environment = self.mock_env
 
     def test_complete_decision_learning_cycle(self):
@@ -368,7 +389,7 @@ class TestEndToEndDecisionWorkflow(unittest.TestCase):
                 if algorithm in ["ppo", "sac", "dqn", "a2c", "ddpg"]:
                     with patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True):
                         with patch(
-                            f"farm.core.decision.algorithms.tianshou.{algorithm.upper()}Wrapper"
+                            f"farm.core.decision.decision.{algorithm.upper()}Wrapper"
                         ) as mock_wrapper:
                             mock_algorithm = Mock()
                             mock_wrapper.return_value = mock_algorithm
@@ -413,7 +434,7 @@ class TestEndToEndDecisionWorkflow(unittest.TestCase):
                             "farm.core.decision.decision.TIANSHOU_AVAILABLE", True
                         ):
                             with patch(
-                                f"farm.core.decision.algorithms.tianshou.{algorithm.upper()}Wrapper"
+                                f"farm.core.decision.decision.{algorithm.upper()}Wrapper"
                             ) as mock_wrapper:
                                 mock_new_algorithm = Mock()
                                 mock_wrapper.return_value = mock_new_algorithm
@@ -858,7 +879,7 @@ class TestDecisionSystemRobustness(unittest.TestCase):
 
         with patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True):
             with patch(
-                "farm.core.decision.algorithms.tianshou.PPOWrapper",
+                "farm.core.decision.decision.PPOWrapper",
                 side_effect=Exception("Init failed"),
             ):
                 module = DecisionModule(
@@ -940,6 +961,19 @@ class TestDecisionSystemObservationSpaces(unittest.TestCase):
 
         # Create mock environment with different observation spaces
         self.mock_env = Mock()
+
+        # Create a simple action space class
+        class MockActionSpace:
+            def __init__(self, n):
+                self.n = n
+
+        # Create a simple observation space class
+        class MockObservationSpace:
+            def __init__(self, shape):
+                self.shape = shape
+
+        self.mock_env.action_space = MockActionSpace(4)
+        self.mock_env.observation_space = MockObservationSpace((8,))
         self.mock_agent.environment = self.mock_env
 
     def test_1d_observation_space(self):
@@ -1062,12 +1096,26 @@ class TestDecisionSystemObservationSpaces(unittest.TestCase):
         """Test that modules can be used concurrently (basic test)."""
         config = DecisionConfig(algorithm_type="fallback")
 
+        # Create a simple action space class
+        class MockActionSpace:
+            def __init__(self, n):
+                self.n = n
+
+        # Create a simple observation space class
+        class MockObservationSpace:
+            def __init__(self, shape):
+                self.shape = shape
+
         # Create multiple modules
         modules = []
         for i in range(5):
             mock_agent = Mock()
             mock_agent.agent_id = f"concurrent_agent_{i}"
-            mock_agent.environment = self.mock_env
+            mock_agent.environment = Mock()
+
+            # Set up action and observation spaces for this agent's environment
+            mock_agent.environment.action_space = MockActionSpace(4)
+            mock_agent.environment.observation_space = MockObservationSpace((8,))
 
             module = DecisionModule(
                 mock_agent,
@@ -1104,7 +1152,13 @@ class TestDecisionSystemIntegrationWithEnvironment(unittest.TestCase):
             def __init__(self, n):
                 self.n = n
 
+        # Create a simple observation space class
+        class MockObservationSpace:
+            def __init__(self, shape):
+                self.shape = shape
+
         self.mock_env.action_space = MockActionSpace(6)  # Standard actions
+        self.mock_env.observation_space = MockObservationSpace((8,))
         self.mock_agent.environment = self.mock_env
 
     def test_decision_module_with_environment_feedback(self):

@@ -155,6 +155,7 @@ def base_agent_kwargs(
         "position": (5.0, 5.0),
         "resource_level": 50,
         "spatial_service": mock_spatial_service,
+        "environment": mock_environment,
         "metrics_service": mock_metrics_service,
         "logging_service": mock_logging_service,
         "validation_service": mock_validation_service,
@@ -465,8 +466,8 @@ class TestBaseAgentDecisionMaking:
 
         assert isinstance(state, torch.Tensor)
         assert state.device == sample_base_agent.device
-        # Should be 1D tensor with basic agent state
-        assert len(state.shape) == 1
+        # Should be 3D tensor with multi-channel observation
+        assert len(state.shape) == 3
 
     def test_get_fallback_perception(
         self, sample_base_agent, mock_spatial_service, mock_validation_service
@@ -1317,6 +1318,9 @@ class TestBaseAgentEdgeCases:
         mock_decision_module = Mock()
         mock_decision_module.decide_action.return_value = 0
         mock_decision_module_class.return_value = mock_decision_module
+
+        # Replace the agent's decision_module with our test mock
+        sample_base_agent.decision_module = mock_decision_module
 
         # Setup curriculum config
         curriculum_config = Mock()

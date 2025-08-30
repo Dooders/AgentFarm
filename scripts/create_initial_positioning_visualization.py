@@ -251,7 +251,9 @@ def get_dominance_data(db_path):
     weights = (steps / max_step) + 0.5  # Linear weights from 0.5 to 1.5
 
     recency_weighted_auc = {
-        "SystemAgent": np.sum(population_df["system_agents"].to_numpy() * weights),
+        "SystemAgent": np.sum(
+            population_df["system_agents"].to_numpy() * weights, out=None
+        ),
         "IndependentAgent": np.sum(
             population_df["independent_agents"].to_numpy() * weights
         ),

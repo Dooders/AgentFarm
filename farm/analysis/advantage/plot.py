@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+
 from farm.analysis.common.context import AnalysisContext
 
 
@@ -21,7 +22,7 @@ def plot_advantage_results(
     df: pd.DataFrame,
     analysis_results: Dict[str, Any],
     output_path: str = "",
-    ctx: AnalysisContext = None,
+    ctx: Optional[AnalysisContext] = None,
     data_cleaned: bool = False,
 ):
     """
@@ -81,7 +82,10 @@ def add_data_cleaning_watermark(fig, ax=None):
 
 
 def plot_advantage_correlation_matrix(
-    df: pd.DataFrame, output_path: str = "", data_cleaned: bool = False, ctx: AnalysisContext = None
+    df: pd.DataFrame,
+    output_path: str = "",
+    data_cleaned: bool = False,
+    ctx: Optional[AnalysisContext] = None,
 ):
     """
     Plot correlation matrix between advantages and dominance scores.
@@ -195,7 +199,10 @@ def plot_advantage_correlation_matrix(
 
 
 def plot_advantage_category_importance(
-    analysis_results: Dict[str, Any], output_path: str = "", data_cleaned: bool = False, ctx: AnalysisContext = None
+    analysis_results: Dict[str, Any],
+    output_path: str = "",
+    data_cleaned: bool = False,
+    ctx: Optional[AnalysisContext] = None,
 ):
     """
     Plot the importance of different advantage categories for each agent type.
@@ -274,7 +281,10 @@ def plot_advantage_category_importance(
 
 
 def plot_top_dominance_predictors(
-    analysis_results: Dict[str, Any], output_path: str = "", data_cleaned: bool = False, ctx: AnalysisContext = None
+    analysis_results: Dict[str, Any],
+    output_path: str = "",
+    data_cleaned: bool = False,
+    ctx: Optional[AnalysisContext] = None,
 ):
     """
     Plot the top predictors of dominance for each agent type.
@@ -372,7 +382,10 @@ def plot_top_dominance_predictors(
 
 
 def plot_advantage_thresholds(
-    analysis_results: Dict[str, Any], output_path: str = "", data_cleaned: bool = False, ctx: AnalysisContext = None
+    analysis_results: Dict[str, Any],
+    output_path: str = "",
+    data_cleaned: bool = False,
+    ctx: Optional[AnalysisContext] = None,
 ):
     """
     Plot advantage thresholds and their relationship with dominance likelihood.
@@ -484,7 +497,10 @@ def plot_advantage_thresholds(
 
 
 def plot_advantage_timing(
-    analysis_results: Dict[str, Any], output_path: str = "", data_cleaned: bool = False, ctx: AnalysisContext = None
+    analysis_results: Dict[str, Any],
+    output_path: str = "",
+    data_cleaned: bool = False,
+    ctx: Optional[AnalysisContext] = None,
 ):
     """
     Plot the importance of advantages across different simulation phases.
@@ -560,7 +576,10 @@ def plot_advantage_timing(
 
 
 def plot_composite_advantage_breakdown(
-    df: pd.DataFrame, output_path: str = "", data_cleaned: bool = False, ctx: AnalysisContext = None
+    df: pd.DataFrame,
+    output_path: str = "",
+    data_cleaned: bool = False,
+    ctx: Optional[AnalysisContext] = None,
 ):
     """
     Plot breakdown of components contributing to composite advantage scores.
@@ -663,7 +682,10 @@ def plot_composite_advantage_breakdown(
 
 
 def plot_advantage_trajectories(
-    df: pd.DataFrame, output_path: str = "", data_cleaned: bool = False, ctx: AnalysisContext = None
+    df: pd.DataFrame,
+    output_path: str = "",
+    data_cleaned: bool = False,
+    ctx: Optional[AnalysisContext] = None,
 ):
     """
     Plot advantage trajectories over the course of the simulation.

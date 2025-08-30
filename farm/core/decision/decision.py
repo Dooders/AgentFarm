@@ -88,9 +88,6 @@ class DecisionModule:
         self.config = config
         self.agent = agent
 
-        # Set state dimension first (needed for observation space creation)
-        self.state_dim = config.rl_state_dim
-
         # Use provided action space
         self.action_space = action_space
         # Get number of actions directly from action space
@@ -107,11 +104,14 @@ class DecisionModule:
         # Store the full observation shape for multi-dimensional support
         if hasattr(observation_space, "shape"):
             self.observation_shape = observation_space.shape
-            # For backward compatibility, set state_dim to total elements
-            self.state_dim = int(np.prod(observation_space.shape))
+            # Use rl_state_dim from config if provided, otherwise use observation space shape
+            if config.rl_state_dim > 0:
+                self.state_dim = config.rl_state_dim
+            else:
+                self.state_dim = int(np.prod(observation_space.shape))
         else:
-            self.observation_shape = (self.state_dim,)
-            self.state_dim = int(np.prod(self.observation_shape))
+            self.observation_shape = (config.rl_state_dim,)
+            self.state_dim = config.rl_state_dim
 
         # Initialize algorithm
         self.algorithm: Any = None
@@ -588,6 +588,13 @@ class DecisionModule:
 
                 # Get probabilities from Tianshou algorithm
                 probs = self.algorithm.predict_proba(state_np)
+                # Handle 2D output (batch_size, num_actions) - take first sample
+                if (
+                    isinstance(probs, np.ndarray)
+                    and probs.ndim == 2
+                    and probs.shape[0] == 1
+                ):
+                    probs = probs[0]
                 return np.array(probs, dtype=np.float32)
 
             # For SB3 algorithms that support it, get action probabilities

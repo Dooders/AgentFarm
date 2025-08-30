@@ -118,7 +118,7 @@ class DecisionConfig(BaseDQNConfig):
     algorithm_type: str = Field(
         default="dqn",
         description=(
-            "Action algorithm type: one of ['dqn','mlp','svm','random_forest','gradient_boost','naive_bayes','knn','ppo','sac','a2c','td3']"
+            "Action algorithm type: one of ['dqn','mlp','svm','random_forest','gradient_boost','naive_bayes','knn','ppo','sac','a2c','ddpg','ddqn','fallback']"
         ),
     )
     algorithm_params: Dict[str, Any] = Field(
@@ -214,7 +214,7 @@ class DecisionConfig(BaseDQNConfig):
             "ppo",
             "sac",
             "a2c",
-            "td3",
+            "ddpg",
             # Additional supported algorithms
             "ddqn",  # Double DQN (alias for dqn with DDQN features)
             "fallback",  # Fallback random algorithm

@@ -34,13 +34,9 @@ from farm.core.metrics_tracker import MetricsTracker
 from farm.core.observations import AgentObservation, ObservationConfig
 from farm.core.resource_manager import ResourceManager
 from farm.core.services.implementations import (
-    EnvironmentAgentLifecycleService,
-    EnvironmentLoggingService,
-    EnvironmentMetricsService,
-    EnvironmentTimeService,
-    EnvironmentValidationService,
-    SpatialIndexAdapter,
-)
+    EnvironmentAgentLifecycleService, EnvironmentLoggingService,
+    EnvironmentMetricsService, EnvironmentTimeService,
+    EnvironmentValidationService, SpatialIndexAdapter)
 from farm.core.spatial_index import SpatialIndex
 from farm.core.state import EnvironmentState
 from farm.database.utilities import setup_db
@@ -1458,13 +1454,14 @@ class Environment(AECEnv):
 
         # Update internal PettingZoo state dictionaries (required for AECEnv API)
         self.observations[agent_id] = observation
-        self.rewards[agent_id] = reward
         self.terminations[agent_id] = terminated
         self.truncations[agent_id] = truncated
         self.infos[agent_id] = {}
 
-        # Handle cumulative rewards
+        # Handle cumulative rewards - PettingZoo expects cumulative rewards in rewards dict
         self._cumulative_rewards[agent_id] += reward
+        # Update rewards dict with cumulative reward for PettingZoo compatibility
+        self.rewards[agent_id] = self._cumulative_rewards[agent_id]
 
         # Advance to next agent in the cycle (required for AECEnv API)
         self._next_agent()

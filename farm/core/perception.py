@@ -78,7 +78,7 @@ class PerceptionData:
         Returns:
             int: Number of cells containing specified content
         """
-        return np.sum(self.grid == content.value)
+        return np.sum(self.grid == content.value, out=None)
 
     def get_content_positions(
         self, content: PerceptionContent

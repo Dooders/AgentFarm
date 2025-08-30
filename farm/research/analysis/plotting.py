@@ -201,7 +201,7 @@ def plot_resource_consumption_trends(
             has_consumption = False
             for consumption in data["consumption"]:
                 if (
-                    np.sum(consumption) > 0.01
+                    np.sum(consumption, out=None) > 0.01
                 ):  # Small threshold to account for floating point
                     has_consumption = True
                     break
@@ -296,7 +296,9 @@ def plot_resource_consumption_trends(
         # Calculate and display statistics
         avg_consumption = np.mean(smoothed_mean)
         max_consumption = np.max(smoothed_mean)
-        total_consumption = np.sum(smoothed_mean)  # Total consumption across all steps
+        total_consumption = np.sum(
+            smoothed_mean, out=None
+        )  # Total consumption across all steps
 
         # Calculate average consumption per simulation
         avg_per_simulation = total_consumption / len(data["consumption"])

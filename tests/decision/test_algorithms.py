@@ -165,7 +165,7 @@ class TestMLPActionSelector(unittest.TestCase):
         proba = self.algo.predict_proba(state)
 
         self.assertEqual(len(proba), self.num_actions)
-        self.assertAlmostEqual(float(np.sum(proba)), 1.0, places=6)
+        self.assertAlmostEqual(float(np.sum(proba, out=None)), 1.0, places=6)
         expected_prob = 1.0 / self.num_actions
         np.testing.assert_array_almost_equal(proba, [expected_prob] * self.num_actions)
 
@@ -189,7 +189,7 @@ class TestMLPActionSelector(unittest.TestCase):
         proba = self.algo.predict_proba(test_state)
 
         self.assertEqual(len(proba), self.num_actions)
-        self.assertAlmostEqual(float(np.sum(proba)), 1.0, places=6)
+        self.assertAlmostEqual(float(np.sum(proba, out=None)), 1.0, places=6)
 
         action = self.algo.select_action(test_state)
         self.assertIsInstance(action, int)
@@ -222,7 +222,7 @@ class TestRandomForestActionSelector(unittest.TestCase):
         proba = self.algo.predict_proba(state)
 
         self.assertEqual(len(proba), self.num_actions)
-        self.assertAlmostEqual(float(np.sum(proba)), 1.0, places=6)
+        self.assertAlmostEqual(float(np.sum(proba, out=None)), 1.0, places=6)
 
     def test_train_and_predict(self):
         """Test training and prediction."""
@@ -240,7 +240,7 @@ class TestRandomForestActionSelector(unittest.TestCase):
 
         proba = self.algo.predict_proba(np.array([1.0, 0.0]))
         self.assertEqual(len(proba), self.num_actions)
-        self.assertAlmostEqual(float(np.sum(proba)), 1.0, places=6)
+        self.assertAlmostEqual(float(np.sum(proba, out=None)), 1.0, places=6)
 
         action = self.algo.select_action(np.array([1.0, 0.0]))
         self.assertIsInstance(action, int)
@@ -268,7 +268,7 @@ class TestNaiveBayesActionSelector(unittest.TestCase):
         proba = self.algo.predict_proba(state)
 
         self.assertEqual(len(proba), self.num_actions)
-        self.assertAlmostEqual(float(np.sum(proba)), 1.0, places=6)
+        self.assertAlmostEqual(float(np.sum(proba, out=None)), 1.0, places=6)
 
     def test_train_and_predict(self):
         """Test training and prediction."""
@@ -319,7 +319,7 @@ class TestKNNActionSelector(unittest.TestCase):
 
         proba = self.algo.predict_proba(np.array([0.5, 0.5]))
         self.assertEqual(len(proba), self.num_actions)
-        self.assertAlmostEqual(float(np.sum(proba)), 1.0, places=6)
+        self.assertAlmostEqual(float(np.sum(proba, out=None)), 1.0, places=6)
 
 
 class TestGradientBoostActionSelector(unittest.TestCase):
@@ -385,7 +385,7 @@ class TestSVMActionSelector(unittest.TestCase):
 
         proba = self.algo.predict_proba(np.array([1.0, 0.0]))
         self.assertEqual(len(proba), self.num_actions)
-        self.assertAlmostEqual(float(np.sum(proba)), 1.0, places=6)
+        self.assertAlmostEqual(float(np.sum(proba, out=None)), 1.0, places=6)
 
     def test_custom_kernel(self):
         """Test SVM with different kernel."""
@@ -475,8 +475,17 @@ class TestAlgorithmBenchmark(unittest.TestCase):
             state_dim=4,
         )
 
-        algo = benchmark.create_algorithm("ppo", {"state_dim": 4})
-        self.assertEqual(algo.num_actions, self.num_actions)
+        # Add debugging to check if state_dim is properly set
+        try:
+            algo = benchmark.create_algorithm("ppo", {"state_dim": 4})
+            print(
+                f"Algorithm created successfully. State dim: {getattr(algo, 'state_dim', 'NOT_SET')}"
+            )
+            self.assertEqual(algo.num_actions, self.num_actions)
+        except Exception as e:
+            print(f"Error creating algorithm: {e}")
+            print(f"Benchmark state_dim: {benchmark.state_dim}")
+            raise
 
     @patch("time.time")
     def test_run_single_algorithm(self, mock_time):

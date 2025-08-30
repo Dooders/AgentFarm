@@ -436,7 +436,7 @@ class BehaviorClusteringAnalyzer:
             2
         """
         # Get relevant part of linkage matrix for this cluster
-        cluster_size = np.sum(cluster_mask)
+        cluster_size = np.sum(cluster_mask, out=None)
         if cluster_size <= min_clusters:
             return 1
 
