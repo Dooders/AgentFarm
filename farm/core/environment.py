@@ -34,9 +34,13 @@ from farm.core.metrics_tracker import MetricsTracker
 from farm.core.observations import AgentObservation, ObservationConfig
 from farm.core.resource_manager import ResourceManager
 from farm.core.services.implementations import (
-    EnvironmentAgentLifecycleService, EnvironmentLoggingService,
-    EnvironmentMetricsService, EnvironmentTimeService,
-    EnvironmentValidationService, SpatialIndexAdapter)
+    EnvironmentAgentLifecycleService,
+    EnvironmentLoggingService,
+    EnvironmentMetricsService,
+    EnvironmentTimeService,
+    EnvironmentValidationService,
+    SpatialIndexAdapter,
+)
 from farm.core.spatial_index import SpatialIndex
 from farm.core.state import EnvironmentState
 from farm.database.utilities import setup_db
@@ -218,6 +222,12 @@ class Environment(AECEnv):
         if self.seed_value is not None:
             random.seed(self.seed_value)
             np.random.seed(self.seed_value)
+            try:
+                torch.manual_seed(self.seed_value)
+            except Exception as e:
+                logger.warning(
+                    f"Failed to seed torch with value {self.seed_value}: {e}"
+                )
 
         # Initialize basic attributes
         self.width = width
@@ -753,9 +763,13 @@ class Environment(AECEnv):
         """
         # If the agent supports dependency injection, supply services and config
         try:
-            # Spatial service is required - always provide it
+            # Spatial service is required for agent act()/perception; ensure present
             if hasattr(agent, "spatial_service"):
                 agent.spatial_service = self.spatial_service
+            else:
+                setattr(agent, "spatial_service", self.spatial_service)
+
+            # Optional services: inject only when missing/None
             if hasattr(agent, "metrics_service") and agent.metrics_service is None:
                 agent.metrics_service = self.metrics_service
             if hasattr(agent, "logging_service") and agent.logging_service is None:
@@ -771,11 +785,23 @@ class Environment(AECEnv):
                 agent.lifecycle_service = EnvironmentAgentLifecycleService(self)
             if hasattr(agent, "config") and getattr(agent, "config", None) is None:
                 agent.config = self.config
-            # Set environment reference for action/observation space access
+
+            # Environment reference for action/observation space access
             if hasattr(agent, "environment"):
                 agent.environment = self
-        except Exception:
-            pass
+            else:
+                setattr(agent, "environment", self)
+
+            # Validate required dependencies after injection
+            if getattr(agent, "spatial_service", None) is None:
+                raise ValueError(
+                    f"Agent {getattr(agent, 'agent_id', '?')} missing spatial_service after injection"
+                )
+        except Exception as e:
+            logger.error(
+                f"Failed to inject services for agent {getattr(agent, 'agent_id', '?')}: {e}"
+            )
+            raise
 
         agent_data = [
             {
@@ -909,7 +935,23 @@ class Environment(AECEnv):
         else:
             self.observation_config = ObservationConfig()
         S = 2 * self.observation_config.R + 1
-        np_dtype = getattr(np, self.observation_config.dtype)
+        # Robust numpy dtype mapping from torch dtype or string
+        torch_dtype = (
+            getattr(torch, self.observation_config.dtype)
+            if isinstance(self.observation_config.dtype, str)
+            else self.observation_config.dtype
+        )
+        if torch_dtype in (torch.float32, torch.float):
+            np_dtype = np.float32
+        elif torch_dtype in (torch.float64, torch.double):
+            np_dtype = np.float64
+        elif torch_dtype in (torch.float16, torch.half):
+            np_dtype = np.float16
+        elif torch_dtype == torch.bfloat16:
+            # numpy has no bfloat16; use float32 for the observation space dtype
+            np_dtype = np.float32
+        else:
+            np_dtype = np.float32
         self._observation_space = spaces.Box(
             low=0.0, high=1.0, shape=(NUM_CHANNELS, S, S), dtype=np_dtype
         )
@@ -1045,17 +1087,6 @@ class Environment(AECEnv):
         # Assume width and height are integers for grid
         height, width = int(self.height), int(self.width)
 
-        # Create resource grid with continuous position support
-        resource_grid = torch.zeros(
-            (height, width),
-            dtype=self.observation_config.torch_dtype,
-            device=self.observation_config.device,
-        )
-        max_amount = self.max_resource or (
-            self.config.max_resource_amount if self.config else 10
-        )
-        grid_size = (width, height)
-
         # Get discretization method from config
         discretization_method = (
             getattr(self.config, "position_discretization_method", "floor")
@@ -1068,30 +1099,6 @@ class Environment(AECEnv):
             else True
         )
 
-        for r in self.resources:
-            if use_bilinear:
-                # Use bilinear interpolation for continuous positions
-                bilinear_distribute_value(
-                    r.position, r.amount / max_amount, resource_grid, grid_size
-                )
-            else:
-                # Use simple discretization method
-                x, y = discretize_position_continuous(
-                    r.position, grid_size, discretization_method
-                )
-                if 0 <= x < width and 0 <= y < height:
-                    resource_grid[y, x] += r.amount / max_amount
-
-        # Empty layers
-        obstacles = torch.zeros_like(resource_grid)
-        terrain_cost = torch.zeros_like(resource_grid)
-
-        world_layers = {
-            "RESOURCES": resource_grid,
-            "OBSTACLES": obstacles,
-            "TERRAIN_COST": terrain_cost,
-        }
-
         # Agent position as (y, x) using configured discretization method
         grid_size = (width, height)
         ax, ay = discretize_position_continuous(
@@ -1100,6 +1107,76 @@ class Environment(AECEnv):
 
         # Ensure spatial index is up to date before observation generation
         self.spatial_index.update()
+
+        # Build local resource layer directly (avoid full-world grids)
+        R = self.observation_config.R
+        S = 2 * R + 1
+        resource_local = torch.zeros(
+            (S, S),
+            dtype=self.observation_config.torch_dtype,
+            device=self.observation_config.device,
+        )
+        max_amount = self.max_resource or (
+            self.config.max_resource_amount if self.config else 10
+        )
+
+        # Query nearby resources within a radius covering the local window
+        # Use slightly larger than R to capture bilinear spread near the boundary
+        try:
+            nearby_resources = self.spatial_index.get_nearby_resources(
+                agent.position, R + 1
+            )
+        except AttributeError as e:
+            # Handle case where spatial_index or its attributes are None
+            logger.warning("Spatial index not properly initialized: %s", e)
+            nearby_resources = []
+        except (ValueError, TypeError) as e:
+            # Handle invalid input parameters (position format, radius type)
+            logger.warning("Invalid parameters for spatial query: %s", e)
+            nearby_resources = []
+        except IndexError as e:
+            # Handle case where KD-tree indices are out of bounds
+            logger.warning("Index error in spatial query: %s", e)
+            nearby_resources = []
+        except Exception as e:
+            # Catch any other unexpected errors for debugging
+            logger.exception(
+                "Unexpected error querying nearby resources in spatial index"
+            )
+            nearby_resources = []
+
+        if use_bilinear:
+            for res in nearby_resources:
+                # Convert world to local continuous coords where (R, R) is agent center
+                lx = float(res.position[0]) - (ax - R)
+                ly = float(res.position[1]) - (ay - R)
+                bilinear_distribute_value(
+                    (lx, ly),
+                    float(res.amount) / float(max_amount),
+                    resource_local,
+                    (S, S),
+                )
+        else:
+            for res in nearby_resources:
+                rx, ry = discretize_position_continuous(
+                    res.position, (width, height), discretization_method
+                )
+                lx = rx - (ax - R)
+                ly = ry - (ay - R)
+                if 0 <= lx < S and 0 <= ly < S:
+                    resource_local[int(ly), int(lx)] += float(res.amount) / float(
+                        max_amount
+                    )
+
+        # Empty local layers
+        obstacles_local = torch.zeros_like(resource_local)
+        terrain_cost_local = torch.zeros_like(resource_local)
+
+        world_layers = {
+            "RESOURCES": resource_local,
+            "OBSTACLES": obstacles_local,
+            "TERRAIN_COST": terrain_cost_local,
+        }
 
         self_hp01 = agent.current_health / agent.starting_health
 
@@ -1331,6 +1408,10 @@ class Environment(AECEnv):
             self.seed_value = seed
             random.seed(seed)
             np.random.seed(seed)
+            try:
+                torch.manual_seed(seed)
+            except Exception:
+                pass
 
         self.time = 0
         # Reset metrics tracker
