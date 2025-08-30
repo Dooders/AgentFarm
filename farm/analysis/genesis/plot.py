@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from matplotlib.gridspec import GridSpec
+from farm.analysis.common.context import AnalysisContext
 import pandas as pd
 import logging
 
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 # Set the style globally for all plots
 plt.style.use('seaborn-v0_8')  # Using a valid style name
 
-def plot_initial_state_comparison(simulations: List[Dict[str, Any]], output_path: str):
+def plot_initial_state_comparison(simulations: List[Dict[str, Any]], output_path: str = "", ctx: AnalysisContext = None):
     """
     Generate visualizations comparing initial states across simulations.
     
@@ -133,11 +134,12 @@ def plot_initial_state_comparison(simulations: List[Dict[str, Any]], output_path
         ax4.tick_params(axis='x', rotation=45)
     
     plt.tight_layout()
-    plt.savefig(os.path.join(output_path, "initial_state_comparison.png"), dpi=300, bbox_inches='tight')
+    out_dir = ctx.output_path if (ctx and ctx.output_path) else output_path
+    plt.savefig(os.path.join(out_dir, "initial_state_comparison.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
 
-def plot_critical_period_analysis(simulations: List[Dict[str, Any]], output_path: str):
+def plot_critical_period_analysis(simulations: List[Dict[str, Any]], output_path: str = "", ctx: AnalysisContext = None):
     """
     Generate visualizations analyzing the critical period across simulations.
     
@@ -257,7 +259,8 @@ def plot_critical_period_analysis(simulations: List[Dict[str, Any]], output_path
         logger.warning("No first reproduction data available for plotting")
     
     plt.tight_layout()
-    plt.savefig(os.path.join(output_path, "critical_period_analysis.png"), dpi=300, bbox_inches='tight')
+    out_dir = ctx.output_path if (ctx and ctx.output_path) else output_path
+    plt.savefig(os.path.join(out_dir, "critical_period_analysis.png"), dpi=300, bbox_inches='tight')
     plt.close()
 
 
@@ -464,7 +467,8 @@ def plot_genesis_analysis_results(results: Dict[str, Any], output_path: str):
             padding = (max_val - min_val) * 0.1
             plt.ylim(min_val - padding, max_val + padding)
         
-        plt.savefig(os.path.join(output_path, 'critical_period_trends.png'), dpi=150, bbox_inches='tight')
+        out_dir = ctx.output_path if (ctx and ctx.output_path) else output_path
+        plt.savefig(os.path.join(out_dir, 'critical_period_trends.png'), dpi=150, bbox_inches='tight')
     plt.close()
     
     # Continue with the rest of the plots...
@@ -532,5 +536,6 @@ def plot_genesis_analysis_results(results: Dict[str, Any], output_path: str):
         ax4.tick_params(axis='x', rotation=45)
     
     plt.tight_layout()
-    plt.savefig(os.path.join(output_path, 'genesis_analysis_results.png'), dpi=300, bbox_inches='tight')
+    out_dir = ctx.output_path if (ctx and ctx.output_path) else output_path
+    plt.savefig(os.path.join(out_dir, 'genesis_analysis_results.png'), dpi=300, bbox_inches='tight')
     plt.close() 

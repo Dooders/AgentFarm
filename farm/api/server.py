@@ -8,6 +8,7 @@ from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 
 from farm.core.analysis import analyze_simulation
+from farm.analysis.service import AnalysisRequest, AnalysisService
 from farm.core.config import SimulationConfig
 from farm.core.simulation import run_simulation
 from farm.database.database import SimulationDatabase
@@ -121,6 +122,38 @@ def get_analysis(sim_id):
 
     except Exception as e:
         logger.error(f"Error analyzing simulation: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/analysis/<module_name>", methods=["POST"])
+def run_analysis_module(module_name):
+    try:
+        payload = request.json or {}
+        experiment_path = payload.get("experiment_path", "results")
+        output_path = payload.get("output_path", "results/analysis")
+        group = payload.get("group", "all")
+        processor_kwargs = payload.get("processor_kwargs")
+        analysis_kwargs = payload.get("analysis_kwargs")
+
+        service = AnalysisService()
+        req = AnalysisRequest(
+            module_name=module_name,
+            experiment_path=experiment_path,
+            output_path=output_path,
+            group=group,
+            processor_kwargs=processor_kwargs,
+            analysis_kwargs=analysis_kwargs,
+        )
+        output_dir, df = service.run(req)
+        return jsonify(
+            {
+                "status": "success",
+                "output_path": output_dir,
+                "rows": int(df.shape[0]) if df is not None else 0,
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error running analysis module: {str(e)}", exc_info=True)
         return jsonify({"status": "error", "message": str(e)}), 500
 
 

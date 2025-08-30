@@ -3,6 +3,8 @@ Registry for analysis modules.
 This module provides a central registry for all analysis modules.
 """
 
+import importlib
+import os
 from typing import Dict, List, Optional
 
 from farm.analysis.base_module import AnalysisModule
@@ -74,21 +76,35 @@ class ModuleRegistry:
 registry = ModuleRegistry()
 
 
-def register_modules():
+def register_modules(config_env_var: str = "FARM_ANALYSIS_MODULES"):
     """
-    Register all available analysis modules.
-    This function should be called once at application startup.
+    Register available analysis modules.
+
+    Discovery order:
+    1) Environment variable FARM_ANALYSIS_MODULES as comma-separated import paths to module singletons
+       e.g., "farm.analysis.dominance.module.dominance_module, farm.analysis.template.module.template_module"
+    2) Fallback to built-in dominance module if env is not set.
     """
-    # Import modules here to avoid circular imports
-    from farm.analysis.dominance.module import dominance_module
+    module_paths = os.getenv(config_env_var, "").strip()
+    if module_paths:
+        for path in [p.strip() for p in module_paths.split(",") if p.strip()]:
+            try:
+                module_path, attr = path.rsplit(".", 1)
+                mod = importlib.import_module(module_path)
+                instance = getattr(mod, attr)
+                if instance:
+                    registry.register_module(instance)
+            except Exception:
+                continue
+        return
 
-    # Register modules
-    registry.register_module(dominance_module)
+    # Fallback registration
+    try:
+        from farm.analysis.dominance.module import dominance_module
 
-    # Add more modules as they become available
-    # registry.register_module(reproduction_module)
-    # registry.register_module(resource_module)
-    # etc.
+        registry.register_module(dominance_module)
+    except Exception:
+        pass
 
 
 def get_module(name: str) -> Optional[AnalysisModule]:
