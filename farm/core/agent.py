@@ -490,25 +490,26 @@ class BaseAgent:
         # Get perception data - use grid size that matches expected shape
         # Temporarily override config to get correct perception radius
         original_config = getattr(self, "config", None)
-        if hasattr(self, "decision_module") and hasattr(
-            self.decision_module, "observation_shape"
-        ):
-            expected_shape = self.decision_module.observation_shape
-            if len(expected_shape) >= 3:
-                # Calculate radius from expected grid size: radius = (size - 1) / 2
-                expected_size = expected_shape[1]  # Assuming square grid
-                expected_radius = (expected_size - 1) // 2
+        try:
+            if hasattr(self, "decision_module") and hasattr(
+                self.decision_module, "observation_shape"
+            ):
+                expected_shape = self.decision_module.observation_shape
+                if len(expected_shape) >= 3:
+                    # Calculate radius from expected grid size: radius = (size - 1) / 2
+                    expected_size = expected_shape[1]  # Assuming square grid
+                    expected_radius = (expected_size - 1) // 2
 
-                # Create a temporary config with the correct radius
-                class TempConfig:
-                    perception_radius = expected_radius
+                    # Create a temporary config with the correct radius
+                    class TempConfig:
+                        perception_radius = expected_radius
 
-                self.config = TempConfig()
+                    self.config = TempConfig()
 
-        perception = self.get_fallback_perception()
-
-        # Restore original config
-        self.config = original_config
+            perception = self.get_fallback_perception()
+        finally:
+            # Always restore original config to prevent inconsistent state
+            self.config = original_config
 
         # Map perception grid to remaining channels (up to available channels)
         # 0: Empty, 1: Resource, 2: Agent, 3: Obstacle
