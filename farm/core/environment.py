@@ -218,6 +218,10 @@ class Environment(AECEnv):
         if self.seed_value is not None:
             random.seed(self.seed_value)
             np.random.seed(self.seed_value)
+            try:
+                torch.manual_seed(self.seed_value)
+            except Exception:
+                pass
 
         # Initialize basic attributes
         self.width = width
@@ -1363,6 +1367,10 @@ class Environment(AECEnv):
             self.seed_value = seed
             random.seed(seed)
             np.random.seed(seed)
+            try:
+                torch.manual_seed(seed)
+            except Exception:
+                pass
 
         self.time = 0
         # Reset metrics tracker
