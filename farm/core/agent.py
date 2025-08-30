@@ -159,7 +159,12 @@ class BaseAgent:
             self._init_memory(memory_config)
 
         if self.metrics_service:
-            self.metrics_service.record_birth()
+            try:
+                self.metrics_service.record_birth()
+            except Exception as e:
+                logger.warning(
+                    f"Failed to record birth metrics for agent {self.agent_id}: {e}"
+                )
 
     def _initialize_agent_state(self) -> None:
         """Initialize agent state variables and configuration."""
@@ -310,10 +315,25 @@ class BaseAgent:
         perception = np.zeros((size, size), dtype=np.int8)
 
         # Get nearby entities using spatial service
-        nearby_resources = self.spatial_service.get_nearby_resources(
-            self.position, radius
-        )
-        nearby_agents = self.spatial_service.get_nearby_agents(self.position, radius)
+        try:
+            nearby_resources = self.spatial_service.get_nearby_resources(
+                self.position, radius
+            )
+        except Exception as e:
+            logger.warning(
+                f"Failed to get nearby resources for agent {self.agent_id}: {e}"
+            )
+            nearby_resources = []  # Use empty list as fallback
+
+        try:
+            nearby_agents = self.spatial_service.get_nearby_agents(
+                self.position, radius
+            )
+        except Exception as e:
+            logger.warning(
+                f"Failed to get nearby agents for agent {self.agent_id}: {e}"
+            )
+            nearby_agents = []  # Use empty list as fallback
 
         # Helper function to convert world coordinates to grid coordinates
         def world_to_grid(wx: float, wy: float) -> tuple[int, int]:
@@ -344,10 +364,19 @@ class BaseAgent:
             for j in range(size):
                 world_x = x_min + j
                 world_y = y_min + i
-                if not (
-                    self.validation_service
-                    and self.validation_service.is_valid_position((world_x, world_y))
-                ):
+                try:
+                    if not (
+                        self.validation_service
+                        and self.validation_service.is_valid_position(
+                            (world_x, world_y)
+                        )
+                    ):
+                        perception[i, j] = 3
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to validate position ({world_x}, {world_y}) for agent {self.agent_id}: {e}"
+                    )
+                    # Mark as obstacle by default when validation fails
                     perception[i, j] = 3
 
         return PerceptionData(perception)
@@ -833,40 +862,63 @@ class BaseAgent:
         agent_class = type(self)
 
         # Generate unique ID and genome info first
-        new_id = (
-            self.lifecycle_service.get_next_agent_id()
-            if self.lifecycle_service
-            else self.agent_id + "_child"
-        )
+        try:
+            new_id = (
+                self.lifecycle_service.get_next_agent_id()
+                if self.lifecycle_service
+                else self.agent_id + "_child"
+            )
+        except Exception as e:
+            logger.error(f"Failed to get next agent ID for offspring creation: {e}")
+            raise RuntimeError(f"Failed to obtain agent ID for offspring: {e}")
+
         generation = self.generation + 1
 
         # Create new agent with all info
-        new_agent = agent_class(
-            agent_id=new_id,
-            position=self.position,
-            resource_level=(
-                getattr(self.config, "offspring_initial_resources", 10)
-                if self.config
-                else 10
-            ),
-            spatial_service=self.spatial_service,
-            metrics_service=self.metrics_service,
-            logging_service=self.logging_service,
-            validation_service=self.validation_service,
-            time_service=self.time_service,
-            lifecycle_service=self.lifecycle_service,
-            config=self.config,
-            generation=generation,
-        )
+        try:
+            new_agent = agent_class(
+                agent_id=new_id,
+                position=self.position,
+                resource_level=(
+                    getattr(self.config, "offspring_initial_resources", 10)
+                    if self.config
+                    else 10
+                ),
+                spatial_service=self.spatial_service,
+                metrics_service=self.metrics_service,
+                logging_service=self.logging_service,
+                validation_service=self.validation_service,
+                time_service=self.time_service,
+                lifecycle_service=self.lifecycle_service,
+                config=self.config,
+                generation=generation,
+            )
+        except Exception as e:
+            logger.error(f"Failed to create offspring agent instance: {e}")
+            raise RuntimeError(f"Failed to instantiate offspring agent: {e}")
 
         # Add new agent to environment
         if self.lifecycle_service:
-            self.lifecycle_service.add_agent(new_agent)
+            try:
+                self.lifecycle_service.add_agent(new_agent)
+            except Exception as e:
+                logger.error(f"Failed to add offspring agent to lifecycle service: {e}")
+                # Agent was created but not added to lifecycle service
+                # This is a critical failure that should prevent reproduction
+                raise RuntimeError(f"Failed to register offspring agent: {e}")
 
         # Subtract offspring cost from parent's resources
-        self.resource_level -= (
-            getattr(self.config, "offspring_cost", 5) if self.config else 5
-        )
+        try:
+            offspring_cost = (
+                getattr(self.config, "offspring_cost", 5) if self.config else 5
+            )
+            self.resource_level -= offspring_cost
+        except Exception as e:
+            logger.error(
+                f"Failed to update parent resources after offspring creation: {e}"
+            )
+            # Don't raise here as the offspring is already created and registered
+            # Just log the issue
 
         # Log creation
         logger.info(
@@ -886,13 +938,23 @@ class BaseAgent:
             # Record the death in environment
             # Log death in database
             if self.logging_service:
-                self.logging_service.update_agent_death(self.agent_id, self.death_time)
+                try:
+                    self.logging_service.update_agent_death(
+                        self.agent_id, self.death_time
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to log agent death for {self.agent_id}: {e}")
 
             logger.info(
                 f"Agent {self.agent_id} died at {self.position} during step {self.time_service.current_time() if self.time_service else 0}"
             )
             if self.lifecycle_service:
-                self.lifecycle_service.remove_agent(self)
+                try:
+                    self.lifecycle_service.remove_agent(self)
+                except Exception as e:
+                    logger.error(
+                        f"Failed to remove agent {self.agent_id} from lifecycle service: {e}"
+                    )
 
     def update_position(self, new_position):
         """Update agent position and mark spatial index as dirty.
@@ -903,7 +965,14 @@ class BaseAgent:
         if self.position != new_position:
             self.position = new_position
             # Mark spatial structures as dirty when position changes
-            self.spatial_service.mark_positions_dirty()
+            try:
+                self.spatial_service.mark_positions_dirty()
+            except Exception as e:
+                logger.warning(
+                    f"Failed to mark spatial positions as dirty for agent {self.agent_id}: {e}"
+                )
+                # Position was updated but spatial index wasn't marked dirty
+                # This is not critical but should be logged
 
     def handle_combat(self, attacker: "BaseAgent", damage: float) -> float:
         """Handle incoming attack and calculate actual damage taken.
