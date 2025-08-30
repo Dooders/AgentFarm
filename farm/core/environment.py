@@ -34,9 +34,13 @@ from farm.core.metrics_tracker import MetricsTracker
 from farm.core.observations import AgentObservation, ObservationConfig
 from farm.core.resource_manager import ResourceManager
 from farm.core.services.implementations import (
-    EnvironmentAgentLifecycleService, EnvironmentLoggingService,
-    EnvironmentMetricsService, EnvironmentTimeService,
-    EnvironmentValidationService, SpatialIndexAdapter)
+    EnvironmentAgentLifecycleService,
+    EnvironmentLoggingService,
+    EnvironmentMetricsService,
+    EnvironmentTimeService,
+    EnvironmentValidationService,
+    SpatialIndexAdapter,
+)
 from farm.core.spatial_index import SpatialIndex
 from farm.core.state import EnvironmentState
 from farm.database.utilities import setup_db
@@ -220,8 +224,10 @@ class Environment(AECEnv):
             np.random.seed(self.seed_value)
             try:
                 torch.manual_seed(self.seed_value)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    f"Failed to seed torch with value {self.seed_value}: {e}"
+                )
 
         # Initialize basic attributes
         self.width = width
@@ -775,10 +781,7 @@ class Environment(AECEnv):
                 agent.validation_service = EnvironmentValidationService(self)
             if hasattr(agent, "time_service") and agent.time_service is None:
                 agent.time_service = EnvironmentTimeService(self)
-            if (
-                hasattr(agent, "lifecycle_service")
-                and agent.lifecycle_service is None
-            ):
+            if hasattr(agent, "lifecycle_service") and agent.lifecycle_service is None:
                 agent.lifecycle_service = EnvironmentAgentLifecycleService(self)
             if hasattr(agent, "config") and getattr(agent, "config", None) is None:
                 agent.config = self.config
@@ -1119,13 +1122,12 @@ class Environment(AECEnv):
 
         # Query nearby resources within a radius covering the local window
         # Use slightly larger than R to capture bilinear spread near the boundary
-        query_radius = float(R + 1)
-        center_xy = (float(ax), float(ay))
         try:
             nearby_resources = self.spatial_index.get_nearby_resources(
-                center_xy, query_radius
+                agent.position, R + 1
             )
-        except Exception:
+        except Exception as e:
+            logger.exception("Error querying nearby resources in spatial index")
             nearby_resources = []
 
         if use_bilinear:
@@ -1134,7 +1136,10 @@ class Environment(AECEnv):
                 lx = float(res.position[0]) - (ax - R)
                 ly = float(res.position[1]) - (ay - R)
                 bilinear_distribute_value(
-                    (lx, ly), float(res.amount) / float(max_amount), resource_local, (S, S)
+                    (lx, ly),
+                    float(res.amount) / float(max_amount),
+                    resource_local,
+                    (S, S),
                 )
         else:
             for res in nearby_resources:
