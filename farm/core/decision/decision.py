@@ -588,6 +588,13 @@ class DecisionModule:
 
                 # Get probabilities from Tianshou algorithm
                 probs = self.algorithm.predict_proba(state_np)
+                # Handle 2D output (batch_size, num_actions) - take first sample
+                if (
+                    isinstance(probs, np.ndarray)
+                    and probs.ndim == 2
+                    and probs.shape[0] == 1
+                ):
+                    probs = probs[0]
                 return np.array(probs, dtype=np.float32)
 
             # For SB3 algorithms that support it, get action probabilities

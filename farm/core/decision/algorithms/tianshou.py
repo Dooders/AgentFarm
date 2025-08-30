@@ -215,6 +215,8 @@ class TianshouWrapper(RLAlgorithm):
                         "eps_test",
                         "eps_train",
                         "eps_train_final",
+                        "repeat_per_collect",
+                        "max_batchsize",
                     ]
                 }
 
