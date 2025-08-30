@@ -263,7 +263,7 @@ class Environment(AECEnv):
 
         # Get enabled actions from config, or use all available if not specified
         if self.config and hasattr(self.config, "enabled_actions"):
-            enabled_actions = self.config.enabled_actions
+            enabled_actions = getattr(self.config, "enabled_actions")
             if isinstance(enabled_actions, list):
                 # Convert list of action names to mapping
                 self._action_mapping = {}
@@ -839,7 +839,63 @@ class Environment(AECEnv):
 
     def _setup_action_space(self) -> None:
         """Setup the action space with all available actions."""
-        self._action_space = spaces.Discrete(len(ActionType))
+        # Use only the enabled actions from the mapping instead of full ActionType enum
+        self._action_space = spaces.Discrete(len(self._action_mapping))
+
+        # Create a list of enabled ActionType values for dynamic remapping
+        # This ensures consistent ordering: action index 0 maps to first enabled action, etc.
+        self._enabled_action_types = list(self._action_mapping.keys())
+
+    def update_action_space(
+        self, new_enabled_actions: Optional[List[str]] = None
+    ) -> None:
+        """Update the action space when enabled actions configuration changes.
+
+        This method should be called when the curriculum or configuration
+        changes the set of enabled actions mid-simulation. It updates the
+        action mapping, recreates the enabled action types list, and resizes
+        the action space accordingly.
+
+        Parameters
+        ----------
+        new_enabled_actions : list of str, optional
+            New list of action names to enable. If None, uses current config.
+            Each action name should correspond to an action in the registry
+            (e.g., ["move", "gather", "attack"]).
+
+        Notes
+        -----
+        This method:
+        - Updates self.config.enabled_actions if new_enabled_actions provided
+        - Reinitializes the action mapping with the new configuration
+        - Recreates the enabled action types list for dynamic remapping
+        - Resizes the action space to match the new number of enabled actions
+        - Logs the updated action space size and available actions
+
+        Warning: This changes the action space size, which may affect RL agents
+        that are not designed to handle dynamic action spaces.
+        """
+        # Update config if new enabled actions provided
+        if new_enabled_actions is not None:
+            if self.config is None:
+                # Create a basic config object if none exists
+                from farm.core.config import SimulationConfig
+
+                self.config = SimulationConfig()
+            # Use setattr for dynamic attribute assignment (same pattern as original code)
+            setattr(self.config, "enabled_actions", new_enabled_actions)
+
+        # Reinitialize action mapping with new configuration
+        self._initialize_action_mapping()
+
+        # Update action space and enabled action types list
+        self._setup_action_space()
+
+        # Log the update
+        available_actions = list(self._action_mapping.values())
+        logging.info(
+            f"Action space updated: {len(available_actions)} actions available: {available_actions}"
+        )
 
     def get_initial_agent_count(self) -> int:
         """Calculate the number of initial agents (born at time 0) dynamically.
@@ -967,21 +1023,22 @@ class Environment(AECEnv):
         """Process an action for a specific agent.
 
         Executes the specified action for the given agent by calling the
-        appropriate action function. Actions are mapped to their corresponding
-        implementation functions and executed if the agent is alive.
+        appropriate action function. Actions are dynamically remapped from
+        the enabled action space to their corresponding ActionType values.
 
         Parameters
         ----------
         agent_id : str
             The ID of the agent performing the action.
         action : int
-            The action to perform (from Action enum). Must be one of:
-            DEFEND, ATTACK, GATHER, SHARE, MOVE, REPRODUCE, or PASS.
+            The action index within the enabled action space (0 to len(enabled_actions)-1).
+            This gets remapped to the corresponding ActionType for execution.
 
         Notes
         -----
         This method:
         - Validates that the agent exists and is alive
+        - Dynamically remaps action indices to enabled ActionType values
         - Maps actions to their implementation functions
         - Executes the action with the agent as parameter
         - Logs warnings for invalid actions
@@ -995,8 +1052,19 @@ class Environment(AECEnv):
         if agent is None or not agent.alive or action is None:
             return
 
+        # Validate action is within enabled action space bounds
+        if action < 0 or action >= len(self._enabled_action_types):
+            logging.debug(
+                f"Action {action} is out of bounds for enabled action space "
+                f"(size: {len(self._enabled_action_types)})"
+            )
+            return
+
+        # Dynamically remap action index to corresponding ActionType
+        action_type = self._enabled_action_types[action]
+
         # Get action name from dynamic mapping
-        action_name = self._action_mapping.get(ActionType(action))
+        action_name = self._action_mapping.get(action_type)
         if action_name:
             action_obj = action_registry.get(action_name)
             if action_obj:
@@ -1005,7 +1073,7 @@ class Environment(AECEnv):
                 logging.warning(f"Action '{action_name}' not found in action registry")
         else:
             logging.debug(
-                f"Action {action} not available in current simulation configuration"
+                f"Action {action} (mapped to {action_type}) not available in current simulation configuration"
             )
 
     def _calculate_reward(
