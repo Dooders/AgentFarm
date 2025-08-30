@@ -923,32 +923,18 @@ class Environment(AECEnv):
         # Agent position as (y, x)
         ay, ax = int(round(agent.position[1])), int(round(agent.position[0]))
 
-        # Get nearby agents
-        nearby = self.get_nearby_agents(
-            agent.position, self.observation_config.fov_radius
-        )
-
-        allies = []
-        enemies = []
-        # Since agent types are removed, treat all nearby agents as potential allies
-        # This can be enhanced later with other categorization logic
-        for na in nearby:
-            if na == agent or not na.alive:
-                continue
-            ny = int(round(na.position[1]))
-            nx = int(round(na.position[0]))
-            hp01 = na.current_health / na.starting_health
-            allies.append((ny, nx, hp01))
+        # Ensure spatial index is up to date before observation generation
+        self.spatial_index.update()
 
         self_hp01 = agent.current_health / agent.starting_health
 
-        obs = self.agent_observations[agent_id]  #! What is this for?
+        obs = self.agent_observations[agent_id]
         obs.perceive_world(
             world_layers=world_layers,
             agent_world_pos=(ay, ax),
             self_hp01=self_hp01,
-            allies=allies,
-            enemies=enemies,
+            allies=None,  # Let observation system use spatial index for efficiency
+            enemies=None,  # Let observation system use spatial index for efficiency
             goal_world_pos=None,  # TODO: Set if needed
             recent_damage_world=[],  # TODO: Implement if needed
             ally_signals_world=[],  # TODO: Implement if needed

@@ -76,7 +76,7 @@ class Genome:
         genome = {
             "action_set": [(action.name, action.weight) for action in agent.actions],
             "module_states": module_states,
-            "agent_type": agent.__class__.__name__,
+            "agent_type": getattr(agent, "agent_type", agent.__class__.__name__),
             "resource_level": agent.resource_level,
             "current_health": agent.current_health,
         }
@@ -124,6 +124,7 @@ class Genome:
             resource_level=genome["resource_level"],
             spatial_service=environment.spatial_service,
             environment=environment,
+            agent_type=genome.get("agent_type", "BaseAgent"),
             action_set=action_set,
         )
 

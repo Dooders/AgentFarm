@@ -329,7 +329,7 @@ class AgentObservation:
 
         computed_allies: List[Tuple[int, int, float]] = []
         computed_enemies: List[Tuple[int, int, float]] = []
-        agent_cls = type(agent_object)
+        agent_type = getattr(agent_object, "agent_type", type(agent_object).__name__)
         for other in nearby_agents:
             if other is agent_object or not getattr(other, "alive", False):
                 continue
@@ -354,7 +354,10 @@ class AgentObservation:
                 else 0.0
             )
 
-            if isinstance(other, agent_cls):
+            other_agent_type = getattr(other, "agent_type", type(other).__name__)
+
+            # Consider agents of the same type as allies, different types as enemies
+            if other_agent_type == agent_type:
                 computed_allies.append((ny, nx, hp01))
             else:
                 computed_enemies.append((ny, nx, hp01))

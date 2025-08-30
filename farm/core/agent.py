@@ -81,6 +81,7 @@ class BaseAgent:
         spatial_service: ISpatialQueryService,
         environment: Optional["Environment"] = None,
         *,
+        agent_type: str = "BaseAgent",
         metrics_service: IMetricsService | None = None,
         logging_service: ILoggingService | None = None,
         validation_service: IValidationService | None = None,
@@ -106,6 +107,7 @@ class BaseAgent:
             resource_level: Starting amount of resources the agent possesses
             spatial_service: Service for performing spatial queries on nearby entities
             environment: Optional reference to the simulation environment
+            agent_type: Type identifier for this agent (e.g., "SystemAgent", "IndependentAgent")
             metrics_service: Optional service for recording simulation metrics
             logging_service: Optional service for logging agent activities and events
             validation_service: Optional service for validating agent actions and positions
@@ -126,6 +128,7 @@ class BaseAgent:
         self.agent_id = agent_id
         self.position = position
         self.resource_level = resource_level
+        self.agent_type = agent_type
         self.alive = True
 
         # Initialize services
@@ -647,6 +650,7 @@ class BaseAgent:
             position=(int(self.position[0]), int(self.position[1])),
             resource_level=mutated_genome.get("resource_level", self.resource_level),
             spatial_service=self.spatial_service,
+            agent_type=getattr(self, "agent_type", "BaseAgent"),
             metrics_service=self.metrics_service,
             logging_service=self.logging_service,
             validation_service=self.validation_service,

@@ -97,6 +97,7 @@ def create_initial_agents(
             resource_level=1,
             spatial_service=environment.spatial_service,
             environment=environment,
+            agent_type="SystemAgent",
             generation=0,
         )
         environment.add_agent(agent)
@@ -113,6 +114,7 @@ def create_initial_agents(
             resource_level=1,
             spatial_service=environment.spatial_service,
             environment=environment,
+            agent_type="IndependentAgent",
             generation=0,
         )
         environment.add_agent(agent)
@@ -129,6 +131,7 @@ def create_initial_agents(
             resource_level=1,
             spatial_service=environment.spatial_service,
             environment=environment,
+            agent_type="ControlAgent",
             generation=0,
         )
         environment.add_agent(agent)
