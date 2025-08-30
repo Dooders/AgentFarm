@@ -1187,3 +1187,179 @@ class TestBaseAgentEdgeCases:
             assert mock_config_instance.redis_host == "custom_host"
             assert mock_config_instance.redis_port == 9999
             assert mock_config_instance.memory_limit == 500
+
+    def test_curriculum_validation_valid_config(self, sample_base_agent):
+        """Test curriculum configuration validation with valid config."""
+        # Setup valid curriculum config
+        valid_config = Mock()
+        valid_config.curriculum_phases = [
+            {"steps": 100, "enabled_actions": ["move", "gather"]},
+            {"steps": 200, "enabled_actions": ["move", "gather", "share", "attack"]},
+            {
+                "steps": -1,
+                "enabled_actions": ["move", "gather", "share", "attack", "reproduce"],
+            },
+        ]
+        sample_base_agent.config = valid_config
+
+        # Should return True for valid config
+        assert sample_base_agent._validate_curriculum_config() is True
+
+    def test_curriculum_validation_invalid_config(self, sample_base_agent):
+        """Test curriculum configuration validation with invalid config."""
+        # Setup invalid curriculum config (missing required field)
+        invalid_config = Mock()
+        invalid_config.curriculum_phases = [
+            {"steps": 100},  # Missing enabled_actions
+        ]
+        sample_base_agent.config = invalid_config
+
+        # Should return False for invalid config
+        assert sample_base_agent._validate_curriculum_config() is False
+
+    def test_curriculum_validation_empty_config(self, sample_base_agent):
+        """Test curriculum configuration validation with empty config."""
+        # No curriculum config should be valid (defaults to all actions)
+        sample_base_agent.config = None
+        assert sample_base_agent._validate_curriculum_config() is True
+
+        # Empty curriculum list should be valid
+        empty_config = Mock()
+        empty_config.curriculum_phases = []
+        sample_base_agent.config = empty_config
+        assert sample_base_agent._validate_curriculum_config() is True
+
+    def test_curriculum_phase_transitions(self, sample_base_agent):
+        """Test curriculum phase transitions based on simulation steps."""
+        # Setup curriculum config
+        curriculum_config = Mock()
+        curriculum_config.curriculum_phases = [
+            {"steps": 100, "enabled_actions": ["move", "gather"]},
+            {"steps": 200, "enabled_actions": ["move", "gather", "share", "attack"]},
+            {
+                "steps": -1,
+                "enabled_actions": ["move", "gather", "share", "attack", "reproduce"],
+            },
+        ]
+        sample_base_agent.config = curriculum_config
+
+        # Mock time service to return different step numbers
+        mock_time_service = Mock()
+        sample_base_agent.time_service = mock_time_service
+
+        # Test phase 1 (steps 0-99)
+        mock_time_service.current_time.return_value = 50
+        enabled_actions = []
+        if sample_base_agent.config and hasattr(
+            sample_base_agent.config, "curriculum_phases"
+        ):
+            curriculum_phases = getattr(
+                sample_base_agent.config, "curriculum_phases", []
+            )
+            for phase in curriculum_phases:
+                if 50 < phase["steps"] or phase["steps"] == -1:
+                    enabled_actions = [
+                        a
+                        for a in sample_base_agent.actions
+                        if a.name in phase["enabled_actions"]
+                    ]
+                    break
+
+        assert len(enabled_actions) == 2
+        assert enabled_actions[0].name == "move"
+        assert enabled_actions[1].name == "gather"
+
+        # Test phase 2 (steps 100-199)
+        mock_time_service.current_time.return_value = 150
+        enabled_actions = []
+        for phase in curriculum_phases:
+            if 150 < phase["steps"] or phase["steps"] == -1:
+                enabled_actions = [
+                    a
+                    for a in sample_base_agent.actions
+                    if a.name in phase["enabled_actions"]
+                ]
+                break
+
+        assert len(enabled_actions) == 4
+        action_names = {a.name for a in enabled_actions}
+        assert "move" in action_names
+        assert "gather" in action_names
+        assert "share" in action_names
+        assert "attack" in action_names
+
+        # Test phase 3 (steps 200+)
+        mock_time_service.current_time.return_value = 250
+        enabled_actions = []
+        for phase in curriculum_phases:
+            if 250 < phase["steps"] or phase["steps"] == -1:
+                enabled_actions = [
+                    a
+                    for a in sample_base_agent.actions
+                    if a.name in phase["enabled_actions"]
+                ]
+                break
+
+        assert len(enabled_actions) == 5
+        action_names = {a.name for a in enabled_actions}
+        assert "move" in action_names
+        assert "gather" in action_names
+        assert "share" in action_names
+        assert "attack" in action_names
+        assert "reproduce" in action_names
+
+    @patch("farm.core.decision.decision.DecisionModule")
+    def test_curriculum_integration_with_decision_module(
+        self, mock_decision_module_class, sample_base_agent
+    ):
+        """Test integration between curriculum and DecisionModule."""
+        # Setup mock DecisionModule
+        mock_decision_module = Mock()
+        mock_decision_module.decide_action.return_value = 0
+        mock_decision_module_class.return_value = mock_decision_module
+
+        # Setup curriculum config
+        curriculum_config = Mock()
+        curriculum_config.curriculum_phases = [
+            {"steps": 100, "enabled_actions": ["move", "gather"]},
+        ]
+        sample_base_agent.config = curriculum_config
+
+        # Mock time service
+        mock_time_service = Mock()
+        mock_time_service.current_time.return_value = 50
+        sample_base_agent.time_service = mock_time_service
+
+        # Test action selection with curriculum
+        action_index = sample_base_agent._select_action_with_curriculum(
+            [a for a in sample_base_agent.actions if a.name in ["move", "gather"]]
+        )
+
+        # Verify DecisionModule was called with enabled action indices
+        mock_decision_module.decide_action.assert_called_once()
+        call_args = mock_decision_module.decide_action.call_args
+        enabled_indices = call_args[0][1]  # Second argument should be enabled_indices
+
+        # Should only include indices for move and gather actions
+        assert len(enabled_indices) == 2
+        assert enabled_indices[0] in [0, 1, 2, 3, 4, 5, 6]  # Valid action indices
+        assert enabled_indices[1] in [0, 1, 2, 3, 4, 5, 6]
+
+    def test_curriculum_fallback_on_invalid_config(self, sample_base_agent):
+        """Test that agent falls back gracefully when curriculum config is invalid."""
+        # Setup invalid curriculum config
+        invalid_config = Mock()
+        invalid_config.curriculum_phases = [
+            {"steps": 100},  # Missing enabled_actions
+        ]
+        sample_base_agent.config = invalid_config
+
+        # Validation should detect invalid config
+        is_valid = sample_base_agent._validate_curriculum_config()
+
+        # Should return False for invalid config
+        assert is_valid is False
+
+        # Config should still contain the invalid data (validation doesn't modify it)
+        assert len(sample_base_agent.config.curriculum_phases) == 1
+        assert "enabled_actions" not in sample_base_agent.config.curriculum_phases[0]

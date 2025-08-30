@@ -163,6 +163,16 @@ class BaseAgent:
         # Initialize DecisionModule for action selection
         self._initialize_decision_module()
 
+        # Validate curriculum configuration if present
+        if not self._validate_curriculum_config():
+            logger.warning(
+                f"Agent {self.agent_id}: Invalid curriculum configuration detected. "
+                "Falling back to allowing all actions."
+            )
+            # Remove invalid curriculum config to prevent issues
+            if self.config and hasattr(self.config, "curriculum_phases"):
+                setattr(self.config, "curriculum_phases", [])
+
         # Initialize Redis memory if requested
         self.memory = None
         if use_memory:
@@ -446,17 +456,31 @@ class BaseAgent:
             self.decision_module, "observation_shape"
         ):
             expected_shape = self.decision_module.observation_shape
-            if len(expected_shape) >= 3:
-                # Multi-channel case: (channels, height, width)
-                num_channels, size = expected_shape[0], expected_shape[1]
-            elif len(expected_shape) == 2:
-                # 2D case: (height, width) - assume single channel
-                num_channels, size = 1, expected_shape[0]
-            else:
-                # 1D case: (features,) - reshape to square grid
-                feature_count = expected_shape[0]
-                size = int(np.ceil(np.sqrt(feature_count)))
-                num_channels = 1
+            # Handle case where observation_shape might be a Mock (for testing)
+            try:
+                if hasattr(expected_shape, "__len__") and len(expected_shape) >= 3:
+                    # Multi-channel case: (channels, height, width)
+                    num_channels, size = expected_shape[0], expected_shape[1]
+                elif hasattr(expected_shape, "__len__") and len(expected_shape) == 2:
+                    # 2D case: (height, width) - assume single channel
+                    num_channels, size = 1, expected_shape[0]
+                elif hasattr(expected_shape, "__len__") and len(expected_shape) == 1:
+                    # 1D case: (features,) - reshape to square grid
+                    feature_count = expected_shape[0]
+                    size = int(np.ceil(np.sqrt(feature_count)))
+                    num_channels = 1
+                else:
+                    # Fallback for unexpected shape format
+                    raise TypeError("Unexpected observation shape format")
+            except (TypeError, AttributeError):
+                # Fallback when observation_shape is not a proper sequence (e.g., Mock in tests)
+                from farm.core.channels import NUM_CHANNELS
+
+                radius = (
+                    getattr(self.config, "perception_radius", 5) if self.config else 5
+                )
+                size = 2 * radius + 1
+                num_channels = NUM_CHANNELS
         else:
             # Fallback to default values if DecisionModule not initialized
             from farm.core.channels import NUM_CHANNELS
@@ -624,6 +648,118 @@ class BaseAgent:
 
         return selected_action
 
+    def _select_action_with_curriculum(self, enabled_actions):
+        """Select action index with curriculum restrictions.
+
+        Args:
+            enabled_actions: List of enabled Action objects
+
+        Returns:
+            int: Action index within enabled_actions list
+        """
+        # Cache state tensor to avoid recreating it multiple times
+        current_time = self.time_service.current_time() if self.time_service else -1
+        if not hasattr(self, "_cached_selection_state") or current_time != getattr(
+            self, "_cached_selection_time", -1
+        ):
+            self._cached_selection_state = self.create_decision_state()
+            self._cached_selection_time = current_time
+
+        # Convert enabled actions to indices for DecisionModule
+        if enabled_actions:
+            enabled_action_indices = [
+                self.actions.index(action) for action in enabled_actions
+            ]
+        else:
+            enabled_action_indices = None
+
+        # Use DecisionModule to select action index with curriculum support
+        action_index = self.decision_module.decide_action(
+            self._cached_selection_state, enabled_action_indices
+        )
+
+        return action_index
+
+    def _validate_curriculum_config(self):
+        """Validate curriculum configuration for consistency and completeness.
+
+        Returns:
+            bool: True if curriculum config is valid, False otherwise
+        """
+        if not self.config or not hasattr(self.config, "curriculum_phases"):
+            return True  # No curriculum config is valid (defaults to all actions)
+
+        curriculum_phases = getattr(self.config, "curriculum_phases", [])
+        if not isinstance(curriculum_phases, (list, tuple)):
+            logger.warning(
+                f"Agent {self.agent_id}: curriculum_phases must be a list or tuple"
+            )
+            return False
+
+        if not curriculum_phases:
+            return True  # Empty curriculum is valid
+
+        # Check each phase has required fields
+        required_fields = ["steps", "enabled_actions"]
+        action_names = {action.name for action in self.actions}
+
+        for i, phase in enumerate(curriculum_phases):
+            if not isinstance(phase, dict):
+                logger.warning(f"Agent {self.agent_id}: Phase {i} must be a dictionary")
+                return False
+
+            # Check required fields
+            for field in required_fields:
+                if field not in phase:
+                    logger.warning(
+                        f"Agent {self.agent_id}: Phase {i} missing required field '{field}'"
+                    )
+                    return False
+
+            # Validate steps
+            steps = phase["steps"]
+            if not isinstance(steps, int) or (steps != -1 and steps < 0):
+                logger.warning(
+                    f"Agent {self.agent_id}: Phase {i} steps must be non-negative integer or -1"
+                )
+                return False
+
+            # Validate enabled_actions
+            enabled_actions = phase["enabled_actions"]
+            if not isinstance(enabled_actions, (list, tuple)):
+                logger.warning(
+                    f"Agent {self.agent_id}: Phase {i} enabled_actions must be a list or tuple"
+                )
+                return False
+
+            # Check all enabled actions exist
+            for action_name in enabled_actions:
+                if action_name not in action_names:
+                    logger.warning(
+                        f"Agent {self.agent_id}: Phase {i} references unknown action '{action_name}'"
+                    )
+                    return False
+
+        # Check phases are in ascending order (except -1 which should be last)
+        prev_steps = -1
+        for i, phase in enumerate(curriculum_phases):
+            steps = phase["steps"]
+            if steps == -1:
+                # -1 should be the last phase
+                if i != len(curriculum_phases) - 1:
+                    logger.warning(
+                        f"Agent {self.agent_id}: Phase with steps=-1 must be the last phase"
+                    )
+                    return False
+            elif steps <= prev_steps:
+                logger.warning(
+                    f"Agent {self.agent_id}: Phase {i} steps ({steps}) not greater than previous ({prev_steps})"
+                )
+                return False
+            prev_steps = steps
+
+        return True
+
     def _calculate_reward(
         self, pre_action_state: AgentState, post_action_state: AgentState, action_taken
     ) -> float:
@@ -734,9 +870,64 @@ class BaseAgent:
         current_state = self.get_state()
         current_state_tensor = self.create_decision_state()
 
-        # Select and execute action
-        action = self.decide_action()
-        action.execute(self)
+        # Get enabled actions based on curriculum phases if configured
+        current_step = self.time_service.current_time() if self.time_service else 0
+        enabled_actions = self.actions  # Default all
+        if self.config and hasattr(self.config, "curriculum_phases"):
+            curriculum_phases = getattr(self.config, "curriculum_phases", [])
+            if isinstance(curriculum_phases, (list, tuple)):
+                for phase in curriculum_phases:
+                    if current_step < phase["steps"] or phase["steps"] == -1:
+                        enabled_actions = [
+                            a
+                            for a in self.actions
+                            if a.name in phase["enabled_actions"]
+                        ]
+                        break
+
+        # Select and execute action with curriculum restrictions
+        action_index = self._select_action_with_curriculum(enabled_actions)
+        if enabled_actions:
+            action = enabled_actions[action_index]
+        else:
+            action = self.actions[action_index]
+
+        # Execute action and capture result
+        action_result = action.execute(self)
+
+        # Validate action result if validation service is available
+        validation_result = None
+        if hasattr(self, "validation_service") and self.validation_service:
+            try:
+                from farm.core.action import validate_action_result
+
+                validation_result = validate_action_result(
+                    self, action.name, action_result
+                )
+            except Exception as e:
+                logger.warning(f"Action validation failed for {action.name}: {str(e)}")
+
+        # Log warnings and errors from validation
+        if validation_result and not validation_result.get("valid", True):
+            logger.warning(
+                f"Action validation failed for {action.name} on agent {self.agent_id}: "
+                f"Issues: {validation_result.get('issues', [])}"
+            )
+
+        # Log action success/failure for debugging
+        if action_result.get("success", False):
+            logger.debug(f"Agent {self.agent_id} successfully executed {action.name}")
+        else:
+            logger.info(
+                f"Agent {self.agent_id} failed to execute {action.name}: "
+                f"{action_result.get('error', 'Unknown error')}"
+            )
+
+        # Store the action index for learning (relative to enabled actions)
+        self._current_action_index = action_index
+
+        # Store enabled actions for learning update
+        self._current_enabled_actions = enabled_actions
 
         # Update defense status based on timer AFTER action execution
         if self.defense_timer > 0:
@@ -765,15 +956,48 @@ class BaseAgent:
             hasattr(self, "previous_state_tensor")
             and self.previous_state_tensor is not None
         ):
+            # Get enabled actions from previous turn for consistent learning
+            previous_enabled_actions = getattr(self, "_previous_enabled_actions", None)
+
+            # Use stored action index for consistency with curriculum
+            previous_action_index = getattr(
+                self, "_previous_action_index", self._current_action_index
+            )
+
             self.decision_module.update(
                 state=self.previous_state_tensor,
-                action=self._action_to_index(action),
+                action=previous_action_index,
                 reward=reward,
                 next_state=next_state_tensor,
                 done=done,
+                enabled_actions=previous_enabled_actions,
             )
 
-    def clone(self) -> "BaseAgent":
+            # Store current action index for next turn's learning
+            # Always store index relative to enabled actions for curriculum consistency
+            if hasattr(self, "_current_action_index"):
+                self._previous_action_index = self._current_action_index
+            elif enabled_actions:
+                # Fallback: find current action's index within enabled actions
+                try:
+                    self._previous_action_index = enabled_actions.index(action)
+                except ValueError:
+                    # Action not in enabled actions - this shouldn't happen but handle gracefully
+                    logger.warning(
+                        f"Action {action.name} not found in enabled actions for agent {self.agent_id}. "
+                        f"Using index 0 as fallback."
+                    )
+                    self._previous_action_index = 0
+            else:
+                # No enabled actions restriction - use full action space index
+                self._previous_action_index = self._action_to_index(action)
+
+            # Store current enabled actions for next turn's learning
+            self._previous_enabled_actions = getattr(
+                self, "_current_enabled_actions", None
+            )
+
+    def clone(self, environment: Optional["Environment"] = None) -> "BaseAgent":
         """Create a mutated copy of this agent.
 
         Creates a new agent by:
@@ -781,34 +1005,54 @@ class BaseAgent:
         2. Applying random mutations with 10% probability
         3. Converting mutated genome back to agent instance
 
+        Args:
+            environment: Optional environment reference for the cloned agent.
+                        If None, uses self.environment. Required for genome reconstruction.
+
         Returns:
             BaseAgent: A new agent with slightly modified characteristics
+
+        Raises:
+            ValueError: If neither environment parameter nor self.environment is available
         """
+        # Determine which environment to use
+        target_environment = environment or self.environment
+
+        if target_environment is None:
+            raise ValueError("Cannot clone agent without environment reference")
+
+        # Clone and mutate the genome using Genome class operations
         cloned_genome = Genome.clone(self.to_genome())
         mutated_genome = Genome.mutate(cloned_genome, mutation_rate=0.1)
-        # Recreate using current config and services by manually constructing agent
-        # rather than delegating to Genome.to_agent (which expects environment)
-        action_set = [
-            Action(name, weight, ACTION_FUNCTIONS[name])
-            for name, weight in mutated_genome["action_set"]
-        ]
-        new_agent = BaseAgent(
-            agent_id=self.agent_id,
-            position=self.position,
-            resource_level=mutated_genome.get("resource_level", self.resource_level),
-            spatial_service=self.spatial_service,
-            agent_type=getattr(self, "agent_type", "BaseAgent"),
-            metrics_service=self.metrics_service,
-            logging_service=self.logging_service,
-            validation_service=self.validation_service,
-            time_service=self.time_service,
-            lifecycle_service=self.lifecycle_service,
-            config=self.config,
-            action_set=action_set,
+
+        # Generate a new agent ID for the clone (should be different from original)
+        if self.lifecycle_service:
+            new_agent_id = self.lifecycle_service.get_next_agent_id()
+        else:
+            # Fallback ID generation when lifecycle_service is unavailable
+            current_time = self.time_service.current_time() if self.time_service else 0
+            random_suffix = random.randint(1000, 9999)
+            new_agent_id = f"{self.agent_id}_clone_{current_time}_{random_suffix}"
+
+        # Use Genome.to_agent to properly reconstruct the agent with all module states
+        new_agent = Genome.to_agent(
+            mutated_genome,
+            new_agent_id,
+            (int(self.position[0]), int(self.position[1])),  # Convert to int tuple
+            target_environment,
         )
-        new_agent.current_health = mutated_genome.get(
-            "current_health", self.current_health
-        )
+
+        # Preserve additional services and configuration that aren't in the genome
+        new_agent.metrics_service = self.metrics_service
+        new_agent.logging_service = self.logging_service
+        new_agent.validation_service = self.validation_service
+        new_agent.time_service = self.time_service
+        new_agent.lifecycle_service = self.lifecycle_service
+        new_agent.config = self.config
+
+        # Generate proper genome ID with parent relationship
+        new_agent.genome_id = new_agent._generate_genome_id([self.agent_id])
+
         return new_agent
 
     def reproduce(self) -> bool:
