@@ -961,7 +961,7 @@ class BaseAgent:
 
             # Use stored action index for consistency with curriculum
             previous_action_index = getattr(
-                self, "_previous_action_index", self._action_to_index(action)
+                self, "_previous_action_index", self._current_action_index
             )
 
             self.decision_module.update(
@@ -974,9 +974,23 @@ class BaseAgent:
             )
 
             # Store current action index for next turn's learning
-            self._previous_action_index = getattr(
-                self, "_current_action_index", self._action_to_index(action)
-            )
+            # Always store index relative to enabled actions for curriculum consistency
+            if hasattr(self, "_current_action_index"):
+                self._previous_action_index = self._current_action_index
+            elif enabled_actions:
+                # Fallback: find current action's index within enabled actions
+                try:
+                    self._previous_action_index = enabled_actions.index(action)
+                except ValueError:
+                    # Action not in enabled actions - this shouldn't happen but handle gracefully
+                    logger.warning(
+                        f"Action {action.name} not found in enabled actions for agent {self.agent_id}. "
+                        f"Using index 0 as fallback."
+                    )
+                    self._previous_action_index = 0
+            else:
+                # No enabled actions restriction - use full action space index
+                self._previous_action_index = self._action_to_index(action)
 
             # Store current enabled actions for next turn's learning
             self._previous_enabled_actions = getattr(
