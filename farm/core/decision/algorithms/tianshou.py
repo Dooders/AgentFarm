@@ -153,30 +153,37 @@ class TianshouWrapper(RLAlgorithm):
             from tianshou.data import ReplayBuffer
             from tianshou.policy import BasePolicy
 
+            # Validate state_dim
+            if self.state_dim is None or self.state_dim <= 0:
+                raise ValueError(f"Invalid state_dim: {self.state_dim}")
+
             if self.algorithm_name == "PPO":
                 from tianshou.policy import PPOPolicy
+
+                # Create actor and critic networks using Tianshou's Net class
+                from tianshou.utils.net.common import Net as TianshouNet
                 from tianshou.utils.net.discrete import Actor as DiscreteActor
                 from tianshou.utils.net.discrete import Critic as DiscreteCritic
 
-                # Create actor and critic networks
+                actor_net = TianshouNet(
+                    self.state_dim,
+                    self.num_actions,
+                    [64, 64],
+                    device=self.algorithm_config["device"],
+                )
                 actor = DiscreteActor(
-                    preprocess_net=nn.Sequential(
-                        nn.Linear(self.state_dim, 64),
-                        nn.ReLU(),
-                        nn.Linear(64, 64),
-                        nn.ReLU(),
-                    ),
+                    preprocess_net=actor_net,
                     action_shape=(self.num_actions,),
                 )
 
+                critic_net = TianshouNet(
+                    self.state_dim,
+                    1,  # Critic outputs a single value
+                    [64, 64],
+                    device=self.algorithm_config["device"],
+                )
                 critic = DiscreteCritic(
-                    preprocess_net=nn.Sequential(
-                        nn.Linear(self.state_dim, 64),
-                        nn.ReLU(),
-                        nn.Linear(64, 64),
-                        nn.ReLU(),
-                    ),
-                    action_shape=(self.num_actions,),  # type: ignore
+                    preprocess_net=critic_net,
                 )
 
                 # Create optimizers
@@ -190,17 +197,34 @@ class TianshouWrapper(RLAlgorithm):
                 # Create policy
                 import gymnasium as gym
 
+                # Filter out parameters that shouldn't be passed to PPOPolicy
+                ppo_params = {
+                    k: v
+                    for k, v in self.algorithm_config.items()
+                    if k
+                    not in [
+                        "lr",
+                        "device",
+                        "gamma",
+                        "tau",
+                        "alpha",
+                        "auto_alpha",
+                        "target_entropy",
+                        "n_step",
+                        "target_update_freq",
+                        "eps_test",
+                        "eps_train",
+                        "eps_train_final",
+                    ]
+                }
+
                 self.policy = PPOPolicy(
                     actor=actor,
                     critic=critic,
                     optim=actor_optim,
                     dist_fn=torch.distributions.Categorical,
                     action_space=gym.spaces.Discrete(self.num_actions),
-                    **{
-                        k: v
-                        for k, v in self.algorithm_config.items()
-                        if k not in ["lr", "device"]
-                    },
+                    **ppo_params,
                 )
 
             elif self.algorithm_name == "SAC":
@@ -301,28 +325,31 @@ class TianshouWrapper(RLAlgorithm):
 
             elif self.algorithm_name == "A2C":
                 from tianshou.policy import A2CPolicy
+
+                # Create actor and critic networks using Tianshou's Net class
+                from tianshou.utils.net.common import Net as TianshouNet
                 from tianshou.utils.net.discrete import Actor as DiscreteActor
                 from tianshou.utils.net.discrete import Critic as DiscreteCritic
 
-                # Create actor and critic networks
+                actor_net = TianshouNet(
+                    self.state_dim,
+                    self.num_actions,
+                    [64, 64],
+                    device=self.algorithm_config["device"],
+                )
                 actor = DiscreteActor(
-                    preprocess_net=nn.Sequential(
-                        nn.Linear(self.state_dim, 64),
-                        nn.ReLU(),
-                        nn.Linear(64, 64),
-                        nn.ReLU(),
-                    ),
+                    preprocess_net=actor_net,
                     action_shape=(self.num_actions,),
                 )
 
+                critic_net = TianshouNet(
+                    self.state_dim,
+                    1,  # Critic outputs a single value
+                    [64, 64],
+                    device=self.algorithm_config["device"],
+                )
                 critic = DiscreteCritic(
-                    preprocess_net=nn.Sequential(
-                        nn.Linear(self.state_dim, 64),
-                        nn.ReLU(),
-                        nn.Linear(64, 64),
-                        nn.ReLU(),
-                    ),
-                    action_shape=(self.num_actions,),  # type: ignore
+                    preprocess_net=critic_net,
                 )
 
                 # Create optimizers
@@ -336,17 +363,34 @@ class TianshouWrapper(RLAlgorithm):
                 # Create policy
                 import gymnasium as gym
 
+                # Filter out parameters that shouldn't be passed to A2CPolicy
+                a2c_params = {
+                    k: v
+                    for k, v in self.algorithm_config.items()
+                    if k
+                    not in [
+                        "lr",
+                        "device",
+                        "gamma",
+                        "tau",
+                        "alpha",
+                        "auto_alpha",
+                        "target_entropy",
+                        "n_step",
+                        "target_update_freq",
+                        "eps_test",
+                        "eps_train",
+                        "eps_train_final",
+                    ]
+                }
+
                 self.policy = A2CPolicy(
                     actor=actor,
                     critic=critic,
                     optim=actor_optim,
                     dist_fn=torch.distributions.Categorical,
                     action_space=gym.spaces.Discrete(self.num_actions),
-                    **{
-                        k: v
-                        for k, v in self.algorithm_config.items()
-                        if k not in ["lr", "device"]
-                    },
+                    **a2c_params,
                 )
 
             else:

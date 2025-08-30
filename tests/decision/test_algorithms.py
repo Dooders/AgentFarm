@@ -475,8 +475,17 @@ class TestAlgorithmBenchmark(unittest.TestCase):
             state_dim=4,
         )
 
-        algo = benchmark.create_algorithm("ppo", {"state_dim": 4})
-        self.assertEqual(algo.num_actions, self.num_actions)
+        # Add debugging to check if state_dim is properly set
+        try:
+            algo = benchmark.create_algorithm("ppo", {"state_dim": 4})
+            print(
+                f"Algorithm created successfully. State dim: {getattr(algo, 'state_dim', 'NOT_SET')}"
+            )
+            self.assertEqual(algo.num_actions, self.num_actions)
+        except Exception as e:
+            print(f"Error creating algorithm: {e}")
+            print(f"Benchmark state_dim: {benchmark.state_dim}")
+            raise
 
     @patch("time.time")
     def test_run_single_algorithm(self, mock_time):
