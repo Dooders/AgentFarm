@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional
 
 import numpy as np
 import torch
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     from farm.core.environment import Environment
