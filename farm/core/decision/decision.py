@@ -389,7 +389,7 @@ class DecisionModule:
                 action = np.random.randint(self.num_actions)
 
             # Handle curriculum restrictions - if enabled_actions is provided,
-            # ensure selected action is within the restricted set
+            # return the index within the enabled_actions list, not the full action space index
             if enabled_actions is not None and len(enabled_actions) > 0:
                 # Check if the selected action is in the enabled set
                 if action not in enabled_actions:
@@ -399,6 +399,8 @@ class DecisionModule:
                     )
                     # Select random action from enabled set
                     action = np.random.choice(enabled_actions)
+                # Convert the action index to its position within the enabled_actions list
+                action = enabled_actions.index(action)
 
             return action
 
@@ -406,7 +408,9 @@ class DecisionModule:
             logger.error(f"Error in decide_action for agent {self.agent_id}: {e}")
             # Fallback to random action (respect enabled_actions if provided)
             if enabled_actions is not None and len(enabled_actions) > 0:
-                return np.random.choice(enabled_actions)
+                # Return index within enabled_actions list
+                random_action = np.random.choice(enabled_actions)
+                return enabled_actions.index(random_action)
             else:
                 return np.random.randint(self.num_actions)
 

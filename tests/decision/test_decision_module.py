@@ -165,15 +165,16 @@ class TestDecisionModule(unittest.TestCase):
         enabled_actions = [0, 1, 2]
         action = module.decide_action(state, enabled_actions)
 
-        # Should return an action within the enabled set
-        self.assertIn(action, enabled_actions)
+        # Should return an index within the enabled_actions list (0, 1, or 2)
+        self.assertIsInstance(action, int)
+        self.assertTrue(0 <= action < len(enabled_actions))
 
         # Test with single enabled action
         enabled_actions = [1]
         action = module.decide_action(state, enabled_actions)
 
-        # Should return the only enabled action
-        self.assertEqual(action, 1)
+        # Should return index 0 (position of the only enabled action)
+        self.assertEqual(action, 0)
 
         # Test with empty enabled actions (should fallback to full space)
         action = module.decide_action(state, [])
