@@ -429,10 +429,21 @@ class TestBaseAgentDecisionMaking:
             Action("attack", 1.0, lambda agent: None),  # Should be restricted
         ]
 
+        # Mock decision module to return index 0 (move action)
+        mock_decision_module.decide_action.return_value = 0
+
         action = sample_base_agent.decide_action()
 
         # Should only consider enabled actions (move, gather)
         assert action.name in ["move", "gather"]
+
+        # Verify decision module was called with enabled action indices [0, 1]
+        mock_decision_module.decide_action.assert_called_once()
+        call_args = mock_decision_module.decide_action.call_args
+        # Check that enabled_actions parameter was passed
+        assert len(call_args[0]) == 2  # state and enabled_actions
+        enabled_indices = call_args[0][1]  # Second argument is enabled_actions
+        assert enabled_indices == [0, 1]  # Indices of move and gather actions
 
     def test_create_decision_state_with_environment(
         self, sample_base_agent, mock_environment

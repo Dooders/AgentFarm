@@ -150,6 +150,41 @@ class TestDecisionModule(unittest.TestCase):
             self.assertIsInstance(action, int)
             self.assertTrue(0 <= action < module.num_actions)
 
+    def test_decide_action_with_enabled_actions(self):
+        """Test decide_action with enabled_actions parameter."""
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.observation_space,
+            self.config,
+        )
+
+        state = torch.randn(8)
+
+        # Test with enabled actions restricting to first 3 actions
+        enabled_actions = [0, 1, 2]
+        action = module.decide_action(state, enabled_actions)
+
+        # Should return an action within the enabled set
+        self.assertIn(action, enabled_actions)
+
+        # Test with single enabled action
+        enabled_actions = [1]
+        action = module.decide_action(state, enabled_actions)
+
+        # Should return the only enabled action
+        self.assertEqual(action, 1)
+
+        # Test with empty enabled actions (should fallback to full space)
+        action = module.decide_action(state, [])
+        self.assertIsInstance(action, int)
+        self.assertTrue(0 <= action < module.num_actions)
+
+        # Test with None (should use full space)
+        action = module.decide_action(state, None)
+        self.assertIsInstance(action, int)
+        self.assertTrue(0 <= action < module.num_actions)
+
     @patch("farm.core.decision.decision.logger")
     def test_decide_action_exception_handling(self, mock_logger):
         """Test decide_action exception handling."""

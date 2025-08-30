@@ -15,7 +15,7 @@ Key Features:
 
 import logging
 import os
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -338,15 +338,21 @@ class DecisionModule:
 
         self.algorithm = FallbackAlgorithm(self.num_actions, self.config.epsilon_start)
 
-    def decide_action(self, state: Union[torch.Tensor, np.ndarray]) -> int:
-        #! Need to validate and refactor this
+    def decide_action(
+        self,
+        state: Union[torch.Tensor, np.ndarray],
+        enabled_actions: Optional[List[int]] = None,
+    ) -> int:
         """Decide which action to take given the current state.
 
         Args:
             state: Current state observation as tensor or numpy array
+            enabled_actions: Optional list of enabled action indices. If provided,
+                           only these actions will be considered valid. If None,
+                           all actions in the full action space are considered valid.
 
         Returns:
-            int: Selected action index
+            int: Selected action index (always within enabled_actions if provided)
         """
         try:
             # Convert state to numpy for algorithm compatibility
@@ -382,12 +388,27 @@ class DecisionModule:
                 )
                 action = np.random.randint(self.num_actions)
 
+            # Handle curriculum restrictions - if enabled_actions is provided,
+            # ensure selected action is within the restricted set
+            if enabled_actions is not None and len(enabled_actions) > 0:
+                # Check if the selected action is in the enabled set
+                if action not in enabled_actions:
+                    logger.debug(
+                        f"Action {action} not in enabled actions {enabled_actions} for agent {self.agent_id}, "
+                        "selecting random enabled action"
+                    )
+                    # Select random action from enabled set
+                    action = np.random.choice(enabled_actions)
+
             return action
 
         except Exception as e:
             logger.error(f"Error in decide_action for agent {self.agent_id}: {e}")
-            # Fallback to random action
-            return np.random.randint(self.num_actions)
+            # Fallback to random action (respect enabled_actions if provided)
+            if enabled_actions is not None and len(enabled_actions) > 0:
+                return np.random.choice(enabled_actions)
+            else:
+                return np.random.randint(self.num_actions)
 
     def update(
         self,

@@ -469,19 +469,20 @@ class BaseAgent:
                         ]
                         break
 
-        # Use DecisionModule to select action index
-        action_index = self.decision_module.decide_action(self._cached_selection_state)
+        # Use DecisionModule to select action index, passing enabled actions for curriculum support
+        enabled_action_indices = [
+            self.actions.index(action) for action in enabled_actions
+        ]
+        action_index = self.decision_module.decide_action(
+            self._cached_selection_state, enabled_action_indices
+        )
 
-        # Map action index to Action object, considering only enabled actions
-        if action_index < len(enabled_actions):
+        # Map action index to Action object
+        # Since decision_module now respects enabled_actions, action_index should always be valid
+        if enabled_actions:
             selected_action = enabled_actions[action_index]
         else:
-            # Fallback to random enabled action if index is out of bounds
-            selected_action = (
-                random.choice(enabled_actions)
-                if enabled_actions
-                else random.choice(self.actions)
-            )
+            selected_action = self.actions[action_index]
 
         return selected_action
 
