@@ -157,7 +157,11 @@ class Environment(AECEnv):
         self.simulation_id = simulation_id or self.identity.simulation_id()
 
         # Setup database and get initialized database instance
-        self.db = setup_db(db_path, self.simulation_id)
+        db_result = setup_db(db_path, self.simulation_id)
+        if isinstance(db_result, tuple):
+            self.db = db_result[0]  # Extract database object from tuple
+        else:
+            self.db = db_result
 
         # Use self.identity for all ID needs
         self.max_resource = max_resource
@@ -1264,6 +1268,19 @@ class Environment(AECEnv):
                 self._observation_space.shape, dtype=self._observation_space.dtype
             )
         )
+
+        # Update internal PettingZoo state dictionaries (required for AECEnv API)
+        self.observations[agent_id] = observation
+        self.rewards[agent_id] = reward
+        self.terminations[agent_id] = terminated
+        self.truncations[agent_id] = truncated
+        self.infos[agent_id] = {}
+
+        # Handle cumulative rewards
+        self._cumulative_rewards[agent_id] += reward
+
+        # Advance to next agent in the cycle (required for AECEnv API)
+        self._next_agent()
 
         return observation, reward, terminated, truncated, {}
 
