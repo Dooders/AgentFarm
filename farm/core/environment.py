@@ -193,6 +193,10 @@ class Environment(AECEnv):
         self.resources_shared = 0.0
         self.resources_shared_this_step = 0.0
 
+        # Initialize cycle tracking for proper timestep semantics
+        self._agents_acted_this_cycle = 0
+        self._cycle_complete = False
+
         # Initialize resource manager
         self.resource_manager = ResourceManager(
             width=self.width,
@@ -1084,6 +1088,7 @@ class Environment(AECEnv):
         - Cycles through agents in order starting from the next position
         - Skips agents marked as terminated or truncated
         - Sets agent_selection to None if no active agents remain
+        - Detects when a complete cycle of all agents has occurred
 
         The round-robin scheduling ensures fair time allocation among all
         active agents. Dead or removed agents are automatically skipped.
@@ -1091,10 +1096,15 @@ class Environment(AECEnv):
         if not self.agents:
             self.agent_selection = None
             return
+
+        # Store previous agent for cycle detection
+        previous_agent = self.agent_selection
+
         try:
             current_idx = self.agents.index(self.agent_selection)
         except ValueError:
             current_idx = -1
+
         for i in range(1, len(self.agents) + 1):
             next_idx = (current_idx + i) % len(self.agents)
             next_agent = self.agents[next_idx]
@@ -1103,6 +1113,14 @@ class Environment(AECEnv):
                 or self.truncations.get(next_agent, False)
             ):
                 self.agent_selection = next_agent
+
+                # Detect if we've completed a full cycle
+                # This happens when we wrap around to the first agent
+                if previous_agent is not None and next_idx < current_idx:
+                    self._cycle_complete = True
+                else:
+                    self._cycle_complete = False
+
                 return
         self.agent_selection = None
 
@@ -1158,6 +1176,10 @@ class Environment(AECEnv):
             list(self._agent_objects.values()), self.resources
         )
         self.spatial_index.update()
+
+        # Reset cycle tracking for proper timestep semantics
+        self._agents_acted_this_cycle = 0
+        self._cycle_complete = False
 
         # Rebuild PettingZoo agent lists from current alive agents
         self.agents = [a.agent_id for a in self._agent_objects.values() if a.alive]
@@ -1218,7 +1240,12 @@ class Environment(AECEnv):
 
         # Process the action
         self._process_action(agent_id, action)
-        self.update()
+
+        # Only update environment state when all agents have acted (cycle complete)
+        # This ensures proper timestep semantics in AECEnv
+        if self._cycle_complete:
+            self.update()
+            self._cycle_complete = False  # Reset for next cycle
 
         # Add resource check to terminated:
         alive_agents = [a for a in self._agent_objects.values() if a.alive]
