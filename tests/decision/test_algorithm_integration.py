@@ -43,7 +43,8 @@ class TestAlgorithmRegistryIntegration(unittest.TestCase):
             "ppo",
             "sac",
             "a2c",
-            "td3",
+            "ddpg",
+            "dqn",
         }
 
         registered_algorithms = set(AlgorithmRegistry._algorithms.keys())
