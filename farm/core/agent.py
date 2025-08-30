@@ -485,31 +485,38 @@ class BaseAgent:
 
         return selected_action
 
-    def _calculate_reward(self) -> float:
+    def _calculate_reward(
+        self, pre_action_state: AgentState, post_action_state: AgentState, action_taken
+    ) -> float:
         """Calculate reward for the current state transition.
 
+        Args:
+            pre_action_state: Agent state before action execution
+            post_action_state: Agent state after action execution
+            action_taken: Action that was executed
+
         Returns:
-            float: Calculated reward based on state changes
+            float: Calculated reward based on state changes from pre to post action
 
         Notes:
-        - TODO: Seperate rewards logic from agent
+        - This method calculates reward based on the immediate effect of the action
+        - Reward reflects changes within a single turn, not across turns
+        - TODO: Separate rewards logic from agent
         """
-        if not hasattr(self, "previous_state") or self.previous_state is None:
-            return 0.0
-
-        # Basic reward components
+        # Basic reward components based on state deltas
         resource_reward = (
-            self.resource_level - self.previous_state.resource_level
+            post_action_state.resource_level - pre_action_state.resource_level
         ) * 0.1
-        health_reward = (self.current_health - self.previous_state.current_health) * 0.5
+        health_reward = (
+            post_action_state.current_health - pre_action_state.current_health
+        ) * 0.5
         survival_reward = 0.1 if self.alive else -10.0
 
         # Action-specific bonuses (simplified)
         action_bonus = 0.0
-        if hasattr(self, "previous_action") and self.previous_action:
+        if action_taken and action_taken.name != "pass":
             # Small bonus for non-idle actions
-            if self.previous_action.name != "pass":
-                action_bonus = 0.05
+            action_bonus = 0.05
 
         total_reward = resource_reward + health_reward + survival_reward + action_bonus
 
@@ -599,8 +606,11 @@ class BaseAgent:
         action = self.decide_action()
         action.execute(self)
 
-        # Calculate reward based on state changes
-        reward = self._calculate_reward()
+        # Get post-action state for reward calculation
+        post_action_state = self.get_state()
+
+        # Calculate reward based on state changes from pre-action to post-action
+        reward = self._calculate_reward(current_state, post_action_state, action)
 
         # Store state and action for learning
         self.previous_state = current_state
