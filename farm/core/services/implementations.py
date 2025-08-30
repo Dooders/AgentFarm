@@ -217,9 +217,8 @@ class EnvironmentLoggingService(ILoggingService):
             parent_generation: Generation number of the parent agent.
             offspring_generation: Generation number of the offspring.
         """
-        if self._env.db is None:
-            return
-        self._env.db.log_reproduction_event(
+        # delegate to environment's method which already checks DB presence
+        self._env.log_reproduction_event(
             step_number=step_number,
             parent_id=parent_id,
             success=success,
@@ -243,9 +242,8 @@ class EnvironmentLoggingService(ILoggingService):
             death_time: The simulation step when the agent died.
             cause: The cause of death (default: "starvation").
         """
-        if self._env.db is None:
-            return
-        self._env.db.update_agent_death(agent_id, death_time, cause)
+        # delegate to environment's method which already checks DB presence
+        self._env.update_agent_death(agent_id, death_time, cause)
 
 
 class SpatialIndexAdapter(ISpatialQueryService):

@@ -339,6 +339,7 @@ class DecisionModule:
         self.algorithm = FallbackAlgorithm(self.num_actions, self.config.epsilon_start)
 
     def decide_action(self, state: Union[torch.Tensor, np.ndarray]) -> int:
+        #! Need to validate and refactor this
         """Decide which action to take given the current state.
 
         Args:
