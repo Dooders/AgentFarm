@@ -991,49 +991,82 @@ class Environment(AECEnv):
                 f"Action {action} not available in current simulation configuration"
             )
 
-    def _calculate_reward(self, agent_id: str) -> float:
+    def _calculate_reward(
+        self, agent_id: str, pre_action_state: Optional[Dict[str, Any]] = None
+    ) -> float:
         """Calculate the reward for a specific agent.
 
         Computes a reward signal for reinforcement learning based on the agent's
-        current state including resource level, health, and survival status.
-        The reward encourages resource accumulation, health maintenance, and survival.
+        state changes and current status. Uses delta-based rewards when pre-action
+        state is available (better for RL), otherwise falls back to state-based rewards.
 
         Parameters
         ----------
         agent_id : str
             The ID of the agent to calculate reward for.
+        pre_action_state : dict, optional
+            Agent's state before the action was processed. If provided, uses
+            delta-based rewards; otherwise uses state-based rewards.
 
         Returns
         -------
         float
             The calculated reward value. Returns -10.0 if agent is dead or missing.
-            Positive rewards for resource accumulation, health, and survival.
+            Uses delta rewards when pre_action_state is available, otherwise state-based.
 
         Notes
         -----
-        The reward function includes:
+        Delta-based rewards (when pre_action_state provided):
+        - Resource delta: direct resource change from action
+        - Health delta: health change (scaled by 0.5)
+        - Survival bonus: +0.1 for staying alive, -10 penalty for death
+        - Better for reinforcement learning as it directly measures action impact
+
+        State-based rewards (fallback when no pre_action_state):
         - Resource reward: 0.1 * resource_level
         - Survival reward: 0.1 for being alive
         - Health reward: current_health / starting_health ratio
-
-        Additional rewards for combat success and cooperation could be added
-        by tracking agent-specific metrics in action implementations.
+        - Used for initial state or when delta calculation unavailable
         """
         agent = self._agent_objects.get(agent_id)
-        if agent is None or not agent.alive:
+        if agent is None:
+            return -10.0
+
+        # Use delta-based rewards if pre-action state is available
+        if pre_action_state is not None:
+            resource_delta = agent.resource_level - pre_action_state["resource_level"]
+            health_delta = agent.current_health - pre_action_state["health"]
+            was_alive = pre_action_state["alive"]
+
+            # Base delta rewards
+            reward = resource_delta + health_delta * 0.5
+
+            # Survival handling
+            if agent.alive:
+                reward += 0.1  # Survival bonus for staying alive
+            else:
+                reward -= 10.0  # Death penalty
+                return reward  # Early return for dead agents
+
+            # TODO: Add action-specific bonuses here when action tracking is implemented
+            # For example:
+            # - Combat success bonus if agent.last_action_success == ActionType.ATTACK
+            # - Cooperation bonus if agent.last_action_success == ActionType.SHARE
+
+            return reward
+
+        # Fallback to state-based rewards when no pre-action state
+        if not agent.alive:
             return -10.0
 
         resource_reward = agent.resource_level * 0.1
         survival_reward = 0.1
         health_reward = agent.current_health / agent.starting_health
-        # For combat and cooperation, add if successful_attacks_this_step or resources_shared_this_step, but since global, divide by num agents or something, but poor.
-        # Assume 0 for now.
 
         reward = resource_reward + survival_reward + health_reward
 
-        # Add bonuses if did combat or share, but to detect, perhaps add agent metrics like agent.successful_attacks = 0, incremented in action.
-
-        # Since can't modify actions, for this edit, use the simple formula.
+        # TODO: Add state-based action bonuses here when action tracking is implemented
+        # This would require tracking last action and success status on the agent
 
         return reward
 
@@ -1136,8 +1169,6 @@ class Environment(AECEnv):
         self.infos = {a: {} for a in self.agents}
         self.observations = {a: self._get_observation(a) for a in self.agents}
 
-        self.previous_agent_states = {}
-
         if self.agent_selection is None:
             dummy_obs = np.zeros(
                 self._observation_space.shape, dtype=self._observation_space.dtype
@@ -1175,12 +1206,17 @@ class Environment(AECEnv):
 
         agent_id = self.agent_selection
         agent = self._agent_objects.get(agent_id)
+
+        # Capture pre-action state for delta calculations
+        pre_action_state = None
         if agent:
-            self.previous_agent_states[agent_id] = {
+            pre_action_state = {
                 "resource_level": agent.resource_level,
                 "health": agent.current_health,
                 "alive": agent.alive,
             }
+
+        # Process the action
         self._process_action(agent_id, action)
         self.update()
 
@@ -1190,27 +1226,8 @@ class Environment(AECEnv):
         terminated = len(alive_agents) == 0 or total_resources == 0
         truncated = self.time >= self.max_steps
 
-        reward = self._calculate_reward(agent_id)
-
-        if agent:
-            resource_delta = (
-                agent.resource_level
-                - self.previous_agent_states[agent_id]["resource_level"]
-            )
-            health_delta = (
-                agent.current_health - self.previous_agent_states[agent_id]["health"]
-            )
-            survival_bonus = 0.1 if agent.alive else 0
-
-            # Assume for combat success, if resource_delta >0 and health_delta >=0, +2 (possible successful attack)
-            # For cooperation, if resource_delta <0 and health_delta >=0, +1 (possible share)
-
-            reward = resource_delta + health_delta * 0.5 + survival_bonus
-
-            if not agent.alive:
-                reward -= 10
-
-            # Add more if needed.
+        # Calculate reward using consolidated method
+        reward = self._calculate_reward(agent_id, pre_action_state)
 
         # Get observation for current agent
         observation = (
