@@ -226,7 +226,7 @@ farm/core/your_scenario_config.py
 ```
 config.yaml - Add scenario parameters
 farm/core/config.py - Add new configuration classes
-farm/actions/attack.py - Enhance combat mechanics if needed
+farm/core/action.py - Attack action already uses spatial index for efficient combat
 ```
 
 ## Common Patterns and Best Practices

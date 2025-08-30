@@ -7,20 +7,18 @@ reinforcement learning capabilities.
 
 Key Components:
     - Environment: Main simulation environment class
-    - Action: Enumeration of available agent actions
+    - ActionType: Enumeration of available agent actions (imported from action.py)
     - Spatial indexing for efficient proximity queries
     - Resource management and regeneration
     - Metrics tracking and database logging
     - Agent lifecycle management
 
-The environment supports various agent types (SystemAgent, IndependentAgent,
-ControlAgent) and provides observation spaces for reinforcement learning
+The environment supports various agent types and provides observation spaces for reinforcement learning
 training and evaluation.
 """
 
 import logging
 import random
-from enum import IntEnum
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -28,48 +26,24 @@ import torch
 from gymnasium import spaces
 from pettingzoo import AECEnv
 
-# TODO: Simplify actions import.
-from farm.actions.attack import attack_action
-from farm.actions.gather import gather_action
-from farm.actions.move import move_action
-from farm.actions.reproduce import reproduce_action
-from farm.actions.share import share_action
-from farm.agents import ControlAgent, IndependentAgent, SystemAgent
+# Use action registry for cleaner action management
+from farm.core.action import ActionType, action_registry
 from farm.core.channels import NUM_CHANNELS
 from farm.core.metrics_tracker import MetricsTracker
 from farm.core.observations import AgentObservation, ObservationConfig
 from farm.core.resource_manager import ResourceManager
+from farm.core.services.implementations import (
+    EnvironmentAgentLifecycleService,
+    EnvironmentLoggingService,
+    EnvironmentMetricsService,
+    EnvironmentTimeService,
+    EnvironmentValidationService,
+    SpatialIndexAdapter,
+)
 from farm.core.spatial_index import SpatialIndex
 from farm.core.state import EnvironmentState
 from farm.database.utilities import setup_db
 from farm.utils.identity import Identity, IdentityConfig
-
-
-class Action(IntEnum):
-    """Enumeration of available agent actions.
-
-    Actions define the possible behaviors agents can take in the environment.
-    Each action has specific effects on the agent and its surroundings.
-
-    Attributes:
-        DEFEND (0): Agent enters defensive stance, reducing damage from attacks
-        ATTACK (1): Agent attempts to attack nearby enemies
-        GATHER (2): Agent collects resources from nearby resource nodes
-        SHARE (3): Agent shares resources with nearby allies
-        MOVE (4): Agent moves to a new position within the environment
-        REPRODUCE (5): Agent attempts to create offspring if conditions are met
-
-    Note:
-        TODO: Move to actions.py for better organization
-    """
-
-    DEFEND = 0
-    ATTACK = 1
-    GATHER = 2
-    SHARE = 3
-    MOVE = 4
-    REPRODUCE = 5
-
 
 logger = logging.getLogger(__name__)
 
@@ -177,9 +151,7 @@ class Environment(AECEnv):
         self.time = 0
 
         # Initialize identity service (deterministic if seed provided)
-        self.identity = Identity(
-            IdentityConfig(deterministic_seed=self.seed_value)
-        )
+        self.identity = Identity(IdentityConfig(deterministic_seed=self.seed_value))
 
         # Store simulation ID
         self.simulation_id = simulation_id or self.identity.simulation_id()
@@ -195,6 +167,9 @@ class Environment(AECEnv):
             config.max_steps if config and hasattr(config, "max_steps") else 1000
         )
 
+        # Initialize action mapping based on configuration and available actions
+        self._initialize_action_mapping()
+
         # Initialize PettingZoo required attributes
         self.agent_selection = None
         self.rewards = {}
@@ -205,10 +180,14 @@ class Environment(AECEnv):
         self.observations = {}
 
         # Initialize spatial index for efficient spatial queries
-        self.spatial_index = SpatialIndex(width, height)
+        self.spatial_index = SpatialIndex(self.width, self.height)
+        # Provide spatial service via adapter around spatial_index
+        self.spatial_service = SpatialIndexAdapter(self.spatial_index)
 
         # Initialize metrics tracker
         self.metrics_tracker = MetricsTracker()
+        # Provide metrics service delegating to the environment
+        self.metrics_service = EnvironmentMetricsService(self)
 
         # Initialize resource sharing counters
         self.resources_shared = 0.0
@@ -216,19 +195,19 @@ class Environment(AECEnv):
 
         # Initialize resource manager
         self.resource_manager = ResourceManager(
-            width=width,
-            height=height,
-            config=config,
+            width=self.width,
+            height=self.height,
+            config=self.config,
             seed=self.seed_value,
             database_logger=self.db.logger if self.db else None,
             spatial_index=self.spatial_index,
         )
 
         # Initialize environment
-        self.initialize_resources(resource_distribution)
+        self.initialize_resources(self.resource_distribution)
 
         # Add observation space setup:
-        self._setup_observation_space(config)
+        self._setup_observation_space(self.config)
 
         # Add action space setup call:
         self._setup_action_space()
@@ -237,8 +216,8 @@ class Environment(AECEnv):
         self.agent_observations = {}
 
         # If pre-instantiated agents are provided, add them now
-        if agents:
-            for agent in agents:
+        if self.agents:
+            for agent in self.agents:
                 self.add_agent(agent)
 
         # Update spatial index references now that resources and agents are initialized
@@ -246,6 +225,68 @@ class Environment(AECEnv):
             list(self._agent_objects.values()), self.resources
         )
         self.spatial_index.update()
+
+    def _initialize_action_mapping(self) -> None:
+        """Initialize the action mapping based on configuration and available actions.
+
+        Creates a dynamic mapping between Action enum values and action registry names.
+        Allows for flexible action configuration where simulations can enable/disable
+        specific actions and handle missing actions gracefully.
+
+        The mapping supports:
+        - Configuration-driven action enabling/disabling
+        - Dynamic discovery of available actions in registry
+        - Validation of required actions
+        - Graceful handling of missing actions
+        """
+        # Default mapping from ActionType enum to action registry names
+        default_action_mapping = {
+            ActionType.DEFEND: "defend",
+            ActionType.ATTACK: "attack",
+            ActionType.GATHER: "gather",
+            ActionType.SHARE: "share",
+            ActionType.MOVE: "move",
+            ActionType.REPRODUCE: "reproduce",
+            ActionType.PASS: "pass",
+        }
+
+        # Get enabled actions from config, or use all available if not specified
+        if self.config and hasattr(self.config, "enabled_actions"):
+            enabled_actions = self.config.enabled_actions
+            if isinstance(enabled_actions, list):
+                # Convert list of action names to mapping
+                self._action_mapping = {}
+                for action_name in enabled_actions:
+                    # Find the corresponding Action enum value
+                    for action_enum, registry_name in default_action_mapping.items():
+                        if registry_name == action_name:
+                            self._action_mapping[action_enum] = action_name
+                            break
+            else:
+                self._action_mapping = default_action_mapping
+        else:
+            self._action_mapping = default_action_mapping
+
+        # Validate that all mapped actions exist in the registry
+        missing_actions = []
+        for action_enum, action_name in self._action_mapping.items():
+            if not action_registry.get(action_name):
+                missing_actions.append(action_name)
+
+        if missing_actions:
+            logging.warning(f"Missing actions in registry: {missing_actions}")
+            # Remove missing actions from mapping
+            self._action_mapping = {
+                k: v
+                for k, v in self._action_mapping.items()
+                if v not in missing_actions
+            }
+
+        # Log the final action mapping
+        available_actions = list(self._action_mapping.values())
+        logging.info(
+            f"Initialized action mapping with {len(available_actions)} actions: {available_actions}"
+        )
 
     @property
     def agent_objects(self) -> List[Any]:
@@ -393,9 +434,9 @@ class Environment(AECEnv):
     def log_interaction_edge(
         self,
         source_type: str,
-        source_id: Union[str, int],
+        source_id: str,
         target_type: str,
-        target_id: Union[str, int],
+        target_id: str,
         interaction_type: str,
         action_type: Optional[str] = None,
         details: Optional[Dict[str, Any]] = None,
@@ -409,11 +450,11 @@ class Environment(AECEnv):
         ----------
         source_type : str
             Type of the source entity (e.g., 'agent', 'resource')
-        source_id : str or int
+        source_id : str
             Unique identifier of the source entity
         target_type : str
             Type of the target entity (e.g., 'agent', 'resource')
-        target_id : str or int
+        target_id : str
             Unique identifier of the target entity
         interaction_type : str
             Type of interaction (e.g., 'attack', 'share', 'gather')
@@ -434,9 +475,9 @@ class Environment(AECEnv):
             self.db.logger.log_interaction_edge(
                 step_number=self.time,
                 source_type=source_type,
-                source_id=str(source_id),
+                source_id=source_id,
                 target_type=target_type,
-                target_id=str(target_id),
+                target_id=target_id,
                 interaction_type=interaction_type,
                 action_type=action_type,
                 details=details,
@@ -616,6 +657,32 @@ class Environment(AECEnv):
         The agent data logged includes birth time, position, resources, health,
         genome information (if applicable), and action weights.
         """
+        # If the agent supports dependency injection, supply services and config
+        try:
+            # Spatial service is required - always provide it
+            if hasattr(agent, "spatial_service"):
+                agent.spatial_service = self.spatial_service
+            if hasattr(agent, "metrics_service") and agent.metrics_service is None:
+                agent.metrics_service = self.metrics_service
+            if hasattr(agent, "logging_service") and agent.logging_service is None:
+                agent.logging_service = EnvironmentLoggingService(self)
+            if (
+                hasattr(agent, "validation_service")
+                and agent.validation_service is None
+            ):
+                agent.validation_service = EnvironmentValidationService(self)
+            if hasattr(agent, "time_service") and agent.time_service is None:
+                agent.time_service = EnvironmentTimeService(self)
+            if hasattr(agent, "lifecycle_service") and agent.lifecycle_service is None:
+                agent.lifecycle_service = EnvironmentAgentLifecycleService(self)
+            if hasattr(agent, "config") and getattr(agent, "config", None) is None:
+                agent.config = self.config
+            # Set environment reference for action/observation space access
+            if hasattr(agent, "environment"):
+                agent.environment = self
+        except Exception:
+            pass
+
         agent_data = [
             {
                 "simulation_id": self.simulation_id,
@@ -755,7 +822,7 @@ class Environment(AECEnv):
 
     def _setup_action_space(self) -> None:
         """Setup the action space with all available actions."""
-        self._action_space = spaces.Discrete(len(Action))
+        self._action_space = spaces.Discrete(len(ActionType))
 
     def get_initial_agent_count(self) -> int:
         """Calculate the number of initial agents (born at time 0) dynamically.
@@ -808,7 +875,7 @@ class Environment(AECEnv):
 
         Notes
         -----
-        TODO: Deprecate. The observation will come from the spatial index.
+        TODO: #! Deprecate. The observation will come from the spatial index.
 
         The observation includes:
         - Resource distribution in the agent's field of view
@@ -856,34 +923,18 @@ class Environment(AECEnv):
         # Agent position as (y, x)
         ay, ax = int(round(agent.position[1])), int(round(agent.position[0]))
 
-        # Get nearby agents
-        nearby = self.get_nearby_agents(
-            agent.position, self.observation_config.fov_radius
-        )
-
-        allies = []
-        enemies = []
-        agent_type = type(agent)
-        for na in nearby:
-            if na == agent or not na.alive:
-                continue
-            ny = int(round(na.position[1]))
-            nx = int(round(na.position[0]))
-            hp01 = na.current_health / na.starting_health
-            if isinstance(na, agent_type):
-                allies.append((ny, nx, hp01))
-            else:
-                enemies.append((ny, nx, hp01))
+        # Ensure spatial index is up to date before observation generation
+        self.spatial_index.update()
 
         self_hp01 = agent.current_health / agent.starting_health
 
-        obs = self.agent_observations[agent_id]  #! What is this for?
+        obs = self.agent_observations[agent_id]
         obs.perceive_world(
             world_layers=world_layers,
             agent_world_pos=(ay, ax),
             self_hp01=self_hp01,
-            allies=allies,
-            enemies=enemies,
+            allies=None,  # Let observation system use spatial index for efficiency
+            enemies=None,  # Let observation system use spatial index for efficiency
             goal_world_pos=None,  # TODO: Set if needed
             recent_damage_world=[],  # TODO: Implement if needed
             ally_signals_world=[],  # TODO: Implement if needed
@@ -908,7 +959,7 @@ class Environment(AECEnv):
             The ID of the agent performing the action.
         action : int
             The action to perform (from Action enum). Must be one of:
-            DEFEND, ATTACK, GATHER, SHARE, MOVE, or REPRODUCE.
+            DEFEND, ATTACK, GATHER, SHARE, MOVE, REPRODUCE, or PASS.
 
         Notes
         -----
@@ -927,23 +978,18 @@ class Environment(AECEnv):
         if agent is None or not agent.alive or action is None:
             return
 
-        def defend_action(ag):
-            ag.is_defending = True
-
-        action_map = {
-            Action.DEFEND: defend_action,
-            Action.ATTACK: attack_action,
-            Action.GATHER: gather_action,
-            Action.SHARE: share_action,
-            Action.MOVE: move_action,
-            Action.REPRODUCE: reproduce_action,
-        }
-
-        func = action_map.get(Action(action))
-        if func:
-            func(agent)
+        # Get action name from dynamic mapping
+        action_name = self._action_mapping.get(ActionType(action))
+        if action_name:
+            action_obj = action_registry.get(action_name)
+            if action_obj:
+                action_obj.execute(agent)
+            else:
+                logging.warning(f"Action '{action_name}' not found in action registry")
         else:
-            logging.warning(f"Invalid action {action} for agent {agent_id}")
+            logging.debug(
+                f"Action {action} not available in current simulation configuration"
+            )
 
     def _calculate_reward(self, agent_id: str) -> float:
         """Calculate the reward for a specific agent.

@@ -1,130 +1,183 @@
+
 # Action System
+
+The action system manages agent behaviors in the multi-agent simulation environment. It defines possible actions agents can take, how they are selected using learning algorithms, and how they are executed in the environment.
 
 ## Overview
 
-The action system in AgentFarm implements a hierarchical reinforcement learning approach where agents learn both high-level action selection and low-level action execution. This design follows the Options Framework (Sutton et al., 1999) where "options" are sub-policies chosen by a high-level policy.
+Agents in the system can perform various actions such as moving, gathering resources, attacking, sharing, reproducing, defending, or passing. The system uses a combination of rule-based execution and learning-based selection (primarily Deep Q-Learning) to enable intelligent agent behavior.
 
-## Hierarchical Action System Optimizations
+Key features:
+- Modular action definitions with weights for selection
+- Deep Q-Learning for action selection via DecisionModule
+- Curriculum learning support for progressive capability unlocking
+- Integration with agent state, perception, and memory systems
+- Reward-based learning for adaptive behavior
 
-### Shared Feature Extraction
+## Core Components
 
-The system uses a `SharedEncoder` to extract common features across all action modules, reducing computational redundancy and improving learning efficiency.
+### ActionType Enum
 
-```python
-class SharedEncoder(nn.Module):
-    def __init__(self, input_dim: int, hidden_size: int):
-        super().__init__()
-        self.fc = nn.Linear(input_dim, hidden_size)
-    
-    def forward(self, x):
-        return F.relu(self.fc(x))  # Shared features
-```
-
-**Benefits:**
-- Reduces parameter count across modules
-- Enables shared learning of common features (position, health, resources)
-- Improves training stability through shared representations
-
-### Unified Training Loop
-
-The `BaseAgent` class implements a centralized training mechanism that updates all modules simultaneously:
+Defined in `farm/core/action.py`:
 
 ```python
-def train_all_modules(self):
-    """Unified training for all action modules."""
-    for module in [self.move_module, self.attack_module, self.share_module, 
-                   self.gather_module, self.select_module]:
-        if hasattr(module, 'train') and len(module.memory) >= module.config.batch_size:
-            batch = random.sample(module.memory, module.config.batch_size)
-            module.train(batch)
+class ActionType(IntEnum):
+    DEFEND = 0     # Enter defensive stance, reducing incoming damage
+    ATTACK = 1     # Attack nearby agents
+    GATHER = 2     # Collect resources from nearby nodes
+    SHARE = 3      # Share resources with nearby allies
+    MOVE = 4       # Move to a new position
+    REPRODUCE = 5  # Create offspring if conditions met
+    PASS = 6       # Take no action
 ```
 
-### Curriculum Learning
+### Action Class
 
-Actions are gradually enabled based on simulation progress to ease training complexity:
+The base class for all actions, encapsulating name, selection weight, and execution function.
 
 ```python
-curriculum_phases = [
-    {"steps": 100, "enabled_actions": ["move", "gather"]},
-    {"steps": 200, "enabled_actions": ["move", "gather", "share", "attack"]},
-    {"steps": -1, "enabled_actions": ["move", "gather", "share", "attack", "reproduce"]}
-]
+class Action:
+    def __init__(self, name, weight, function):
+        self.name = name
+        self.weight = weight
+        self.function = function
+
+    def execute(self, agent, *args, **kwargs):
+        self.function(agent, *args, **kwargs)
 ```
 
-### Rule-Based Simplification
+### Action Registry
 
-Simple actions like reproduction use rule-based logic instead of DQN to reduce complexity:
+A global registry for managing available actions:
 
 ```python
-def reproduce_action(agent: "BaseAgent") -> None:
-    if random.random() < 0.5 and agent.resource_level >= agent.config.min_reproduction_resources:
-        agent.reproduce()
+class action_registry:
+    _registry = {}
+
+    @classmethod
+    def register(cls, name: str, weight: float, function: Callable) -> None:
+        cls._registry[name] = Action(name, weight, function)
+
+    @classmethod
+    def get(cls, name: str) -> Action | None:
+        return cls._registry.get(name)
+
+    @classmethod
+    def get_all(cls) -> List[Action]:
+        return list(cls._registry.values())
 ```
 
-## Action Modules
+Actions are registered with default weights:
 
-### Movement Module (`move.py`)
-- **Purpose**: Learn optimal navigation policies
-- **Action Space**: 4 discrete directions (right, left, up, down)
-- **State**: Position, resource proximity, health
-- **Reward**: Movement cost + resource approach bonus
+- attack: 0.1
+- move: 0.4
+- gather: 0.3
+- reproduce: 0.15
+- share: 0.2
+- defend: 0.25
+- pass: 0.05
 
-### Attack Module (`attack.py`)
-- **Purpose**: Learn combat strategies
-- **Action Space**: 5 actions (4 directional attacks + defend)
-- **State**: Health ratio, target proximity, resource levels
-- **Reward**: Success/failure based on damage dealt
+## Action Selection Process
 
-### Gather Module (`gather.py`)
-- **Purpose**: Learn resource collection strategies
-- **Action Space**: 3 actions (gather, wait, skip)
-- **State**: Resource availability, distance, efficiency
-- **Reward**: Resource amount collected minus costs
+Action selection is handled by the `DecisionModule` in `farm/core/decision/decision.py`, which uses reinforcement learning (default: DQN via Stable Baselines3) to choose actions based on the current state.
 
-### Share Module (`share.py`)
-- **Purpose**: Learn cooperative resource sharing
-- **Action Space**: Share amounts and target selection
-- **State**: Own resources, nearby agents, cooperation history
-- **Reward**: Altruism bonuses and reciprocity
+In `BaseAgent.decide_action()`:
 
-### Select Module (`select.py`)
-- **Purpose**: High-level action selection policy
-- **Action Space**: Choose which action to execute
-- **State**: Current situation, available actions
-- **Reward**: Success of chosen action
+1. Create state representation (position, resources, health, etc.)
+2. Determine enabled actions based on curriculum phase
+3. Use DecisionModule to select action index
+4. Map index to Action object from enabled actions
 
-## Configuration
+The DecisionModule supports:
+- Epsilon-greedy exploration
+- Shared feature encoding
+- Multiple algorithms (DQN default)
+- Per-agent models for personalized learning
 
-Each module uses `BaseDQNConfig` with module-specific parameters:
+Curriculum learning progressively enables actions through phases defined in config.
+
+## Action Execution
+
+Each action has a dedicated function in `farm/core/action.py` that implements the behavior:
+
+- **defend_action**: Enter defensive stance, reduce damage, optional healing
+- **attack_action**: Find closest target in range, calculate and apply damage
+- **gather_action**: Collect from nearest resource node
+- **share_action**: Share resources with neediest nearby agent
+- **move_action**: Move in random direction within bounds
+- **reproduce_action**: Create offspring if resources sufficient
+- **pass_action**: Do nothing, small reward
+
+Actions use environment services like spatial indexing for efficiency and log interactions.
+
+## Learning Integration
+
+- Actions generate rewards used for RL training
+- State transitions stored for experience replay
+- Specialized DQN modules in `farm/core/decision/` for behaviors like movement
+- Training occurs after each action via `DecisionModule.update()`
+
+## Usage Example
+
+In agent lifecycle:
 
 ```python
-class MoveConfig(BaseDQNConfig):
-    move_base_cost: float = -0.1
-    move_resource_approach_reward: float = 0.3
-    move_resource_retreat_penalty: float = -0.2
+# In BaseAgent.act()
+action = self.decide_action()  # Uses DecisionModule with externally provided state
+action.execute(self)  # Performs the action
+reward = self._calculate_reward()
+# State management handled externally
+)
 ```
 
-## Usage
+## Related Components
 
-Actions are typically called from the agent's decision loop:
+- **Decision Modules**: See `farm/core/decision/` for DQN implementations
+- **Agent State**: `farm/core/state.py` for state representations
+- **Perception**: Local grid view for decision making
+- **Memory**: Redis-based experience storage for advanced learning
+- **Analysis**: See `docs/action_data.md` for action analytics
 
-```python
-# In agent update method
-state = agent.get_state()
-selected_action = agent.select_module.select_action(agent, actions, state)
-selected_action.execute(agent)
-```
+For implementation details, refer to `farm/core/action.py` and `farm/core/agent.py`.
 
-## Dependencies
+## Adding New Actions
 
-- PyTorch: Neural network implementation
-- NumPy: Numerical computations
-- farm.core: Base agent and environment classes
+To extend the action system with new behaviors:
 
-## Development Notes
+1. **Define the Action Function**:
+   Create a function that implements the behavior. It must take `agent: BaseAgent` as the first parameter.
 
-- Each action module extends `BaseDQNModule` for consistent learning
-- State spaces are action-specific but follow similar normalization patterns
-- Rewards are designed to promote balanced agent behaviors
-- Shared encoder reduces computational overhead
-- Curriculum learning eases training complexity
+   Example:
+   ```python
+   def new_action(agent: "BaseAgent") -> None:
+       # Implementation here
+       pass
+   ```
+
+2. **Register the Action**:
+   In `farm/core/action.py`, register the action with a unique name and selection weight (0.0-1.0).
+
+   ```python
+   action_registry.register("new_action", 0.1, new_action)
+   ```
+
+3. **Update ActionType Enum** (Optional):
+   If the action represents a new fundamental type, add it to `ActionType` in `farm/core/action.py`.
+
+   ```python
+   class ActionType(IntEnum):
+       # ... existing ...
+       NEW_ACTION = 7
+   ```
+
+4. **Integrate with Learning**:
+   - The DecisionModule will automatically handle the new action as its `num_actions` is based on registered actions.
+   - Update reward calculations in `BaseAgent._calculate_reward()` if needed.
+   - If specialized learning is required, create a new module in `farm/core/decision/`.
+
+5. **Test and Balance**:
+   - Add unit tests in `tests/core/test_actions.py`.
+   - Adjust weight to balance selection probability.
+   - Monitor in simulations to ensure proper integration.
+
+New actions are automatically available to all agents via the registry.

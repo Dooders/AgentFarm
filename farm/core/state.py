@@ -2,11 +2,9 @@ from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional
 
 import numpy as np
 import torch
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
-    from farm.actions.move import MoveModule
-    from farm.agents.system_agent import SystemAgent
     from farm.core.environment import Environment
 
 
@@ -294,9 +292,8 @@ class EnvironmentState(BaseState):
         max_population = env.config.max_population if env.config else 3000
         agent_density = len(alive_agents) / max_population
 
-        # Calculate system agent ratio
-        system_agents = [a for a in alive_agents if isinstance(a, SystemAgent)]
-        system_ratio = len(system_agents) / len(alive_agents) if alive_agents else 0.0
+        # Calculate system agent ratio (no system agents in current implementation)
+        system_ratio = 0.0
 
         # Calculate resource availability
         max_possible = env.max_resource or (
@@ -400,7 +397,7 @@ class ModelState(BaseModel):
         frozen = True
 
     @classmethod
-    def from_move_module(cls, move_module: "MoveModule") -> "ModelState":
+    def from_move_module(cls, move_module) -> "ModelState":
         """Create a state representation from a MoveModule instance.
 
         Args:

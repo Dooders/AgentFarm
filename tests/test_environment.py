@@ -8,10 +8,10 @@ from gymnasium import spaces
 from pettingzoo.test import api_test
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
-from supersuit import pettingzoo_env_to_vec_env_v1
 
-from farm.agents import ControlAgent, IndependentAgent, SystemAgent
-from farm.core.environment import Action, Environment
+from farm.core.action import ActionType
+from farm.core.agent import BaseAgent
+from farm.core.environment import Environment
 from farm.core.resources import Resource
 
 
@@ -19,9 +19,7 @@ class TestEnvironment(unittest.TestCase):
     def setUp(self):
         # Create a mock config with required attributes
         self.mock_config = Mock()
-        self.mock_config.system_agents = 1
-        self.mock_config.independent_agents = 1
-        self.mock_config.control_agents = 1
+        self.mock_config.total_agents = 3
         self.mock_config.max_steps = 100
         self.mock_config.max_resource_amount = 10
         self.mock_config.resource_regen_rate = 0.1
@@ -75,26 +73,29 @@ class TestEnvironment(unittest.TestCase):
 
         # Add a small set of agents explicitly (external agent management)
         initial_agents = [
-            SystemAgent(
+            BaseAgent(
                 agent_id=self.env.get_next_agent_id(),
                 position=(10, 10),
                 resource_level=5,
                 environment=self.env,
                 generation=0,
+                spatial_service=self.env.spatial_service,
             ),
-            IndependentAgent(
+            BaseAgent(
                 agent_id=self.env.get_next_agent_id(),
                 position=(12, 12),
                 resource_level=5,
                 environment=self.env,
                 generation=0,
+                spatial_service=self.env.spatial_service,
             ),
-            ControlAgent(
+            BaseAgent(
                 agent_id=self.env.get_next_agent_id(),
                 position=(14, 14),
                 resource_level=5,
                 environment=self.env,
                 generation=0,
+                spatial_service=self.env.spatial_service,
             ),
         ]
         for a in initial_agents:
@@ -216,16 +217,16 @@ class TestEnvironment(unittest.TestCase):
         initial_resources = agent.resource_level
 
         # Test defend action
-        self.env._process_action(agent_id, Action.DEFEND)
+        self.env._process_action(agent_id, ActionType.DEFEND)
         self.assertTrue(agent.is_defending)
 
         # Test other actions (they should execute without error)
         for action in [
-            Action.ATTACK,
-            Action.GATHER,
-            Action.SHARE,
-            Action.MOVE,
-            Action.REPRODUCE,
+            ActionType.ATTACK,
+            ActionType.GATHER,
+            ActionType.SHARE,
+            ActionType.MOVE,
+            ActionType.REPRODUCE,
         ]:
             self.env._process_action(agent_id, action)
 
@@ -494,12 +495,13 @@ class TestEnvironment(unittest.TestCase):
         initial_agent_count = len(self.env.agent_objects)
 
         # Test agent addition
-        new_agent = SystemAgent(
+        new_agent = BaseAgent(
             agent_id="test_agent_new",
             position=(25, 25),
             resource_level=5,
             environment=self.env,
             generation=1,
+            spatial_service=self.env.spatial_service,
         )
 
         self.env.add_agent(new_agent)
@@ -560,7 +562,7 @@ class TestEnvironment(unittest.TestCase):
             self.env._process_action(agent_id, 999)  # Invalid action
 
             # Test action on non-existent agent
-            self.env._process_action("non_existent", Action.DEFEND)
+            self.env._process_action("non_existent", ActionType.DEFEND)
 
         # Test observation for dead agent
         if self.env.agent_objects:
@@ -767,18 +769,18 @@ class TestEnvironment(unittest.TestCase):
         expected_actions = ["DEFEND", "ATTACK", "GATHER", "SHARE", "MOVE", "REPRODUCE"]
 
         for action_name in expected_actions:
-            self.assertTrue(hasattr(Action, action_name))
+            self.assertTrue(hasattr(ActionType, action_name))
 
         # Test action values
-        self.assertEqual(Action.DEFEND, 0)
-        self.assertEqual(Action.ATTACK, 1)
-        self.assertEqual(Action.GATHER, 2)
-        self.assertEqual(Action.SHARE, 3)
-        self.assertEqual(Action.MOVE, 4)
-        self.assertEqual(Action.REPRODUCE, 5)
+        self.assertEqual(ActionType.DEFEND, 0)
+        self.assertEqual(ActionType.ATTACK, 1)
+        self.assertEqual(ActionType.GATHER, 2)
+        self.assertEqual(ActionType.SHARE, 3)
+        self.assertEqual(ActionType.MOVE, 4)
+        self.assertEqual(ActionType.REPRODUCE, 5)
 
         # Test action space matches enum
-        self.assertEqual(len(Action), self.env.action_space().n)
+        self.assertEqual(len(ActionType), self.env.action_space().n)
 
     def test_configuration_edge_cases(self):
         """Test various configuration edge cases"""

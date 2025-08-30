@@ -105,7 +105,8 @@ class RedisMemoryBenchmark(Benchmark):
             namespace=f"agent_memory_benchmark_{int(time.time())}",
         )
 
-        # Initialize Redis client
+        # Initialize Redis client (force synchronous mode)
+        redis_config.connection_params["decode_responses"] = True
         self.redis_client = redis.Redis(**redis_config.connection_params)
 
         try:
@@ -509,7 +510,7 @@ class RedisMemoryBenchmark(Benchmark):
                 "memory_samples": [],
             }
 
-        initial_used_memory = int(self.redis_client.info()["used_memory"])
+        initial_used_memory = int(self.redis_client.info()["used_memory"])  # type: ignore
 
         # Insert test data in batches and measure memory usage
         memory_samples = []
@@ -522,7 +523,7 @@ class RedisMemoryBenchmark(Benchmark):
                 memory.remember_state(**data)
 
             # Measure memory usage
-            current_used_memory = int(self.redis_client.info()["used_memory"])
+            current_used_memory = int(self.redis_client.info()["used_memory"])  # type: ignore
             entries_count = i + len(batch)
             memory_per_entry = (current_used_memory - initial_used_memory) / max(
                 1, entries_count
@@ -537,7 +538,7 @@ class RedisMemoryBenchmark(Benchmark):
             )
 
         # Calculate final metrics
-        final_used_memory = int(self.redis_client.info()["used_memory"])
+        final_used_memory = int(self.redis_client.info()["used_memory"])  # type: ignore
         total_memory_used = final_used_memory - initial_used_memory
         bytes_per_entry = total_memory_used / len(self.test_data)
 
@@ -577,11 +578,11 @@ class RedisMemoryBenchmark(Benchmark):
             remaining_entries = 0
         else:
             memory_info = self.redis_client.info()
-            used_memory_after_cleanup = int(memory_info["used_memory"])
+            used_memory_after_cleanup = int(memory_info["used_memory"])  # type: ignore
 
             # Count remaining entries
             timeline_key = f"{memory._agent_key_prefix}:timeline"
-            remaining_entries = self.redis_client.zcard(timeline_key)
+            remaining_entries = int(self.redis_client.zcard(timeline_key) or 0)  # type: ignore
 
         print(f"Cleanup time: {cleanup_time:.6f} seconds")
         print(f"Remaining entries: {remaining_entries} of {len(self.test_data)}")
@@ -606,9 +607,9 @@ class RedisMemoryBenchmark(Benchmark):
         # Delete all benchmark-related keys
         if self.redis_client is not None:
             pattern = f"{self.memories[0].config.namespace}:*"
-            keys = self.redis_client.keys(pattern)
+            keys = self.redis_client.keys(pattern)  # type: ignore
             if keys:
-                self.redis_client.delete(*keys)
-            print(f"Cleaned up {len(keys)} Redis keys from benchmark")
+                self.redis_client.delete(*keys)  # type: ignore
+            print(f"Cleaned up {len(keys) if keys else 0} Redis keys from benchmark")  # type: ignore
         else:
             print("Redis client is None, skipping cleanup")

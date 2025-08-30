@@ -87,10 +87,10 @@ def create_population_with_random_weights(
     Returns:
         List of created agents
     """
-    from farm.agents import SystemAgent, IndependentAgent, ControlAgent
-    
+    from farm.core.agent import BaseAgent
+
     if agent_types is None:
-        agent_types = [SystemAgent, IndependentAgent, ControlAgent]
+        agent_types = [BaseAgent]
     
     agents = []
     
@@ -142,9 +142,7 @@ class RandomWeightExperimentConfig:
     
     # Agent-specific distributions if enabled
     agent_distributions = {
-        "SystemAgent": "gaussian",
-        "IndependentAgent": "uniform",
-        "ControlAgent": "exponential"
+        "BaseAgent": "gaussian"
     }
 ```
 

@@ -2,11 +2,31 @@ import json
 import random
 from typing import TYPE_CHECKING, Optional, Union
 
-from farm.core.action import Action
+from farm.core.action import (
+    Action,
+    attack_action,
+    defend_action,
+    gather_action,
+    move_action,
+    pass_action,
+    reproduce_action,
+    share_action,
+)
 
 if TYPE_CHECKING:
-    from farm.agents.base_agent import BaseAgent
+    from farm.core.agent import BaseAgent
     from farm.core.environment import Environment
+
+# Action registry for secure function resolution
+ACTION_FUNCTIONS = {
+    "attack": attack_action,
+    "gather": gather_action,
+    "share": share_action,
+    "move": move_action,
+    "reproduce": reproduce_action,
+    "defend": defend_action,
+    "pass": pass_action,
+}
 
 
 class Genome:
@@ -56,7 +76,7 @@ class Genome:
         genome = {
             "action_set": [(action.name, action.weight) for action in agent.actions],
             "module_states": module_states,
-            "agent_type": agent.__class__.__name__,
+            "agent_type": getattr(agent, "agent_type", agent.__class__.__name__),
             "resource_level": agent.resource_level,
             "current_health": agent.current_health,
         }
@@ -93,7 +113,7 @@ class Genome:
         """
         # Reconstruct action set
         action_set = [
-            Action(name, weight, globals()[f"{name}_action"])
+            Action(name, weight, ACTION_FUNCTIONS[name])
             for name, weight in genome["action_set"]
         ]
 
@@ -102,7 +122,9 @@ class Genome:
             agent_id=agent_id,
             position=position,
             resource_level=genome["resource_level"],
+            spatial_service=environment.spatial_service,
             environment=environment,
+            agent_type=genome.get("agent_type", "BaseAgent"),
             action_set=action_set,
         )
 
@@ -151,7 +173,9 @@ class Genome:
             return path
 
         # Check if it's a JSON string (starts with { or [)
-        if isinstance(path, str) and (path.strip().startswith('{') or path.strip().startswith('[')):
+        if isinstance(path, str) and (
+            path.strip().startswith("{") or path.strip().startswith("[")
+        ):
             return json.loads(path)
 
         # Otherwise treat as file path
@@ -199,9 +223,7 @@ class Genome:
         return mutated
 
     @staticmethod
-    def crossover(
-        genome1: dict, genome2: dict, mutation_rate: float = 0.0
-    ) -> dict:
+    def crossover(genome1: dict, genome2: dict, mutation_rate: float = 0.0) -> dict:
         """Create a child genome by crossing over two parent genomes.
 
         This method performs uniform crossover on the action weights of two parent
@@ -264,5 +286,7 @@ class Genome:
         """
         json_str = Genome.save(genome)
         # Since we're calling save() without a path, it should always return a string
-        assert json_str is not None, "Genome.save() should return a string when no path is provided"
+        assert (
+            json_str is not None
+        ), "Genome.save() should return a string when no path is provided"
         return Genome.load(json_str)

@@ -1,8 +1,6 @@
 import numpy as np
 import pandas as pd
 
-from farm.agents import IndependentAgent, SystemAgent
-
 
 class DataCollector:
     def __init__(self, config):
@@ -15,12 +13,6 @@ class DataCollector:
 
     def collect(self, environment, step):
         alive_agents = [agent for agent in environment.agents if agent.alive]
-        system_agents = [
-            agent for agent in environment.agents if isinstance(agent, SystemAgent)
-        ]
-        independent_agents = [
-            agent for agent in environment.agents if isinstance(agent, IndependentAgent)
-        ]
 
         for agent in alive_agents:
             if agent.agent_id not in self.agent_resource_history:
@@ -29,8 +21,7 @@ class DataCollector:
 
         data_point = {
             "step": step,
-            "system_agent_count": len(system_agents),
-            "independent_agent_count": len(independent_agents),
+            "total_agent_count": len(alive_agents),
             "total_resources": sum(
                 resource.amount for resource in environment.resources
             ),
@@ -44,20 +35,13 @@ class DataCollector:
             "deaths": self.deaths_this_cycle,
             "average_lifespan": self._calculate_average_lifespan(environment),
             "resource_efficiency": self._calculate_resource_efficiency(alive_agents),
-            "system_agent_territory": self._calculate_territory_control(
-                system_agents, environment
-            ),
-            "independent_agent_territory": self._calculate_territory_control(
-                independent_agents, environment
+            "agent_territory": self._calculate_territory_control(
+                alive_agents, environment
             ),
             "resource_density": self._calculate_resource_density(environment),
             "population_stability": self._calculate_population_stability(),
             "survival_rate": len(alive_agents)
             / max(environment.get_initial_agent_count(), 1),
-            "system_survival_rate": len(system_agents)
-            / max(self.config.system_agents, 1),
-            "independent_survival_rate": len(independent_agents)
-            / max(self.config.independent_agents, 1),
             "competitive_interactions": self.competitive_interactions,
             "avg_resource_accumulation": self._calculate_avg_resource_accumulation(),
             "resource_inequality": self._calculate_resource_inequality(alive_agents),
@@ -124,11 +108,10 @@ class DataCollector:
         if len(self.data) < 10:
             return 1.0
 
-        recent_population = [
-            d["system_agent_count"] + d["independent_agent_count"]
-            for d in self.data[-10:]
-        ]
-        return 1.0 - np.std(recent_population) / max(np.mean(recent_population), 1)
+        recent_population = [d["total_agent_count"] for d in self.data[-10:]]
+        return 1.0 - np.std(recent_population) / max(
+            float(np.mean(recent_population)), 1.0
+        )
 
     def _calculate_avg_resource_accumulation(self):
         if not self.agent_resource_history:

@@ -8,7 +8,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 if TYPE_CHECKING:
-    from farm.agents.base_agent import BaseAgent
+    from farm.core.agent import BaseAgent
     from farm.database.database import SimulationDatabase
 
 logger = logging.getLogger(__name__)

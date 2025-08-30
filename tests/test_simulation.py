@@ -4,8 +4,7 @@ import unittest
 
 import numpy as np
 
-from farm.agents.independent_agent import IndependentAgent
-from farm.agents.system_agent import SystemAgent
+from farm.core.agent import BaseAgent
 from farm.core.config import SimulationConfig
 from farm.core.environment import Environment
 from farm.core.resources import Resource
@@ -58,11 +57,11 @@ class TestSimulation(unittest.TestCase):
             db_path=self.db_path,
         )
 
-        system_agent = SystemAgent(
-            "0", (25, 25), self.config.initial_resource_level, env
+        system_agent = BaseAgent(
+            "0", (25, 25), self.config.initial_resource_level, env.spatial_service
         )
-        independent_agent = IndependentAgent(
-            "1", (25, 25), self.config.initial_resource_level, env
+        independent_agent = BaseAgent(
+            "1", (25, 25), self.config.initial_resource_level, env.spatial_service
         )
 
         self.assertTrue(system_agent.alive)
@@ -86,7 +85,9 @@ class TestSimulation(unittest.TestCase):
         resource = Resource(0, (25, 25), amount=10)
         env.resources = [resource]
 
-        agent = SystemAgent("0", (25, 25), self.config.initial_resource_level, env)
+        agent = BaseAgent(
+            "0", (25, 25), self.config.initial_resource_level, env.spatial_service
+        )
         env.add_agent(agent)
 
         agent.act()
@@ -103,7 +104,7 @@ class TestSimulation(unittest.TestCase):
             db_path=self.db_path,
         )
 
-        agent = SystemAgent("0", (25, 25), 1, env)
+        agent = BaseAgent("0", (25, 25), 1, env.spatial_service)
         env.add_agent(agent)
 
         for _ in range(20):
@@ -124,7 +125,7 @@ class TestSimulation(unittest.TestCase):
             db_path=self.db_path,
         )
 
-        agent = SystemAgent("0", (25, 25), 20, env)
+        agent = BaseAgent("0", (25, 25), 20, env.spatial_service)
         env.add_agent(agent)
 
         initial_agent_count = len(env.agents)
@@ -144,7 +145,9 @@ class TestSimulation(unittest.TestCase):
             db_path=self.db_path,
         )
 
-        agent = SystemAgent("0", (25, 25), self.config.initial_resource_level, env)
+        agent = BaseAgent(
+            "0", (25, 25), self.config.initial_resource_level, env.spatial_service
+        )
         env.add_agent(agent)
 
         for _ in range(5):
@@ -172,7 +175,12 @@ class TestSimulation(unittest.TestCase):
         )
 
         agents = [
-            SystemAgent(str(i), (25, 25), self.config.initial_resource_level, env)
+            BaseAgent(
+                str(i),
+                (25, 25),
+                self.config.initial_resource_level,
+                env.spatial_service,
+            )
             for i in range(10)
         ]
 

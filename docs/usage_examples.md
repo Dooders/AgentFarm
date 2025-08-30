@@ -17,7 +17,7 @@ import random
 import torch
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
-from farm.agents import SystemAgent
+from farm.core.agent import BaseAgent
 
 def create_basic_simulation():
     """Create a basic simulation with 10 agents."""
@@ -42,15 +42,13 @@ def create_basic_simulation():
         resource_regeneration_rate=0.02   # 2% regeneration per step
     )
 
-    # 3. Add agents
+    # 3. Add agents (environment is accepted and services are auto-injected)
     for i in range(10):
-        agent = SystemAgent(
+        agent = BaseAgent(
             agent_id=f"agent_{i:02d}",
             position=(random.randint(0, 49), random.randint(0, 49)),
-            resource_level=100,  # Start with 100 resource units
+            resource_level=100,
             environment=environment,
-            learning_rate=0.001,
-            memory_size=5000
         )
         environment.add_agent(agent)
 
@@ -135,7 +133,7 @@ This tutorial shows how to create agents with specialized behaviors.
 import random
 import numpy as np
 from typing import Tuple, Optional
-from farm.agents.base_agent import BaseAgent
+from farm.core.agent import BaseAgent
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 from farm.actions.share import share_action
@@ -351,7 +349,7 @@ from typing import Tuple
 from farm.core.channels import ChannelHandler, ChannelBehavior, register_channel
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
-from farm.agents import SystemAgent
+from farm.core.agent import BaseAgent
 
 class WeatherChannel(ChannelHandler):
     """Channel representing dynamic weather conditions."""
@@ -479,7 +477,7 @@ class ResourceDensityChannel(ChannelHandler):
             # Fill channel with density information
             observation[channel_idx].fill_(normalized_density)
 
-class WeatherAwareAgent(SystemAgent):
+class WeatherAwareAgent(BaseAgent):
     """Agent that uses weather information for decision making."""
 
     def __init__(self, agent_id: str, position: Tuple[int, int],
@@ -624,7 +622,7 @@ import random
 from typing import Dict, List, Any
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
-from farm.agents import SystemAgent
+from farm.core.agent import BaseAgent
 from farm.core.config import ExperimentConfig
 from farm.runners.experiment_runner import ExperimentRunner
 
@@ -716,7 +714,7 @@ class ExperimentRunner:
         # Add agents
         num_agents = config.get('num_agents', 10)
         for i in range(num_agents):
-            agent = SystemAgent(
+            agent = BaseAgent(
                 agent_id=f"agent_{i:02d}",
                 position=(random.randint(0, environment.width-1),
                          random.randint(0, environment.height-1)),

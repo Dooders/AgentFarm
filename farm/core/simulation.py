@@ -10,8 +10,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from farm.agents import IndependentAgent, SystemAgent
-from farm.agents.control_agent import ControlAgent
+from farm.core.agent import BaseAgent
 from farm.core.config import SimulationConfig
 from farm.core.environment import Environment
 from farm.utils.identity import Identity
@@ -89,50 +88,56 @@ def create_initial_agents(
             int(rng.uniform(0, environment.height)),
         )
 
-    # Create system agents
+    # Create system agents (now using BaseAgent)
     for _ in range(num_system_agents):
         position = get_random_position()
-        agent = SystemAgent(
+        agent = BaseAgent(
             agent_id=environment.get_next_agent_id(),
             position=position,
             resource_level=1,
+            spatial_service=environment.spatial_service,
             environment=environment,
+            agent_type="SystemAgent",
             generation=0,
         )
         environment.add_agent(agent)
         positions.append(position)
 
-    logging.info(f"Created {num_system_agents} SystemAgents")
+    logging.info(f"Created {num_system_agents} BaseAgents (system type)")
 
-    # Create independent agents
+    # Create independent agents (now using BaseAgent)
     for _ in range(num_independent_agents):
         position = get_random_position()
-        agent = IndependentAgent(
+        agent = BaseAgent(
             agent_id=environment.get_next_agent_id(),
             position=position,
             resource_level=1,
+            spatial_service=environment.spatial_service,
             environment=environment,
+            agent_type="IndependentAgent",
             generation=0,
         )
         environment.add_agent(agent)
         positions.append(position)
 
-    logging.info(f"Created {num_independent_agents} IndependentAgents")
+    logging.info(f"Created {num_independent_agents} BaseAgents (independent type)")
 
-    # Create control agents
+    # Create control agents (now using BaseAgent)
     for _ in range(num_control_agents):
         position = get_random_position()
-        agent = ControlAgent(
+        agent = BaseAgent(
             agent_id=environment.get_next_agent_id(),
             position=position,
             resource_level=1,
+            spatial_service=environment.spatial_service,
             environment=environment,
+            agent_type="ControlAgent",
             generation=0,
         )
         environment.add_agent(agent)
         positions.append(position)
 
-    logging.info(f"Created {num_control_agents} ControlAgents")
+    logging.info(f"Created {num_control_agents} BaseAgents (control type)")
     logging.info(f"Total initial agents: {len(environment.agents)}")
 
     return positions
