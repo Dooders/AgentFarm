@@ -586,6 +586,9 @@ class TestWorldLayerHandler(unittest.TestCase):
         self.config_mock = Mock()
         self.config_mock.R = 5
         self.config_mock.pad_val = 0.0
+        self.config_mock.device = torch.device("cpu")
+        self.config_mock.torch_dtype = torch.float32
+        self.config_mock.get_local_observation_size = Mock(return_value=(11, 11))
 
     def test_initialization(self):
         """Test WorldLayerHandler initialization."""

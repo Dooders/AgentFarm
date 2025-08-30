@@ -115,6 +115,11 @@ class ObservationConfig(BaseModel):
             return getattr(torch, self.dtype)
         return self.dtype
 
+    def get_local_observation_size(self) -> Tuple[int, int]:
+        """Get the size of the local observation window (2R+1, 2R+1)."""
+        size = 2 * self.R + 1
+        return (size, size)
+
     model_config = {"arbitrary_types_allowed": True}
 
 
