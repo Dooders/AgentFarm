@@ -16,7 +16,6 @@ Key Features:
 import logging
 import os
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
-from unittest.mock import Mock
 
 import numpy as np
 import torch
@@ -346,24 +345,11 @@ class DecisionModule:
                 if callable(action_space):
                     action_space = action_space()
                 if hasattr(action_space, "n"):
-                    n_value = action_space.n
-                    # Handle Mock objects that might return other Mock objects
-                    if hasattr(n_value, "__int__") and not isinstance(
-                        n_value, type(Mock())
-                    ):
-                        return int(n_value)
-                    # For Mock objects, try to access the actual value
-                    elif hasattr(n_value, "_mock_name") or str(
-                        type(n_value)
-                    ).startswith("<class 'unittest.mock.Mock"):
-                        # This is likely a Mock object, try to get its return value
-                        try:
-                            return int(n_value)
-                        except (TypeError, ValueError):
-                            # If we can't convert, continue to fallback
-                            pass
-                    else:
-                        return int(n_value)
+                    try:
+                        return int(action_space.n)
+                    except (TypeError, ValueError, AttributeError):
+                        # If we can't get the action space size, continue to fallback
+                        pass
             # Fallback: count actions in Action enum
             from farm.core.action import ActionType
 

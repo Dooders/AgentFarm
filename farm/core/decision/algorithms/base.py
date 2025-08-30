@@ -71,12 +71,12 @@ class AlgorithmRegistry:
         "gradient_boost": "farm.core.decision.algorithms.ensemble:GradientBoostActionSelector",
         "naive_bayes": "farm.core.decision.algorithms.ensemble:NaiveBayesActionSelector",
         "knn": "farm.core.decision.algorithms.ensemble:KNNActionSelector",
-        # Reinforcement Learning algorithms
-        "ppo": "farm.core.decision.algorithms.stable_baselines:PPOWrapper",
-        "sac": "farm.core.decision.algorithms.stable_baselines:SACWrapper",
-        "a2c": "farm.core.decision.algorithms.stable_baselines:A2CWrapper",
-        "td3": "farm.core.decision.algorithms.stable_baselines:TD3Wrapper",
-        # "dqn" is handled by the existing DQN infrastructure, not the registry
+        # Reinforcement Learning algorithms (Tianshou-based)
+        "ppo": "farm.core.decision.algorithms.tianshou:PPOWrapper",
+        "sac": "farm.core.decision.algorithms.tianshou:SACWrapper",
+        "a2c": "farm.core.decision.algorithms.tianshou:A2CWrapper",
+        "dqn": "farm.core.decision.algorithms.tianshou:DQNWrapper",
+        "ddpg": "farm.core.decision.algorithms.tianshou:DDPGWrapper",
     }
 
     @classmethod

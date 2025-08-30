@@ -118,7 +118,7 @@ class AlgorithmBenchmark:
         """Create an algorithm instance."""
         kwargs = kwargs.copy()
 
-        if name in ["ppo", "sac", "a2c", "td3"]:
+        if name in ["ppo", "sac", "a2c", "dqn", "ddpg"]:
             # RL algorithms need state_dim
             kwargs.setdefault("state_dim", self.state_dim)
 
@@ -126,7 +126,7 @@ class AlgorithmBenchmark:
         kwargs.setdefault("num_actions", self.num_actions)
 
         # Set random_state if seed is provided and algorithm supports it
-        if seed is not None and name not in ["ppo", "sac", "a2c", "td3"]:
+        if seed is not None and name not in ["ppo", "sac", "a2c", "dqn", "ddpg"]:
             kwargs.setdefault("random_state", seed)
 
         return AlgorithmRegistry.create(name, **kwargs)

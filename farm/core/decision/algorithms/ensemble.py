@@ -112,7 +112,11 @@ class KNNActionSelector(ActionAlgorithm):
         if not self._fitted:
             return np.full(self.num_actions, 1.0 / self.num_actions, dtype=float)
         X = state.reshape(1, -1)
-        proba = self.model.predict_proba(X)[0]
+        proba_result = self.model.predict_proba(X)
+        # Convert sparse matrix to dense if needed
+        if hasattr(proba_result, "toarray"):
+            proba_result = proba_result.toarray()  # type: ignore
+        proba = proba_result[0]  # type: ignore
         return _align_proba(self.num_actions, self.model.classes_, proba)
 
     def select_action(self, state: np.ndarray) -> int:
@@ -131,7 +135,7 @@ class GradientBoostActionSelector(ActionAlgorithm):
         self,
         num_actions: int,
         random_state: Optional[int] = None,
-        **params: object,
+        **params,
     ) -> None:
         super().__init__(num_actions=num_actions)
         self._backend: str
@@ -181,18 +185,22 @@ class GradientBoostActionSelector(ActionAlgorithm):
         if not self._fitted:
             return np.full(self.num_actions, 1.0 / self.num_actions, dtype=float)
         X = state.reshape(1, -1)
-        proba = self.model.predict_proba(X)[0]
+        proba_result = self.model.predict_proba(X)
+        # Convert sparse matrix to dense if needed
+        if hasattr(proba_result, "toarray"):
+            proba_result = proba_result.toarray()  # type: ignore
+        proba = proba_result[0]  # type: ignore
         # Some backends may return shape (num_actions,) instead of (num_classes subset,)
-        if proba.ndim == 1 and proba.shape[0] == self.num_actions:
-            full = proba.astype(float)
+        if proba.ndim == 1 and proba.shape[0] == self.num_actions:  # type: ignore
+            full = proba.astype(float)  # type: ignore
             s = full.sum()
             return (
                 full / s
                 if s > 0
                 else np.full(self.num_actions, 1.0 / self.num_actions, dtype=float)
             )
-        classes = getattr(self.model, "classes_", np.arange(self.num_actions))
-        return _align_proba(self.num_actions, classes, proba)
+        classes = getattr(self.model, "classes_", np.arange(self.num_actions))  # type: ignore
+        return _align_proba(self.num_actions, classes, proba)  # type: ignore
 
     def select_action(self, state: np.ndarray) -> int:
         probs = self.predict_proba(state)
