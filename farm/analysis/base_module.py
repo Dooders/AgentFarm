@@ -14,6 +14,8 @@ from farm.analysis.common.metrics import (
     get_valid_numeric_columns as _common_get_valid_numeric_columns,
     split_and_compare_groups as _common_split_and_compare_groups,
     analyze_correlations as _common_analyze_correlations,
+    group_and_analyze as _common_group_and_analyze,
+    find_top_correlations as _common_find_top_correlations,
 )
 
 
@@ -422,42 +424,13 @@ def group_and_analyze(
     analysis_func: Callable[[pd.DataFrame], Dict[str, Any]],
     min_group_size: int = 5,
 ) -> Dict[str, Dict[str, Any]]:
-    """
-    Group data by a categorical variable and perform analysis within each group.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame with analysis results
-    group_column : str
-        Column to group by
-    group_values : list
-        List of values in the group_column to analyze
-    analysis_func : callable
-        Function to apply to each group, accepts DataFrame and returns dict of results
-    min_group_size : int, optional
-        Minimum group size required for analysis
-
-    Returns
-    -------
-    dict
-        Dictionary mapping group values to analysis results
-    """
-    if df.empty or group_column not in df.columns:
-        logging.warning(f"Cannot perform group analysis: missing {group_column}")
-        return {}
-
-    results = {}
-    for group_value in group_values:
-        group_data = df[df[group_column] == group_value]
-        if len(group_data) >= min_group_size:
-            results[group_value] = analysis_func(group_data)
-        else:
-            logging.info(
-                f"Not enough data points for {group_value} group analysis (n={len(group_data)})"
-            )
-
-    return results
+    return _common_group_and_analyze(
+        df,
+        group_column,
+        group_values,
+        analysis_func,
+        min_group_size=min_group_size,
+    )
 
 
 def find_top_correlations(
@@ -467,43 +440,13 @@ def find_top_correlations(
     top_n: int = 5,
     min_correlation: float = 0.1,
 ) -> Dict[str, Dict[str, float]]:
-    """
-    Find the top positive and negative correlations between metrics and a target column.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame with analysis results
-    target_column : str
-        Target column to correlate with metrics
-    metric_columns : list, optional
-        List of metric columns to correlate. If None, uses all numeric columns
-    top_n : int, optional
-        Number of top correlations to return
-    min_correlation : float, optional
-        Minimum absolute correlation value to include
-
-    Returns
-    -------
-    dict
-        Dictionary with top positive and negative correlations
-    """
-    correlations = analyze_correlations(df, target_column, metric_columns)
-
-    if not correlations:
-        return {"top_positive": {}, "top_negative": {}}
-
-    # Sort correlations by absolute value
-    sorted_corrs = sorted(correlations.items(), key=lambda x: abs(x[1]), reverse=True)
-
-    # Filter by minimum correlation and take top N
-    positive_corrs = {k: v for k, v in sorted_corrs if v >= min_correlation}
-    negative_corrs = {k: v for k, v in sorted_corrs if v <= -min_correlation}
-
-    top_positive = dict(list(positive_corrs.items())[:top_n])
-    top_negative = dict(list(negative_corrs.items())[:top_n])
-
-    return {"top_positive": top_positive, "top_negative": top_negative}
+    return _common_find_top_correlations(
+        df,
+        target_column,
+        metric_columns=metric_columns,
+        top_n=top_n,
+        min_correlation=min_correlation,
+    )
 
 
 class BaseAnalysisModule:

@@ -124,3 +124,38 @@ def analyze_correlations(
     return correlations
 
 
+def group_and_analyze(
+    df: pd.DataFrame,
+    group_column: str,
+    group_values: List[str],
+    analysis_func: Callable[[pd.DataFrame], Dict[str, Any]],
+    min_group_size: int = 5,
+) -> Dict[str, Dict[str, Any]]:
+    if df.empty or group_column not in df.columns:
+        return {}
+    results: Dict[str, Dict[str, Any]] = {}
+    for group_value in group_values:
+        group_data = df[df[group_column] == group_value]
+        if len(group_data) >= min_group_size:
+            results[group_value] = analysis_func(group_data)
+    return results
+
+
+def find_top_correlations(
+    df: pd.DataFrame,
+    target_column: str,
+    metric_columns: Optional[List[str]] = None,
+    top_n: int = 5,
+    min_correlation: float = 0.1,
+) -> Dict[str, Dict[str, float]]:
+    correlations = analyze_correlations(df, target_column, metric_columns)
+    if not correlations:
+        return {"top_positive": {}, "top_negative": {}}
+    sorted_corrs = sorted(correlations.items(), key=lambda x: abs(x[1]), reverse=True)
+    positive_corrs = {k: v for k, v in sorted_corrs if v >= min_correlation}
+    negative_corrs = {k: v for k, v in sorted_corrs if v <= -min_correlation}
+    top_positive = dict(list(positive_corrs.items())[:top_n])
+    top_negative = dict(list(negative_corrs.items())[:top_n])
+    return {"top_positive": top_positive, "top_negative": top_negative}
+
+
