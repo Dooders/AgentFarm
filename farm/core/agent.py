@@ -583,13 +583,6 @@ class BaseAgent:
         if not self.alive:
             return
 
-        # Update defense status based on timer
-        if self.defense_timer > 0:
-            self.defense_timer -= 1
-            self.is_defending = self.defense_timer > 0
-        else:
-            self.is_defending = False
-
         # Resource consumption
         self.resource_level -= (
             getattr(self.config, "base_consumption_rate", 1) if self.config else 1
@@ -606,6 +599,13 @@ class BaseAgent:
         # Select and execute action
         action = self.decide_action()
         action.execute(self)
+
+        # Update defense status based on timer AFTER action execution
+        if self.defense_timer > 0:
+            self.defense_timer -= 1
+            self.is_defending = self.defense_timer > 0
+        else:
+            self.is_defending = False
 
         # Get post-action state for reward calculation
         post_action_state = self.get_state()
