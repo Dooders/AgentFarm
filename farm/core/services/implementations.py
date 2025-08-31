@@ -1,7 +1,9 @@
+import os
 from typing import Any, Dict, List, Optional, Tuple
 
 from farm.core.services.interfaces import (
     IAgentLifecycleService,
+    IConfigService,
     ILoggingService,
     IMetricsService,
     ISpatialQueryService,
@@ -235,15 +237,33 @@ class EnvironmentLoggingService(ILoggingService):
     def update_agent_death(
         self, agent_id: str, death_time: int, cause: str = "starvation"
     ) -> None:
-        """Update the death information for an agent in the database.
+        """Log or update the death of an agent in the database if available.
 
-        Args:
-            agent_id: The identifier of the agent that died.
-            death_time: The simulation step when the agent died.
-            cause: The cause of death (default: "starvation").
+        Delegates to the environment's database to persist the death event. If
+        no database is configured on the environment, this is a no-op.
         """
-        # delegate to environment's method which already checks DB presence
-        self._env.update_agent_death(agent_id, death_time, cause)
+        db = getattr(self._env, "db", None)
+        if db is None:
+            return
+        db.update_agent_death(agent_id=agent_id, death_time=death_time, cause=cause)
+
+
+class EnvConfigService(IConfigService):
+    """Configuration service that reads from environment variables.
+
+    Provides a centralized place to fetch config so modules can depend on the
+    abstraction rather than directly on os.environ.
+    """
+
+    def get(self, key: str, default: Optional[str] = None) -> Optional[str]:
+        return os.getenv(key, default)
+
+    def get_analysis_module_paths(self, env_var: str = "FARM_ANALYSIS_MODULES") -> List[str]:
+        raw = self.get(env_var, "") or ""
+        return [p.strip() for p in raw.split(",") if p.strip()]
+
+    def get_openai_api_key(self) -> Optional[str]:
+        return self.get("OPENAI_API_KEY", None)
 
 
 class SpatialIndexAdapter(ISpatialQueryService):

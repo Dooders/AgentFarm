@@ -9,6 +9,7 @@ from flask_socketio import SocketIO, emit
 
 from farm.core.analysis import analyze_simulation
 from farm.analysis.service import AnalysisRequest, AnalysisService
+from farm.core.services import EnvConfigService
 from farm.core.config import SimulationConfig
 from farm.core.simulation import run_simulation
 from farm.database.database import SimulationDatabase
@@ -135,7 +136,7 @@ def run_analysis_module(module_name):
         processor_kwargs = payload.get("processor_kwargs")
         analysis_kwargs = payload.get("analysis_kwargs")
 
-        service = AnalysisService()
+        service = AnalysisService(config_service=EnvConfigService())
         req = AnalysisRequest(
             module_name=module_name,
             experiment_path=experiment_path,

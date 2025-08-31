@@ -8,14 +8,15 @@ from sqlalchemy import create_engine
 
 from farm.charts.chart_analyzer import ChartAnalyzer
 from farm.database.database import SimulationDatabase
+from farm.core.services import IConfigService, EnvConfigService
 
 
-def setup_environment():
+def setup_environment(config_service: IConfigService):
     """Load environment variables from .env file and check required variables."""
     # Load environment variables from .env file
     load_dotenv()
 
-    if not os.getenv("OPENAI_API_KEY"):
+    if not config_service.get_openai_api_key():
         raise EnvironmentError(
             "OPENAI_API_KEY environment variable is not set in .env file. "
             "Please check your .env file contains the API key."
