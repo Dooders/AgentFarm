@@ -440,9 +440,10 @@ def run_analysis(
     # Try to use the module system first
     try:
         from farm.analysis.registry import get_module, register_modules
+        from farm.core.services import EnvConfigService
 
-        # Register all modules
-        register_modules()
+        # Register all modules using config service
+        register_modules(config_service=EnvConfigService())
 
         # Get the module for this analysis type
         module = get_module(analysis_type)

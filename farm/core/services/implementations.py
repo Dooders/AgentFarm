@@ -1,7 +1,9 @@
+import os
 from typing import Any, Dict, List, Optional, Tuple
 
 from farm.core.services.interfaces import (
     IAgentLifecycleService,
+    IConfigService,
     ILoggingService,
     IMetricsService,
     ISpatialQueryService,
@@ -231,6 +233,27 @@ class EnvironmentLoggingService(ILoggingService):
             parent_generation=parent_generation,
             offspring_generation=offspring_generation,
         )
+
+
+class EnvConfigService(IConfigService):
+    """Configuration service that reads from environment variables.
+
+    Provides a centralized place to fetch config so modules can depend on the
+    abstraction rather than directly on os.environ.
+    """
+
+    def get(self, key: str, default: Optional[str] = None) -> Optional[str]:
+        value = os.getenv(key, default if default is not None else None)
+        if value is None:
+            return default
+        return value
+
+    def get_analysis_module_paths(self, env_var: str = "FARM_ANALYSIS_MODULES") -> List[str]:
+        raw = self.get(env_var, "") or ""
+        return [p.strip() for p in raw.split(",") if p.strip()]
+
+    def get_openai_api_key(self) -> Optional[str]:
+        return self.get("OPENAI_API_KEY", None)
 
     def update_agent_death(
         self, agent_id: str, death_time: int, cause: str = "starvation"

@@ -44,6 +44,7 @@ from .chart_simulation import (
 )
 from .chart_utils import save_plot  # Import from utilities module
 from .llm_client import LLMClient
+from farm.core.services import EnvConfigService
 
 
 class ChartAnalyzer:
@@ -64,7 +65,8 @@ class ChartAnalyzer:
         self.db = database
         self.output_dir = output_dir if output_dir else Path("example_output")
         self.save_charts = save_charts
-        self.llm_client = LLMClient()
+        # Inject config service for dependency inversion
+        self.llm_client = LLMClient(config_service=EnvConfigService())
 
     def analyze_all_charts(self, output_path: Optional[Path] = None) -> Dict[str, str]:
         """Generate and analyze all charts, returning a dictionary of analyses."""

@@ -8,6 +8,7 @@ import os
 from typing import Dict, List, Optional
 
 from farm.analysis.base_module import AnalysisModule
+from farm.core.services import IConfigService, EnvConfigService
 
 
 class ModuleRegistry:
@@ -76,7 +77,7 @@ class ModuleRegistry:
 registry = ModuleRegistry()
 
 
-def register_modules(config_env_var: str = "FARM_ANALYSIS_MODULES"):
+def register_modules(config_env_var: str = "FARM_ANALYSIS_MODULES", *, config_service: Optional[IConfigService] = None):
     """
     Register available analysis modules.
 
@@ -85,18 +86,22 @@ def register_modules(config_env_var: str = "FARM_ANALYSIS_MODULES"):
        e.g., "farm.analysis.dominance.module.dominance_module, farm.analysis.template.module.template_module"
     2) Fallback to built-in dominance module if env is not set.
     """
-    module_paths = os.getenv(config_env_var, "").strip()
-    if module_paths:
-        for path in [p.strip() for p in module_paths.split(",") if p.strip()]:
+    cfg = config_service or EnvConfigService()
+    module_paths_list = cfg.get_analysis_module_paths(config_env_var)
+    if module_paths_list:
+        registered_any = False
+        for path in module_paths_list:
             try:
                 module_path, attr = path.rsplit(".", 1)
                 mod = importlib.import_module(module_path)
                 instance = getattr(mod, attr)
                 if instance:
                     registry.register_module(instance)
+                    registered_any = True
             except Exception:
                 continue
-        return
+        if registered_any:
+            return
 
     # Fallback registration
     try:

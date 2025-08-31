@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 from farm.analysis.registry import get_module, register_modules
+from farm.core.services import EnvConfigService
 
 
 @dataclass
@@ -16,7 +17,8 @@ class AnalysisRequest:
 
 class AnalysisService:
     def __init__(self):
-        register_modules()
+        # Use config service to register modules
+        register_modules(config_service=EnvConfigService())
 
     def run(self, request: AnalysisRequest):
         module = get_module(request.module_name)
