@@ -234,6 +234,19 @@ class EnvironmentLoggingService(ILoggingService):
             offspring_generation=offspring_generation,
         )
 
+    def update_agent_death(
+        self, agent_id: str, death_time: int, cause: str = "starvation"
+    ) -> None:
+        """Log or update the death of an agent in the database if available.
+
+        Delegates to the environment's database to persist the death event. If
+        no database is configured on the environment, this is a no-op.
+        """
+        db = getattr(self._env, "db", None)
+        if db is None:
+            return
+        db.update_agent_death(agent_id=agent_id, death_time=death_time, cause=cause)
+
 
 class EnvConfigService(IConfigService):
     """Configuration service that reads from environment variables.
@@ -243,10 +256,7 @@ class EnvConfigService(IConfigService):
     """
 
     def get(self, key: str, default: Optional[str] = None) -> Optional[str]:
-        value = os.getenv(key, default if default is not None else None)
-        if value is None:
-            return default
-        return value
+        return os.getenv(key, default)
 
     def get_analysis_module_paths(self, env_var: str = "FARM_ANALYSIS_MODULES") -> List[str]:
         raw = self.get(env_var, "") or ""
