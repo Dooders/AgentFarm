@@ -5,6 +5,7 @@ This module provides a central registry for all analysis modules.
 
 import importlib
 import os
+import logging
 from typing import Dict, List, Optional
 
 from farm.analysis.base_module import AnalysisModule
@@ -87,12 +88,46 @@ def register_modules(config_env_var: str = "FARM_ANALYSIS_MODULES", *, config_se
     2) Fallback to built-in dominance module if env is not set.
     """
     module_paths_list = config_service.get_analysis_module_paths(config_env_var)
+
+    successfully_registered = 0
+
     for path in module_paths_list:
-        module_path, attr = path.rsplit(".", 1)
-        mod = importlib.import_module(module_path)
-        instance = getattr(mod, attr)
-        if instance:
+        try:
+            module_path, attr = path.rsplit(".", 1)
+        except ValueError:
+            logging.warning("Invalid analysis module path (no attribute specified): %s", path)
+            continue
+
+        try:
+            mod = importlib.import_module(module_path)
+            instance = getattr(mod, attr)
+        except (ImportError, AttributeError) as err:
+            logging.warning("Failed to import analysis module '%s': %s", path, err)
+            continue
+        except Exception as err:
+            logging.warning("Unexpected error loading analysis module '%s': %s", path, err)
+            continue
+
+        if isinstance(instance, AnalysisModule):
             registry.register_module(instance)
+            successfully_registered += 1
+        else:
+            logging.warning(
+                "Configured object at '%s' is not an AnalysisModule instance; skipping.",
+                path,
+            )
+
+    # Fallback to built-in dominance module if nothing was registered
+    if successfully_registered == 0:
+        try:
+            from farm.analysis.dominance.module import dominance_module
+
+            registry.register_module(dominance_module)
+            successfully_registered = 1
+        except Exception as err:
+            logging.warning(
+                "Failed to register fallback dominance module: %s", err
+            )
 
 
 def get_module(name: str) -> Optional[AnalysisModule]:
