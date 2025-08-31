@@ -81,8 +81,9 @@ client = LLMClient(config_service=cfg)
 
 ### Backward Compatibility
 
-- Existing code that did not pass a `config_service` continues to work due to defaulting to `EnvConfigService`.
-- `register_modules` still loads the built-in dominance module if no configured modules register successfully.
+- Backward-compatibility fallbacks have been removed to enforce explicit DI usage:
+  - `LLMClient` now requires an `IConfigService` (and optional explicit `api_key`).
+  - `register_modules` requires an `IConfigService` and no longer falls back to a built-in module.
 
 ### Testing
 
@@ -100,10 +101,10 @@ Note: The full test suite depends on additional packages (e.g., `pydantic`, `psu
 
 ### Migration Notes
 
-- If you previously relied on direct environment variable reads for:
-  - `OPENAI_API_KEY` in `LLMClient`: prefer passing `api_key` directly or provide a custom `IConfigService`.
-  - `FARM_ANALYSIS_MODULES` in analysis registry: pass module paths via a custom `IConfigService` or set the env var as before (default service will use it).
-- For other modules, prefer adding an optional `config_service: IConfigService | None = None` parameter and default to `EnvConfigService()` internally when needed.
+- Code must now inject `IConfigService` explicitly:
+  - For `LLMClient`, pass `config_service` and optionally `api_key`.
+  - For analysis registration, call `register_modules(config_service=...)` with module paths supplied by your service.
+  - Replace any remaining direct env reads with `IConfigService` accessors.
 
 ### Related Files
 

@@ -65,8 +65,9 @@ class ChartAnalyzer:
         self.db = database
         self.output_dir = output_dir if output_dir else Path("example_output")
         self.save_charts = save_charts
-        # Inject config service for dependency inversion
-        self.llm_client = LLMClient(config_service=EnvConfigService())
+        # Inject config service explicitly (no implicit fallbacks)
+        cfg = EnvConfigService()
+        self.llm_client = LLMClient(api_key=None, config_service=cfg)
 
     def analyze_all_charts(self, output_path: Optional[Path] = None) -> Dict[str, str]:
         """Generate and analyze all charts, returning a dictionary of analyses."""

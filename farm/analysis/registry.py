@@ -77,7 +77,7 @@ class ModuleRegistry:
 registry = ModuleRegistry()
 
 
-def register_modules(config_env_var: str = "FARM_ANALYSIS_MODULES", *, config_service: Optional[IConfigService] = None):
+def register_modules(config_env_var: str = "FARM_ANALYSIS_MODULES", *, config_service: IConfigService):
     """
     Register available analysis modules.
 
@@ -86,30 +86,13 @@ def register_modules(config_env_var: str = "FARM_ANALYSIS_MODULES", *, config_se
        e.g., "farm.analysis.dominance.module.dominance_module, farm.analysis.template.module.template_module"
     2) Fallback to built-in dominance module if env is not set.
     """
-    cfg = config_service or EnvConfigService()
-    module_paths_list = cfg.get_analysis_module_paths(config_env_var)
-    if module_paths_list:
-        registered_any = False
-        for path in module_paths_list:
-            try:
-                module_path, attr = path.rsplit(".", 1)
-                mod = importlib.import_module(module_path)
-                instance = getattr(mod, attr)
-                if instance:
-                    registry.register_module(instance)
-                    registered_any = True
-            except Exception:
-                continue
-        if registered_any:
-            return
-
-    # Fallback registration
-    try:
-        from farm.analysis.dominance.module import dominance_module
-
-        registry.register_module(dominance_module)
-    except Exception:
-        pass
+    module_paths_list = config_service.get_analysis_module_paths(config_env_var)
+    for path in module_paths_list:
+        module_path, attr = path.rsplit(".", 1)
+        mod = importlib.import_module(module_path)
+        instance = getattr(mod, attr)
+        if instance:
+            registry.register_module(instance)
 
 
 def get_module(name: str) -> Optional[AnalysisModule]:

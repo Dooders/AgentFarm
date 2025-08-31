@@ -15,19 +15,14 @@ logger = logging.getLogger(__name__)
 class LLMClient:
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        config_service: Optional[IConfigService] = None,
+        api_key: Optional[str],
+        config_service: IConfigService,
     ):
-        """Initialize OpenAI client with API key from injected config or env.
-
-        Prefer dependency-injected configuration to avoid direct env access.
-        """
-        self._config = config_service or EnvConfigService()
+        """Initialize OpenAI client with API key from injected config service."""
+        self._config = config_service
         self.api_key = api_key or self._config.get_openai_api_key()
         if not self.api_key:
-            raise ValueError(
-                "OpenAI API key must be provided or set in OPENAI_API_KEY environment variable"
-            )
+            raise ValueError("OpenAI API key must be provided via IConfigService or explicitly")
         self.client = OpenAI(api_key=self.api_key)
         self.analyses = {}
         self.actions_df = None

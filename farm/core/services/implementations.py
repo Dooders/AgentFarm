@@ -255,19 +255,6 @@ class EnvConfigService(IConfigService):
     def get_openai_api_key(self) -> Optional[str]:
         return self.get("OPENAI_API_KEY", None)
 
-    def update_agent_death(
-        self, agent_id: str, death_time: int, cause: str = "starvation"
-    ) -> None:
-        """Update the death information for an agent in the database.
-
-        Args:
-            agent_id: The identifier of the agent that died.
-            death_time: The simulation step when the agent died.
-            cause: The cause of death (default: "starvation").
-        """
-        # delegate to environment's method which already checks DB presence
-        self._env.update_agent_death(agent_id, death_time, cause)
-
 
 class SpatialIndexAdapter(ISpatialQueryService):
     """Adapter that exposes `SpatialIndex` as an `ISpatialQueryService`.

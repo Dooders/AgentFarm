@@ -442,7 +442,7 @@ def run_analysis(
         from farm.analysis.registry import get_module, register_modules
         from farm.core.services import EnvConfigService
 
-        # Register all modules using config service
+        # Register all modules using config service (explicit)
         register_modules(config_service=EnvConfigService())
 
         # Get the module for this analysis type
