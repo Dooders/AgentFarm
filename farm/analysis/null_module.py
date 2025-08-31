@@ -22,3 +22,7 @@ class NullModule(AnalysisModule):
 
     def get_db_filename(self) -> Optional[str]:
         return None
+
+
+# Provide a lightweight singleton for registry-based discovery
+null_module = NullModule()

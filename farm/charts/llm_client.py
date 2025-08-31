@@ -7,18 +7,22 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 from openai import OpenAI
+from farm.core.services import IConfigService, EnvConfigService
 
 logger = logging.getLogger(__name__)
 
 
 class LLMClient:
-    def __init__(self, api_key: Optional[str] = None):
-        """Initialize OpenAI client with API key from env or passed directly."""
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+    def __init__(
+        self,
+        api_key: Optional[str],
+        config_service: IConfigService,
+    ):
+        """Initialize OpenAI client with API key from injected config service."""
+        self._config = config_service
+        self.api_key = api_key or self._config.get_openai_api_key()
         if not self.api_key:
-            raise ValueError(
-                "OpenAI API key must be provided or set in OPENAI_API_KEY environment variable"
-            )
+            raise ValueError("OpenAI API key must be provided via IConfigService or explicitly")
         self.client = OpenAI(api_key=self.api_key)
         self.analyses = {}
         self.actions_df = None

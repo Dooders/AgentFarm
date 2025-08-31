@@ -1,5 +1,6 @@
 from farm.core.services.implementations import (
     EnvironmentAgentLifecycleService,
+    EnvConfigService,
     EnvironmentLoggingService,
     EnvironmentMetricsService,
     EnvironmentTimeService,
@@ -7,6 +8,7 @@ from farm.core.services.implementations import (
 )
 from farm.core.services.interfaces import (
     IAgentLifecycleService,
+    IConfigService,
     ILoggingService,
     IMetricsService,
     ISpatialQueryService,
@@ -22,10 +24,12 @@ __all__ = [
     "IAgentLifecycleService",
     "ITimeService",
     "ILoggingService",
+    "IConfigService",
     # Implementations
     "EnvironmentValidationService",
     "EnvironmentMetricsService",
     "EnvironmentAgentLifecycleService",
     "EnvironmentTimeService",
     "EnvironmentLoggingService",
+    "EnvConfigService",
 ]

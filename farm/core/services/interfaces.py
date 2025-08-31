@@ -81,6 +81,45 @@ class ISpatialQueryService(ABC):
         pass
 
 
+class IConfigService(ABC):
+    """Interface for accessing configuration values and environment settings.
+
+    Centralizes configuration lookup to enable dependency injection and
+    improve testability by avoiding direct environment access in modules.
+    """
+
+    @abstractmethod
+    def get(self, key: str, default: Optional[str] = None) -> Optional[str]:
+        """Retrieve a configuration value by key.
+
+        Args:
+            key: Configuration or environment variable name
+            default: Value to return if the key is not found
+
+        Returns:
+            The configuration value as a string if found, otherwise default.
+        """
+        pass
+
+    @abstractmethod
+    def get_analysis_module_paths(self, env_var: str = "FARM_ANALYSIS_MODULES") -> List[str]:
+        """Get analysis module import paths from configuration.
+
+        Args:
+            env_var: Name of the configuration/environment variable containing
+                     a comma-separated list of import paths
+
+        Returns:
+            List of import path strings. Empty if none configured.
+        """
+        pass
+
+    @abstractmethod
+    def get_openai_api_key(self) -> Optional[str]:
+        """Return the OpenAI API key from configuration if available."""
+        pass
+
+
 class IValidationService(ABC):
     """Interface for common validation checks related to the environment.
 
