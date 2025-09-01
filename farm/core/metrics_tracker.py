@@ -8,7 +8,7 @@ Environment class and provides a clean interface for metric collection.
 """
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict
 
 import numpy as np
@@ -21,47 +21,46 @@ logger = logging.getLogger(__name__)
 @dataclass
 class StepPopulationMetrics:
     """Population-related step metrics."""
+
     births: int = 0
     deaths: int = 0
+
 
 @dataclass
 class StepCombatMetrics:
     """Combat-related step metrics."""
+
     combat_encounters: int = 0
     successful_attacks: int = 0
+
 
 @dataclass
 class StepResourceMetrics:
     """Resource-related step metrics."""
+
     resources_shared: float = 0.0
     resources_shared_this_step: float = 0.0
     resource_consumption: float = 0.0
 
+
 @dataclass
 class StepReproductionMetrics:
     """Reproduction-related step metrics."""
+
     reproduction_attempts: int = 0
     reproduction_successes: int = 0
+
 
 @dataclass
 class StepMetrics:
     """Metrics for a single simulation step."""
 
-    population: StepPopulationMetrics = None
-    combat: StepCombatMetrics = None
-    resources: StepResourceMetrics = None
-    reproduction: StepReproductionMetrics = None
-
-    def __post_init__(self):
-        """Initialize nested dataclasses if not provided."""
-        if self.population is None:
-            self.population = StepPopulationMetrics()
-        if self.combat is None:
-            self.combat = StepCombatMetrics()
-        if self.resources is None:
-            self.resources = StepResourceMetrics()
-        if self.reproduction is None:
-            self.reproduction = StepReproductionMetrics()
+    population: StepPopulationMetrics = field(default_factory=StepPopulationMetrics)
+    combat: StepCombatMetrics = field(default_factory=StepCombatMetrics)
+    resources: StepResourceMetrics = field(default_factory=StepResourceMetrics)
+    reproduction: StepReproductionMetrics = field(
+        default_factory=StepReproductionMetrics
+    )
 
     def reset(self) -> None:
         """Reset all step-specific metrics to zero."""
@@ -79,46 +78,43 @@ class StepMetrics:
 @dataclass
 class PopulationMetrics:
     """Population-related cumulative metrics."""
+
     total_births: int = 0
     total_deaths: int = 0
+
 
 @dataclass
 class CombatMetrics:
     """Combat-related cumulative metrics."""
+
     total_combat_encounters: int = 0
     total_successful_attacks: int = 0
+
 
 @dataclass
 class ResourceMetrics:
     """Resource-related cumulative metrics."""
+
     total_resources_shared: float = 0.0
     total_resource_consumption: float = 0.0
+
 
 @dataclass
 class ReproductionMetrics:
     """Reproduction-related cumulative metrics."""
+
     total_reproduction_attempts: int = 0
     total_reproduction_successes: int = 0
+
 
 @dataclass
 class CumulativeMetrics:
     """Cumulative metrics across the entire simulation."""
 
-    population: PopulationMetrics = None
-    combat: CombatMetrics = None
-    resources: ResourceMetrics = None
-    reproduction: ReproductionMetrics = None
-
-    def __post_init__(self):
-        """Initialize nested dataclasses if not provided."""
-        if self.population is None:
-            self.population = PopulationMetrics()
-        if self.combat is None:
-            self.combat = CombatMetrics()
-        if self.resources is None:
-            self.resources = ResourceMetrics()
-        if self.reproduction is None:
-            self.reproduction = ReproductionMetrics()
+    population: PopulationMetrics = field(default_factory=PopulationMetrics)
+    combat: CombatMetrics = field(default_factory=CombatMetrics)
+    resources: ResourceMetrics = field(default_factory=ResourceMetrics)
+    reproduction: ReproductionMetrics = field(default_factory=ReproductionMetrics)
 
     def update_from_step(self, step_metrics: StepMetrics) -> None:
         """Update cumulative metrics from step metrics."""
@@ -127,9 +123,15 @@ class CumulativeMetrics:
         self.combat.total_combat_encounters += step_metrics.combat.combat_encounters
         self.combat.total_successful_attacks += step_metrics.combat.successful_attacks
         self.resources.total_resources_shared += step_metrics.resources.resources_shared
-        self.reproduction.total_reproduction_attempts += step_metrics.reproduction.reproduction_attempts
-        self.reproduction.total_reproduction_successes += step_metrics.reproduction.reproduction_successes
-        self.resources.total_resource_consumption += step_metrics.resources.resource_consumption
+        self.reproduction.total_reproduction_attempts += (
+            step_metrics.reproduction.reproduction_attempts
+        )
+        self.reproduction.total_reproduction_successes += (
+            step_metrics.reproduction.reproduction_successes
+        )
+        self.resources.total_resource_consumption += (
+            step_metrics.resources.resource_consumption
+        )
 
 
 class MetricsTracker:
@@ -260,7 +262,9 @@ class MetricsTracker:
             ),
             "reproduction_success_rate": (
                 self.cumulative_metrics.reproduction.total_reproduction_successes
-                / max(self.cumulative_metrics.reproduction.total_reproduction_attempts, 1)
+                / max(
+                    self.cumulative_metrics.reproduction.total_reproduction_attempts, 1
+                )
             ),
             "total_resources_shared": self.cumulative_metrics.resources.total_resources_shared,
             "total_resource_consumption": self.cumulative_metrics.resources.total_resource_consumption,

@@ -94,4 +94,4 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # Allow more leniency in test files
 "tests/**/*" = ["S101", "PLR2004"]
-"**/__init__.py" = ["F401"]  # Allow unused imports in __init__.py 
+"**/__init__.py" = ["F401"]  # Allow unused imports in __init__.py
