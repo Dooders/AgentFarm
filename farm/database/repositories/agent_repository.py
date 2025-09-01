@@ -2,7 +2,9 @@ import json
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import func
+from sqlalchemy.sql.functions import Function
 from sqlalchemy.orm import Session, joinedload
+
 
 from farm.database.data_types import AgentInfo, HealthIncidentData
 from farm.database.models import (
@@ -17,6 +19,8 @@ from farm.database.utilities import safe_json_loads
 
 
 class AgentRepository(BaseRepository[AgentModel]):
+    # Type hint to help linter understand func object
+    _func = func
     """Repository for handling agent-related data operations.
 
     This class provides methods to query and retrieve agents and their related data
@@ -34,6 +38,7 @@ class AgentRepository(BaseRepository[AgentModel]):
         session_manager : SessionManager
             Session manager instance for database operations
         """
+        super().__init__(session_manager, AgentModel)
         self.session_manager = session_manager
 
     def get_agent_by_id(self, agent_id: str) -> Optional[AgentModel]:
@@ -270,7 +275,7 @@ class AgentRepository(BaseRepository[AgentModel]):
             query = session.query(
                 ActionModel.action_type,
                 func.avg(ActionModel.reward).label("reward_avg"),
-                func.count().label("count"),
+                func.count(ActionModel.action_id).label("count"),
                 func.group_concat(ActionModel.reward).label("rewards"),
             ).group_by(ActionModel.action_type)
 
@@ -364,7 +369,7 @@ class AgentRepository(BaseRepository[AgentModel]):
             action_stats = (
                 session.query(
                     ActionModel.action_type,
-                    func.count().label("count"),
+                    func.count(ActionModel.action_id).label("count"),
                     func.avg(ActionModel.reward).label("avg_reward"),
                 )
                 .filter(ActionModel.agent_id == agent_id)
@@ -596,9 +601,7 @@ class AgentRepository(BaseRepository[AgentModel]):
 
         def query_random_agent(session: Session) -> Optional[str]:
             # Use func.random() for database-agnostic random selection
-            random_agent = (
-                session.query(AgentModel.agent_id).order_by(func.random()).first()
-            )
+            random_agent = session.query(AgentModel.agent_id).order_by(func.random()).first()
             return random_agent[0] if random_agent else None
 
         return self.session_manager.execute_with_retry(query_random_agent)

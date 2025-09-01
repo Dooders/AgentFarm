@@ -38,6 +38,7 @@ disable = [
     "no-member",                      # Reduce false positives for dynamic attributes
     "dangerous-default-value",        # Allow mutable objects as default arguments
     "raise-missing-from",             # Allow raising exceptions without 'from' clause
+    "not-callable",                   # Allow SQLAlchemy func.* calls (E1102)
 ]
 
 [tool.pylint.format]
