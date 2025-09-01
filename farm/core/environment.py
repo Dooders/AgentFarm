@@ -13,8 +13,8 @@ Key Components:
     - Metrics tracking and database logging
     - Agent lifecycle management
 
-The environment supports various agent types and provides observation spaces for reinforcement learning
-training and evaluation.
+The environment supports various agent types and provides observation spaces for 
+reinforcement learning training and evaluation.
 """
 
 import logging
@@ -30,6 +30,7 @@ from pettingzoo import AECEnv
 # Use action registry for cleaner action management
 from farm.core.action import ActionType, action_registry
 from farm.core.channels import NUM_CHANNELS
+from farm.core.config import SimulationConfig
 from farm.core.metrics_tracker import MetricsTracker
 from farm.core.observations import AgentObservation, ObservationConfig
 from farm.core.resource_manager import ResourceManager
@@ -172,7 +173,7 @@ class Environment(AECEnv):
         config: Optional[Any] = None,
         simulation_id: Optional[str] = None,
         seed: Optional[int] = None,
-        agents: Optional[List[Any]] = None,
+        initial_agents: Optional[List[Any]] = None,
     ) -> None:
         """Initialize the AgentFarm environment.
 
@@ -204,6 +205,9 @@ class Environment(AECEnv):
         seed : int, optional
             Random seed for deterministic simulation. If None, uses config
             seed or remains non-deterministic.
+        initial_agents : list, optional
+            Pre-instantiated agents to add to the environment at initialization.
+            If provided, these agents will be added after environment setup.
 
         Raises
         ------
@@ -224,9 +228,9 @@ class Environment(AECEnv):
             np.random.seed(self.seed_value)
             try:
                 torch.manual_seed(self.seed_value)
-            except Exception as e:
+            except RuntimeError as e:
                 logger.warning(
-                    f"Failed to seed torch with value {self.seed_value}: {e}"
+                    "Failed to seed torch with value %s: %s", self.seed_value, e
                 )
 
         # Initialize basic attributes
@@ -314,8 +318,8 @@ class Environment(AECEnv):
         self.agent_observations = {}
 
         # If pre-instantiated agents are provided, add them now
-        if self.agents:
-            for agent in self.agents:
+        if initial_agents:
+            for agent in initial_agents:
                 self.add_agent(agent)
 
         # Update spatial index references now that resources and agents are initialized
@@ -372,7 +376,7 @@ class Environment(AECEnv):
                 missing_actions.append(action_name)
 
         if missing_actions:
-            logging.warning(f"Missing actions in registry: {missing_actions}")
+            logging.warning("Missing actions in registry: %s", missing_actions)
             # Remove missing actions from mapping
             self._action_mapping = {
                 k: v
@@ -383,7 +387,9 @@ class Environment(AECEnv):
         # Log the final action mapping
         available_actions = list(self._action_mapping.values())
         logging.info(
-            f"Initialized action mapping with {len(available_actions)} actions: {available_actions}"
+            "Initialized action mapping with %s actions: %s",
+            len(available_actions),
+            available_actions,
         )
 
     @property
@@ -583,8 +589,8 @@ class Environment(AECEnv):
                 action_type=action_type,
                 details=details,
             )
-        except Exception as e:
-            logger.error(f"Failed to log interaction edge: {e}")
+        except (ValueError, TypeError, AttributeError) as e:
+            logger.error("Failed to log interaction edge: %s", e)
 
     def update(self) -> None:
         """Update environment state for current time step.
@@ -621,7 +627,8 @@ class Environment(AECEnv):
             # Log resource update statistics if needed
             if resource_stats["regeneration_events"] > 0:
                 logger.debug(
-                    f"Resource update: {resource_stats['regeneration_events']} resources regenerated"
+                    "Resource update: %s resources regenerated",
+                    resource_stats["regeneration_events"],
                 )
 
             # Calculate and log metrics
@@ -645,8 +652,8 @@ class Environment(AECEnv):
             # Increment time step
             self.time += 1
 
-        except Exception as e:
-            logging.error(f"Error in environment update: {e}")
+        except (RuntimeError, ValueError, AttributeError) as e:
+            logging.error("Error in environment update: %s", e)
             raise
 
     def _calculate_metrics(self) -> Dict[str, Any]:
@@ -688,8 +695,8 @@ class Environment(AECEnv):
         # Delegate to identity service (respects deterministic seed if set)
         return self.identity.agent_id()
 
-    def get_state(self) -> EnvironmentState:
-        """Get current environment state."""
+    def state(self) -> EnvironmentState:
+        """Get current environment state (PettingZoo AECEnv requirement)."""
         return EnvironmentState.from_environment(self)
 
     def is_valid_position(self, position: Tuple[float, float]) -> bool:
@@ -795,11 +802,14 @@ class Environment(AECEnv):
             # Validate required dependencies after injection
             if getattr(agent, "spatial_service", None) is None:
                 raise ValueError(
-                    f"Agent {getattr(agent, 'agent_id', '?')} missing spatial_service after injection"
+                    "Agent %s missing spatial_service after injection"
+                    % getattr(agent, "agent_id", "?")
                 )
-        except Exception as e:
+        except (AttributeError, ValueError, TypeError) as e:
             logger.error(
-                f"Failed to inject services for agent {getattr(agent, 'agent_id', '?')}: {e}"
+                "Failed to inject services for agent %s: %s",
+                getattr(agent, "agent_id", "?"),
+                e,
             )
             raise
 
@@ -857,8 +867,8 @@ class Environment(AECEnv):
                 if hasattr(self.db, "logger"):
                     self.db.logger.flush_all_buffers()
                 self.db.close()
-        except Exception as e:
-            logger.error(f"Error during environment cleanup: {str(e)}")
+        except (OSError, AttributeError, ValueError) as e:
+            logger.error("Error during environment cleanup: %s", e)
 
     def __del__(self) -> None:
         """Ensure cleanup on deletion.
@@ -998,8 +1008,6 @@ class Environment(AECEnv):
         if new_enabled_actions is not None:
             if self.config is None:
                 # Create a basic config object if none exists
-                from farm.core.config import SimulationConfig
-
                 self.config = SimulationConfig()
             # Use setattr for dynamic attribute assignment (same pattern as original code)
             setattr(self.config, "enabled_actions", new_enabled_actions)
@@ -1013,7 +1021,9 @@ class Environment(AECEnv):
         # Log the update
         available_actions = list(self._action_mapping.values())
         logging.info(
-            f"Action space updated: {len(available_actions)} actions available: {available_actions}"
+            "Action space updated: %s actions available: %s",
+            len(available_actions),
+            available_actions,
         )
 
     def get_initial_agent_count(self) -> int:
@@ -1138,7 +1148,7 @@ class Environment(AECEnv):
             # Handle case where KD-tree indices are out of bounds
             logger.warning("Index error in spatial query: %s", e)
             nearby_resources = []
-        except Exception as e:
+        except (RuntimeError, KeyError) as e:
             # Catch any other unexpected errors for debugging
             logger.exception(
                 "Unexpected error querying nearby resources in spatial index"
@@ -1234,8 +1244,9 @@ class Environment(AECEnv):
         # Validate action is within enabled action space bounds
         if action < 0 or action >= len(self._enabled_action_types):
             logging.debug(
-                f"Action {action} is out of bounds for enabled action space "
-                f"(size: {len(self._enabled_action_types)})"
+                "Action %s is out of bounds for enabled action space (size: %s)",
+                action,
+                len(self._enabled_action_types),
             )
             return
 
@@ -1249,10 +1260,12 @@ class Environment(AECEnv):
             if action_obj:
                 action_obj.execute(agent)
             else:
-                logging.warning(f"Action '{action_name}' not found in action registry")
+                logging.warning("Action '%s' not found in action registry", action_name)
         else:
             logging.debug(
-                f"Action {action} (mapped to {action_type}) not available in current simulation configuration"
+                "Action %s (mapped to %s) not available in current simulation configuration",
+                action,
+                action_type,
             )
 
     def _calculate_reward(
@@ -1385,7 +1398,7 @@ class Environment(AECEnv):
         self.agent_selection = None
 
     def reset(
-        self, *, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None
+        self, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None
     ) -> Tuple[np.ndarray, Dict[str, Any]]:
         # TODO: Reduce code duplication.
         """Reset the environment to its initial state.
@@ -1410,7 +1423,7 @@ class Environment(AECEnv):
             np.random.seed(seed)
             try:
                 torch.manual_seed(seed)
-            except Exception:
+            except RuntimeError:
                 pass
 
         self.time = 0

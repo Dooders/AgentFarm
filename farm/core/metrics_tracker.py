@@ -9,7 +9,7 @@ Environment class and provides a clean interface for metric collection.
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import numpy as np
 
@@ -19,69 +19,119 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class StepMetrics:
-    """Metrics for a single simulation step."""
+class StepPopulationMetrics:
+    """Population-related step metrics."""
 
-    # Population metrics
     births: int = 0
     deaths: int = 0
 
-    # Combat metrics
+
+@dataclass
+class StepCombatMetrics:
+    """Combat-related step metrics."""
+
     combat_encounters: int = 0
     successful_attacks: int = 0
 
-    # Resource sharing metrics
+
+@dataclass
+class StepResourceMetrics:
+    """Resource-related step metrics."""
+
     resources_shared: float = 0.0
     resources_shared_this_step: float = 0.0
+    resource_consumption: float = 0.0
 
-    # Additional metrics can be added here
+
+@dataclass
+class StepReproductionMetrics:
+    """Reproduction-related step metrics."""
+
     reproduction_attempts: int = 0
     reproduction_successes: int = 0
-    resource_consumption: float = 0.0
+
+
+@dataclass
+class StepMetrics:
+    """Metrics for a single simulation step."""
+
+    population: StepPopulationMetrics = field(default_factory=StepPopulationMetrics)
+    combat: StepCombatMetrics = field(default_factory=StepCombatMetrics)
+    resources: StepResourceMetrics = field(default_factory=StepResourceMetrics)
+    reproduction: StepReproductionMetrics = field(
+        default_factory=StepReproductionMetrics
+    )
 
     def reset(self) -> None:
         """Reset all step-specific metrics to zero."""
-        self.births = 0
-        self.deaths = 0
-        self.combat_encounters = 0
-        self.successful_attacks = 0
-        self.resources_shared = 0.0
-        self.resources_shared_this_step = 0.0
-        self.reproduction_attempts = 0
-        self.reproduction_successes = 0
-        self.resource_consumption = 0.0
+        self.population.births = 0
+        self.population.deaths = 0
+        self.combat.combat_encounters = 0
+        self.combat.successful_attacks = 0
+        self.resources.resources_shared = 0.0
+        self.resources.resources_shared_this_step = 0.0
+        self.reproduction.reproduction_attempts = 0
+        self.reproduction.reproduction_successes = 0
+        self.resources.resource_consumption = 0.0
+
+
+@dataclass
+class PopulationMetrics:
+    """Population-related cumulative metrics."""
+
+    total_births: int = 0
+    total_deaths: int = 0
+
+
+@dataclass
+class CombatMetrics:
+    """Combat-related cumulative metrics."""
+
+    total_combat_encounters: int = 0
+    total_successful_attacks: int = 0
+
+
+@dataclass
+class ResourceMetrics:
+    """Resource-related cumulative metrics."""
+
+    total_resources_shared: float = 0.0
+    total_resource_consumption: float = 0.0
+
+
+@dataclass
+class ReproductionMetrics:
+    """Reproduction-related cumulative metrics."""
+
+    total_reproduction_attempts: int = 0
+    total_reproduction_successes: int = 0
 
 
 @dataclass
 class CumulativeMetrics:
     """Cumulative metrics across the entire simulation."""
 
-    # Population metrics
-    total_births: int = 0
-    total_deaths: int = 0
-
-    # Combat metrics
-    total_combat_encounters: int = 0
-    total_successful_attacks: int = 0
-
-    # Resource sharing metrics
-    total_resources_shared: float = 0.0
-
-    # Additional cumulative metrics
-    total_reproduction_attempts: int = 0
-    total_reproduction_successes: int = 0
-    total_resource_consumption: float = 0.0
+    population: PopulationMetrics = field(default_factory=PopulationMetrics)
+    combat: CombatMetrics = field(default_factory=CombatMetrics)
+    resources: ResourceMetrics = field(default_factory=ResourceMetrics)
+    reproduction: ReproductionMetrics = field(default_factory=ReproductionMetrics)
 
     def update_from_step(self, step_metrics: StepMetrics) -> None:
         """Update cumulative metrics from step metrics."""
-        self.total_births += step_metrics.births
-        self.total_deaths += step_metrics.deaths
-        self.total_combat_encounters += step_metrics.combat_encounters
-        self.total_successful_attacks += step_metrics.successful_attacks
-        self.total_resources_shared += step_metrics.resources_shared
-        self.total_reproduction_attempts += step_metrics.reproduction_attempts
-        self.total_reproduction_successes += step_metrics.reproduction_successes
-        self.total_resource_consumption += step_metrics.resource_consumption
+        self.population.total_births += step_metrics.population.births
+        self.population.total_deaths += step_metrics.population.deaths
+        self.combat.total_combat_encounters += step_metrics.combat.combat_encounters
+        self.combat.total_successful_attacks += step_metrics.combat.successful_attacks
+        self.resources.total_resources_shared += step_metrics.resources.resources_shared
+        self.reproduction.total_reproduction_attempts += (
+            step_metrics.reproduction.reproduction_attempts
+        )
+        self.reproduction.total_reproduction_successes += (
+            step_metrics.reproduction.reproduction_successes
+        )
+        self.resources.total_resource_consumption += (
+            step_metrics.resources.resource_consumption
+        )
 
 
 class MetricsTracker:
@@ -108,36 +158,36 @@ class MetricsTracker:
 
     def record_birth(self) -> None:
         """Record a birth event."""
-        self.step_metrics.births += 1
+        self.step_metrics.population.births += 1
 
     def record_death(self) -> None:
         """Record a death event."""
-        self.step_metrics.deaths += 1
+        self.step_metrics.population.deaths += 1
 
     def record_combat_encounter(self) -> None:
         """Record a combat encounter."""
-        self.step_metrics.combat_encounters += 1
+        self.step_metrics.combat.combat_encounters += 1
 
     def record_successful_attack(self) -> None:
         """Record a successful attack."""
-        self.step_metrics.successful_attacks += 1
+        self.step_metrics.combat.successful_attacks += 1
 
     def record_resources_shared(self, amount: float) -> None:
         """Record resources shared between agents."""
-        self.step_metrics.resources_shared += amount
-        self.step_metrics.resources_shared_this_step += amount
+        self.step_metrics.resources.resources_shared += amount
+        self.step_metrics.resources.resources_shared_this_step += amount
 
     def record_reproduction_attempt(self) -> None:
         """Record a reproduction attempt."""
-        self.step_metrics.reproduction_attempts += 1
+        self.step_metrics.reproduction.reproduction_attempts += 1
 
     def record_reproduction_success(self) -> None:
         """Record a successful reproduction."""
-        self.step_metrics.reproduction_successes += 1
+        self.step_metrics.reproduction.reproduction_successes += 1
 
     def record_resource_consumption(self, amount: float) -> None:
         """Record resource consumption."""
-        self.step_metrics.resource_consumption += amount
+        self.step_metrics.resources.resource_consumption += amount
 
     def add_custom_metric(self, name: str, value: Any) -> None:
         """Add a custom metric."""
@@ -146,29 +196,29 @@ class MetricsTracker:
     def get_step_metrics(self) -> Dict[str, Any]:
         """Get current step metrics as a dictionary."""
         return {
-            "births": self.step_metrics.births,
-            "deaths": self.step_metrics.deaths,
-            "combat_encounters": self.step_metrics.combat_encounters,
-            "successful_attacks": self.step_metrics.successful_attacks,
-            "resources_shared": self.step_metrics.resources_shared,
-            "resources_shared_this_step": self.step_metrics.resources_shared_this_step,
-            "reproduction_attempts": self.step_metrics.reproduction_attempts,
-            "reproduction_successes": self.step_metrics.reproduction_successes,
-            "resource_consumption": self.step_metrics.resource_consumption,
+            "births": self.step_metrics.population.births,
+            "deaths": self.step_metrics.population.deaths,
+            "combat_encounters": self.step_metrics.combat.combat_encounters,
+            "successful_attacks": self.step_metrics.combat.successful_attacks,
+            "resources_shared": self.step_metrics.resources.resources_shared,
+            "resources_shared_this_step": self.step_metrics.resources.resources_shared_this_step,
+            "reproduction_attempts": self.step_metrics.reproduction.reproduction_attempts,
+            "reproduction_successes": self.step_metrics.reproduction.reproduction_successes,
+            "resource_consumption": self.step_metrics.resources.resource_consumption,
             **self.custom_metrics,
         }
 
     def get_cumulative_metrics(self) -> Dict[str, Any]:
         """Get cumulative metrics as a dictionary."""
         return {
-            "total_births": self.cumulative_metrics.total_births,
-            "total_deaths": self.cumulative_metrics.total_deaths,
-            "total_combat_encounters": self.cumulative_metrics.total_combat_encounters,
-            "total_successful_attacks": self.cumulative_metrics.total_successful_attacks,
-            "total_resources_shared": self.cumulative_metrics.total_resources_shared,
-            "total_reproduction_attempts": self.cumulative_metrics.total_reproduction_attempts,
-            "total_reproduction_successes": self.cumulative_metrics.total_reproduction_successes,
-            "total_resource_consumption": self.cumulative_metrics.total_resource_consumption,
+            "total_births": self.cumulative_metrics.population.total_births,
+            "total_deaths": self.cumulative_metrics.population.total_deaths,
+            "total_combat_encounters": self.cumulative_metrics.combat.total_combat_encounters,
+            "total_successful_attacks": self.cumulative_metrics.combat.total_successful_attacks,
+            "total_resources_shared": self.cumulative_metrics.resources.total_resources_shared,
+            "total_reproduction_attempts": self.cumulative_metrics.reproduction.total_reproduction_attempts,
+            "total_reproduction_successes": self.cumulative_metrics.reproduction.total_reproduction_successes,
+            "total_resource_consumption": self.cumulative_metrics.resources.total_resource_consumption,
         }
 
     def get_all_metrics(self) -> Dict[str, Any]:
@@ -204,18 +254,20 @@ class MetricsTracker:
     def get_metrics_summary(self) -> Dict[str, Any]:
         """Get a summary of key metrics."""
         return {
-            "population_growth": self.cumulative_metrics.total_births
-            - self.cumulative_metrics.total_deaths,
+            "population_growth": self.cumulative_metrics.population.total_births
+            - self.cumulative_metrics.population.total_deaths,
             "combat_success_rate": (
-                self.cumulative_metrics.total_successful_attacks
-                / max(self.cumulative_metrics.total_combat_encounters, 1)
+                self.cumulative_metrics.combat.total_successful_attacks
+                / max(self.cumulative_metrics.combat.total_combat_encounters, 1)
             ),
             "reproduction_success_rate": (
-                self.cumulative_metrics.total_reproduction_successes
-                / max(self.cumulative_metrics.total_reproduction_attempts, 1)
+                self.cumulative_metrics.reproduction.total_reproduction_successes
+                / max(
+                    self.cumulative_metrics.reproduction.total_reproduction_attempts, 1
+                )
             ),
-            "total_resources_shared": self.cumulative_metrics.total_resources_shared,
-            "total_resource_consumption": self.cumulative_metrics.total_resource_consumption,
+            "total_resources_shared": self.cumulative_metrics.resources.total_resources_shared,
+            "total_resource_consumption": self.cumulative_metrics.resources.total_resource_consumption,
         }
 
     def update_metrics(
@@ -257,8 +309,8 @@ class MetricsTracker:
                     resource_states=resource_states,
                     metrics=metrics,
                 )
-        except Exception as e:
-            logging.error(f"Error updating metrics: {e}")
+        except (ValueError, TypeError, AttributeError, IndexError) as e:
+            logging.error("Error updating metrics: %s", e)
 
     def _prepare_agent_state(self, agent, time):
         """Prepare agent state for database logging."""
@@ -406,6 +458,6 @@ class MetricsTracker:
             self.end_step()
 
             return metrics
-        except Exception as e:
-            logging.error(f"Error calculating metrics: {e}")
+        except (ValueError, TypeError, AttributeError, IndexError) as e:
+            logging.error("Error calculating metrics: %s", e)
             return {}  # Return empty metrics on error

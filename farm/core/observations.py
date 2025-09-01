@@ -72,7 +72,7 @@ import torch
 import torch.nn.functional as F
 from pydantic import BaseModel, Field, field_validator
 
-from farm.core.channels import NUM_CHANNELS, Channel, get_channel_registry
+from farm.core.channels import Channel, get_channel_registry
 from farm.core.spatial_index import SpatialIndex
 
 logger = logging.getLogger(__name__)
@@ -327,7 +327,12 @@ class AgentObservation:
 
         try:
             nearby_agents = spatial_index.get_nearby_agents(query_position_xy, radius)
-        except Exception as e:  # pragma: no cover - defensive only
+        except (
+            AttributeError,
+            TypeError,
+            ValueError,
+            RuntimeError,
+        ):  # pragma: no cover - defensive only
             logger.exception(
                 "Error in spatial_index.get_nearby_agents; defaulting to empty list"
             )

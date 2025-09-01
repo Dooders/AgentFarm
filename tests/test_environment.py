@@ -533,7 +533,7 @@ class TestEnvironment(unittest.TestCase):
     def test_environment_state_management(self):
         """Test environment state capture and management"""
         # Test environment state capture
-        state = self.env.get_state()
+        state = self.env.state()
         self.assertIsNotNone(state)
 
         # Test simulation ID

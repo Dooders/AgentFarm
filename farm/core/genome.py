@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from farm.core.agent import BaseAgent
     from farm.core.environment import Environment
 
+
 # Action registry for secure function resolution
 ACTION_FUNCTIONS = {
     "attack": attack_action,
@@ -88,6 +89,7 @@ class Genome:
         agent_id: str,
         position: tuple[int, int],
         environment: "Environment",
+        agent_factory: Optional[callable] = None,
     ) -> "BaseAgent":
         """Create a new agent from a genome representation.
 
@@ -106,19 +108,30 @@ class Genome:
             position (tuple[int, int]): Starting (x, y) coordinates for the agent
             environment (Environment): Reference to the environment instance the
                                     agent will operate in
+            agent_factory (callable, optional): Factory function to create agent instances.
+                                             If None, raises RuntimeError.
 
         Returns:
             BaseAgent: New agent instance initialized with the genome's properties
                       and ready to operate in the environment
+
+        Raises:
+            RuntimeError: If no agent_factory is provided
         """
+        if agent_factory is None:
+            raise RuntimeError(
+                "agent_factory must be provided to avoid circular imports. "
+                "Use BaseAgent.from_genome() instead of Genome.to_agent() directly."
+            )
+
         # Reconstruct action set
         action_set = [
             Action(name, weight, ACTION_FUNCTIONS[name])
             for name, weight in genome["action_set"]
         ]
 
-        # Create new agent
-        agent = BaseAgent(
+        # Create new agent using factory
+        agent = agent_factory(
             agent_id=agent_id,
             position=position,
             resource_level=genome["resource_level"],
@@ -155,7 +168,7 @@ class Genome:
         if path is None:
             return json.dumps(genome, indent=2)
 
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump(genome, f)
 
     @staticmethod
@@ -179,7 +192,7 @@ class Genome:
             return json.loads(path)
 
         # Otherwise treat as file path
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
 
     @staticmethod
@@ -249,11 +262,10 @@ class Genome:
         actions2 = dict(genome2["action_set"])
         child_actions = {}
 
-        for action in actions1.keys():
+        for action, weight1 in actions1.items():
             # 50% chance to inherit from either parent
-            child_actions[action] = (
-                actions2[action] if random.random() < 0.5 else actions1[action]
-            )
+            weight2 = actions2[action]
+            child_actions[action] = weight2 if random.random() < 0.5 else weight1
 
         # Normalize weights
         child["action_set"] = [(n, w) for n, w in child_actions.items()]
