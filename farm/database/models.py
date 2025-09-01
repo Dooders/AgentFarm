@@ -22,6 +22,7 @@ between related tables.
 import logging
 import statistics
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 from deepdiff import DeepDiff
@@ -37,6 +38,7 @@ from sqlalchemy import (
     PrimaryKeyConstraint,
     String,
     func,
+    text,
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -211,7 +213,7 @@ class AgentStateModel(Base):
         # Generate id before initializing other attributes
         if "agent_id" in kwargs and "step_number" in kwargs:
             kwargs["id"] = f"{kwargs['agent_id']}-{kwargs['step_number']}"
-        elif not "id" in kwargs:
+        elif "id" not in kwargs:
             raise ValueError(
                 "Both agent_id and step_number are required to create AgentStateModel"
             )
@@ -323,9 +325,11 @@ class InteractionModel(Base):
     interaction_type = Column(
         String(50), nullable=False
     )  # e.g., 'share', 'attack', 'gather', 'reproduce'
-    action_type = Column(String(50), nullable=True)  # Optional action grouping
+    action_type = Column(String(50), nullable=True)
     details = Column(JSON, nullable=True)
-    timestamp = Column(DateTime, default=func.now(), nullable=False)
+    timestamp = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
 
 
 class SimulationStepModel(Base):
@@ -621,8 +625,12 @@ class ExperimentModel(Base):
     name = Column(String(255), nullable=False)
     description = Column(String(4096), nullable=True)
     hypothesis = Column(String(2048), nullable=True)
-    creation_date = Column(DateTime, default=func.now())
-    last_updated = Column(DateTime, default=func.now(), onupdate=func.now())
+    creation_date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    last_updated = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
     status = Column(String(50), default="planned")
     tags = Column(JSON, nullable=True)
     variables = Column(JSON, nullable=True)
@@ -645,7 +653,7 @@ class Simulation(Base):
     experiment_id = Column(
         String(64), ForeignKey("experiments.experiment_id"), nullable=True
     )
-    start_time = Column(DateTime, default=func.now())
+    start_time = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     end_time = Column(DateTime, nullable=True)
     status = Column(String(50), default="pending")
     parameters = Column(JSON, nullable=False)
@@ -726,7 +734,9 @@ class ReproductionEventModel(Base):
     offspring_generation = Column(Integer, nullable=True)
     parent_position_x = Column(Float, nullable=False)
     parent_position_y = Column(Float, nullable=False)
-    timestamp = Column(DateTime, default=func.now(), nullable=False)
+    timestamp = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
 
     # Relationships
     parent = relationship(
@@ -828,7 +838,9 @@ class SocialInteractionModel(Base):
     recipient_resources_after = Column(Float(precision=6), nullable=True)
     group_id = Column(String(64), nullable=True)
     details = Column(JSON, nullable=True)
-    timestamp = Column(DateTime, default=func.now(), nullable=False)
+    timestamp = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
 
     # Relationships
     initiator = relationship(
@@ -971,12 +983,12 @@ class SimulationComparison:
                 metric_list,
                 {
                     metric: [getattr(step, metric) for step in steps]
-                    for metric in metrics.keys()
+                    for metric in metrics
                 },
             )
 
         # Compare statistics for each metric
-        for metric in metrics.keys():
+        for metric in metrics:
             sim1_values = getattr(self, "_sim1_metrics")[metric]
             sim2_values = getattr(self, "_sim2_metrics")[metric]
 

@@ -12,9 +12,9 @@ from farm.core.action import (
     reproduce_action,
     share_action,
 )
-from farm.core.agent import BaseAgent
 
 if TYPE_CHECKING:
+    from farm.core.agent import BaseAgent
     from farm.core.environment import Environment
 
 
@@ -89,6 +89,7 @@ class Genome:
         agent_id: str,
         position: tuple[int, int],
         environment: "Environment",
+        agent_factory: Optional[callable] = None,
     ) -> "BaseAgent":
         """Create a new agent from a genome representation.
 
@@ -107,19 +108,30 @@ class Genome:
             position (tuple[int, int]): Starting (x, y) coordinates for the agent
             environment (Environment): Reference to the environment instance the
                                     agent will operate in
+            agent_factory (callable, optional): Factory function to create agent instances.
+                                             If None, raises RuntimeError.
 
         Returns:
             BaseAgent: New agent instance initialized with the genome's properties
                       and ready to operate in the environment
+
+        Raises:
+            RuntimeError: If no agent_factory is provided
         """
+        if agent_factory is None:
+            raise RuntimeError(
+                "agent_factory must be provided to avoid circular imports. "
+                "Use BaseAgent.from_genome() instead of Genome.to_agent() directly."
+            )
+
         # Reconstruct action set
         action_set = [
             Action(name, weight, ACTION_FUNCTIONS[name])
             for name, weight in genome["action_set"]
         ]
 
-        # Create new agent
-        agent = BaseAgent(
+        # Create new agent using factory
+        agent = agent_factory(
             agent_id=agent_id,
             position=position,
             resource_level=genome["resource_level"],

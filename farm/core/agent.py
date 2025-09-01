@@ -6,18 +6,7 @@ from typing import TYPE_CHECKING, Optional
 import numpy as np
 import torch
 
-from farm.core.action import (
-    Action,
-    action_name_to_index,
-    action_registry,
-    attack_action,
-    defend_action,
-    gather_action,
-    move_action,
-    pass_action,
-    reproduce_action,
-    share_action,
-)
+from farm.core.action import Action, action_name_to_index, action_registry
 from farm.core.decision.config import DecisionConfig
 from farm.core.decision.decision import DecisionModule
 from farm.core.device_utils import create_device_from_config
@@ -35,17 +24,6 @@ from farm.core.services.interfaces import (
 from farm.core.state import AgentState
 from farm.database.data_types import GenomeId
 from farm.memory.redis_memory import AgentMemoryManager, RedisMemoryConfig
-
-# Action registry for secure function resolution
-ACTION_FUNCTIONS = {
-    "attack": attack_action,
-    "gather": gather_action,
-    "share": share_action,
-    "move": move_action,
-    "reproduce": reproduce_action,
-    "defend": defend_action,
-    "pass": pass_action,
-}
 
 if TYPE_CHECKING:
     from farm.core.environment import Environment
@@ -1083,6 +1061,7 @@ class BaseAgent:
             new_agent_id,
             (int(self.position[0]), int(self.position[1])),  # Convert to int tuple
             target_environment,
+            type(self),
         )
 
         # Preserve additional services and configuration that aren't in the genome
@@ -1343,7 +1322,7 @@ class BaseAgent:
             BaseAgent: New agent instance with characteristics decoded from the genome
         """
         return Genome.to_agent(
-            genome, agent_id, (int(position[0]), int(position[1])), environment
+            genome, agent_id, (int(position[0]), int(position[1])), environment, cls
         )
 
     def take_damage(self, damage: float) -> bool:
