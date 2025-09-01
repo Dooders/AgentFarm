@@ -74,6 +74,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from farm.core.channels import Channel, get_channel_registry
 from farm.core.spatial_index import SpatialIndex
+from farm.core.observation_render import ObservationRenderer
 
 logger = logging.getLogger(__name__)
 
@@ -608,3 +609,87 @@ class AgentObservation:
                          representing the agent's current view of the world
         """
         return self.observation
+
+    # ------------------------
+    # Rendering and interactive export
+    # ------------------------
+    def render(
+        self,
+        mode: str = "overlay",
+        size: int = 256,
+        palette: Optional[dict] = None,
+        grid: bool = False,
+        legend: bool = False,
+        background: str = "#111213",
+        draw_center: bool = True,
+        return_type: str = "pil",
+    ):
+        """Render the multichannel observation as a minimalist image.
+
+        Args:
+            mode: "overlay" to blend channels, or "gallery" to tile per-channel views
+            size: Target longer-side size in pixels (nearest-neighbor for crisp cells)
+            palette: Optional mapping of channel name -> {color,cmap,alpha}
+            grid: Draw subtle grid lines (disabled by default)
+            legend: Reserved; currently no-ops in static image
+            background: Background color hex string
+            draw_center: Draw crosshair at center
+            return_type: "pil" | "numpy" | "bytes"
+
+        Returns:
+            PIL.Image | numpy.ndarray | bytes
+        """
+        # Build channel names ordered by channel index
+        handlers = self.registry.get_all_handlers()
+        ordered = sorted(handlers.keys(), key=lambda n: self.registry.get_index(n))
+        return ObservationRenderer.render(
+            self.observation,
+            ordered,
+            mode=mode,
+            size=size,
+            palette=palette,
+            grid=grid,
+            legend=legend,
+            background=background,
+            draw_center=draw_center,
+            return_type=return_type,
+        )
+
+    def to_interactive_json(self) -> Dict:
+        """Export observation and metadata for the interactive HTML viewer."""
+        handlers = self.registry.get_all_handlers()
+        ordered = sorted(handlers.keys(), key=lambda n: self.registry.get_index(n))
+        meta = {"R": int(self.config.R)}
+        return ObservationRenderer.to_interactive_json(self.observation, ordered, meta)
+
+    def render_interactive_html(
+        self,
+        outfile: Optional[str] = None,
+        title: str = "Observation Viewer",
+        background: str = "#0b0c0f",
+        initial_scale: int = 16,
+        palette: Optional[dict] = None,
+    ) -> str:
+        """Generate a self-contained interactive HTML viewer.
+
+        Args:
+            outfile: Optional path to write HTML file. If None, returns the HTML string only
+            title: Page title
+            background: Background color hex string
+            initial_scale: Initial integer pixel size per cell
+            palette: Optional mapping of channel name -> {color,cmap,alpha}
+
+        Returns:
+            HTML string (and writes to outfile if provided)
+        """
+        handlers = self.registry.get_all_handlers()
+        ordered = sorted(handlers.keys(), key=lambda n: self.registry.get_index(n))
+        return ObservationRenderer.render_interactive_html(
+            self.observation,
+            ordered,
+            outfile=outfile,
+            title=title,
+            background=background,
+            palette=palette,
+            initial_scale=initial_scale,
+        )
