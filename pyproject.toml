@@ -9,4 +9,89 @@ description = "Agent Farm Simulation Framework"
 readme = "README.md"
 
 [tool.setuptools.packages.find]
-where = ["."] 
+where = ["."]
+
+[tool.pylint.messages_control]
+disable = [
+    "logging-fstring-interpolation",  # Allow f-strings in logging
+    "logging-format-interpolation",   # Allow % formatting in logging
+    "attribute-defined-outside-init", # Allow attributes defined outside __init__
+    "protected-access",               # Allow access to protected members
+    "too-many-arguments",             # Allow many function arguments
+    "too-many-instance-attributes",   # Allow many instance attributes
+    "too-few-public-methods",         # Allow classes with few public methods
+    "invalid-name",                   # Allow various naming conventions
+    "missing-docstring",              # Don't require docstrings
+    "line-too-long",                  # Allow long lines
+    "too-many-lines",                 # Allow long files
+    "too-many-branches",              # Allow many branches
+    "too-many-statements",            # Allow many statements
+    "too-many-locals",                # Allow many local variables
+    "unused-argument",                # Allow unused arguments
+    "redefined-builtin",              # Allow redefining built-ins
+    "redefined-outer-name",           # Allow redefining outer names
+    "reimported",                     # Allow reimporting modules
+    "unused-import",                  # Allow unused imports (for now)
+    "import-outside-toplevel",        # Allow imports outside toplevel
+    "broad-except",                   # Allow broad exception handling
+    "fixme",                          # Allow TODO/FIXME comments
+    "no-member",                      # Reduce false positives for dynamic attributes
+    "dangerous-default-value",        # Allow mutable objects as default arguments
+    "raise-missing-from",             # Allow raising exceptions without 'from' clause
+]
+
+[tool.pylint.format]
+max-line-length = 120
+
+[tool.pylint.design]
+max-args = 10
+max-locals = 25
+max-returns = 10
+max-branches = 20
+max-statements = 60
+max-parents = 10
+
+[tool.pylint.similarities]
+min-similarity-lines = 6
+
+[tool.ruff]
+# Alternative to pylint - more modern and faster
+line-length = 120
+target-version = "py38"
+
+[tool.ruff.lint]
+# Disable overly aggressive rules
+ignore = [
+    "E501",  # Line too long
+    "F401",  # Unused imports
+    "F841",  # Unused variables
+    "C901",  # Too complex
+    "PLR0913",  # Too many arguments
+    "PLR0912",  # Too many branches
+    "PLR0915",  # Too many statements
+    "PLR2004",  # Magic value comparison
+    "PLR0911",  # Too many return statements
+    "S101",   # Assert used
+    "T10",    # Debugger statements
+    "ERA001", # Commented out code
+    "PD",     # Pandas best practices
+    "N",      # Naming conventions
+    "D",      # Docstring requirements
+    "ANN",    # Type annotations
+    "BLE001", # Blind except
+    "FBT",    # Boolean in function arguments
+    "A",      # Shadowing built-ins
+    "COM812", # Trailing comma missing
+    "ISC001", # Implicitly concatenated string literals
+    "ICN001", # Import conventions
+    "G004",   # Logging statement uses f-string
+    "S603",   # Untrusted input for subprocess
+    "EM101",  # Exception must not use f-string
+    "TRY003", # Avoid specifying long messages outside exception class
+    "RUF012", # Mutable class attributes
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Allow more leniency in test files
+"tests/**/*" = ["S101", "PLR2004"]
+"**/__init__.py" = ["F401"]  # Allow unused imports in __init__.py 

@@ -18,20 +18,9 @@ from farm.core.action import (
     reproduce_action,
     share_action,
 )
-from farm.core.device_utils import create_device_from_config
-
-# Action registry for secure function resolution
-ACTION_FUNCTIONS = {
-    "attack": attack_action,
-    "gather": gather_action,
-    "share": share_action,
-    "move": move_action,
-    "reproduce": reproduce_action,
-    "defend": defend_action,
-    "pass": pass_action,
-}
 from farm.core.decision.config import DecisionConfig
 from farm.core.decision.decision import DecisionModule
+from farm.core.device_utils import create_device_from_config
 from farm.core.genome import Genome
 from farm.core.perception import PerceptionData
 from farm.core.services.factory import AgentServiceFactory
@@ -46,6 +35,17 @@ from farm.core.services.interfaces import (
 from farm.core.state import AgentState
 from farm.database.data_types import GenomeId
 from farm.memory.redis_memory import AgentMemoryManager, RedisMemoryConfig
+
+# Action registry for secure function resolution
+ACTION_FUNCTIONS = {
+    "attack": attack_action,
+    "gather": gather_action,
+    "share": share_action,
+    "move": move_action,
+    "reproduce": reproduce_action,
+    "defend": defend_action,
+    "pass": pass_action,
+}
 
 if TYPE_CHECKING:
     from farm.core.environment import Environment
@@ -90,9 +90,9 @@ class BaseAgent:
         time_service: ITimeService | None = None,
         lifecycle_service: IAgentLifecycleService | None = None,
         config: object | None = None,
-        action_set: list[Action] = [],
+        action_set: Optional[list[Action]] = None,
         device: Optional[torch.device] = None,
-        parent_ids: list[str] = [],
+        parent_ids: Optional[list[str]] = None,
         generation: int = 0,
         use_memory: bool = False,
         memory_config: Optional[dict] = None,
@@ -126,7 +126,9 @@ class BaseAgent:
         """
         # Add default actions (already normalized by default)
         self.actions = (
-            action_set if action_set else action_registry.get_all(normalized=True)
+            action_set
+            if action_set is not None
+            else action_registry.get_all(normalized=True)
         )
 
         self.agent_id = agent_id
@@ -159,7 +161,7 @@ class BaseAgent:
 
         # Generate genome info
         self.generation = generation
-        self.genome_id = self._generate_genome_id(parent_ids)
+        self.genome_id = self._generate_genome_id(parent_ids or [])
 
         # Initialize DecisionModule for action selection
         self._initialize_decision_module()
@@ -1168,7 +1170,7 @@ class BaseAgent:
             )
         except Exception as e:
             logger.error(f"Failed to get next agent ID for offspring creation: {e}")
-            raise RuntimeError(f"Failed to obtain agent ID for offspring: {e}")
+            raise RuntimeError(f"Failed to obtain agent ID for offspring: {e}") from e
 
         generation = self.generation + 1
 
@@ -1193,7 +1195,7 @@ class BaseAgent:
             )
         except Exception as e:
             logger.error(f"Failed to create offspring agent instance: {e}")
-            raise RuntimeError(f"Failed to instantiate offspring agent: {e}")
+            raise RuntimeError(f"Failed to instantiate offspring agent: {e}") from e
 
         # Add new agent to environment
         if self.lifecycle_service:
@@ -1203,7 +1205,7 @@ class BaseAgent:
                 logger.error(f"Failed to add offspring agent to lifecycle service: {e}")
                 # Agent was created but not added to lifecycle service
                 # This is a critical failure that should prevent reproduction
-                raise RuntimeError(f"Failed to register offspring agent: {e}")
+                raise RuntimeError(f"Failed to register offspring agent: {e}") from e
 
         # Subtract offspring cost from parent's resources
         try:

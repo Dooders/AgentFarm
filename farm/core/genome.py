@@ -12,10 +12,11 @@ from farm.core.action import (
     reproduce_action,
     share_action,
 )
+from farm.core.agent import BaseAgent
 
 if TYPE_CHECKING:
-    from farm.core.agent import BaseAgent
     from farm.core.environment import Environment
+
 
 # Action registry for secure function resolution
 ACTION_FUNCTIONS = {
@@ -155,7 +156,7 @@ class Genome:
         if path is None:
             return json.dumps(genome, indent=2)
 
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump(genome, f)
 
     @staticmethod
@@ -179,7 +180,7 @@ class Genome:
             return json.loads(path)
 
         # Otherwise treat as file path
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
 
     @staticmethod
@@ -249,11 +250,10 @@ class Genome:
         actions2 = dict(genome2["action_set"])
         child_actions = {}
 
-        for action in actions1.keys():
+        for action, weight1 in actions1.items():
             # 50% chance to inherit from either parent
-            child_actions[action] = (
-                actions2[action] if random.random() < 0.5 else actions1[action]
-            )
+            weight2 = actions2[action]
+            child_actions[action] = weight2 if random.random() < 0.5 else weight1
 
         # Normalize weights
         child["action_set"] = [(n, w) for n, w in child_actions.items()]
