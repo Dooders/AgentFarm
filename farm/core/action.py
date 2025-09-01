@@ -1,3 +1,24 @@
+"""Action management module for agent behaviors in a multi-agent environment.
+
+This module defines the core Action class and implements various agent behaviors
+including movement, resource gathering, sharing, and combat. Each action has
+associated costs, rewards, and conditions for execution.
+
+Key Components:
+    - ActionType: Enumeration of available agent actions
+    - Action: Base class for defining executable agent behaviors
+    - Movement: Deep Q-Learning based movement with rewards
+    - Gathering: Resource collection from environment nodes
+    - Sharing: Resource distribution between nearby agents
+    - Combat: Competitive resource acquisition through attacks
+
+Technical Details:
+    - Range-based interactions (gathering: config-based, sharing: 30 units, attack: 20 units)
+    - Resource-based action costs and rewards
+    - Numpy-based distance calculations
+    - Automatic tensor-numpy conversion for state handling
+"""
+
 import logging
 import math
 from enum import IntEnum
@@ -353,28 +374,6 @@ def check_resource_requirement(
         )
         return False
     return True
-
-
-"""Action management module for agent behaviors in a multi-agent environment.
-
-This module defines the core Action class and implements various agent behaviors
-including movement, resource gathering, sharing, and combat. Each action has
-associated costs, rewards, and conditions for execution.
-
-Key Components:
-    - ActionType: Enumeration of available agent actions
-    - Action: Base class for defining executable agent behaviors
-    - Movement: Deep Q-Learning based movement with rewards
-    - Gathering: Resource collection from environment nodes
-    - Sharing: Resource distribution between nearby agents
-    - Combat: Competitive resource acquisition through attacks
-
-Technical Details:
-    - Range-based interactions (gathering: config-based, sharing: 30 units, attack: 20 units)
-    - Resource-based action costs and rewards
-    - Numpy-based distance calculations
-    - Automatic tensor-numpy conversion for state handling
-"""
 
 
 class ActionType(IntEnum):
