@@ -59,6 +59,10 @@ def _ensure_numpy01(array_like: Union[np.ndarray, "torch.Tensor"]) -> np.ndarray
 
 
 @dataclass
+class ChannelStyle:
+    color_hex: Optional[str]
+    alpha: float
+    colormap: Optional[str] = None
 
     def __post_init__(self):
         if not (0.0 <= self.alpha <= 1.0):
