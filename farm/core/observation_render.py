@@ -7,12 +7,11 @@ and an optional interactive HTML viewer.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Union
-
 import io
 import json
 import math
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -25,11 +24,31 @@ except Exception:  # pragma: no cover - optional dependency at runtime
     mpl_cm = None
     mpl_colors = None
 
+try:
+    import torch
+except Exception:  # pragma: no cover - optional dependency at runtime
+    torch = None
+
 
 RgbTuple = Tuple[int, int, int]
 
 
 def _hex_to_rgb(color_hex: str) -> RgbTuple:
+    """Convert a hex color string to an RGB tuple.
+
+    Args:
+        color_hex: Hex color string with or without leading '#'. Supports both
+            3-digit and 6-digit formats.
+
+    Returns:
+        Tuple of (r, g, b) integers in range [0, 255].
+
+    Examples:
+        >>> _hex_to_rgb("#ff0000")
+        (255, 0, 0)
+        >>> _hex_to_rgb("00f")
+        (0, 0, 255)
+    """
     color_hex = color_hex.lstrip("#")
     if len(color_hex) == 3:
         color_hex = "".join([c * 2 for c in color_hex])
@@ -39,18 +58,27 @@ def _hex_to_rgb(color_hex: str) -> RgbTuple:
     return (r, g, b)
 
 
-def _ensure_numpy01(array_like: Union[np.ndarray, "torch.Tensor"]) -> np.ndarray:
-    try:
-        import torch
-        if isinstance(array_like, torch.Tensor):
-            if array_like.is_cuda:
-                array_like = array_like.detach().cpu()
-            array_like = array_like.detach().to(dtype=torch.float32)
-            npy = array_like.numpy()
-        else:
-            npy = np.asarray(array_like, dtype=np.float32)
-    except Exception:
-        # Fallback without torch import
+def _ensure_numpy01(array_like: Union[np.ndarray, "torch.Tensor"]) -> np.ndarray:  # type: ignore
+    """Ensure input array is a numpy array normalized to [0,1] range.
+
+    Handles both numpy arrays and PyTorch tensors, converting them to float32
+    numpy arrays with values clamped to [0, 1]. NaN values are replaced with 0.
+
+    Args:
+        array_like: Input array-like object (numpy array or torch tensor).
+
+    Returns:
+        Numpy array with dtype float32 and values in range [0, 1].
+
+    Note:
+        Uses torch if available, otherwise falls back to numpy-only conversion.
+    """
+    if torch is not None and isinstance(array_like, torch.Tensor):
+        if array_like.is_cuda:
+            array_like = array_like.detach().cpu()
+        array_like = array_like.detach().to(dtype=torch.float32)
+        npy = array_like.numpy()
+    else:
         npy = np.asarray(array_like, dtype=np.float32)
     # Normalize/clamp to [0,1]
     npy = np.nan_to_num(npy, nan=0.0, posinf=1.0, neginf=0.0)
@@ -60,6 +88,27 @@ def _ensure_numpy01(array_like: Union[np.ndarray, "torch.Tensor"]) -> np.ndarray
 
 @dataclass
 class ChannelStyle:
+    """Styling configuration for a single observation channel.
+
+    Defines how a channel should be rendered, including color, transparency,
+    and optional colormap for continuous values.
+
+    Attributes:
+        color_hex: Hex color string (e.g., "#ff0000") or None for colormap mode.
+        alpha: Opacity value in range [0, 1].
+        colormap: Optional matplotlib colormap name for continuous channels.
+
+    Raises:
+        ValueError: If alpha is not in range [0, 1].
+
+    Examples:
+        >>> style = ChannelStyle("#ff0000", 0.8)
+        >>> style.color_hex
+        '#ff0000'
+        >>> style.alpha
+        0.8
+    """
+
     color_hex: Optional[str]
     alpha: float
     colormap: Optional[str] = None
@@ -68,7 +117,27 @@ class ChannelStyle:
         if not (0.0 <= self.alpha <= 1.0):
             raise ValueError(f"ChannelStyle.alpha must be in [0, 1], got {self.alpha}")
 
+
 def get_default_palette(channel_names: List[str]) -> Dict[str, ChannelStyle]:
+    """Get default color palette for observation channels.
+
+    Returns a colorblind-friendly palette with predefined styles for common
+    channel types, and generates fallback colors for unknown channels.
+
+    Args:
+        channel_names: List of channel names to generate styles for.
+
+    Returns:
+        Dictionary mapping channel names to ChannelStyle objects.
+
+    Note:
+        Predefined channels include: SELF_HP, ALLIES_HP, ENEMIES_HP, RESOURCES,
+        OBSTACLES, TERRAIN_COST (uses magma colormap), VISIBILITY, KNOWN_EMPTY,
+        DAMAGE_HEAT, TRAILS, ALLY_SIGNAL, GOAL, LANDMARKS.
+
+        Unknown channels get assigned colors from a fallback palette with
+        moderate opacity (0.6).
+    """
     # Colorblind-friendly inspired palette
     default: Dict[str, ChannelStyle] = {
         "SELF_HP": ChannelStyle("#00e5ff", 0.95, None),
@@ -87,8 +156,16 @@ def get_default_palette(channel_names: List[str]) -> Dict[str, ChannelStyle]:
     }
     # Add fallback for any unknown/custom channels
     fallback_colors = [
-        "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
-        "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
+        "#1f77b4",
+        "#ff7f0e",
+        "#2ca02c",
+        "#d62728",
+        "#9467bd",
+        "#8c564b",
+        "#e377c2",
+        "#7f7f7f",
+        "#bcbd22",
+        "#17becf",
     ]
     idx = 0
     for name in channel_names:
@@ -105,6 +182,25 @@ def _render_channels_overlay(
     palette: Dict[str, ChannelStyle],
     background: str,
 ) -> np.ndarray:
+    """Render multiple channels as an alpha-blended overlay.
+
+    Composites all channels on top of each other using alpha blending.
+    Channels are rendered in order, with later channels appearing on top.
+
+    Args:
+        gridC01: Channel data with shape (C, H, W), values in [0, 1].
+        channel_names: Names of channels corresponding to first dimension.
+        palette: Dictionary mapping channel names to rendering styles.
+        background: Background color as hex string.
+
+    Returns:
+        RGB image array with shape (H, W, 3) and values in [0, 1].
+
+    Note:
+        For colormap channels, uses matplotlib colormaps if available.
+        For regular color channels, modulates color intensity by channel values.
+        Alpha blending formula: out = src * a + dst * (1-a)
+    """
     C, H, W = gridC01.shape
     base = np.zeros((H, W, 3), dtype=np.float32)
     bg_rgb = np.array(_hex_to_rgb(background), dtype=np.float32) / 255.0
@@ -120,7 +216,10 @@ def _render_channels_overlay(
             alpha = np.clip(rgba[..., 3] * style.alpha, 0.0, 1.0)
             color_rgb = rgba[..., :3]
         else:
-            color_rgb = np.array(_hex_to_rgb(style.color or "#ffffff"), dtype=np.float32) / 255.0
+            color_rgb = (
+                np.array(_hex_to_rgb(style.color or "#ffffff"), dtype=np.float32)
+                / 255.0
+            )
             # Use value as intensity for alpha scaling to emphasize higher values
             alpha = np.clip(layer * style.alpha, 0.0, 1.0)
             # Also modulate color intensity by value to keep minimalist look
@@ -133,6 +232,18 @@ def _render_channels_overlay(
 
 
 def _nearest_scale(img_rgb01: np.ndarray, size: int) -> Image.Image:
+    """Scale an RGB image using nearest neighbor interpolation.
+
+    Scales the image so that the longest dimension becomes approximately
+    the target size, while maintaining aspect ratio.
+
+    Args:
+        img_rgb01: RGB image array with values in [0, 1] range.
+        size: Target size for the longest dimension in pixels.
+
+    Returns:
+        PIL Image object scaled using nearest neighbor interpolation.
+    """
     H, W = img_rgb01.shape[:2]
     # Decide target keeping square, use longest side = size
     scale = max(1, int(math.ceil(size / max(H, W))))
@@ -144,6 +255,18 @@ def _nearest_scale(img_rgb01: np.ndarray, size: int) -> Image.Image:
 def _draw_grid_and_center(
     image: Image.Image, draw_grid: bool, draw_center: bool, cell_size: int
 ) -> None:
+    """Draw grid lines and center crosshairs on an image.
+
+    Args:
+        image: PIL Image to draw on (modified in-place).
+        draw_grid: Whether to draw grid lines.
+        draw_center: Whether to draw center crosshairs.
+        cell_size: Size of each cell in pixels for grid alignment.
+
+    Note:
+        Grid lines are only drawn when cell_size >= 8 to avoid clutter.
+        Grid lines use semi-transparent white, center lines use more opaque white.
+    """
     if not (draw_grid or draw_center):
         return
     draw = ImageDraw.Draw(image)
@@ -170,13 +293,33 @@ def _render_gallery(
     background: str,
     size: int,
 ) -> Image.Image:
+    """Render channels as a grid gallery with individual channel tiles.
+
+    Creates a grid layout where each channel is rendered as a separate tile
+    with its name labeled. Tiles are arranged to approximate a square grid.
+
+    Args:
+        gridC01: Channel data with shape (C, H, W), values in [0, 1].
+        channel_names: Names of channels for labeling tiles.
+        palette: Dictionary mapping channel names to rendering styles.
+        background: Background color as hex string.
+        size: Target size for the entire gallery (longest dimension).
+
+    Returns:
+        PIL Image containing the grid of channel tiles.
+
+    Note:
+        Each tile shows only one channel overlaid on the background.
+        Channel names are drawn as labels in the top-left corner of each tile.
+        Grid layout automatically adjusts columns/rows for best fit.
+    """
     C, H, W = gridC01.shape
     cols = int(math.ceil(math.sqrt(C)))
     rows = int(math.ceil(C / cols))
     # Render each as overlay of a single channel for consistency
     tiles: List[Image.Image] = []
     for idx, name in enumerate(channel_names):
-        single = gridC01[idx:idx+1, :, :]
+        single = gridC01[idx : idx + 1, :, :]
         img01 = _render_channels_overlay(single, [name], palette, background)
         tile = _nearest_scale(img01, size // max(cols, rows))
         # label
@@ -192,7 +335,9 @@ def _render_gallery(
         tiles.append(tile)
 
     tile_w, tile_h = tiles[0].size
-    grid_img = Image.new("RGB", (tile_w * cols, tile_h * rows), color=_hex_to_rgb(background))
+    grid_img = Image.new(
+        "RGB", (tile_w * cols, tile_h * rows), color=_hex_to_rgb(background)
+    )
     for i, tile in enumerate(tiles):
         r = i // cols
         c = i % cols
@@ -201,6 +346,12 @@ def _render_gallery(
 
 
 class ObservationRenderer:
+    """Static utility class for rendering multichannel observation data.
+
+    Provides methods to render AgentObservation data as static images or
+    interactive HTML viewers. Supports both overlay and gallery rendering modes.
+    """
+
     @staticmethod
     def render(
         observation: Union[np.ndarray, "torch.Tensor"],
@@ -214,6 +365,31 @@ class ObservationRenderer:
         draw_center: bool = True,
         return_type: str = "pil",
     ) -> Union[Image.Image, np.ndarray]:
+        """Render observation data as an image.
+
+        Args:
+            observation: Channel data with shape (C, H, W). Can be numpy array or torch tensor.
+            channel_names: Names of channels for styling and labeling.
+            mode: Rendering mode - "overlay" for alpha-blended composite, "gallery" for grid.
+            size: Target size for output image (longest dimension).
+            palette: Optional custom color palette. Uses defaults if None.
+            grid: Whether to draw grid lines on the output.
+            legend: Reserved for future use (currently unused).
+            background: Background color as hex string.
+            draw_center: Whether to draw center crosshairs.
+            return_type: Output format - "pil" for PIL Image, "numpy" for array, "bytes" for PNG bytes.
+
+        Returns:
+            Rendered image in requested format.
+
+        Raises:
+            ValueError: If observation shape is invalid or channel count doesn't match names.
+
+        Examples:
+            >>> obs = np.random.rand(3, 10, 10)
+            >>> img = ObservationRenderer.render(obs, ["hp", "enemies", "terrain"])
+            >>> img.show()  # PIL Image
+        """
         gridC01 = _ensure_numpy01(observation)
         if gridC01.ndim != 3:
             raise ValueError("observation must have shape (C,H,W)")
@@ -224,12 +400,16 @@ class ObservationRenderer:
         style_palette = palette or get_default_palette(channel_names)
 
         if mode == "overlay":
-            img01 = _render_channels_overlay(gridC01, channel_names, style_palette, background)
+            img01 = _render_channels_overlay(
+                gridC01, channel_names, style_palette, background
+            )
             img = _nearest_scale(img01, size)
             cell_size = max(1, img.size[0] // gridC01.shape[2])
             _draw_grid_and_center(img, grid, draw_center, cell_size)
         elif mode == "gallery":
-            img = _render_gallery(gridC01, channel_names, style_palette, background, size)
+            img = _render_gallery(
+                gridC01, channel_names, style_palette, background, size
+            )
         else:
             raise ValueError("mode must be 'overlay' or 'gallery'")
 
@@ -249,6 +429,26 @@ class ObservationRenderer:
         channel_names: List[str],
         meta: Optional[Dict[str, Union[int, float, str]]] = None,
     ) -> Dict:
+        """Convert observation data to JSON format for interactive viewing.
+
+        Serializes observation data into a format suitable for the interactive
+        HTML viewer, including channel names, grid data, and optional metadata.
+
+        Args:
+            observation: Channel data with shape (C, H, W). Can be numpy array or torch tensor.
+            channel_names: Names of channels for labeling.
+            meta: Optional metadata dictionary to include in JSON output.
+
+        Returns:
+            Dictionary containing observation data in JSON-serializable format.
+
+        Note:
+            The returned dictionary includes:
+            - "shape": [C, H, W] dimensions
+            - "channels": list of channel names
+            - "grid": 3D array of observation values
+            - "meta": metadata dictionary or empty dict
+        """
         gridC01 = _ensure_numpy01(observation)
         C, H, W = gridC01.shape
         payload = {
@@ -269,12 +469,40 @@ class ObservationRenderer:
         palette: Optional[Dict[str, ChannelStyle]] = None,
         initial_scale: int = 16,
     ) -> str:
+        """Generate interactive HTML viewer for observation data.
+
+        Creates a complete HTML page with embedded JavaScript that provides
+        an interactive viewer for multichannel observation data. Features include:
+        - Channel selection and overlay toggles
+        - Zoom controls with scale slider
+        - Grid and center crosshair toggles
+        - Hover tooltips showing channel values
+        - Keyboard shortcuts ([/] for prev/next channel)
+
+        Args:
+            observation: Channel data with shape (C, H, W). Can be numpy array or torch tensor.
+            channel_names: Names of channels for labeling and controls.
+            outfile: Optional file path to save HTML output.
+            title: Title for the HTML page.
+            background: Background color for the viewer interface.
+            palette: Optional custom color palette. Uses defaults if None.
+            initial_scale: Initial pixel scale factor for rendering.
+
+        Returns:
+            Complete HTML string containing the interactive viewer.
+
+        Note:
+            If outfile is provided, the HTML is also saved to that file.
+            The viewer uses a dark theme with shadcn-inspired styling.
+        """
         data = ObservationRenderer.to_interactive_json(observation, channel_names)
         palette_dict = {
             name: {"color": cs.color, "alpha": cs.alpha, "cmap": cs.cmap}
             for name, cs in (palette or get_default_palette(channel_names)).items()
         }
-        html = _build_interactive_html(data, title, background, palette_dict, initial_scale)
+        html = _build_interactive_html(
+            data, title, background, palette_dict, initial_scale
+        )
         if outfile:
             with open(outfile, "w", encoding="utf-8") as f:
                 f.write(html)
@@ -288,6 +516,29 @@ def _build_interactive_html(
     palette: Dict[str, Dict],
     initial_scale: int,
 ) -> str:
+    """Build the complete HTML string for the interactive observation viewer.
+
+    Constructs a self-contained HTML page with embedded CSS and JavaScript
+    that provides an interactive interface for exploring multichannel observation data.
+
+    Args:
+        data: JSON-serializable observation data from to_interactive_json().
+        title: Page title and heading.
+        background: Hex color for the viewer's background theme.
+        palette: Channel styling information for the JavaScript renderer.
+        initial_scale: Starting pixel scale factor for the canvas.
+
+    Returns:
+        Complete HTML document as a string.
+
+    Note:
+        The generated HTML includes:
+        - Responsive dark theme with CSS custom properties
+        - Canvas-based rendering with zoom and pan controls
+        - Interactive controls for channel selection and visualization options
+        - Hover tooltips showing precise channel values
+        - Keyboard shortcuts for navigation
+    """
     # Minimal, shadcn-inspired styling with a clean dark theme.
     json_data = json.dumps(data)
     json_palette = json.dumps(palette)
@@ -545,4 +796,3 @@ def _build_interactive_html(
     html = html.replace("__DATA__", json_data)
     html = html.replace("__PALETTE__", json_palette)
     return html
-
