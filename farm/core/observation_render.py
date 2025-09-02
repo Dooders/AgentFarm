@@ -525,9 +525,9 @@ def _build_interactive_html(
       const centerY = Math.floor(H/2), centerX = Math.floor(W/2);
       const dy = y - centerY, dx = x - centerX;
       const dist = Math.sqrt(dx*dx + dy*dy).toFixed(2);
-      let html = `<div style=\"font-weight:600\">(y={y}, x={x}) d={dist}</div>`;
-      values.forEach(it => {{ html += `<div><span style=\"color:#94a3b8\">${{it.name}}</span>: ${it.v.toFixed(3)}</div>`; }});
-      tooltip.innerHTML = html.replace('{y}', y).replace('{x}', x).replace('{dist}', dist);
+      let html = `<div style="font-weight:600">(y=${y}, x=${x}) d=${dist}</div>`;
+      values.forEach(it => { html += `<div><span style="color:#94a3b8">${it.name}</span>: ${it.v.toFixed(3)}</div>`; });
+      tooltip.innerHTML = html;
     });
     canvas.addEventListener('mouseleave', () => { tooltip.style.display='none'; });
 
