@@ -283,7 +283,7 @@ def _build_interactive_html(
     background: str,
     palette: Dict[str, Dict],
     initial_scale: int,
-    ) -> str:
+) -> str:
     # Minimal, shadcn-inspired styling with a clean dark theme.
     json_data = json.dumps(data)
     json_palette = json.dumps(palette)
