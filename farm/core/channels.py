@@ -65,19 +65,24 @@ class ChannelBehavior(IntEnum):
     """
     Defines how a channel behaves during observation updates.
 
-    This enum controls the temporal behavior of observation channels:
+    This enum controls the temporal behavior of observation channels and determines
+    how they are handled during the observation update cycle.
 
-    - INSTANT: Channel data is completely overwritten each tick with fresh data.
-              Used for current state information that doesn't need to persist.
-              Example: Current health, visibility, immediate threats.
+    Attributes:
+        INSTANT: Channel data is completely overwritten each tick with fresh data.
+                Used for current state information that doesn't need to persist.
+                These channels are cleared at the beginning of each observation update.
+                Example: Current health, visibility, immediate threats.
 
-    - DYNAMIC: Channel data persists across ticks and decays over time using
-              a gamma factor. Used for information that should fade gradually.
-              Example: Damage trails, movement trails, known empty cells.
+        DYNAMIC: Channel data persists across ticks and decays over time using
+                a gamma factor. Used for information that should fade gradually.
+                These channels have their values multiplied by a decay factor each tick.
+                Example: Damage trails, movement trails, known empty cells.
 
-    - PERSISTENT: Channel data persists indefinitely until explicitly cleared.
-                 Used for information that should remain until manually reset.
-                 Example: Permanent landmarks, long-term memory.
+        PERSISTENT: Channel data persists indefinitely until explicitly cleared.
+                   Used for information that should remain until manually reset.
+                   These channels are never automatically cleared or decayed.
+                   Example: Permanent landmarks, long-term memory, learned behaviors.
     """
 
     INSTANT = 0  # Overwritten each tick with fresh data
@@ -89,20 +94,33 @@ class ChannelHandler(ABC):
     """
     Base class for channel-specific processing logic.
 
-    This class defines the interface that custom channel handlers must implement
-    to add new observation channels to the system. Each handler is responsible
-    for processing world data and writing it to the appropriate channel.
+    This abstract class defines the interface that custom channel handlers must implement
+    to add new observation channels to the system. Each handler is responsible for
+    processing world data and writing it to the appropriate channel in the observation tensor.
 
-    Handlers receive the full observation tensor and are responsible for:
-    1. Processing incoming data from the world
-    2. Writing processed data to the correct channel index
-    3. Handling channel-specific behavior (decay, clearing, etc.)
+    Channel handlers are the core of the dynamic channel system, allowing users to
+    define custom observation channels without modifying the core observation code.
+    Each handler encapsulates the logic for one specific type of observation data.
+
+    Subclasses must implement the `process` method to define how their channel
+    data is extracted from the world state and written to the observation tensor.
 
     Attributes:
-        name (str): Unique identifier for this channel
-        behavior (ChannelBehavior): How this channel behaves over time
-        gamma (Optional[float]): Decay rate for DYNAMIC channels (0.0 to 1.0)
-                                Higher values = slower decay, 1.0 = no decay
+        name: Unique identifier for this channel (used for registration and lookup)
+        behavior: How this channel behaves over time (INSTANT, DYNAMIC, or PERSISTENT)
+        gamma: Optional decay rate for DYNAMIC channels (0.0 to 1.0).
+              Higher values = slower decay, 1.0 = no decay. Only used for DYNAMIC channels.
+
+    Example:
+        >>> class MyCustomHandler(ChannelHandler):
+        ...     def __init__(self):
+        ...         super().__init__("MY_CUSTOM", ChannelBehavior.DYNAMIC, gamma=0.95)
+        ...
+        ...     def process(self, observation, channel_idx, config, agent_world_pos, **kwargs):
+        ...         # Custom processing logic here
+        ...         custom_data = kwargs.get("my_custom_data", [])
+        ...         # Process and write to observation[channel_idx]
+        ...         pass
     """
 
     def __init__(
@@ -112,10 +130,13 @@ class ChannelHandler(ABC):
         Initialize a channel handler.
 
         Args:
-            name: Unique identifier for this channel (e.g., "SELF_HP", "DAMAGE_HEAT")
-            behavior: How this channel behaves over time (INSTANT, DYNAMIC, PERSISTENT)
-            gamma: Decay rate for DYNAMIC channels. Should be between 0.0 and 1.0.
-                  Higher values mean slower decay. If None, will use config gamma.
+            name: Unique identifier for this channel (e.g., "SELF_HP", "DAMAGE_HEAT").
+                 This name is used for registration, lookup, and debugging.
+            behavior: How this channel behaves over time. Must be a ChannelBehavior enum value.
+                     Determines whether the channel is INSTANT, DYNAMIC, or PERSISTENT.
+            gamma: Optional decay rate for DYNAMIC channels. Should be between 0.0 and 1.0.
+                  Higher values mean slower decay (1.0 = no decay). If None, the channel
+                  will use config-specific gamma values or default behavior.
         """
         self.name = name
         self.behavior = behavior
@@ -133,41 +154,64 @@ class ChannelHandler(ABC):
         """
         Process world data and write to the observation channel.
 
-        This method is called each tick to update the channel with fresh data.
-        The handler should process the incoming data and write it to the
-        observation tensor at the specified channel index.
+        This abstract method must be implemented by subclasses to define how their
+        channel data is extracted from the world state and written to the observation tensor.
+        The method is called each tick during the observation update process.
+
+        The observation tensor uses a local coordinate system centered on the agent:
+        - The center pixel (R, R) represents the agent's current position
+        - Coordinates increase right and down from the center
+        - World positions must be converted to local observation coordinates
 
         Args:
-            observation: The full observation tensor with shape (NUM_CHANNELS, 2R+1, 2R+1)
-                        where R is the observation radius. This tensor is local
-                        (centered on the agent's position).
-            channel_idx: Index of this channel in the observation tensor
-            config: Observation configuration containing parameters like R (radius),
-                   device, torch_dtype, etc.
-            agent_world_pos: Agent's current position in world coordinates (y, x)
-            **kwargs: Channel-specific data passed from perceive_world. Common keys:
+            observation: The full observation tensor with shape (num_channels, 2R+1, 2R+1)
+                        where R is the observation radius from config. This tensor uses
+                        a local coordinate system centered on the agent's position.
+            channel_idx: Index of this channel in the observation tensor (0-based).
+            config: Observation configuration object containing parameters like R (radius),
+                   device, torch_dtype, gamma values, etc.
+            agent_world_pos: Agent's current position in world coordinates as (y, x) tuple,
+                           where y is the row coordinate and x is the column coordinate.
+            **kwargs: Channel-specific data passed from AgentObservation.perceive_world().
+                     Common keys include:
                      - self_hp01: Agent's normalized health [0,1]
-                     - allies: List of (y, x, hp) tuples for visible allies
-                     - enemies: List of (y, x, hp) tuples for visible enemies
-                     - world_layers: Dict of world layer data (resources, obstacles, etc.)
-                     - recent_damage_world: List of (y, x, intensity) damage events
-                     - trails_world_points: List of (y, x, intensity) trail points
-                     - ally_signals_world: List of (y, x, intensity) signal points
-                     - goal_world_pos: Goal position (y, x) if available
+                     - allies: List of (world_y, world_x, hp) tuples for visible allies
+                     - enemies: List of (world_y, world_x, hp) tuples for visible enemies
+                     - world_layers: Dict of world layer tensors (resources, obstacles, etc.)
+                     - recent_damage_world: List of (world_y, world_x, intensity) damage events
+                     - trails_world_points: List of (world_y, world_x, intensity) trail points
+                     - ally_signals_world: List of (world_y, world_x, intensity) signal points
+                     - goal_world_pos: Goal position (world_y, world_x) if available
+
+        Note:
+            Implementations should convert world coordinates to local observation coordinates:
+            local_y = world_y - agent_world_pos[0] + config.R
+            local_x = world_x - agent_world_pos[1] + config.R
         """
-        pass
+        raise NotImplementedError("Subclasses must implement this method")
 
     def decay(self, observation: torch.Tensor, channel_idx: int, config=None) -> None:
         """
-        Apply decay to this channel if it's DYNAMIC.
+        Apply temporal decay to this channel if it's DYNAMIC.
 
-        This method is called each tick for DYNAMIC channels to apply temporal decay.
-        The decay factor is either the handler's gamma or a config-specific gamma.
+        This method is called automatically each tick for channels with DYNAMIC behavior
+        to simulate the gradual fading of transient information over time. The decay
+        factor is either the handler's own gamma value or a config-specific gamma value.
+
+        For DYNAMIC channels, this method multiplies the channel data by the decay factor,
+        causing old information to fade away gradually. The decay is applied uniformly
+        across all spatial positions in the channel.
 
         Args:
-            observation: The full observation tensor
-            channel_idx: Index of this channel
-            config: Optional config object that may contain channel-specific gamma values
+            observation: The full observation tensor with shape (num_channels, 2R+1, 2R+1).
+            channel_idx: Index of this channel in the observation tensor (0-based).
+            config: Optional ObservationConfig object that may contain channel-specific
+                   gamma values. If provided and the channel has a config-specific gamma,
+                   it will be used instead of the handler's gamma.
+
+        Note:
+            This method only applies decay if behavior == ChannelBehavior.DYNAMIC.
+            For INSTANT and PERSISTENT channels, this method does nothing.
         """
         if self.behavior == ChannelBehavior.DYNAMIC and self.gamma is not None:
             observation[channel_idx] *= self.gamma
@@ -176,11 +220,21 @@ class ChannelHandler(ABC):
         """
         Clear this channel if it's INSTANT.
 
-        This method is called each tick for INSTANT channels to prepare for fresh data.
+        This method is called automatically each tick for channels with INSTANT behavior
+        to reset the channel data before writing fresh information. INSTANT channels
+        represent current state that should be completely overwritten each observation cycle.
+
+        The method sets all values in the channel to zero, ensuring no stale data
+        remains from the previous tick.
 
         Args:
-            observation: The full observation tensor
-            channel_idx: Index of this channel
+            observation: The full observation tensor with shape (num_channels, 2R+1, 2R+1).
+            channel_idx: Index of this channel in the observation tensor (0-based).
+
+        Note:
+            This method only clears channels if behavior == ChannelBehavior.INSTANT.
+            For DYNAMIC and PERSISTENT channels, this method does nothing to preserve
+            their temporal behavior.
         """
         if self.behavior == ChannelBehavior.INSTANT:
             observation[channel_idx].zero_()
@@ -190,21 +244,27 @@ class ChannelRegistry:
     """
     Registry for managing dynamic observation channels.
 
-    This class maintains a mapping of channel names to their handlers and indices,
-    allowing for dynamic registration of custom channels while maintaining
-    backward compatibility with the original Channel enum.
+    This class serves as the central registry for all observation channels in the system.
+    It maintains bidirectional mappings between channel names and their indices, enabling
+    dynamic registration of custom channels while preserving backward compatibility.
 
-    The registry provides:
-    - Dynamic channel registration with automatic or manual index assignment
-    - Lookup by name or index
-    - Batch operations for decay and clearing
-    - Backward compatibility with existing Channel enum indices
+    The registry is the core of the dynamic channel system, allowing users to register
+    custom channel handlers at runtime. It automatically assigns indices to new channels
+    and provides efficient lookup in both directions (name → index and index → name).
+
+    Key features:
+    - Dynamic channel registration with automatic index assignment
+    - Manual index assignment for backward compatibility
+    - Efficient bidirectional lookup (name ↔ index)
+    - Batch operations for applying decay and clearing across all channels
+    - Prevention of duplicate registrations and index conflicts
+    - Thread-safe operations (though not currently implemented with locks)
 
     Attributes:
-        _handlers: Mapping of channel names to their handler objects
-        _name_to_index: Mapping of channel names to their indices
-        _index_to_name: Mapping of channel indices to their names
-        _next_index: Next available index for automatic assignment
+        _handlers: Internal mapping of channel names to their ChannelHandler objects
+        _name_to_index: Internal mapping of channel names to their assigned indices
+        _index_to_name: Internal mapping of channel indices to their names
+        _next_index: Next available index for automatic assignment during registration
     """
 
     def __init__(self):
@@ -721,7 +781,7 @@ class KnownEmptyHandler(ChannelHandler):
         config.gamma_known.
         """
         # This is handled specially in update_known_empty - no direct processing needed
-        pass
+        raise NotImplementedError("Subclasses must implement this method")
 
 
 class TransientEventHandler(ChannelHandler):

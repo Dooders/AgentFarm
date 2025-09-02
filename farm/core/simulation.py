@@ -1,3 +1,39 @@
+"""
+Simulation Runner for AgentFarm Multi-Agent Simulations
+
+This module provides the main simulation execution engine for AgentFarm.
+It handles the complete lifecycle of multi-agent simulations, from initialization
+through execution to finalization and analysis.
+
+The simulation runner orchestrates the interaction between agents and their
+environment, managing the simulation loop, agent lifecycle, data collection,
+and result analysis. It supports both single-run simulations and batch processing.
+
+Key Components:
+    - setup_logging: Configure logging system for simulation runs
+    - create_initial_agents: Generate initial agent population
+    - run_simulation: Execute complete simulation with progress tracking
+    - run_simulation_batch: Run multiple simulations with parameter variations
+    - Simulation result collection and analysis
+
+Features:
+    - Configurable agent populations and types
+    - Progress tracking with tqdm
+    - Comprehensive logging and metrics collection
+    - Database integration for result persistence
+    - Support for various termination conditions
+    - Batch processing capabilities for parameter studies
+
+Usage:
+    # Run a single simulation
+    config = SimulationConfig(...)
+    results = run_simulation(config)
+
+    # Run multiple simulations with different parameters
+    configs = [SimulationConfig(...), SimulationConfig(...)]
+    batch_results = run_simulation_batch(configs)
+"""
+
 import json
 import logging
 import os
@@ -33,7 +69,7 @@ def setup_logging(log_dir: str = "logs") -> None:
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
-    log_file = os.path.join(log_dir, f"simulation.log")
+    log_file = os.path.join(log_dir, "simulation.log")
 
     # Add more detailed logging format and ensure file is writable
     logging.basicConfig(
@@ -337,7 +373,7 @@ def run_simulation(
         # Save configuration if requested and path is provided
         if save_config and path is not None:
             config_path = f"{path}/config.json"
-            with open(config_path, "w") as f:
+            with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config.to_dict(), f, indent=4)
             logging.info(f"Saved configuration to {config_path}")
 

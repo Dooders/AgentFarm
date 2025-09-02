@@ -1,8 +1,48 @@
 """
-Observation rendering utilities for AgentObservation.
+Observation Rendering System for AgentFarm
 
-Provides minimalist, high-detail rendering of multichannel observation grids
-and an optional interactive HTML viewer.
+This module provides comprehensive rendering utilities for visualizing
+multichannel agent observation data. It supports both static image generation
+and interactive HTML viewers for exploring observation tensors.
+
+The rendering system is designed to handle the complex multichannel observation
+data produced by AgentObservation, providing both programmatic access through
+static images and interactive exploration through web-based viewers.
+
+Key Components:
+    - ChannelStyle: Configuration class for channel rendering styles
+    - ObservationRenderer: Main static class providing rendering methods
+    - Utility functions: Helper functions for image processing and HTML generation
+    - Interactive viewer: Self-contained HTML/JavaScript viewer for observation exploration
+
+Rendering Modes:
+    - Overlay: Alpha-blended composite of all channels for compact visualization
+    - Gallery: Grid layout showing each channel as separate tiles
+    - Interactive HTML: Web-based viewer with zoom, channel selection, and tooltips
+
+Features:
+    - Support for custom color palettes and colormaps
+    - Grid lines and center crosshairs for spatial reference
+    - Multiple output formats (PIL Image, numpy array, PNG bytes)
+    - Interactive controls for channel exploration
+    - Responsive design for various screen sizes
+    - Keyboard shortcuts for navigation
+
+Usage:
+    # Static rendering
+    from farm.core.observation_render import ObservationRenderer
+    image = ObservationRenderer.render(
+        observation_tensor,
+        channel_names=["SELF_HP", "ALLIES_HP", "ENEMIES_HP"],
+        mode="overlay"
+    )
+
+    # Interactive HTML viewer
+    html = ObservationRenderer.render_interactive_html(
+        observation_tensor,
+        channel_names=["SELF_HP", "ALLIES_HP", "ENEMIES_HP"],
+        title="Agent Observation"
+    )
 """
 
 from __future__ import annotations
@@ -88,25 +128,49 @@ def _ensure_numpy01(array_like: Union[np.ndarray, "torch.Tensor"]) -> np.ndarray
 
 @dataclass
 class ChannelStyle:
-    """Styling configuration for a single observation channel.
+    """
+    Styling configuration for rendering a single observation channel.
 
-    Defines how a channel should be rendered, including color, transparency,
-    and optional colormap for continuous values.
+    This class defines the visual appearance of an observation channel when rendered
+    as an image. It supports both solid color rendering and matplotlib colormaps for
+    continuous value visualization.
+
+    For solid color mode (when color_hex is provided):
+    - The channel values modulate both the opacity and color intensity
+    - Higher channel values result in more opaque and brighter colors
+    - Useful for binary or discrete channels (e.g., obstacles, visibility)
+
+    For colormap mode (when colormap is provided):
+    - Channel values are mapped to colors using matplotlib colormaps
+    - The colormap determines the color mapping, alpha controls overall opacity
+    - Useful for continuous channels (e.g., terrain cost, health gradients)
 
     Attributes:
-        color_hex: Hex color string (e.g., "#ff0000") or None for colormap mode.
-        alpha: Opacity value in range [0, 1].
+        color_hex: Optional hex color string (e.g., "#ff0000", "#00ff00") for solid color mode.
+                  If None, colormap mode is used. Supports both 3-digit and 6-digit formats.
+        alpha: Opacity multiplier in range [0.0, 1.0]. Final opacity = channel_value * alpha.
+              Values outside this range raise ValueError.
         colormap: Optional matplotlib colormap name for continuous channels.
+                 Common options: "viridis", "plasma", "magma", "inferno", "cividis".
 
     Raises:
-        ValueError: If alpha is not in range [0, 1].
+        ValueError: If alpha is not in the range [0.0, 1.0].
 
     Examples:
+        >>> # Solid color for discrete channels
         >>> style = ChannelStyle("#ff0000", 0.8)
         >>> style.color_hex
         '#ff0000'
         >>> style.alpha
         0.8
+
+        >>> # Colormap for continuous channels
+        >>> terrain_style = ChannelStyle(None, 0.9, "magma")
+        >>> terrain_style.colormap
+        'magma'
+
+        >>> # Short hex format also works
+        >>> style = ChannelStyle("#f00", 0.6)  # equivalent to "#ff0000"
     """
 
     color_hex: Optional[str]
@@ -119,24 +183,50 @@ class ChannelStyle:
 
 
 def get_default_palette(channel_names: List[str]) -> Dict[str, ChannelStyle]:
-    """Get default color palette for observation channels.
+    """
+    Generate a colorblind-friendly default palette for observation channels.
 
-    Returns a colorblind-friendly palette with predefined styles for common
-    channel types, and generates fallback colors for unknown channels.
+    This function creates a comprehensive color palette optimized for visualization
+    of multichannel observation data. It provides predefined styles for standard
+    AgentFarm observation channels and generates fallback colors for custom channels.
+
+    The palette is designed with accessibility in mind, using colors that are
+    distinguishable for viewers with various forms of color vision deficiency.
+
+    Predefined Channels:
+        - SELF_HP: Cyan (#00e5ff) - Agent's own health
+        - ALLIES_HP: Green (#00c853) - Ally health values
+        - ENEMIES_HP: Red (#ff1744) - Enemy health values
+        - RESOURCES: Light green (#2ecc71) - Resource availability
+        - OBSTACLES: Gray (#9e9e9e) - Obstacle/passability
+        - TERRAIN_COST: Magma colormap - Movement cost (continuous)
+        - VISIBILITY: White (#ffffff) - Field-of-view mask
+        - KNOWN_EMPTY: Light blue-gray (#90a4ae) - Previously observed empty cells
+        - DAMAGE_HEAT: Orange (#ff9100) - Recent damage events
+        - TRAILS: Light blue (#00b8d4) - Movement trails
+        - ALLY_SIGNAL: Yellow (#ffd600) - Communication signals
+        - GOAL: Purple (#d500f9) - Goal/waypoint positions
+        - LANDMARKS: Purple-blue (#7e57c2) - Permanent landmarks
+
+    Fallback Colors:
+        For unknown/custom channels, colors are assigned from a curated palette:
+        ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b",
+         "#e377c2", "#7f7f7f", "#bcbd22", "#17becf"]
 
     Args:
         channel_names: List of channel names to generate styles for.
+                     Can include both predefined and custom channel names.
 
     Returns:
-        Dictionary mapping channel names to ChannelStyle objects.
+        Dictionary mapping each channel name to its corresponding ChannelStyle object.
+        All channels in the input list will have an entry in the returned dictionary.
 
-    Note:
-        Predefined channels include: SELF_HP, ALLIES_HP, ENEMIES_HP, RESOURCES,
-        OBSTACLES, TERRAIN_COST (uses magma colormap), VISIBILITY, KNOWN_EMPTY,
-        DAMAGE_HEAT, TRAILS, ALLY_SIGNAL, GOAL, LANDMARKS.
-
-        Unknown channels get assigned colors from a fallback palette with
-        moderate opacity (0.6).
+    Example:
+        >>> palette = get_default_palette(["SELF_HP", "ENEMIES_HP", "CUSTOM_CHANNEL"])
+        >>> palette["SELF_HP"].color_hex
+        '#00e5ff'
+        >>> palette["CUSTOM_CHANNEL"].alpha
+        0.6
     """
     # Colorblind-friendly inspired palette
     default: Dict[str, ChannelStyle] = {

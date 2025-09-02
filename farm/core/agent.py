@@ -1,3 +1,39 @@
+"""
+Agent System for Multi-Agent Simulations
+
+This module provides the core agent implementation for AgentFarm simulations.
+It defines the BaseAgent class and related agent types that form the foundation
+of autonomous entities in the simulation environment.
+
+The agent system is designed around the concept of autonomous decision-making
+entities that can perceive their environment, make decisions, and take actions.
+Agents maintain their own state, interact with other agents, and adapt to their
+environment through various decision-making modules.
+
+Key Components:
+    - BaseAgent: Core agent class with full functionality
+    - Agent lifecycle management through services
+    - Decision-making integration with various algorithms
+    - Memory systems for learning and adaptation
+    - Spatial awareness and interaction capabilities
+    - Resource management and combat mechanics
+
+Agent Capabilities:
+    - Movement and navigation in 2D space
+    - Resource gathering and sharing
+    - Combat and defense mechanics
+    - Communication with other agents
+    - Learning through various decision algorithms
+    - Memory persistence across simulation runs
+
+Integration Points:
+    - Environment: Agents operate within simulation environments
+    - Services: Various services provide specialized functionality
+    - Decision Modules: Pluggable decision-making algorithms
+    - Memory Systems: Persistent learning and adaptation
+    - Spatial Index: Efficient queries for nearby entities
+"""
+
 import logging
 import math
 import random
