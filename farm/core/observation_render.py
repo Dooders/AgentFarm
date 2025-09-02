@@ -300,8 +300,8 @@ def _render_channels_overlay(
         layer = gridC01[idx]  # (H,W)
         style = palette.get(name, ChannelStyle("#ffffff", 0.5, None))
 
-        if style.cmap and mpl_cm is not None:
-            cmap = mpl_cm.get_cmap(style.cmap)
+        if style.colormap and mpl_cm is not None:
+            cmap = mpl_cm.get_cmap(style.colormap)
             rgba = cmap(layer)  # (H,W,4), already 0..1
             alpha = np.clip(rgba[..., 3] * style.alpha, 0.0, 1.0)
             color_rgb = rgba[..., :3]
@@ -587,7 +587,7 @@ class ObservationRenderer:
         """
         data = ObservationRenderer.to_interactive_json(observation, channel_names)
         palette_dict = {
-            name: {"color": cs.color, "alpha": cs.alpha, "cmap": cs.cmap}
+            name: {"color": cs.color_hex, "alpha": cs.alpha, "cmap": cs.colormap}
             for name, cs in (palette or get_default_palette(channel_names)).items()
         }
         html = _build_interactive_html(
