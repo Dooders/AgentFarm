@@ -59,11 +59,10 @@ def _ensure_numpy01(array_like: Union[np.ndarray, "torch.Tensor"]) -> np.ndarray
 
 
 @dataclass
-class ChannelStyle:
-    color: Optional[str] = None  # hex, e.g. "#ff0000"
-    alpha: float = 1.0  # 0..1
-    cmap: Optional[str] = None  # matplotlib colormap name
 
+    def __post_init__(self):
+        if not (0.0 <= self.alpha <= 1.0):
+            raise ValueError(f"ChannelStyle.alpha must be in [0, 1], got {self.alpha}")
 
 def get_default_palette(channel_names: List[str]) -> Dict[str, ChannelStyle]:
     # Colorblind-friendly inspired palette
