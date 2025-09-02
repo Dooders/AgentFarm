@@ -324,93 +324,7 @@ class TestAgentObservation:
         assert torch.all(agent_obs.observation[Channel.ALLY_SIGNAL] == 1.0)
         assert torch.all(agent_obs.observation[Channel.KNOWN_EMPTY] == 1.0)
 
-    def test_write_visibility(self, agent_obs):
-        """Test visibility mask writing."""
-        agent_obs.write_visibility()
 
-        # Check that visibility channel has been written
-        vis_channel = agent_obs.observation[Channel.VISIBILITY]
-        assert vis_channel[3, 3] == 1.0  # Center should be visible
-        assert vis_channel[0, 0] == 0.0  # Corner should not be visible
-
-    def test_write_self(self, agent_obs):
-        """Test writing self health information."""
-        agent_obs.write_self(0.75)
-
-        # Check that health is written to center pixel
-        assert agent_obs.observation[Channel.SELF_HP, 3, 3] == 0.75
-        # Other pixels should remain 0
-        assert agent_obs.observation[Channel.SELF_HP, 0, 0] == 0.0
-
-    def test_write_points_with_values(self, agent_obs):
-        """Test writing values to specific points."""
-        rel_points = [(0, 1), (1, 0), (-1, 0)]  # Relative to center
-        values = [0.5, 0.7, 0.3]
-
-        agent_obs.write_points_with_values("ALLIES_HP", rel_points, values)
-
-        # Check that values are written correctly
-        assert agent_obs.observation[Channel.ALLIES_HP, 3, 4] == 0.5  # (0, 1)
-        assert agent_obs.observation[Channel.ALLIES_HP, 4, 3] == 0.7  # (1, 0)
-        assert agent_obs.observation[Channel.ALLIES_HP, 2, 3] == 0.3  # (-1, 0)
-
-    def test_write_points_outside_window(self, agent_obs):
-        """Test writing points outside observation window."""
-        rel_points = [(10, 10), (-10, -10)]  # Outside window
-        values = [1.0, 1.0]
-
-        # Should not raise error, just ignore out-of-window points
-        agent_obs.write_points_with_values("ALLIES_HP", rel_points, values)
-
-        # All values should remain 0
-        assert torch.all(agent_obs.observation[Channel.ALLIES_HP] == 0.0)
-
-    def test_write_points_collision(self, agent_obs):
-        """Test writing multiple values to same position."""
-        rel_points = [(0, 0), (0, 0)]  # Same position
-        values = [0.3, 0.7]
-
-        agent_obs.write_points_with_values("ALLIES_HP", rel_points, values)
-
-        # Should use maximum value
-        assert agent_obs.observation[Channel.ALLIES_HP, 3, 3] == 0.7
-
-    def test_write_binary_points(self, agent_obs):
-        """Test writing binary points."""
-        rel_points = [(0, 1), (1, 0)]
-
-        agent_obs.write_binary_points("ENEMIES_HP", rel_points, value=0.8)
-
-        # Check that all points have the same value
-        assert agent_obs.observation[Channel.ENEMIES_HP, 3, 4] == 0.8
-        assert agent_obs.observation[Channel.ENEMIES_HP, 4, 3] == 0.8
-
-    def test_write_goal(self, agent_obs):
-        """Test writing goal position."""
-        rel_goal = (1, 2)  # Relative to center
-
-        agent_obs.write_goal(rel_goal)
-
-        # Check that goal is written correctly
-        assert agent_obs.observation[Channel.GOAL, 4, 5] == 1.0  # (3+1, 3+2)
-
-    def test_write_goal_none(self, agent_obs):
-        """Test writing None goal."""
-        # Should not raise error
-        agent_obs.write_goal(None)
-
-        # Goal channel should remain unchanged
-        assert torch.all(agent_obs.observation[Channel.GOAL] == 0.0)
-
-    def test_write_goal_outside_window(self, agent_obs):
-        """Test writing goal outside observation window."""
-        rel_goal = (10, 10)  # Outside window
-
-        # Should not raise error, just ignore
-        agent_obs.write_goal(rel_goal)
-
-        # Goal channel should remain unchanged
-        assert torch.all(agent_obs.observation[Channel.GOAL] == 0.0)
 
     def test_update_known_empty(self, agent_obs):
         """Test updating known empty cells."""
@@ -577,7 +491,7 @@ class TestIntegration:
         assert obs_tensor[Channel.ALLIES_HP, 5, 4] == 0.7  # Ally below
         assert obs_tensor[Channel.ENEMIES_HP, 4, 3] == 0.6  # Enemy left
         # Goal at (15-10, 15-10) = (5, 5) relative to center (4, 4) = (9, 9) but is out of bounds
-        # So no goal should be written (write_goal only writes if within bounds)
+        # So no goal should be written (goal only written if within bounds)
         assert (
             torch.sum(obs_tensor[Channel.GOAL]) == 0.0
         )  # No goal written since out of bounds

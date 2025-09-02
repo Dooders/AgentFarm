@@ -322,7 +322,7 @@ class SimulationConfig:
     @classmethod
     def from_yaml(cls, file_path: str) -> "SimulationConfig":
         """Load configuration from a YAML file."""
-        with open(file_path, "r") as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             config_dict = yaml.safe_load(f)
 
         # Handle visualization config separately
@@ -337,7 +337,7 @@ class SimulationConfig:
         config_dict = self.__dict__.copy()
         config_dict["visualization"] = self.visualization.to_dict()
 
-        with open(file_path, "w") as f:
+        with open(file_path, "w", encoding="utf-8") as f:
             yaml.dump(config_dict, f, default_flow_style=False)
 
     def to_dict(self) -> Dict[str, Any]:
