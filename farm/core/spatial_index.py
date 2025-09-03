@@ -325,7 +325,7 @@ class SpatialIndex:
         int
             Number of alive agents
         """
-        return sum(1 for a in self._agents if a.alive)
+        return len([a for a in self._agents if a.alive])
 
     def get_resource_count(self) -> int:
         """Get the number of resources.
