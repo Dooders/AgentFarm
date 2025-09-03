@@ -82,7 +82,6 @@ class SpatialIndex:
         self._agents = agents
         self._resources = resources
         self._obstacles = obstacles or []
-        self._use_obstacles = obstacles is not None
         # Mark dirty so indices can be rebuilt with new references
         self.mark_positions_dirty()
 
