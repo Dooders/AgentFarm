@@ -37,22 +37,29 @@ class SpatialIndex:
         # KD-tree attributes
         self.agent_kdtree: Optional[cKDTree] = None
         self.resource_kdtree: Optional[cKDTree] = None
+        self.obstacle_kdtree: Optional[cKDTree] = None
         self.agent_positions: Optional[np.ndarray] = None
         self.resource_positions: Optional[np.ndarray] = None
+        self.obstacle_positions: Optional[np.ndarray] = None
 
         # Position change tracking for optimized updates
         self._positions_dirty: bool = True
+        # Backward-compatible count cache (agents, resources)
         self._cached_counts: Optional[Tuple[int, int]] = None
+        # Extended cache for obstacles without breaking existing tests
+        self._cached_obstacle_count: Optional[int] = None
         self._cached_hash: Optional[str] = None
 
         # Cached alive agents for efficient querying
         self._cached_alive_agents: Optional[List] = None
 
-        # Reference to agent and resource lists
+        # Reference to agent, resource, and obstacle lists
         self._agents: List = []
         self._resources: List = []
+        self._obstacles: List = []
+        self._use_obstacles: bool = False
 
-    def set_references(self, agents: List, resources: List) -> None:
+    def set_references(self, agents: List, resources: List, obstacles: Optional[List] = None) -> None:
         """Set references to agent and resource lists.
 
         Parameters
@@ -61,9 +68,15 @@ class SpatialIndex:
             List of agents in the environment
         resources : List
             List of resources in the environment
+        obstacles : List, optional
+            List of obstacles in the environment (optional)
         """
         self._agents = agents
         self._resources = resources
+        self._obstacles = obstacles or []
+        self._use_obstacles = obstacles is not None
+        # Mark dirty so indices can be rebuilt with new references
+        self.mark_positions_dirty()
 
     def mark_positions_dirty(self) -> None:
         """Mark that positions have changed and KD-trees need updating."""
@@ -82,11 +95,18 @@ class SpatialIndex:
             return
 
         # Precompute alive agents once to avoid redundant computation
-        alive_agents = [agent for agent in self._agents if agent.alive]
+        alive_agents = [agent for agent in self._agents if getattr(agent, "alive", True)]
         current_agent_count = len(alive_agents)
+        current_obstacle_count = len(self._obstacles) if self._use_obstacles else 0
 
         # Count-based quick check for structural changes
         if self._counts_changed(current_agent_count):
+            self._rebuild_kdtrees(alive_agents)
+            self._positions_dirty = False
+            return
+
+        # Check obstacle count changes only when obstacle indexing is enabled
+        if self._use_obstacles and self._obstacle_count_changed(current_obstacle_count):
             self._rebuild_kdtrees(alive_agents)
             self._positions_dirty = False
             return
@@ -142,6 +162,9 @@ class SpatialIndex:
         current_resource_positions = (
             np.array([resource.position for resource in self._resources]) if self._resources else None
         )
+        current_obstacle_positions = (
+            np.array([ob.position for ob in self._obstacles]) if (self._use_obstacles and self._obstacles) else None
+        )
 
         # Calculate hash of current agent positions
         if current_agent_positions is not None and len(current_agent_positions) > 0:
@@ -155,7 +178,15 @@ class SpatialIndex:
         else:
             resource_hash = "0"
 
-        current_hash = f"{agent_hash}:{resource_hash}"
+        # Calculate hash of current obstacle positions (optional index)
+        if self._use_obstacles:
+            if current_obstacle_positions is not None and len(current_obstacle_positions) > 0:
+                obstacle_hash = hashlib.md5(current_obstacle_positions.tobytes()).hexdigest()
+            else:
+                obstacle_hash = "0"
+            current_hash = f"{agent_hash}:{resource_hash}:{obstacle_hash}"
+        else:
+            current_hash = f"{agent_hash}:{resource_hash}"
 
         if self._cached_hash is None or self._cached_hash != current_hash:
             self._cached_hash = current_hash
@@ -172,7 +203,7 @@ class SpatialIndex:
         """
         # Update agent KD-tree
         if alive_agents is None:
-            alive_agents = [agent for agent in self._agents if agent.alive]
+            alive_agents = [agent for agent in self._agents if getattr(agent, "alive", True)]
 
         self._cached_alive_agents = alive_agents  # Cache contains only alive agents for efficient queries
         if alive_agents:
@@ -189,6 +220,14 @@ class SpatialIndex:
         else:
             self.resource_kdtree = None
             self.resource_positions = None
+
+        # Update obstacle KD-tree (optional index)
+        if self._use_obstacles and self._obstacles:
+            self.obstacle_positions = np.array([ob.position for ob in self._obstacles])
+            self.obstacle_kdtree = cKDTree(self.obstacle_positions)
+        else:
+            self.obstacle_kdtree = None
+            self.obstacle_positions = None
 
     def get_nearby_agents(self, position: Tuple[float, float], radius: float) -> List:
         """Find all agents within radius of position.
@@ -252,6 +291,36 @@ class SpatialIndex:
         indices = self.resource_kdtree.query_ball_point(position, radius)
         return [self._resources[i] for i in indices]
 
+    def get_nearby_obstacles(self, position: Tuple[float, float], radius: float) -> List:
+        """Find all obstacles within radius of position.
+
+        Parameters
+        ----------
+        position : tuple
+            (x, y) coordinates to search around
+        radius : float
+            Search radius
+
+        Returns
+        -------
+        list
+            List of obstacles within radius
+        """
+        # Ensure KD-trees are up to date
+        self.update()
+
+        # Input validation
+        if radius <= 0:
+            return []
+        if not self._is_valid_position(position):
+            return []
+
+        if self.obstacle_kdtree is None:
+            return []
+
+        indices = self.obstacle_kdtree.query_ball_point(position, radius)
+        return [self._obstacles[i] for i in indices]
+
     def get_nearest_resource(self, position: Tuple[float, float]):
         """Find nearest resource to position.
 
@@ -277,6 +346,32 @@ class SpatialIndex:
 
         distance, index = self.resource_kdtree.query(position)
         return self._resources[index]
+
+    def get_nearest_obstacle(self, position: Tuple[float, float]):
+        """Find nearest obstacle to position.
+
+        Parameters
+        ----------
+        position : tuple
+            (x, y) coordinates to search from
+
+        Returns
+        -------
+        Obstacle or None
+            Nearest obstacle if any exist
+        """
+        # Ensure KD-trees are up to date
+        self.update()
+
+        # Input validation
+        if not self._is_valid_position(position):
+            return None
+
+        if self.obstacle_kdtree is None:
+            return None
+
+        distance, index = self.obstacle_kdtree.query(position)
+        return self._obstacles[index]
 
     def _is_valid_position(self, position: Tuple[float, float]) -> bool:
         """Check if a position is valid within the environment bounds.
@@ -320,6 +415,16 @@ class SpatialIndex:
         """
         return len(self._resources)
 
+    def get_obstacle_count(self) -> int:
+        """Get the number of obstacles.
+
+        Returns
+        -------
+        int
+            Number of obstacles
+        """
+        return len(self._obstacles)
+
     def is_dirty(self) -> bool:
         """Check if positions are dirty and need updating.
 
@@ -335,6 +440,13 @@ class SpatialIndex:
         self._rebuild_kdtrees()
         self._positions_dirty = False
 
+    def _obstacle_count_changed(self, current_obstacle_count: int) -> bool:
+        """Check if obstacle count has changed without altering legacy count cache."""
+        if self._cached_obstacle_count is None or self._cached_obstacle_count != current_obstacle_count:
+            self._cached_obstacle_count = current_obstacle_count
+            return True
+        return False
+
     def get_stats(self) -> dict:
         """Get statistics about the spatial index.
 
@@ -346,8 +458,10 @@ class SpatialIndex:
         return {
             "agent_count": self.get_agent_count(),
             "resource_count": self.get_resource_count(),
+            "obstacle_count": self.get_obstacle_count(),
             "agent_kdtree_exists": self.agent_kdtree is not None,
             "resource_kdtree_exists": self.resource_kdtree is not None,
+            "obstacle_kdtree_exists": self.obstacle_kdtree is not None,
             "positions_dirty": self._positions_dirty,
             "cached_counts": self._cached_counts,
             "cached_hash": (self._cached_hash[:20] + "..." if self._cached_hash else None),

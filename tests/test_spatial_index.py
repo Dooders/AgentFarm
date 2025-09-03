@@ -592,6 +592,40 @@ class TestSpatialIndex(unittest.TestCase):
         self.assertIsNotNone(nearest)
         self.assertIsInstance(nearest, Resource)
 
+    def test_obstacle_index_basic(self):
+        """Test optional obstacle index build and queries."""
+        # Define simple obstacle objects with position attribute
+        class Obstacle:
+            def __init__(self, position):
+                self.position = position
+
+        obstacles = [Obstacle((5, 5)), Obstacle((80, 80))]
+
+        # Enable obstacles by passing third parameter
+        self.spatial_index.set_references(self.agents, self.resources, obstacles)
+        self.spatial_index._rebuild_kdtrees()
+
+        nearby_obs = self.spatial_index.get_nearby_obstacles((5, 5), 1.0)
+        self.assertEqual(len(nearby_obs), 1)
+        self.assertEqual(nearby_obs[0].position, (5, 5))
+
+        nearest_ob = self.spatial_index.get_nearest_obstacle((6, 5))
+        self.assertIsNotNone(nearest_ob)
+        self.assertEqual(nearest_ob.position, (5, 5))
+
+        stats = self.spatial_index.get_stats()
+        self.assertIn("obstacle_count", stats)
+        self.assertEqual(stats["obstacle_count"], 2)
+
+    def test_obstacle_methods_without_obstacles(self):
+        """Obstacle queries should be safe when obstacles are not enabled."""
+        # With only agents/resources set, obstacle queries should return empty/None
+        self.spatial_index.set_references(self.agents, self.resources)
+        self.spatial_index._rebuild_kdtrees()
+
+        self.assertEqual(self.spatial_index.get_nearby_obstacles((10, 10), 5), [])
+        self.assertIsNone(self.spatial_index.get_nearest_obstacle((10, 10)))
+
     def test_get_agent_count(self):
         """Test get_agent_count method."""
         # Initially no agents
