@@ -138,15 +138,9 @@ class SpatialIndex:
             True if positions have changed, False otherwise
         """
         # Build current positions for comparison
-        current_agent_positions = (
-            np.array([agent.position for agent in alive_agents])
-            if alive_agents
-            else None
-        )
+        current_agent_positions = np.array([agent.position for agent in alive_agents]) if alive_agents else None
         current_resource_positions = (
-            np.array([resource.position for resource in self._resources])
-            if self._resources
-            else None
+            np.array([resource.position for resource in self._resources]) if self._resources else None
         )
 
         # Calculate hash of current agent positions
@@ -156,13 +150,8 @@ class SpatialIndex:
             agent_hash = "0"
 
         # Calculate hash of current resource positions
-        if (
-            current_resource_positions is not None
-            and len(current_resource_positions) > 0
-        ):
-            resource_hash = hashlib.md5(
-                current_resource_positions.tobytes()
-            ).hexdigest()
+        if current_resource_positions is not None and len(current_resource_positions) > 0:
+            resource_hash = hashlib.md5(current_resource_positions.tobytes()).hexdigest()
         else:
             resource_hash = "0"
 
@@ -185,9 +174,7 @@ class SpatialIndex:
         if alive_agents is None:
             alive_agents = [agent for agent in self._agents if agent.alive]
 
-        self._cached_alive_agents = (
-            alive_agents  # Cache contains only alive agents for efficient queries
-        )
+        self._cached_alive_agents = alive_agents  # Cache contains only alive agents for efficient queries
         if alive_agents:
             self.agent_positions = np.array([agent.position for agent in alive_agents])
             self.agent_kdtree = cKDTree(self.agent_positions)
@@ -197,9 +184,7 @@ class SpatialIndex:
 
         # Update resource KD-tree
         if self._resources:
-            self.resource_positions = np.array(
-                [resource.position for resource in self._resources]
-            )
+            self.resource_positions = np.array([resource.position for resource in self._resources])
             self.resource_kdtree = cKDTree(self.resource_positions)
         else:
             self.resource_kdtree = None
@@ -237,9 +222,7 @@ class SpatialIndex:
         # Return agents directly since cache only contains alive agents
         return [self._cached_alive_agents[i] for i in indices]
 
-    def get_nearby_resources(
-        self, position: Tuple[float, float], radius: float
-    ) -> List:
+    def get_nearby_resources(self, position: Tuple[float, float], radius: float) -> List:
         """Find all resources within radius of position.
 
         Parameters
@@ -367,7 +350,5 @@ class SpatialIndex:
             "resource_kdtree_exists": self.resource_kdtree is not None,
             "positions_dirty": self._positions_dirty,
             "cached_counts": self._cached_counts,
-            "cached_hash": (
-                self._cached_hash[:20] + "..." if self._cached_hash else None
-            ),
+            "cached_hash": (self._cached_hash[:20] + "..." if self._cached_hash else None),
         }

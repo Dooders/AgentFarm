@@ -1,5 +1,6 @@
 # Core dependencies
 numpy>=1.24.0,<2.3.0  # NumPy 2.3+ incompatible with Numba (Tianshou dependency)
+scipy>=1.7.0  # For spatial algorithms (KDTree) and statistical analysis
 pandas>=1.3.0
 matplotlib>=3.4.0
 pyyaml>=6.0
