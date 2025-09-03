@@ -6,7 +6,7 @@ with optimized change detection and efficient spatial querying capabilities.
 
 import hashlib
 import logging
-from typing import List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 from scipy.spatial import cKDTree
@@ -473,3 +473,207 @@ class SpatialIndex:
             "cached_counts": self._cached_counts,
             "cached_hash": (self._cached_hash[:20] + "..." if self._cached_hash else None),
         }
+
+
+class GenericSpatialIndex:
+    """Generic n-dimensional spatial index with named indices.
+
+    This class supports arbitrary dimensionality and arbitrary named indices,
+    each maintaining its own KD-tree and item collection.
+
+    Example usage:
+        index = GenericSpatialIndex(dimensions=3, indices=["agents", "resources"],
+                                    bounds=[(0, 100), (0, 100), (0, 50)])
+        index.set_references({
+            "agents": agent_list,
+            "resources": resource_list,
+        }, filters={
+            "agents": lambda a: getattr(a, "alive", True)
+        })
+        near = index.get_nearby("agents", (10, 10, 10), 5)
+    """
+
+    def __init__(
+        self,
+        dimensions: int,
+        indices: List[str],
+        bounds: Optional[List[Tuple[float, float]]] = None,
+    ) -> None:
+        if dimensions <= 0:
+            raise ValueError("dimensions must be positive")
+        self.dimensions = dimensions
+        self.index_names = list(indices)
+        if not self.index_names:
+            raise ValueError("Must specify at least one index name")
+        if bounds is not None and len(bounds) != dimensions:
+            raise ValueError("bounds length must match dimensions")
+        self.bounds = bounds
+
+        # Per-index state
+        self._items: Dict[str, List] = {name: [] for name in self.index_names}
+        self._filters: Dict[str, Callable[[Any], bool]] = {
+            name: (lambda _x: True) for name in self.index_names
+        }
+        self._positions: Dict[str, Optional[np.ndarray]] = {name: None for name in self.index_names}
+        self._trees: Dict[str, Optional[cKDTree]] = {name: None for name in self.index_names}
+
+        # Change detection caches
+        self._cached_counts: Dict[str, int] = {name: -1 for name in self.index_names}
+        self._cached_hash: Dict[str, Optional[str]] = {name: None for name in self.index_names}
+
+        # Dirty tracking
+        self._dirty: Dict[str, bool] = {name: True for name in self.index_names}
+
+    def set_references(
+        self,
+        index_to_items: Dict[str, List],
+        filters: Optional[Dict[str, Callable[[Any], bool]]] = None,
+    ) -> None:
+        for name, items in index_to_items.items():
+            if name not in self._items:
+                raise KeyError(f"Unknown index '{name}'")
+            self._items[name] = items
+            self._dirty[name] = True
+        if filters:
+            for name, predicate in filters.items():
+                if name not in self._filters:
+                    raise KeyError(f"Unknown index '{name}' for filter")
+                self._filters[name] = predicate
+                self._dirty[name] = True
+
+    def mark_dirty(self, index_name: Optional[str] = None) -> None:
+        if index_name is None:
+            for name in self._dirty:
+                self._dirty[name] = True
+        else:
+            if index_name not in self._dirty:
+                raise KeyError(f"Unknown index '{index_name}'")
+            self._dirty[index_name] = True
+
+    def update(self, index_name: Optional[str] = None) -> None:
+        if index_name is None:
+            for name in self.index_names:
+                self._update_index(name)
+        else:
+            self._update_index(index_name)
+
+    def _update_index(self, name: str) -> None:
+        if name not in self.index_names:
+            raise KeyError(f"Unknown index '{name}'")
+        if not self._dirty[name]:
+            return
+
+        items = self._items[name]
+        predicate = self._filters[name]
+        filtered = [it for it in items if predicate(it)] if items else []
+        current_count = len(filtered)
+
+        # If count changed or positions hash changed, rebuild
+        needs_rebuild = False
+        if self._cached_counts[name] != current_count:
+            self._cached_counts[name] = current_count
+            needs_rebuild = True
+        else:
+            # Hash positions
+            positions = (
+                np.array([self._extract_position(it) for it in filtered]) if filtered else None
+            )
+            current_hash = self._hash_positions(positions)
+            if self._cached_hash[name] != current_hash:
+                self._cached_hash[name] = current_hash
+                needs_rebuild = True
+
+        if needs_rebuild:
+            self._rebuild_index(name)
+
+        self._dirty[name] = False
+
+    def _rebuild_index(self, name: str) -> None:
+        items = self._items[name]
+        predicate = self._filters[name]
+        filtered = [it for it in items if predicate(it)] if items else []
+        if filtered:
+            positions = np.array([self._extract_position(it) for it in filtered])
+            self._validate_positions_shape(positions)
+            self._positions[name] = positions
+            self._trees[name] = cKDTree(positions)
+        else:
+            self._positions[name] = None
+            self._trees[name] = None
+
+    def get_nearby(self, index_name: str, point: Sequence[float], radius: float) -> List:
+        self.update(index_name)
+        if radius <= 0:
+            return []
+        if not self._is_valid_point(point):
+            return []
+        tree = self._trees.get(index_name)
+        if tree is None:
+            return []
+        indices = tree.query_ball_point(np.array(point), radius)
+        # Map to filtered items order
+        items = [it for it in self._items[index_name] if self._filters[index_name](it)]
+        return [items[i] for i in indices]
+
+    def get_nearest(self, index_name: str, point: Sequence[float]):
+        self.update(index_name)
+        if not self._is_valid_point(point):
+            return None
+        tree = self._trees.get(index_name)
+        if tree is None:
+            return None
+        _, idx = tree.query(np.array(point))
+        items = [it for it in self._items[index_name] if self._filters[index_name](it)]
+        return items[idx] if 0 <= idx < len(items) else None
+
+    def get_count(self, index_name: str) -> int:
+        items = self._items.get(index_name)
+        if items is None:
+            raise KeyError(f"Unknown index '{index_name}'")
+        return len([it for it in items if self._filters[index_name](it)])
+
+    def get_stats(self) -> Dict[str, Dict[str, object]]:
+        stats: Dict[str, Dict[str, object]] = {}
+        for name in self.index_names:
+            stats[name] = {
+                "count": self.get_count(name),
+                "kdtree_exists": self._trees[name] is not None,
+                "dirty": self._dirty[name],
+                "hash": (self._cached_hash[name][:20] + "..." if self._cached_hash[name] else None),
+            }
+        return stats
+
+    def _is_valid_point(self, point: Sequence[float]) -> bool:
+        if self.bounds is None:
+            return True
+        if len(point) != self.dimensions:
+            return False
+        for (low, high), coord in zip(self.bounds, point):
+            # Allow 1% margin on each dimension
+            span = high - low
+            margin = span * 0.01
+            if not (low - margin <= coord <= high + margin):
+                return False
+        return True
+
+    def _validate_positions_shape(self, positions: np.ndarray) -> None:
+        if positions.ndim != 2 or positions.shape[1] != self.dimensions:
+            raise ValueError(
+                f"Positions must be of shape (N, {self.dimensions}), got {positions.shape}"
+            )
+
+    @staticmethod
+    def _hash_positions(positions: Optional[np.ndarray]) -> Optional[str]:
+        if positions is None or len(positions) == 0:
+            return "0"
+        return hashlib.md5(positions.tobytes()).hexdigest()
+
+    def _extract_position(self, item: object) -> Tuple[float, ...]:
+        pos = getattr(item, "position", None)
+        if pos is None:
+            raise AttributeError("Indexed items must have a 'position' attribute or override extraction")
+        if len(pos) != self.dimensions:
+            raise ValueError(
+                f"Item position has dimensionality {len(pos)} but index is {self.dimensions}D"
+            )
+        return tuple(pos)
