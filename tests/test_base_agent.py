@@ -985,7 +985,7 @@ class TestBaseAgentUtilityMethods:
 
             assert result == mock_agent
             mock_to_agent.assert_called_once_with(
-                mock_genome, "test_id", (10, 20), mock_environment
+                mock_genome, "test_id", (10, 20), mock_environment, BaseAgent
             )
 
 
