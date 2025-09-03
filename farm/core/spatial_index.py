@@ -21,7 +21,7 @@ class SpatialIndex:
     O(log n) spatial queries with smart update strategies to minimize rebuilds.
     """
 
-    def __init__(self, width: float, height: float):
+    def __init__(self, width: float, height: float, indices: Optional[List[str]] = None):
         """Initialize the spatial index.
 
         Parameters
@@ -30,9 +30,18 @@ class SpatialIndex:
             Width of the environment
         height : float
             Height of the environment
+        indices : Optional[List[str]]
+            Which indices to enable. Supported values: "agents", "resources", "obstacles".
+            Defaults to ["agents", "resources"].
         """
         self.width = width
         self.height = height
+
+        # Enabled index types
+        enabled = set(indices or ["agents", "resources"])  # backward-compatible default
+        self._use_agents: bool = "agents" in enabled
+        self._use_resources: bool = "resources" in enabled
+        self._use_obstacles: bool = "obstacles" in enabled
 
         # KD-tree attributes
         self.agent_kdtree: Optional[cKDTree] = None
@@ -57,7 +66,6 @@ class SpatialIndex:
         self._agents: List = []
         self._resources: List = []
         self._obstacles: List = []
-        self._use_obstacles: bool = False
 
     def set_references(self, agents: List, resources: List, obstacles: Optional[List] = None) -> None:
         """Set references to agent and resource lists.
