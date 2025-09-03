@@ -100,6 +100,21 @@ class Environment(AECEnv):
         self._observation_space = self._create_observation_space()
 ```
 
+### Agent Selection Helper
+
+Agent turn selection follows the Agent-Environment-Cycle (AEC) via a small helper in `farm/core/environment.py`:
+
+```python
+next_agent_id, cycle_complete = select_next_agent(
+    current_selection=self.agent_selection,
+    agents=self.agents,
+    terminations=self.terminations,
+    truncations=self.truncations,
+)
+```
+
+This function performs round-robin iteration and skips agents that are terminated or truncated. It also returns a `cycle_complete` flag indicating when a full cycle has finished (used to advance environment time and apply end-of-cycle updates in `step`).
+
 ### Simulation Loop
 
 The core simulation loop follows a structured pattern:

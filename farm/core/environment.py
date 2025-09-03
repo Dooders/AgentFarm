@@ -50,6 +50,57 @@ from farm.utils.identity import Identity, IdentityConfig
 logger = logging.getLogger(__name__)
 
 
+def select_next_agent(
+    current_selection: Optional[str],
+    agents: List[str],
+    terminations: Dict[str, bool],
+    truncations: Dict[str, bool],
+) -> Tuple[Optional[str], bool]:
+    """Compute the next agent in round-robin order, skipping inactive agents.
+
+    The helper encapsulates the Agent-Environment-Cycle agent selection policy.
+
+    Parameters
+    ----------
+    current_selection : Optional[str]
+        The currently selected agent id (or None if no current selection).
+    agents : List[str]
+        Ordered list of agent ids participating in the cycle.
+    terminations : Dict[str, bool]
+        Map of agent id to termination state.
+    truncations : Dict[str, bool]
+        Map of agent id to truncation state.
+
+    Returns
+    -------
+    Tuple[Optional[str], bool]
+        The next agent id to act (or None if none active), and a boolean flag
+        indicating whether selecting this agent completed a full cycle
+        (i.e., we wrapped past the previous index).
+    """
+    if not agents:
+        return None, False
+
+    try:
+        current_idx = agents.index(current_selection) if current_selection is not None else -1
+    except ValueError:
+        current_idx = -1
+
+    for offset in range(1, len(agents) + 1):
+        next_idx = (current_idx + offset) % len(agents)
+        candidate = agents[next_idx]
+        is_terminated = terminations.get(candidate, False)
+        is_truncated = truncations.get(candidate, False)
+        if not (is_terminated or is_truncated):
+            cycle_complete = (
+                current_selection is not None and next_idx < (current_idx if current_idx >= 0 else 0)
+            )
+            return candidate, cycle_complete
+
+    # No active agents remain
+    return None, False
+
+
 def discretize_position_continuous(
     position: Tuple[float, float], grid_size: Tuple[int, int], method: str = "floor"
 ) -> Tuple[int, int]:
@@ -1366,36 +1417,13 @@ class Environment(AECEnv):
         The round-robin scheduling ensures fair time allocation among all
         active agents. Dead or removed agents are automatically skipped.
         """
-        if not self.agents:
-            self.agent_selection = None
+        next_agent, cycle_complete = select_next_agent(
+            self.agent_selection, self.agents, self.terminations, self.truncations
+        )
+        self.agent_selection = next_agent
+        self._cycle_complete = cycle_complete
+        if self.agent_selection is None:
             return
-
-        # Store previous agent for cycle detection
-        previous_agent = self.agent_selection
-
-        try:
-            current_idx = self.agents.index(self.agent_selection)
-        except ValueError:
-            current_idx = -1
-
-        for i in range(1, len(self.agents) + 1):
-            next_idx = (current_idx + i) % len(self.agents)
-            next_agent = self.agents[next_idx]
-            if not (
-                self.terminations.get(next_agent, False)
-                or self.truncations.get(next_agent, False)
-            ):
-                self.agent_selection = next_agent
-
-                # Detect if we've completed a full cycle
-                # This happens when we wrap around to the first agent
-                if previous_agent is not None and next_idx < current_idx:
-                    self._cycle_complete = True
-                else:
-                    self._cycle_complete = False
-
-                return
-        self.agent_selection = None
 
     def reset(
         self, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None
