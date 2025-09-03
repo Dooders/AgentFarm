@@ -9,7 +9,7 @@ import logging
 from typing import List, Optional, Tuple
 
 import numpy as np
-from scipy.spatial import KDTree
+from scipy.spatial import cKDTree
 
 logger = logging.getLogger(__name__)
 
@@ -35,8 +35,8 @@ class SpatialIndex:
         self.height = height
 
         # KD-tree attributes
-        self.agent_kdtree: Optional[KDTree] = None
-        self.resource_kdtree: Optional[KDTree] = None
+        self.agent_kdtree: Optional[cKDTree] = None
+        self.resource_kdtree: Optional[cKDTree] = None
         self.agent_positions: Optional[np.ndarray] = None
         self.resource_positions: Optional[np.ndarray] = None
 
@@ -77,31 +77,42 @@ class SpatialIndex:
         2. Count-based check (O(1)) - catches structural changes
         3. Hash-based verification (O(n)) - ensures correctness
         """
-        # Always check for changes when update is called
+        # Skip update if positions are not dirty
+        if not self._positions_dirty:
+            return
+
+        # Precompute alive agents once to avoid redundant computation
+        alive_agents = [agent for agent in self._agents if agent.alive]
+        current_agent_count = len(alive_agents)
+
         # Count-based quick check for structural changes
-        if self._counts_changed():
-            self._rebuild_kdtrees()
+        if self._counts_changed(current_agent_count):
+            self._rebuild_kdtrees(alive_agents)
             self._positions_dirty = False
             return
 
         # Hash-based verification for position changes
-        if self._hash_positions_changed():
-            self._rebuild_kdtrees()
+        if self._hash_positions_changed(alive_agents):
+            self._rebuild_kdtrees(alive_agents)
             self._positions_dirty = False
             return
 
         # No changes detected, clear dirty flag
         self._positions_dirty = False
 
-    def _counts_changed(self) -> bool:
+    def _counts_changed(self, current_agent_count: int) -> bool:
         """Check if agent or resource counts have changed (O(1) operation).
+
+        Parameters
+        ----------
+        current_agent_count : int
+            Precomputed count of alive agents
 
         Returns
         -------
         bool
             True if counts have changed, False otherwise
         """
-        current_agent_count = len([a for a in self._agents if a.alive])
         current_resource_count = len(self._resources)
         current_counts = (current_agent_count, current_resource_count)
 
@@ -110,11 +121,16 @@ class SpatialIndex:
             return True
         return False
 
-    def _hash_positions_changed(self) -> bool:
+    def _hash_positions_changed(self, alive_agents: List) -> bool:
         """Check if positions have changed using hash comparison (O(n) operation).
 
         This is the most expensive check but ensures correctness when
         counts match but positions have changed.
+
+        Parameters
+        ----------
+        alive_agents : List
+            Precomputed list of alive agents
 
         Returns
         -------
@@ -122,7 +138,6 @@ class SpatialIndex:
             True if positions have changed, False otherwise
         """
         # Build current positions for comparison
-        alive_agents = [agent for agent in self._agents if agent.alive]
         current_agent_positions = (
             np.array([agent.position for agent in alive_agents])
             if alive_agents
@@ -158,16 +173,24 @@ class SpatialIndex:
             return True
         return False
 
-    def _rebuild_kdtrees(self) -> None:
-        """Rebuild KD-trees from current agent and resource positions."""
+    def _rebuild_kdtrees(self, alive_agents: List = None) -> None:
+        """Rebuild KD-trees from current agent and resource positions.
+
+        Parameters
+        ----------
+        alive_agents : List, optional
+            Precomputed list of alive agents to avoid recomputation
+        """
         # Update agent KD-tree
-        alive_agents = [agent for agent in self._agents if agent.alive]
+        if alive_agents is None:
+            alive_agents = [agent for agent in self._agents if agent.alive]
+
         self._cached_alive_agents = (
             alive_agents  # Cache contains only alive agents for efficient queries
         )
         if alive_agents:
             self.agent_positions = np.array([agent.position for agent in alive_agents])
-            self.agent_kdtree = KDTree(self.agent_positions)
+            self.agent_kdtree = cKDTree(self.agent_positions)
         else:
             self.agent_kdtree = None
             self.agent_positions = None
@@ -177,7 +200,7 @@ class SpatialIndex:
             self.resource_positions = np.array(
                 [resource.position for resource in self._resources]
             )
-            self.resource_kdtree = KDTree(self.resource_positions)
+            self.resource_kdtree = cKDTree(self.resource_positions)
         else:
             self.resource_kdtree = None
             self.resource_positions = None
@@ -197,6 +220,9 @@ class SpatialIndex:
         list
             List of agents within radius
         """
+        # Ensure KD-trees are up to date
+        self.update()
+
         # Input validation
         if radius <= 0:
             return []
@@ -228,6 +254,9 @@ class SpatialIndex:
         list
             List of resources within radius
         """
+        # Ensure KD-trees are up to date
+        self.update()
+
         # Input validation (same as get_nearby_agents)
         if radius <= 0:
             return []
@@ -253,6 +282,9 @@ class SpatialIndex:
         Resource or None
             Nearest resource if any exist
         """
+        # Ensure KD-trees are up to date
+        self.update()
+
         # Input validation
         if not self._is_valid_position(position):
             return None
@@ -266,6 +298,9 @@ class SpatialIndex:
     def _is_valid_position(self, position: Tuple[float, float]) -> bool:
         """Check if a position is valid within the environment bounds.
 
+        Uses relaxed bounds to allow positions slightly outside the strict boundaries,
+        which is useful for edge cases and floating-point precision issues.
+
         Parameters
         ----------
         position : tuple
@@ -274,10 +309,13 @@ class SpatialIndex:
         Returns
         -------
         bool
-            True if position is within bounds, False otherwise
+            True if position is within relaxed bounds, False otherwise
         """
         x, y = position
-        return (0 <= x <= self.width) and (0 <= y <= self.height)
+        # Allow positions within 1% margin outside bounds for edge cases
+        margin_x = self.width * 0.01
+        margin_y = self.height * 0.01
+        return (-margin_x <= x <= self.width + margin_x) and (-margin_y <= y <= self.height + margin_y)
 
     def get_agent_count(self) -> int:
         """Get the number of alive agents.
