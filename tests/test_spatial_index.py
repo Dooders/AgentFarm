@@ -1387,6 +1387,120 @@ class TestSpatialIndex(unittest.TestCase):
         self.assertFalse(fractional_index._is_valid_position((5.25, -margin_y - 0.01)))
         self.assertFalse(fractional_index._is_valid_position((5.25, 7.25 + margin_y + 0.01)))
 
+class TestSpatialIndexNamedIndices(unittest.TestCase):
+    """Additional tests for configurable named indices and generic getters."""
+
+    def test_register_custom_index_filtering_and_queries(self):
+        index = SpatialIndex(width=100, height=100)
+
+        # Prepare agents with a custom attribute used for filtering
+        agents = []
+        predator = MockBaseAgent(
+            agent_id="pred1",
+            position=(10, 10),
+            resource_level=10,
+            environment=None,
+        )
+        setattr(predator, "type", "predator")
+
+        prey = MockBaseAgent(
+            agent_id="prey1",
+            position=(40, 40),
+            resource_level=10,
+            environment=None,
+        )
+        setattr(prey, "type", "prey")
+
+        agents.extend([predator, prey])
+
+        # Minimal resources
+        resources = [
+            Resource(resource_id=1, position=(0, 0), amount=5, max_amount=10, regeneration_rate=0.1),
+            Resource(resource_id=2, position=(80, 80), amount=5, max_amount=10, regeneration_rate=0.1),
+        ]
+
+        index.set_references(agents, resources)
+
+        # Register a custom named index of only predators
+        index.register_index(
+            name="predators",
+            data_reference=agents,
+            position_getter=lambda a: a.position,
+            filter_func=lambda a: getattr(a, "type", None) == "predator",
+        )
+
+        # Build structures
+        index.force_rebuild()
+
+        # Generic nearby query (search all by default)
+        nearby = index.get_nearby((12, 12), 10)
+        self.assertIn("agents", nearby)
+        self.assertIn("resources", nearby)
+        self.assertIn("predators", nearby)
+
+        # Predator should be found near (12,12); prey should not be in the custom list
+        self.assertTrue(any(a.agent_id == "pred1" for a in nearby["predators"]))
+        self.assertFalse(any(a.agent_id == "prey1" for a in nearby["predators"]))
+
+        # Generic nearest limited to a specific index
+        nearest = index.get_nearest((9, 9), index_names=["predators"])  # closest to predator
+        self.assertIn("predators", nearest)
+        self.assertIsNotNone(nearest["predators"])
+        self.assertEqual(nearest["predators"].agent_id, "pred1")
+
+    def test_constructor_supplied_indices(self):
+        # Initial lists
+        agents = []
+        resources = []
+
+        # Provide initial config/data for a custom "all_agents" index
+        idx_configs = {
+            "all_agents": {
+                "position_getter": lambda a: a.position,
+                # no filter -> include all
+            }
+        }
+        idx_data = {
+            "all_agents": agents,
+        }
+
+        custom_index = SpatialIndex(width=100, height=100, index_configs=idx_configs, index_data=idx_data)
+
+        # Populate references
+        a1 = MockBaseAgent("a1", (5, 5), 0, None)
+        a2 = MockBaseAgent("a2", (60, 60), 0, None)
+        agents.extend([a1, a2])
+        resources.append(Resource(1, (10, 10), 5, 10, 0.1))
+
+        custom_index.set_references(agents, resources)
+        custom_index.force_rebuild()
+
+        # Query only the constructor-supplied index
+        nearby = custom_index.get_nearby((6, 6), 5, index_names=["all_agents"])
+        self.assertIn("all_agents", nearby)
+        self.assertTrue(any(a.agent_id == "a1" for a in nearby["all_agents"]))
+        self.assertFalse(any(a.agent_id == "a2" for a in nearby["all_agents"]))
+
+    def test_get_nearest_with_index_names(self):
+        index = SpatialIndex(width=100, height=100)
+        agents = []
+        resources = []
+        a1 = MockBaseAgent("x1", (25, 25), 0, None)
+        a2 = MockBaseAgent("x2", (75, 75), 0, None)
+        agents.extend([a1, a2])
+        for i in range(3):
+            resources.append(Resource(i, (i * 30, i * 30), 5, 10, 0.1))
+
+        index.set_references(agents, resources)
+        index.force_rebuild()
+
+        nearest = index.get_nearest((26, 26), index_names=["agents"])  # should pick a1
+        self.assertEqual(nearest.get("agents").agent_id, "x1")
+
+        nearest_all = index.get_nearest((2, 2))  # all indices by default
+        self.assertIn("agents", nearest_all)
+        self.assertIn("resources", nearest_all)
+
 
 if __name__ == "__main__":
     unittest.main()
