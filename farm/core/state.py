@@ -288,7 +288,7 @@ class EnvironmentState(BaseState):
         # Calculate densities
         resource_density = len(env.resources) / cls.MAX_EXPECTED_RESOURCES
 
-        alive_agents = [a for a in env.agents if a.alive]
+        alive_agents = [a for a in env.agent_objects if a.alive]
         max_population = env.config.max_population if env.config else 3000
         agent_density = len(alive_agents) / max_population
 

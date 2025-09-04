@@ -781,7 +781,7 @@ class KnownEmptyHandler(ChannelHandler):
         config.gamma_known.
         """
         # This is handled specially in update_known_empty - no direct processing needed
-        raise NotImplementedError("Subclasses must implement this method")
+        return
 
 
 class TransientEventHandler(ChannelHandler):

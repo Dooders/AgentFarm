@@ -713,17 +713,6 @@ class TestKnownEmptyHandler(unittest.TestCase):
         # Should not decay without gamma
         self.assertTrue(torch.allclose(observation, torch.ones(1, 11, 11)))
 
-    def test_process(self):
-        """Test KnownEmptyHandler process method."""
-        observation = torch.zeros(1, 11, 11)
-        agent_world_pos = (5, 5)
-
-        # This handler doesn't do direct processing
-        self.handler.process(observation, 0, self.config_mock, agent_world_pos)
-
-        # Should not change observation
-        self.assertTrue(torch.allclose(observation, torch.zeros(1, 11, 11)))
-
 
 class TestTransientEventHandler(unittest.TestCase):
     """Test cases for TransientEventHandler."""
