@@ -10,6 +10,7 @@ This module tests the optimized KD-tree spatial query system including:
 
 import os
 import sys
+import time
 import unittest
 from unittest.mock import MagicMock, Mock, patch
 
@@ -1312,9 +1313,9 @@ class TestSpatialIndex(unittest.TestCase):
         initial_memory = process.memory_info().rss / 1024 / 1024  # MB
 
         # Build KD-trees
-        start_time = __import__("time").time()
+        start_time = time.time()
         large_index._rebuild_kdtrees()
-        build_time = __import__("time").time() - start_time
+        build_time = time.time() - start_time
 
         build_memory = process.memory_info().rss / 1024 / 1024  # MB
         memory_increase = build_memory - initial_memory
@@ -1326,13 +1327,13 @@ class TestSpatialIndex(unittest.TestCase):
         self.assertLess(build_time, 5.0, f"Build time {build_time:.2f}s exceeds threshold")
 
         # Test query performance
-        query_start = __import__("time").time()
+        query_start = time.time()
         num_queries = 100
         for _ in range(num_queries):
             nearby_agents = large_index.get_nearby_agents((500, 500), 50)
             nearby_resources = large_index.get_nearby_resources((500, 500), 50)
 
-        query_time = __import__("time").time() - query_start
+        query_time = time.time() - query_start
         avg_query_time = query_time / num_queries
 
         # Average query time should be less than 10ms

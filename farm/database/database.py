@@ -61,13 +61,14 @@ from sqlalchemy.pool import QueuePool
 from farm.database.data_retrieval import DataRetriever
 from farm.database.session_manager import SessionManager
 
-from .data_logging import DataLogger, ShardedDataLogger
+from .data_logging import DataLogger, DataLoggingConfig, ShardedDataLogger
 from .models import (
     ActionModel,
     AgentModel,
     AgentStateModel,
     Base,
     HealthIncident,
+    InteractionModel,
     ReproductionEventModel,
     ResourceModel,
     Simulation,
@@ -279,8 +280,6 @@ class SimulationDatabase:
         self.session_manager.Session = self.Session
 
         # Initialize data logger with simulation_id
-        from farm.database.data_logging import DataLoggingConfig
-
         self.logger = DataLogger(
             self,
             simulation_id=self.simulation_id,
@@ -1085,7 +1084,6 @@ class SimulationDatabase:
             if not success and failure_reason:
                 interaction_details["failure_reason"] = failure_reason
 
-            from farm.database.models import InteractionModel
             interaction = InteractionModel(
                 step_number=step_number,
                 source_type="agent",
@@ -1264,8 +1262,7 @@ class InMemorySimulationDatabase(SimulationDatabase):
         # Initialize parent class with in-memory database path
         super().__init__(db_path=":memory:", config=config, simulation_id=simulation_id)
 
-        # Use in-memory SQLite database
-        self.db_path = ":memory:"
+        # Note: self.db_path is already set to ":memory:" by the parent constructor
 
         # Configure pragma settings from config
         # For in-memory DB, we default to performance profile if not specified
@@ -1448,8 +1445,6 @@ class InMemorySimulationDatabase(SimulationDatabase):
         self._create_tables()
 
         # Initialize data logger with simulation_id
-        from farm.database.data_logging import DataLoggingConfig
-
         self.logger = DataLogger(
             self,
             simulation_id=self.simulation_id,
