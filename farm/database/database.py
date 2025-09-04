@@ -727,10 +727,10 @@ class SimulationDatabase:
                 with pd.ExcelWriter(filepath) as writer:
                     for data_type, df in data.items():
                         if isinstance(df, pd.DataFrame):
-                            df.to_excel(writer, sheet_name=data_type, index=False, encoding="utf-8")
+                            df.to_excel(writer, sheet_name=data_type, index=False)
                         elif data_type == "metadata":
                             pd.DataFrame([df]).to_excel(
-                                writer, sheet_name="metadata", index=False, encoding="utf-8"
+                                writer, sheet_name="metadata", index=False
                             )
 
             elif format == "json":

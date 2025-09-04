@@ -307,7 +307,7 @@ def _render_channels_overlay(
             color_rgb = rgba[..., :3]
         else:
             color_rgb = (
-                np.array(_hex_to_rgb(style.color or "#ffffff"), dtype=np.float32)
+                np.array(_hex_to_rgb(style.color_hex or "#ffffff"), dtype=np.float32)
                 / 255.0
             )
             # Use value as intensity for alpha scaling to emphasize higher values
