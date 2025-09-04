@@ -717,9 +717,9 @@ class SimulationDatabase:
                 base_path = filepath.rsplit(".", 1)[0]
                 for data_type, df in data.items():
                     if isinstance(df, pd.DataFrame):
-                        df.to_csv(f"{base_path}_{data_type}.csv", index=False)
+                        df.to_csv(f"{base_path}_{data_type}.csv", index=False, encoding="utf-8")
                     elif data_type == "metadata":
-                        with open(f"{base_path}_metadata.json", "w") as f:
+                        with open(f"{base_path}_metadata.json", "w", encoding="utf-8") as f:
                             json.dump(df, f, indent=2)
 
             elif format == "excel":
@@ -727,10 +727,10 @@ class SimulationDatabase:
                 with pd.ExcelWriter(filepath) as writer:
                     for data_type, df in data.items():
                         if isinstance(df, pd.DataFrame):
-                            df.to_excel(writer, sheet_name=data_type, index=False)
+                            df.to_excel(writer, sheet_name=data_type, index=False, encoding="utf-8")
                         elif data_type == "metadata":
                             pd.DataFrame([df]).to_excel(
-                                writer, sheet_name="metadata", index=False
+                                writer, sheet_name="metadata", index=False, encoding="utf-8"
                             )
 
             elif format == "json":
@@ -739,7 +739,7 @@ class SimulationDatabase:
                     k: (v.to_dict("records") if isinstance(v, pd.DataFrame) else v)
                     for k, v in data.items()
                 }
-                with open(filepath, "w") as f:
+                with open(filepath, "w", encoding="utf-8") as f:
                     json.dump(json_data, f, indent=2)
 
             elif format == "parquet":
@@ -1055,6 +1055,7 @@ class SimulationDatabase:
         """
 
         def _log(session):
+            # Log reproduction event to ReproductionEventModel
             event = ReproductionEventModel(
                 step_number=step_number,
                 parent_id=parent_id,
@@ -1071,6 +1072,31 @@ class SimulationDatabase:
                 timestamp=datetime.now(),
             )
             session.add(event)
+
+            # Also log as interaction for comprehensive tracking (minimal data to avoid duplication)
+            interaction_type = "reproduce" if success else "reproduce_failed"
+            target_type = "agent" if offspring_id and success else "position"
+            target_id = offspring_id if offspring_id and success else (
+                f"{parent_position[0]},{parent_position[1]}" if parent_position else "unknown"
+            )
+
+            # Only store essential relationship data - full details already in ReproductionEventModel
+            interaction_details = {}
+            if not success and failure_reason:
+                interaction_details["failure_reason"] = failure_reason
+
+            from farm.database.models import InteractionModel
+            interaction = InteractionModel(
+                step_number=step_number,
+                source_type="agent",
+                source_id=parent_id,
+                target_type=target_type,
+                target_id=target_id,
+                interaction_type=interaction_type,
+                action_type="reproduce",
+                details=interaction_details,  # Minimal details to avoid duplication
+            )
+            session.add(interaction)
 
         self._execute_in_transaction(_log)
 
@@ -1234,9 +1260,9 @@ class InMemorySimulationDatabase(SimulationDatabase):
         self.memory_warning_threshold = 0.7  # 70% of limit
         self.memory_critical_threshold = 0.9  # 90% of limit
         self.memory_usage_samples = []
-        self.simulation_id = simulation_id
 
-        self.config = config
+        # Initialize parent class with in-memory database path
+        super().__init__(db_path=":memory:", config=config, simulation_id=simulation_id)
 
         # Use in-memory SQLite database
         self.db_path = ":memory:"

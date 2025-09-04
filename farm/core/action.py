@@ -627,15 +627,7 @@ def attack_action(agent: "BaseAgent") -> dict:
             target_id=closest_target.agent_id,
             interaction_type="attack" if actual_damage > 0 else "attack_failed",
             action_type="attack",
-            details={
-                "success": actual_damage > 0,
-                "damage_dealt": actual_damage,
-                "distance": min_distance,
-                "attack_range": attack_range,
-                "target_position": closest_target.position,
-                "attacker_position": agent.position,
-                "attack_direction": attack_direction,
-            },
+            details={},  # Minimal details to avoid duplication with action-specific logging
         )
 
         logger.debug(
@@ -770,15 +762,7 @@ def gather_action(agent: "BaseAgent") -> dict:
             target_id=str(getattr(closest_resource, "resource_id", "unknown")),
             interaction_type="gather",
             action_type="gather",
-            details={
-                "amount_gathered": actual_gathered,
-                "resource_before": resource_amount_before,
-                "resource_after": closest_resource.amount,
-                "agent_resources_before": initial_agent_resources,
-                "agent_resources_after": agent.resource_level,
-                "distance": min_distance,
-                "success": True,
-            },
+            details={},  # Minimal details to avoid duplication with action-specific logging
         )
 
         logger.debug(
@@ -815,11 +799,7 @@ def gather_action(agent: "BaseAgent") -> dict:
             target_id="unknown",
             interaction_type="gather_failed",
             action_type="gather",
-            details={
-                "reason": "gathering_error",
-                "error": str(e),
-                "success": False,
-            },
+            details={},  # Minimal details to avoid duplication
         )
 
         return {
@@ -933,15 +913,7 @@ def share_action(agent: "BaseAgent") -> dict:
             target_id=target.agent_id,
             interaction_type="share",
             action_type="share",
-            details={
-                "amount_shared": share_amount,
-                "agent_resources_before": agent_resources_before,
-                "agent_resources_after": agent.resource_level,
-                "target_resources_before": target_resources_before,
-                "target_resources_after": target.resource_level,
-                "share_range": share_range,
-                "success": True,
-            },
+            details={},  # Minimal details to avoid duplication with action-specific logging
         )
 
         logger.debug(
@@ -1052,13 +1024,7 @@ def move_action(agent: "BaseAgent") -> dict:
                 target_id=f"{new_position[0]},{new_position[1]}",
                 interaction_type="move",
                 action_type="move",
-                details={
-                    "old_position": original_position,
-                    "new_position": new_position,
-                    "distance": move_distance,
-                    "direction": (dx, dy),
-                    "success": True,
-                },
+                details={},  # Minimal details to avoid duplication with action-specific logging
             )
 
             logger.debug(
@@ -1087,14 +1053,7 @@ def move_action(agent: "BaseAgent") -> dict:
                 target_id=f"{new_position[0]},{new_position[1]}",
                 interaction_type="move_failed",
                 action_type="move",
-                details={
-                    "attempted_position": new_position,
-                    "current_position": original_position,
-                    "distance": move_distance,
-                    "direction": (dx, dy),
-                    "reason": "invalid_position",
-                    "success": False,
-                },
+                details={},  # Minimal details to avoid duplication
             )
 
             logger.debug(
@@ -1208,14 +1167,7 @@ def reproduce_action(agent: "BaseAgent") -> dict:
                 target_id="offspring",  # Will be replaced with actual ID in reproduce method
                 interaction_type="reproduce",
                 action_type="reproduce",
-                details={
-                    "resources_before": resources_before,
-                    "resources_after": agent.resource_level,
-                    "offspring_cost": offspring_cost,
-                    "min_resources": min_resources,
-                    "parent_generation": generation_before,
-                    "success": True,
-                },
+                details={},  # Minimal details to avoid duplication with reproduction event logging
             )
 
             logger.debug(f"Agent {agent.agent_id} successfully reproduced")
@@ -1342,19 +1294,7 @@ def defend_action(agent: "BaseAgent") -> dict:
             target_id=agent.agent_id,  # Self-targeted for defense
             interaction_type="defend",
             action_type="defend",
-            details={
-                "duration": defense_duration,
-                "healing": defense_healing,
-                "healing_applied": healing_applied,
-                "cost": defense_cost,
-                "resources_before": resources_before,
-                "resources_after": agent.resource_level,
-                "health_before": health_before,
-                "health_after": getattr(agent, "current_health", 0),
-                "was_defending_before": was_defending_before,
-                "defense_timer_before": defense_timer_before,
-                "success": True,
-            },
+            details={},  # Minimal details to avoid duplication with action-specific logging
         )
 
         logger.debug(
@@ -1429,14 +1369,7 @@ def pass_action(agent: "BaseAgent") -> dict:
             target_id=agent.agent_id,  # Self-targeted for pass
             interaction_type="pass",
             action_type="pass",
-            details={
-                "reason": "strategic_inaction",
-                "reward_earned": reward,
-                "agent_resources": agent.resource_level,
-                "agent_health": getattr(agent, "current_health", 0),
-                "agent_position": agent.position,
-                "success": True,
-            },
+            details={},  # Minimal details to avoid duplication with action-specific logging
         )
 
         logger.debug(f"Agent {agent.agent_id} chose to pass this turn")
