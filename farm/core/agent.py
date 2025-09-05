@@ -1280,12 +1280,36 @@ class BaseAgent:
             # Mark spatial structures as dirty when position changes
             try:
                 self.spatial_service.mark_positions_dirty()
+                # Register as mobile entity for selective tracking optimization
+                if hasattr(self.spatial_service, 'register_mobile_agent'):
+                    self.spatial_service.register_mobile_agent(self.agent_id)
             except Exception as e:
                 logger.warning(
-                    f"Failed to mark spatial positions as dirty for agent {self.agent_id}: {e}"
+                    f"Failed to mark spatial positions as dirty or register as mobile for agent {self.agent_id}: {e}"
                 )
                 # Position was updated but spatial index wasn't marked dirty
                 # This is not critical but should be logged
+    
+    def set_mobile(self, mobile: bool = True) -> None:
+        """Set whether this agent should be tracked as mobile for spatial indexing optimization.
+        
+        Mobile agents are checked for position changes on every spatial index update.
+        Static (immobile) agents are hashed once and cached for better performance.
+        
+        Args:
+            mobile (bool): True to track as mobile, False to treat as static
+        """
+        try:
+            if mobile:
+                if hasattr(self.spatial_service, 'register_mobile_agent'):
+                    self.spatial_service.register_mobile_agent(self.agent_id)
+                    logger.debug(f"Agent {self.agent_id} set as mobile")
+            else:
+                if hasattr(self.spatial_service, 'unregister_mobile_agent'):
+                    self.spatial_service.unregister_mobile_agent(self.agent_id)
+                    logger.debug(f"Agent {self.agent_id} set as static")
+        except Exception as e:
+            logger.warning(f"Failed to set mobility status for agent {self.agent_id}: {e}")
 
     def handle_combat(self, attacker: "BaseAgent", damage: float) -> float:
         """Handle incoming attack and calculate actual damage taken.

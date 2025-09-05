@@ -1505,5 +1505,274 @@ class TestSpatialIndexNamedIndices(unittest.TestCase):
         self.assertIn("resources", nearest_all)
 
 
+class TestSelectiveEntityTracking(unittest.TestCase):
+    """Test cases for selective entity tracking optimization."""
+
+    def setUp(self):
+        """Set up test fixtures with mock objects."""
+        self.spatial_index = SpatialIndex(width=100, height=100)
+        
+        # Create mock agents
+        self.agents = []
+        for i in range(5):
+            agent = MockBaseAgent(
+                agent_id=f"agent_{i}",
+                position=(10 + i * 10, 10 + i * 10),
+                resource_level=50,
+                environment=None,
+                generation=0,
+            )
+            self.agents.append(agent)
+        
+        # Create mock resources
+        self.resources = []
+        for i in range(3):
+            resource = Resource(
+                resource_id=i,
+                position=(20 + i * 15, 20 + i * 15),
+                amount=10,
+                max_amount=15
+            )
+            self.resources.append(resource)
+        
+        # Set references
+        self.spatial_index.set_references(self.agents, self.resources)
+
+    def test_mobile_agent_registration(self):
+        """Test registering agents as mobile entities."""
+        # Initially no mobile entities
+        info = self.spatial_index.get_mobile_entities_info()
+        self.assertEqual(info["mobile_agents_count"], 0)
+        
+        # Register an agent as mobile
+        self.spatial_index.register_mobile_agent("agent_0")
+        info = self.spatial_index.get_mobile_entities_info()
+        self.assertEqual(info["mobile_agents_count"], 1)
+        
+        # Register multiple agents
+        self.spatial_index.register_mobile_agent("agent_1")
+        self.spatial_index.register_mobile_agent("agent_2")
+        info = self.spatial_index.get_mobile_entities_info()
+        self.assertEqual(info["mobile_agents_count"], 3)
+
+    def test_mobile_resource_registration(self):
+        """Test registering resources as mobile entities."""
+        # Initially no mobile resources
+        info = self.spatial_index.get_mobile_entities_info()
+        self.assertEqual(info["mobile_resources_count"], 0)
+        
+        # Register a resource as mobile
+        self.spatial_index.register_mobile_resource("0")
+        info = self.spatial_index.get_mobile_entities_info()
+        self.assertEqual(info["mobile_resources_count"], 1)
+
+    def test_mobile_entity_unregistration(self):
+        """Test unregistering mobile entities."""
+        # Register agents as mobile
+        self.spatial_index.register_mobile_agent("agent_0")
+        self.spatial_index.register_mobile_agent("agent_1")
+        
+        # Unregister one agent
+        self.spatial_index.unregister_mobile_agent("agent_0")
+        info = self.spatial_index.get_mobile_entities_info()
+        self.assertEqual(info["mobile_agents_count"], 1)
+        
+        # Unregister non-existent agent (should not raise error)
+        self.spatial_index.unregister_mobile_agent("non_existent")
+        info = self.spatial_index.get_mobile_entities_info()
+        self.assertEqual(info["mobile_agents_count"], 1)
+
+    def test_mobile_only_mode_toggle(self):
+        """Test enabling and disabling mobile-only mode."""
+        # Initially disabled
+        info = self.spatial_index.get_mobile_entities_info()
+        self.assertFalse(info["mobile_only_mode"])
+        
+        # Enable mobile-only mode
+        self.spatial_index.set_mobile_only_mode(True)
+        info = self.spatial_index.get_mobile_entities_info()
+        self.assertTrue(info["mobile_only_mode"])
+        
+        # Disable mobile-only mode
+        self.spatial_index.set_mobile_only_mode(False)
+        info = self.spatial_index.get_mobile_entities_info()
+        self.assertFalse(info["mobile_only_mode"])
+
+    def test_selective_change_detection(self):
+        """Test selective change detection with mobile vs static entities."""
+        # Enable mobile-only mode
+        self.spatial_index.set_mobile_only_mode(True)
+        
+        # Register only one agent as mobile
+        self.spatial_index.register_mobile_agent("agent_0")
+        
+        # Initial update to cache static hashes
+        self.spatial_index.update()
+        
+        # Move a static agent (should not trigger rebuild)
+        original_cached_hash = self.spatial_index._cached_hash
+        self.agents[1].position = [25, 25]  # agent_1 is not mobile
+        self.spatial_index.mark_positions_dirty()
+        
+        # Update should not detect changes since only mobile agents are checked
+        self.spatial_index.update()
+        # Hash should remain the same since we only check mobile entities
+        
+        # Move a mobile agent (should trigger rebuild)
+        self.agents[0].position = [15, 15]  # agent_0 is mobile
+        self.spatial_index.mark_positions_dirty()
+        self.spatial_index.update()
+        
+        # Hash should change since mobile agent moved
+        self.assertNotEqual(original_cached_hash, self.spatial_index._cached_hash)
+
+    def test_static_hash_caching(self):
+        """Test that static entity hashes are properly cached."""
+        # Enable mobile-only mode
+        self.spatial_index.set_mobile_only_mode(True)
+        
+        # Register one agent as mobile
+        self.spatial_index.register_mobile_agent("agent_0")
+        
+        # Initial update to generate caches
+        self.spatial_index.update()
+        
+        # Check that static hashes are cached
+        info = self.spatial_index.get_mobile_entities_info()
+        self.assertTrue(info["static_agents_hash_cached"])
+        self.assertTrue(info["static_resources_hash_cached"])
+
+    def test_full_vs_selective_hash_comparison(self):
+        """Test that full and selective hash methods produce consistent results."""
+        # Set up scenario with mixed mobile/static entities
+        self.spatial_index.register_mobile_agent("agent_0")
+        self.spatial_index.register_mobile_resource("0")
+        
+        # Get hash with selective mode
+        self.spatial_index.set_mobile_only_mode(True)
+        alive_agents = [agent for agent in self.agents if agent.alive]
+        selective_changed = self.spatial_index._hash_positions_changed(alive_agents)
+        selective_hash = self.spatial_index._cached_hash
+        
+        # Reset cache and get hash with full mode
+        self.spatial_index._cached_hash = None
+        self.spatial_index.set_mobile_only_mode(False)
+        full_changed = self.spatial_index._hash_positions_changed(alive_agents)
+        full_hash = self.spatial_index._cached_hash
+        
+        # Both methods should detect the same changes
+        self.assertEqual(selective_changed, full_changed)
+
+    def test_performance_improvement_simulation(self):
+        """Simulate performance improvement with selective tracking."""
+        # Create larger dataset for performance testing
+        large_agents = []
+        for i in range(50):  # 50 agents
+            agent = MockBaseAgent(
+                agent_id=f"large_agent_{i}",
+                position=(i * 2, i * 2),
+                resource_level=50,
+                environment=None
+            )
+            large_agents.append(agent)
+        
+        large_resources = []
+        for i in range(30):  # 30 resources
+            resource = Resource(
+                resource_id=f"large_resource_{i}",
+                position=(100 + i * 3, 100 + i * 3),
+                amount=10
+            )
+            large_resources.append(resource)
+        
+        # Set up spatial index with large dataset
+        large_spatial_index = SpatialIndex(width=300, height=300)
+        large_spatial_index.set_references(large_agents, large_resources)
+        
+        # Register only 10% as mobile (realistic scenario)
+        for i in range(5):  # 5 out of 50 agents are mobile
+            large_spatial_index.register_mobile_agent(f"large_agent_{i}")
+        for i in range(3):  # 3 out of 30 resources are mobile
+            large_spatial_index.register_mobile_resource(f"large_resource_{i}")
+        
+        # Enable mobile-only mode
+        large_spatial_index.set_mobile_only_mode(True)
+        
+        # Time the selective hash operation
+        start_time = time.time()
+        for _ in range(10):  # Simulate multiple updates
+            alive_agents = [agent for agent in large_agents if agent.alive]
+            large_spatial_index._selective_hash_positions_changed(alive_agents)
+        selective_time = time.time() - start_time
+        
+        # Time the full hash operation
+        large_spatial_index.set_mobile_only_mode(False)
+        large_spatial_index._cached_hash = None
+        
+        start_time = time.time()
+        for _ in range(10):  # Simulate multiple updates
+            alive_agents = [agent for agent in large_agents if agent.alive]
+            large_spatial_index._full_hash_positions_changed(alive_agents)
+        full_time = time.time() - start_time
+        
+        # Selective tracking should be faster (though this may vary in tests)
+        # At minimum, it should not be significantly slower
+        ratio = full_time / selective_time if selective_time > 0 else 1
+        self.assertGreaterEqual(ratio, 0.5)  # Allow for test variance
+
+    def test_stats_include_selective_info(self):
+        """Test that get_stats() includes selective tracking information."""
+        # Register some mobile entities
+        self.spatial_index.register_mobile_agent("agent_0")
+        self.spatial_index.register_mobile_resource("0")
+        self.spatial_index.set_mobile_only_mode(True)
+        
+        stats = self.spatial_index.get_stats()
+        
+        # Check that stats include selective tracking info
+        self.assertIn("mobile_only_mode", stats)
+        self.assertIn("mobile_agents_count", stats)
+        self.assertIn("mobile_resources_count", stats)
+        self.assertIn("static_agents_cached", stats)
+        self.assertIn("static_resources_cached", stats)
+        
+        # Verify values
+        self.assertTrue(stats["mobile_only_mode"])
+        self.assertEqual(stats["mobile_agents_count"], 1)
+        self.assertEqual(stats["mobile_resources_count"], 1)
+
+    def test_agent_integration_with_selective_tracking(self):
+        """Test BaseAgent integration with selective tracking."""
+        # Test that agents can register themselves as mobile through update_position
+        agent = self.agents[0]
+        
+        # Mock the spatial service to have the selective tracking methods
+        mock_spatial_service = MagicMock()
+        agent.spatial_service = mock_spatial_service
+        
+        # Call update_position
+        agent.update_position((15, 15))
+        
+        # Verify that the agent registered itself as mobile
+        mock_spatial_service.mark_positions_dirty.assert_called_once()
+        mock_spatial_service.register_mobile_agent.assert_called_once_with(agent.agent_id)
+
+    def test_resource_integration_with_selective_tracking(self):
+        """Test Resource integration with selective tracking."""
+        resource = self.resources[0]
+        mock_spatial_service = MagicMock()
+        
+        # Test update_position
+        resource.update_position((25, 25), mock_spatial_service)
+        
+        # Verify registration
+        mock_spatial_service.register_mobile_resource.assert_called_once_with("0")
+        mock_spatial_service.mark_positions_dirty.assert_called_once()
+        
+        # Test set_mobile
+        resource.set_mobile(False, mock_spatial_service)
+        mock_spatial_service.unregister_mobile_resource.assert_called_once_with("0")
+
+
 if __name__ == "__main__":
     unittest.main()

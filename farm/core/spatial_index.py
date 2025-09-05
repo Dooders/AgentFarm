@@ -53,6 +53,13 @@ class SpatialIndex:
 
         # Cached alive agents for efficient querying
         self._cached_alive_agents: Optional[List] = None
+        
+        # Selective entity tracking for mobile vs immobile entities
+        self._mobile_agents: set = set()  # Track mobile agent IDs
+        self._mobile_resources: set = set()  # Track mobile resource IDs
+        self._static_agents_hash: Optional[str] = None  # One-time hash for static agents
+        self._static_resources_hash: Optional[str] = None  # One-time hash for static resources
+        self._mobile_only_mode: bool = False  # When True, only check mobile entities
 
         # Reference to agent and resource lists
         self._agents: List = []
@@ -122,6 +129,104 @@ class SpatialIndex:
         # Mark all named indices as dirty as well
         for idx in self._named_indices.values():
             idx["positions_dirty"] = True
+    
+    def register_mobile_agent(self, agent_id: str) -> None:
+        """Register an agent as mobile (can change position).
+        
+        Mobile agents will be checked for position changes during updates.
+        Static agents are only hashed once for better performance.
+        
+        Parameters
+        ----------
+        agent_id : str
+            Unique identifier of the agent to mark as mobile
+        """
+        self._mobile_agents.add(agent_id)
+        # Invalidate static hash since agent set changed
+        self._static_agents_hash = None
+        logger.debug(f"Agent {agent_id} registered as mobile")
+    
+    def register_mobile_resource(self, resource_id: str) -> None:
+        """Register a resource as mobile (can change position).
+        
+        Mobile resources will be checked for position changes during updates.
+        Static resources are only hashed once for better performance.
+        
+        Parameters
+        ----------
+        resource_id : str
+            Unique identifier of the resource to mark as mobile
+        """
+        self._mobile_resources.add(resource_id)
+        # Invalidate static hash since resource set changed
+        self._static_resources_hash = None
+        logger.debug(f"Resource {resource_id} registered as mobile")
+    
+    def unregister_mobile_agent(self, agent_id: str) -> None:
+        """Remove an agent from mobile tracking.
+        
+        The agent will be treated as static (immobile) going forward.
+        
+        Parameters
+        ----------
+        agent_id : str
+            Unique identifier of the agent to remove from mobile tracking
+        """
+        self._mobile_agents.discard(agent_id)
+        # Invalidate static hash since agent set changed
+        self._static_agents_hash = None
+        logger.debug(f"Agent {agent_id} unregistered from mobile tracking")
+    
+    def unregister_mobile_resource(self, resource_id: str) -> None:
+        """Remove a resource from mobile tracking.
+        
+        The resource will be treated as static (immobile) going forward.
+        
+        Parameters
+        ----------
+        resource_id : str
+            Unique identifier of the resource to remove from mobile tracking
+        """
+        self._mobile_resources.discard(resource_id)
+        # Invalidate static hash since resource set changed  
+        self._static_resources_hash = None
+        logger.debug(f"Resource {resource_id} unregistered from mobile tracking")
+    
+    def set_mobile_only_mode(self, enabled: bool) -> None:
+        """Enable or disable mobile-only change detection mode.
+        
+        When enabled, only mobile entities are checked for position changes.
+        Static entities are hashed once and assumed to never move.
+        
+        Parameters
+        ----------
+        enabled : bool
+            True to enable mobile-only mode, False to check all entities
+        """
+        old_mode = self._mobile_only_mode
+        self._mobile_only_mode = enabled
+        if old_mode != enabled:
+            # Mode changed, invalidate hashes to force recalculation
+            self._cached_hash = None
+            self._static_agents_hash = None
+            self._static_resources_hash = None
+            logger.info(f"Mobile-only mode {'enabled' if enabled else 'disabled'}")
+    
+    def get_mobile_entities_info(self) -> dict:
+        """Get information about mobile vs static entity tracking.
+        
+        Returns
+        -------
+        dict
+            Dictionary containing mobile/static entity counts and mode status
+        """
+        return {
+            "mobile_agents_count": len(self._mobile_agents),
+            "mobile_resources_count": len(self._mobile_resources),
+            "mobile_only_mode": self._mobile_only_mode,
+            "static_agents_hash_cached": self._static_agents_hash is not None,
+            "static_resources_hash_cached": self._static_resources_hash is not None,
+        }
 
     def update(self) -> None:
         """Smart KD-tree update with optimized change detection.
@@ -181,16 +286,95 @@ class SpatialIndex:
         return False
 
     def _hash_positions_changed(self, alive_agents: List) -> bool:
-        """Check if positions have changed using hash comparison (O(n) operation).
+        """Check if positions have changed using selective hash comparison.
 
-        This is the most expensive check but ensures correctness when
-        counts match but positions have changed.
+        In mobile-only mode, this method only checks mobile entities for changes
+        and uses cached hashes for static entities. This significantly improves
+        performance when most entities are static.
 
         Parameters
         ----------
         alive_agents : List
             Precomputed list of alive agents
 
+        Returns
+        -------
+        bool
+            True if positions have changed, False otherwise
+        """
+        if self._mobile_only_mode:
+            return self._selective_hash_positions_changed(alive_agents)
+        else:
+            return self._full_hash_positions_changed(alive_agents)
+    
+    def _selective_hash_positions_changed(self, alive_agents: List) -> bool:
+        """Selective change detection that only checks mobile entities.
+        
+        Static entities are hashed once and cached. Mobile entities are
+        checked on every update. This is much faster when most entities
+        are static.
+        
+        Parameters
+        ----------
+        alive_agents : List
+            Precomputed list of alive agents
+            
+        Returns
+        -------
+        bool
+            True if any mobile entity positions have changed, False otherwise
+        """
+        # Separate mobile and static agents
+        mobile_agents = []
+        static_agents = []
+        
+        for agent in alive_agents:
+            if agent.position is not None:
+                agent_id = getattr(agent, 'agent_id', str(id(agent)))
+                if agent_id in self._mobile_agents:
+                    mobile_agents.append(agent)
+                else:
+                    static_agents.append(agent)
+        
+        # Separate mobile and static resources
+        mobile_resources = []
+        static_resources = []
+        
+        for resource in self._resources:
+            if resource.position is not None:
+                resource_id = getattr(resource, 'resource_id', str(id(resource)))
+                if resource_id in self._mobile_resources:
+                    mobile_resources.append(resource)
+                else:
+                    static_resources.append(resource)
+        
+        # Calculate hash for mobile entities (checked every time)
+        mobile_agent_hash = self._calculate_positions_hash(mobile_agents)
+        mobile_resource_hash = self._calculate_positions_hash(mobile_resources)
+        
+        # Calculate or reuse hash for static entities (cached)
+        static_agent_hash = self._get_static_agents_hash(static_agents)
+        static_resource_hash = self._get_static_resources_hash(static_resources)
+        
+        # Combine all hashes
+        current_hash = f"{mobile_agent_hash}:{static_agent_hash}:{mobile_resource_hash}:{static_resource_hash}"
+        
+        if self._cached_hash is None or self._cached_hash != current_hash:
+            self._cached_hash = current_hash
+            return True
+        return False
+    
+    def _full_hash_positions_changed(self, alive_agents: List) -> bool:
+        """Traditional full hash comparison of all entities (fallback method).
+        
+        This is the original implementation that checks all entities regardless
+        of their mobility status. Used when mobile-only mode is disabled.
+        
+        Parameters
+        ----------
+        alive_agents : List
+            Precomputed list of alive agents
+            
         Returns
         -------
         bool
@@ -205,40 +389,70 @@ class SpatialIndex:
             resource for resource in self._resources if resource.position is not None
         ]
 
-        current_agent_positions = (
-            np.array([agent.position for agent in valid_alive_agents])
-            if valid_alive_agents
-            else None
-        )
-        current_resource_positions = (
-            np.array([resource.position for resource in valid_resources])
-            if valid_resources
-            else None
-        )
-
-        # Calculate hash of current agent positions
-        if current_agent_positions is not None and len(current_agent_positions) > 0:
-            agent_hash = hashlib.md5(current_agent_positions.tobytes()).hexdigest()
-        else:
-            agent_hash = "0"
-
-        # Calculate hash of current resource positions
-        if (
-            current_resource_positions is not None
-            and len(current_resource_positions) > 0
-        ):
-            resource_hash = hashlib.md5(
-                current_resource_positions.tobytes()
-            ).hexdigest()
-        else:
-            resource_hash = "0"
-
+        # Calculate hashes
+        agent_hash = self._calculate_positions_hash(valid_alive_agents)
+        resource_hash = self._calculate_positions_hash(valid_resources)
         current_hash = f"{agent_hash}:{resource_hash}"
 
         if self._cached_hash is None or self._cached_hash != current_hash:
             self._cached_hash = current_hash
             return True
         return False
+    
+    def _calculate_positions_hash(self, entities: List) -> str:
+        """Calculate MD5 hash of entity positions.
+        
+        Parameters
+        ----------
+        entities : List
+            List of entities with position attributes
+            
+        Returns
+        -------
+        str
+            MD5 hash of positions or "0" if no entities
+        """
+        if not entities:
+            return "0"
+        
+        positions = np.array([entity.position for entity in entities])
+        return hashlib.md5(positions.tobytes()).hexdigest()
+    
+    def _get_static_agents_hash(self, static_agents: List) -> str:
+        """Get or calculate hash for static agents.
+        
+        Parameters
+        ----------
+        static_agents : List
+            List of static (immobile) agents
+            
+        Returns
+        -------
+        str
+            Cached or newly calculated hash for static agents
+        """
+        if self._static_agents_hash is None:
+            self._static_agents_hash = self._calculate_positions_hash(static_agents)
+            logger.debug(f"Cached static agents hash: {self._static_agents_hash[:8]}...")
+        return self._static_agents_hash
+    
+    def _get_static_resources_hash(self, static_resources: List) -> str:
+        """Get or calculate hash for static resources.
+        
+        Parameters
+        ----------
+        static_resources : List
+            List of static (immobile) resources
+            
+        Returns
+        -------
+        str
+            Cached or newly calculated hash for static resources
+        """
+        if self._static_resources_hash is None:
+            self._static_resources_hash = self._calculate_positions_hash(static_resources)
+            logger.debug(f"Cached static resources hash: {self._static_resources_hash[:8]}...")
+        return self._static_resources_hash
 
     def _rebuild_kdtrees(self, alive_agents: List = None) -> None:
         """Rebuild KD-trees from current agent and resource positions.
@@ -608,8 +822,10 @@ class SpatialIndex:
         Returns
         -------
         dict
-            Dictionary containing spatial index statistics
+            Dictionary containing spatial index statistics including selective tracking info
         """
+        mobile_info = self.get_mobile_entities_info()
+        
         return {
             "agent_count": self.get_agent_count(),
             "resource_count": self.get_resource_count(),
@@ -620,4 +836,9 @@ class SpatialIndex:
             "cached_hash": (
                 self._cached_hash[:20] + "..." if self._cached_hash else None
             ),
+            "mobile_only_mode": mobile_info["mobile_only_mode"],
+            "mobile_agents_count": mobile_info["mobile_agents_count"],
+            "mobile_resources_count": mobile_info["mobile_resources_count"],
+            "static_agents_cached": mobile_info["static_agents_hash_cached"],
+            "static_resources_cached": mobile_info["static_resources_hash_cached"],
         }
