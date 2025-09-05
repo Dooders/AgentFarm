@@ -3,18 +3,24 @@
 This module contains the core Environment class that manages the simulation world,
 including agents, resources, spatial relationships, and the simulation loop.
 The Environment class extends PettingZoo's AECEnv to provide multi-agent
-reinforcement learning capabilities.
+reinforcement learning capabilities with deterministic seeding support.
 
 Key Components:
-    - Environment: Main simulation environment class
-    - ActionType: Enumeration of available agent actions (imported from action.py)
-    - Spatial indexing for efficient proximity queries
-    - Resource management and regeneration
-    - Metrics tracking and database logging
-    - Agent lifecycle management
+    - Environment: Main simulation environment class extending PettingZoo AECEnv
+    - Action Registry: Dynamic action mapping system with enable/disable capabilities
+    - Spatial Index: Efficient KD-tree based proximity queries (O(log n) complexity)
+    - Resource Manager: Handles resource spawning, regeneration, and consumption
+    - Observation System: Multi-channel tensor observations with AgentObservation class
+    - Service Architecture: Dependency injection with Environment*Service classes
+    - Metrics Tracker: Comprehensive simulation statistics and database logging
+    - Agent Lifecycle: Birth/death tracking and population management
+    - Identity Management: Deterministic ID generation with Identity service
+    - Configuration System: SimulationConfig for parameter management
+    - Database Integration: SQLite logging with setup_db utilities
 
-The environment supports various agent types and provides observation spaces for 
-reinforcement learning training and evaluation.
+The environment supports various agent types and provides observation spaces for
+reinforcement learning training and evaluation with configurable discretization
+methods and bilinear interpolation for continuous position handling.
 """
 
 import logging
@@ -418,7 +424,9 @@ class Environment(AECEnv):
         list
             List of agents within radius
         """
-        return self.spatial_index.get_nearby_agents(position, radius)
+        # Use generic method with "agents" index
+        nearby = self.spatial_index.get_nearby(position, radius, ["agents"])
+        return nearby.get("agents", [])
 
     def get_nearby_resources(
         self, position: Tuple[float, float], radius: float
@@ -437,8 +445,9 @@ class Environment(AECEnv):
         list
             List of resources within radius
         """
-        # Use spatial index for efficient O(log n) queries
-        return self.spatial_index.get_nearby_resources(position, radius)
+        # Use generic method with "resources" index
+        nearby = self.spatial_index.get_nearby(position, radius, ["resources"])
+        return nearby.get("resources", [])
 
     def get_nearest_resource(self, position: Tuple[float, float]) -> Optional[Any]:
         """Find nearest resource to position.
@@ -453,8 +462,9 @@ class Environment(AECEnv):
         Resource or None
             Nearest resource if any exist
         """
-        # Use spatial index for efficient O(log n) queries
-        return self.spatial_index.get_nearest_resource(position)
+        # Use generic method with "resources" index
+        nearest = self.spatial_index.get_nearest(position, ["resources"])
+        return nearest.get("resources")
 
     # Resource IDs are managed by ResourceManager
 
@@ -696,49 +706,119 @@ class Environment(AECEnv):
         return self.identity.agent_id()
 
     def state(self) -> EnvironmentState:
-        """Get current environment state (PettingZoo AECEnv requirement)."""
+        """Get current environment state (PettingZoo AECEnv requirement).
+
+        Creates an EnvironmentState object containing the current state of all
+        agents, resources, and environment properties for serialization and
+        analysis purposes.
+
+        Returns
+        -------
+        EnvironmentState
+            Immutable snapshot of the current environment state containing:
+            - All agent states and positions
+            - Resource locations and amounts
+            - Environment dimensions and time
+            - Spatial index state
+        """
         return EnvironmentState.from_environment(self)
 
     def is_valid_position(self, position: Tuple[float, float]) -> bool:
         """Check if a position is valid within the environment bounds.
 
+        Validates that the given coordinates are within the rectangular bounds
+        of the environment grid, inclusive of the boundary values. This is used
+        for boundary checking before agent movement and resource placement.
+
         Parameters
         ----------
-        position : tuple
-            (x, y) coordinates to check
+        position : tuple of float
+            (x, y) coordinates to check, where x is the horizontal position
+            and y is the vertical position
 
         Returns
         -------
         bool
-            True if position is within bounds, False otherwise
+            True if position is within bounds [0, width] x [0, height] inclusive,
+            False otherwise. Note that boundary values (0, width, height) are
+            considered valid positions.
         """
         x, y = position
         return (0 <= x <= self.width) and (0 <= y <= self.height)
 
     def record_birth(self) -> None:
-        """Record a birth event."""
+        """Record a birth event in the metrics tracker.
+
+        Increments the birth counter in the metrics tracker to track population
+        dynamics and reproduction statistics. This is called whenever a new
+        agent is created through reproduction or initial spawning.
+        """
         self.metrics_tracker.record_birth()
 
     def record_death(self) -> None:
-        """Record a death event."""
+        """Record a death event in the metrics tracker.
+
+        Increments the death counter in the metrics tracker to track population
+        dynamics and mortality statistics. This is called whenever an agent
+        dies due to starvation, combat, or other causes.
+        """
         self.metrics_tracker.record_death()
 
     def record_combat_encounter(self) -> None:
-        """Record a combat encounter."""
+        """Record a combat encounter event.
+
+        Increments the combat encounter counter to track the frequency of
+        combat interactions between agents. Used for analyzing conflict
+        patterns and agent behavior.
+        """
         self.metrics_tracker.record_combat_encounter()
 
     def record_successful_attack(self) -> None:
-        """Record a successful attack."""
+        """Record a successful attack event.
+
+        Increments the successful attack counter to track combat effectiveness
+        and agent combat success rates. This helps analyze combat dynamics
+        and evolutionary fitness.
+        """
         self.metrics_tracker.record_successful_attack()
 
     def record_resources_shared(self, amount: float) -> None:
-        """Record resources shared between agents."""
+        """Record resources shared between agents.
+
+        Tracks cooperative resource sharing behavior by recording the amount
+        of resources transferred between agents. Updates both the metrics
+        tracker and internal counters for step-level and total tracking.
+
+        Parameters
+        ----------
+        amount : float
+            The amount of resources that were shared between agents. Must be
+            a positive value representing the resource transfer amount.
+
+        Notes
+        -----
+        This method updates three tracking variables:
+        - MetricsTracker for long-term statistics and database logging
+        - self.resources_shared for total resources shared across simulation
+        - self.resources_shared_this_step for per-step tracking and analysis
+        """
         self.metrics_tracker.record_resources_shared(amount)
         self.resources_shared += amount
         self.resources_shared_this_step += amount
 
     def close(self) -> None:
-        """Clean up environment resources."""
+        """Clean up environment resources and close database connections.
+
+        Properly closes any open database connections to ensure data integrity
+        and prevent resource leaks. This method should be called when the
+        environment is no longer needed or when shutting down the simulation.
+
+        Notes
+        -----
+        This method safely handles cases where the database connection may
+        not exist or may already be closed, preventing exceptions during
+        cleanup operations.
+        """
         if hasattr(self, "db") and self.db is not None:
             self.db.close()
 
@@ -882,53 +962,76 @@ class Environment(AECEnv):
         While this provides a backup cleanup mechanism, it's better practice
         to call cleanup() explicitly rather than relying on the destructor,
         as the timing of garbage collection is not guaranteed in Python.
+        This destructor ensures database connections are properly closed and
+        any buffered data is flushed to prevent data loss.
         """
         self.cleanup()
 
     def action_space(self, agent: Optional[str] = None) -> spaces.Discrete:
         """Get the action space for an agent (PettingZoo API).
 
+        Returns the action space defining all possible actions an agent can take.
+        The action space is dynamically configured based on enabled actions and
+        may change during curriculum learning or action pruning scenarios.
+
         Parameters
         ----------
         agent : str, optional
-            Agent ID. If None, returns the general action space.
+            Agent ID. If None, returns the general action space that applies
+            to all agents. The action space is the same for all agents in
+            this environment.
 
         Returns
         -------
         gymnasium.spaces.Discrete
-            The action space containing all possible actions.
+            The action space containing all enabled actions. Each action is
+            represented by an integer index from 0 to n_actions-1, where
+            n_actions is the number of currently enabled actions.
         """
         return self._action_space
 
     def observation_space(self, agent: Optional[str] = None) -> spaces.Box:
         """Get the observation space for an agent (PettingZoo API).
 
+        Returns the observation space defining the shape and data type of
+        observations provided to agents. The observation space is configured
+        based on the observation configuration and includes multiple channels
+        for different types of environmental information.
+
         Parameters
         ----------
         agent : str, optional
-            Agent ID. If None, returns the general observation space.
+            Agent ID. If None, returns the general observation space that applies
+            to all agents. All agents receive observations with the same shape
+            and structure.
 
         Returns
         -------
         gymnasium.spaces.Box
             The observation space defining the shape and bounds of observations.
+            Shape is (NUM_CHANNELS, S, S) where S = 2*R + 1 and R is the
+            observation radius. Values are normalized to [0, 1] range.
         """
         return self._observation_space
 
     def observe(self, agent: str) -> np.ndarray:
         """Returns the observation an agent currently can make.
 
-        Required by PettingZoo API.
+        Required by PettingZoo API. Generates a multi-channel observation tensor
+        containing the agent's local view of the environment, including nearby
+        resources, agents, and the agent's own state.
 
         Parameters
         ----------
         agent : str
-            Agent identifier
+            Agent identifier for which to generate the observation
 
         Returns
         -------
         np.ndarray
-            Observation for the agent
+            Observation tensor for the agent with shape (channels, height, width).
+            If the agent is dead or doesn't exist, returns a zero tensor of
+            the appropriate shape. Values are normalized to [0, 1] range.
         """
         return self._get_observation(agent)
 
@@ -1133,9 +1236,8 @@ class Environment(AECEnv):
         # Query nearby resources within a radius covering the local window
         # Use slightly larger than R to capture bilinear spread near the boundary
         try:
-            nearby_resources = self.spatial_index.get_nearby_resources(
-                agent.position, R + 1
-            )
+            nearby = self.spatial_index.get_nearby(agent.position, R + 1, ["resources"])
+            nearby_resources = nearby.get("resources", [])
         except AttributeError as e:
             # Handle case where spatial_index or its attributes are None
             logger.warning("Spatial index not properly initialized: %s", e)
@@ -1397,6 +1499,57 @@ class Environment(AECEnv):
                 return
         self.agent_selection = None
 
+    def _update_agent_state(
+        self,
+        agent_id: str,
+        agent: Optional[Any],
+        observation: np.ndarray,
+        reward: float,
+        terminated: bool,
+        truncated: bool,
+    ) -> Tuple[np.ndarray, float, bool, bool]:
+        """Update the agent's state in the PettingZoo environment.
+
+        Handles updating all internal state dictionaries required for the AECEnv API,
+        including observations, terminations, truncations, infos, and cumulative rewards.
+        Also advances to the next agent in the cycle.
+
+        Parameters
+        ----------
+        agent_id : str
+            The ID of the agent to update
+        agent : Optional[Any]
+            The agent object (can be None for dead agents)
+        observation : np.ndarray
+            The observation for the current agent
+        reward : float
+            The reward received by the agent
+        terminated : bool
+            Whether the episode has terminated
+        truncated : bool
+            Whether the episode was truncated
+
+        Returns
+        -------
+        Tuple[np.ndarray, float, bool, bool]
+            Updated observation, reward, terminated, and truncated values
+        """
+        # Update internal PettingZoo state dictionaries (required for AECEnv API)
+        self.observations[agent_id] = observation
+        self.terminations[agent_id] = terminated
+        self.truncations[agent_id] = truncated
+        self.infos[agent_id] = {}
+
+        # Handle cumulative rewards - PettingZoo expects cumulative rewards in rewards dict
+        self._cumulative_rewards[agent_id] += reward
+        # Update rewards dict with cumulative reward for PettingZoo compatibility
+        self.rewards[agent_id] = self._cumulative_rewards[agent_id]
+
+        # Advance to next agent in the cycle (required for AECEnv API)
+        self._next_agent()
+
+        return observation, reward, terminated, truncated
+
     def reset(
         self, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None
     ) -> Tuple[np.ndarray, Dict[str, Any]]:
@@ -1485,7 +1638,7 @@ class Environment(AECEnv):
         ----------
         action : int, optional
             The action to take. Must be one of the valid actions defined in Action enum.
-            If None, no action is taken.
+            If None, no action is taken. #! Change to ActionIntent
 
         Returns
         -------
@@ -1497,16 +1650,11 @@ class Environment(AECEnv):
             - truncated (bool): Whether the episode was truncated (e.g., max steps reached)
             - info (dict): Additional information about the step
         """
-        if self.agent_selection is None or not self.agents:
-            dummy_obs = np.zeros(
-                self._observation_space.shape, dtype=self._observation_space.dtype
-            )
-            return dummy_obs, 0.0, True, True, {}
-
         agent_id = self.agent_selection
         agent = self._agent_objects.get(agent_id)
 
         # Capture pre-action state for delta calculations
+        #! This will likely depend on the reward system
         pre_action_state = None
         if agent:
             pre_action_state = {
@@ -1546,29 +1694,35 @@ class Environment(AECEnv):
             )
         )
 
-        # Update internal PettingZoo state dictionaries (required for AECEnv API)
-        self.observations[agent_id] = observation
-        self.terminations[agent_id] = terminated
-        self.truncations[agent_id] = truncated
-        self.infos[agent_id] = {}
-
-        # Handle cumulative rewards - PettingZoo expects cumulative rewards in rewards dict
-        self._cumulative_rewards[agent_id] += reward
-        # Update rewards dict with cumulative reward for PettingZoo compatibility
-        self.rewards[agent_id] = self._cumulative_rewards[agent_id]
-
-        # Advance to next agent in the cycle (required for AECEnv API)
-        self._next_agent()
+        # Update agent state and advance to next agent
+        observation, reward, terminated, truncated = self._update_agent_state(
+            agent_id, agent, observation, reward, terminated, truncated
+        )
 
         return observation, reward, terminated, truncated, {}
 
     def render(self, mode: str = "human") -> None:
         """Render the current state of the environment.
 
+        Provides a simple text-based rendering of the current simulation state
+        for monitoring and debugging purposes. Currently only supports human-
+        readable console output with basic statistics.
+
         Parameters
         ----------
-        mode : str
-            The rendering mode. Currently only supports "human".
+        mode : str, default="human"
+            The rendering mode. Currently only supports "human" for console output.
+            Future implementations may support graphical rendering modes.
+
+        Notes
+        -----
+        Current implementation prints:
+        - Current simulation time step
+        - Number of active agents
+        - Total cached resources in the environment
+
+        TODO: Implement proper graphical visualization for better analysis
+        and debugging capabilities.
         """
         if mode == "human":
             print(f"Time: {self.time}")

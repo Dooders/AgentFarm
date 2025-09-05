@@ -281,44 +281,34 @@ class SpatialIndexAdapter(ISpatialQueryService):
         """
         self._index = spatial_index
 
-    def get_nearby_agents(
-        self, position: Tuple[float, float], radius: float
-    ) -> List[Any]:
-        """Get all agents within a specified radius using the spatial index.
+    def get_nearby(
+        self, position: Tuple[float, float], radius: float, index_names: Optional[List[str]] = None
+    ) -> Dict[str, List[Any]]:
+        """Get all entities within a specified radius using the spatial index.
 
         Args:
             position: A tuple of (x, y) coordinates representing the center point.
             radius: The search radius around the position.
+            index_names: Optional list of index names to query. If None, queries all indices.
 
         Returns:
-            A list of agents within the specified radius.
+            A dictionary mapping index names to lists of entities within the specified radius.
         """
-        return self._index.get_nearby_agents(position, radius)
+        return self._index.get_nearby(position, radius, index_names)
 
-    def get_nearby_resources(
-        self, position: Tuple[float, float], radius: float
-    ) -> List[Any]:
-        """Get all resources within a specified radius using the spatial index.
-
-        Args:
-            position: A tuple of (x, y) coordinates representing the center point.
-            radius: The search radius around the position.
-
-        Returns:
-            A list of resources within the specified radius.
-        """
-        return self._index.get_nearby_resources(position, radius)
-
-    def get_nearest_resource(self, position: Tuple[float, float]) -> Optional[Any]:
-        """Find the nearest resource to a given position using the spatial index.
+    def get_nearest(
+        self, position: Tuple[float, float], index_names: Optional[List[str]] = None
+    ) -> Dict[str, Optional[Any]]:
+        """Find the nearest entity to a given position for each specified index using the spatial index.
 
         Args:
             position: A tuple of (x, y) coordinates to search from.
+            index_names: Optional list of index names to query. If None, queries all indices.
 
         Returns:
-            The nearest resource object, or None if no resources are found.
+            A dictionary mapping index names to the nearest entity (or None if none exists).
         """
-        return self._index.get_nearest_resource(position)
+        return self._index.get_nearest(position, index_names)
 
     def mark_positions_dirty(self) -> None:
         """Mark that agent/resource positions have changed and spatial index needs updating.

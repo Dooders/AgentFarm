@@ -338,34 +338,34 @@ class TestSpatialIndex(unittest.TestCase):
             # Dirty flag should be cleared
             self.assertFalse(self.spatial_index._positions_dirty)
 
-    def test_get_nearby_agents_validation(self):
-        """Test input validation for get_nearby_agents."""
+    def test_get_nearby_validation(self):
+        """Test input validation for get_nearby with agents index."""
         # Test invalid radius
-        result = self.spatial_index.get_nearby_agents((10, 10), -1)
-        self.assertEqual(result, [])
+        result = self.spatial_index.get_nearby((10, 10), -1, ["agents"])
+        self.assertEqual(result.get("agents", []), [])
 
-        result = self.spatial_index.get_nearby_agents((10, 10), 0)
-        self.assertEqual(result, [])
+        result = self.spatial_index.get_nearby((10, 10), 0, ["agents"])
+        self.assertEqual(result.get("agents", []), [])
 
         # Test invalid position
-        result = self.spatial_index.get_nearby_agents((-1, 10), 5)
-        self.assertEqual(result, [])
+        result = self.spatial_index.get_nearby((-1, 10), 5, ["agents"])
+        self.assertEqual(result.get("agents", []), [])
 
-        result = self.spatial_index.get_nearby_agents((10, 101), 5)  # Outside height
-        self.assertEqual(result, [])
+        result = self.spatial_index.get_nearby((10, 101), 5, ["agents"])  # Outside height
+        self.assertEqual(result.get("agents", []), [])
 
-    def test_get_nearby_agents_no_kdtree(self):
-        """Test get_nearby_agents when KD-tree is None."""
+    def test_get_nearby_no_kdtree(self):
+        """Test get_nearby when KD-tree is None."""
         # Ensure no agents and no KD-tree
         self.agents = []
         self.spatial_index.set_references(self.agents, self.resources)
         self.spatial_index.agent_kdtree = None
 
-        result = self.spatial_index.get_nearby_agents((10, 10), 5)
-        self.assertEqual(result, [])
+        result = self.spatial_index.get_nearby((10, 10), 5, ["agents"])
+        self.assertEqual(result["agents"], [])
 
-    def test_get_nearby_agents_with_agents(self):
-        """Test get_nearby_agents with actual agents."""
+    def test_get_nearby_with_agents(self):
+        """Test get_nearby with actual agents."""
         # Add agents
         agent1 = MockBaseAgent(
             agent_id="agent1",
@@ -396,15 +396,15 @@ class TestSpatialIndex(unittest.TestCase):
         self.spatial_index._rebuild_kdtrees()
 
         # Test query around agent1
-        nearby = self.spatial_index.get_nearby_agents((10, 10), 10)
-        self.assertEqual(len(nearby), 2)  # agent1 and agent2
-        agent_ids = [agent.agent_id for agent in nearby]
+        nearby = self.spatial_index.get_nearby((10, 10), 10, ["agents"])
+        self.assertEqual(len(nearby["agents"]), 2)  # agent1 and agent2
+        agent_ids = [agent.agent_id for agent in nearby["agents"]]
         self.assertIn("agent1", agent_ids)
         self.assertIn("agent2", agent_ids)
         self.assertNotIn("agent3", agent_ids)
 
-    def test_get_nearby_agents_excludes_dead_agents(self):
-        """Test that get_nearby_agents excludes dead agents."""
+    def test_get_nearby_excludes_dead_agents(self):
+        """Test that get_nearby excludes dead agents."""
         # Add agents
         agent1 = MockBaseAgent(
             agent_id="agent1",
@@ -430,9 +430,9 @@ class TestSpatialIndex(unittest.TestCase):
         self.spatial_index._rebuild_kdtrees()
 
         # Test query
-        nearby = self.spatial_index.get_nearby_agents((10, 10), 10)
-        self.assertEqual(len(nearby), 1)
-        self.assertEqual(nearby[0].agent_id, "agent1")
+        nearby = self.spatial_index.get_nearby((10, 10), 10, ["agents"])
+        self.assertEqual(len(nearby["agents"]), 1)
+        self.assertEqual(nearby["agents"][0].agent_id, "agent1")
 
     def test_cache_invalidation_on_agent_death(self):
         """Test that cache is properly invalidated when agents die, preventing stale cache issues."""
@@ -469,12 +469,12 @@ class TestSpatialIndex(unittest.TestCase):
         self.spatial_index.update()  # This rebuilds the cache with only alive agents
 
         # Query with properly updated cache
-        nearby = self.spatial_index.get_nearby_agents((10, 10), 10)
+        nearby = self.spatial_index.get_nearby((10, 10), 10, ["agents"])
 
         # Should only return alive agent since cache was properly invalidated
-        self.assertEqual(len(nearby), 1)
-        self.assertEqual(nearby[0].agent_id, "agent1")
-        self.assertNotIn(agent2, nearby)
+        self.assertEqual(len(nearby["agents"]), 1)
+        self.assertEqual(nearby["agents"][0].agent_id, "agent1")
+        self.assertNotIn(agent2, nearby["agents"])
 
         # Verify the dead agent is no longer in the updated cache
         updated_cache = self.spatial_index._cached_alive_agents
@@ -482,40 +482,40 @@ class TestSpatialIndex(unittest.TestCase):
         self.assertNotIn(agent2, updated_cache)
         self.assertEqual(len(updated_cache), 1)  # Cache contains only alive agents
 
-    def test_get_nearby_resources_input_validation(self):
-        """Test input validation for get_nearby_resources (bug fix)."""
+    def test_get_nearby_input_validation(self):
+        """Test input validation for get_nearby (bug fix)."""
         # Test invalid radius
-        result = self.spatial_index.get_nearby_resources((10, 10), -1)
-        self.assertEqual(result, [])
+        result = self.spatial_index.get_nearby((10, 10), -1, ["resources"])
+        self.assertEqual(result.get("resources", []), [])
 
-        result = self.spatial_index.get_nearby_resources((10, 10), 0)
-        self.assertEqual(result, [])
+        result = self.spatial_index.get_nearby((10, 10), 0, ["resources"])
+        self.assertEqual(result.get("resources", []), [])
 
         # Test invalid position
-        result = self.spatial_index.get_nearby_resources((-1, 10), 5)
-        self.assertEqual(result, [])
+        result = self.spatial_index.get_nearby((-1, 10), 5, ["resources"])
+        self.assertEqual(result.get("resources", []), [])
 
-        result = self.spatial_index.get_nearby_resources((10, 101), 5)  # Outside height
-        self.assertEqual(result, [])
+        result = self.spatial_index.get_nearby((10, 101), 5, ["resources"])  # Outside height
+        self.assertEqual(result.get("resources", []), [])
 
         # Test valid inputs still work
         self.spatial_index._rebuild_kdtrees()
-        result = self.spatial_index.get_nearby_resources((10, 10), 5)
-        self.assertIsInstance(result, list)
+        result = self.spatial_index.get_nearby((10, 10), 5, ["resources"])
+        self.assertIsInstance(result["resources"], list)
 
-    def test_get_nearest_resource_input_validation(self):
-        """Test input validation for get_nearest_resource (bug fix)."""
+    def test_get_nearest_input_validation(self):
+        """Test input validation for get_nearest (bug fix)."""
         # Test invalid position (outside 1% margin)
-        result = self.spatial_index.get_nearest_resource((-2, 10))  # Outside 1% margin
-        self.assertIsNone(result)
+        result = self.spatial_index.get_nearest((-2, 10), ["resources"])  # Outside 1% margin
+        self.assertIsNone(result.get("resources"))
 
-        result = self.spatial_index.get_nearest_resource((10, 102))  # Outside 1% margin
-        self.assertIsNone(result)
+        result = self.spatial_index.get_nearest((10, 102), ["resources"])  # Outside 1% margin
+        self.assertIsNone(result.get("resources"))
 
         # Test valid inputs still work
         self.spatial_index._rebuild_kdtrees()
-        result = self.spatial_index.get_nearest_resource((10, 10))
-        self.assertIsInstance(result, Resource)
+        result = self.spatial_index.get_nearest((10, 10), ["resources"])
+        self.assertIsInstance(result["resources"], Resource)
 
     def test_consistent_input_validation_across_methods(self):
         """Test that all spatial query methods have consistent input validation."""
@@ -532,13 +532,13 @@ class TestSpatialIndex(unittest.TestCase):
         # Test that all methods reject invalid positions consistently
         for pos in boundary_positions:
             # All methods should handle invalid positions gracefully
-            agents_result = self.spatial_index.get_nearby_agents(pos, 5)
-            resources_result = self.spatial_index.get_nearby_resources(pos, 5)
-            nearest_result = self.spatial_index.get_nearest_resource(pos)
+            agents_result = self.spatial_index.get_nearby(pos, 5, ["agents"])
+            resources_result = self.spatial_index.get_nearby(pos, 5, ["resources"])
+            nearest_result = self.spatial_index.get_nearest(pos, ["resources"])
 
-            self.assertEqual(agents_result, [])
-            self.assertEqual(resources_result, [])
-            self.assertIsNone(nearest_result)
+            self.assertEqual(agents_result.get("agents", []), [])
+            self.assertEqual(resources_result.get("resources", []), [])
+            self.assertIsNone(nearest_result.get("resources"))
 
         # Test valid boundary positions (should work)
         valid_boundary_positions = [
@@ -553,45 +553,45 @@ class TestSpatialIndex(unittest.TestCase):
         self.spatial_index._rebuild_kdtrees()
         for pos in valid_boundary_positions:
             # All methods should accept valid boundary positions
-            agents_result = self.spatial_index.get_nearby_agents(pos, 5)
-            resources_result = self.spatial_index.get_nearby_resources(pos, 5)
-            nearest_result = self.spatial_index.get_nearest_resource(pos)
+            agents_result = self.spatial_index.get_nearby(pos, 5, ["agents"])
+            resources_result = self.spatial_index.get_nearby(pos, 5, ["resources"])
+            nearest_result = self.spatial_index.get_nearest(pos, ["resources"])
 
-            self.assertIsInstance(agents_result, list)
-            self.assertIsInstance(resources_result, list)
+            self.assertIsInstance(agents_result["agents"], list)
+            self.assertIsInstance(resources_result["resources"], list)
             # nearest_result could be None if no resources, but should not crash
 
-    def test_get_nearby_resources(self):
-        """Test get_nearby_resources functionality."""
+    def test_get_nearby(self):
+        """Test get_nearby functionality."""
         # Test with no KD-tree
         self.spatial_index.resource_kdtree = None
-        result = self.spatial_index.get_nearby_resources((10, 10), 5)
-        self.assertEqual(result, [])
+        result = self.spatial_index.get_nearby((10, 10), 5, ["resources"])
+        self.assertEqual(result["resources"], [])
 
         # Rebuild KD-tree
         self.spatial_index._rebuild_kdtrees()
 
         # Test query
-        nearby = self.spatial_index.get_nearby_resources((10, 10), 20)
-        self.assertGreater(len(nearby), 0)
-        self.assertLessEqual(len(nearby), len(self.resources))
+        nearby = self.spatial_index.get_nearby((10, 10), 20, ["resources"])
+        self.assertGreater(len(nearby["resources"]), 0)
+        self.assertLessEqual(len(nearby["resources"]), len(self.resources))
 
-    def test_get_nearest_resource(self):
-        """Test get_nearest_resource functionality."""
+    def test_get_nearest(self):
+        """Test get_nearest functionality."""
         # Test with no KD-tree
         self.spatial_index.resource_kdtree = None
         with patch.object(self.spatial_index, "update") as mock_update:
-            result = self.spatial_index.get_nearest_resource((10, 10))
-            self.assertIsNone(result)
+            result = self.spatial_index.get_nearest((10, 10), ["resources"])
+            self.assertIsNone(result["resources"])
             mock_update.assert_called_once()
 
         # Rebuild KD-tree
         self.spatial_index._rebuild_kdtrees()
 
         # Test query
-        nearest = self.spatial_index.get_nearest_resource((10, 10))
-        self.assertIsNotNone(nearest)
-        self.assertIsInstance(nearest, Resource)
+        nearest = self.spatial_index.get_nearest((10, 10), ["resources"])
+        self.assertIsNotNone(nearest["resources"])
+        self.assertIsInstance(nearest["resources"], Resource)
 
     def test_get_agent_count(self):
         """Test get_agent_count method."""
@@ -730,9 +730,9 @@ class TestSpatialIndex(unittest.TestCase):
         self.assertNotIn(agent2, cached_agents)
 
         # Verify queries use cached agents correctly
-        nearby = self.spatial_index.get_nearby_agents((10, 10), 5)
-        self.assertEqual(len(nearby), 1)
-        self.assertEqual(nearby[0].agent_id, "agent1")
+        nearby = self.spatial_index.get_nearby((10, 10), 5, ["agents"])
+        self.assertEqual(len(nearby["agents"]), 1)
+        self.assertEqual(nearby["agents"][0].agent_id, "agent1")
 
     def test_position_duplicates(self):
         """Test handling of multiple agents at the same position."""
@@ -764,11 +764,11 @@ class TestSpatialIndex(unittest.TestCase):
         self.spatial_index.force_rebuild()
 
         # Query at the duplicate position with small radius
-        nearby = self.spatial_index.get_nearby_agents(duplicate_pos, 0.1)
-        self.assertEqual(len(nearby), num_duplicates)  # Should return all duplicates
+        nearby = self.spatial_index.get_nearby(duplicate_pos, 0.1, ["agents"])
+        self.assertEqual(len(nearby["agents"]), num_duplicates)  # Should return all duplicates
 
         # Check that all returned agents are at the position
-        for agent in nearby:
+        for agent in nearby["agents"]:
             self.assertEqual(tuple(agent.position), duplicate_pos)
 
     def test_floating_point_precision_in_hashes(self):
@@ -845,8 +845,8 @@ class TestSpatialIndex(unittest.TestCase):
         start_time = time.time()
         num_queries = 100
         for _ in range(num_queries):
-            nearby = self.spatial_index.get_nearby_agents((50, 50), 10)
-            self.assertIsInstance(nearby, list)
+            nearby = self.spatial_index.get_nearby((50, 50), 10, ["agents"])
+            self.assertIsInstance(nearby["agents"], list)
         query_time = time.time() - start_time
         # Allow 10ms per query
         max_query_time = max(1.0, num_queries * 0.01)
@@ -884,7 +884,7 @@ class TestSpatialIndex(unittest.TestCase):
 
         num_queries = 100
         for _ in range(num_queries):
-            self.spatial_index.get_nearby_agents((50, 50), 10)
+            self.spatial_index.get_nearby((50, 50), 10, ["agents"])
 
         end_time = time.time()
         query_time = end_time - start_time
@@ -950,8 +950,8 @@ class TestSpatialIndex(unittest.TestCase):
         self.spatial_index._rebuild_kdtrees()
 
         # Should be able to query
-        nearby = self.spatial_index.get_nearby_agents((50, 50), 10)
-        self.assertIsInstance(nearby, list)
+        nearby = self.spatial_index.get_nearby((50, 50), 10, ["agents"])
+        self.assertIsInstance(nearby["agents"], list)
 
         # Test with no resources
         self.resources = []
@@ -959,11 +959,11 @@ class TestSpatialIndex(unittest.TestCase):
         self.spatial_index._rebuild_kdtrees()
 
         # Should handle gracefully
-        nearby_resources = self.spatial_index.get_nearby_resources((10, 10), 5)
-        self.assertEqual(nearby_resources, [])
+        nearby_resources = self.spatial_index.get_nearby((10, 10), 5, ["resources"])
+        self.assertEqual(nearby_resources["resources"], [])
 
-        nearest_resource = self.spatial_index.get_nearest_resource((10, 10))
-        self.assertIsNone(nearest_resource)
+        nearest_resource = self.spatial_index.get_nearest((10, 10), ["resources"])
+        self.assertIsNone(nearest_resource["resources"])
 
     def test_concurrent_modifications(self):
         """Test behavior under simulated concurrent modifications."""
@@ -996,15 +996,15 @@ class TestSpatialIndex(unittest.TestCase):
         mod_thread.start()
 
         # Perform query in main thread (may race)
-        nearby = self.spatial_index.get_nearby_agents((0, 0), 50)
-        self.assertIsInstance(nearby, list)  # Should not crash
+        nearby = self.spatial_index.get_nearby((0, 0), 50, ["agents"])
+        self.assertIsInstance(nearby["agents"], list)  # Should not crash
 
         mod_thread.join()
 
         # After modification, force rebuild and check
         self.spatial_index.force_rebuild()
-        nearby_after = self.spatial_index.get_nearby_agents((0, 0), 50)
-        self.assertIsInstance(nearby_after, list)
+        nearby_after = self.spatial_index.get_nearby((0, 0), 50, ["agents"])
+        self.assertIsInstance(nearby_after["agents"], list)
 
     def test_is_valid_position_method(self):
         """Test the _is_valid_position method directly."""
@@ -1094,14 +1094,14 @@ class TestSpatialIndex(unittest.TestCase):
         # Test queries at boundary positions
         for resource in boundary_resources:
             # Query at exact resource position with small radius
-            nearby = boundary_index.get_nearby_resources(resource.position, 0.1)
-            self.assertEqual(len(nearby), 1)
-            self.assertEqual(nearby[0].resource_id, resource.resource_id)
+            nearby = boundary_index.get_nearby(resource.position, 0.1, ["resources"])
+            self.assertEqual(len(nearby["resources"]), 1)
+            self.assertEqual(nearby["resources"][0].resource_id, resource.resource_id)
 
             # Test nearest resource query
-            nearest = boundary_index.get_nearest_resource(resource.position)
-            self.assertIsNotNone(nearest)
-            self.assertEqual(nearest.resource_id, resource.resource_id)
+            nearest = boundary_index.get_nearest(resource.position, ["resources"])
+            self.assertIsNotNone(nearest["resources"])
+            self.assertEqual(nearest["resources"].resource_id, resource.resource_id)
 
     def test_complex_agent_lifecycle(self):
         """Test complex scenarios with agent birth, death, and position changes."""
@@ -1192,10 +1192,10 @@ class TestSpatialIndex(unittest.TestCase):
 
         # Verify spatial queries still work after complex lifecycle
         center_pos = (50, 50)
-        nearby = lifecycle_index.get_nearby_agents(center_pos, 20)
-        self.assertIsInstance(nearby, list)
+        nearby = lifecycle_index.get_nearby(center_pos, 20, ["agents"])
+        self.assertIsInstance(nearby["agents"], list)
         # All nearby agents should be alive (the KD-tree should only contain alive agents)
-        for agent in nearby:
+        for agent in nearby["agents"]:
             self.assertTrue(agent.alive, f"Agent {agent.agent_id} is not alive but was returned by spatial query")
 
         # Also verify that get_agent_count matches the number of alive agents
@@ -1330,8 +1330,8 @@ class TestSpatialIndex(unittest.TestCase):
         query_start = time.time()
         num_queries = 100
         for _ in range(num_queries):
-            nearby_agents = large_index.get_nearby_agents((500, 500), 50)
-            nearby_resources = large_index.get_nearby_resources((500, 500), 50)
+            nearby_agents = large_index.get_nearby((500, 500), 50, ["agents"])
+            nearby_resources = large_index.get_nearby((500, 500), 50, ["resources"])
 
         query_time = time.time() - query_start
         avg_query_time = query_time / num_queries
@@ -1344,10 +1344,13 @@ class TestSpatialIndex(unittest.TestCase):
         self.assertEqual(large_index.get_resource_count(), num_resources)
 
         # Test that queries return reasonable results
-        center_query = large_index.get_nearby_agents((500, 500), 50)
-        self.assertIsInstance(center_query, list)
+        center_query = large_index.get_nearby((500, 500), 50)
+        self.assertIsInstance(center_query, dict)
+        # Should have agents and resources keys
+        self.assertIn("agents", center_query)
+        self.assertIn("resources", center_query)
         # Should find some agents in a 50-unit radius around center of 1000x1000 area
-        self.assertGreater(len(center_query), 0)
+        self.assertGreater(len(center_query["agents"]), 0)
 
     def test_margin_calculation_edge_cases(self):
         """Test edge cases in margin calculation for position validation."""
@@ -1386,6 +1389,120 @@ class TestSpatialIndex(unittest.TestCase):
         self.assertFalse(fractional_index._is_valid_position((10.5 + margin_x + 0.01, 3.625)))
         self.assertFalse(fractional_index._is_valid_position((5.25, -margin_y - 0.01)))
         self.assertFalse(fractional_index._is_valid_position((5.25, 7.25 + margin_y + 0.01)))
+
+class TestSpatialIndexNamedIndices(unittest.TestCase):
+    """Additional tests for configurable named indices and generic getters."""
+
+    def test_register_custom_index_filtering_and_queries(self):
+        index = SpatialIndex(width=100, height=100)
+
+        # Prepare agents with a custom attribute used for filtering
+        agents = []
+        predator = MockBaseAgent(
+            agent_id="pred1",
+            position=(10, 10),
+            resource_level=10,
+            environment=None,
+        )
+        setattr(predator, "type", "predator")
+
+        prey = MockBaseAgent(
+            agent_id="prey1",
+            position=(40, 40),
+            resource_level=10,
+            environment=None,
+        )
+        setattr(prey, "type", "prey")
+
+        agents.extend([predator, prey])
+
+        # Minimal resources
+        resources = [
+            Resource(resource_id=1, position=(0, 0), amount=5, max_amount=10, regeneration_rate=0.1),
+            Resource(resource_id=2, position=(80, 80), amount=5, max_amount=10, regeneration_rate=0.1),
+        ]
+
+        index.set_references(agents, resources)
+
+        # Register a custom named index of only predators
+        index.register_index(
+            name="predators",
+            data_reference=agents,
+            position_getter=lambda a: a.position,
+            filter_func=lambda a: getattr(a, "type", None) == "predator",
+        )
+
+        # Build structures
+        index.force_rebuild()
+
+        # Generic nearby query (search all by default)
+        nearby = index.get_nearby((12, 12), 10)
+        self.assertIn("agents", nearby)
+        self.assertIn("resources", nearby)
+        self.assertIn("predators", nearby)
+
+        # Predator should be found near (12,12); prey should not be in the custom list
+        self.assertTrue(any(a.agent_id == "pred1" for a in nearby["predators"]))
+        self.assertFalse(any(a.agent_id == "prey1" for a in nearby["predators"]))
+
+        # Generic nearest limited to a specific index
+        nearest = index.get_nearest((9, 9), index_names=["predators"])  # closest to predator
+        self.assertIn("predators", nearest)
+        self.assertIsNotNone(nearest["predators"])
+        self.assertEqual(nearest["predators"].agent_id, "pred1")
+
+    def test_constructor_supplied_indices(self):
+        # Initial lists
+        agents = []
+        resources = []
+
+        # Provide initial config/data for a custom "all_agents" index
+        idx_configs = {
+            "all_agents": {
+                "position_getter": lambda a: a.position,
+                # no filter -> include all
+            }
+        }
+        idx_data = {
+            "all_agents": agents,
+        }
+
+        custom_index = SpatialIndex(width=100, height=100, index_configs=idx_configs, index_data=idx_data)
+
+        # Populate references
+        a1 = MockBaseAgent("a1", (5, 5), 0, None)
+        a2 = MockBaseAgent("a2", (60, 60), 0, None)
+        agents.extend([a1, a2])
+        resources.append(Resource(1, (10, 10), 5, 10, 0.1))
+
+        custom_index.set_references(agents, resources)
+        custom_index.force_rebuild()
+
+        # Query only the constructor-supplied index
+        nearby = custom_index.get_nearby((6, 6), 5, index_names=["all_agents"])
+        self.assertIn("all_agents", nearby)
+        self.assertTrue(any(a.agent_id == "a1" for a in nearby["all_agents"]))
+        self.assertFalse(any(a.agent_id == "a2" for a in nearby["all_agents"]))
+
+    def test_get_nearest_with_index_names(self):
+        index = SpatialIndex(width=100, height=100)
+        agents = []
+        resources = []
+        a1 = MockBaseAgent("x1", (25, 25), 0, None)
+        a2 = MockBaseAgent("x2", (75, 75), 0, None)
+        agents.extend([a1, a2])
+        for i in range(3):
+            resources.append(Resource(i, (i * 30, i * 30), 5, 10, 0.1))
+
+        index.set_references(agents, resources)
+        index.force_rebuild()
+
+        nearest = index.get_nearest((26, 26), index_names=["agents"])  # should pick a1
+        self.assertEqual(nearest.get("agents").agent_id, "x1")
+
+        nearest_all = index.get_nearest((2, 2))  # all indices by default
+        self.assertIn("agents", nearest_all)
+        self.assertIn("resources", nearest_all)
 
 
 if __name__ == "__main__":

@@ -357,9 +357,8 @@ class BaseAgent:
 
         # Get nearby entities using spatial service
         try:
-            nearby_resources = self.spatial_service.get_nearby_resources(
-                self.position, radius
-            )
+            nearby = self.spatial_service.get_nearby(self.position, radius, ["resources"])
+            nearby_resources = nearby.get("resources", [])
         except Exception as e:
             logger.warning(
                 f"Failed to get nearby resources for agent {self.agent_id}: {e}"
@@ -367,9 +366,8 @@ class BaseAgent:
             nearby_resources = []  # Use empty list as fallback
 
         try:
-            nearby_agents = self.spatial_service.get_nearby_agents(
-                self.position, radius
-            )
+            nearby = self.spatial_service.get_nearby(self.position, radius, ["agents"])
+            nearby_agents = nearby.get("agents", [])
         except Exception as e:
             logger.warning(
                 f"Failed to get nearby agents for agent {self.agent_id}: {e}"
