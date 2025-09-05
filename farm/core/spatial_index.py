@@ -184,9 +184,13 @@ class SpatialIndex:
             True if positions have changed, False otherwise
         """
         # Build current positions for comparison
+        # Filter out items without valid positions
+        alive_agents = [agent for agent in alive_agents if agent.position is not None]
+        valid_resources = [resource for resource in self._resources if resource.position is not None]
+
         current_agent_positions = np.array([agent.position for agent in alive_agents]) if alive_agents else None
         current_resource_positions = (
-            np.array([resource.position for resource in self._resources]) if self._resources else None
+            np.array([resource.position for resource in valid_resources]) if valid_resources else None
         )
 
         # Calculate hash of current agent positions
@@ -220,6 +224,9 @@ class SpatialIndex:
         if alive_agents is None:
             alive_agents = [agent for agent in self._agents if agent.alive]
 
+        # Filter out agents without valid positions
+        alive_agents = [agent for agent in alive_agents if agent.position is not None]
+
         self._cached_alive_agents = alive_agents  # Cache contains only alive agents for efficient queries
         if alive_agents:
             self.agent_positions = np.array([agent.position for agent in alive_agents])
@@ -229,8 +236,10 @@ class SpatialIndex:
             self.agent_positions = None
 
         # Update resource KD-tree
-        if self._resources:
-            self.resource_positions = np.array([resource.position for resource in self._resources])
+        # Filter out resources without valid positions
+        valid_resources = [resource for resource in self._resources if resource.position is not None]
+        if valid_resources:
+            self.resource_positions = np.array([resource.position for resource in valid_resources])
             self.resource_kdtree = cKDTree(self.resource_positions)
         else:
             self.resource_kdtree = None
@@ -291,17 +300,21 @@ class SpatialIndex:
                 state["positions_dirty"] = False
                 # Compute hash and counts for consistency
                 current_items = state["cached_items"] or []
+                # Filter out items without valid positions
+                valid_items = [it for it in current_items if state["position_getter"](it) is not None]
                 current_positions = (
-                    np.array([state["position_getter"](it) for it in current_items])
-                    if current_items
+                    np.array([state["position_getter"](it) for it in valid_items])
+                    if valid_items
                     else None
                 )
                 if current_positions is not None and len(current_positions) > 0:
                     curr_hash = hashlib.md5(current_positions.tobytes()).hexdigest()
                 else:
                     curr_hash = "0"
-                state["cached_count"] = len(current_items)
+                state["cached_count"] = len(valid_items)
                 state["cached_hash"] = curr_hash
+                # Update cached_items to only include items with valid positions
+                state["cached_items"] = valid_items
                 continue
             if name == "resources":
                 state["kdtree"] = self.resource_kdtree
@@ -309,17 +322,21 @@ class SpatialIndex:
                 state["cached_items"] = self._resources
                 state["positions_dirty"] = False
                 current_items = state["cached_items"] or []
+                # Filter out items without valid positions
+                valid_items = [it for it in current_items if state["position_getter"](it) is not None]
                 current_positions = (
-                    np.array([state["position_getter"](it) for it in current_items])
-                    if current_items
+                    np.array([state["position_getter"](it) for it in valid_items])
+                    if valid_items
                     else None
                 )
                 if current_positions is not None and len(current_positions) > 0:
                     curr_hash = hashlib.md5(current_positions.tobytes()).hexdigest()
                 else:
                     curr_hash = "0"
-                state["cached_count"] = len(current_items)
+                state["cached_count"] = len(valid_items)
                 state["cached_hash"] = curr_hash
+                # Update cached_items to only include items with valid positions
+                state["cached_items"] = valid_items
                 continue
 
             # For custom indices, rebuild if marked dirty
@@ -345,18 +362,21 @@ class SpatialIndex:
         else:
             filtered_items = list(items)
 
+        # Filter out items without valid positions
+        valid_items = [it for it in filtered_items if state["position_getter"](it) is not None]
+
         # Build positions array
-        if filtered_items:
-            positions = np.array([state["position_getter"](it) for it in filtered_items])
+        if valid_items:
+            positions = np.array([state["position_getter"](it) for it in valid_items])
             kdtree = cKDTree(positions)
         else:
             positions = None
             kdtree = None
 
-        state["cached_items"] = filtered_items
+        state["cached_items"] = valid_items
         state["positions"] = positions
         state["kdtree"] = kdtree
-        state["cached_count"] = len(filtered_items)
+        state["cached_count"] = len(valid_items)
         if positions is not None and len(positions) > 0:
             state["cached_hash"] = hashlib.md5(positions.tobytes()).hexdigest()
         else:
