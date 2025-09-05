@@ -147,7 +147,8 @@ def create_observation_tensor(
     if initialization == "zeros":
         return torch.zeros(num_channels, size, size, device=device, dtype=dtype)
     elif initialization == "random":
-        return torch.rand(num_channels, size, size, device=device, dtype=dtype) * (random_max - random_min) + random_min
+        rand_tensor = torch.rand(num_channels, size, size, device=device, dtype=dtype) * (random_max - random_min) + random_min
+        return rand_tensor
     else:
         raise ValueError(f"Unknown initialization method: {initialization}. Must be 'zeros' or 'random'")
 

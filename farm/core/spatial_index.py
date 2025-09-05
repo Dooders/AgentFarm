@@ -439,7 +439,36 @@ class SpatialIndex:
     ) -> Dict[str, List[Any]]:
         """Generic nearby query across one or more named indices.
 
-        By default, searches across all registered indices.
+        Parameters
+        ----------
+        position : Tuple[float, float]
+            Query position as (x, y) coordinates
+        radius : float
+            Search radius around the query position. Must be positive.
+        index_names : List[str], optional
+            Names of specific indices to search. If None, searches all registered indices.
+
+        Returns
+        -------
+        Dict[str, List[Any]]
+            Dictionary mapping index names to lists of nearby items within the radius.
+            Each index name corresponds to a key in the returned dictionary, even if
+            no items are found (in which case the list will be empty).
+
+        Examples
+        --------
+        >>> # Search all indices for items within 10 units
+        >>> nearby = spatial_index.get_nearby((5.0, 5.0), 10.0)
+        >>> # Returns: {'agents': [agent1, agent2], 'resources': [resource1]}
+
+        >>> # Search only specific indices
+        >>> nearby = spatial_index.get_nearby((5.0, 5.0), 10.0, ['agents'])
+        >>> # Returns: {'agents': [agent1, agent2]}
+
+        Notes
+        -----
+        Only searches indices that have been registered via register_index() and
+        contain valid KD-trees. Invalid or empty indices will return empty lists.
         """
         self.update()
 
@@ -465,7 +494,39 @@ class SpatialIndex:
     ) -> Dict[str, Optional[Any]]:
         """Generic nearest query across one or more named indices.
 
-        Returns a mapping from index name to nearest item (or None).
+        Parameters
+        ----------
+        position : tuple of float
+            The (x, y) coordinates to query for the nearest item.
+        index_names : list of str, optional
+            List of index names to query. If None, queries all registered indices.
+
+        Returns
+        -------
+        dict of str to object or None
+            A dictionary mapping each index name to the nearest item in that index,
+            or None if the index is empty or not found.
+
+        Examples
+        --------
+        Suppose you have two indices, "agents" and "resources":
+
+        >>> idx = SpatialIndex(width=100, height=100, index_configs={
+        ...     "agents": {"items": [(1, 2), (3, 4)]},
+        ...     "resources": {"items": [(10, 10), (20, 20)]}
+        ... })
+        >>> idx.get_nearest((2, 3))
+        {'agents': (1, 2), 'resources': (10, 10)}
+
+        If you specify a subset of indices:
+
+        >>> idx.get_nearest((2, 3), index_names=["resources"])
+        {'resources': (10, 10)}
+
+        If an index is empty or does not exist:
+
+        >>> idx.get_nearest((2, 3), index_names=["nonexistent"])
+        {'nonexistent': None}
         """
         self.update()
         if not self._is_valid_position(position):
