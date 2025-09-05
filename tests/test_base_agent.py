@@ -39,8 +39,18 @@ from farm.memory.redis_memory import AgentMemoryManager, RedisMemoryConfig
 def mock_spatial_service():
     """Mock spatial query service for testing."""
     service = Mock(spec=ISpatialQueryService)
-    service.get_nearby_resources.return_value = []
-    service.get_nearby_agents.return_value = []
+
+    # Mock get_nearby to return empty results for both "resources" and "agents" indices
+    def mock_get_nearby(position, radius, index_names=None):
+        result = {}
+        if index_names is None or "resources" in index_names:
+            result["resources"] = []
+        if index_names is None or "agents" in index_names:
+            result["agents"] = []
+        return result
+
+    service.get_nearby.side_effect = mock_get_nearby
+    service.get_nearest.return_value = {}
     service.mark_positions_dirty.return_value = None
     return service
 
@@ -481,8 +491,16 @@ class TestBaseAgentDecisionMaking:
         mock_agent.agent_id = "other_agent"
         mock_agent.position = (5.0, 6.0)  # Adjacent to agent
 
-        mock_spatial_service.get_nearby_resources.return_value = [mock_resource]
-        mock_spatial_service.get_nearby_agents.return_value = [mock_agent]
+        # Mock get_nearby to return the mock entities
+        def mock_get_nearby(position, radius, index_names=None):
+            result = {}
+            if "resources" in index_names:
+                result["resources"] = [mock_resource]
+            if "agents" in index_names:
+                result["agents"] = [mock_agent]
+            return result
+
+        mock_spatial_service.get_nearby.side_effect = mock_get_nearby
 
         perception = sample_base_agent.get_fallback_perception()
 
@@ -1102,8 +1120,16 @@ class TestBaseAgentEdgeCases:
         mock_agent.agent_id = "other_agent"
         mock_agent.position = (5.0, 6.0)  # Adjacent to agent
 
-        mock_spatial_service.get_nearby_resources.return_value = [mock_resource]
-        mock_spatial_service.get_nearby_agents.return_value = [mock_agent]
+        # Mock get_nearby to return the mock entities
+        def mock_get_nearby(position, radius, index_names=None):
+            result = {}
+            if "resources" in index_names:
+                result["resources"] = [mock_resource]
+            if "agents" in index_names:
+                result["agents"] = [mock_agent]
+            return result
+
+        mock_spatial_service.get_nearby.side_effect = mock_get_nearby
 
         perception = sample_base_agent.get_fallback_perception()
 

@@ -11,6 +11,8 @@ of the world from their own perspective. This includes both instantaneous observ
 (current state) and dynamic observations that persist and decay over time.
 
 Key Components:
+    - create_observation_tensor: Factory function for creating observation tensors with
+      zeros or random initialization
     - Channel: Dynamic channel system with extensible handlers
     - ObservationConfig: Configuration class for observation parameters
     - AgentObservation: Main class managing an agent's observation buffer
@@ -53,8 +55,18 @@ Usage:
     # Create configuration
     config = ObservationConfig(R=6, fov_radius=5)
 
-    # Initialize agent observation
+    # Initialize agent observation with zeros (default)
     agent_obs = AgentObservation(config)
+
+    # Or initialize with random values
+    config_random = ObservationConfig(
+        R=6,
+        fov_radius=5,
+        initialization="random",
+        random_min=0.0,
+        random_max=0.1
+    )
+    agent_obs_random = AgentObservation(config_random)
 
     # Update observation with world state
     agent_obs.perceive_world(
@@ -68,6 +80,11 @@ Usage:
 
     # Get observation tensor for neural network input
     observation_tensor = agent_obs.tensor()
+
+    # Factory function can also be used directly
+    from farm.core.observations import create_observation_tensor
+    zeros_obs = create_observation_tensor(13, 13)  # 13 channels, 13x13 size
+    random_obs = create_observation_tensor(13, 13, initialization="random")
 """
 
 # observations.py
@@ -88,8 +105,60 @@ from farm.core.spatial_index import SpatialIndex
 logger = logging.getLogger(__name__)
 
 
+def create_observation_tensor(
+    num_channels: int,
+    size: int,
+    device: str = "cpu",
+    dtype: torch.dtype = torch.float32,
+    initialization: str = "zeros",
+    random_min: float = 0.0,
+    random_max: float = 1.0,
+) -> torch.Tensor:
+    """
+    Factory function to create observation tensors with different initialization methods.
+
+    Args:
+        num_channels: Number of observation channels
+        size: Size of the square observation window (size x size)
+        device: PyTorch device for tensor creation
+        dtype: PyTorch data type for the tensor
+        initialization: Initialization method - "zeros" or "random"
+        random_min: Minimum value for random initialization (inclusive)
+        random_max: Maximum value for random initialization (exclusive)
+
+    Returns:
+        torch.Tensor: Initialized observation tensor of shape (num_channels, size, size)
+
+    Examples:
+        # Create zeros tensor (default)
+        obs_zeros = create_observation_tensor(13, 13)
+
+        # Create random tensor
+        obs_random = create_observation_tensor(13, 13, initialization="random")
+
+        # Create random tensor with custom range
+        obs_custom = create_observation_tensor(
+            13, 13,
+            initialization="random",
+            random_min=-0.1,
+            random_max=0.1
+        )
+    """
+    if initialization == "zeros":
+        return torch.zeros(num_channels, size, size, device=device, dtype=dtype)
+    elif initialization == "random":
+        return torch.rand(num_channels, size, size, device=device, dtype=dtype) * (random_max - random_min) + random_min
+    else:
+        raise ValueError(f"Unknown initialization method: {initialization}. Must be 'zeros' or 'random'")
+
+
 class ObservationConfig(BaseModel):
-    """Configuration for agent observation system."""
+    """Configuration for agent observation system.
+
+    The configuration supports different tensor initialization methods:
+    - 'zeros': Initialize with zeros (default, maintains backward compatibility)
+    - 'random': Initialize with random values between random_min and random_max
+    """
 
     R: int = Field(default=6, gt=0, description="Radius -> window size = 2R+1")
     gamma_trail: float = Field(
@@ -108,6 +177,15 @@ class ObservationConfig(BaseModel):
     dtype: str = Field(default="float32", description="PyTorch dtype as string")
     fov_radius: int = Field(
         default=6, gt=0, description="Field of view radius (simple disk)"
+    )
+    initialization: str = Field(
+        default="zeros", description="Observation tensor initialization method ('zeros' or 'random')"
+    )
+    random_min: float = Field(
+        default=0.0, description="Minimum value for random initialization"
+    )
+    random_max: float = Field(
+        default=1.0, description="Maximum value for random initialization"
     )
 
     @field_validator("dtype")
@@ -299,6 +377,10 @@ class AgentObservation:
     observation radius and num_channels is determined by the active channel registry.
     The center pixel (R, R) represents the agent's position.
 
+    The tensor can be initialized with zeros (default) or random values based on
+    the configuration's initialization parameter, allowing for different starting
+    conditions for agents.
+
     The class integrates with the dynamic channel system, allowing for extensible
     observation types through the ChannelRegistry. Different channel types have
     different temporal behaviors (INSTANT, DYNAMIC, PERSISTENT).
@@ -337,12 +419,14 @@ class AgentObservation:
         self.config = config
         self.registry = get_channel_registry()
         S = 2 * config.R + 1
-        self.observation = torch.zeros(
-            self.registry.num_channels,
-            S,
-            S,
+        self.observation = create_observation_tensor(
+            num_channels=self.registry.num_channels,
+            size=S,
             device=config.device,
             dtype=config.torch_dtype,
+            initialization=config.initialization,
+            random_min=config.random_min,
+            random_max=config.random_max,
         )
 
     def _compute_entities_from_spatial_index(
@@ -363,7 +447,8 @@ class AgentObservation:
         radius = float(self.config.fov_radius)
 
         try:
-            nearby_agents = spatial_index.get_nearby_agents(query_position_xy, radius)
+            nearby = spatial_index.get_nearby(query_position_xy, radius, ["agents"])
+            nearby_agents = nearby.get("agents", [])
         except (
             AttributeError,
             TypeError,
@@ -371,7 +456,7 @@ class AgentObservation:
             RuntimeError,
         ):  # pragma: no cover - defensive only
             logger.exception(
-                "Error in spatial_index.get_nearby_agents; defaulting to empty list"
+                "Error in spatial_index.get_nearby; defaulting to empty list"
             )
             nearby_agents = []
 
