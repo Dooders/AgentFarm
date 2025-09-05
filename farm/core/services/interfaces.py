@@ -12,19 +12,19 @@ class ISpatialQueryService(ABC):
     """
 
     @abstractmethod
-    def get_nearby_agents(
-        self, position: Tuple[float, float], radius: float
-    ) -> List[Any]:
-        """Find all agents within a specified radius of a given position.
+    def get_nearby(
+        self, position: Tuple[float, float], radius: float, index_names: Optional[List[str]] = None
+    ) -> Dict[str, List[Any]]:
+        """Find all entities within a specified radius of a given position.
 
         Args:
             position: A tuple of (x, y) coordinates representing the center point.
             radius: The search radius around the position. Must be non-negative.
+            index_names: Optional list of index names to query. If None, queries all indices.
 
         Returns:
-            A list of agents found within the specified radius. The list may be
-            empty if no agents are found. Agents are typically returned in no
-            particular order.
+            A dictionary mapping index names to lists of entities found within the
+            specified radius. Each list may be empty if no entities are found.
 
         Raises:
             ValueError: If radius is negative.
@@ -32,36 +32,19 @@ class ISpatialQueryService(ABC):
         pass
 
     @abstractmethod
-    def get_nearby_resources(
-        self, position: Tuple[float, float], radius: float
-    ) -> List[Any]:
-        """Find all resources within a specified radius of a given position.
-
-        Args:
-            position: A tuple of (x, y) coordinates representing the center point.
-            radius: The search radius around the position. Must be non-negative.
-
-        Returns:
-            A list of resources found within the specified radius. The list may be
-            empty if no resources are found. Resources are typically returned in no
-            particular order.
-
-        Raises:
-            ValueError: If radius is negative.
-        """
-        pass
-
-    @abstractmethod
-    def get_nearest_resource(self, position: Tuple[float, float]) -> Optional[Any]:
-        """Find the nearest resource to a given position.
+    def get_nearest(
+        self, position: Tuple[float, float], index_names: Optional[List[str]] = None
+    ) -> Dict[str, Optional[Any]]:
+        """Find the nearest entity to a given position for each specified index.
 
         Args:
             position: A tuple of (x, y) coordinates representing the search point.
+            index_names: Optional list of index names to query. If None, queries all indices.
 
         Returns:
-            The nearest resource object if any exists, None otherwise. Distance
-            is typically calculated using Euclidean distance, but implementation
-            may vary based on the spatial indexing strategy used.
+            A dictionary mapping index names to the nearest entity (or None if none exists)
+            for each specified index. Distance is typically calculated using Euclidean
+            distance, but implementation may vary based on the spatial indexing strategy used.
         """
         pass
 

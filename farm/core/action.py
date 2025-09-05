@@ -551,9 +551,8 @@ def attack_action(agent: "BaseAgent") -> dict:
 
     try:
         # Find nearby agents using spatial index
-        nearby_agents = agent.spatial_service.get_nearby_agents(
-            agent.position, attack_range
-        )
+        nearby = agent.spatial_service.get_nearby(agent.position, attack_range, ["agents"])
+        nearby_agents = nearby.get("agents", [])
 
         # Filter out self and find valid targets
         valid_targets = [
@@ -692,9 +691,8 @@ def gather_action(agent: "BaseAgent") -> dict:
 
     try:
         # Find nearby resources using spatial index
-        nearby_resources = agent.spatial_service.get_nearby_resources(
-            agent.position, gathering_range
-        )
+        nearby = agent.spatial_service.get_nearby(agent.position, gathering_range, ["resources"])
+        nearby_resources = nearby.get("resources", [])
 
         # Filter out depleted resources
         available_resources = [
@@ -842,9 +840,8 @@ def share_action(agent: "BaseAgent") -> dict:
 
     try:
         # Find nearby agents using spatial index
-        nearby_agents = agent.spatial_service.get_nearby_agents(
-            agent.position, share_range
-        )
+        nearby = agent.spatial_service.get_nearby(agent.position, share_range, ["agents"])
+        nearby_agents = nearby.get("agents", [])
 
         # Filter out self and find valid targets
         valid_targets = [

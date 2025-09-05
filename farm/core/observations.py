@@ -447,7 +447,8 @@ class AgentObservation:
         radius = float(self.config.fov_radius)
 
         try:
-            nearby_agents = spatial_index.get_nearby_agents(query_position_xy, radius)
+            nearby = spatial_index.get_nearby(query_position_xy, radius, ["agents"])
+            nearby_agents = nearby.get("agents", [])
         except (
             AttributeError,
             TypeError,
@@ -455,7 +456,7 @@ class AgentObservation:
             RuntimeError,
         ):  # pragma: no cover - defensive only
             logger.exception(
-                "Error in spatial_index.get_nearby_agents; defaulting to empty list"
+                "Error in spatial_index.get_nearby; defaulting to empty list"
             )
             nearby_agents = []
 

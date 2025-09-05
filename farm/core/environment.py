@@ -424,7 +424,9 @@ class Environment(AECEnv):
         list
             List of agents within radius
         """
-        return self.spatial_index.get_nearby_agents(position, radius)
+        # Use generic method with "agents" index
+        nearby = self.spatial_index.get_nearby(position, radius, ["agents"])
+        return nearby.get("agents", [])
 
     def get_nearby_resources(
         self, position: Tuple[float, float], radius: float
@@ -443,8 +445,9 @@ class Environment(AECEnv):
         list
             List of resources within radius
         """
-        # Use spatial index for efficient O(log n) queries
-        return self.spatial_index.get_nearby_resources(position, radius)
+        # Use generic method with "resources" index
+        nearby = self.spatial_index.get_nearby(position, radius, ["resources"])
+        return nearby.get("resources", [])
 
     def get_nearest_resource(self, position: Tuple[float, float]) -> Optional[Any]:
         """Find nearest resource to position.
@@ -459,8 +462,9 @@ class Environment(AECEnv):
         Resource or None
             Nearest resource if any exist
         """
-        # Use spatial index for efficient O(log n) queries
-        return self.spatial_index.get_nearest_resource(position)
+        # Use generic method with "resources" index
+        nearest = self.spatial_index.get_nearest(position, ["resources"])
+        return nearest.get("resources")
 
     # Resource IDs are managed by ResourceManager
 
@@ -1232,9 +1236,8 @@ class Environment(AECEnv):
         # Query nearby resources within a radius covering the local window
         # Use slightly larger than R to capture bilinear spread near the boundary
         try:
-            nearby_resources = self.spatial_index.get_nearby_resources(
-                agent.position, R + 1
-            )
+            nearby = self.spatial_index.get_nearby(agent.position, R + 1, ["resources"])
+            nearby_resources = nearby.get("resources", [])
         except AttributeError as e:
             # Handle case where spatial_index or its attributes are None
             logger.warning("Spatial index not properly initialized: %s", e)

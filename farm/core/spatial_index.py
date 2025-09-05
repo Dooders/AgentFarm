@@ -21,7 +21,13 @@ class SpatialIndex:
     O(log n) spatial queries with smart update strategies to minimize rebuilds.
     """
 
-    def __init__(self, width: float, height: float, index_configs: Optional[Dict[str, Dict[str, Any]]] = None, index_data: Optional[Dict[str, Any]] = None):
+    def __init__(
+        self,
+        width: float,
+        height: float,
+        index_configs: Optional[Dict[str, Dict[str, Any]]] = None,
+        index_data: Optional[Dict[str, Any]] = None,
+    ):
         """Initialize the spatial index.
 
         Parameters
@@ -98,9 +104,15 @@ class SpatialIndex:
             data_ref_or_getter = self._initial_index_data.get(name)
             self.register_index(
                 name=name,
-                data_reference=data_ref_or_getter if isinstance(data_ref_or_getter, list) else None,
-                data_getter=data_ref_or_getter if callable(data_ref_or_getter) else None,
-                position_getter=cfg.get("position_getter", lambda x: getattr(x, "position", None)),
+                data_reference=(
+                    data_ref_or_getter if isinstance(data_ref_or_getter, list) else None
+                ),
+                data_getter=(
+                    data_ref_or_getter if callable(data_ref_or_getter) else None
+                ),
+                position_getter=cfg.get(
+                    "position_getter", lambda x: getattr(x, "position", None)
+                ),
                 filter_func=cfg.get("filter_func", None),
             )
 
@@ -119,10 +131,11 @@ class SpatialIndex:
         2. Count-based check (O(1)) - catches structural changes
         3. Hash-based verification (O(n)) - ensures correctness
         """
-        # Skip rebuild checks if positions are not dirty, but still ensure
-        # named indices are initialized or refreshed as needed.
+        # Fast path: if positions are not dirty, skip all expensive operations
         if not self._positions_dirty:
-            self._update_named_indices()
+            # Only update named indices if they haven't been initialized yet
+            if self.agent_kdtree is None or self.resource_kdtree is None:
+                self._update_named_indices()
             return
 
         # Precompute alive agents once to avoid redundant computation
@@ -185,12 +198,22 @@ class SpatialIndex:
         """
         # Build current positions for comparison
         # Filter out items without valid positions
-        valid_alive_agents = [agent for agent in alive_agents if agent.position is not None]
-        valid_resources = [resource for resource in self._resources if resource.position is not None]
+        valid_alive_agents = [
+            agent for agent in alive_agents if agent.position is not None
+        ]
+        valid_resources = [
+            resource for resource in self._resources if resource.position is not None
+        ]
 
-        current_agent_positions = np.array([agent.position for agent in valid_alive_agents]) if valid_alive_agents else None
+        current_agent_positions = (
+            np.array([agent.position for agent in valid_alive_agents])
+            if valid_alive_agents
+            else None
+        )
         current_resource_positions = (
-            np.array([resource.position for resource in valid_resources]) if valid_resources else None
+            np.array([resource.position for resource in valid_resources])
+            if valid_resources
+            else None
         )
 
         # Calculate hash of current agent positions
@@ -200,8 +223,13 @@ class SpatialIndex:
             agent_hash = "0"
 
         # Calculate hash of current resource positions
-        if current_resource_positions is not None and len(current_resource_positions) > 0:
-            resource_hash = hashlib.md5(current_resource_positions.tobytes()).hexdigest()
+        if (
+            current_resource_positions is not None
+            and len(current_resource_positions) > 0
+        ):
+            resource_hash = hashlib.md5(
+                current_resource_positions.tobytes()
+            ).hexdigest()
         else:
             resource_hash = "0"
 
@@ -227,7 +255,9 @@ class SpatialIndex:
         # Filter out agents without valid positions
         alive_agents = [agent for agent in alive_agents if agent.position is not None]
 
-        self._cached_alive_agents = alive_agents  # Cache contains only alive agents for efficient queries
+        self._cached_alive_agents = (
+            alive_agents  # Cache contains only alive agents for efficient queries
+        )
         if alive_agents:
             self.agent_positions = np.array([agent.position for agent in alive_agents])
             self.agent_kdtree = cKDTree(self.agent_positions)
@@ -237,9 +267,13 @@ class SpatialIndex:
 
         # Update resource KD-tree
         # Filter out resources without valid positions
-        valid_resources = [resource for resource in self._resources if resource.position is not None]
+        valid_resources = [
+            resource for resource in self._resources if resource.position is not None
+        ]
         if valid_resources:
-            self.resource_positions = np.array([resource.position for resource in valid_resources])
+            self.resource_positions = np.array(
+                [resource.position for resource in valid_resources]
+            )
             self.resource_kdtree = cKDTree(self.resource_positions)
         else:
             self.resource_kdtree = None
@@ -298,45 +332,56 @@ class SpatialIndex:
                 state["positions"] = self.agent_positions
                 state["cached_items"] = self._cached_alive_agents
                 state["positions_dirty"] = False
-                # Compute hash and counts for consistency
-                current_items = state["cached_items"] or []
-                # Filter out items without valid positions
-                valid_items = [it for it in current_items if state["position_getter"](it) is not None]
-                current_positions = (
-                    np.array([state["position_getter"](it) for it in valid_items])
-                    if valid_items
-                    else None
-                )
-                if current_positions is not None and len(current_positions) > 0:
-                    curr_hash = hashlib.md5(current_positions.tobytes()).hexdigest()
-                else:
-                    curr_hash = "0"
-                state["cached_count"] = len(valid_items)
-                state["cached_hash"] = curr_hash
-                # Update cached_items to only include items with valid positions
-                state["cached_items"] = valid_items
+                # Only compute expensive hash/counts if not already cached
+                if state.get("cached_count") is None:
+                    current_items = state["cached_items"] or []
+                    # Filter out items without valid positions
+                    valid_items = [
+                        it
+                        for it in current_items
+                        if state["position_getter"](it) is not None
+                    ]
+                    current_positions = (
+                        np.array([state["position_getter"](it) for it in valid_items])
+                        if valid_items
+                        else None
+                    )
+                    if current_positions is not None and len(current_positions) > 0:
+                        curr_hash = hashlib.md5(current_positions.tobytes()).hexdigest()
+                    else:
+                        curr_hash = "0"
+                    state["cached_count"] = len(valid_items)
+                    state["cached_hash"] = curr_hash
+                    # Update cached_items to only include items with valid positions
+                    state["cached_items"] = valid_items
                 continue
             if name == "resources":
                 state["kdtree"] = self.resource_kdtree
                 state["positions"] = self.resource_positions
                 state["cached_items"] = self._resources
                 state["positions_dirty"] = False
-                current_items = state["cached_items"] or []
-                # Filter out items without valid positions
-                valid_items = [it for it in current_items if state["position_getter"](it) is not None]
-                current_positions = (
-                    np.array([state["position_getter"](it) for it in valid_items])
-                    if valid_items
-                    else None
-                )
-                if current_positions is not None and len(current_positions) > 0:
-                    curr_hash = hashlib.md5(current_positions.tobytes()).hexdigest()
-                else:
-                    curr_hash = "0"
-                state["cached_count"] = len(valid_items)
-                state["cached_hash"] = curr_hash
-                # Update cached_items to only include items with valid positions
-                state["cached_items"] = valid_items
+                # Only compute expensive hash/counts if not already cached
+                if state.get("cached_count") is None:
+                    current_items = state["cached_items"] or []
+                    # Filter out items without valid positions
+                    valid_items = [
+                        it
+                        for it in current_items
+                        if state["position_getter"](it) is not None
+                    ]
+                    current_positions = (
+                        np.array([state["position_getter"](it) for it in valid_items])
+                        if valid_items
+                        else None
+                    )
+                    if current_positions is not None and len(current_positions) > 0:
+                        curr_hash = hashlib.md5(current_positions.tobytes()).hexdigest()
+                    else:
+                        curr_hash = "0"
+                    state["cached_count"] = len(valid_items)
+                    state["cached_hash"] = curr_hash
+                    # Update cached_items to only include items with valid positions
+                    state["cached_items"] = valid_items
                 continue
 
             # For custom indices, rebuild if marked dirty
@@ -363,7 +408,9 @@ class SpatialIndex:
             filtered_items = list(items)
 
         # Filter out items without valid positions
-        valid_items = [it for it in filtered_items if state["position_getter"](it) is not None]
+        valid_items = [
+            it for it in filtered_items if state["position_getter"](it) is not None
+        ]
 
         # Build positions array
         if valid_items:
@@ -382,67 +429,7 @@ class SpatialIndex:
         else:
             state["cached_hash"] = "0"
 
-    def get_nearby_agents(self, position: Tuple[float, float], radius: float) -> List:
-        """Find all agents within radius of position.
 
-        Parameters
-        ----------
-        position : tuple
-            (x, y) coordinates to search around
-        radius : float
-            Search radius
-
-        Returns
-        -------
-        list
-            List of agents within radius
-        """
-        # Ensure KD-trees are up to date
-        self.update()
-
-        # Input validation
-        if radius <= 0:
-            return []
-        if not self._is_valid_position(position):
-            return []
-
-        if self.agent_kdtree is None or self._cached_alive_agents is None:
-            return []
-
-        # Use cached alive agents for direct indexing
-        indices = self.agent_kdtree.query_ball_point(position, radius)
-        # Return agents directly since cache only contains alive agents
-        return [self._cached_alive_agents[i] for i in indices]
-
-    def get_nearby_resources(self, position: Tuple[float, float], radius: float) -> List:
-        """Find all resources within radius of position.
-
-        Parameters
-        ----------
-        position : tuple
-            (x, y) coordinates to search around
-        radius : float
-            Search radius
-
-        Returns
-        -------
-        list
-            List of resources within radius
-        """
-        # Ensure KD-trees are up to date
-        self.update()
-
-        # Input validation (same as get_nearby_agents)
-        if radius <= 0:
-            return []
-        if not self._is_valid_position(position):
-            return []
-
-        if self.resource_kdtree is None:
-            return []
-
-        indices = self.resource_kdtree.query_ball_point(position, radius)
-        return [self._resources[i] for i in indices]
 
     def get_nearby(
         self,
@@ -472,31 +459,6 @@ class SpatialIndex:
             results[name] = [cached_items[i] for i in indices]
         return results
 
-    def get_nearest_resource(self, position: Tuple[float, float]):
-        """Find nearest resource to position.
-
-        Parameters
-        ----------
-        position : tuple
-            (x, y) coordinates to search from
-
-        Returns
-        -------
-        Resource or None
-            Nearest resource if any exist
-        """
-        # Ensure KD-trees are up to date
-        self.update()
-
-        # Input validation
-        if not self._is_valid_position(position):
-            return None
-
-        if self.resource_kdtree is None:
-            return None
-
-        distance, index = self.resource_kdtree.query(position)
-        return self._resources[index]
 
     def get_nearest(
         self, position: Tuple[float, float], index_names: Optional[List[str]] = None
@@ -540,7 +502,9 @@ class SpatialIndex:
         # Allow positions within 1% margin outside bounds for edge cases
         margin_x = self.width * 0.01
         margin_y = self.height * 0.01
-        return (-margin_x <= x <= self.width + margin_x) and (-margin_y <= y <= self.height + margin_y)
+        return (-margin_x <= x <= self.width + margin_x) and (
+            -margin_y <= y <= self.height + margin_y
+        )
 
     def get_agent_count(self) -> int:
         """Get the number of alive agents.
@@ -592,5 +556,7 @@ class SpatialIndex:
             "resource_kdtree_exists": self.resource_kdtree is not None,
             "positions_dirty": self._positions_dirty,
             "cached_counts": self._cached_counts,
-            "cached_hash": (self._cached_hash[:20] + "..." if self._cached_hash else None),
+            "cached_hash": (
+                self._cached_hash[:20] + "..." if self._cached_hash else None
+            ),
         }
