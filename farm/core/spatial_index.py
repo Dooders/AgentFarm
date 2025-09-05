@@ -185,10 +185,10 @@ class SpatialIndex:
         """
         # Build current positions for comparison
         # Filter out items without valid positions
-        alive_agents = [agent for agent in alive_agents if agent.position is not None]
+        valid_alive_agents = [agent for agent in alive_agents if agent.position is not None]
         valid_resources = [resource for resource in self._resources if resource.position is not None]
 
-        current_agent_positions = np.array([agent.position for agent in alive_agents]) if alive_agents else None
+        current_agent_positions = np.array([agent.position for agent in valid_alive_agents]) if valid_alive_agents else None
         current_resource_positions = (
             np.array([resource.position for resource in valid_resources]) if valid_resources else None
         )
