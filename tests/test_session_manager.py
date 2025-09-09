@@ -130,7 +130,7 @@ class TestSessionManager(unittest.TestCase):
 
         with self.assertLogs(level="ERROR") as log:
             self.session_manager.cleanup()
-            self.assertIn("Error during cleanup", log.output[0])
+            self.assertIn("Error during session cleanup", log.output[0])
 
     @patch("farm.database.session_manager.create_engine")
     def test_engine_configuration(self, mock_create_engine):

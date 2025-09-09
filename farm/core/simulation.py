@@ -304,16 +304,7 @@ def run_simulation(
                 simulation_id=simulation_id,
             )
 
-            # Create a simulation record in the in-memory database
-            from farm.database.models import Simulation
-
-            # Add simulation record to the in-memory database
-            environment.db.add_simulation_record(
-                simulation_id=simulation_id,
-                start_time=datetime.now(),
-                status="running",
-                parameters=config.to_dict(),
-            )
+            # Note: Simulation record is already created in setup_db for in-memory databases
 
         else:
             # Clean up any existing database file for disk-based DB
@@ -336,25 +327,7 @@ def run_simulation(
             if db_path is not None:
                 os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
-            # Create database engine and initialize tables using SQLAlchemy
-            engine = create_engine(
-                f"sqlite:///{db_path}", connect_args={"check_same_thread": False}
-            )
-            Base.metadata.create_all(engine)
-
-            # Create a session and add the simulation record
-            Session = sessionmaker(bind=engine)
-            session = Session()
-            sim_record = Simulation(
-                simulation_id=simulation_id,
-                start_time=datetime.now(),
-                status="running",
-                parameters=config.to_dict(),
-                simulation_db_path=db_path,
-            )
-            session.add(sim_record)
-            session.commit()
-            session.close()
+            # Note: Database tables and simulation record are already created in setup_db
 
             # Create environment with disk-based database
             environment = Environment(
@@ -377,8 +350,24 @@ def run_simulation(
                 json.dump(config.to_dict(), f, indent=4)
             logging.info(f"Saved configuration to {config_path}")
 
+        # Ensure simulation record exists before saving configuration
         if environment.db is not None:
-            environment.db.save_configuration(config.to_dict())
+            # Check if simulation record exists, create if not
+            try:
+                environment.db.save_configuration(config.to_dict())
+            except Exception as e:
+                # If save_configuration fails due to missing simulation record,
+                # create the record first and try again
+                if "FOREIGN KEY constraint failed" in str(e):
+                    environment.db.add_simulation_record(
+                        simulation_id=simulation_id,
+                        start_time=datetime.now(),
+                        status="running",
+                        parameters=config.to_dict(),
+                    )
+                    environment.db.save_configuration(config.to_dict())
+                else:
+                    raise
 
         # Create initial agents
         create_initial_agents(
@@ -393,7 +382,7 @@ def run_simulation(
             logging.info(f"Starting step {step}/{num_steps}")
 
             # Process agents in batches
-            alive_agents = [agent for agent in environment.agents if agent.alive]
+            alive_agents = [agent for agent in environment.agent_objects if agent.alive]
 
             # Stop if no agents are alive
             if len(alive_agents) < 1:

@@ -33,10 +33,22 @@ class SessionManager:
         """Initialize the session manager.
 
         Args:
-            path: Path to database directory. If None, uses default path.
+            path: Database URL or path to database directory.
+                 If None, uses default path. If it's a full URL (starts with sqlite:///),
+                 uses it directly. Otherwise treats it as a directory path.
         """
+        if path is None:
+            # Default to simulations directory in current working directory
+            db_url = "sqlite:///simulations/simulation.db"
+        elif path.startswith("sqlite:///"):
+            # It's already a full database URL, use it directly
+            db_url = path
+        else:
+            # It's a directory path, construct the database URL
+            db_url = f"sqlite:///{path}/simulation.db"
+
         self.engine = create_engine(
-            f"sqlite:///{path}/simulation.db",
+            db_url,
             poolclass=QueuePool,
             pool_size=10,
             max_overflow=20,

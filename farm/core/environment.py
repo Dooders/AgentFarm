@@ -254,7 +254,7 @@ class Environment(AECEnv):
         self.simulation_id = simulation_id or self.identity.simulation_id()
 
         # Setup database and get initialized database instance
-        db_result = setup_db(db_path, self.simulation_id)
+        db_result = setup_db(db_path, self.simulation_id, config.to_dict() if config else None)
         if isinstance(db_result, tuple):
             self.db = db_result[0]  # Extract database object from tuple
         else:
@@ -1360,7 +1360,26 @@ class Environment(AECEnv):
         if action_name:
             action_obj = action_registry.get(action_name)
             if action_obj:
-                action_obj.execute(agent)
+                # Capture resource level before action
+                resources_before = agent.resource_level if agent else None
+
+                # Execute the action
+                action_result = action_obj.execute(agent)
+
+                # Log action to database if available
+                if self.db and agent:
+                    try:
+                        self.db.logger.log_agent_action(
+                            step_number=self.time,
+                            agent_id=agent_id,
+                            action_type=action_name,
+                            resources_before=resources_before,
+                            resources_after=agent.resource_level,
+                            reward=0,  # Reward will be calculated later
+                            details=action_result.get("details", {}) if isinstance(action_result, dict) else {}
+                        )
+                    except Exception as e:
+                        logging.warning(f"Failed to log agent action {action_name}: {e}")
             else:
                 logging.warning("Action '%s' not found in action registry", action_name)
         else:

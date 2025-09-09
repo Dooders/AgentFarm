@@ -61,6 +61,17 @@ class RedisMemoryConfig:
     decode_responses: bool = True
     environment: str = "default"
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert RedisMemoryConfig to a JSON-serializable dictionary."""
+        return {
+            "host": self.host,
+            "port": self.port,
+            "db": self.db,
+            "password": self.password,
+            "decode_responses": self.decode_responses,
+            "environment": self.environment,
+        }
+
 
 @dataclass
 class SimulationConfig:
@@ -348,6 +359,8 @@ class SimulationConfig:
                 continue
             if key == "visualization":
                 config_dict[key] = self.visualization.to_dict()
+            elif key == "redis":
+                config_dict[key] = self.redis.to_dict()
             else:
                 config_dict[key] = value
         return config_dict
