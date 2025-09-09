@@ -44,7 +44,7 @@ class TestDatabasePragmas(unittest.TestCase):
 
     def test_default_pragmas(self):
         """Test default pragma settings."""
-        self.db = SimulationDatabase(self.db_path.as_posix())
+        self.db = SimulationDatabase(self.db_path.as_posix(), simulation_id="test_simulation")
         pragmas = self.db.get_current_pragmas()
         
         # Check default settings
@@ -63,7 +63,7 @@ class TestDatabasePragmas(unittest.TestCase):
     def test_performance_profile(self):
         """Test performance profile pragma settings."""
         self.config.db_pragma_profile = "performance"
-        self.db = SimulationDatabase(self.db_path.as_posix(), self.config)
+        self.db = SimulationDatabase(self.db_path.as_posix(), self.config, simulation_id="test_simulation")
         pragmas = self.db.get_current_pragmas()
         
         # Check performance settings
@@ -78,7 +78,7 @@ class TestDatabasePragmas(unittest.TestCase):
     def test_safety_profile(self):
         """Test safety profile pragma settings."""
         self.config.db_pragma_profile = "safety"
-        self.db = SimulationDatabase(self.db_path.as_posix(), self.config)
+        self.db = SimulationDatabase(self.db_path.as_posix(), self.config, simulation_id="test_simulation")
         pragmas = self.db.get_current_pragmas()
         
         # Check safety settings
@@ -92,7 +92,7 @@ class TestDatabasePragmas(unittest.TestCase):
     def test_memory_profile(self):
         """Test memory-optimized profile pragma settings."""
         self.config.db_pragma_profile = "memory"
-        self.db = SimulationDatabase(self.db_path.as_posix(), self.config)
+        self.db = SimulationDatabase(self.db_path.as_posix(), self.config, simulation_id="test_simulation")
         pragmas = self.db.get_current_pragmas()
         
         # Check memory-optimized settings
@@ -115,7 +115,7 @@ class TestDatabasePragmas(unittest.TestCase):
             "mmap_size": "536870912",  # 512MB
         }
         
-        self.db = SimulationDatabase(self.db_path.as_posix(), self.config)
+        self.db = SimulationDatabase(self.db_path.as_posix(), self.config, simulation_id="test_simulation")
         pragmas = self.db.get_current_pragmas()
         
         # Check custom overrides
@@ -136,7 +136,7 @@ class TestDatabasePragmas(unittest.TestCase):
     def test_in_memory_database_pragmas(self):
         """Test in-memory database pragma settings."""
         self.config.db_pragma_profile = "balanced"
-        self.db = InMemorySimulationDatabase(config=self.config)
+        self.db = InMemorySimulationDatabase(config=self.config, simulation_id="test_simulation")
         pragmas = self.db.get_current_pragmas()
     
         # Check in-memory database uses the specified profile
@@ -155,14 +155,12 @@ class TestDatabasePragmas(unittest.TestCase):
     
         # Test with performance profile
         self.config.db_pragma_profile = "performance"
-        self.db = InMemorySimulationDatabase(config=self.config)
+        self.db = InMemorySimulationDatabase(config=self.config, simulation_id="test_simulation")
         pragmas = self.db.get_current_pragmas()
     
         # Check performance settings
-        # NOTE: Based on diagnostic testing, the in-memory database is using synchronous=NORMAL (1)
-        # instead of OFF (0) even with the performance profile. This appears to be a limitation
-        # or behavior of SQLite with in-memory databases.
-        self.assertEqual(int(pragmas.get("synchronous", -1)), 1)  # NORMAL instead of OFF
+        # NOTE: In-memory databases now correctly apply the performance profile synchronous=OFF setting
+        self.assertEqual(int(pragmas.get("synchronous", -1)), 0)  # OFF
         self.assertEqual(pragmas.get("journal_mode", "").upper(), "MEMORY")
         self.assertEqual(int(pragmas.get("page_size", -1)), 8192)  # Larger for performance
         self.assertEqual(int(pragmas.get("busy_timeout", -1)), 60000)  # 60 seconds for performance
@@ -172,7 +170,7 @@ class TestDatabasePragmas(unittest.TestCase):
 
     def test_workload_adjustment(self):
         """Test runtime pragma adjustment for different workloads."""
-        self.db = SimulationDatabase(self.db_path.as_posix())
+        self.db = SimulationDatabase(self.db_path.as_posix(), simulation_id="test_simulation")
         
         # Check initial settings
         initial_pragmas = self.db.get_current_pragmas()

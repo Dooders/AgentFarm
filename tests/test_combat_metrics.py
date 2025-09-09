@@ -16,6 +16,20 @@ class TestCombatMetrics(unittest.TestCase):
 
     def setUp(self):
         """Set up test environment."""
+        # Create a mock observation config
+        mock_observation = MagicMock()
+        mock_observation.R = 6  # Default radius value
+        mock_observation.dtype = "float32"
+        mock_observation.gamma_trail = 0.90
+        mock_observation.gamma_dmg = 0.85
+        mock_observation.gamma_sig = 0.92
+        mock_observation.gamma_known = 0.98
+        mock_observation.device = "cpu"
+        mock_observation.fov_radius = 6
+        mock_observation.initialization = "zeros"
+        mock_observation.random_min = 0.0
+        mock_observation.random_max = 1.0
+
         # Create a test environment
         self.env = Environment(
             width=10,
@@ -27,6 +41,7 @@ class TestCombatMetrics(unittest.TestCase):
                 resource_regen_rate=0.1,
                 resource_regen_amount=1,
                 seed=42,  # Add a proper seed value
+                observation=mock_observation,
             ),
         )
 
