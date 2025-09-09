@@ -1674,8 +1674,7 @@ class Environment(AECEnv):
         terminated = False
 
         # Check for immediate termination conditions (no alive agents)
-        alive_agents = [a for a in self._agent_objects.values() if a.alive]
-        if len(alive_agents) == 0:
+        if len(self.agents) == 0:
             terminated = True
 
         # Only update environment state when all agents have acted (cycle complete)
