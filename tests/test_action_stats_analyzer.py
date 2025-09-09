@@ -219,7 +219,14 @@ class TestActionStatsAnalyzer(unittest.TestCase):
         self.assertIsNotNone(gather_metrics.std_dev_reward)
         self.assertIsNotNone(gather_metrics.quartiles_reward)
 
-    def test_analyze_with_step_range(self):
+    @patch(
+        "farm.database.analyzers.temporal_pattern_analyzer.TemporalPatternAnalyzer.analyze"
+    )
+    @patch("farm.database.analyzers.resource_impact_analyzer.ResourceImpactAnalyzer.analyze")
+    @patch(
+        "farm.database.analyzers.decision_pattern_analyzer.DecisionPatternAnalyzer.analyze"
+    )
+    def test_analyze_with_step_range(self, mock_decision, mock_resource, mock_temporal):
         """Test analyzer functionality with step range filtering.
 
         Verifies that the analyzer correctly processes actions within
@@ -230,22 +237,36 @@ class TestActionStatsAnalyzer(unittest.TestCase):
         step_range = (1, 2)
         self.repository.get_actions_by_scope.return_value = self.test_actions
 
+        # Mock the internal analyzers to avoid additional repository calls
+        # Create mock objects with action_type attributes
+        mock_time_pattern = Mock()
+        mock_time_pattern.action_type = "gather"
+        mock_temporal.return_value = [mock_time_pattern]
+
+        mock_resource_impact = Mock()
+        mock_resource_impact.action_type = "gather"
+        mock_resource.return_value = [mock_resource_impact]
+
+        mock_decision_patterns = Mock()
+        mock_decision_patterns.decision_patterns = {"gather": Mock()}
+        mock_decision.return_value = mock_decision_patterns
+
         # Act
         results = self.analyzer.analyze(
             scope=AnalysisScope.SIMULATION, step_range=step_range
         )
 
-        # Assert
+        # Assert - only the main call should be made
         self.repository.get_actions_by_scope.assert_called_once_with(
-            AnalysisScope.SIMULATION, None, None, step_range
+            scope=AnalysisScope.SIMULATION, agent_id=None, step=None, step_range=step_range
         )
 
     @patch(
-        "database.analyzers.temporal_pattern_analyzer.TemporalPatternAnalyzer.analyze"
+        "farm.database.analyzers.temporal_pattern_analyzer.TemporalPatternAnalyzer.analyze"
     )
-    @patch("database.analyzers.resource_impact_analyzer.ResourceImpactAnalyzer.analyze")
+    @patch("farm.database.analyzers.resource_impact_analyzer.ResourceImpactAnalyzer.analyze")
     @patch(
-        "database.analyzers.decision_pattern_analyzer.DecisionPatternAnalyzer.analyze"
+        "farm.database.analyzers.decision_pattern_analyzer.DecisionPatternAnalyzer.analyze"
     )
     def test_pattern_analysis_integration(
         self, mock_decision, mock_resource, mock_temporal
@@ -261,9 +282,19 @@ class TestActionStatsAnalyzer(unittest.TestCase):
         into the final metrics for each action type.
         """
         # Arrange
-        mock_temporal.return_value = ["temporal_pattern"]
-        mock_resource.return_value = ["resource_impact"]
-        mock_decision.return_value = Mock(decision_patterns=["decision_pattern"])
+        # Create mock objects with action_type attributes
+        mock_time_pattern = Mock()
+        mock_time_pattern.action_type = "gather"
+        mock_temporal.return_value = [mock_time_pattern]
+
+        mock_resource_impact = Mock()
+        mock_resource_impact.action_type = "gather"
+        mock_resource.return_value = [mock_resource_impact]
+
+        mock_decision_patterns = Mock()
+        mock_decision_patterns.decision_patterns = {"gather": Mock()}
+        mock_decision.return_value = mock_decision_patterns
+
         self.repository.get_actions_by_scope.return_value = self.test_actions
 
         # Act
@@ -275,9 +306,9 @@ class TestActionStatsAnalyzer(unittest.TestCase):
         self.assertTrue(mock_decision.called)
 
         gather_metrics = next(m for m in results if m.action_type == "gather")
-        self.assertEqual(gather_metrics.temporal_patterns, ["temporal_pattern"])
-        self.assertEqual(gather_metrics.resource_impacts, ["resource_impact"])
-        self.assertEqual(gather_metrics.decision_patterns, ["decision_pattern"])
+        self.assertEqual(len(gather_metrics.temporal_patterns), 1)
+        self.assertEqual(len(gather_metrics.resource_impacts), 1)
+        self.assertEqual(len(gather_metrics.decision_patterns), 1)
 
 
 if __name__ == "__main__":

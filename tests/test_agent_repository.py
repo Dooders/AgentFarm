@@ -182,8 +182,8 @@ class TestAgentRepository(unittest.TestCase):
         )
 
         mock_action_stats = [
-            Mock(action_type="move", count=5, avg_reward=0.5),
-            Mock(action_type="gather", count=3, avg_reward=1.0),
+            ("move", 5, 0.5),
+            ("gather", 3, 1.0),
         ]
 
         self.mock_session.query.return_value.get.return_value = mock_agent

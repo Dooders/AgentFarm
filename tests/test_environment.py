@@ -11,89 +11,46 @@ from stable_baselines3.common.env_util import make_vec_env
 
 from farm.core.action import ActionType
 from farm.core.agent import BaseAgent
+from farm.core.config import SimulationConfig
 from farm.core.environment import Environment
 from farm.core.resources import Resource
 
 
 class TestEnvironment(unittest.TestCase):
     def setUp(self):
-        # Create a mock config with required attributes
-        self.mock_config = Mock()
-        self.mock_config.total_agents = 3
-        self.mock_config.max_steps = 100
-        self.mock_config.max_resource_amount = 10
-        self.mock_config.resource_regen_rate = 0.1
-        self.mock_config.resource_regen_amount = 1
-        self.mock_config.seed = 42
+        # Create a minimal SimulationConfig for testing
+        self.config = SimulationConfig(
+            width=100,
+            height=100,
+            system_agents=1,
+            independent_agents=1,
+            control_agents=1,
+            max_steps=100,
+            seed=42
+        )
+
         # Store resource distribution for test access
-        # Define resource distribution configuration for tests
-        resource_dist = {"amount": 10}
-        self.resource_distribution = resource_dist
-        # Explicitly set observation to None to use default ObservationConfig
-        self.mock_config.observation = None
-        # Add neural network configuration for agents
-        self.mock_config.dqn_hidden_size = 128
-        self.mock_config.learning_rate = 0.001  # This is the key one being accessed
-        self.mock_config.device = "cpu"
-        self.mock_config.base_consumption_rate = 1
-        # Add other DQN config parameters that might be accessed
-        self.mock_config.gamma = 0.99
-        self.mock_config.epsilon_start = 1.0
-        self.mock_config.epsilon_min = 0.01
-        self.mock_config.epsilon_decay = 0.995
-        self.mock_config.batch_size = 32
-        self.mock_config.memory_size = 10000
-        self.mock_config.tau = 0.005
-        self.mock_config.target_update_freq = 100
-        # Add agent parameters
-        self.mock_config.agent_parameters = {}
-        # Add other agent-related config attributes needed by BaseAgent
-        self.mock_config.starvation_threshold = 100
-        self.mock_config.starting_health = 100
-        self.mock_config.max_movement = 8
-        self.mock_config.gathering_range = 30
-        self.mock_config.social_range = 30
-        self.mock_config.attack_range = 20.0
-        self.mock_config.range = 20.0  # Add range for backwards compatibility
-        self.mock_config.ideal_density_radius = 30.0  # Add for reproduction
-        self.mock_config.min_reproduction_resources = 5.0
-        self.mock_config.max_population = 100
-        self.mock_config.max_wait_steps = 10
-        self.mock_config.min_health_ratio = 0.3
-        self.mock_config.min_space_required = 20.0
-        self.mock_config.max_local_density = 0.8
-        self.mock_config.success_reward = 1.0
-        self.mock_config.offspring_survival_bonus = 0.5
-        self.mock_config.population_balance_bonus = 0.2
+        self.resource_distribution = {"amount": 10}
 
-        # Add missing config attributes used by the environment
-        self.mock_config.enabled_actions = None  # Use all actions by default
-        self.mock_config.position_discretization_method = "floor"
-        self.mock_config.use_bilinear_interpolation = True
-        self.mock_config.initial_resources = 10
-        self.mock_config.max_resource = 10
+        # Keep track of mock objects for later use in tests but don't attach them to config
+        # to avoid JSON serialization issues
+        self.mock_action_space = Mock()
+        self.mock_action_space.n = len(ActionType)  # Number of actions from ActionType enum
 
-        # Mock action and observation spaces to prevent DecisionModule errors
-        mock_action_space = Mock()
-        mock_action_space.n = len(ActionType)  # Number of actions from ActionType enum
-        self.mock_config.action_space = mock_action_space
-
-        mock_observation_space = Mock()
-        mock_observation_space.shape = (10, 21, 21)  # Typical observation shape
-        self.mock_config.observation_space = mock_observation_space
+        self.mock_observation_space = Mock()
+        self.mock_observation_space.shape = (10, 21, 21)  # Typical observation shape
 
         # Mock decision config to prevent DecisionModule config errors
-        mock_decision_config = Mock()
-        mock_decision_config.rl_state_dim = 8  # Default value from DecisionConfig
-        mock_decision_config.algorithm_type = "dqn"
-        mock_decision_config.algorithm_params = {}
-        self.mock_config.decision = mock_decision_config
+        self.mock_decision_config = Mock()
+        self.mock_decision_config.rl_state_dim = 8  # Default value from DecisionConfig
+        self.mock_decision_config.algorithm_type = "dqn"
+        self.mock_decision_config.algorithm_params = {}
 
         self.env = Environment(
             width=100,
             height=100,
             resource_distribution={"amount": 10},
-            config=self.mock_config,
+            config=self.config,
             db_path=":memory:",  # Use in-memory database for tests
         )
 
@@ -396,16 +353,21 @@ class TestEnvironment(unittest.TestCase):
 
     def test_seed_consistency(self):
         """Test that seeding produces consistent results"""
-        # Create a simplified mock config for this test
-        simple_config = Mock()
-        simple_config.system_agents = 0
-        simple_config.independent_agents = 0
-        simple_config.control_agents = 0
-        simple_config.max_steps = 100
-        simple_config.max_resource_amount = 10
-        simple_config.resource_regen_rate = 0.1
-        simple_config.resource_regen_amount = 1
-        simple_config.observation = None
+        # Create a simplified config for this test
+        simple_config = SimulationConfig(
+            width=50,
+            height=50,
+            system_agents=0,
+            independent_agents=0,
+            control_agents=0,
+            max_steps=100,
+            max_resource_amount=10,
+            resource_regen_rate=0.1,
+            resource_regen_amount=1,
+            seed=42,
+            initial_resources=5,
+            observation=None
+        )
 
         env1 = Environment(
             width=50,
@@ -482,7 +444,7 @@ class TestEnvironment(unittest.TestCase):
             width=50,
             height=50,
             resource_distribution={"amount": 1},
-            config=self.mock_config,
+            config=self.config,
             db_path=":memory:",
         )
         # setup_db returns a tuple for in-memory databases, but Environment handles this
@@ -638,7 +600,7 @@ class TestEnvironment(unittest.TestCase):
             width=30,
             height=30,
             resource_distribution={"amount": 3},
-            config=self.mock_config,
+            config=self.config,
             seed=12345,
             db_path=":memory:",
         )
@@ -647,7 +609,7 @@ class TestEnvironment(unittest.TestCase):
             width=30,
             height=30,
             resource_distribution={"amount": 3},
-            config=self.mock_config,
+            config=self.config,
             seed=12345,
             db_path=":memory:",
         )
@@ -761,13 +723,17 @@ class TestEnvironment(unittest.TestCase):
     def test_boundary_conditions(self):
         """Test boundary conditions and limits"""
         # Test with minimal environment
-        minimal_config = Mock()
-        minimal_config.system_agents = 0
-        minimal_config.independent_agents = 0
-        minimal_config.control_agents = 0
-        minimal_config.max_steps = 1
-        minimal_config.observation = None
-        minimal_config.seed = 123  # Add proper seed value
+        minimal_config = SimulationConfig(
+            width=1,
+            height=1,
+            system_agents=0,
+            independent_agents=0,
+            control_agents=0,
+            max_steps=1,
+            seed=123,
+            initial_resources=0,
+            observation=None
+        )
 
         minimal_env = Environment(
             width=1,
@@ -805,7 +771,7 @@ class TestEnvironment(unittest.TestCase):
             width=50,
             height=50,
             resource_distribution={"amount": 5},
-            config=self.mock_config,
+            config=self.config,
             db_path=":memory:",
         )
 
@@ -855,20 +821,13 @@ class TestEnvironment(unittest.TestCase):
         except Exception as e:
             self.fail(f"Environment creation with None config failed: {e}")
 
-        # Test with missing config attributes
-        partial_config = Mock()
-        partial_config.system_agents = 1
-        partial_config.seed = 456  # Add proper seed value
-
-        # Configure Mock to have the expected attributes with proper values
-        # This ensures getattr() works correctly and returns expected values
-        partial_config.max_resource_amount = 10  # Default value
-        partial_config.resource_regen_rate = 0.1  # Default value
-        partial_config.initial_resources = 20  # Default value
-        partial_config.resource_regen_amount = 2  # Default value
-
-        # Set observation to None so it uses default ObservationConfig
-        partial_config.observation = None
+        # Test with minimal config attributes
+        partial_config = SimulationConfig(
+            width=10,
+            height=10,
+            system_agents=1,
+            seed=456
+        )
 
         # Missing other attributes should use defaults
 

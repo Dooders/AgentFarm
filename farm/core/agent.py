@@ -947,8 +947,33 @@ class BaseAgent:
         else:
             action = self.actions[action_index]
 
+        # Capture resource level before action execution for accurate logging
+        resources_before = self.resource_level
+
         # Execute action and capture result
         action_result = action.execute(self)
+
+        # Capture resource level after action execution
+        resources_after = self.resource_level
+
+        # Log action to database if logger is available
+        if hasattr(self, "environment") and self.environment and hasattr(self.environment, "db") and self.environment.db:
+            try:
+                # Get current time step
+                current_time = self.time_service.current_time() if hasattr(self, "time_service") and self.time_service else 0
+
+                # Log the agent action
+                self.environment.db.logger.log_agent_action(
+                    step_number=current_time,
+                    agent_id=self.agent_id,
+                    action_type=action.name,
+                    resources_before=resources_before,
+                    resources_after=resources_after,
+                    reward=0,  # Reward will be calculated later
+                    details=action_result.get("details", {})
+                )
+            except Exception as e:
+                logger.warning(f"Failed to log agent action {action.name}: {e}")
 
         # Validate action result if validation service is available
         validation_result = None

@@ -9,6 +9,8 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from farm.core.environment import Environment
+from farm.core.config import SimulationConfig
+from farm.core.observations import ObservationConfig
 
 
 class TestCombatMetrics(unittest.TestCase):
@@ -16,18 +18,39 @@ class TestCombatMetrics(unittest.TestCase):
 
     def setUp(self):
         """Set up test environment."""
+        # Create a real observation config
+        observation_config = ObservationConfig(
+            R=6,
+            dtype="float32",
+            gamma_trail=0.90,
+            gamma_dmg=0.85,
+            gamma_sig=0.92,
+            gamma_known=0.98,
+            device="cpu",
+            fov_radius=6,
+            initialization="zeros",
+            random_min=0.0,
+            random_max=1.0,
+        )
+
+        # Create a real simulation config
+        simulation_config = SimulationConfig(
+            width=10,
+            height=10,
+            max_resource_amount=10,
+            resource_regen_rate=0.1,
+            resource_regen_amount=1,
+            seed=42,
+            observation=observation_config,
+        )
+
         # Create a test environment
         self.env = Environment(
             width=10,
             height=10,
             resource_distribution={"amount": 5},
             db_path=":memory:",  # Use in-memory database
-            config=MagicMock(
-                max_resource_amount=10,
-                resource_regen_rate=0.1,
-                resource_regen_amount=1,
-                seed=42,  # Add a proper seed value
-            ),
+            config=simulation_config,
         )
 
     def test_combat_encounters_increment(self):

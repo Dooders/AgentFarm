@@ -287,7 +287,7 @@ def create_prepared_statements(session):
     return statements
 
 
-def setup_db(db_path: Optional[str], simulation_id: str) -> Optional[Any]:
+def setup_db(db_path: Optional[str], simulation_id: str, parameters: Optional[Dict] = None) -> Optional[Any]:
     """Setup database for simulation.
 
     Handles database file cleanup, creation, and initialization of the appropriate
@@ -324,7 +324,7 @@ def setup_db(db_path: Optional[str], simulation_id: str) -> Optional[Any]:
             simulation_id=simulation_id,
             start_time=datetime.now(),
             status="running",
-            parameters={},
+            parameters=parameters or {},
         )
 
         return db, ":memory:"
@@ -355,5 +355,14 @@ def setup_db(db_path: Optional[str], simulation_id: str) -> Optional[Any]:
     from farm.database.database import SimulationDatabase
 
     db = SimulationDatabase(final_db_path, simulation_id=simulation_id)
+
+    # Add simulation record to the file-based database
+    from datetime import datetime
+    db.add_simulation_record(
+        simulation_id=simulation_id,
+        start_time=datetime.now(),
+        status="running",
+        parameters=parameters or {},
+    )
 
     return db

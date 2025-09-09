@@ -4,9 +4,9 @@ import random
 import threading
 import time
 import unittest
+from datetime import datetime, timezone
 from typing import Dict, List, Tuple
 
-from farm.database.data_logging import DataLogger
 from farm.database.database import SimulationDatabase
 from farm.database.models import AgentStateModel
 
@@ -19,8 +19,17 @@ class TestDatabasePerformance(unittest.TestCase):
         self.test_db_path = (
             f"test_performance_{time.time()}.db"  # Unique DB file for each test
         )
-        self.db = SimulationDatabase(self.test_db_path)
-        self.logger = DataLogger(self.db, simulation_id="test_simulation")
+        self.db = SimulationDatabase(self.test_db_path, simulation_id="test_simulation")
+
+        # Add simulation record to satisfy foreign key constraints
+        self.db.add_simulation_record(
+            simulation_id="test_simulation",
+            start_time=datetime.now(timezone.utc),
+            status="running",
+            parameters={"test": True}
+        )
+
+        self.logger = self.db.logger  # Use the database's logger instead of creating a new one
         self.num_agents = 1000
         self.num_steps = 100
         self.used_agent_ids = set()  # Track used agent IDs
@@ -47,6 +56,7 @@ class TestDatabasePerformance(unittest.TestCase):
     def _generate_random_agent_data(self) -> Dict:
         """Generate random agent data for testing."""
         return {
+            "simulation_id": "test_simulation",
             "agent_id": self._generate_unique_agent_id(),
             "birth_time": random.randint(0, 100),
             "agent_type": random.choice(["BaseAgent"]),

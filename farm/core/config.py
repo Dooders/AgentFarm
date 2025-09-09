@@ -4,6 +4,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
+from farm.core.observations import ObservationConfig
+
 
 @dataclass
 class VisualizationConfig:
@@ -60,6 +62,17 @@ class RedisMemoryConfig:
     password: Optional[str] = None
     decode_responses: bool = True
     environment: str = "default"
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert RedisMemoryConfig to a JSON-serializable dictionary."""
+        return {
+            "host": self.host,
+            "port": self.port,
+            "db": self.db,
+            "password": self.password,
+            "decode_responses": self.decode_responses,
+            "environment": self.environment,
+        }
 
 
 @dataclass
@@ -157,6 +170,9 @@ class SimulationConfig:
 
     # Visualization settings (separate config)
     visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
+
+    # Observation settings
+    observation: Optional[ObservationConfig] = None
 
     # Action probability adjustment parameters
     social_range: int = 30  # Range for social interactions (share/attack)
@@ -293,6 +309,7 @@ class SimulationConfig:
     attack_base_damage: float = 10.0
 
     simulation_steps: int = 100  # Default value
+    max_steps: int = 1000  # Maximum steps for environment termination
 
     # Device configuration for neural network computations
     device_preference: str = (
@@ -348,6 +365,19 @@ class SimulationConfig:
                 continue
             if key == "visualization":
                 config_dict[key] = self.visualization.to_dict()
+            elif key == "redis":
+                config_dict[key] = self.redis.to_dict()
+            elif key == "observation":
+                if self.observation:
+                    obs_dict = self.observation.model_dump()
+                    # Convert torch dtype to string for JSON serialization
+                    if 'dtype' in obs_dict and hasattr(obs_dict['dtype'], '__name__'):
+                        obs_dict['dtype'] = obs_dict['dtype'].__name__
+                    elif 'dtype' in obs_dict:
+                        obs_dict['dtype'] = str(obs_dict['dtype'])
+                    config_dict[key] = obs_dict
+                else:
+                    config_dict[key] = None
             else:
                 config_dict[key] = value
         return config_dict
@@ -362,4 +392,10 @@ class SimulationConfig:
         # Handle visualization config specially
         vis_data = data.pop("visualization", {})
         data["visualization"] = VisualizationConfig(**vis_data)
+
+        # Handle observation config specially
+        obs_data = data.pop("observation", None)
+        if obs_data:
+            data["observation"] = ObservationConfig(**obs_data)
+
         return cls(**data)
