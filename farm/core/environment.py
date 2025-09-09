@@ -1534,6 +1534,10 @@ class Environment(AECEnv):
         Tuple[np.ndarray, float, bool, bool]
             Updated observation, reward, terminated, and truncated values
         """
+        # Handle case where agent_id is None (no active agents)
+        if agent_id is None:
+            return observation, reward, terminated, truncated
+
         # Update internal PettingZoo state dictionaries (required for AECEnv API)
         self.observations[agent_id] = observation
         self.terminations[agent_id] = terminated
@@ -1669,17 +1673,23 @@ class Environment(AECEnv):
         # Initialize terminated to False (will be updated when cycle completes)
         terminated = False
 
+        # Check for immediate termination conditions (no alive agents)
+        alive_agents = [a for a in self._agent_objects.values() if a.alive]
+        if len(alive_agents) == 0:
+            terminated = True
+
         # Only update environment state when all agents have acted (cycle complete)
         # This ensures proper timestep semantics in AECEnv
-        if self._cycle_complete:
+        if self._cycle_complete and not terminated:
             self.update()
 
             # Check termination conditions only after all agents have acted
             # This prevents premature termination if resources hit zero mid-cycle
-            alive_agents = [a for a in self._agent_objects.values() if a.alive]
-            terminated = len(alive_agents) == 0 or self.cached_total_resources == 0
+            terminated = terminated or self.cached_total_resources == 0
 
             self._cycle_complete = False  # Reset for next cycle
+
+        # Check truncation after potential environment update
         truncated = self.time >= self.max_steps
 
         # Calculate reward using consolidated method
