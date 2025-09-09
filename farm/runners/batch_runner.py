@@ -135,12 +135,12 @@ class BatchRunner:
         """
         result = {
             **params,
-            "final_agents": len([a for a in environment.agents if a.alive]),
+            "final_agents": len([a for a in environment.agent_objects if a.alive]),
             "total_resources": sum(r.amount for r in environment.resources),
             "average_resources_per_agent": (
-                sum(a.resource_level for a in environment.agents if a.alive)
-                / len([a for a in environment.agents if a.alive])
-                if any(a.alive for a in environment.agents)
+                sum(a.resource_level for a in environment.agent_objects if a.alive)
+                / len([a for a in environment.agent_objects if a.alive])
+                if any(a.alive for a in environment.agent_objects)
                 else 0
             ),
         }

@@ -629,7 +629,7 @@ class SimulationState(BaseState):
         time_progress = environment.time / num_steps
 
         # Calculate population metrics
-        current_population = len([a for a in environment.agents if a.alive])
+        current_population = len([a for a in environment.agent_objects if a.alive])
         initial_population = environment.get_initial_agent_count()
         max_population = cls.MAX_POPULATION
 
