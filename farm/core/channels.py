@@ -491,8 +491,10 @@ class SelfHPHandler(ChannelHandler):
         """
         Process agent's health and write to the center of the observation.
 
+        Uses sparse storage for single-point data to maintain memory efficiency.
+
         Args:
-            observation: Full observation tensor
+            observation: AgentObservation instance (not the tensor directly)
             channel_idx: Index of the SELF_HP channel
             config: Observation configuration
             agent_world_pos: Agent's world position (unused for self HP)
@@ -500,7 +502,13 @@ class SelfHPHandler(ChannelHandler):
         """
         self_hp01 = kwargs.get("self_hp01", 0.0)
         R = config.R
-        observation[channel_idx, R, R] = float(self_hp01)
+
+        # Use sparse storage if available
+        if hasattr(observation, '_store_sparse_point'):
+            observation._store_sparse_point(channel_idx, R, R, float(self_hp01))
+        else:
+            # Fallback to direct tensor access (backward compatibility)
+            observation[channel_idx, R, R] = float(self_hp01)
 
 
 class AlliesHPHandler(ChannelHandler):
@@ -531,8 +539,10 @@ class AlliesHPHandler(ChannelHandler):
         """
         Process allies' health and write to their relative positions.
 
+        Uses sparse storage for point entities to maintain memory efficiency.
+
         Args:
-            observation: Full observation tensor
+            observation: AgentObservation instance
             channel_idx: Index of the ALLIES_HP channel
             config: Observation configuration
             agent_world_pos: Agent's world position (y, x)
@@ -545,14 +555,24 @@ class AlliesHPHandler(ChannelHandler):
         R = config.R
         ay, ax = agent_world_pos
 
+        # Convert to local coordinates and filter valid positions
+        points = []
         for ally_y, ally_x, ally_hp in allies:
             dy = ally_y - ay
             dx = ally_x - ax
             y = R + dy
             x = R + dx
             if 0 <= y < 2 * R + 1 and 0 <= x < 2 * R + 1:
+                points.append((y, x, float(ally_hp)))
+
+        # Use sparse storage if available
+        if hasattr(observation, '_store_sparse_points'):
+            observation._store_sparse_points(channel_idx, points)
+        else:
+            # Fallback to direct tensor access (backward compatibility)
+            for y, x, hp in points:
                 observation[channel_idx, y, x] = max(
-                    observation[channel_idx, y, x].item(), float(ally_hp)
+                    observation[channel_idx, y, x].item(), hp
                 )
 
 
@@ -584,8 +604,10 @@ class EnemiesHPHandler(ChannelHandler):
         """
         Process enemies' health and write to their relative positions.
 
+        Uses sparse storage for point entities to maintain memory efficiency.
+
         Args:
-            observation: Full observation tensor
+            observation: AgentObservation instance
             channel_idx: Index of the ENEMIES_HP channel
             config: Observation configuration
             agent_world_pos: Agent's world position (y, x)
@@ -598,14 +620,24 @@ class EnemiesHPHandler(ChannelHandler):
         R = config.R
         ay, ax = agent_world_pos
 
+        # Convert to local coordinates and filter valid positions
+        points = []
         for enemy_y, enemy_x, enemy_hp in enemies:
             dy = enemy_y - ay
             dx = enemy_x - ax
             y = R + dy
             x = R + dx
             if 0 <= y < 2 * R + 1 and 0 <= x < 2 * R + 1:
+                points.append((y, x, float(enemy_hp)))
+
+        # Use sparse storage if available
+        if hasattr(observation, '_store_sparse_points'):
+            observation._store_sparse_points(channel_idx, points)
+        else:
+            # Fallback to direct tensor access (backward compatibility)
+            for y, x, hp in points:
                 observation[channel_idx, y, x] = max(
-                    observation[channel_idx, y, x].item(), float(enemy_hp)
+                    observation[channel_idx, y, x].item(), hp
                 )
 
 
@@ -644,8 +676,10 @@ class WorldLayerHandler(ChannelHandler):
         """
         Process world layer data and copy to observation channel.
 
+        Uses sparse storage interface - stores full grids for dense channels.
+
         Args:
-            observation: Full observation tensor
+            observation: AgentObservation instance
             channel_idx: Index of this world layer channel
             config: Observation configuration
             agent_world_pos: Agent's world position (y, x)
@@ -672,14 +706,20 @@ class WorldLayerHandler(ChannelHandler):
                 layer, device=config.device, dtype=config.torch_dtype
             )
 
-        # If already local sized (2R+1, 2R+1), copy directly; otherwise crop from world
+        # If already local sized (2R+1, 2R+1), use directly; otherwise crop from world
         R = config.R
         expected_size = config.get_local_observation_size()
         if tuple(layer.shape[-2:]) == expected_size:
-            observation[channel_idx].copy_(layer)
+            final_layer = layer
         else:
-            crop = crop_local(layer, agent_world_pos, R, pad_val=0.0)
-            observation[channel_idx].copy_(crop)
+            final_layer = crop_local(layer, agent_world_pos, R, pad_val=0.0)
+
+        # Use sparse storage interface for dense grids
+        if hasattr(observation, '_store_sparse_grid'):
+            observation._store_sparse_grid(channel_idx, final_layer)
+        else:
+            # Fallback to direct tensor access (backward compatibility)
+            observation[channel_idx].copy_(final_layer)
 
 
 class VisibilityHandler(ChannelHandler):
@@ -710,8 +750,10 @@ class VisibilityHandler(ChannelHandler):
         """
         Create visibility mask and write to observation channel.
 
+        Uses sparse storage interface - stores full visibility mask.
+
         Args:
-            observation: Full observation tensor
+            observation: AgentObservation instance
             channel_idx: Index of the VISIBILITY channel
             config: Observation configuration (uses fov_radius, device, torch_dtype)
             agent_world_pos: Agent's world position (unused for visibility)
@@ -728,7 +770,13 @@ class VisibilityHandler(ChannelHandler):
             device=config.device,
             dtype=config.torch_dtype,
         )
-        observation[channel_idx] = vis
+
+        # Use sparse storage interface for dense visibility mask
+        if hasattr(observation, '_store_sparse_grid'):
+            observation._store_sparse_grid(channel_idx, vis)
+        else:
+            # Fallback to direct tensor access (backward compatibility)
+            observation[channel_idx] = vis
 
 
 class KnownEmptyHandler(ChannelHandler):
@@ -754,15 +802,25 @@ class KnownEmptyHandler(ChannelHandler):
         """
         Apply decay using config gamma_known.
 
+        Uses sparse-aware decay to maintain memory efficiency.
+
         Args:
-            observation: Full observation tensor
+            observation: AgentObservation instance
             channel_idx: Index of the KNOWN_EMPTY channel
             config: Observation configuration (uses gamma_known)
         """
+        gamma = None
         if config is not None and hasattr(config, "gamma_known"):
-            observation[channel_idx] *= config.gamma_known
+            gamma = config.gamma_known
         elif self.gamma is not None:
-            observation[channel_idx] *= self.gamma
+            gamma = self.gamma
+
+        if gamma is not None:
+            if hasattr(observation, '_decay_sparse_channel'):
+                observation._decay_sparse_channel(channel_idx, gamma)
+            else:
+                # Fallback to direct tensor access (backward compatibility)
+                observation[channel_idx] *= gamma
 
     def process(
         self,
@@ -817,16 +875,25 @@ class TransientEventHandler(ChannelHandler):
         """
         Apply decay using appropriate config gamma.
 
+        Uses sparse-aware decay to maintain memory efficiency.
+
         Args:
-            observation: Full observation tensor
+            observation: AgentObservation instance
             channel_idx: Index of this transient event channel
             config: Observation configuration (uses config-specific gamma)
         """
+        gamma = None
         if config is not None and hasattr(config, self.config_gamma_key):
             gamma = getattr(config, self.config_gamma_key)
-            observation[channel_idx] *= gamma
         elif self.gamma is not None:
-            observation[channel_idx] *= self.gamma
+            gamma = self.gamma
+
+        if gamma is not None:
+            if hasattr(observation, '_decay_sparse_channel'):
+                observation._decay_sparse_channel(channel_idx, gamma)
+            else:
+                # Fallback to direct tensor access (backward compatibility)
+                observation[channel_idx] *= gamma
 
     def process(
         self,
@@ -839,8 +906,10 @@ class TransientEventHandler(ChannelHandler):
         """
         Process transient events and write to their relative positions.
 
+        Uses sparse storage for event points to maintain memory efficiency.
+
         Args:
-            observation: Full observation tensor
+            observation: AgentObservation instance
             channel_idx: Index of this transient event channel
             config: Observation configuration
             agent_world_pos: Agent's world position (y, x)
@@ -854,14 +923,24 @@ class TransientEventHandler(ChannelHandler):
         R = config.R
         ay, ax = agent_world_pos
 
+        # Convert to local coordinates and filter valid positions
+        points = []
         for event_y, event_x, intensity in events:
             dy = event_y - ay
             dx = event_x - ax
             y = R + dy
             x = R + dx
             if 0 <= y < 2 * R + 1 and 0 <= x < 2 * R + 1:
+                points.append((y, x, float(intensity)))
+
+        # Use sparse storage if available
+        if hasattr(observation, '_store_sparse_points'):
+            observation._store_sparse_points(channel_idx, points)
+        else:
+            # Fallback to direct tensor access (backward compatibility)
+            for y, x, intensity in points:
                 observation[channel_idx, y, x] = max(
-                    observation[channel_idx, y, x].item(), float(intensity)
+                    observation[channel_idx, y, x].item(), intensity
                 )
 
 
@@ -893,8 +972,10 @@ class GoalHandler(ChannelHandler):
         """
         Process goal position and write to its relative position.
 
+        Uses sparse storage for single goal point to maintain memory efficiency.
+
         Args:
-            observation: Full observation tensor
+            observation: AgentObservation instance
             channel_idx: Index of the GOAL channel
             config: Observation configuration
             agent_world_pos: Agent's world position (y, x)
@@ -911,8 +992,14 @@ class GoalHandler(ChannelHandler):
         dx = gx - ax
         y = R + dy
         x = R + dx
+
         if 0 <= y < 2 * R + 1 and 0 <= x < 2 * R + 1:
-            observation[channel_idx, y, x] = 1.0
+            # Use sparse storage if available
+            if hasattr(observation, '_store_sparse_point'):
+                observation._store_sparse_point(channel_idx, y, x, 1.0)
+            else:
+                # Fallback to direct tensor access (backward compatibility)
+                observation[channel_idx, y, x] = 1.0
 
 
 class LandmarkHandler(ChannelHandler):
@@ -948,8 +1035,10 @@ class LandmarkHandler(ChannelHandler):
         across ticks. This handler adds landmark information without clearing
         previous landmark data.
 
+        Uses sparse storage to maintain memory efficiency for landmark accumulation.
+
         Args:
-            observation: Full observation tensor
+            observation: AgentObservation instance
             channel_idx: Index of the LANDMARKS channel
             config: Observation configuration
             agent_world_pos: Agent's world position (y, x)
@@ -962,15 +1051,34 @@ class LandmarkHandler(ChannelHandler):
         R = config.R
         ay, ax = agent_world_pos
 
+        # Convert to local coordinates and filter valid positions
+        points = []
         for landmark_y, landmark_x, importance in landmarks_world:
             dy = landmark_y - ay
             dx = landmark_x - ax
             y = R + dy
             x = R + dx
             if 0 <= y < 2 * R + 1 and 0 <= x < 2 * R + 1:
-                # Accumulate landmark importance (don't overwrite existing values)
+                points.append((y, x, float(importance)))
+
+        # Use sparse storage if available (accumulate values)
+        if hasattr(observation, '_store_sparse_points'):
+            # For landmarks, we need to accumulate rather than overwrite
+            if channel_idx in observation.sparse_channels:
+                channel_data = observation.sparse_channels[channel_idx]
+                if isinstance(channel_data, dict):
+                    for y, x, importance in points:
+                        key = (y, x)
+                        current_value = channel_data.get(key, 0.0)
+                        channel_data[key] = max(current_value, importance)
+                observation.cache_dirty = True
+            else:
+                observation._store_sparse_points(channel_idx, points)
+        else:
+            # Fallback to direct tensor access (backward compatibility)
+            for y, x, importance in points:
                 current_value = observation[channel_idx, y, x].item()
-                observation[channel_idx, y, x] = max(current_value, float(importance))
+                observation[channel_idx, y, x] = max(current_value, importance)
 
 
 # Register core channel handlers with their original indices for backward compatibility
