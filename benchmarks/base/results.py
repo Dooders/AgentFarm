@@ -8,8 +8,14 @@ import statistics
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
 
-import matplotlib.pyplot as plt
-import numpy as np
+try:
+    import matplotlib.pyplot as plt  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    plt = None
+try:
+    import numpy as np  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    np = None
 
 
 class BenchmarkResults:
@@ -235,19 +241,23 @@ class BenchmarkResults:
         save_path : str, optional
             Path to save the plot
         """
+        if plt is None:
+            print("matplotlib not available; skipping plot_durations()")
+            return
+
         durations = self.get_durations()
         iterations = [result["iteration"] for result in self.iteration_results]
-        
+
         plt.figure(figsize=(10, 6))
         plt.bar(iterations, durations)
         plt.xlabel("Iteration")
         plt.ylabel("Duration (seconds)")
         plt.title(title or f"{self.name} Benchmark Durations")
         plt.grid(True, linestyle="--", alpha=0.7)
-        
+
         if save_path:
             plt.savefig(save_path)
-        
+
         plt.show()
     
     def compare_with(self, other: 'BenchmarkResults', 
@@ -265,23 +275,27 @@ class BenchmarkResults:
         save_path : str, optional
             Path to save the plot
         """
+        if plt is None:
+            print("matplotlib not available; skipping compare_with()")
+            return
+
         this_mean = self.get_mean_duration()
         other_mean = other.get_mean_duration()
-        
+
         labels = [self.name, other.name]
         means = [this_mean, other_mean]
-        
+
         plt.figure(figsize=(10, 6))
         plt.bar(labels, means)
         plt.ylabel("Mean Duration (seconds)")
         plt.title(title or "Benchmark Comparison")
         plt.grid(True, linestyle="--", alpha=0.7)
-        
+
         # Add values on top of bars
         for i, v in enumerate(means):
             plt.text(i, v + 0.1, f"{v:.2f}s", ha='center')
-        
+
         if save_path:
             plt.savefig(save_path)
-        
-        plt.show() 
+
+        plt.show()

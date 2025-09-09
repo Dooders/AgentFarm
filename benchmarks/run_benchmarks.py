@@ -9,9 +9,7 @@ import sys
 from typing import List, Dict, Any
 
 from benchmarks.base.runner import BenchmarkRunner
-from benchmarks.implementations.memory_db_benchmark import MemoryDBBenchmark
-from benchmarks.implementations.pragma_profile_benchmark import PragmaProfileBenchmark
-from benchmarks.implementations.redis_memory_benchmark import RedisMemoryBenchmark
+from benchmarks.implementations.observation_flow_benchmark import ObservationFlowBenchmark
 
 
 def parse_args():
@@ -21,7 +19,7 @@ def parse_args():
     parser.add_argument(
         "--benchmark",
         type=str,
-        choices=["memory_db", "pragma_profile", "redis_memory", "all"],
+        choices=["memory_db", "pragma_profile", "redis_memory", "observation_flow", "all"],
         default="all",
         help="Benchmark to run",
     )
@@ -111,6 +109,50 @@ def parse_args():
         default=100,
         help="Cleanup interval for Redis benchmark memory entries",
     )
+
+    # Observation flow specific
+    parser.add_argument(
+        "--obs-steps",
+        type=int,
+        default=100,
+        help="Number of steps for observation_flow benchmark",
+    )
+    parser.add_argument(
+        "--obs-agents",
+        type=int,
+        default=200,
+        help="Number of agents for observation_flow benchmark",
+    )
+    parser.add_argument(
+        "--obs-width",
+        type=int,
+        default=200,
+        help="Environment width for observation_flow benchmark",
+    )
+    parser.add_argument(
+        "--obs-height",
+        type=int,
+        default=200,
+        help="Environment height for observation_flow benchmark",
+    )
+    parser.add_argument(
+        "--obs-radius",
+        type=int,
+        default=6,
+        help="Observation radius R for observation_flow benchmark",
+    )
+    parser.add_argument(
+        "--obs-fov",
+        type=int,
+        default=6,
+        help="FOV radius for observation_flow benchmark",
+    )
+    parser.add_argument(
+        "--obs-device",
+        type=str,
+        default="cpu",
+        help="Device for observation tensors (cpu/cuda) for observation_flow benchmark",
+    )
     
     return parser.parse_args()
 
@@ -122,22 +164,34 @@ def main():
     # Create benchmark runner
     runner = BenchmarkRunner(output_dir=args.output)
     
-    # Register benchmarks
+    # Register benchmarks lazily to avoid importing heavy deps unnecessarily
     if args.benchmark == "memory_db" or args.benchmark == "all":
+        from benchmarks.implementations.memory_db_benchmark import (
+            MemoryDBBenchmark,
+        )
+
         memory_db_benchmark = MemoryDBBenchmark(
             num_steps=args.steps,
             num_agents=args.agents,
         )
         runner.register_benchmark(memory_db_benchmark)
-    
+
     if args.benchmark == "pragma_profile" or args.benchmark == "all":
+        from benchmarks.implementations.pragma_profile_benchmark import (
+            PragmaProfileBenchmark,
+        )
+
         pragma_profile_benchmark = PragmaProfileBenchmark(
             num_records=args.num_records,
             db_size_mb=args.db_size_mb,
         )
         runner.register_benchmark(pragma_profile_benchmark)
-    
+
     if args.benchmark == "redis_memory" or args.benchmark == "all":
+        from benchmarks.implementations.redis_memory_benchmark import (
+            RedisMemoryBenchmark,
+        )
+
         redis_memory_benchmark = RedisMemoryBenchmark(
             num_agents=args.agents,
             memory_entries=args.memory_entries,
@@ -148,6 +202,22 @@ def main():
             cleanup_interval=args.cleanup_interval,
         )
         runner.register_benchmark(redis_memory_benchmark)
+    
+    if args.benchmark == "observation_flow" or args.benchmark == "all":
+        from benchmarks.implementations.observation_flow_benchmark import (
+            ObservationFlowBenchmark,
+        )
+
+        observation_benchmark = ObservationFlowBenchmark(
+            width=args.obs_width,
+            height=args.obs_height,
+            num_agents=args.obs_agents,
+            steps=args.obs_steps,
+            radius=args.obs_radius,
+            fov_radius=args.obs_fov,
+            device=args.obs_device,
+        )
+        runner.register_benchmark(observation_benchmark)
     
     # Run benchmarks
     if args.benchmark == "all":
@@ -180,6 +250,17 @@ def main():
                 print(f"    Batch Operations: {overall.get('batch_throughput', 0):.2f} ops/sec")
                 print(f"    Memory Per Entry: {overall.get('memory_efficiency', 0):.2f} bytes")
                 print(f"    Cleanup Time: {overall.get('cleanup_time', 0):.6f} seconds")
+
+        if name == "observation_flow":
+            # Print throughput metrics from the last iteration
+            if result.iteration_results:
+                last = result.iteration_results[-1]["results"]
+                print("\n  Observation Metrics:")
+                print(f"    Total Observes: {last.get('total_observes', 0)}")
+                print(f"    Total Time (s): {last.get('total_time_s', 0.0):.3f}")
+                print(f"    Observes/sec: {last.get('observes_per_sec', 0.0):.1f}")
+                print(f"    Mean Step Time (s): {last.get('mean_step_time_s', 0.0):.6f}")
+                print(f"    P95 Step Time (s): {last.get('p95_step_time_s', 0.0):.6f}")
     
     return 0
 
