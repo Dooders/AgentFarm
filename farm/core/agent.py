@@ -947,8 +947,14 @@ class BaseAgent:
         else:
             action = self.actions[action_index]
 
+        # Capture resource level before action execution for accurate logging
+        resources_before = self.resource_level
+
         # Execute action and capture result
         action_result = action.execute(self)
+
+        # Capture resource level after action execution
+        resources_after = self.resource_level
 
         # Log action to database if logger is available
         if hasattr(self, "environment") and self.environment and hasattr(self.environment, "db") and self.environment.db:
@@ -961,8 +967,8 @@ class BaseAgent:
                     step_number=current_time,
                     agent_id=self.agent_id,
                     action_type=action.name,
-                    resources_before=self.resource_level,
-                    resources_after=self.resource_level,  # Will be updated by action if needed
+                    resources_before=resources_before,
+                    resources_after=resources_after,
                     reward=0,  # Reward will be calculated later
                     details=action_result.get("details", {})
                 )
