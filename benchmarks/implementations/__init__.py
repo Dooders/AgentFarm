@@ -1,7 +1,13 @@
 """
-Benchmark implementations.
+Benchmark implementations package.
+
+Avoid importing specific benchmarks here to prevent importing heavy optional
+dependencies when not needed. Benchmarks are imported lazily by the CLI.
 """
 
-from benchmarks.implementations.memory_db_benchmark import MemoryDBBenchmark
-
-__all__ = ["MemoryDBBenchmark"] 
+__all__ = [
+    "MemoryDBBenchmark",
+    "PragmaProfileBenchmark",
+    "RedisMemoryBenchmark",
+    "ObservationFlowBenchmark",
+]
