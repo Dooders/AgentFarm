@@ -256,11 +256,6 @@ class ChannelHandler(ABC):
         This utility method centralizes the hasattr pattern for storing multiple points,
         providing a consistent interface across all channel handlers.
 
-        IMPORTANT: This method maintains proper encapsulation by avoiding direct access to
-        observation.sparse_channels. Instead, it uses the observation's public interface
-        methods, ensuring the observation implementation can change without breaking
-        channel handlers.
-
         Args:
             observation: AgentObservation instance providing sparse storage interface.
             channel_idx: Index of this channel in the observation tensor (0-based).
@@ -269,21 +264,7 @@ class ChannelHandler(ABC):
                        If False, overwrite existing values.
         """
         if hasattr(observation, "_store_sparse_points"):
-            sparse_channels = getattr(observation, 'sparse_channels', {})
-            if accumulate and channel_idx in sparse_channels:
-                # For landmarks, we need to accumulate rather than overwrite
-                channel_data = sparse_channels[channel_idx]
-                if isinstance(channel_data, dict):
-                    for y, x, value in points:
-                        key = (y, x)
-                        current_value = channel_data.get(key, 0.0)
-                        channel_data[key] = max(current_value, value)
-                    if hasattr(observation, 'cache_dirty'):
-                        observation.cache_dirty = True
-                else:
-                    observation._store_sparse_points(channel_idx, points)
-            else:
-                observation._store_sparse_points(channel_idx, points)
+            observation._store_sparse_points(channel_idx, points, accumulate=accumulate)
         else:
             # Fallback to direct tensor access (backward compatibility)
             for y, x, value in points:
@@ -342,13 +323,6 @@ class ChannelHandler(ABC):
         """
         if hasattr(observation, "_decay_sparse_channel"):
             observation._decay_sparse_channel(channel_idx, gamma)
-            # Also decay dense tensor values if no sparse data was decayed
-            sparse_channels = getattr(observation, 'sparse_channels', {})
-            if channel_idx not in sparse_channels:
-                if hasattr(observation, "tensor"):
-                    observation.tensor()[channel_idx] *= gamma
-                elif isinstance(observation, torch.Tensor):
-                    observation[channel_idx] *= gamma
         else:
             # Fallback to direct tensor access (backward compatibility)
             if hasattr(observation, "tensor"):
@@ -369,13 +343,6 @@ class ChannelHandler(ABC):
         """
         if hasattr(observation, "_clear_sparse_channel"):
             observation._clear_sparse_channel(channel_idx)
-            # Also clear from dense tensor if no sparse data was cleared
-            sparse_channels = getattr(observation, 'sparse_channels', {})
-            if channel_idx not in sparse_channels:
-                if hasattr(observation, "tensor"):
-                    observation.tensor()[channel_idx].zero_()
-                elif isinstance(observation, torch.Tensor):
-                    observation[channel_idx].zero_()
         else:
             # Fallback to direct tensor access (backward compatibility)
             if hasattr(observation, "tensor"):
