@@ -238,22 +238,33 @@ class ChannelHandler(ABC):
         self.gamma = gamma  # Decay factor for dynamic channels
 
     @abstractmethod
-    def process(self, observation: torch.Tensor, channel_idx: int,
+    def process(self, observation, channel_idx: int,
                 config: ObservationConfig, agent_world_pos: Tuple[int, int],
                 **kwargs) -> None:
-        """Process and update channel observation."""
+        """Process and update channel observation.
+
+        observation: AgentObservation instance providing sparse storage interface
+        """
         pass
 
-    def clear(self, observation: torch.Tensor, channel_idx: int) -> None:
+    def clear(self, observation, channel_idx: int) -> None:
         """Clear channel if it's INSTANT behavior."""
         if self.behavior == ChannelBehavior.INSTANT:
-            observation[channel_idx].zero_()
+            # Use sparse clearing if available
+            if hasattr(observation, '_clear_sparse_channel'):
+                observation._clear_sparse_channel(channel_idx)
+            else:
+                observation[channel_idx].zero_()
 
-    def decay(self, observation: torch.Tensor, channel_idx: int,
+    def decay(self, observation, channel_idx: int,
               config: ObservationConfig) -> None:
         """Apply temporal decay to dynamic channels."""
         if self.behavior == ChannelBehavior.DYNAMIC:
-            observation[channel_idx].mul_(self.gamma)
+            # Use sparse decay if available
+            if hasattr(observation, '_decay_sparse_channel'):
+                observation._decay_sparse_channel(channel_idx, self.gamma)
+            else:
+                observation[channel_idx].mul_(self.gamma)
 ```
 
 ## Deep Dive: Dynamic Channel System
@@ -503,9 +514,15 @@ class WeatherChannel(ChannelHandler):
         super().__init__("WEATHER", ChannelBehavior.DYNAMIC, gamma=0.95)
 
     def process(self, observation, channel_idx, config, agent_world_pos, **kwargs):
+        # observation is an AgentObservation instance
         # Implement weather simulation logic
         weather_intensity = self._simulate_weather(agent_world_pos)
-        observation[channel_idx].fill_(weather_intensity)
+        # Use sparse storage for dense data if available
+        if hasattr(observation, '_store_sparse_grid'):
+            weather_grid = torch.full((2*config.R+1, 2*config.R+1), weather_intensity)
+            observation._store_sparse_grid(channel_idx, weather_grid)
+        else:
+            observation[channel_idx].fill_(weather_intensity)
 ```
 
 ### 2. Environment Hooks

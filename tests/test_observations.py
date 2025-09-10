@@ -281,66 +281,66 @@ class TestAgentObservation:
     def test_initialization(self, agent_obs, config):
         """Test AgentObservation initialization."""
         assert agent_obs.config == config
-        assert agent_obs.observation.shape == (NUM_CHANNELS, 7, 7)  # 2*3 + 1 = 7
-        assert agent_obs.observation.device.type == "cpu"
-        assert agent_obs.observation.dtype == torch.float32
-        assert torch.all(agent_obs.observation == 0.0)
+        assert agent_obs.tensor().shape == (NUM_CHANNELS, 7, 7)  # 2*3 + 1 = 7
+        assert agent_obs.tensor().device.type == "cpu"
+        assert agent_obs.tensor().dtype == torch.float32
+        assert torch.all(agent_obs.tensor() == 0.0)
 
     def test_decay_dynamics(self, agent_obs):
         """Test decay dynamics application."""
         # Set some initial values
-        agent_obs.observation[Channel.TRAILS] = 1.0
-        agent_obs.observation[Channel.DAMAGE_HEAT] = 1.0
-        agent_obs.observation[Channel.ALLY_SIGNAL] = 1.0
-        agent_obs.observation[Channel.KNOWN_EMPTY] = 1.0
+        agent_obs.tensor()[Channel.TRAILS] = 1.0
+        agent_obs.tensor()[Channel.DAMAGE_HEAT] = 1.0
+        agent_obs.tensor()[Channel.ALLY_SIGNAL] = 1.0
+        agent_obs.tensor()[Channel.KNOWN_EMPTY] = 1.0
 
         # Apply decay
         agent_obs.decay_dynamics()
 
         # Check that values have been decayed
-        assert torch.all(agent_obs.observation[Channel.TRAILS] == 0.90)
-        assert torch.all(agent_obs.observation[Channel.DAMAGE_HEAT] == 0.85)
-        assert torch.all(agent_obs.observation[Channel.ALLY_SIGNAL] == 0.92)
-        assert torch.all(agent_obs.observation[Channel.KNOWN_EMPTY] == 0.98)
+        assert torch.all(agent_obs.tensor()[Channel.TRAILS] == 0.90)
+        assert torch.all(agent_obs.tensor()[Channel.DAMAGE_HEAT] == 0.85)
+        assert torch.all(agent_obs.tensor()[Channel.ALLY_SIGNAL] == 0.92)
+        assert torch.all(agent_obs.tensor()[Channel.KNOWN_EMPTY] == 0.98)
 
     def test_clear_instant(self, agent_obs):
         """Test clearing of instantaneous channels."""
         # Set some values in all channels
-        agent_obs.observation.fill_(1.0)
+        agent_obs.tensor().fill_(1.0)
 
         # Clear instant channels
         agent_obs.clear_instant()
 
         # Check that instant channels are cleared
-        assert torch.all(agent_obs.observation[Channel.SELF_HP] == 0.0)
-        assert torch.all(agent_obs.observation[Channel.ALLIES_HP] == 0.0)
-        assert torch.all(agent_obs.observation[Channel.ENEMIES_HP] == 0.0)
-        assert torch.all(agent_obs.observation[Channel.RESOURCES] == 0.0)
-        assert torch.all(agent_obs.observation[Channel.OBSTACLES] == 0.0)
+        assert torch.all(agent_obs.tensor()[Channel.SELF_HP] == 0.0)
+        assert torch.all(agent_obs.tensor()[Channel.ALLIES_HP] == 0.0)
+        assert torch.all(agent_obs.tensor()[Channel.ENEMIES_HP] == 0.0)
+        assert torch.all(agent_obs.tensor()[Channel.RESOURCES] == 0.0)
+        assert torch.all(agent_obs.tensor()[Channel.OBSTACLES] == 0.0)
 
         # Dynamic channels should remain unchanged
-        assert torch.all(agent_obs.observation[Channel.TRAILS] == 1.0)
-        assert torch.all(agent_obs.observation[Channel.DAMAGE_HEAT] == 1.0)
-        assert torch.all(agent_obs.observation[Channel.ALLY_SIGNAL] == 1.0)
-        assert torch.all(agent_obs.observation[Channel.KNOWN_EMPTY] == 1.0)
+        assert torch.all(agent_obs.tensor()[Channel.TRAILS] == 1.0)
+        assert torch.all(agent_obs.tensor()[Channel.DAMAGE_HEAT] == 1.0)
+        assert torch.all(agent_obs.tensor()[Channel.ALLY_SIGNAL] == 1.0)
+        assert torch.all(agent_obs.tensor()[Channel.KNOWN_EMPTY] == 1.0)
 
 
 
     def test_update_known_empty(self, agent_obs):
         """Test updating known empty cells."""
         # Set up visibility and entity presence
-        agent_obs.observation[Channel.VISIBILITY] = 1.0  # All visible
-        agent_obs.observation[Channel.ALLIES_HP, 3, 4] = 0.5  # Some entity
-        agent_obs.observation[Channel.ENEMIES_HP, 4, 3] = 0.3  # Some entity
+        agent_obs.tensor()[Channel.VISIBILITY] = 1.0  # All visible
+        agent_obs.tensor()[Channel.ALLIES_HP, 3, 4] = 0.5  # Some entity
+        agent_obs.tensor()[Channel.ENEMIES_HP, 4, 3] = 0.3  # Some entity
 
         agent_obs.update_known_empty()
 
         # Cells with entities should not be marked as known empty
-        assert agent_obs.observation[Channel.KNOWN_EMPTY, 3, 4] == 0.0
-        assert agent_obs.observation[Channel.KNOWN_EMPTY, 4, 3] == 0.0
+        assert agent_obs.tensor()[Channel.KNOWN_EMPTY, 3, 4] == 0.0
+        assert agent_obs.tensor()[Channel.KNOWN_EMPTY, 4, 3] == 0.0
 
         # Empty visible cells should be marked as known empty
-        assert agent_obs.observation[Channel.KNOWN_EMPTY, 3, 3] == 1.0
+        assert agent_obs.tensor()[Channel.KNOWN_EMPTY, 3, 3] == 1.0
 
     def test_perceive_world_basic(self, agent_obs):
         """Test basic world perception."""
@@ -363,11 +363,11 @@ class TestAgentObservation:
         )
 
         # Check that self HP is written
-        assert agent_obs.observation[Channel.SELF_HP, 3, 3] == 0.8
+        assert agent_obs.tensor()[Channel.SELF_HP, 3, 3] == 0.8
 
         # Check that world layers are cropped correctly
-        assert agent_obs.observation[Channel.RESOURCES, 3, 3] == 1.0
-        assert agent_obs.observation[Channel.OBSTACLES, 4, 4] == 1.0
+        assert agent_obs.tensor()[Channel.RESOURCES, 3, 3] == 1.0
+        assert agent_obs.tensor()[Channel.OBSTACLES, 4, 4] == 1.0
 
     def test_perceive_world_with_entities(self, agent_obs):
         """Test world perception with allies and enemies."""
@@ -387,13 +387,13 @@ class TestAgentObservation:
 
         # Check that allies are written correctly (relative to center)
         assert (
-            agent_obs.observation[Channel.ALLIES_HP, 2, 3] == 0.9
+            agent_obs.tensor()[Channel.ALLIES_HP, 2, 3] == 0.9
         )  # (4, 5) -> (-1, 0)
-        assert agent_obs.observation[Channel.ALLIES_HP, 4, 3] == 0.7  # (6, 5) -> (1, 0)
+        assert agent_obs.tensor()[Channel.ALLIES_HP, 4, 3] == 0.7  # (6, 5) -> (1, 0)
 
         # Check that enemies are written correctly
         assert (
-            agent_obs.observation[Channel.ENEMIES_HP, 3, 2] == 0.6
+            agent_obs.tensor()[Channel.ENEMIES_HP, 3, 2] == 0.6
         )  # (5, 4) -> (0, -1)
 
     def test_perceive_world_with_goal(self, agent_obs):
@@ -410,7 +410,7 @@ class TestAgentObservation:
         )
 
         # Check that goal is written correctly (relative to agent at 5,5)
-        assert agent_obs.observation[Channel.GOAL, 5, 5] == 1.0  # (7-5, 7-5) -> (2, 2)
+        assert agent_obs.tensor()[Channel.GOAL, 5, 5] == 1.0  # (7-5, 7-5) -> (2, 2)
 
     def test_perceive_world_with_transient_events(self, agent_obs):
         """Test world perception with transient events."""
@@ -433,20 +433,20 @@ class TestAgentObservation:
         )
 
         # Check that transient events are written
-        assert agent_obs.observation[Channel.DAMAGE_HEAT, 2, 3] == 0.5
-        assert agent_obs.observation[Channel.ALLY_SIGNAL, 4, 3] == 0.8
-        assert agent_obs.observation[Channel.TRAILS, 3, 2] == 0.3
+        assert agent_obs.tensor()[Channel.DAMAGE_HEAT, 2, 3] == 0.5
+        assert agent_obs.tensor()[Channel.ALLY_SIGNAL, 4, 3] == 0.8
+        assert agent_obs.tensor()[Channel.TRAILS, 3, 2] == 0.3
 
     def test_tensor_method(self, agent_obs):
         """Test the tensor method."""
         # Set some values
-        agent_obs.observation[Channel.SELF_HP, 3, 3] = 0.8
+        agent_obs.tensor()[Channel.SELF_HP, 3, 3] = 0.8
 
         # Get tensor
         tensor = agent_obs.tensor()
 
         # Should return the same tensor
-        assert torch.equal(tensor, agent_obs.observation)
+        assert torch.equal(tensor, agent_obs.tensor())
         assert tensor.shape == (NUM_CHANNELS, 7, 7)
 
 
@@ -502,8 +502,8 @@ class TestIntegration:
         agent_obs = AgentObservation(config)
 
         # Set initial values
-        agent_obs.observation[Channel.TRAILS] = 1.0
-        agent_obs.observation[Channel.DAMAGE_HEAT] = 1.0
+        agent_obs.tensor()[Channel.TRAILS] = 1.0
+        agent_obs.tensor()[Channel.DAMAGE_HEAT] = 1.0
 
         # Apply decay multiple times
         for _ in range(3):
@@ -514,10 +514,10 @@ class TestIntegration:
         expected_dmg = 1.0 * (0.7**3)
 
         assert torch.allclose(
-            agent_obs.observation[Channel.TRAILS], torch.tensor(expected_trail)
+            agent_obs.tensor()[Channel.TRAILS], torch.tensor(expected_trail)
         )
         assert torch.allclose(
-            agent_obs.observation[Channel.DAMAGE_HEAT], torch.tensor(expected_dmg)
+            agent_obs.tensor()[Channel.DAMAGE_HEAT], torch.tensor(expected_dmg)
         )
 
 
