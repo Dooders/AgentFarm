@@ -256,6 +256,11 @@ class ChannelHandler(ABC):
         This utility method centralizes the hasattr pattern for storing multiple points,
         providing a consistent interface across all channel handlers.
 
+        IMPORTANT: This method maintains proper encapsulation by avoiding direct access to
+        observation.sparse_channels. Instead, it uses the observation's public interface
+        methods, ensuring the observation implementation can change without breaking
+        channel handlers.
+
         Args:
             observation: AgentObservation instance providing sparse storage interface.
             channel_idx: Index of this channel in the observation tensor (0-based).
@@ -724,6 +729,8 @@ class AlliesHPHandler(ChannelHandler):
                 points.append((y, x, float(ally_hp)))
 
         # Use sparse storage utility method for consistent handling (no accumulation)
+        # This maintains encapsulation by avoiding direct access to observation.sparse_channels
+        # and instead uses the public sparse storage interface
         self._safe_store_sparse_points(
             observation, channel_idx, points, accumulate=False
         )
@@ -784,6 +791,8 @@ class EnemiesHPHandler(ChannelHandler):
                 points.append((y, x, float(enemy_hp)))
 
         # Use sparse storage utility method for consistent handling (no accumulation)
+        # This maintains encapsulation by avoiding direct access to observation.sparse_channels
+        # and instead uses the public sparse storage interface
         self._safe_store_sparse_points(
             observation, channel_idx, points, accumulate=False
         )
@@ -1066,6 +1075,8 @@ class TransientEventHandler(ChannelHandler):
                 points.append((y, x, float(intensity)))
 
         # Use sparse storage utility method for consistent handling (no accumulation)
+        # This maintains encapsulation by avoiding direct access to observation.sparse_channels
+        # and instead uses the public sparse storage interface
         self._safe_store_sparse_points(
             observation, channel_idx, points, accumulate=False
         )
@@ -1185,6 +1196,8 @@ class LandmarkHandler(ChannelHandler):
                 points.append((y, x, float(importance)))
 
         # Use sparse storage utility method for consistent handling (with accumulation)
+        # This maintains encapsulation by avoiding direct access to observation.sparse_channels
+        # and instead uses the public sparse storage interface
         self._safe_store_sparse_points(
             observation, channel_idx, points, accumulate=True
         )

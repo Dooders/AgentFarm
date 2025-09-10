@@ -147,10 +147,16 @@ def create_observation_tensor(
     if initialization == "zeros":
         return torch.zeros(num_channels, size, size, device=device, dtype=dtype)
     elif initialization == "random":
-        rand_tensor = torch.rand(num_channels, size, size, device=device, dtype=dtype) * (random_max - random_min) + random_min
+        rand_tensor = (
+            torch.rand(num_channels, size, size, device=device, dtype=dtype)
+            * (random_max - random_min)
+            + random_min
+        )
         return rand_tensor
     else:
-        raise ValueError(f"Unknown initialization method: {initialization}. Must be 'zeros' or 'random'")
+        raise ValueError(
+            f"Unknown initialization method: {initialization}. Must be 'zeros' or 'random'"
+        )
 
 
 class ObservationConfig(BaseModel):
@@ -180,7 +186,8 @@ class ObservationConfig(BaseModel):
         default=6, gt=0, description="Field of view radius (simple disk)"
     )
     initialization: str = Field(
-        default="zeros", description="Observation tensor initialization method ('zeros' or 'random')"
+        default="zeros",
+        description="Observation tensor initialization method ('zeros' or 'random')",
     )
     random_min: float = Field(
         default=0.0, description="Minimum value for random initialization"
@@ -481,8 +488,8 @@ class AgentObservation:
 
         # Sparse storage: only allocate when needed
         self.sparse_channels = {}  # {channel_idx: sparse_data}
-        self.dense_cache = None     # Lazy dense tensor
-        self.cache_dirty = True     # Whether we need to rebuild dense
+        self.dense_cache = None  # Lazy dense tensor
+        self.cache_dirty = True  # Whether we need to rebuild dense
 
         # Pre-allocate dense tensor only if initialization is non-zero
         if config.initialization != "zeros":
@@ -504,7 +511,9 @@ class AgentObservation:
         self.sparse_channels[channel_idx][(y, x)] = value
         self.cache_dirty = True
 
-    def _store_sparse_points(self, channel_idx: int, points: List[Tuple[int, int, float]]):
+    def _store_sparse_points(
+        self, channel_idx: int, points: List[Tuple[int, int, float]]
+    ):
         """Store multiple point values in sparse format."""
         if channel_idx not in self.sparse_channels:
             self.sparse_channels[channel_idx] = {}
@@ -556,9 +565,11 @@ class AgentObservation:
         # Create dense tensor
         if self.dense_cache is None:
             self.dense_cache = torch.zeros(
-                num_channels, S, S,
+                num_channels,
+                S,
+                S,
                 device=self.config.device,
-                dtype=self.config.torch_dtype
+                dtype=self.config.torch_dtype,
             )
 
         # Clear existing values
@@ -708,16 +719,18 @@ class AgentObservation:
             resources_idx = self.registry.get_index("RESOURCES")
             obstacles_idx = self.registry.get_index("OBSTACLES")
 
-            visible = self.tensor()[visibility_idx]
+            # Cache the tensor to avoid multiple dense tensor constructions
+            obs_tensor = self.tensor()
+            visible = obs_tensor[visibility_idx]
             # Cells considered "non-empty" if any of these layers have mass at that cell:
             entity_like = (
-                self.tensor()[allies_idx]
-                + self.tensor()[enemies_idx]
-                + self.tensor()[resources_idx]
-                + self.tensor()[obstacles_idx]
+                obs_tensor[allies_idx]
+                + obs_tensor[enemies_idx]
+                + obs_tensor[resources_idx]
+                + obs_tensor[obstacles_idx]
             )
             empty_visible = (visible > 0.5) & (entity_like <= 1e-6)
-            self.tensor()[known_empty_idx][empty_visible] = 1.0
+            obs_tensor[known_empty_idx][empty_visible] = 1.0
         except KeyError:
             # If any required channels are missing, skip the update
             pass
