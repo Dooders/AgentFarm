@@ -98,7 +98,7 @@ import torch
 import torch.nn.functional as F
 from pydantic import BaseModel, Field, field_validator
 
-from farm.core.channels import Channel, ChannelBehavior, get_channel_registry
+from farm.core.channels import ChannelBehavior, get_channel_registry
 from farm.core.observation_render import ObservationRenderer
 from farm.core.spatial_index import SpatialIndex
 
@@ -523,7 +523,7 @@ class AgentObservation:
         """Clear all data for a sparse channel."""
         if channel_idx in self.sparse_channels:
             del self.sparse_channels[channel_idx]
-        self.cache_dirty = True
+            self.cache_dirty = True
 
     def _decay_sparse_channel(self, channel_idx: int, decay_factor: float):
         """Apply decay to a sparse channel."""
@@ -543,7 +543,7 @@ class AgentObservation:
             else:
                 # Dense grid: decay the tensor
                 channel_data *= decay_factor
-        self.cache_dirty = True
+            self.cache_dirty = True
 
     def _build_dense_tensor(self) -> torch.Tensor:
         """Build dense tensor from sparse data on-demand."""
@@ -668,13 +668,11 @@ class AgentObservation:
 
         Uses sparse-aware decay that removes effectively zero values to maintain sparsity.
         """
-        # Apply decay to each dynamic channel in sparse format
+        # Apply decay to each dynamic channel using handler-specific logic
         for name, handler in self.registry.get_all_handlers().items():
             if handler.behavior == ChannelBehavior.DYNAMIC:
                 channel_idx = self.registry.get_index(name)
-                decay_factor = getattr(self.config, f"gamma_{name.lower()}", None)
-                if decay_factor is not None:
-                    self._decay_sparse_channel(channel_idx, decay_factor)
+                handler.decay(self, channel_idx, self.config)
 
     def clear_instant(self):
         """
@@ -687,11 +685,11 @@ class AgentObservation:
 
         Uses sparse-aware clearing to maintain memory efficiency.
         """
-        # Clear all instantaneous channels from sparse storage
+        # Clear all instantaneous channels using handler-specific logic
         for name, handler in self.registry.get_all_handlers().items():
             if handler.behavior == ChannelBehavior.INSTANT:
                 channel_idx = self.registry.get_index(name)
-                self._clear_sparse_channel(channel_idx)
+                handler.clear(self, channel_idx)
 
     def update_known_empty(self):
         """

@@ -117,9 +117,10 @@ class ChannelHandler(ABC):
         ...         super().__init__("MY_CUSTOM", ChannelBehavior.DYNAMIC, gamma=0.95)
         ...
         ...     def process(self, observation, channel_idx, config, agent_world_pos, **kwargs):
-        ...         # Custom processing logic here
+        ...         # observation is an AgentObservation instance
         ...         custom_data = kwargs.get("my_custom_data", [])
-        ...         # Process and write to observation[channel_idx]
+        ...         # Use sparse methods for efficiency: observation._store_sparse_point(...)
+        ...         # Or direct tensor access: observation.tensor()[channel_idx] = ...
         ...         pass
     """
 
@@ -145,7 +146,7 @@ class ChannelHandler(ABC):
     @abstractmethod
     def process(
         self,
-        observation: torch.Tensor,  # Full observation tensor
+        observation,  # AgentObservation instance (not just tensor)
         channel_idx: int,  # Index of this channel
         config: "ObservationConfig",
         agent_world_pos: Tuple[int, int],
@@ -158,15 +159,15 @@ class ChannelHandler(ABC):
         channel data is extracted from the world state and written to the observation tensor.
         The method is called each tick during the observation update process.
 
-        The observation tensor uses a local coordinate system centered on the agent:
-        - The center pixel (R, R) represents the agent's current position
-        - Coordinates increase right and down from the center
-        - World positions must be converted to local observation coordinates
+        The observation parameter is an AgentObservation instance that provides access to
+        sparse storage methods for memory-efficient channel updates. Implementations should
+        use the observation's sparse storage methods (_store_sparse_point, _store_sparse_points,
+        _store_sparse_grid) when available, with fallback to direct tensor access.
 
         Args:
-            observation: The full observation tensor with shape (num_channels, 2R+1, 2R+1)
-                        where R is the observation radius from config. This tensor uses
-                        a local coordinate system centered on the agent's position.
+            observation: AgentObservation instance providing sparse storage interface and
+                        tensor access. Use observation.tensor()[channel_idx] for direct tensor
+                        access or observation._store_sparse_* methods for efficient sparse storage.
             channel_idx: Index of this channel in the observation tensor (0-based).
             config: Observation configuration object containing parameters like R (radius),
                    device, torch_dtype, gamma values, etc.
@@ -187,10 +188,15 @@ class ChannelHandler(ABC):
             Implementations should convert world coordinates to local observation coordinates:
             local_y = world_y - agent_world_pos[0] + config.R
             local_x = world_x - agent_world_pos[1] + config.R
+
+            For memory efficiency, prefer sparse storage methods when available:
+            - observation._store_sparse_point(channel_idx, y, x, value) for single points
+            - observation._store_sparse_points(channel_idx, points) for multiple points
+            - observation._store_sparse_grid(channel_idx, grid) for full grids
         """
         raise NotImplementedError("Subclasses must implement this method")
 
-    def decay(self, observation: torch.Tensor, channel_idx: int, config=None) -> None:
+    def decay(self, observation, channel_idx: int, config=None) -> None:
         """
         Apply temporal decay to this channel if it's DYNAMIC.
 
@@ -203,7 +209,7 @@ class ChannelHandler(ABC):
         across all spatial positions in the channel.
 
         Args:
-            observation: The full observation tensor with shape (num_channels, 2R+1, 2R+1).
+            observation: AgentObservation instance providing sparse storage interface.
             channel_idx: Index of this channel in the observation tensor (0-based).
             config: Optional ObservationConfig object that may contain channel-specific
                    gamma values. If provided and the channel has a config-specific gamma,
@@ -214,9 +220,14 @@ class ChannelHandler(ABC):
             For INSTANT and PERSISTENT channels, this method does nothing.
         """
         if self.behavior == ChannelBehavior.DYNAMIC and self.gamma is not None:
-            observation[channel_idx] *= self.gamma
+            # Use sparse-aware decay if available
+            if hasattr(observation, '_decay_sparse_channel'):
+                observation._decay_sparse_channel(channel_idx, self.gamma)
+            else:
+                # Fallback to direct tensor access (backward compatibility)
+                observation[channel_idx] *= self.gamma
 
-    def clear(self, observation: torch.Tensor, channel_idx: int) -> None:
+    def clear(self, observation, channel_idx: int) -> None:
         """
         Clear this channel if it's INSTANT.
 
@@ -228,7 +239,7 @@ class ChannelHandler(ABC):
         remains from the previous tick.
 
         Args:
-            observation: The full observation tensor with shape (num_channels, 2R+1, 2R+1).
+            observation: AgentObservation instance providing sparse storage interface.
             channel_idx: Index of this channel in the observation tensor (0-based).
 
         Note:
@@ -237,7 +248,17 @@ class ChannelHandler(ABC):
             their temporal behavior.
         """
         if self.behavior == ChannelBehavior.INSTANT:
-            observation[channel_idx].zero_()
+            # Use sparse-aware clearing if available
+            if hasattr(observation, '_clear_sparse_channel'):
+                observation._clear_sparse_channel(channel_idx)
+                # Also clear from dense tensor if no sparse data was cleared
+                if channel_idx not in observation.sparse_channels:
+                    if hasattr(observation, 'tensor'):
+                        observation.tensor()[channel_idx].zero_()
+            else:
+                # Fallback to direct tensor access (backward compatibility)
+                if hasattr(observation, 'tensor'):
+                    observation.tensor()[channel_idx].zero_()
 
 
 class ChannelRegistry:
@@ -494,7 +515,7 @@ class SelfHPHandler(ChannelHandler):
         Uses sparse storage for single-point data to maintain memory efficiency.
 
         Args:
-            observation: AgentObservation instance (not the tensor directly)
+            observation: AgentObservation instance
             channel_idx: Index of the SELF_HP channel
             config: Observation configuration
             agent_world_pos: Agent's world position (unused for self HP)
@@ -595,7 +616,7 @@ class EnemiesHPHandler(ChannelHandler):
 
     def process(
         self,
-        observation: torch.Tensor,
+        observation,
         channel_idx: int,
         config: "ObservationConfig",
         agent_world_pos: Tuple[int, int],
@@ -667,7 +688,7 @@ class WorldLayerHandler(ChannelHandler):
 
     def process(
         self,
-        observation: torch.Tensor,
+        observation,
         channel_idx: int,
         config: "ObservationConfig",
         agent_world_pos: Tuple[int, int],
@@ -741,7 +762,7 @@ class VisibilityHandler(ChannelHandler):
 
     def process(
         self,
-        observation: torch.Tensor,
+        observation,
         channel_idx: int,
         config: "ObservationConfig",
         agent_world_pos: Tuple[int, int],
@@ -798,7 +819,7 @@ class KnownEmptyHandler(ChannelHandler):
             "KNOWN_EMPTY", ChannelBehavior.DYNAMIC, gamma=None
         )  # Use config gamma
 
-    def decay(self, observation: torch.Tensor, channel_idx: int, config=None) -> None:
+    def decay(self, observation, channel_idx: int, config=None) -> None:
         """
         Apply decay using config gamma_known.
 
@@ -818,9 +839,14 @@ class KnownEmptyHandler(ChannelHandler):
         if gamma is not None:
             if hasattr(observation, '_decay_sparse_channel'):
                 observation._decay_sparse_channel(channel_idx, gamma)
+                # Also decay dense tensor values if no sparse data was decayed
+                if channel_idx not in observation.sparse_channels:
+                    if hasattr(observation, 'tensor'):
+                        observation.tensor()[channel_idx] *= gamma
             else:
                 # Fallback to direct tensor access (backward compatibility)
-                observation[channel_idx] *= gamma
+                if hasattr(observation, 'tensor'):
+                    observation.tensor()[channel_idx] *= gamma
 
     def process(
         self,
@@ -871,7 +897,7 @@ class TransientEventHandler(ChannelHandler):
         self.data_key = data_key
         self.config_gamma_key = config_gamma_key
 
-    def decay(self, observation: torch.Tensor, channel_idx: int, config=None) -> None:
+    def decay(self, observation, channel_idx: int, config=None) -> None:
         """
         Apply decay using appropriate config gamma.
 
@@ -891,9 +917,14 @@ class TransientEventHandler(ChannelHandler):
         if gamma is not None:
             if hasattr(observation, '_decay_sparse_channel'):
                 observation._decay_sparse_channel(channel_idx, gamma)
+                # Also decay dense tensor values if no sparse data was decayed
+                if channel_idx not in observation.sparse_channels:
+                    if hasattr(observation, 'tensor'):
+                        observation.tensor()[channel_idx] *= gamma
             else:
                 # Fallback to direct tensor access (backward compatibility)
-                observation[channel_idx] *= gamma
+                if hasattr(observation, 'tensor'):
+                    observation.tensor()[channel_idx] *= gamma
 
     def process(
         self,

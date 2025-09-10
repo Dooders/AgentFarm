@@ -37,10 +37,12 @@ class MyCustomHandler(ChannelHandler):
         super().__init__("MY_CUSTOM", ChannelBehavior.INSTANT)
     
     def process(self, observation, channel_idx, config, agent_world_pos, **kwargs):
-        # Custom processing logic here
+        # observation is an AgentObservation instance
+        # Use sparse storage methods for efficiency when available
         custom_data = kwargs.get("my_custom_data")
         if custom_data is not None:
-            # Process and write to observation[channel_idx]
+            # Use sparse methods: observation._store_sparse_point(channel_idx, y, x, value)
+            # Or direct tensor access: observation.tensor()[channel_idx] = data
             pass
 
 # Register the channel
@@ -58,15 +60,22 @@ class DecayingChannel(ChannelHandler):
         events = kwargs.get("decay_events", [])
         R = config.R
         ay, ax = agent_world_pos
-        
+
         for event_y, event_x, intensity in events:
             dy, dx = event_y - ay, event_x - ax
             y, x = R + dy, R + dx
             if 0 <= y < 2*R+1 and 0 <= x < 2*R+1:
-                observation[channel_idx, y, x] = max(
-                    observation[channel_idx, y, x].item(), 
-                    float(intensity)
-                )
+                # Use sparse storage if available for efficiency
+                if hasattr(observation, '_store_sparse_point'):
+                    current_val = observation.tensor()[channel_idx, y, x].item()
+                    new_val = max(current_val, float(intensity))
+                    observation._store_sparse_point(channel_idx, y, x, new_val)
+                else:
+                    # Fallback to direct tensor access
+                    observation[channel_idx, y, x] = max(
+                        observation[channel_idx, y, x].item(),
+                        float(intensity)
+                    )
 ```
 
 ### World Layer Channel
@@ -83,7 +92,12 @@ class WorldLayerChannel(ChannelHandler):
             from farm.core.observations import crop_local
             R = config.R
             crop = crop_local(world_layers[self.layer_key], agent_world_pos, R)
-            observation[channel_idx].copy_(crop)
+            # Use sparse storage for dense grids if available
+            if hasattr(observation, '_store_sparse_grid'):
+                observation._store_sparse_grid(channel_idx, crop)
+            else:
+                # Fallback to direct tensor access
+                observation[channel_idx].copy_(crop)
 
 # Register for elevation data
 elevation_handler = WorldLayerChannel("ELEVATION", "elevation_map")
@@ -184,9 +198,11 @@ def process(self, observation, channel_idx, config, agent_world_pos, **kwargs):
         data = kwargs.get("my_data")
         if data is None:
             return  # Gracefully handle missing data
-        
-        # Process data...
-        
+
+        # Process data using observation (AgentObservation instance)...
+        # Use sparse methods: observation._store_sparse_point(...)
+        # Or tensor access: observation.tensor()[channel_idx] = ...
+
     except Exception as e:
         # Log error but don't crash observation system
         print(f"Warning: {self.name} channel failed: {e}")

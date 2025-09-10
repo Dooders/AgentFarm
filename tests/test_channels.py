@@ -72,7 +72,11 @@ class TestChannelHandler(unittest.TestCase):
                 self, observation, channel_idx, config, agent_world_pos, **kwargs
             ):
                 # Simple test implementation
-                observation[channel_idx, 0, 0] = 1.0
+                # Use sparse storage if available, fallback to direct tensor access
+                if hasattr(observation, '_store_sparse_point'):
+                    observation._store_sparse_point(channel_idx, 0, 0, 1.0)
+                else:
+                    observation[channel_idx, 0, 0] = 1.0
 
         self.TestChannelHandler = TestChannelHandler
         self.config_mock = Mock()
@@ -172,6 +176,7 @@ class TestChannelRegistry(unittest.TestCase):
             def process(
                 self, observation, channel_idx, config, agent_world_pos, **kwargs
             ):
+                # Test handler - no-op implementation
                 pass
 
         self.TestHandler = TestHandler
@@ -313,6 +318,7 @@ class TestChannelRegistry(unittest.TestCase):
             def process(
                 self, observation, channel_idx, config, agent_world_pos, **kwargs
             ):
+                # Test dynamic handler - no-op implementation
                 pass
 
         dynamic_handler = DynamicHandler("DYNAMIC_CHANNEL")
@@ -345,6 +351,7 @@ class TestChannelRegistry(unittest.TestCase):
             def process(
                 self, observation, channel_idx, config, agent_world_pos, **kwargs
             ):
+                # Test dynamic handler - no-op implementation
                 pass
 
         dynamic_handler = DynamicHandler("DYNAMIC")
@@ -383,6 +390,7 @@ class TestGlobalFunctions(unittest.TestCase):
             def process(
                 self, observation, channel_idx, config, agent_world_pos, **kwargs
             ):
+                # Test handler - no-op implementation
                 pass
 
         self.TestHandler = TestHandler
@@ -1051,7 +1059,11 @@ class TestIntegration(unittest.TestCase):
             def process(
                 self, observation, channel_idx, config, agent_world_pos, **kwargs
             ):
-                observation[channel_idx, 0, 0] = 42.0
+                # Use sparse storage if available, fallback to direct tensor access
+                if hasattr(observation, '_store_sparse_point'):
+                    observation._store_sparse_point(channel_idx, 0, 0, 42.0)
+                else:
+                    observation[channel_idx, 0, 0] = 42.0
 
         custom_handler = CustomHandler()
         register_channel(custom_handler)
@@ -1089,6 +1101,7 @@ class TestIntegration(unittest.TestCase):
             def process(
                 self, observation, channel_idx, config, agent_world_pos, **kwargs
             ):
+                # Test handler - no-op implementation
                 pass
 
         handler1 = TestHandler("HANDLER_1")
