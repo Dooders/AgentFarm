@@ -12,7 +12,7 @@ from benchmarks.base.benchmark import Benchmark
 from farm.core.config import SimulationConfig
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
-# SpatialIndexAdapter is created internally by Environment; no direct import needed here
+from farm.core.services.implementations import SpatialIndexAdapter
 from farm.core.agent import BaseAgent
 
 

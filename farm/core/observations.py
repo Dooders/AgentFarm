@@ -98,7 +98,7 @@ import torch
 import torch.nn.functional as F
 from pydantic import BaseModel, Field, field_validator
 
-from farm.core.channels import Channel, get_channel_registry
+from farm.core.channels import Channel, ChannelBehavior, get_channel_registry
 from farm.core.observation_render import ObservationRenderer
 from farm.core.spatial_index import SpatialIndex
 
@@ -710,16 +710,16 @@ class AgentObservation:
             resources_idx = self.registry.get_index("RESOURCES")
             obstacles_idx = self.registry.get_index("OBSTACLES")
 
-            visible = self.observation[visibility_idx]
+            visible = self.tensor()[visibility_idx]
             # Cells considered "non-empty" if any of these layers have mass at that cell:
             entity_like = (
-                self.observation[allies_idx]
-                + self.observation[enemies_idx]
-                + self.observation[resources_idx]
-                + self.observation[obstacles_idx]
+                self.tensor()[allies_idx]
+                + self.tensor()[enemies_idx]
+                + self.tensor()[resources_idx]
+                + self.tensor()[obstacles_idx]
             )
             empty_visible = (visible > 0.5) & (entity_like <= 1e-6)
-            self.observation[known_empty_idx][empty_visible] = 1.0
+            self.tensor()[known_empty_idx][empty_visible] = 1.0
         except KeyError:
             # If any required channels are missing, skip the update
             pass
