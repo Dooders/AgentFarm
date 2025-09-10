@@ -512,7 +512,10 @@ class AgentObservation:
         self.cache_dirty = True
 
     def _store_sparse_points(
-        self, channel_idx: int, points: List[Tuple[int, int, float]]
+        self,
+        channel_idx: int,
+        points: List[Tuple[int, int, float]],
+        accumulate: bool = True,
     ):
         """Store multiple point values in sparse format."""
         if channel_idx not in self.sparse_channels:
@@ -520,7 +523,10 @@ class AgentObservation:
 
         channel_data = self.sparse_channels[channel_idx]
         for y, x, value in points:
-            channel_data[(y, x)] = max(channel_data.get((y, x), 0.0), value)
+            if accumulate:
+                channel_data[(y, x)] = max(channel_data.get((y, x), 0.0), value)
+            else:
+                channel_data[(y, x)] = value
         self.cache_dirty = True
 
     def _store_sparse_grid(self, channel_idx: int, grid: torch.Tensor):
@@ -533,6 +539,10 @@ class AgentObservation:
         if channel_idx in self.sparse_channels:
             del self.sparse_channels[channel_idx]
             self.cache_dirty = True
+        else:
+            # No sparse data exists, clear the dense tensor directly
+            if self.dense_cache is not None:
+                self.dense_cache[channel_idx].zero_()
 
     def _decay_sparse_channel(self, channel_idx: int, decay_factor: float):
         """Apply decay to a sparse channel."""
@@ -553,6 +563,10 @@ class AgentObservation:
                 # Dense grid: decay the tensor
                 channel_data *= decay_factor
             self.cache_dirty = True
+        else:
+            # No sparse data exists, decay the dense tensor directly
+            if self.dense_cache is not None:
+                self.dense_cache[channel_idx] *= decay_factor
 
     def _build_dense_tensor(self) -> torch.Tensor:
         """Build dense tensor from sparse data on-demand."""
