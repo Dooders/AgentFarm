@@ -8,7 +8,7 @@ Windows-compatible alternative to other RL libraries.
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import numpy as np
 
@@ -37,6 +37,7 @@ class TianshouWrapper(RLAlgorithm):
         num_actions: int,
         algorithm_name: str,
         state_dim: int,
+        observation_shape: Optional[Tuple[int, ...]] = None,
         algorithm_config: Optional[Dict[str, Any]] = None,
         buffer_size: int = 10000,
         batch_size: int = 32,
@@ -49,6 +50,7 @@ class TianshouWrapper(RLAlgorithm):
             num_actions: Number of possible actions
             algorithm_name: Name of the Tianshou algorithm (e.g., "PPO", "SAC")
             state_dim: Dimension of the state space
+            observation_shape: Shape of the observation space (e.g., (13, 13, 13))
             algorithm_config: Configuration for the Tianshou algorithm
             buffer_size: Size of the experience replay buffer
             batch_size: Batch size for training
@@ -59,6 +61,7 @@ class TianshouWrapper(RLAlgorithm):
 
         self.algorithm_name = algorithm_name
         self.state_dim = state_dim
+        self.observation_shape = observation_shape or (state_dim,)
         self.batch_size = batch_size
         self.train_freq = train_freq
 
@@ -167,39 +170,103 @@ class TianshouWrapper(RLAlgorithm):
 
             if self.algorithm_name == "PPO":
                 from tianshou.policy import PPOPolicy
+                import torch.nn as nn
 
-                # Create actor and critic networks using Tianshou's Net class
-                from tianshou.utils.net.common import Net as TianshouNet
-                from tianshou.utils.net.discrete import Actor as DiscreteActor
-                from tianshou.utils.net.discrete import Critic as DiscreteCritic
+                # Create CNN-based actor and critic networks for spatial observations
+                class SpatialActorNet(nn.Module):
+                    def __init__(self, observation_shape, num_actions, device):
+                        super().__init__()
+                        self.observation_shape = observation_shape
 
-                actor_net = TianshouNet(
-                    self.state_dim,
-                    64,  # Output to hidden layer size, final layer handled by DiscreteActor
-                    [64],  # Single hidden layer: input -> 64 -> 64 -> final_output
-                    device=self.algorithm_config["device"],
-                )
-                actor = DiscreteActor(
-                    preprocess_net=actor_net,
-                    action_shape=(self.num_actions,),
-                )
+                        # CNN layers for spatial processing
+                        self.conv_layers = nn.Sequential(
+                            nn.Conv2d(observation_shape[0], 32, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                        )
 
-                critic_net = TianshouNet(
-                    self.state_dim,
-                    64,  # Output to hidden layer size, final layer handled by DiscreteCritic
-                    [64],  # Single hidden layer: input -> 64 -> 64 -> final_output
-                    device=self.algorithm_config["device"],
-                )
-                critic = DiscreteCritic(
-                    preprocess_net=critic_net,
-                )
+                        # Calculate flattened size after CNN
+                        with torch.no_grad():
+                            dummy_input = torch.zeros(1, *observation_shape)
+                            conv_output = self.conv_layers(dummy_input)
+                            self.flattened_size = conv_output.numel()
+
+                        # Fully connected layers
+                        self.fc_layers = nn.Sequential(
+                            nn.Flatten(),
+                            nn.Linear(self.flattened_size, 512),
+                            nn.ReLU(),
+                            nn.Linear(512, 256),
+                            nn.ReLU(),
+                        )
+
+                        # Action output layer
+                        self.action_head = nn.Linear(256, num_actions)
+
+                    def forward(self, obs):
+                        # Handle both batched and single observations
+                        if obs.dim() == 3:  # Single observation (C, H, W)
+                            obs = obs.unsqueeze(0)  # Add batch dimension
+
+                        x = self.conv_layers(obs)
+                        x = self.fc_layers(x)
+                        action_logits = self.action_head(x)
+                        return action_logits
+
+                class SpatialCriticNet(nn.Module):
+                    def __init__(self, observation_shape, device):
+                        super().__init__()
+                        self.observation_shape = observation_shape
+
+                        # CNN layers for spatial processing
+                        self.conv_layers = nn.Sequential(
+                            nn.Conv2d(observation_shape[0], 32, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                        )
+
+                        # Calculate flattened size after CNN
+                        with torch.no_grad():
+                            dummy_input = torch.zeros(1, *observation_shape)
+                            conv_output = self.conv_layers(dummy_input)
+                            self.flattened_size = conv_output.numel()
+
+                        # Fully connected layers
+                        self.fc_layers = nn.Sequential(
+                            nn.Flatten(),
+                            nn.Linear(self.flattened_size, 512),
+                            nn.ReLU(),
+                            nn.Linear(512, 256),
+                            nn.ReLU(),
+                            nn.Linear(256, 1),  # Single value output for critic
+                        )
+
+                    def forward(self, obs):
+                        # Handle both batched and single observations
+                        if obs.dim() == 3:  # Single observation (C, H, W)
+                            obs = obs.unsqueeze(0)  # Add batch dimension
+
+                        x = self.conv_layers(obs)
+                        value = self.fc_layers(x)
+                        return value
+
+                # Create spatial networks
+                actor_net = SpatialActorNet(self.observation_shape, self.num_actions, self.algorithm_config["device"])
+                critic_net = SpatialCriticNet(self.observation_shape, self.algorithm_config["device"])
+
+                # Move to device
+                actor_net.to(self.algorithm_config["device"])
+                critic_net.to(self.algorithm_config["device"])
 
                 # Create optimizers
                 actor_optim = torch.optim.Adam(
-                    actor.parameters(), lr=self.algorithm_config["lr"]
-                )
-                critic_optim = torch.optim.Adam(
-                    critic.parameters(), lr=self.algorithm_config["lr"]
+                    actor_net.parameters(), lr=self.algorithm_config["lr"]
                 )
 
                 # Create policy
@@ -213,8 +280,8 @@ class TianshouWrapper(RLAlgorithm):
                 }
 
                 self.policy = PPOPolicy(
-                    actor=actor,
-                    critic=critic,
+                    actor=actor_net,
+                    critic=critic_net,
                     optim=actor_optim,
                     dist_fn=torch.distributions.Categorical,
                     action_space=gym.spaces.Discrete(self.num_actions),
@@ -223,91 +290,206 @@ class TianshouWrapper(RLAlgorithm):
 
             elif self.algorithm_name == "SAC":
                 from tianshou.policy import SACPolicy
-                from tianshou.utils.net.continuous import ActorProb as ContinuousActor
-                from tianshou.utils.net.continuous import Critic as ContinuousCritic
+                import torch.nn as nn
 
-                # Create actor and critic networks
-                actor = ContinuousActor(
-                    preprocess_net=nn.Sequential(
-                        nn.Linear(self.state_dim, 128),
-                        nn.ReLU(),
-                        nn.Linear(128, 128),
-                        nn.ReLU(),
-                    ),
-                    action_shape=(1,),  # Single continuous action, will be discretized
-                    max_action=1.0,
-                    device=self.algorithm_config["device"],
-                )
+                # Create CNN-based actor and critic networks for spatial observations
+                class SpatialSACActorNet(nn.Module):
+                    def __init__(self, observation_shape, device):
+                        super().__init__()
+                        self.observation_shape = observation_shape
 
-                critic1 = ContinuousCritic(
-                    preprocess_net=nn.Sequential(
-                        nn.Linear(self.state_dim, 128),
-                        nn.ReLU(),
-                        nn.Linear(128, 128),
-                        nn.ReLU(),
-                    ),
-                    device=self.algorithm_config["device"],
-                )
+                        # CNN layers for spatial processing
+                        self.conv_layers = nn.Sequential(
+                            nn.Conv2d(observation_shape[0], 32, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                        )
 
-                critic2 = ContinuousCritic(
-                    preprocess_net=nn.Sequential(
-                        nn.Linear(self.state_dim, 128),
-                        nn.ReLU(),
-                        nn.Linear(128, 128),
-                        nn.ReLU(),
-                    ),
-                    device=self.algorithm_config["device"],
-                )
+                        # Calculate flattened size after CNN
+                        with torch.no_grad():
+                            dummy_input = torch.zeros(1, *observation_shape)
+                            conv_output = self.conv_layers(dummy_input)
+                            self.flattened_size = conv_output.numel()
+
+                        # Actor head for continuous actions
+                        self.actor_layers = nn.Sequential(
+                            nn.Flatten(),
+                            nn.Linear(self.flattened_size, 512),
+                            nn.ReLU(),
+                            nn.Linear(512, 256),
+                            nn.ReLU(),
+                        )
+
+                        # Output layers for SAC (mean and log_std)
+                        self.mean_head = nn.Linear(256, 1)  # Single continuous action
+                        self.log_std_head = nn.Linear(256, 1)
+
+                    def forward(self, obs):
+                        # Handle both batched and single observations
+                        if obs.dim() == 3:  # Single observation (C, H, W)
+                            obs = obs.unsqueeze(0)  # Add batch dimension
+
+                        x = self.conv_layers(obs)
+                        x = self.actor_layers(x)
+                        mean = self.mean_head(x)
+                        log_std = self.log_std_head(x)
+                        return mean, log_std
+
+                class SpatialCriticNet(nn.Module):
+                    def __init__(self, observation_shape, action_dim=1, device=None):
+                        super().__init__()
+                        self.observation_shape = observation_shape
+
+                        # CNN layers for spatial processing
+                        self.conv_layers = nn.Sequential(
+                            nn.Conv2d(observation_shape[0], 32, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                        )
+
+                        # Calculate flattened size after CNN
+                        with torch.no_grad():
+                            dummy_input = torch.zeros(1, *observation_shape)
+                            conv_output = self.conv_layers(dummy_input)
+                            self.flattened_size = conv_output.numel()
+
+                        # Critic layers (state + action)
+                        self.critic_layers = nn.Sequential(
+                            nn.Flatten(),
+                            nn.Linear(self.flattened_size + action_dim, 512),
+                            nn.ReLU(),
+                            nn.Linear(512, 256),
+                            nn.ReLU(),
+                            nn.Linear(256, 1),
+                        )
+
+                    def forward(self, obs, act):
+                        # Handle both batched and single observations
+                        if obs.dim() == 3:  # Single observation (C, H, W)
+                            obs = obs.unsqueeze(0)  # Add batch dimension
+
+                        x = self.conv_layers(obs)
+                        x = torch.flatten(x, start_dim=1)  # Flatten spatial dims
+
+                        # Concatenate with action
+                        if act.dim() == 1:
+                            act = act.unsqueeze(0)
+                        x = torch.cat([x, act], dim=1)
+
+                        value = self.critic_layers(x)
+                        return value
+
+                # Create spatial networks
+                actor_net = SpatialSACActorNet(self.observation_shape, self.algorithm_config["device"])
+                critic1_net = SpatialCriticNet(self.observation_shape, device=self.algorithm_config["device"])
+                critic2_net = SpatialCriticNet(self.observation_shape, device=self.algorithm_config["device"])
+
+                # Move to device
+                actor_net.to(self.algorithm_config["device"])
+                critic1_net.to(self.algorithm_config["device"])
+                critic2_net.to(self.algorithm_config["device"])
 
                 # Create optimizers
                 actor_optim = torch.optim.Adam(
-                    actor.parameters(), lr=self.algorithm_config["lr"]
+                    actor_net.parameters(), lr=self.algorithm_config["lr"]
                 )
                 critic1_optim = torch.optim.Adam(
-                    critic1.parameters(), lr=self.algorithm_config["lr"]
+                    critic1_net.parameters(), lr=self.algorithm_config["lr"]
                 )
                 critic2_optim = torch.optim.Adam(
-                    critic2.parameters(), lr=self.algorithm_config["lr"]
+                    critic2_net.parameters(), lr=self.algorithm_config["lr"]
                 )
 
                 # Create policy
                 import gymnasium as gym
 
+                # Filter parameters specifically for SACPolicy
+                sac_params = {
+                    k: v
+                    for k, v in self.algorithm_config.items()
+                    if k in ["tau", "gamma", "alpha"]
+                }
+
                 self.policy = SACPolicy(
-                    actor=actor,
+                    actor=actor_net,
                     actor_optim=actor_optim,
+                    critic1=critic1_net,
+                    critic1_optim=critic1_optim,
+                    critic2=critic2_net,
+                    critic2_optim=critic2_optim,
                     action_space=gym.spaces.Box(
                         low=-1, high=1, shape=(1,)
-                    ),  # Continuous action space
-                    **{
-                        k: v
-                        for k, v in self.algorithm_config.items()
-                        if k not in ["lr", "device"]
-                    },
+                    ),  # Continuous action space (will be discretized)
+                    **sac_params,
                 )
 
             elif self.algorithm_name == "DQN":
                 from tianshou.policy import DQNPolicy
-                from tianshou.utils.net.common import Net as DiscreteNet
+                import torch.nn as nn
 
-                # Create Q-network
-                net = DiscreteNet(
-                    self.state_dim,
-                    self.num_actions,
-                    [64, 64],
-                    device=self.algorithm_config["device"],
-                )
+                # Create CNN-based Q-network for spatial observations
+                class SpatialQNet(nn.Module):
+                    def __init__(self, observation_shape, num_actions, device):
+                        super().__init__()
+                        self.observation_shape = observation_shape
+
+                        # CNN layers for spatial processing
+                        self.conv_layers = nn.Sequential(
+                            nn.Conv2d(observation_shape[0], 32, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                        )
+
+                        # Calculate flattened size after CNN
+                        with torch.no_grad():
+                            dummy_input = torch.zeros(1, *observation_shape)
+                            conv_output = self.conv_layers(dummy_input)
+                            self.flattened_size = conv_output.numel()
+
+                        # Q-value output layers
+                        self.q_layers = nn.Sequential(
+                            nn.Flatten(),
+                            nn.Linear(self.flattened_size, 512),
+                            nn.ReLU(),
+                            nn.Linear(512, 256),
+                            nn.ReLU(),
+                            nn.Linear(256, num_actions),  # Q-values for each action
+                        )
+
+                    def forward(self, obs, state=None, info=None):
+                        # Handle both batched and single observations
+                        if obs.dim() == 3:  # Single observation (C, H, W)
+                            obs = obs.unsqueeze(0)  # Add batch dimension
+
+                        x = self.conv_layers(obs)
+                        q_values = self.q_layers(x)
+                        return q_values
+
+                # Create spatial Q-network
+                q_net = SpatialQNet(self.observation_shape, self.num_actions, self.algorithm_config["device"])
+
+                # Move to device
+                q_net.to(self.algorithm_config["device"])
 
                 # Create optimizer
                 optim = torch.optim.Adam(
-                    net.parameters(), lr=self.algorithm_config["lr"]
+                    q_net.parameters(), lr=self.algorithm_config["lr"]
                 )
 
                 # Create policy
                 import gymnasium as gym
 
                 self.policy = DQNPolicy(
-                    model=net,
+                    model=q_net,
                     optim=optim,
                     action_space=gym.spaces.Discrete(self.num_actions),
                     **{
@@ -319,39 +501,103 @@ class TianshouWrapper(RLAlgorithm):
 
             elif self.algorithm_name == "A2C":
                 from tianshou.policy import A2CPolicy
+                import torch.nn as nn
 
-                # Create actor and critic networks using Tianshou's Net class
-                from tianshou.utils.net.common import Net as TianshouNet
-                from tianshou.utils.net.discrete import Actor as DiscreteActor
-                from tianshou.utils.net.discrete import Critic as DiscreteCritic
+                # Create CNN-based actor and critic networks for spatial observations
+                class SpatialA2CActorNet(nn.Module):
+                    def __init__(self, observation_shape, num_actions, device):
+                        super().__init__()
+                        self.observation_shape = observation_shape
 
-                actor_net = TianshouNet(
-                    self.state_dim,
-                    64,  # Output to hidden layer size, final layer handled by DiscreteActor
-                    [64],  # Single hidden layer: input -> 64 -> 64 -> final_output
-                    device=self.algorithm_config["device"],
-                )
-                actor = DiscreteActor(
-                    preprocess_net=actor_net,
-                    action_shape=(self.num_actions,),
-                )
+                        # CNN layers for spatial processing
+                        self.conv_layers = nn.Sequential(
+                            nn.Conv2d(observation_shape[0], 32, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                        )
 
-                critic_net = TianshouNet(
-                    self.state_dim,
-                    64,  # Output to hidden layer size, final layer handled by DiscreteCritic
-                    [64],  # Single hidden layer: input -> 64 -> 64 -> final_output
-                    device=self.algorithm_config["device"],
-                )
-                critic = DiscreteCritic(
-                    preprocess_net=critic_net,
-                )
+                        # Calculate flattened size after CNN
+                        with torch.no_grad():
+                            dummy_input = torch.zeros(1, *observation_shape)
+                            conv_output = self.conv_layers(dummy_input)
+                            self.flattened_size = conv_output.numel()
+
+                        # Actor head
+                        self.actor_layers = nn.Sequential(
+                            nn.Flatten(),
+                            nn.Linear(self.flattened_size, 512),
+                            nn.ReLU(),
+                            nn.Linear(512, 256),
+                            nn.ReLU(),
+                            nn.Linear(256, num_actions),  # Action logits
+                        )
+
+                    def forward(self, obs):
+                        # Handle both batched and single observations
+                        if obs.dim() == 3:  # Single observation (C, H, W)
+                            obs = obs.unsqueeze(0)  # Add batch dimension
+
+                        x = self.conv_layers(obs)
+                        action_logits = self.actor_layers(x)
+                        return action_logits
+
+                class SpatialA2CCriticNet(nn.Module):
+                    def __init__(self, observation_shape, device):
+                        super().__init__()
+                        self.observation_shape = observation_shape
+
+                        # CNN layers for spatial processing
+                        self.conv_layers = nn.Sequential(
+                            nn.Conv2d(observation_shape[0], 32, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                        )
+
+                        # Calculate flattened size after CNN
+                        with torch.no_grad():
+                            dummy_input = torch.zeros(1, *observation_shape)
+                            conv_output = self.conv_layers(dummy_input)
+                            self.flattened_size = conv_output.numel()
+
+                        # Critic head
+                        self.critic_layers = nn.Sequential(
+                            nn.Flatten(),
+                            nn.Linear(self.flattened_size, 512),
+                            nn.ReLU(),
+                            nn.Linear(512, 256),
+                            nn.ReLU(),
+                            nn.Linear(256, 1),  # Single value output
+                        )
+
+                    def forward(self, obs):
+                        # Handle both batched and single observations
+                        if obs.dim() == 3:  # Single observation (C, H, W)
+                            obs = obs.unsqueeze(0)  # Add batch dimension
+
+                        x = self.conv_layers(obs)
+                        value = self.critic_layers(x)
+                        return value
+
+                # Create spatial networks
+                actor_net = SpatialA2CActorNet(self.observation_shape, self.num_actions, self.algorithm_config["device"])
+                critic_net = SpatialA2CCriticNet(self.observation_shape, self.algorithm_config["device"])
+
+                # Move to device
+                actor_net.to(self.algorithm_config["device"])
+                critic_net.to(self.algorithm_config["device"])
 
                 # Create optimizers
                 actor_optim = torch.optim.Adam(
-                    actor.parameters(), lr=self.algorithm_config["lr"]
+                    actor_net.parameters(), lr=self.algorithm_config["lr"]
                 )
                 critic_optim = torch.optim.Adam(
-                    critic.parameters(), lr=self.algorithm_config["lr"]
+                    critic_net.parameters(), lr=self.algorithm_config["lr"]
                 )
 
                 # Create policy
@@ -365,14 +611,140 @@ class TianshouWrapper(RLAlgorithm):
                 }
 
                 self.policy = A2CPolicy(
-                    actor=actor,
-                    critic=critic,
+                    actor=actor_net,
+                    critic=critic_net,
                     optim=actor_optim,
                     dist_fn=torch.distributions.Categorical,
                     action_space=gym.spaces.Discrete(self.num_actions),
                     **a2c_params,
                 )
 
+            elif self.algorithm_name == "DDPG":
+                from tianshou.policy import DDPGPolicy
+                import torch.nn as nn
+
+                # Create CNN-based actor and critic networks for spatial observations
+                class SpatialDDPGActorNet(nn.Module):
+                    def __init__(self, observation_shape, device):
+                        super().__init__()
+                        self.observation_shape = observation_shape
+
+                        # CNN layers for spatial processing
+                        self.conv_layers = nn.Sequential(
+                            nn.Conv2d(observation_shape[0], 32, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                        )
+
+                        # Calculate flattened size after CNN
+                        with torch.no_grad():
+                            dummy_input = torch.zeros(1, *observation_shape)
+                            conv_output = self.conv_layers(dummy_input)
+                            self.flattened_size = conv_output.numel()
+
+                        # Actor head for continuous actions
+                        self.actor_layers = nn.Sequential(
+                            nn.Flatten(),
+                            nn.Linear(self.flattened_size, 512),
+                            nn.ReLU(),
+                            nn.Linear(512, 256),
+                            nn.ReLU(),
+                            nn.Linear(256, 1),  # Single continuous action
+                            nn.Tanh(),  # Bound output to [-1, 1]
+                        )
+
+                    def forward(self, obs):
+                        # Handle both batched and single observations
+                        if obs.dim() == 3:  # Single observation (C, H, W)
+                            obs = obs.unsqueeze(0)  # Add batch dimension
+
+                        x = self.conv_layers(obs)
+                        action = self.actor_layers(x)
+                        return action
+
+                class SpatialDDPGCriticNet(nn.Module):
+                    def __init__(self, observation_shape, action_dim=1, device=None):
+                        super().__init__()
+                        self.observation_shape = observation_shape
+
+                        # CNN layers for spatial processing
+                        self.conv_layers = nn.Sequential(
+                            nn.Conv2d(observation_shape[0], 32, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+                            nn.ReLU(),
+                        )
+
+                        # Calculate flattened size after CNN
+                        with torch.no_grad():
+                            dummy_input = torch.zeros(1, *observation_shape)
+                            conv_output = self.conv_layers(dummy_input)
+                            self.flattened_size = conv_output.numel()
+
+                        # Critic layers (state + action)
+                        self.critic_layers = nn.Sequential(
+                            nn.Flatten(),
+                            nn.Linear(self.flattened_size + action_dim, 512),
+                            nn.ReLU(),
+                            nn.Linear(512, 256),
+                            nn.ReLU(),
+                            nn.Linear(256, 1),
+                        )
+
+                    def forward(self, obs, act):
+                        # Handle both batched and single observations
+                        if obs.dim() == 3:  # Single observation (C, H, W)
+                            obs = obs.unsqueeze(0)  # Add batch dimension
+
+                        x = self.conv_layers(obs)
+                        x = torch.flatten(x, start_dim=1)  # Flatten spatial dims
+
+                        # Concatenate with action
+                        if act.dim() == 1:
+                            act = act.unsqueeze(0)
+                        x = torch.cat([x, act], dim=1)
+
+                        value = self.critic_layers(x)
+                        return value
+
+                # Create spatial networks
+                actor_net = SpatialDDPGActorNet(self.observation_shape, self.algorithm_config["device"])
+                critic_net = SpatialDDPGCriticNet(self.observation_shape, device=self.algorithm_config["device"])
+
+                # Move to device
+                actor_net.to(self.algorithm_config["device"])
+                critic_net.to(self.algorithm_config["device"])
+
+                # Create optimizers
+                actor_optim = torch.optim.Adam(
+                    actor_net.parameters(), lr=self.algorithm_config["lr"]
+                )
+                critic_optim = torch.optim.Adam(
+                    critic_net.parameters(), lr=self.algorithm_config["lr"]
+                )
+
+                # Create policy
+                import gymnasium as gym
+
+                self.policy = DDPGPolicy(
+                    actor=actor_net,
+                    actor_optim=actor_optim,
+                    critic=critic_net,
+                    critic_optim=critic_optim,
+                    action_space=gym.spaces.Box(
+                        low=-1, high=1, shape=(1,)
+                    ),  # Continuous action space (will be discretized)
+                    **{
+                        k: v
+                        for k, v in self.algorithm_config.items()
+                        if k not in ["lr", "device"]
+                    },
+                )
             else:
                 raise ValueError(f"Unsupported algorithm: {self.algorithm_name}")
 
@@ -387,6 +759,18 @@ class TianshouWrapper(RLAlgorithm):
 
         Args:
             state: Current state observation
+
+        Returns:
+            Selected action index
+        """
+        return self.select_action_with_mask(state, action_mask=None)
+
+    def select_action_with_mask(self, state: np.ndarray, action_mask: Optional[np.ndarray] = None) -> int:
+        """Select an action using the Tianshou policy with action masking support.
+
+        Args:
+            state: Current state observation
+            action_mask: Boolean mask where True indicates valid actions. If None, all actions are valid.
 
         Returns:
             Selected action index
@@ -406,8 +790,11 @@ class TianshouWrapper(RLAlgorithm):
             except ImportError:
                 pass
 
-        # Add batch dimension if needed
+        # Add batch dimension if needed (DecisionModule may have already added it)
         if state.ndim == 1:
+            state = np.expand_dims(state, axis=0)
+        elif state.ndim == 3 and state.shape[0] != 1:
+            # 3D observation without batch dimension - add it
             state = np.expand_dims(state, axis=0)
 
         # Convert to torch tensor
@@ -418,25 +805,119 @@ class TianshouWrapper(RLAlgorithm):
         except ImportError as exc:
             raise ImportError("PyTorch is required for Tianshou") from exc
 
-        # Get action from the policy
-        with torch.no_grad():
-            action = self.policy(state_tensor, state=None)[0]
+        # Handle action masking for curriculum learning
+        if action_mask is not None:
+            # For Tianshou policies that support action masking
+            if hasattr(self.policy, 'forward') and hasattr(self.policy, 'actor'):
+                # Get action logits from the actor
+                with torch.no_grad():
+                    if hasattr(self.policy.actor, 'preprocess_net'):
+                        # For PPO/A2C style policies
+                        features = self.policy.actor.preprocess_net(state_tensor)
+                        action_logits = self.policy.actor.last(features)
+                    else:
+                        # For direct actor networks
+                        action_logits = self.policy.actor(state_tensor)
 
-        # Handle different action types
-        if isinstance(action, torch.Tensor):
-            if action.ndim == 1:
-                action = action[0]
-            action = action.item()
+                    # Apply mask by setting invalid actions to very negative values
+                    action_mask_tensor = torch.from_numpy(action_mask.astype(np.float32)).to(state_tensor.device)
+                    if action_mask_tensor.ndim == 1:
+                        action_mask_tensor = action_mask_tensor.unsqueeze(0)
 
-        # For continuous actions, discretize
-        if isinstance(action, float):
-            action = int(
-                np.clip(
-                    np.round(action * (self.num_actions - 1)), 0, self.num_actions - 1
+                    # Set invalid actions to -inf (very negative)
+                    masked_logits = action_logits + (action_mask_tensor - 1) * 1e10
+
+                    # Sample from masked distribution with retry logic
+                    max_attempts = 5
+                    for attempt in range(max_attempts):
+                        if hasattr(self.policy, 'dist_fn'):
+                            dist = self.policy.dist_fn(masked_logits)
+                            action = dist.sample()
+                        else:
+                            # Fallback: use categorical distribution
+                            dist = torch.distributions.Categorical(logits=masked_logits)
+                            action = dist.sample()
+
+                        # Handle different action types
+                        if isinstance(action, torch.Tensor):
+                            if action.ndim == 1:
+                                action = action[0]
+                            action = action.item()
+
+                        # For continuous actions, discretize
+                        if isinstance(action, float):
+                            action = int(
+                                np.clip(
+                                    np.round(action * (self.num_actions - 1)), 0, self.num_actions - 1
+                                )
+                            )
+
+                        # Check if action is valid according to mask
+                        if action_mask is not None:
+                            valid_actions = np.where(action_mask)[0]
+                            if len(valid_actions) > 0 and int(action) in valid_actions:
+                                # Return the position of the selected action in the enabled_actions list
+                                return int(np.where(valid_actions == int(action))[0][0])
+
+                    # If we couldn't get a valid action after all attempts, return first valid action
+                    if action_mask is not None:
+                        valid_actions = np.where(action_mask)[0]
+                        if len(valid_actions) > 0:
+                            return 0  # Return index 0 in enabled_actions list
+                    return 0
+            else:
+                # Fallback for policies without easy access to logits
+                # Try multiple times to get a valid action
+                max_attempts = 10
+                for _ in range(max_attempts):
+                    with torch.no_grad():
+                        action = self.policy(state_tensor, state=None)[0]
+
+                    # Handle different action types
+                    if isinstance(action, torch.Tensor):
+                        if action.ndim == 1:
+                            action = action[0]
+                        action = action.item()
+
+                    # For continuous actions, discretize
+                    if isinstance(action, float):
+                        action = int(
+                            np.clip(
+                                np.round(action * (self.num_actions - 1)), 0, self.num_actions - 1
+                            )
+                        )
+
+                    # Check if action is valid according to mask
+                    if action_mask is None or action_mask[int(action)]:
+                        return int(action)
+
+                # If we couldn't get a valid action after max attempts, pick first valid action
+                if action_mask is not None:
+                    valid_actions = np.where(action_mask)[0]
+                    if len(valid_actions) > 0:
+                        return int(valid_actions[0])
+
+                return int(action)
+        else:
+            # No masking - use standard action selection
+            with torch.no_grad():
+                action = self.policy(state_tensor, state=None)[0]
+
+            # Handle different action types
+            if isinstance(action, torch.Tensor):
+                if action.ndim == 1:
+                    action = action[0]
+                action = action.item()
+
+            # For continuous actions, discretize
+            if isinstance(action, float):
+                action = int(
+                    np.clip(
+                        np.round(action * (self.num_actions - 1)), 0, self.num_actions - 1
+                    )
                 )
-            )
 
-        return int(action)
+            return int(action)
 
     def predict_proba(self, state: np.ndarray) -> np.ndarray:
         """Predict action probabilities for exploration.

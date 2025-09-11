@@ -219,8 +219,16 @@ class DecisionConfig(BaseDQNConfig):
             "ddqn",  # Double DQN (alias for dqn with DDQN features)
             "fallback",  # Fallback random algorithm
         ]
+        # Instead of raising an error, log a warning and return 'fallback'
+        # This allows the DecisionModule to handle invalid algorithms gracefully
         if v not in valid:
-            raise ValueError(f"Algorithm must be one of: {valid}")
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"Invalid algorithm type '{v}'. Valid options: {valid}. "
+                "Falling back to 'fallback' algorithm."
+            )
+            return "fallback"
         return v
 
 

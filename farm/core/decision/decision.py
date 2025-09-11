@@ -119,11 +119,17 @@ class DecisionModule:
         # Store the full observation shape for multi-dimensional support
         if hasattr(observation_space, "shape"):
             self.observation_shape = observation_space.shape
-            # Use rl_state_dim from config if provided, otherwise use observation space shape
-            if config.rl_state_dim > 0:
-                self.state_dim = config.rl_state_dim
-            else:
+            # For CNN-based algorithms, state_dim should be the flattened size
+            # For traditional ML algorithms, use the configured rl_state_dim
+            if len(observation_space.shape) > 1:
+                # Multi-dimensional observation - flatten for compatibility
                 self.state_dim = int(np.prod(observation_space.shape))
+            else:
+                # 1D observation - use the dimension as-is
+                if config.rl_state_dim > 0:
+                    self.state_dim = config.rl_state_dim
+                else:
+                    self.state_dim = int(observation_space.shape[0])
         else:
             self.observation_shape = (config.rl_state_dim,)
             self.state_dim = config.rl_state_dim
@@ -188,6 +194,7 @@ class DecisionModule:
             self.algorithm = _ALGORITHM_REGISTRY["ppo"](
                 num_actions=self.num_actions,
                 state_dim=self.state_dim,
+                observation_shape=self.observation_shape,
                 algorithm_config=algorithm_config,
                 buffer_size=self.config.rl_buffer_size,
                 batch_size=self.config.rl_batch_size,
@@ -225,6 +232,7 @@ class DecisionModule:
             self.algorithm = _ALGORITHM_REGISTRY["sac"](
                 num_actions=self.num_actions,
                 state_dim=self.state_dim,
+                observation_shape=self.observation_shape,
                 algorithm_config=algorithm_config,
                 buffer_size=self.config.rl_buffer_size,
                 batch_size=self.config.rl_batch_size,
@@ -263,6 +271,7 @@ class DecisionModule:
             self.algorithm = _ALGORITHM_REGISTRY["dqn"](
                 num_actions=self.num_actions,
                 state_dim=self.state_dim,
+                observation_shape=self.observation_shape,
                 algorithm_config=algorithm_config,
                 buffer_size=self.config.rl_buffer_size,
                 batch_size=self.config.rl_batch_size,
@@ -301,6 +310,7 @@ class DecisionModule:
             self.algorithm = _ALGORITHM_REGISTRY["a2c"](
                 num_actions=self.num_actions,
                 state_dim=self.state_dim,
+                observation_shape=self.observation_shape,
                 algorithm_config=algorithm_config,
                 buffer_size=self.config.rl_buffer_size,
                 batch_size=self.config.rl_batch_size,
@@ -336,6 +346,7 @@ class DecisionModule:
             self.algorithm = _ALGORITHM_REGISTRY["ddpg"](
                 num_actions=self.num_actions,
                 state_dim=self.state_dim,
+                observation_shape=self.observation_shape,
                 algorithm_config=algorithm_config,
                 buffer_size=self.config.rl_buffer_size,
                 batch_size=self.config.rl_batch_size,
@@ -404,33 +415,35 @@ class DecisionModule:
             # Ensure correct shape for algorithm input
             # Handle multi-dimensional observations
             if state_np.ndim == 1:
+                # 1D observation - add batch dimension for fully-connected networks
                 state_np = state_np.reshape(1, -1)
-            elif state_np.ndim > 1:
-                # For multi-dimensional inputs, add batch dimension
-                if state_np.shape != self.observation_shape:
-                    # If shape doesn't match expected, try to reshape
-                    if np.prod(state_np.shape) == self.state_dim:
-                        state_np = state_np.reshape(self.observation_shape)
+            elif state_np.ndim == 3:
+                # 3D observation (channels, height, width) - add batch dimension only
+                # Don't reshape, keep the spatial structure for CNNs
+                state_np = state_np[np.newaxis, ...]  # Add batch dimension
+            elif state_np.ndim == 2:
+                # 2D observation - add batch dimension
+                state_np = state_np[np.newaxis, ...]  # Add batch dimension
+            else:
+                # For any other dimensionality, add batch dimension
                 state_np = state_np[np.newaxis, ...]  # Add batch dimension
 
             # Create action mask for curriculum restrictions
             action_mask = self._create_action_mask(enabled_actions)
 
             # Get action from algorithm with masking support
-            if self.algorithm is not None and hasattr(self.algorithm, "select_action"):
-                # For Tianshou algorithms - pass action mask if supported
-                if hasattr(self.algorithm, "select_action_with_mask"):
-                    action = self.algorithm.select_action_with_mask(
-                        state_np, action_mask
-                    )
-                else:
-                    # Fallback: get action and filter manually
-                    logger.warning(
-                        f"Algorithm {type(self.algorithm).__name__} does not implement select_action_with_mask; using manual action masking. "
-                        "Consider implementing select_action_with_mask for better masking support."
-                    )
-                    action = self.algorithm.select_action(state_np)
-                    action = self._filter_action_with_mask(action, enabled_actions)
+            if self.algorithm is not None and hasattr(self.algorithm, "select_action_with_mask"):
+                # Use action masking support if available
+                action = self.algorithm.select_action_with_mask(
+                    state_np, action_mask
+                )
+            elif self.algorithm is not None and hasattr(self.algorithm, "select_action"):
+                # Fallback: get action and filter manually
+                logger.debug(
+                    f"Algorithm {type(self.algorithm).__name__} does not implement select_action_with_mask; using manual action filtering."
+                )
+                action = self.algorithm.select_action(state_np)
+                action = self._filter_action_with_mask(action, enabled_actions)
             else:
                 # Fallback algorithm - respect enabled actions
                 action = self._filter_action_with_mask(
