@@ -63,28 +63,32 @@ class BaseDQNConfig(BaseModel):
     )
 
     @field_validator("tau")
-    def validate_tau(self, v):
+    @classmethod
+    def validate_tau(cls, v):
         """Validate tau is between 0 and 1."""
         if not 0 < v < 1:
             raise ValueError("tau must be between 0 and 1")
         return v
 
     @field_validator("gamma")
-    def validate_gamma(self, v):
+    @classmethod
+    def validate_gamma(cls, v):
         """Validate gamma is between 0 and 1."""
         if not 0 <= v <= 1:
             raise ValueError("gamma must be between 0 and 1")
         return v
 
     @field_validator("epsilon_start", "epsilon_min")
-    def validate_epsilon(self, v):
+    @classmethod
+    def validate_epsilon(cls, v):
         """Validate epsilon values are between 0 and 1."""
         if not 0 <= v <= 1:
             raise ValueError("epsilon values must be between 0 and 1")
         return v
 
     @field_validator("epsilon_decay")
-    def validate_epsilon_decay(self, v):
+    @classmethod
+    def validate_epsilon_decay(cls, v):
         """Validate epsilon decay is between 0 and 1."""
         if not 0 < v <= 1:
             raise ValueError("epsilon_decay must be between 0 and 1")
@@ -194,14 +198,16 @@ class DecisionConfig(BaseDQNConfig):
         "attack_weight",
         "reproduce_weight",
     )
-    def validate_weights(self, v):
+    @classmethod
+    def validate_weights(cls, v):
         """Validate weights are non-negative."""
         if v < 0:
             raise ValueError("weights must be non-negative")
         return v
 
     @field_validator("algorithm_type")
-    def validate_algorithm_type(self, v):
+    @classmethod
+    def validate_algorithm_type(cls, v):
         valid = [
             "dqn",
             "mlp",
