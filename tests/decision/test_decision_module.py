@@ -142,9 +142,9 @@ class TestDecisionModule(unittest.TestCase):
             self.config,
         )
 
-        # Mock algorithm predict method to return invalid action
+        # Mock algorithm select_action method to return invalid action
         with patch.object(
-            module.algorithm, "predict", return_value=(np.array([10]), None)
+            module.algorithm, "select_action", return_value=10
         ):
             state = torch.randn(8)
             action = module.decide_action(state)
@@ -201,7 +201,7 @@ class TestDecisionModule(unittest.TestCase):
 
         # Mock algorithm to raise exception
         with patch.object(
-            module.algorithm, "predict", side_effect=Exception("Test error")
+            module.algorithm, "select_action", side_effect=Exception("Test error")
         ):
             state = torch.randn(8)
             action = module.decide_action(state)
@@ -226,13 +226,14 @@ class TestDecisionModule(unittest.TestCase):
         next_state = torch.randn(8)
         done = False
 
-        # Mock the learn method to track calls
-        with patch.object(module.algorithm, "learn") as mock_learn:
+        # Mock the train method and should_train to ensure training happens
+        with patch.object(module.algorithm, "train") as mock_train, \
+             patch.object(module.algorithm, "should_train", return_value=True):
             module.update(state, action, reward, next_state, done)
 
-            # For fallback algorithms, learn should be called
-            if hasattr(module.algorithm, "learn"):
-                mock_learn.assert_called_with(total_timesteps=1)
+            # For Tianshou algorithms, train should be called when should_train returns True
+            if hasattr(module.algorithm, "train"):
+                mock_train.assert_called_once()
             self.assertTrue(module._is_trained)
 
     def test_update_exception_handling(self):
@@ -246,7 +247,7 @@ class TestDecisionModule(unittest.TestCase):
 
         # Mock algorithm to raise exception
         with patch.object(
-            module.algorithm, "learn", side_effect=Exception("Test error")
+            module.algorithm, "train", side_effect=Exception("Test error")
         ):
             state = torch.randn(8)
             action = 1
