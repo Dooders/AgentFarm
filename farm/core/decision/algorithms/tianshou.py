@@ -24,6 +24,14 @@ class TianshouWrapper(RLAlgorithm):
     adapting them to work with the AgentFarm RL algorithm system.
     """
 
+    # Parameters that are handled separately and should be filtered out
+    # when passing config to Tianshou policy constructors
+    _EXCLUDED_PARAMS = frozenset([
+        "lr", "device", "gamma", "tau", "alpha", "auto_alpha", "target_entropy",
+        "n_step", "target_update_freq", "eps_test", "eps_train", "eps_train_final",
+        "repeat_per_collect", "max_batchsize"
+    ])
+
     def __init__(
         self,
         num_actions: int,
@@ -201,23 +209,7 @@ class TianshouWrapper(RLAlgorithm):
                 ppo_params = {
                     k: v
                     for k, v in self.algorithm_config.items()
-                    if k
-                    not in [
-                        "lr",
-                        "device",
-                        "gamma",
-                        "tau",
-                        "alpha",
-                        "auto_alpha",
-                        "target_entropy",
-                        "n_step",
-                        "target_update_freq",
-                        "eps_test",
-                        "eps_train",
-                        "eps_train_final",
-                        "repeat_per_collect",
-                        "max_batchsize",
-                    ]
+                    if k not in self._EXCLUDED_PARAMS
                 }
 
                 self.policy = PPOPolicy(
@@ -321,16 +313,7 @@ class TianshouWrapper(RLAlgorithm):
                     **{
                         k: v
                         for k, v in self.algorithm_config.items()
-                        if k
-                        not in [
-                            "lr",
-                            "device",
-                            "gamma",
-                            "n_step",
-                            "eps_test",
-                            "eps_train",
-                            "eps_train_final",
-                        ]
+                        if k not in self._EXCLUDED_PARAMS
                     },
                 )
 
@@ -378,21 +361,7 @@ class TianshouWrapper(RLAlgorithm):
                 a2c_params = {
                     k: v
                     for k, v in self.algorithm_config.items()
-                    if k
-                    not in [
-                        "lr",
-                        "device",
-                        "gamma",
-                        "tau",
-                        "alpha",
-                        "auto_alpha",
-                        "target_entropy",
-                        "n_step",
-                        "target_update_freq",
-                        "eps_test",
-                        "eps_train",
-                        "eps_train_final",
-                    ]
+                    if k not in self._EXCLUDED_PARAMS
                 }
 
                 self.policy = A2CPolicy(
