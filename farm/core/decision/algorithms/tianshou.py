@@ -857,7 +857,7 @@ class TianshouWrapper(RLAlgorithm):
                     with torch.no_grad():
                         try:
                             action = self.policy(state_tensor, state=None)[0]
-                        except:
+                        except Exception:
                             # Fallback to random action
                             action = np.random.randint(self.num_actions)
 

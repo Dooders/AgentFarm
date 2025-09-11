@@ -455,7 +455,7 @@ def analyze_advantage_patterns(df: pd.DataFrame) -> Dict[str, Any]:
                             )
                         )
                         effect_size = (dominant_avg - non_dominant_avg) / pooled_std
-                    except:
+                    except Exception:
                         effect_size = 0
 
                     # Store results
