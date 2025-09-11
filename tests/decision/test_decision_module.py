@@ -142,9 +142,9 @@ class TestDecisionModule(unittest.TestCase):
             self.config,
         )
 
-        # Mock algorithm predict method to return invalid action
+        # Mock algorithm select_action method to return invalid action
         with patch.object(
-            module.algorithm, "predict", return_value=(np.array([10]), None)
+            module.algorithm, "select_action", return_value=10
         ):
             state = torch.randn(8)
             action = module.decide_action(state)
@@ -201,7 +201,7 @@ class TestDecisionModule(unittest.TestCase):
 
         # Mock algorithm to raise exception
         with patch.object(
-            module.algorithm, "predict", side_effect=Exception("Test error")
+            module.algorithm, "select_action", side_effect=Exception("Test error")
         ):
             state = torch.randn(8)
             action = module.decide_action(state)
@@ -226,13 +226,14 @@ class TestDecisionModule(unittest.TestCase):
         next_state = torch.randn(8)
         done = False
 
-        # Mock the learn method to track calls
-        with patch.object(module.algorithm, "learn") as mock_learn:
+        # Mock the train method and should_train to ensure training happens
+        with patch.object(module.algorithm, "train") as mock_train, \
+             patch.object(module.algorithm, "should_train", return_value=True):
             module.update(state, action, reward, next_state, done)
 
-            # For fallback algorithms, learn should be called
-            if hasattr(module.algorithm, "learn"):
-                mock_learn.assert_called_with(total_timesteps=1)
+            # For Tianshou algorithms, train should be called when should_train returns True
+            if hasattr(module.algorithm, "train"):
+                mock_train.assert_called_once()
             self.assertTrue(module._is_trained)
 
     def test_update_exception_handling(self):
@@ -246,7 +247,7 @@ class TestDecisionModule(unittest.TestCase):
 
         # Mock algorithm to raise exception
         with patch.object(
-            module.algorithm, "learn", side_effect=Exception("Test error")
+            module.algorithm, "train", side_effect=Exception("Test error")
         ):
             state = torch.randn(8)
             action = 1
@@ -399,9 +400,11 @@ class TestDecisionModule(unittest.TestCase):
     def test_initialization_with_tianshou_ppo(self):
         """Test DecisionModule initialization with Tianshou PPO."""
         with patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True):
-            with patch("farm.core.decision.decision.PPOWrapper") as mock_ppo:
+            with patch("farm.core.decision.decision._ALGORITHM_REGISTRY") as mock_registry:
                 mock_algorithm = Mock()
-                mock_ppo.return_value = mock_algorithm
+                mock_wrapper_class = Mock(return_value=mock_algorithm)
+                mock_registry.__getitem__.return_value = mock_wrapper_class
+                mock_registry.__contains__.return_value = True
 
                 config = DecisionConfig(algorithm_type="ppo")
                 module = DecisionModule(
@@ -411,15 +414,17 @@ class TestDecisionModule(unittest.TestCase):
                     config,
                 )
 
-                mock_ppo.assert_called_once()
+                mock_wrapper_class.assert_called_once()
                 self.assertEqual(module.config.algorithm_type, "ppo")
 
     def test_initialization_with_tianshou_sac(self):
         """Test DecisionModule initialization with Tianshou SAC."""
         with patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True):
-            with patch("farm.core.decision.decision.SACWrapper") as mock_sac:
+            with patch("farm.core.decision.decision._ALGORITHM_REGISTRY") as mock_registry:
                 mock_algorithm = Mock()
-                mock_sac.return_value = mock_algorithm
+                mock_wrapper_class = Mock(return_value=mock_algorithm)
+                mock_registry.__getitem__.return_value = mock_wrapper_class
+                mock_registry.__contains__.return_value = True
 
                 config = DecisionConfig(algorithm_type="sac")
                 module = DecisionModule(
@@ -429,15 +434,17 @@ class TestDecisionModule(unittest.TestCase):
                     config,
                 )
 
-                mock_sac.assert_called_once()
+                mock_wrapper_class.assert_called_once()
                 self.assertEqual(module.config.algorithm_type, "sac")
 
     def test_initialization_with_tianshou_dqn(self):
         """Test DecisionModule initialization with Tianshou DQN."""
         with patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True):
-            with patch("farm.core.decision.decision.DQNWrapper") as mock_dqn:
+            with patch("farm.core.decision.decision._ALGORITHM_REGISTRY") as mock_registry:
                 mock_algorithm = Mock()
-                mock_dqn.return_value = mock_algorithm
+                mock_wrapper_class = Mock(return_value=mock_algorithm)
+                mock_registry.__getitem__.return_value = mock_wrapper_class
+                mock_registry.__contains__.return_value = True
 
                 config = DecisionConfig(algorithm_type="dqn")
                 module = DecisionModule(
@@ -447,15 +454,17 @@ class TestDecisionModule(unittest.TestCase):
                     config,
                 )
 
-                mock_dqn.assert_called_once()
+                mock_wrapper_class.assert_called_once()
                 self.assertEqual(module.config.algorithm_type, "dqn")
 
     def test_initialization_with_tianshou_a2c(self):
         """Test DecisionModule initialization with Tianshou A2C."""
         with patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True):
-            with patch("farm.core.decision.decision.A2CWrapper") as mock_a2c:
+            with patch("farm.core.decision.decision._ALGORITHM_REGISTRY") as mock_registry:
                 mock_algorithm = Mock()
-                mock_a2c.return_value = mock_algorithm
+                mock_wrapper_class = Mock(return_value=mock_algorithm)
+                mock_registry.__getitem__.return_value = mock_wrapper_class
+                mock_registry.__contains__.return_value = True
 
                 config = DecisionConfig(algorithm_type="a2c")
                 module = DecisionModule(
@@ -465,15 +474,17 @@ class TestDecisionModule(unittest.TestCase):
                     config,
                 )
 
-                mock_a2c.assert_called_once()
+                mock_wrapper_class.assert_called_once()
                 self.assertEqual(module.config.algorithm_type, "a2c")
 
     def test_initialization_with_tianshou_ddpg(self):
         """Test DecisionModule initialization with Tianshou DDPG."""
         with patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True):
-            with patch("farm.core.decision.decision.DDPGWrapper") as mock_ddpg:
+            with patch("farm.core.decision.decision._ALGORITHM_REGISTRY") as mock_registry:
                 mock_algorithm = Mock()
-                mock_ddpg.return_value = mock_algorithm
+                mock_wrapper_class = Mock(return_value=mock_algorithm)
+                mock_registry.__getitem__.return_value = mock_wrapper_class
+                mock_registry.__contains__.return_value = True
 
                 config = DecisionConfig(algorithm_type="ddpg")
                 module = DecisionModule(
@@ -483,7 +494,7 @@ class TestDecisionModule(unittest.TestCase):
                     config,
                 )
 
-                mock_ddpg.assert_called_once()
+                mock_wrapper_class.assert_called_once()
                 self.assertEqual(module.config.algorithm_type, "ddpg")
 
     def test_initialization_algorithm_fallback(self):

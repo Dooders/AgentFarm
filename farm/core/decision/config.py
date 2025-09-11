@@ -63,6 +63,7 @@ class BaseDQNConfig(BaseModel):
     )
 
     @field_validator("tau")
+    @classmethod
     def validate_tau(cls, v):
         """Validate tau is between 0 and 1."""
         if not 0 < v < 1:
@@ -70,6 +71,7 @@ class BaseDQNConfig(BaseModel):
         return v
 
     @field_validator("gamma")
+    @classmethod
     def validate_gamma(cls, v):
         """Validate gamma is between 0 and 1."""
         if not 0 <= v <= 1:
@@ -77,6 +79,7 @@ class BaseDQNConfig(BaseModel):
         return v
 
     @field_validator("epsilon_start", "epsilon_min")
+    @classmethod
     def validate_epsilon(cls, v):
         """Validate epsilon values are between 0 and 1."""
         if not 0 <= v <= 1:
@@ -84,6 +87,7 @@ class BaseDQNConfig(BaseModel):
         return v
 
     @field_validator("epsilon_decay")
+    @classmethod
     def validate_epsilon_decay(cls, v):
         """Validate epsilon decay is between 0 and 1."""
         if not 0 < v <= 1:
@@ -194,6 +198,7 @@ class DecisionConfig(BaseDQNConfig):
         "attack_weight",
         "reproduce_weight",
     )
+    @classmethod
     def validate_weights(cls, v):
         """Validate weights are non-negative."""
         if v < 0:
@@ -201,6 +206,7 @@ class DecisionConfig(BaseDQNConfig):
         return v
 
     @field_validator("algorithm_type")
+    @classmethod
     def validate_algorithm_type(cls, v):
         valid = [
             "dqn",
@@ -219,8 +225,17 @@ class DecisionConfig(BaseDQNConfig):
             "ddqn",  # Double DQN (alias for dqn with DDQN features)
             "fallback",  # Fallback random algorithm
         ]
+        # Instead of raising an error, log a warning and return 'fallback'
+        # This allows the DecisionModule to handle invalid algorithms gracefully
         if v not in valid:
-            raise ValueError(f"Algorithm must be one of: {valid}")
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"Invalid algorithm type '{v}'. Valid options: {valid}. "
+                "Falling back to 'fallback' algorithm."
+            )
+            return "fallback"
         return v
 
 

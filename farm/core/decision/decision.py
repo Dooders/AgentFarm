@@ -32,7 +32,10 @@ except ImportError:
     logger = logging.getLogger(__name__)
     logger.warning("Tianshou not available. Using fallback algorithms.")
 
-# Import Tianshou wrappers if available
+# Initialize algorithm registry - populated conditionally based on Tianshou availability
+_ALGORITHM_REGISTRY = {}
+
+# Import Tianshou wrappers if available and populate registry
 if TIANSHOU_AVAILABLE:
     try:
         from farm.core.decision.algorithms.tianshou import (
@@ -42,6 +45,18 @@ if TIANSHOU_AVAILABLE:
             PPOWrapper,
             SACWrapper,
         )
+
+        # Populate registry with available wrappers
+        _ALGORITHM_REGISTRY.update(
+            {
+                "a2c": A2CWrapper,
+                "ddpg": DDPGWrapper,
+                "dqn": DQNWrapper,
+                "ppo": PPOWrapper,
+                "sac": SACWrapper,
+            }
+        )
+
     except ImportError:
         logger = logging.getLogger(__name__)
         logger.warning("Could not import Tianshou wrappers. Using fallback algorithms.")
@@ -104,11 +119,18 @@ class DecisionModule:
         # Store the full observation shape for multi-dimensional support
         if hasattr(observation_space, "shape"):
             self.observation_shape = observation_space.shape
-            # Use rl_state_dim from config if provided, otherwise use observation space shape
-            if config.rl_state_dim > 0:
-                self.state_dim = config.rl_state_dim
-            else:
+            # For CNN-based algorithms, pass the full shape, not flattened
+            # For traditional ML algorithms, use the configured rl_state_dim
+            if len(observation_space.shape) > 1:
+                # Multi-dimensional observation - keep full shape for CNNs
+                # but also provide flattened size for compatibility
                 self.state_dim = int(np.prod(observation_space.shape))
+            else:
+                # 1D observation - use the dimension as-is
+                if config.rl_state_dim > 0:
+                    self.state_dim = config.rl_state_dim
+                else:
+                    self.state_dim = int(observation_space.shape[0])
         else:
             self.observation_shape = (config.rl_state_dim,)
             self.state_dim = config.rl_state_dim
@@ -149,6 +171,11 @@ class DecisionModule:
 
     def _initialize_tianshou_ppo(self):
         """Initialize PPO using Tianshou."""
+        if "ppo" not in _ALGORITHM_REGISTRY:
+            logger.warning(f"Tianshou PPO not available for agent {self.agent_id}")
+            self._initialize_fallback()
+            return
+
         try:
             # Configure PPO parameters
             algorithm_config = {
@@ -165,9 +192,10 @@ class DecisionModule:
             # Add any additional parameters from config
             algorithm_config.update(self.config.algorithm_params)
 
-            self.algorithm = PPOWrapper(
+            self.algorithm = _ALGORITHM_REGISTRY["ppo"](
                 num_actions=self.num_actions,
                 state_dim=self.state_dim,
+                observation_shape=self.observation_shape,
                 algorithm_config=algorithm_config,
                 buffer_size=self.config.rl_buffer_size,
                 batch_size=self.config.rl_batch_size,
@@ -183,6 +211,11 @@ class DecisionModule:
 
     def _initialize_tianshou_sac(self):
         """Initialize SAC using Tianshou."""
+        if "sac" not in _ALGORITHM_REGISTRY:
+            logger.warning(f"Tianshou SAC not available for agent {self.agent_id}")
+            self._initialize_fallback()
+            return
+
         try:
             # Configure SAC parameters
             algorithm_config = {
@@ -197,9 +230,10 @@ class DecisionModule:
             # Add any additional parameters from config
             algorithm_config.update(self.config.algorithm_params)
 
-            self.algorithm = SACWrapper(
+            self.algorithm = _ALGORITHM_REGISTRY["sac"](
                 num_actions=self.num_actions,
                 state_dim=self.state_dim,
+                observation_shape=self.observation_shape,
                 algorithm_config=algorithm_config,
                 buffer_size=self.config.rl_buffer_size,
                 batch_size=self.config.rl_batch_size,
@@ -215,6 +249,11 @@ class DecisionModule:
 
     def _initialize_tianshou_dqn(self):
         """Initialize DQN using Tianshou."""
+        if "dqn" not in _ALGORITHM_REGISTRY:
+            logger.warning(f"Tianshou DQN not available for agent {self.agent_id}")
+            self._initialize_fallback()
+            return
+
         try:
             # Configure DQN parameters
             algorithm_config = {
@@ -230,9 +269,10 @@ class DecisionModule:
             # Add any additional parameters from config
             algorithm_config.update(self.config.algorithm_params)
 
-            self.algorithm = DQNWrapper(
+            self.algorithm = _ALGORITHM_REGISTRY["dqn"](
                 num_actions=self.num_actions,
                 state_dim=self.state_dim,
+                observation_shape=self.observation_shape,
                 algorithm_config=algorithm_config,
                 buffer_size=self.config.rl_buffer_size,
                 batch_size=self.config.rl_batch_size,
@@ -248,6 +288,11 @@ class DecisionModule:
 
     def _initialize_tianshou_a2c(self):
         """Initialize A2C using Tianshou."""
+        if "a2c" not in _ALGORITHM_REGISTRY:
+            logger.warning(f"Tianshou A2C not available for agent {self.agent_id}")
+            self._initialize_fallback()
+            return
+
         try:
             # Configure A2C parameters
             algorithm_config = {
@@ -263,9 +308,10 @@ class DecisionModule:
             # Add any additional parameters from config
             algorithm_config.update(self.config.algorithm_params)
 
-            self.algorithm = A2CWrapper(
+            self.algorithm = _ALGORITHM_REGISTRY["a2c"](
                 num_actions=self.num_actions,
                 state_dim=self.state_dim,
+                observation_shape=self.observation_shape,
                 algorithm_config=algorithm_config,
                 buffer_size=self.config.rl_buffer_size,
                 batch_size=self.config.rl_batch_size,
@@ -281,6 +327,11 @@ class DecisionModule:
 
     def _initialize_tianshou_ddpg(self):
         """Initialize DDPG using Tianshou."""
+        if "ddpg" not in _ALGORITHM_REGISTRY:
+            logger.warning(f"Tianshou DDPG not available for agent {self.agent_id}")
+            self._initialize_fallback()
+            return
+
         try:
             # Configure DDPG parameters
             algorithm_config = {
@@ -293,9 +344,10 @@ class DecisionModule:
             # Add any additional parameters from config
             algorithm_config.update(self.config.algorithm_params)
 
-            self.algorithm = DDPGWrapper(
+            self.algorithm = _ALGORITHM_REGISTRY["ddpg"](
                 num_actions=self.num_actions,
                 state_dim=self.state_dim,
+                observation_shape=self.observation_shape,
                 algorithm_config=algorithm_config,
                 buffer_size=self.config.rl_buffer_size,
                 batch_size=self.config.rl_batch_size,
@@ -364,33 +416,37 @@ class DecisionModule:
             # Ensure correct shape for algorithm input
             # Handle multi-dimensional observations
             if state_np.ndim == 1:
+                # 1D observation - add batch dimension for fully-connected networks
                 state_np = state_np.reshape(1, -1)
-            elif state_np.ndim > 1:
-                # For multi-dimensional inputs, add batch dimension
-                if state_np.shape != self.observation_shape:
-                    # If shape doesn't match expected, try to reshape
-                    if np.prod(state_np.shape) == self.state_dim:
-                        state_np = state_np.reshape(self.observation_shape)
+            elif state_np.ndim == 3:
+                # 3D observation (channels, height, width) - add batch dimension only
+                # Don't reshape, keep the spatial structure for CNNs
+                state_np = state_np[np.newaxis, ...]  # Add batch dimension
+            elif state_np.ndim == 2:
+                # 2D observation - add batch dimension
+                state_np = state_np[np.newaxis, ...]  # Add batch dimension
+            else:
+                # For any other dimensionality, add batch dimension
                 state_np = state_np[np.newaxis, ...]  # Add batch dimension
 
             # Create action mask for curriculum restrictions
             action_mask = self._create_action_mask(enabled_actions)
 
             # Get action from algorithm with masking support
-            if self.algorithm is not None and hasattr(self.algorithm, "select_action"):
-                # For Tianshou algorithms - pass action mask if supported
-                if hasattr(self.algorithm, "select_action_with_mask"):
-                    action = self.algorithm.select_action_with_mask(
-                        state_np, action_mask
-                    )
-                else:
-                    # Fallback: get action and filter manually
-                    logger.warning(
-                        f"Algorithm {type(self.algorithm).__name__} does not implement select_action_with_mask; using manual action masking. "
-                        "Consider implementing select_action_with_mask for better masking support."
-                    )
-                    action = self.algorithm.select_action(state_np)
-                    action = self._filter_action_with_mask(action, enabled_actions)
+            if self.algorithm is not None and hasattr(
+                self.algorithm, "select_action_with_mask"
+            ):
+                # Use action masking support if available
+                action = self.algorithm.select_action_with_mask(state_np, action_mask)
+            elif self.algorithm is not None and hasattr(
+                self.algorithm, "select_action"
+            ):
+                # Fallback: get action and filter manually
+                logger.debug(
+                    f"Algorithm {type(self.algorithm).__name__} does not implement select_action_with_mask; using manual action filtering."
+                )
+                action = self.algorithm.select_action(state_np)
+                action = self._filter_action_with_mask(action, enabled_actions)
             else:
                 # Fallback algorithm - respect enabled actions
                 action = self._filter_action_with_mask(
@@ -544,7 +600,7 @@ class DecisionModule:
                     hasattr(self.algorithm, "should_train")
                     and self.algorithm.should_train()
                 ):
-                    self.algorithm.train()
+                    self.algorithm.train(batch=None)
                     self._is_trained = True
 
             # For SB3 algorithms (fallback), simulate learning process
@@ -759,71 +815,3 @@ class DecisionModule:
             and callable(getattr(self.algorithm, "reset", None))
         ):
             self.algorithm.reset()
-
-
-# Example usage and demonstration
-"""
-Example: Using DecisionModule with BaseAgent
-
-```python
-from farm.core.agent import BaseAgent
-from farm.core.environment import Environment
-from farm.core.decision.config import DecisionConfig
-
-# Create environment and agent
-env = Environment(width=100, height=100, resource_distribution={})
-agent = BaseAgent(
-    agent_id="test_agent",
-    position=(50, 50),
-    resource_level=10,
-    environment=env
-)
-
-# DecisionModule is automatically created in BaseAgent.__init__()
-# Access it via agent.decision_module
-
-# Manual example of creating and using DecisionModule
-from farm.core.decision.decision import DecisionModule
-
-# Create config for Tianshou PPO
-config = DecisionConfig(
-    algorithm_type="ppo",  # Use PPO with Tianshou
-    learning_rate=0.001,
-    gamma=0.99,
-    epsilon_start=1.0,
-    epsilon_min=0.01
-)
-
-# Create DecisionModule
-decision_module = DecisionModule(agent=agent, config=config)
-
-# Create state tensor using agent's method
-state = agent.create_decision_state()
-
-# Get action
-action_index = decision_module.decide_action(state)
-print(f"Selected action index: {action_index}")
-
-# Update with experience (after action execution)
-reward = 1.0  # Some reward
-next_state = agent.create_decision_state()  # State after action
-done = False  # Episode not done
-decision_module.update(state, action_index, reward, next_state, done)
-
-# Save/load model
-decision_module.save_model("agent_model")
-decision_module.load_model("agent_model")
-
-# Get model info
-info = decision_module.get_model_info()
-print(f"Model info: {info}")
-
-# Available algorithm types:
-# - "ppo": Proximal Policy Optimization (default)
-# - "sac": Soft Actor-Critic
-# - "dqn": Deep Q-Network
-# - "a2c": Advantage Actor-Critic
-# - "ddpg": Deep Deterministic Policy Gradient
-# - "fallback": Simple epsilon-greedy random action selection
-```
-"""

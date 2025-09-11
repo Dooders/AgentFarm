@@ -222,7 +222,7 @@ class SimpleReplayBuffer(ExperienceReplayBuffer):
                 # Keep other keys as lists or convert to numpy arrays
                 try:
                     batch[key] = np.array(batch[key])
-                except:
+                except Exception:
                     pass  # Keep as list if conversion fails
 
         return batch

@@ -705,7 +705,7 @@ class SimulationVisualizer:
         )
         try:
             font = ImageFont.truetype("arial.ttf", font_size)
-        except:
+        except Exception:
             font = ImageFont.load_default()
 
         draw.text(

@@ -67,15 +67,17 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         self.assertAlmostEqual(np.sum(probs), 1.0, places=6)
 
     @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
-    @patch("farm.core.decision.decision.DQNWrapper")
-    def test_decision_module_with_tianshou_dqn(self, mock_dqn_class):
+    @patch("farm.core.decision.decision._ALGORITHM_REGISTRY")
+    def test_decision_module_with_tianshou_dqn(self, mock_registry):
         """Test DecisionModule with Tianshou DQN."""
         mock_algorithm = Mock()
         mock_algorithm.select_action.return_value = 1
         # Remove the automatically created select_action_with_mask to ensure
         # the code uses the fallback path that calls select_action
         delattr(mock_algorithm, "select_action_with_mask")
-        mock_dqn_class.return_value = mock_algorithm
+        mock_wrapper_class = Mock(return_value=mock_algorithm)
+        mock_registry.__getitem__.return_value = mock_wrapper_class
+        mock_registry.__contains__.return_value = True
 
         config = DecisionConfig(algorithm_type="dqn")
         module = DecisionModule(
@@ -85,9 +87,9 @@ class TestDecisionModuleIntegration(unittest.TestCase):
             config,
         )
 
-        # Verify DDQN was initialized
-        mock_dqn_class.assert_called_once()
-        call_kwargs = mock_dqn_class.call_args[1]
+        # Verify DQN was initialized
+        mock_wrapper_class.assert_called_once()
+        call_kwargs = mock_wrapper_class.call_args[1]
         self.assertEqual(call_kwargs["algorithm_config"]["lr"], config.learning_rate)
         self.assertEqual(call_kwargs["algorithm_config"]["gamma"], config.gamma)
 
@@ -97,15 +99,17 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         self.assertEqual(action, 1)  # From mock
 
     @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
-    @patch("farm.core.decision.decision.PPOWrapper")
-    def test_decision_module_with_tianshou_ppo(self, mock_ppo_class):
+    @patch("farm.core.decision.decision._ALGORITHM_REGISTRY")
+    def test_decision_module_with_tianshou_ppo(self, mock_registry):
         """Test DecisionModule with Tianshou PPO."""
         mock_algorithm = Mock()
         mock_algorithm.select_action.return_value = 2
         # Remove the automatically created select_action_with_mask to ensure
         # the code uses the fallback path that calls select_action
         delattr(mock_algorithm, "select_action_with_mask")
-        mock_ppo_class.return_value = mock_algorithm
+        mock_wrapper_class = Mock(return_value=mock_algorithm)
+        mock_registry.__getitem__.return_value = mock_wrapper_class
+        mock_registry.__contains__.return_value = True
 
         config = DecisionConfig(algorithm_type="ppo")
         module = DecisionModule(
@@ -116,8 +120,8 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         )
 
         # Verify PPO was initialized
-        mock_ppo_class.assert_called_once()
-        call_kwargs = mock_ppo_class.call_args[1]
+        mock_wrapper_class.assert_called_once()
+        call_kwargs = mock_wrapper_class.call_args[1]
         self.assertEqual(call_kwargs["algorithm_config"]["lr"], config.learning_rate)
         self.assertEqual(call_kwargs["algorithm_config"]["gamma"], config.gamma)
 
@@ -127,15 +131,17 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         self.assertEqual(action, 2)  # From mock
 
     @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
-    @patch("farm.core.decision.decision.SACWrapper")
-    def test_decision_module_with_tianshou_sac(self, mock_sac_class):
+    @patch("farm.core.decision.decision._ALGORITHM_REGISTRY")
+    def test_decision_module_with_tianshou_sac(self, mock_registry):
         """Test DecisionModule with Tianshou SAC."""
         mock_algorithm = Mock()
         mock_algorithm.select_action.return_value = 3
         # Remove the automatically created select_action_with_mask to ensure
         # the code uses the fallback path that calls select_action
         delattr(mock_algorithm, "select_action_with_mask")
-        mock_sac_class.return_value = mock_algorithm
+        mock_wrapper_class = Mock(return_value=mock_algorithm)
+        mock_registry.__getitem__.return_value = mock_wrapper_class
+        mock_registry.__contains__.return_value = True
 
         config = DecisionConfig(algorithm_type="sac")
         module = DecisionModule(
@@ -146,8 +152,8 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         )
 
         # Verify SAC was initialized
-        mock_sac_class.assert_called_once()
-        call_kwargs = mock_sac_class.call_args[1]
+        mock_wrapper_class.assert_called_once()
+        call_kwargs = mock_wrapper_class.call_args[1]
         self.assertEqual(call_kwargs["num_actions"], 4)
         self.assertEqual(call_kwargs["state_dim"], 8)
 
@@ -157,15 +163,17 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         self.assertEqual(action, 3)  # From mock
 
     @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
-    @patch("farm.core.decision.decision.A2CWrapper")
-    def test_decision_module_with_tianshou_a2c(self, mock_a2c_class):
+    @patch("farm.core.decision.decision._ALGORITHM_REGISTRY")
+    def test_decision_module_with_tianshou_a2c(self, mock_registry):
         """Test DecisionModule with Tianshou A2C."""
         mock_algorithm = Mock()
         mock_algorithm.select_action.return_value = 0
         # Remove the automatically created select_action_with_mask to ensure
         # the code uses the fallback path that calls select_action
         delattr(mock_algorithm, "select_action_with_mask")
-        mock_a2c_class.return_value = mock_algorithm
+        mock_wrapper_class = Mock(return_value=mock_algorithm)
+        mock_registry.__getitem__.return_value = mock_wrapper_class
+        mock_registry.__contains__.return_value = True
 
         config = DecisionConfig(algorithm_type="a2c")
         module = DecisionModule(
@@ -176,8 +184,8 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         )
 
         # Verify A2C was initialized
-        mock_a2c_class.assert_called_once()
-        call_kwargs = mock_a2c_class.call_args[1]
+        mock_wrapper_class.assert_called_once()
+        call_kwargs = mock_wrapper_class.call_args[1]
         self.assertEqual(call_kwargs["num_actions"], 4)
         self.assertEqual(call_kwargs["state_dim"], 8)
 
@@ -187,15 +195,17 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         self.assertEqual(action, 0)  # From mock
 
     @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True)
-    @patch("farm.core.decision.decision.DDPGWrapper")
-    def test_decision_module_with_tianshou_ddpg(self, mock_ddpg_class):
+    @patch("farm.core.decision.decision._ALGORITHM_REGISTRY")
+    def test_decision_module_with_tianshou_ddpg(self, mock_registry):
         """Test DecisionModule with Tianshou DDPG."""
         mock_algorithm = Mock()
         mock_algorithm.select_action.return_value = 1
         # Remove the automatically created select_action_with_mask to ensure
         # the code uses the fallback path that calls select_action
         delattr(mock_algorithm, "select_action_with_mask")
-        mock_ddpg_class.return_value = mock_algorithm
+        mock_wrapper_class = Mock(return_value=mock_algorithm)
+        mock_registry.__getitem__.return_value = mock_wrapper_class
+        mock_registry.__contains__.return_value = True
 
         config = DecisionConfig(algorithm_type="ddpg")
         module = DecisionModule(
@@ -206,8 +216,8 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         )
 
         # Verify DDPG was initialized
-        mock_ddpg_class.assert_called_once()
-        call_kwargs = mock_ddpg_class.call_args[1]
+        mock_wrapper_class.assert_called_once()
+        call_kwargs = mock_wrapper_class.call_args[1]
         self.assertEqual(call_kwargs["num_actions"], 4)
         self.assertEqual(call_kwargs["state_dim"], 8)
 

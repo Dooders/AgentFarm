@@ -323,6 +323,20 @@ class BaseAgent:
             getattr(self.config, "observation_space", None) if self.config else None
         )
 
+        # If spaces are not in config, get them from the environment
+        if (
+            action_space is None
+            and hasattr(self, "environment")
+            and self.environment is not None
+        ):
+            action_space = self.environment.action_space()
+        if (
+            observation_space is None
+            and hasattr(self, "environment")
+            and self.environment is not None
+        ):
+            observation_space = self.environment.observation_space()
+
         self.decision_module = DecisionModule(
             agent=self,
             config=decision_config,
@@ -357,7 +371,9 @@ class BaseAgent:
 
         # Get nearby entities using spatial service
         try:
-            nearby = self.spatial_service.get_nearby(self.position, radius, ["resources"])
+            nearby = self.spatial_service.get_nearby(
+                self.position, radius, ["resources"]
+            )
             nearby_resources = nearby.get("resources", [])
         except Exception as e:
             logger.warning(
@@ -450,7 +466,7 @@ class BaseAgent:
         Returns:
             torch.Tensor: Multi-channel observation tensor for decision making
         """
-        if self.environment is None:
+        if not hasattr(self, "environment") or self.environment is None:
             # Log fallback usage for debugging
             logger.warning(
                 f"Agent {self.agent_id} using fallback state - no environment available. "
@@ -957,10 +973,19 @@ class BaseAgent:
         resources_after = self.resource_level
 
         # Log action to database if logger is available
-        if hasattr(self, "environment") and self.environment and hasattr(self.environment, "db") and self.environment.db:
+        if (
+            hasattr(self, "environment")
+            and self.environment
+            and hasattr(self.environment, "db")
+            and self.environment.db
+        ):
             try:
                 # Get current time step
-                current_time = self.time_service.current_time() if hasattr(self, "time_service") and self.time_service else 0
+                current_time = (
+                    self.time_service.current_time()
+                    if hasattr(self, "time_service") and self.time_service
+                    else 0
+                )
 
                 # Log the agent action
                 self.environment.db.logger.log_agent_action(
@@ -970,7 +995,7 @@ class BaseAgent:
                     resources_before=resources_before,
                     resources_after=resources_after,
                     reward=0,  # Reward will be calculated later
-                    details=action_result.get("details", {})
+                    details=action_result.get("details", {}),
                 )
             except Exception as e:
                 logger.warning(f"Failed to log agent action {action.name}: {e}")
@@ -1096,7 +1121,9 @@ class BaseAgent:
             ValueError: If neither environment parameter nor self.environment is available
         """
         # Determine which environment to use
-        target_environment = environment or self.environment
+        target_environment = environment or (
+            self.environment if hasattr(self, "environment") else None
+        )
 
         if target_environment is None:
             raise ValueError("Cannot clone agent without environment reference")
