@@ -321,7 +321,16 @@ class TianshouWrapper(RLAlgorithm):
                     **{
                         k: v
                         for k, v in self.algorithm_config.items()
-                        if k not in ["lr", "device", "gamma", "n_step", "eps_test", "eps_train", "eps_train_final"]
+                        if k
+                        not in [
+                            "lr",
+                            "device",
+                            "gamma",
+                            "n_step",
+                            "eps_test",
+                            "eps_train",
+                            "eps_train_final",
+                        ]
                     },
                 )
 
@@ -437,8 +446,8 @@ class TianshouWrapper(RLAlgorithm):
             import torch
 
             state_tensor = torch.from_numpy(state).float()
-        except ImportError:
-            raise ImportError("PyTorch is required for Tianshou")
+        except ImportError as exc:
+            raise ImportError("PyTorch is required for Tianshou") from exc
 
         # Get action from the policy
         with torch.no_grad():

@@ -32,6 +32,13 @@ except ImportError:
     logger = logging.getLogger(__name__)
     logger.warning("Tianshou not available. Using fallback algorithms.")
 
+# Initialize wrapper variables
+A2CWrapper = None
+DDPGWrapper = None
+DQNWrapper = None
+PPOWrapper = None
+SACWrapper = None
+
 # Import Tianshou wrappers if available
 if TIANSHOU_AVAILABLE:
     try:
@@ -149,6 +156,11 @@ class DecisionModule:
 
     def _initialize_tianshou_ppo(self):
         """Initialize PPO using Tianshou."""
+        if PPOWrapper is None:
+            logger.warning(f"Tianshou PPO not available for agent {self.agent_id}")
+            self._initialize_fallback()
+            return
+
         try:
             # Configure PPO parameters
             algorithm_config = {
@@ -183,6 +195,11 @@ class DecisionModule:
 
     def _initialize_tianshou_sac(self):
         """Initialize SAC using Tianshou."""
+        if SACWrapper is None:
+            logger.warning(f"Tianshou SAC not available for agent {self.agent_id}")
+            self._initialize_fallback()
+            return
+
         try:
             # Configure SAC parameters
             algorithm_config = {
@@ -215,6 +232,11 @@ class DecisionModule:
 
     def _initialize_tianshou_dqn(self):
         """Initialize DQN using Tianshou."""
+        if DQNWrapper is None:
+            logger.warning(f"Tianshou DQN not available for agent {self.agent_id}")
+            self._initialize_fallback()
+            return
+
         try:
             # Configure DQN parameters
             algorithm_config = {
@@ -248,6 +270,11 @@ class DecisionModule:
 
     def _initialize_tianshou_a2c(self):
         """Initialize A2C using Tianshou."""
+        if A2CWrapper is None:
+            logger.warning(f"Tianshou A2C not available for agent {self.agent_id}")
+            self._initialize_fallback()
+            return
+
         try:
             # Configure A2C parameters
             algorithm_config = {
@@ -281,6 +308,11 @@ class DecisionModule:
 
     def _initialize_tianshou_ddpg(self):
         """Initialize DDPG using Tianshou."""
+        if DDPGWrapper is None:
+            logger.warning(f"Tianshou DDPG not available for agent {self.agent_id}")
+            self._initialize_fallback()
+            return
+
         try:
             # Configure DDPG parameters
             algorithm_config = {
@@ -544,7 +576,7 @@ class DecisionModule:
                     hasattr(self.algorithm, "should_train")
                     and self.algorithm.should_train()
                 ):
-                    self.algorithm.train()
+                    self.algorithm.train(batch=None)
                     self._is_trained = True
 
             # For SB3 algorithms (fallback), simulate learning process
@@ -759,71 +791,3 @@ class DecisionModule:
             and callable(getattr(self.algorithm, "reset", None))
         ):
             self.algorithm.reset()
-
-
-# Example usage and demonstration
-"""
-Example: Using DecisionModule with BaseAgent
-
-```python
-from farm.core.agent import BaseAgent
-from farm.core.environment import Environment
-from farm.core.decision.config import DecisionConfig
-
-# Create environment and agent
-env = Environment(width=100, height=100, resource_distribution={})
-agent = BaseAgent(
-    agent_id="test_agent",
-    position=(50, 50),
-    resource_level=10,
-    environment=env
-)
-
-# DecisionModule is automatically created in BaseAgent.__init__()
-# Access it via agent.decision_module
-
-# Manual example of creating and using DecisionModule
-from farm.core.decision.decision import DecisionModule
-
-# Create config for Tianshou PPO
-config = DecisionConfig(
-    algorithm_type="ppo",  # Use PPO with Tianshou
-    learning_rate=0.001,
-    gamma=0.99,
-    epsilon_start=1.0,
-    epsilon_min=0.01
-)
-
-# Create DecisionModule
-decision_module = DecisionModule(agent=agent, config=config)
-
-# Create state tensor using agent's method
-state = agent.create_decision_state()
-
-# Get action
-action_index = decision_module.decide_action(state)
-print(f"Selected action index: {action_index}")
-
-# Update with experience (after action execution)
-reward = 1.0  # Some reward
-next_state = agent.create_decision_state()  # State after action
-done = False  # Episode not done
-decision_module.update(state, action_index, reward, next_state, done)
-
-# Save/load model
-decision_module.save_model("agent_model")
-decision_module.load_model("agent_model")
-
-# Get model info
-info = decision_module.get_model_info()
-print(f"Model info: {info}")
-
-# Available algorithm types:
-# - "ppo": Proximal Policy Optimization (default)
-# - "sac": Soft Actor-Critic
-# - "dqn": Deep Q-Network
-# - "a2c": Advantage Actor-Critic
-# - "ddpg": Deep Deterministic Policy Gradient
-# - "fallback": Simple epsilon-greedy random action selection
-```
-"""
