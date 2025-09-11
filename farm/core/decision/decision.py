@@ -32,14 +32,10 @@ except ImportError:
     logger = logging.getLogger(__name__)
     logger.warning("Tianshou not available. Using fallback algorithms.")
 
-# Initialize wrapper variables
-A2CWrapper = None
-DDPGWrapper = None
-DQNWrapper = None
-PPOWrapper = None
-SACWrapper = None
+# Initialize algorithm registry - populated conditionally based on Tianshou availability
+_ALGORITHM_REGISTRY = {}
 
-# Import Tianshou wrappers if available
+# Import Tianshou wrappers if available and populate registry
 if TIANSHOU_AVAILABLE:
     try:
         from farm.core.decision.algorithms.tianshou import (
@@ -49,6 +45,18 @@ if TIANSHOU_AVAILABLE:
             PPOWrapper,
             SACWrapper,
         )
+
+        # Populate registry with available wrappers
+        _ALGORITHM_REGISTRY.update(
+            {
+                "a2c": A2CWrapper,
+                "ddpg": DDPGWrapper,
+                "dqn": DQNWrapper,
+                "ppo": PPOWrapper,
+                "sac": SACWrapper,
+            }
+        )
+
     except ImportError:
         logger = logging.getLogger(__name__)
         logger.warning("Could not import Tianshou wrappers. Using fallback algorithms.")
@@ -156,7 +164,7 @@ class DecisionModule:
 
     def _initialize_tianshou_ppo(self):
         """Initialize PPO using Tianshou."""
-        if PPOWrapper is None:
+        if "ppo" not in _ALGORITHM_REGISTRY:
             logger.warning(f"Tianshou PPO not available for agent {self.agent_id}")
             self._initialize_fallback()
             return
@@ -177,7 +185,7 @@ class DecisionModule:
             # Add any additional parameters from config
             algorithm_config.update(self.config.algorithm_params)
 
-            self.algorithm = PPOWrapper(
+            self.algorithm = _ALGORITHM_REGISTRY["ppo"](
                 num_actions=self.num_actions,
                 state_dim=self.state_dim,
                 algorithm_config=algorithm_config,
@@ -195,7 +203,7 @@ class DecisionModule:
 
     def _initialize_tianshou_sac(self):
         """Initialize SAC using Tianshou."""
-        if SACWrapper is None:
+        if "sac" not in _ALGORITHM_REGISTRY:
             logger.warning(f"Tianshou SAC not available for agent {self.agent_id}")
             self._initialize_fallback()
             return
@@ -214,7 +222,7 @@ class DecisionModule:
             # Add any additional parameters from config
             algorithm_config.update(self.config.algorithm_params)
 
-            self.algorithm = SACWrapper(
+            self.algorithm = _ALGORITHM_REGISTRY["sac"](
                 num_actions=self.num_actions,
                 state_dim=self.state_dim,
                 algorithm_config=algorithm_config,
@@ -232,7 +240,7 @@ class DecisionModule:
 
     def _initialize_tianshou_dqn(self):
         """Initialize DQN using Tianshou."""
-        if DQNWrapper is None:
+        if "dqn" not in _ALGORITHM_REGISTRY:
             logger.warning(f"Tianshou DQN not available for agent {self.agent_id}")
             self._initialize_fallback()
             return
@@ -252,7 +260,7 @@ class DecisionModule:
             # Add any additional parameters from config
             algorithm_config.update(self.config.algorithm_params)
 
-            self.algorithm = DQNWrapper(
+            self.algorithm = _ALGORITHM_REGISTRY["dqn"](
                 num_actions=self.num_actions,
                 state_dim=self.state_dim,
                 algorithm_config=algorithm_config,
@@ -270,7 +278,7 @@ class DecisionModule:
 
     def _initialize_tianshou_a2c(self):
         """Initialize A2C using Tianshou."""
-        if A2CWrapper is None:
+        if "a2c" not in _ALGORITHM_REGISTRY:
             logger.warning(f"Tianshou A2C not available for agent {self.agent_id}")
             self._initialize_fallback()
             return
@@ -290,7 +298,7 @@ class DecisionModule:
             # Add any additional parameters from config
             algorithm_config.update(self.config.algorithm_params)
 
-            self.algorithm = A2CWrapper(
+            self.algorithm = _ALGORITHM_REGISTRY["a2c"](
                 num_actions=self.num_actions,
                 state_dim=self.state_dim,
                 algorithm_config=algorithm_config,
@@ -308,7 +316,7 @@ class DecisionModule:
 
     def _initialize_tianshou_ddpg(self):
         """Initialize DDPG using Tianshou."""
-        if DDPGWrapper is None:
+        if "ddpg" not in _ALGORITHM_REGISTRY:
             logger.warning(f"Tianshou DDPG not available for agent {self.agent_id}")
             self._initialize_fallback()
             return
@@ -325,7 +333,7 @@ class DecisionModule:
             # Add any additional parameters from config
             algorithm_config.update(self.config.algorithm_params)
 
-            self.algorithm = DDPGWrapper(
+            self.algorithm = _ALGORITHM_REGISTRY["ddpg"](
                 num_actions=self.num_actions,
                 state_dim=self.state_dim,
                 algorithm_config=algorithm_config,
