@@ -49,7 +49,7 @@ class TianshouWrapper(RLAlgorithm):
         Args:
             num_actions: Number of possible actions
             algorithm_name: Name of the Tianshou algorithm (e.g., "PPO", "SAC")
-            state_dim: Dimension of the state space
+            state_dim: Dimension of the state space (flattened)
             observation_shape: Shape of the observation space (e.g., (13, 13, 13))
             algorithm_config: Configuration for the Tianshou algorithm
             buffer_size: Size of the experience replay buffer
@@ -807,71 +807,59 @@ class TianshouWrapper(RLAlgorithm):
 
         # Handle action masking for curriculum learning
         if action_mask is not None:
-            # For Tianshou policies that support action masking
-            if hasattr(self.policy, 'forward') and hasattr(self.policy, 'actor'):
-                # Get action logits from the actor
-                with torch.no_grad():
-                    if hasattr(self.policy.actor, 'preprocess_net'):
-                        # For PPO/A2C style policies
-                        features = self.policy.actor.preprocess_net(state_tensor)
-                        action_logits = self.policy.actor.last(features)
-                    else:
-                        # For direct actor networks
-                        action_logits = self.policy.actor(state_tensor)
+            # For PPO specifically, use a simpler approach
+            if self.algorithm_name == "PPO" and hasattr(self.policy, 'actor'):
+                # Use PPO's built-in action sampling with manual masking
+                max_attempts = 10
+                for _ in range(max_attempts):
+                    with torch.no_grad():
+                        # Get action logits from PPO actor
+                        try:
+                            # PPO structure: policy.actor -> forward method
+                            logits = self.policy.actor(state_tensor)
+                            # Apply softmax to get probabilities
+                            probs = torch.softmax(logits, dim=-1)
+                            # Apply mask by zeroing out invalid actions
+                            action_mask_tensor = torch.from_numpy(action_mask.astype(np.float32)).to(state_tensor.device)
+                            if action_mask_tensor.ndim == 1:
+                                action_mask_tensor = action_mask_tensor.unsqueeze(0)
+                            masked_probs = probs * action_mask_tensor
+                            # Renormalize
+                            masked_probs = masked_probs / (masked_probs.sum(dim=-1, keepdim=True) + 1e-8)
 
-                    # Apply mask by setting invalid actions to very negative values
-                    action_mask_tensor = torch.from_numpy(action_mask.astype(np.float32)).to(state_tensor.device)
-                    if action_mask_tensor.ndim == 1:
-                        action_mask_tensor = action_mask_tensor.unsqueeze(0)
-
-                    # Set invalid actions to -inf (very negative)
-                    masked_logits = action_logits + (action_mask_tensor - 1) * 1e10
-
-                    # Sample from masked distribution with retry logic
-                    max_attempts = 5
-                    for attempt in range(max_attempts):
-                        if hasattr(self.policy, 'dist_fn'):
-                            dist = self.policy.dist_fn(masked_logits)
-                            action = dist.sample()
-                        else:
-                            # Fallback: use categorical distribution
-                            dist = torch.distributions.Categorical(logits=masked_logits)
+                            # Sample from masked distribution
+                            dist = torch.distributions.Categorical(probs=masked_probs)
                             action = dist.sample()
 
-                        # Handle different action types
-                        if isinstance(action, torch.Tensor):
-                            if action.ndim == 1:
-                                action = action[0]
-                            action = action.item()
+                            if isinstance(action, torch.Tensor):
+                                if action.ndim == 1:
+                                    action = action[0]
+                                action = action.item()
 
-                        # For continuous actions, discretize
-                        if isinstance(action, float):
-                            action = int(
-                                np.clip(
-                                    np.round(action * (self.num_actions - 1)), 0, self.num_actions - 1
-                                )
-                            )
+                            # Check if action is valid according to mask
+                            if int(action) < len(action_mask) and action_mask[int(action)]:
+                                return int(action)
+                        except Exception as e:
+                            logger.debug(f"PPO masking attempt failed: {e}")
+                            continue
 
-                        # Check if action is valid according to mask
-                        if action_mask is not None:
-                            valid_actions = np.where(action_mask)[0]
-                            if len(valid_actions) > 0 and int(action) in valid_actions:
-                                # Return the position of the selected action in the enabled_actions list
-                                return int(np.where(valid_actions == int(action))[0][0])
+                # Fallback: pick first valid action
+                valid_actions = np.where(action_mask)[0]
+                if len(valid_actions) > 0:
+                    return int(valid_actions[0])
+                return 0
 
-                    # If we couldn't get a valid action after all attempts, return first valid action
-                    if action_mask is not None:
-                        valid_actions = np.where(action_mask)[0]
-                        if len(valid_actions) > 0:
-                            return 0  # Return index 0 in enabled_actions list
-                    return 0
+            # For other algorithms or fallback
             else:
-                # Fallback for policies without easy access to logits
                 # Try multiple times to get a valid action
                 max_attempts = 10
                 for _ in range(max_attempts):
                     with torch.no_grad():
-                        action = self.policy(state_tensor, state=None)[0]
+                        try:
+                            action = self.policy(state_tensor, state=None)[0]
+                        except:
+                            # Fallback to random action
+                            action = np.random.randint(self.num_actions)
 
                     # Handle different action types
                     if isinstance(action, torch.Tensor):
@@ -888,7 +876,7 @@ class TianshouWrapper(RLAlgorithm):
                         )
 
                     # Check if action is valid according to mask
-                    if action_mask is None or action_mask[int(action)]:
+                    if action_mask is None or (int(action) < len(action_mask) and action_mask[int(action)]):
                         return int(action)
 
                 # If we couldn't get a valid action after max attempts, pick first valid action

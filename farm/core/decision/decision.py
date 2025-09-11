@@ -119,10 +119,11 @@ class DecisionModule:
         # Store the full observation shape for multi-dimensional support
         if hasattr(observation_space, "shape"):
             self.observation_shape = observation_space.shape
-            # For CNN-based algorithms, state_dim should be the flattened size
+            # For CNN-based algorithms, pass the full shape, not flattened
             # For traditional ML algorithms, use the configured rl_state_dim
             if len(observation_space.shape) > 1:
-                # Multi-dimensional observation - flatten for compatibility
+                # Multi-dimensional observation - keep full shape for CNNs
+                # but also provide flattened size for compatibility
                 self.state_dim = int(np.prod(observation_space.shape))
             else:
                 # 1D observation - use the dimension as-is
@@ -432,12 +433,14 @@ class DecisionModule:
             action_mask = self._create_action_mask(enabled_actions)
 
             # Get action from algorithm with masking support
-            if self.algorithm is not None and hasattr(self.algorithm, "select_action_with_mask"):
+            if self.algorithm is not None and hasattr(
+                self.algorithm, "select_action_with_mask"
+            ):
                 # Use action masking support if available
-                action = self.algorithm.select_action_with_mask(
-                    state_np, action_mask
-                )
-            elif self.algorithm is not None and hasattr(self.algorithm, "select_action"):
+                action = self.algorithm.select_action_with_mask(state_np, action_mask)
+            elif self.algorithm is not None and hasattr(
+                self.algorithm, "select_action"
+            ):
                 # Fallback: get action and filter manually
                 logger.debug(
                     f"Algorithm {type(self.algorithm).__name__} does not implement select_action_with_mask; using manual action filtering."
