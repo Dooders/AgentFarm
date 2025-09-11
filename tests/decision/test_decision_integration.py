@@ -500,7 +500,7 @@ class TestEndToEndDecisionWorkflow(unittest.TestCase):
         # Test load from empty file
         with tempfile.TemporaryDirectory() as temp_dir:
             empty_file = f"{temp_dir}/empty.pkl"
-            with open(empty_file, "w") as f:
+            with open(empty_file, "w", encoding="utf-8") as f:
                 f.write("")
 
             module.load_model(empty_file)  # Should not crash
@@ -867,7 +867,7 @@ class TestDecisionSystemRobustness(unittest.TestCase):
         original_predict = module.algorithm.predict
 
         def failing_predict(*args, **kwargs):
-            raise Exception("Algorithm failure")
+            raise RuntimeError("Algorithm failure")
 
         module.algorithm.predict = failing_predict
 
