@@ -321,7 +321,7 @@ class TianshouWrapper(RLAlgorithm):
                     **{
                         k: v
                         for k, v in self.algorithm_config.items()
-                        if k not in ["lr", "device", "gamma"]
+                        if k not in ["lr", "device", "gamma", "n_step", "eps_test", "eps_train", "eps_train_final"]
                     },
                 )
 
