@@ -271,8 +271,25 @@ class MetricsTracker:
         )
 
     def calculate_metrics(self, agent_objects, resources, time, config=None):
-        """Calculate various metrics for the current simulation state."""
-        #! resources_shared is now being calculated
+        """
+        Calculate metrics for the current simulation state.
+
+        Aggregates population, resources, diversity, and event counters from the
+        tracker into a single dict. Also computes per-step resource consumption
+        based on the change in total resource amount since the last call.
+
+        Returns a dict with keys like:
+        - total_agents, system_agents
+        - total_resources, resources_consumed
+        - average_agent_resources, average_agent_health, average_agent_age, average_reward
+        - resource_efficiency, resource_distribution_entropy
+        - births, deaths
+        - genetic_diversity, dominant_genome_ratio
+        - combat_encounters, successful_attacks
+        - resources_shared (step aggregate), resources_shared_this_step
+        - combat_encounters_this_step, successful_attacks_this_step
+        """
+        # Step-level aggregates are sourced from the internal tracker
         try:
             # Get alive agents
             alive_agents = [agent for agent in agent_objects.values() if agent.alive]
@@ -339,7 +356,7 @@ class MetricsTracker:
             combat_encounters = tracker_metrics["combat_encounters"]
             successful_attacks = tracker_metrics["successful_attacks"]
             resources_shared = tracker_metrics["resources_shared"]
-            resources_shared_this_step = tracker_metrics["resources_shared"]
+            resources_shared_this_step = tracker_metrics["resources_shared_this_step"]
             combat_encounters_this_step = tracker_metrics["combat_encounters"]
             successful_attacks_this_step = tracker_metrics["successful_attacks"]
 
