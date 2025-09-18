@@ -998,6 +998,13 @@ class Environment(AECEnv):
             The action space containing all enabled actions. Each action is
             represented by an integer index from 0 to n_actions-1, where
             n_actions is the number of currently enabled actions.
+
+        Notes
+        -----
+        - The mapping from indices → actions follows the current `_action_mapping`
+          order, which can change at runtime via `update_action_space`.
+        - RL agents should be resilient to dynamic action-space size changes or
+          update policies that keep the space fixed during training.
         """
         return self._action_space
 
@@ -1022,6 +1029,12 @@ class Environment(AECEnv):
             The observation space defining the shape and bounds of observations.
             Shape is (NUM_CHANNELS, S, S) where S = 2*R + 1 and R is the
             observation radius. Values are normalized to [0, 1] range.
+
+        Notes
+        -----
+        - The dtype reflects the configured torch dtype mapped to a numpy dtype
+          for space definition (bfloat16 maps to float32 for numpy compatibility).
+        - Channel layout is defined by the channel registry in `farm.core.channels`.
         """
         return self._observation_space
 
@@ -1349,6 +1362,11 @@ class Environment(AECEnv):
         Action implementations are imported from the farm.actions module and
         handle the specific logic for each action type including validation,
         effects, and side effects like resource transfer or combat.
+
+        PettingZoo Compliance
+        ---------------------
+        Database logging of actions (when enabled) does not alter the AEC step
+        semantics. Reward is calculated later in `step`, after action execution.
         """
         agent = self._agent_objects.get(agent_id)
         if agent is None or not agent.alive or action is None:
@@ -1563,6 +1581,12 @@ class Environment(AECEnv):
         -------
         Tuple[np.ndarray, float, bool, bool]
             Updated observation, reward, terminated, and truncated values
+
+        PettingZoo Compliance
+        ---------------------
+        - `self.rewards[agent_id]` stores cumulative rewards as required by AECEnv.
+        - `self._cumulative_rewards[agent_id]` is the internal running sum used
+          to keep PettingZoo-compatible behavior across steps.
         """
         # Handle case where agent_id is None (no active agents)
         if agent_id is None:
@@ -1603,6 +1627,13 @@ class Environment(AECEnv):
             A 2-tuple containing:
             - observation (np.ndarray): The initial observation for the first agent
             - info (dict): Additional information about the reset
+
+        Notes
+        -----
+        - Rebuilds PettingZoo bookkeeping dictionaries and sets `agent_selection`
+          to the first alive agent ID (if any).
+        - If `options['agents']` is provided, the current population is replaced
+          with those agents prior to rebuilding the PettingZoo state.
         """
         if seed is not None:
             self.seed_value = seed
@@ -1683,6 +1714,13 @@ class Environment(AECEnv):
             - terminated (bool): Whether the episode has terminated
             - truncated (bool): Whether the episode was truncated (e.g., max steps reached)
             - info (dict): Additional information about the step
+
+        AEC Semantics
+        -------------
+        - The environment's global update (regeneration, metrics, time advance) occurs
+          once per full cycle, when `_cycle_complete` is detected.
+        - `terminated` may be triggered when all agents are gone or resources reach zero
+          (after a cycle completes); `truncated` is based on `max_steps`.
         """
         agent_id = self.agent_selection
         agent = self._agent_objects.get(agent_id)
