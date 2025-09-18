@@ -39,22 +39,22 @@ class BaseState(BaseModel):
     def to_tensor(self, device: torch.device) -> torch.Tensor:
         """Convert state to tensor format for neural network input.
 
-        This method should be implemented by subclasses to define how
-        their specific state attributes are converted to a tensor.
+        Subclasses must implement this to define how their attributes are
+        converted into a numeric tensor suitable for model input.
 
         Args:
-            device (torch.device): Device to place tensor on (CPU/GPU)
+            device: Target device (CPU/GPU)
 
         Returns:
-            torch.Tensor: State represented as a tensor
+            torch.Tensor: Tensor representation of this state
         """
         raise NotImplementedError("Subclasses must implement to_tensor")
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert state to dictionary with human-readable keys.
 
-        This method should be implemented by subclasses to provide
-        a meaningful dictionary representation of their state.
+        Subclasses must implement this to return a stable, serialization-
+        friendly mapping of state values for logging, DB storage, or export.
 
         Returns:
             Dict[str, Any]: Dictionary representation of state
