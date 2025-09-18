@@ -1,26 +1,37 @@
-"""Environment module for AgentFarm simulation.
+"""Environment for AgentFarm multi-agent simulations.
 
-This module contains the core Environment class that manages the simulation world,
-including agents, resources, spatial relationships, and the simulation loop.
-The Environment class extends PettingZoo's AECEnv to provide multi-agent
-reinforcement learning capabilities with deterministic seeding support.
+Overview
+--------
+The Environment orchestrates a 2D multi-agent world using the PettingZoo AEC
+pattern. It manages agents, resources, spatial indexing, metrics, and optional
+SQLite-based logging. The design favors composability (services) and clear
+integration points for RL.
 
-Key Components:
-    - Environment: Main simulation environment class extending PettingZoo AECEnv
-    - Action Registry: Dynamic action mapping system with enable/disable capabilities
-    - Spatial Index: Efficient KD-tree based proximity queries (O(log n) complexity)
-    - Resource Manager: Handles resource spawning, regeneration, and consumption
-    - Observation System: Multi-channel tensor observations with AgentObservation class
-    - Service Architecture: Dependency injection with Environment*Service classes
-    - Metrics Tracker: Comprehensive simulation statistics and database logging
-    - Agent Lifecycle: Birth/death tracking and population management
-    - Identity Management: Deterministic ID generation with Identity service
-    - Configuration System: SimulationConfig for parameter management
-    - Database Integration: SQLite logging with setup_db utilities
+Key Responsibilities
+--------------------
+- Agent lifecycle: add/remove agents, selection order, and step cycle
+- Resource lifecycle: initialization, regeneration, consumption (via ResourceManager)
+- Spatial queries: KD-tree accelerated nearby/nearest via `SpatialIndex`
+- Observation/Action spaces: multi-channel observations and dynamic action mapping
+- Reward calculation: per-step, delta-aware rewards with survival handling
+- Metrics: step and cumulative metrics via `MetricsTracker` (optional DB logging)
 
-The environment supports various agent types and provides observation spaces for
-reinforcement learning training and evaluation with configurable discretization
-methods and bilinear interpolation for continuous position handling.
+Core Integrations
+-----------------
+- Channels/Observations: multi-channel perception buffers with decay and visibility
+- Services: adapters for validation, time, lifecycle, metrics, and logging
+- Database: structured step, agent, resource, and interaction logging when enabled
+
+Determinism
+-----------
+A seed (explicit or from `SimulationConfig`) controls deterministic aspects
+(e.g., identities, resources, and torch RNG when available).
+
+Notes
+-----
+- Action mapping is dynamic and may be updated at runtime (curriculum/pruning)
+- Spatial index rebuilds are optimized with dirty flags and hashing
+- In-memory DB mode is supported for tests or ephemeral runs
 """
 
 import logging
