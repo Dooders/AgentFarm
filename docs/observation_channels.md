@@ -165,12 +165,12 @@ The system supports three fundamental channel behaviors that determine how infor
 - **Behavior**: Dynamic (gamma typically 0.95-0.98)
 - **Purpose**: Exploration optimization and memory
 
-### Navigation Channels (Persistent)
+### Navigation Channels
 
 **GOAL**: Target waypoint or objective location
 
 - **Storage**: Single target coordinate
-- **Behavior**: Persistent
+- **Behavior**: Instant
 - **Purpose**: Goal-directed navigation
 
 **LANDMARKS**: Permanent reference points
@@ -330,7 +330,7 @@ The channel registry provides **dynamic channel management** with efficient inde
 # Channel registration with automatic indexing
 register_channel(SelfHPHandler(), 0)      # Fixed index for compatibility
 register_channel(AlliesHPHandler(), 1)    # Fixed index for compatibility
-register_channel(ResourcesHandler(), 3)   # Dynamic channels get auto indices
+register_channel(WorldLayerHandler("RESOURCES", "RESOURCES"), 3)   # Dynamic channels get auto indices
 
 # Efficient lookup operations
 channel_idx = registry.get_index("SELF_HP")     # O(1) dictionary lookup
@@ -434,8 +434,8 @@ custom_channel_settings:
 
 - **SELF_HP**: Single center pixel storage
 - **ALLIES_HP/ENEMIES_HP**: Coordinate-value pairs with accumulation
-- **GOAL**: Single target coordinate
-- **LANDMARKS**: Accumulating coordinate set
+- **GOAL**: Single target coordinate (instant behavior)
+- **LANDMARKS**: Accumulating coordinate set (persistent behavior)
 
 #### Environmental Channels (Dense)
 
