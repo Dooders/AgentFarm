@@ -11,13 +11,18 @@ logger = logging.getLogger(__name__)
 
 class ResourceManager:
     """
-    Manages resource initialization, regeneration, and lifecycle in the environment.
+    Manage resource initialization, regeneration, and lifecycle.
 
-    This class centralizes all resource-related operations including:
-    - Initial resource population with configurable distributions
-    - Deterministic and non-deterministic resource regeneration
-    - Resource consumption tracking
-    - Resource state management and validation
+    Responsibilities:
+    - Initialize resource nodes using a provided distribution or config defaults
+    - Regenerate resources deterministically (seeded) or stochastically per step
+    - Track consumption, regeneration, and depletion events
+    - Provide nearby/nearest queries (via spatial index when available)
+
+    Notes:
+    - Initialization and update logic is aligned with the environment's original
+      behavior to preserve deterministic seeds and metrics.
+    - Methods return lightweight stats for logging and analysis where relevant.
     """
 
     def __init__(
