@@ -26,6 +26,8 @@ class StepMetrics:
     deaths: int = 0
     combat_encounters: int = 0
     successful_attacks: int = 0
+    combat_encounters_this_step: int = 0
+    successful_attacks_this_step: int = 0
     resources_shared: float = 0.0
     resources_shared_this_step: float = 0.0
     reproduction_attempts: int = 0
@@ -38,6 +40,8 @@ class StepMetrics:
         self.deaths = 0
         self.combat_encounters = 0
         self.successful_attacks = 0
+        self.combat_encounters_this_step = 0
+        self.successful_attacks_this_step = 0
         self.resources_shared = 0.0
         self.resources_shared_this_step = 0.0
         self.reproduction_attempts = 0
@@ -136,6 +140,8 @@ class MetricsTracker:
             "deaths": self.step_metrics.deaths,
             "combat_encounters": self.step_metrics.combat_encounters,
             "successful_attacks": self.step_metrics.successful_attacks,
+            "combat_encounters_this_step": self.step_metrics.combat_encounters_this_step,
+            "successful_attacks_this_step": self.step_metrics.successful_attacks_this_step,
             "resources_shared": self.step_metrics.resources_shared,
             "resources_shared_this_step": self.step_metrics.resources_shared_this_step,
             "reproduction_attempts": self.step_metrics.reproduction_attempts,
@@ -357,8 +363,8 @@ class MetricsTracker:
             successful_attacks = tracker_metrics["successful_attacks"]
             resources_shared = tracker_metrics["resources_shared"]
             resources_shared_this_step = tracker_metrics["resources_shared_this_step"]
-            combat_encounters_this_step = tracker_metrics["combat_encounters"]
-            successful_attacks_this_step = tracker_metrics["successful_attacks"]
+            combat_encounters_this_step = tracker_metrics["combat_encounters_this_step"]
+            successful_attacks_this_step = tracker_metrics["successful_attacks_this_step"]
 
             # Calculate resource distribution entropy
             resource_amounts = [r.amount for r in resources]
