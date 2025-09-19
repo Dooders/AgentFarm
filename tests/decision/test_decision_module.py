@@ -498,10 +498,20 @@ class TestDecisionModule(unittest.TestCase):
                 self.assertEqual(module.config.algorithm_type, "ddpg")
 
     def test_initialization_algorithm_fallback(self):
-        """Test that invalid algorithm is rejected by config validation."""
-        # DecisionConfig validates algorithm_type and rejects invalid values
-        with self.assertRaises(ValidationError):
-            config = DecisionConfig(algorithm_type="invalid_algorithm")
+        """Test that invalid algorithm falls back to fallback algorithm."""
+        # DecisionConfig validates algorithm_type and falls back to 'fallback' for invalid values
+        config = DecisionConfig(algorithm_type="invalid_algorithm")
+        self.assertEqual(config.algorithm_type, "fallback")
+        
+        # Test that the module initializes successfully with fallback algorithm
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.observation_space,
+            config,
+        )
+        self.assertIsNotNone(module.algorithm)
+        self.assertEqual(module.config.algorithm_type, "fallback")
 
     def test_decide_action_with_multi_dimensional_state(self):
         """Test decide_action with multi-dimensional state."""
@@ -649,42 +659,48 @@ class TestDecisionModuleIntegration(unittest.TestCase):
 
     def test_integration_with_tianshou_algorithm(self):
         """Test integration with Tianshou algorithm."""
-        with patch("farm.core.decision.decision.PPOWrapper") as mock_ppo:
-            # Create a proper mock algorithm that behaves like the real one
-            mock_algorithm = Mock()
-            mock_algorithm.select_action.return_value = 2
-            mock_algorithm.select_action_with_mask.return_value = 2
-            mock_algorithm.predict_proba.return_value = np.full(
-                (1, 7), 1.0 / 7, dtype=np.float32
-            )
-            mock_algorithm.update = Mock()
-            mock_algorithm.learn = Mock()
+        with patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", True):
+            with patch("farm.core.decision.decision._ALGORITHM_REGISTRY") as mock_registry:
+                # Create a proper mock algorithm that behaves like the real one
+                mock_algorithm = Mock()
+                mock_algorithm.select_action.return_value = 2
+                mock_algorithm.select_action_with_mask.return_value = 2
+                mock_algorithm.predict_proba.return_value = np.full(
+                    (1, 7), 1.0 / 7, dtype=np.float32
+                )
+                mock_algorithm.update = Mock()
+                mock_algorithm.learn = Mock()
+                mock_algorithm.store_experience = Mock()
+                mock_algorithm.should_train.return_value = True
+                mock_algorithm.train = Mock()
 
-            # Make the mock constructor return the mock algorithm
-            mock_ppo.return_value = mock_algorithm
+                # Make the mock constructor return the mock algorithm
+                mock_wrapper_class = Mock(return_value=mock_algorithm)
+                mock_registry.__getitem__.return_value = mock_wrapper_class
+                mock_registry.__contains__.return_value = True
 
-            config = DecisionConfig(algorithm_type="ppo")
-            module = DecisionModule(
-                self.mock_agent,
-                self.mock_env.action_space,
-                self.observation_space,
-                config,
-            )
+                config = DecisionConfig(algorithm_type="ppo")
+                module = DecisionModule(
+                    self.mock_agent,
+                    self.mock_env.action_space,
+                    self.observation_space,
+                    config,
+                )
 
-            # Test full cycle
-            state = torch.randn(8)
-            action = module.decide_action(state)
-            self.assertEqual(action, 2)  # From mock
+                # Test full cycle
+                state = torch.randn(8)
+                action = module.decide_action(state)
+                self.assertEqual(action, 2)  # From mock
 
-            probs = module.get_action_probabilities(state)
-            self.assertEqual(len(probs), 7)
+                probs = module.get_action_probabilities(state)
+                self.assertEqual(len(probs), 7)
 
-            # Test update
-            module.update(state, action, 1.0, torch.randn(8), False)
+                # Test update
+                module.update(state, action, 1.0, torch.randn(8), False)
 
-            # Test model info
-            info = module.get_model_info()
-            self.assertEqual(info["algorithm_type"], "ppo")
+                # Test model info
+                info = module.get_model_info()
+                self.assertEqual(info["algorithm_type"], "ppo")
 
     def test_integration_with_custom_config(self):
         """Test integration with custom configuration."""

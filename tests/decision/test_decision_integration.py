@@ -910,15 +910,25 @@ class TestDecisionSystemRobustness(unittest.TestCase):
 
     def test_invalid_algorithm_type_fallback(self):
         """Test fallback when invalid algorithm type is specified."""
-        # This should work since DecisionConfig validates algorithm_type
-        with self.assertRaises(Exception):  # Pydantic validation error
-            config = DecisionConfig(algorithm_type="invalid_algorithm")
-            module = DecisionModule(
-                self.mock_agent,
-                self.mock_env.action_space,
-                self.mock_env.observation_space,
-                config,
-            )
+        # DecisionConfig gracefully handles invalid algorithm types by falling back to 'fallback'
+        config = DecisionConfig(algorithm_type="invalid_algorithm")
+        self.assertEqual(config.algorithm_type, "fallback")
+        
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.mock_env.observation_space,
+            config,
+        )
+        
+        # Should have fallen back to fallback algorithm
+        self.assertIsNotNone(module.algorithm)
+        self.assertEqual(module.config.algorithm_type, "fallback")
+        
+        # Should still work
+        state = torch.randn(8)
+        action = module.decide_action(state)
+        self.assertIsInstance(action, int)
 
     def test_empty_experience_buffer_handling(self):
         """Test handling when experience buffer is empty."""
