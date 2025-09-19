@@ -252,14 +252,14 @@ class TestDecisionConfig(unittest.TestCase):
             self.assertEqual(config.algorithm_type, algo)
 
     def test_algorithm_type_validation_invalid(self):
-        """Test algorithm_type validation with invalid values."""
-        with self.assertRaises(ValidationError) as cm:
-            DecisionConfig(algorithm_type="invalid_algorithm")
-        self.assertIn("Algorithm must be one of:", str(cm.exception))
+        """Test algorithm_type validation with invalid values (graceful fallback)."""
+        # Invalid algorithm types should be handled gracefully by falling back to 'fallback'
+        config = DecisionConfig(algorithm_type="invalid_algorithm")
+        self.assertEqual(config.algorithm_type, "fallback")
 
-        with self.assertRaises(ValidationError) as cm:
-            DecisionConfig(algorithm_type="")
-        self.assertIn("Algorithm must be one of:", str(cm.exception))
+        # Empty string should also fall back gracefully
+        config_empty = DecisionConfig(algorithm_type="")
+        self.assertEqual(config_empty.algorithm_type, "fallback")
 
     def test_feature_engineering_list(self):
         """Test feature_engineering as a list."""

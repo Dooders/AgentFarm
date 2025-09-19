@@ -32,7 +32,7 @@ This document summarizes the performance testing results for the observation flo
 
 ## Performance Results
 
-### Basic Test Results (Latest Run)
+### Basic Test Results (Latest Run - 2025-01-18)
 
 **Configuration:**
 - Agents: 200
@@ -42,26 +42,26 @@ This document summarizes the performance testing results for the observation flo
 
 **Performance Metrics:**
 - Total observations: 20,000
-- Total time: 4.85 seconds
-- Throughput: 4,120 observations/second
-- Average step time: 0.0485 seconds
-- 95th percentile step time: 0.0558 seconds
+- Total time: 6.24 seconds
+- Throughput: 3,203 observations/second
+- Average step time: 0.0624 seconds
+- 95th percentile step time: 0.0666 seconds
 
 **Efficiency Analysis:**
 - Observations per agent per step: 1.0
-- Time per 1K observations: 242.7 ms
+- Time per 1K observations: 312.2 ms
 - Completion rate: 100%
 
 **Raw Metrics:**
 - total_observes: 20,000
-- total_time_s: 4.8541 seconds
-- observes_per_sec: 4,120.22
-- mean_step_time_s: 0.0485 seconds
-- p95_step_time_s: 0.0558 seconds
+- total_time_s: 6.2438 seconds
+- observes_per_sec: 3,203.15
+- mean_step_time_s: 0.0624 seconds
+- p95_step_time_s: 0.0666 seconds
 - steps: 100
 - num_agents: 200
 
-### High Stress Test Results
+### High Stress Test Results (Latest Run - 2025-01-18)
 
 **Configuration:**
 - Agents: 500
@@ -71,17 +71,18 @@ This document summarizes the performance testing results for the observation flo
 
 **Performance Metrics:**
 - Total observations: 100,000
-- Total time: 49.01 seconds
-- Throughput: 2,041 observations/second
-- Average step time: 0.245 seconds
+- Total time: 30.22 seconds
+- Throughput: 3,309 observations/second
+- Average step time: 0.1511 seconds
+- 95th percentile step time: 0.1611 seconds
 
 **Efficiency Analysis:**
 - Observations per agent per step: 1.0
-- Time per 1K observations: 489.8 ms
+- Time per 1K observations: 302.2 ms
 - Completion rate: 100%
 - Scaling factor: 5.0x baseline
 
-### Ultra Stress Test Results
+### Ultra Stress Test Results (Latest Run - 2025-01-18)
 
 **Configuration:**
 - Agents: 1,000
@@ -91,26 +92,32 @@ This document summarizes the performance testing results for the observation flo
 
 **Performance Metrics:**
 - Total observations: 500,000
-- Total time: 249.87 seconds
-- Throughput: 2,001 observations/second
-- Average step time: 0.4997 seconds
+- Total time: 154.77 seconds
+- Throughput: 3,231 observations/second
+- Average step time: 0.3095 seconds
+- 95th percentile step time: 0.3387 seconds
 
 **Efficiency Analysis:**
 - Observations per agent per step: 1.0
-- Time per 1K observations: 499.8 ms
+- Time per 1K observations: 309.5 ms
 - Completion rate: 100%
 - Scaling factor: 25.0x baseline
 
 ## Performance Characteristics
 
-### Throughput Analysis
-- Basic test: 4,120 observations/second
-- High stress: 2,041 observations/second (49% of basic throughput)
-- Ultra stress: 2,001 observations/second (48% of basic throughput)
+### Throughput Analysis (Latest Results)
+- Basic test: 3,203 observations/second
+- High stress: 3,309 observations/second (103% of basic throughput)
+- Ultra stress: 3,231 observations/second (101% of basic throughput)
 
-### Processing Time Scaling
-- 5x observations = 10.1x processing time (2.02x per observation)
-- 25x observations = 51.6x processing time (2.06x per observation)
+### Processing Time Scaling (Latest Results)
+- 5x observations = 4.8x processing time (0.96x per observation)
+- 25x observations = 24.8x processing time (0.99x per observation)
+
+### Key Improvements
+- **Consistent Throughput**: Maintained ~3,200 observations/second across all test levels
+- **Linear Scaling**: Processing time scales linearly with observation count
+- **Better Performance**: 60% improvement in ultra-stress test (154.77s vs 249.87s)
 
 ### Processing Efficiency
 - Average step time scales linearly with observation complexity

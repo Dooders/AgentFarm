@@ -30,8 +30,23 @@ class TestActionAlgorithm(unittest.TestCase):
 
     def test_abstract_methods(self):
         """Test that ActionAlgorithm is properly abstract."""
-        with self.assertRaises(TypeError):
-            ActionAlgorithm(num_actions=4)  # type: ignore
+        from abc import ABCMeta
+
+        # Check that it's an abstract class
+        self.assertIsInstance(ActionAlgorithm, ABCMeta)
+        self.assertTrue(hasattr(ActionAlgorithm, '__abstractmethods__'))
+
+        # Check that required abstract methods are present
+        abstract_methods = ActionAlgorithm.__abstractmethods__
+        expected_methods = {'select_action', 'train', 'predict_proba'}
+        self.assertTrue(expected_methods.issubset(abstract_methods))
+
+        # Verify that all required methods are abstract
+        for method_name in expected_methods:
+            method = getattr(ActionAlgorithm, method_name)
+            # Check if method has __isabstractmethod__ attribute
+            self.assertTrue(getattr(method, '__isabstractmethod__', False),
+                          f"Method {method_name} should be abstract")
 
     def test_save_load_model(self):
         """Test model serialization functionality."""
@@ -468,18 +483,21 @@ class TestAlgorithmBenchmark(unittest.TestCase):
         self.assertIsInstance(algo, MLPActionSelector)
 
     def test_create_algorithm_rl(self):
-        """Test creating RL algorithms with state_dim."""
+        """Test creating RL algorithms with proper 2D observation shapes."""
+        # PPO algorithm expects 2D spatial observations, so we provide observation_shape
+        # instead of just state_dim. For a simple 4-element observation, we can use (1, 2, 2)
+        # which represents 1 channel with 2x2 spatial dimensions
         benchmark = AlgorithmBenchmark(
-            algorithms=[("ppo", {"state_dim": 4})],
+            algorithms=[("ppo", {"observation_shape": (1, 2, 2)})],
             num_actions=self.num_actions,
-            state_dim=4,
+            state_dim=4,  # Total flattened size should match observation_shape product
         )
 
-        # Add debugging to check if state_dim is properly set
+        # Add debugging to check if observation_shape is properly set
         try:
-            algo = benchmark.create_algorithm("ppo", {"state_dim": 4})
+            algo = benchmark.create_algorithm("ppo", {"observation_shape": (1, 2, 2)})
             print(
-                f"Algorithm created successfully. State dim: {getattr(algo, 'state_dim', 'NOT_SET')}"
+                f"Algorithm created successfully. Observation shape: {getattr(algo, 'observation_shape', 'NOT_SET')}"
             )
             self.assertEqual(algo.num_actions, self.num_actions)
         except Exception as e:
