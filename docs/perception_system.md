@@ -265,6 +265,23 @@ config = SimulationConfig.from_yaml("config.yaml")
 | 1,000 agents | 8.6 MB | 17.6 MB | 9 MB (51%) |
 | 10,000 agents | 86.4 MB | 176 MB | 89.6 MB (51%) |
 
+### Benchmark Results (Latest Run)
+
+#### Throughput Performance
+
+| Test Level | Agents | Steps | Observations | Time (s) | Throughput (obs/s) | Avg Step Time (ms) |
+|------------|--------|-------|--------------|----------|-------------------|-------------------|
+| **Basic** | 200 | 100 | 20,000 | 6.24 | 3,203 | 62.4 |
+| **High Stress** | 500 | 200 | 100,000 | 30.22 | 3,309 | 151.1 |
+| **Ultra Stress** | 1,000 | 500 | 500,000 | 154.77 | 3,231 | 309.5 |
+
+#### Performance Characteristics
+
+- **Consistent Throughput**: ~3,200 observations/second across all test levels
+- **Linear Scaling**: Step time scales linearly with agent count
+- **Memory Efficiency**: 51% memory reduction vs dense implementation
+- **P95 Latency**: 66.6ms (basic) → 161.1ms (high) → 338.7ms (ultra)
+
 ---
 
 ## Integration & Usage
