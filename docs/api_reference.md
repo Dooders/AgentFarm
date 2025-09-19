@@ -2,6 +2,57 @@
 
 This comprehensive API reference documents all public classes, functions, and modules in AgentFarm. The API is organized by module and provides detailed information about parameters, return values, and usage examples.
 
+## Core API Index
+
+A quick map of core modules and primary entry points:
+
+### farm/core/environment.py
+- Environment (PettingZoo AEC): orchestrates the simulation
+  - action_space(agent?): Discrete action space (dynamic mapping)
+  - observation_space(agent?): Box observation space (channels, (C, S, S))
+  - reset(seed?, options?): initializes resources, PettingZoo state
+  - step(action?): AEC-compliant step; updates once per cycle
+  - get_nearby_agents/resources, get_nearest_resource: spatial queries
+  - update(): cycle-level updates (regeneration, metrics, time)
+
+### farm/core/state.py
+- BaseState: abstract interface for to_tensor/to_dict
+- AgentState, EnvironmentState, SimulationState: normalized states
+- ModelState: captures ML module state and recent metrics
+
+### farm/core/action.py
+- ActionType enum; central action registry (`action_registry`)
+- Helper utilities: distance, validation, name↔index mapping
+- Built-in actions: move, gather, share, defend, attack, reproduce, pass
+
+### farm/core/agent.py
+- BaseAgent: agent lifecycle, decision integration, combat, memory hooks
+- Key methods: act(), decide_action(), get_state(), clone(), reproduce()
+
+### farm/core/observations.py and channels.py
+- ObservationConfig: radius, decay, dtype/device
+- AgentObservation: hybrid sparse/dense observation buffer
+- ChannelRegistry and handlers: SELF_HP, RESOURCES, VISIBILITY, etc.
+
+### farm/core/spatial_index.py
+- SpatialIndex: KD-tree indexing for agents/resources + named indices
+- Nearby/nearest queries, dirty/rehash-aware rebuilds
+
+### farm/core/resource_manager.py
+- ResourceManager: initialize/regenerate/consume, stats, add/remove
+
+### farm/core/metrics_tracker.py
+- MetricsTracker: step + cumulative metrics; DB logging support
+- StepMetrics, CumulativeMetrics
+
+### farm/core/services
+- interfaces.py: DI interfaces (ISpatialQueryService, ILoggingService, ...)
+- implementations.py: environment-backed services and adapters
+- factory.py: derive services from an Environment instance
+
+### Utilities
+- device_utils.py: device selection/validation helpers
+
 ## Core Module (`farm.core`)
 
 ### Environment Class

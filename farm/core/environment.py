@@ -1,26 +1,37 @@
-"""Environment module for AgentFarm simulation.
+"""Environment for AgentFarm multi-agent simulations.
 
-This module contains the core Environment class that manages the simulation world,
-including agents, resources, spatial relationships, and the simulation loop.
-The Environment class extends PettingZoo's AECEnv to provide multi-agent
-reinforcement learning capabilities with deterministic seeding support.
+Overview
+--------
+The Environment orchestrates a 2D multi-agent world using the PettingZoo AEC
+pattern. It manages agents, resources, spatial indexing, metrics, and optional
+SQLite-based logging. The design favors composability (services) and clear
+integration points for RL.
 
-Key Components:
-    - Environment: Main simulation environment class extending PettingZoo AECEnv
-    - Action Registry: Dynamic action mapping system with enable/disable capabilities
-    - Spatial Index: Efficient KD-tree based proximity queries (O(log n) complexity)
-    - Resource Manager: Handles resource spawning, regeneration, and consumption
-    - Observation System: Multi-channel tensor observations with AgentObservation class
-    - Service Architecture: Dependency injection with Environment*Service classes
-    - Metrics Tracker: Comprehensive simulation statistics and database logging
-    - Agent Lifecycle: Birth/death tracking and population management
-    - Identity Management: Deterministic ID generation with Identity service
-    - Configuration System: SimulationConfig for parameter management
-    - Database Integration: SQLite logging with setup_db utilities
+Key Responsibilities
+--------------------
+- Agent lifecycle: add/remove agents, selection order, and step cycle
+- Resource lifecycle: initialization, regeneration, consumption (via ResourceManager)
+- Spatial queries: KD-tree accelerated nearby/nearest via `SpatialIndex`
+- Observation/Action spaces: multi-channel observations and dynamic action mapping
+- Reward calculation: per-step, delta-aware rewards with survival handling
+- Metrics: step and cumulative metrics via `MetricsTracker` (optional DB logging)
 
-The environment supports various agent types and provides observation spaces for
-reinforcement learning training and evaluation with configurable discretization
-methods and bilinear interpolation for continuous position handling.
+Core Integrations
+-----------------
+- Channels/Observations: multi-channel perception buffers with decay and visibility
+- Services: adapters for validation, time, lifecycle, metrics, and logging
+- Database: structured step, agent, resource, and interaction logging when enabled
+
+Determinism
+-----------
+A seed (explicit or from `SimulationConfig`) controls deterministic aspects
+(e.g., identities, resources, and torch RNG when available).
+
+Notes
+-----
+- Action mapping is dynamic and may be updated at runtime (curriculum/pruning)
+- Spatial index rebuilds are optimized with dirty flags and hashing
+- In-memory DB mode is supported for tests or ephemeral runs
 """
 
 import logging
@@ -602,6 +613,75 @@ class Environment(AECEnv):
         except (ValueError, TypeError, AttributeError) as e:
             logger.error("Failed to log interaction edge: %s", e)
 
+    def log_reproduction_event(
+        self,
+        step_number: int,
+        parent_id: str,
+        success: bool,
+        parent_resources_before: float,
+        parent_resources_after: float,
+        offspring_id: Optional[str] = None,
+        offspring_initial_resources: Optional[float] = None,
+        failure_reason: Optional[str] = None,
+        parent_position: Optional[Tuple[float, float]] = None,
+        parent_generation: Optional[int] = None,
+        offspring_generation: Optional[int] = None,
+    ) -> None:
+        """Log a reproduction event if database is enabled.
+
+        Records reproduction attempts and outcomes in the database for analysis
+        of evolutionary dynamics, resource costs, and population growth patterns.
+
+        Parameters
+        ----------
+        step_number : int
+            Current simulation step when reproduction occurred
+        parent_id : str
+            Unique identifier of the parent agent attempting reproduction
+        success : bool
+            Whether the reproduction attempt was successful
+        parent_resources_before : float
+            Parent's resource level before reproduction attempt
+        parent_resources_after : float
+            Parent's resource level after reproduction attempt
+        offspring_id : str, optional
+            Unique identifier of the offspring if reproduction succeeded
+        offspring_initial_resources : float, optional
+            Initial resource level assigned to offspring
+        failure_reason : str, optional
+            Description of why reproduction failed (if applicable)
+        parent_position : tuple[float, float], optional
+            Position of the parent agent at time of reproduction
+        parent_generation : int, optional
+            Generation number of the parent agent
+        offspring_generation : int, optional
+            Generation number assigned to the offspring
+
+        Notes
+        -----
+        If no database is configured, this method returns silently without logging.
+        Errors during logging are caught and logged as warnings to prevent
+        simulation disruption.
+        """
+        if self.db is None:
+            return
+        try:
+            self.db.log_reproduction_event(
+                step_number=step_number,
+                parent_id=parent_id,
+                success=success,
+                parent_resources_before=parent_resources_before,
+                parent_resources_after=parent_resources_after,
+                offspring_id=offspring_id,
+                offspring_initial_resources=offspring_initial_resources,
+                failure_reason=failure_reason,
+                parent_position=parent_position,
+                parent_generation=parent_generation,
+                offspring_generation=offspring_generation,
+            )
+        except (ValueError, TypeError, AttributeError) as e:
+            logger.error("Failed to log reproduction event: %s", e)
+
     def update(self) -> None:
         """Update environment state for current time step.
 
@@ -987,6 +1067,13 @@ class Environment(AECEnv):
             The action space containing all enabled actions. Each action is
             represented by an integer index from 0 to n_actions-1, where
             n_actions is the number of currently enabled actions.
+
+        Notes
+        -----
+        - The mapping from indices → actions follows the current `_action_mapping`
+          order, which can change at runtime via `update_action_space`.
+        - RL agents should be resilient to dynamic action-space size changes or
+          update policies that keep the space fixed during training.
         """
         return self._action_space
 
@@ -1011,6 +1098,12 @@ class Environment(AECEnv):
             The observation space defining the shape and bounds of observations.
             Shape is (NUM_CHANNELS, S, S) where S = 2*R + 1 and R is the
             observation radius. Values are normalized to [0, 1] range.
+
+        Notes
+        -----
+        - The dtype reflects the configured torch dtype mapped to a numpy dtype
+          for space definition (bfloat16 maps to float32 for numpy compatibility).
+        - Channel layout is defined by the channel registry in `farm.core.channels`.
         """
         return self._observation_space
 
@@ -1091,7 +1184,7 @@ class Environment(AECEnv):
         Parameters
         ----------
         new_enabled_actions : list of str, optional
-            New list of action names to enable. If None, uses current config.
+            New list of action names to enable. If None, restores full action space.
             Each action name should correspond to an action in the registry
             (e.g., ["move", "gather", "attack"]).
 
@@ -1114,6 +1207,10 @@ class Environment(AECEnv):
                 self.config = SimulationConfig()
             # Use setattr for dynamic attribute assignment (same pattern as original code)
             setattr(self.config, "enabled_actions", new_enabled_actions)
+        else:
+            # If None is passed, remove the enabled_actions attribute to restore full space
+            if self.config and hasattr(self.config, "enabled_actions"):
+                delattr(self.config, "enabled_actions")
 
         # Reinitialize action mapping with new configuration
         self._initialize_action_mapping()
@@ -1338,6 +1435,11 @@ class Environment(AECEnv):
         Action implementations are imported from the farm.actions module and
         handle the specific logic for each action type including validation,
         effects, and side effects like resource transfer or combat.
+
+        PettingZoo Compliance
+        ---------------------
+        Database logging of actions (when enabled) does not alter the AEC step
+        semantics. Reward is calculated later in `step`, after action execution.
         """
         agent = self._agent_objects.get(agent_id)
         if agent is None or not agent.alive or action is None:
@@ -1552,6 +1654,12 @@ class Environment(AECEnv):
         -------
         Tuple[np.ndarray, float, bool, bool]
             Updated observation, reward, terminated, and truncated values
+
+        PettingZoo Compliance
+        ---------------------
+        - `self.rewards[agent_id]` stores cumulative rewards as required by AECEnv.
+        - `self._cumulative_rewards[agent_id]` is the internal running sum used
+          to keep PettingZoo-compatible behavior across steps.
         """
         # Handle case where agent_id is None (no active agents)
         if agent_id is None:
@@ -1592,6 +1700,13 @@ class Environment(AECEnv):
             A 2-tuple containing:
             - observation (np.ndarray): The initial observation for the first agent
             - info (dict): Additional information about the reset
+
+        Notes
+        -----
+        - Rebuilds PettingZoo bookkeeping dictionaries and sets `agent_selection`
+          to the first alive agent ID (if any).
+        - If `options['agents']` is provided, the current population is replaced
+          with those agents prior to rebuilding the PettingZoo state.
         """
         if seed is not None:
             self.seed_value = seed
@@ -1672,6 +1787,13 @@ class Environment(AECEnv):
             - terminated (bool): Whether the episode has terminated
             - truncated (bool): Whether the episode was truncated (e.g., max steps reached)
             - info (dict): Additional information about the step
+
+        AEC Semantics
+        -------------
+        - The environment's global update (regeneration, metrics, time advance) occurs
+          once per full cycle, when `_cycle_complete` is detected.
+        - `terminated` may be triggered when all agents are gone or resources reach zero
+          (after a cycle completes); `truncated` is based on `max_steps`.
         """
         agent_id = self.agent_selection
         agent = self._agent_objects.get(agent_id)

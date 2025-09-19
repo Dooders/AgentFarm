@@ -15,10 +15,18 @@ logger = logging.getLogger(__name__)
 
 
 class SpatialIndex:
-    """Efficient spatial indexing using KD-trees with optimized change detection.
+    """
+    Efficient spatial indexing using KD-trees with optimized change detection.
 
-    This class manages separate KD-trees for agents and resources, providing
-    O(log n) spatial queries with smart update strategies to minimize rebuilds.
+    This index maintains separate KD-trees for agents and resources and supports
+    additional named indices. It uses multi-stage change detection (dirty flag,
+    count deltas, and position hashing) to avoid unnecessary KD-tree rebuilds.
+
+    Capabilities:
+    - O(log n) nearest/nearby queries across one or more indices
+    - Named index registration for custom data sources
+    - Relaxed bounds validation to tolerate edge cases
+    - Deterministic caching of alive agents for query post-processing
     """
 
     def __init__(

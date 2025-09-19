@@ -378,81 +378,38 @@ class AgentObservation:
 
     OVERVIEW:
     ---------
-    This class implements a sophisticated multi-channel observation system that balances
-    memory efficiency with computational performance. The system uses a hybrid approach:
+    This class implements a multi-channel observation system that balances
+    memory efficiency with computational performance using a hybrid approach:
 
     - SPARSE STORAGE: Only non-zero values are stored until needed
-    - LAZY DENSE CONSTRUCTION: Full tensors built on-demand for NN processing
-    - CHANNEL-SPECIFIC OPTIMIZATION: Different strategies per channel type
-
-    ARCHITECTURAL PRINCIPLES:
-    ------------------------
-    1. Memory Efficiency: [TBD]% reduction through sparse representation
-    2. Computational Performance: Zero overhead for neural network processing
-    3. Backward Compatibility: Drop-in replacement for existing dense system
-    4. Scalability: Linear scaling with agent count, logarithmic with complexity
-
-    DESIGN PHILOSOPHY:
-    -----------------
-    The system acknowledges the fundamental trade-off between memory and computation:
-    - Dense tensors: Optimal for GPU/CPU processing but memory wasteful
-    - Sparse tensors: Memory efficient but computationally expensive
-
-    Our solution: Use sparse storage internally, dense presentation externally.
+    - LAZY DENSE CONSTRUCTION: Full tensors are built on-demand for NN processing
+    - CHANNEL-SPECIFIC OPTIMIZATION: Strategies vary by channel type
 
     OBSERVATION FORMAT:
     ------------------
-    Shape: (num_channels, 2R+1, 2R+1) where R = observation_radius
-    Center: (R, R) represents agent's current position
-    Channels: 13 specialized perception channels (see CHANNEL_REGISTRY)
+    - Shape: (num_channels, 2R+1, 2R+1) where R = observation radius
+    - Center: (R, R) represents the agent's current position
+    - Channels: Provided by the dynamic channel registry (see ChannelRegistry)
 
     CHANNEL TYPES & STORAGE STRATEGIES:
     ----------------------------------
-    INSTANT Channels (Overwritten each tick):
-    - SELF_HP: Single point (sparse) - Agent's health at center
-    - ALLIES_HP: Point entities (sparse) - Ally positions/health
-    - ENEMIES_HP: Point entities (sparse) - Enemy positions/health
-    - GOAL: Single point (sparse) - Goal position
-    - VISIBILITY: Full mask (dense) - Field-of-view disk
-    - RESOURCES: Bilinear distributed (dense) - Resource availability
-    - OBSTACLES: Full grid (dense) - Obstacle map
-    - TERRAIN_COST: Full grid (dense) - Movement costs
-
-    DYNAMIC Channels (Persist with decay):
-    - KNOWN_EMPTY: Sparse points with decay - Previously observed empty cells
-    - DAMAGE_HEAT: Sparse points with decay - Recent combat events
-    - TRAILS: Sparse points with decay - Agent movement trails
-    - ALLY_SIGNAL: Sparse points with decay - Communication signals
-
-    PERSISTENT Channels (Never cleared):
-    - LANDMARKS: Sparse points accumulating - Important waypoints
-
-    MEMORY OPTIMIZATION:
-    ------------------
-    Traditional: [TBD] bytes dense tensor
-    Optimized: [TBD] bytes sparse + [TBD] bytes lazy dense
-    Effective: [TBD]% memory reduction with same computational performance
+    INSTANT (overwritten each tick):
+      SELF_HP, ALLIES_HP, ENEMIES_HP, GOAL, VISIBILITY, RESOURCES, OBSTACLES, TERRAIN_COST
+    DYNAMIC (persists with decay):
+      KNOWN_EMPTY, DAMAGE_HEAT, TRAILS, ALLY_SIGNAL
+    PERSISTENT (never auto-cleared):
+      LANDMARKS
 
     SPATIAL INTEGRATION:
     -------------------
-    - Direct coupling with SpatialIndex for efficient proximity queries
-    - O(log n) entity queries using KD-tree optimization
-    - Automatic coordinate transformation from world to local space
-    - Bilinear interpolation for continuous position representation
+    - Optional coupling with SpatialIndex for efficient proximity queries
+    - Automatic world→local coordinate mapping
+    - Bilinear interpolation support for continuous positions
 
     PERFORMANCE CHARACTERISTICS:
     ---------------------------
-    - Memory: O(active_entities) instead of O(grid_size)
-    - Computation: O(1) for sparse operations, O(grid_size) for NN processing
-    - Scalability: Linear with agent count, sub-linear with perception radius
-    - GPU Efficiency: Same as dense tensors when processing
-
-    FUTURE OPTIMIZATIONS:
-    --------------------
-    1. Sparse Tensor Backends: PyTorch sparse, cuSPARSE
-    2. Quantization: int8 for binary channels, float16 for continuous
-    3. Memory Pooling: Reuse dense tensors across agents
-    4. GPU Sparse Operations: Direct sparse neural network processing
+    - Memory: O(active_entities) for sparse storage, dense only when needed
+    - Computation: Dense tensors provided for NN processing when requested
 
     Attributes:
         config: ObservationConfig with radius, decay rates, device settings
@@ -461,24 +418,11 @@ class AgentObservation:
         dense_cache: Optional[torch.Tensor] built lazily for NN processing
         cache_dirty: Boolean flag for cache invalidation
 
-    Methods:
-        _store_sparse_point: Store single coordinate-value pair
-        _store_sparse_points: Store multiple points with accumulation
-        _store_sparse_grid: Store full dense grids for some channels
-        _decay_sparse_channel: Apply temporal decay with cleanup
-        _build_dense_tensor: Construct dense tensor from sparse data
-        decay_dynamics: Apply decay to all dynamic channels
-        clear_instant: Clear all instantaneous channels
-        perceive_world: Main observation update method
-        tensor: Get observation tensor (lazy construction)
-
     Example:
         >>> config = ObservationConfig(R=6, fov_radius=5)
         >>> agent_obs = AgentObservation(config)
-        >>> # Sparse storage: Only non-zero values in memory
-        >>> agent_obs.perceive_world(world_layers=..., agent_world_pos=(50, 50))
-        >>> # Dense tensor built on-demand for NN processing
-        >>> observation = agent_obs.tensor()  # Shape: (13, 13, 13)
+        >>> agent_obs.perceive_world(world_layers=..., agent_world_pos=(50, 50), self_hp01=0.8)
+        >>> observation = agent_obs.tensor()  # (num_channels, 2R+1, 2R+1)
     """
 
     def __init__(self, config: ObservationConfig):
