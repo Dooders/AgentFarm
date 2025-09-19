@@ -613,6 +613,75 @@ class Environment(AECEnv):
         except (ValueError, TypeError, AttributeError) as e:
             logger.error("Failed to log interaction edge: %s", e)
 
+    def log_reproduction_event(
+        self,
+        step_number: int,
+        parent_id: str,
+        success: bool,
+        parent_resources_before: float,
+        parent_resources_after: float,
+        offspring_id: Optional[str] = None,
+        offspring_initial_resources: Optional[float] = None,
+        failure_reason: Optional[str] = None,
+        parent_position: Optional[Tuple[float, float]] = None,
+        parent_generation: Optional[int] = None,
+        offspring_generation: Optional[int] = None,
+    ) -> None:
+        """Log a reproduction event if database is enabled.
+
+        Records reproduction attempts and outcomes in the database for analysis
+        of evolutionary dynamics, resource costs, and population growth patterns.
+
+        Parameters
+        ----------
+        step_number : int
+            Current simulation step when reproduction occurred
+        parent_id : str
+            Unique identifier of the parent agent attempting reproduction
+        success : bool
+            Whether the reproduction attempt was successful
+        parent_resources_before : float
+            Parent's resource level before reproduction attempt
+        parent_resources_after : float
+            Parent's resource level after reproduction attempt
+        offspring_id : str, optional
+            Unique identifier of the offspring if reproduction succeeded
+        offspring_initial_resources : float, optional
+            Initial resource level assigned to offspring
+        failure_reason : str, optional
+            Description of why reproduction failed (if applicable)
+        parent_position : tuple[float, float], optional
+            Position of the parent agent at time of reproduction
+        parent_generation : int, optional
+            Generation number of the parent agent
+        offspring_generation : int, optional
+            Generation number assigned to the offspring
+
+        Notes
+        -----
+        If no database is configured, this method returns silently without logging.
+        Errors during logging are caught and logged as warnings to prevent
+        simulation disruption.
+        """
+        if self.db is None:
+            return
+        try:
+            self.db.log_reproduction_event(
+                step_number=step_number,
+                parent_id=parent_id,
+                success=success,
+                parent_resources_before=parent_resources_before,
+                parent_resources_after=parent_resources_after,
+                offspring_id=offspring_id,
+                offspring_initial_resources=offspring_initial_resources,
+                failure_reason=failure_reason,
+                parent_position=parent_position,
+                parent_generation=parent_generation,
+                offspring_generation=offspring_generation,
+            )
+        except (ValueError, TypeError, AttributeError) as e:
+            logger.error("Failed to log reproduction event: %s", e)
+
     def update(self) -> None:
         """Update environment state for current time step.
 
@@ -1115,7 +1184,7 @@ class Environment(AECEnv):
         Parameters
         ----------
         new_enabled_actions : list of str, optional
-            New list of action names to enable. If None, uses current config.
+            New list of action names to enable. If None, restores full action space.
             Each action name should correspond to an action in the registry
             (e.g., ["move", "gather", "attack"]).
 
@@ -1138,6 +1207,10 @@ class Environment(AECEnv):
                 self.config = SimulationConfig()
             # Use setattr for dynamic attribute assignment (same pattern as original code)
             setattr(self.config, "enabled_actions", new_enabled_actions)
+        else:
+            # If None is passed, remove the enabled_actions attribute to restore full space
+            if self.config and hasattr(self.config, "enabled_actions"):
+                delattr(self.config, "enabled_actions")
 
         # Reinitialize action mapping with new configuration
         self._initialize_action_mapping()

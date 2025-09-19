@@ -489,11 +489,13 @@ class ModelState(BaseModel):
         Returns:
             str: Formatted string with key model information
         """
+        loss_str = f"{self.latest_loss:.3f}" if self.latest_loss is not None else "None"
+        reward_str = f"{self.latest_reward:.3f}" if self.latest_reward is not None else "None"
         return (
             f"ModelState(lr={self.learning_rate:.6f}, "
             f"ε={self.epsilon:.3f}, "
-            f"loss={self.latest_loss:.3f if self.latest_loss else 'None'}, "
-            f"reward={self.latest_reward:.3f if self.latest_reward else 'None'}, "
+            f"loss={loss_str}, "
+            f"reward={reward_str}, "
             f"memory={self.memory_size}/{self.memory_capacity}, "
             f"steps={self.steps})"
         )

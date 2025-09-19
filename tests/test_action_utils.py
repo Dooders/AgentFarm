@@ -103,8 +103,14 @@ def test_validate_attack_defend_pass_paths():
     agent.resource_level = 8
     res = {"success": True, "details": {"resources_before": 10, "cost": 2}}
     out = validate_action_result(agent, "defend", res)
-    # resource mismatch because 10-2 != 8
+    # resources match: 10-2 = 8, so validation should pass
+    assert out["valid"] is True
+
+    # Test actual resource mismatch scenario
+    agent.resource_level = 6  # Should be 8 (10-2), but is 6
+    out = validate_action_result(agent, "defend", res)
     assert out["valid"] is False
+    assert any("Resource mismatch" in issue for issue in out["issues"])
 
     # Pass requires details but otherwise minimal validation
     out = validate_action_result(agent, "pass", {"success": True, "details": {}})
