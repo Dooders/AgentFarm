@@ -164,8 +164,8 @@ class AgentStateModel(Base):
         Current health level
     starting_health : float
         Maximum possible health
-    starvation_threshold : int
-        Resource level that triggers starvation
+    starvation_counter : int
+        Consecutive steps with zero resources (for starvation tracking)
     is_defending : bool
         Whether agent is in defensive stance
     total_reward : float
@@ -203,6 +203,8 @@ class AgentStateModel(Base):
     position_z = Column(Float)
     resource_level = Column(Float)
     current_health = Column(Float)
+    starting_health = Column(Float)
+    starvation_counter = Column(Integer)
     is_defending = Column(Boolean)
     total_reward = Column(Float)
     age = Column(Integer)
@@ -237,6 +239,8 @@ class AgentStateModel(Base):
             "position_z": self.position_z,
             "resource_level": self.resource_level,
             "current_health": self.current_health,
+            "starting_health": self.starting_health,
+            "starvation_counter": self.starvation_counter,
             "is_defending": self.is_defending,
             "total_reward": self.total_reward,
             "age": self.age,
