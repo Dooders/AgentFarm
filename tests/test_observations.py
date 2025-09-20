@@ -21,6 +21,8 @@ from farm.core.observations import (
     crop_local,
     crop_local_stack,
     make_disk_mask,
+    rotate_coordinates,
+    crop_local_rotated,
 )
 
 
@@ -265,6 +267,30 @@ class TestMakeDiskMask:
         assert mask[3, 5] == 1.0  # Distance 2 from center
 
 
+class TestRotationHelpers:
+    """Tests for rotation math and rotated cropping."""
+
+    def test_rotate_coordinates(self):
+        cy, cx = 10.0, 10.0
+        # Point directly above center (north)
+        y, x = 9.0, 10.0
+        # Rotate by 90 degrees clockwise -> should move to east of center
+        ry, rx = rotate_coordinates(y, x, 90.0, cy, cx)
+        assert pytest.approx(ry, rel=1e-5, abs=1e-5) == 10.0
+        assert pytest.approx(rx, rel=1e-5, abs=1e-5) == 11.0
+
+    def test_crop_local_rotated_basic(self):
+        # World grid 9x9 with a single value east of center
+        grid = torch.zeros(9, 9)
+        cy = cx = 4
+        grid[cy, cx + 1] = 1.0
+        # Crop with R=2 at center, orientation=90 (facing east)
+        crop = crop_local_rotated(grid, center=(cy, cx), R=2, orientation=90.0)
+        # In rotated view, east should appear "up" at (R-1, R)
+        assert crop.shape == (5, 5)
+        assert crop[1, 2] == pytest.approx(1.0, abs=1e-5)
+
+
 class TestAgentObservation:
     """Test the AgentObservation class."""
 
@@ -368,6 +394,45 @@ class TestAgentObservation:
         # Check that world layers are cropped correctly
         assert agent_obs.tensor()[Channel.RESOURCES, 3, 3] == 1.0
         assert agent_obs.tensor()[Channel.OBSTACLES, 4, 4] == 1.0
+
+    def test_perceive_world_with_orientation_entities(self, agent_obs):
+        """Entities rotate so facing direction is up."""
+        world_layers = {"RESOURCES": torch.zeros(10, 10)}
+        ay, ax = 5, 5
+        # Ally to the east in world
+        allies = [(ay, ax + 1, 0.9)]
+        agent_obs.perceive_world(
+            world_layers=world_layers,
+            agent_world_pos=(ay, ax),
+            self_hp01=1.0,
+            allies=allies,
+            enemies=[],
+            goal_world_pos=None,
+            agent_orientation=90.0,  # facing east
+        )
+        R = agent_obs.config.R
+        # East should map to "up" (y=R-1, x=R)
+        assert agent_obs.tensor()[Channel.ALLIES_HP, R - 1, R] == pytest.approx(0.9)
+
+    def test_perceive_world_with_orientation_world_layer(self, agent_obs):
+        """World layers rotate according to agent orientation."""
+        # Place a resource to the east of agent
+        grid = torch.zeros(10, 10)
+        ay, ax = 5, 5
+        grid[ay, ax + 1] = 1.0
+        world_layers = {"RESOURCES": grid, "OBSTACLES": torch.zeros(10, 10)}
+        agent_obs.perceive_world(
+            world_layers=world_layers,
+            agent_world_pos=(ay, ax),
+            self_hp01=1.0,
+            allies=[],
+            enemies=[],
+            goal_world_pos=None,
+            agent_orientation=90.0,  # facing east
+        )
+        R = agent_obs.config.R
+        # Resource east should appear at up position in local crop
+        assert agent_obs.tensor()[Channel.RESOURCES, R - 1, R] == pytest.approx(1.0)
 
     def test_perceive_world_with_entities(self, agent_obs):
         """Test world perception with allies and enemies."""

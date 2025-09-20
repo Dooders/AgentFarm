@@ -329,6 +329,162 @@ def crop_local_stack(
     )
 
 
+def rotate_coordinates(
+    y: float,
+    x: float,
+    angle_deg: float,
+    center_y: float,
+    center_x: float,
+) -> Tuple[float, float]:
+    """
+    Rotate a coordinate (y, x) around a center by angle_deg (degrees, clockwise positive).
+
+    Returns (y_rot, x_rot) as floats.
+    """
+    if angle_deg % 360 == 0:
+        return y, x
+
+    # Convert to offsets from center (dx = x - cx, dy = y - cy)
+    dy = float(y) - float(center_y)
+    dx = float(x) - float(center_x)
+
+    a = math.radians(angle_deg)
+    cos_a = math.cos(a)
+    sin_a = math.sin(a)
+
+    # Standard 2D rotation with image coordinates (y down, x right)
+    # Using conventional rotation formulas on (dx, dy)
+    # x' = dx*cos(a) - dy*sin(a)
+    # y' = dx*sin(a) + dy*cos(a)
+    dx_rot = dx * cos_a - dy * sin_a
+    dy_rot = dx * sin_a + dy * cos_a
+
+    return (center_y + dy_rot, center_x + dx_rot)
+
+
+def _to_normalized_grid(x: torch.Tensor, size: int) -> torch.Tensor:
+    """Convert absolute pixel coordinate x (0..size-1) to normalized grid [-1,1] (align_corners=False)."""
+    return (2.0 * (x + 0.5) / float(size)) - 1.0
+
+
+def crop_local_rotated(
+    grid: torch.Tensor,  # (H, W)
+    center: Tuple[int, int],  # (y, x) in world coords
+    R: int,
+    orientation: float = 0.0,  # degrees clockwise
+    pad_val: float = 0.0,
+) -> torch.Tensor:
+    """
+    Extract a rotated square crop from a 2D grid centered at the specified position.
+
+    Orientation is interpreted as the agent's facing direction in degrees clockwise from north.
+    The returned crop is aligned so that the agent's facing direction is "up" in the crop.
+    """
+    if orientation % 360 == 0:
+        return crop_local(grid, center, R, pad_val)
+
+    H, W = grid.shape[-2:]
+    cy, cx = center
+    S = 2 * R + 1
+
+    # Build output-relative offsets
+    device = grid.device
+    dtype = grid.dtype
+    oy = torch.arange(S, device=device, dtype=torch.float32) - float(R)
+    ox = torch.arange(S, device=device, dtype=torch.float32) - float(R)
+    yy, xx = torch.meshgrid(oy, ox, indexing="ij")  # (S,S)
+
+    # Map each output offset (yy,xx) to world offsets by rotating by +orientation
+    a = math.radians(float(orientation))
+    cos_a = math.cos(a)
+    sin_a = math.sin(a)
+    dx_world = xx * cos_a - yy * sin_a
+    dy_world = xx * sin_a + yy * cos_a
+
+    y_world = dy_world + float(cy)
+    x_world = dx_world + float(cx)
+
+    # Normalize for grid_sample (x,y order)
+    x_norm = _to_normalized_grid(x_world, W)
+    y_norm = _to_normalized_grid(y_world, H)
+    sample_grid = torch.stack([x_norm, y_norm], dim=-1).unsqueeze(0)  # (1,S,S,2)
+
+    # Prepare input
+    inp = grid.to(dtype=torch.float32).unsqueeze(0).unsqueeze(0)  # (1,1,H,W)
+    out = F.grid_sample(
+        inp,
+        sample_grid,
+        mode="bilinear",
+        padding_mode="zeros",
+        align_corners=False,
+    )
+    crop = out.squeeze(0).squeeze(0)
+    if pad_val != 0.0:
+        # Replace out-of-bounds sampled regions with pad_val using normalized grid bounds
+        x_norm = sample_grid[0, :, :, 0]
+        y_norm = sample_grid[0, :, :, 1]
+        oob_mask = (x_norm.abs() > 1) | (y_norm.abs() > 1)
+        crop = crop.clone()
+        crop[oob_mask] = pad_val
+    if dtype != torch.float32:
+        crop = crop.to(dtype=dtype)
+    return crop
+
+
+def rotate_local_grid(
+    grid: torch.Tensor, angle_deg: float, pad_val: float = 0.0
+) -> torch.Tensor:
+    """
+    Rotate a local SxS grid around its center so that the agent's facing direction
+    becomes "up". Positive angle rotates the world clockwise; output equals input rotated by -angle.
+    """
+    if angle_deg % 360 == 0:
+        return grid
+
+    S = grid.shape[-1]
+    device = grid.device
+    dtype = grid.dtype
+
+    # Build normalized sampling grid rotating by +angle to obtain output = input rotated by -angle
+    a = math.radians(float(angle_deg))
+    cos_a = math.cos(a)
+    sin_a = math.sin(a)
+
+    # Create a regular grid of output coordinates in normalized space [-1,1]
+    coords = torch.linspace(-1.0, 1.0, steps=S, device=device, dtype=torch.float32)
+    yy, xx = torch.meshgrid(coords, coords, indexing="ij")  # (S,S)
+
+    # Map output normalized coords -> input normalized coords via rotation matrix
+    x_in = xx * cos_a - yy * sin_a
+    y_in = xx * sin_a + yy * cos_a
+    sample_grid = torch.stack([x_in, y_in], dim=-1).unsqueeze(0)  # (1,S,S,2)
+
+    inp = grid.to(dtype=torch.float32).unsqueeze(0).unsqueeze(0)  # (1,1,S,S)
+    out = F.grid_sample(
+        inp,
+        sample_grid,
+        mode="bilinear",
+        padding_mode="zeros",
+        align_corners=True,
+    )
+    rot = out.squeeze(0).squeeze(0)
+    if pad_val != 0.0:
+        # Create a mask of out-of-bounds (padded) regions by sampling ones
+        ones_inp = torch.ones_like(grid, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
+        mask_out = F.grid_sample(
+            ones_inp,
+            sample_grid,
+            mode="bilinear",
+            padding_mode="zeros",
+            align_corners=True,
+        ).squeeze(0).squeeze(0)
+        mask = mask_out < 1e-6
+        rot = rot.clone()
+        rot[mask] = pad_val
+    if dtype != torch.float32:
+        rot = rot.to(dtype=dtype)
+    return rot
+
 def make_disk_mask(
     size: int, R: int, device="cpu", dtype=torch.float32
 ) -> torch.Tensor:
@@ -717,6 +873,7 @@ class AgentObservation:
         ] = None,  # you can also auto-add from seen agents
         spatial_index: Optional["SpatialIndex"] = None,
         agent_object: Optional[object] = None,
+        agent_orientation: float = 0.0,
         **kwargs,  # Additional data for custom channels
     ):
         """
@@ -752,6 +909,7 @@ class AgentObservation:
                           along with agent_object, can automatically derive allies and enemies.
             agent_object: Optional agent instance for spatial index queries. Used to determine
                          ally/enemy relationships based on agent types.
+            agent_orientation: Agent's facing orientation in degrees (clockwise). 0=north/up.
             **kwargs: Additional keyword arguments passed to custom channel handlers.
         """
         self.decay_dynamics()
@@ -787,6 +945,7 @@ class AgentObservation:
             "trails_world_points": trails_world_points,
             "spatial_index": spatial_index,
             "agent_object": agent_object,
+            "agent_orientation": float(agent_orientation or 0.0),
             **kwargs,  # Include any additional custom channel data
         }
 

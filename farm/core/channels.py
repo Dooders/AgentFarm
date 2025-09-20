@@ -54,6 +54,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from enum import IntEnum
 from typing import TYPE_CHECKING, Dict, Optional, Tuple
+import math
 
 import torch
 
@@ -684,14 +685,26 @@ class AlliesHPHandler(ChannelHandler):
 
         R = config.R
         ay, ax = agent_world_pos
+        angle = float(kwargs.get("agent_orientation", 0.0)) % 360.0
+        use_rotation = angle != 0.0
+        if use_rotation:
+            a = math.radians(angle)
+            cos_a = math.cos(a)
+            sin_a = math.sin(a)
 
-        # Convert to local coordinates and filter valid positions
+        # Convert to local coordinates (rotate by -angle to align facing 'up') and filter valid positions
         points = []
         for ally_y, ally_x, ally_hp in allies:
-            dy = ally_y - ay
-            dx = ally_x - ax
-            y = R + dy
-            x = R + dx
+            dy = float(ally_y - ay)
+            dx = float(ally_x - ax)
+            if use_rotation:
+                dxp = dx * cos_a + dy * sin_a
+                dyp = -dx * sin_a + dy * cos_a
+            else:
+                dxp = dx
+                dyp = dy
+            y = int(round(R + dyp))
+            x = int(round(R + dxp))
             if 0 <= y < 2 * R + 1 and 0 <= x < 2 * R + 1:
                 points.append((y, x, float(ally_hp)))
 
@@ -746,14 +759,26 @@ class EnemiesHPHandler(ChannelHandler):
 
         R = config.R
         ay, ax = agent_world_pos
+        angle = float(kwargs.get("agent_orientation", 0.0)) % 360.0
+        use_rotation = angle != 0.0
+        if use_rotation:
+            a = math.radians(angle)
+            cos_a = math.cos(a)
+            sin_a = math.sin(a)
 
-        # Convert to local coordinates and filter valid positions
+        # Convert to local coordinates (rotate by -angle to align facing 'up') and filter valid positions
         points = []
         for enemy_y, enemy_x, enemy_hp in enemies:
-            dy = enemy_y - ay
-            dx = enemy_x - ax
-            y = R + dy
-            x = R + dx
+            dy = float(enemy_y - ay)
+            dx = float(enemy_x - ax)
+            if use_rotation:
+                dxp = dx * cos_a + dy * sin_a
+                dyp = -dx * sin_a + dy * cos_a
+            else:
+                dxp = dx
+                dyp = dy
+            y = int(round(R + dyp))
+            x = int(round(R + dxp))
             if 0 <= y < 2 * R + 1 and 0 <= x < 2 * R + 1:
                 points.append((y, x, float(enemy_hp)))
 
@@ -815,6 +840,8 @@ class WorldLayerHandler(ChannelHandler):
 
         from farm.core.observations import (
             crop_local,
+            crop_local_rotated,
+            rotate_local_grid,
         )  # Import here to avoid circular import
 
         # Accept either a full world grid (H, W) or a pre-cropped local grid (S, S)
@@ -833,10 +860,19 @@ class WorldLayerHandler(ChannelHandler):
         # If already local sized (2R+1, 2R+1), use directly; otherwise crop from world
         R = config.R
         expected_size = config.get_local_observation_size()
+        angle = float(kwargs.get("agent_orientation", 0.0)) % 360.0
         if tuple(layer.shape[-2:]) == expected_size:
-            final_layer = layer
+            if angle != 0.0:
+                final_layer = rotate_local_grid(layer, angle, pad_val=0.0)
+            else:
+                final_layer = layer
         else:
-            final_layer = crop_local(layer, agent_world_pos, R, pad_val=0.0)
+            if angle != 0.0:
+                final_layer = crop_local_rotated(
+                    layer, agent_world_pos, R, orientation=angle, pad_val=0.0
+                )
+            else:
+                final_layer = crop_local(layer, agent_world_pos, R, pad_val=0.0)
 
         # Use sparse storage utility method for consistent handling
         self._safe_store_sparse_grid(observation, channel_idx, final_layer)
@@ -1030,14 +1066,26 @@ class TransientEventHandler(ChannelHandler):
 
         R = config.R
         ay, ax = agent_world_pos
+        angle = float(kwargs.get("agent_orientation", 0.0)) % 360.0
+        use_rotation = angle != 0.0
+        if use_rotation:
+            a = math.radians(angle)
+            cos_a = math.cos(a)
+            sin_a = math.sin(a)
 
-        # Convert to local coordinates and filter valid positions
+        # Convert to local coordinates (rotate by -angle to align facing 'up') and filter valid positions
         points = []
         for event_y, event_x, intensity in events:
-            dy = event_y - ay
-            dx = event_x - ax
-            y = R + dy
-            x = R + dx
+            dy = float(event_y - ay)
+            dx = float(event_x - ax)
+            if use_rotation:
+                dxp = dx * cos_a + dy * sin_a
+                dyp = -dx * sin_a + dy * cos_a
+            else:
+                dxp = dx
+                dyp = dy
+            y = int(round(R + dyp))
+            x = int(round(R + dxp))
             if 0 <= y < 2 * R + 1 and 0 <= x < 2 * R + 1:
                 points.append((y, x, float(intensity)))
 
@@ -1093,10 +1141,23 @@ class GoalHandler(ChannelHandler):
         R = config.R
         ay, ax = agent_world_pos
         gy, gx = goal_world_pos
-        dy = gy - ay
-        dx = gx - ax
-        y = R + dy
-        x = R + dx
+        angle = float(kwargs.get("agent_orientation", 0.0)) % 360.0
+        use_rotation = angle != 0.0
+        if use_rotation:
+            a = math.radians(angle)
+            cos_a = math.cos(a)
+            sin_a = math.sin(a)
+
+        dy = float(gy - ay)
+        dx = float(gx - ax)
+        if use_rotation:
+            dxp = dx * cos_a + dy * sin_a
+            dyp = -dx * sin_a + dy * cos_a
+        else:
+            dxp = dx
+            dyp = dy
+        y = int(round(R + dyp))
+        x = int(round(R + dxp))
 
         if 0 <= y < 2 * R + 1 and 0 <= x < 2 * R + 1:
             # Use sparse storage utility method for consistent handling
@@ -1151,14 +1212,26 @@ class LandmarkHandler(ChannelHandler):
 
         R = config.R
         ay, ax = agent_world_pos
+        angle = float(kwargs.get("agent_orientation", 0.0)) % 360.0
+        use_rotation = angle != 0.0
+        if use_rotation:
+            a = math.radians(angle)
+            cos_a = math.cos(a)
+            sin_a = math.sin(a)
 
-        # Convert to local coordinates and filter valid positions
+        # Convert to local coordinates (rotate by -angle to align facing 'up') and filter valid positions
         points = []
         for landmark_y, landmark_x, importance in landmarks_world:
-            dy = landmark_y - ay
-            dx = landmark_x - ax
-            y = R + dy
-            x = R + dx
+            dy = float(landmark_y - ay)
+            dx = float(landmark_x - ax)
+            if use_rotation:
+                dxp = dx * cos_a + dy * sin_a
+                dyp = -dx * sin_a + dy * cos_a
+            else:
+                dxp = dx
+                dyp = dy
+            y = int(round(R + dyp))
+            x = int(round(R + dxp))
             if 0 <= y < 2 * R + 1 and 0 <= x < 2 * R + 1:
                 points.append((y, x, float(importance)))
 
