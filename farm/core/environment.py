@@ -1402,6 +1402,7 @@ class Environment(AECEnv):
             trails_world_points=[],  # TODO: Implement if needed
             spatial_index=self.spatial_index,
             agent_object=agent,
+            agent_orientation=getattr(agent, "orientation", 0.0),
         )
 
         tensor = obs.tensor().cpu().numpy()

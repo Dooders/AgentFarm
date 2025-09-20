@@ -227,6 +227,10 @@ class BaseAgent:
         self.is_defending = False
         self.defense_timer = 0
 
+        # Orientation (degrees, clockwise): 0 = north/up, 90 = east/right
+        # Used by the perception system to align egocentric observations
+        self.orientation = 0.0
+
     def _initialize_services(
         self,
         environment: Optional["Environment"],
