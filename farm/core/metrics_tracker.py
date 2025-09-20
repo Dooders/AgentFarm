@@ -107,10 +107,12 @@ class MetricsTracker:
     def record_combat_encounter(self) -> None:
         """Record a combat encounter."""
         self.step_metrics.combat_encounters += 1
+        self.step_metrics.combat_encounters_this_step += 1
 
     def record_successful_attack(self) -> None:
         """Record a successful attack."""
         self.step_metrics.successful_attacks += 1
+        self.step_metrics.successful_attacks_this_step += 1
 
     def record_resources_shared(self, amount: float) -> None:
         """Record resources shared between agents."""

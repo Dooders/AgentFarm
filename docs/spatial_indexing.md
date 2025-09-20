@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-The AgentFarm spatial indexing system provides efficient proximity queries and spatial reasoning capabilities essential for scalable multi-agent simulations. The system implements multiple spatial indexing strategies, including KD-tree and bucketing approaches, to enable O(log n) proximity queries for entity detection and spatial awareness.
+The AgentFarm spatial indexing system provides efficient proximity queries and spatial reasoning capabilities essential for scalable multi-agent simulations. The system implements KD-tree based spatial indexing to enable O(log n) proximity queries for entity detection and spatial awareness.
 
 ---
 
@@ -32,11 +32,9 @@ The spatial indexing system enables:
 
 ### Core Components
 
-**Spatial Index Implementations:**
+**Spatial Index Implementation:**
 
-- **KD-Tree Indexing**: O(log n) queries using scipy.spatial.cKDTree
-- **Bucketing System**: O(1) queries for discrete grid positions
-- **Hybrid Approach**: Combines both strategies for optimal performance
+- **KD-Tree Indexing**: O(log n) queries using scipy.spatial.cKDTree with optimized change detection
 
 ---
 
@@ -68,73 +66,15 @@ nearest_resource = spatial_index.get_nearest(position, ["resources"])   # O(log 
 - **Multi-Entity Type Queries**: Separate trees for agents and resources
 - **Automatic Cache Invalidation**: Rebuilds when positions change significantly
 
-### 2. Bucketing System
-
-**Purpose**: Provides O(1) discrete-space proximity queries for grid-based environments.
-
-**Technical Implementation:**
-
-```python
-from collections import defaultdict
-
-class SpatialIndex:
-    def __init__(self, grid_width: int, grid_height: int):
-        self._buckets = defaultdict(list)  # Spatial partitioning
-        self._agent_positions = {}         # Agent location tracking
-
-    def update_position(self, agent_id: str, old_pos: Tuple[int, int], new_pos: Tuple[int, int]):
-        """Update agent's position in spatial index."""
-        # Remove from old bucket
-        if old_pos in self._buckets:
-            self._buckets[old_pos] = [aid for aid in self._buckets[old_pos] if aid != agent_id]
-
-        # Add to new bucket
-        self._buckets[new_pos].append(agent_id)
-        self._agent_positions[agent_id] = new_pos
-
-    def get_nearby_agents(self, position: Tuple[int, int], radius: int) -> List[str]:
-        """Find agents within radius using spatial partitioning."""
-        nearby = []
-        x, y = position
-
-        # Check surrounding buckets within radius
-        for dx in range(-radius, radius + 1):
-            for dy in range(-radius, radius + 1):
-                check_pos = (x + dx, y + dy)
-                if check_pos in self._buckets:
-                    nearby.extend(self._buckets[check_pos])
-
-        return nearby
-```
-
-**Key Features:**
-
-- **Discrete Grid Support**: Optimized for integer grid coordinates
-- **O(1) Query Complexity**: Direct bucket lookup
-- **Simple Implementation**: Minimal overhead and memory usage
-- **Exact Distance Filtering**: Post-query distance verification
-
-### 3. Hybrid Approach
-
-**Purpose**: Combines KD-tree and bucketing for optimal performance across different query patterns.
-
-**Implementation Strategy:**
-
-- **KD-Tree for Perception**: Continuous queries within agent field-of-view
-- **Bucketing for Local Operations**: Fast discrete queries for immediate neighbors
-- **Adaptive Selection**: Choose strategy based on query radius and precision requirements
-
 ---
 
 ## Performance Characteristics
 
-### Query Performance Comparison
+### Query Performance Characteristics
 
 | Strategy | Build Time | Query Time | Memory Usage | Best For |
 |----------|------------|------------|--------------|----------|
 | **KD-Tree** | O(n log n) | O(log n) | ~200 KB/100 agents | Continuous space, large radii |
-| **Bucketing** | O(n) | O(1) | ~50 KB/100 agents | Discrete grids, small radii |
-| **Hybrid** | O(n log n) | O(log n) - O(1) | ~150 KB/100 agents | Mixed requirements |
 
 ### Scaling Analysis
 
@@ -144,13 +84,6 @@ class SpatialIndex:
 - **Query Time**: O(log n) per proximity query
 - **Update Frequency**: Only when positions change significantly
 - **Memory Usage**: ~200 KB per 100 agents/resources
-
-**For Bucketing Implementation:**
-
-- **Build Time**: O(n) for n entities
-- **Query Time**: O(1) for small radii, O(r²) for larger radii
-- **Update Frequency**: Every position change
-- **Memory Usage**: ~50 KB per 100 agents
 
 ### Optimization Strategies
 
@@ -169,22 +102,11 @@ class SpatialIndex:
 # Spatial indexing settings
 spatial_index_enabled: true       # Enable spatial indexing
 spatial_analysis: true            # Analyze spatial patterns
-
-# KD-Tree settings
-kdtree_rebuild_threshold: 0.1     # Position change threshold for rebuild
-kdtree_cache_size: 1000           # Cache size for frequent queries
-
-# Bucketing settings
-bucket_grid_resolution: 1         # Grid cell size for bucketing
-bucket_memory_limit: 1000000      # Maximum buckets to prevent memory issues
 ```
 
 ### Advanced Configuration
 
 ```yaml
-# Hybrid indexing configuration
-spatial_strategy: "hybrid"         # Options: "kdtree", "bucketing", "hybrid"
-
 # Performance tuning
 spatial_update_batch_size: 100     # Batch size for position updates
 spatial_query_timeout: 0.01        # Query timeout in seconds
@@ -198,27 +120,17 @@ spatial_debug_queries: false       # Log spatial queries
 spatial_performance_metrics: true  # Collect performance metrics
 ```
 
-### Strategy Selection
+### When to Use KD-Tree Indexing
 
-**Choose KD-Tree when:**
+**KD-Tree indexing is ideal when:**
 
 - Environment uses continuous coordinates
 - Agents have large perception radii
 - High precision is required for spatial queries
 - Memory budget allows for tree storage
+- You need efficient proximity queries for hundreds to thousands of agents
 
-**Choose Bucketing when:**
-
-- Environment uses discrete grid coordinates
-- Agents have small perception radii
-- Fast, approximate queries are acceptable
-- Memory constraints are tight
-
-**Choose Hybrid when:**
-
-- Mixed coordinate systems
-- Varying query patterns and radii
-- Need optimal performance across scenarios
+**Note**: The current implementation only supports KD-tree indexing. The system automatically handles change detection and cache invalidation to optimize performance.
 
 ---
 
@@ -476,13 +388,13 @@ For detailed performance characteristics:
 
 ## Conclusion
 
-The AgentFarm spatial indexing system provides the foundation for efficient spatial reasoning in multi-agent simulations. By offering multiple indexing strategies (KD-tree, bucketing, and hybrid approaches), the system can be optimized for different use cases while maintaining consistent performance characteristics.
+The AgentFarm spatial indexing system provides the foundation for efficient spatial reasoning in multi-agent simulations. The KD-tree based implementation offers optimal performance for continuous-space environments with efficient proximity queries and scalable spatial awareness.
 
 The spatial indexing system enables:
 
-- **Efficient proximity queries** for real-time agent interactions
-- **Scalable spatial awareness** supporting thousands of agents
-- **Flexible implementation strategies** for different environment types
-- **Memory-efficient storage** with configurable performance trade-offs
+- **Efficient proximity queries** for real-time agent interactions using O(log n) KD-tree queries
+- **Scalable spatial awareness** supporting thousands of agents with optimized change detection
+- **Memory-efficient storage** with intelligent cache invalidation and position tracking
+- **Flexible named indices** for custom spatial data sources and filtering
 
 This spatial foundation is essential for creating realistic multi-agent behaviors, from combat and resource gathering to social interactions and navigation, making it a critical component of the AgentFarm simulation framework.

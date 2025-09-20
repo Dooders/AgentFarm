@@ -133,6 +133,8 @@ seed = ShortUUID()
 
 def generate_simulation_id(prefix: str = "sim") -> str:
     """Generate a unique simulation ID with an optional prefix.
+    
+    This is now a thin shim that delegates to the Identity class for consistency.
 
     Parameters
     ----------
@@ -144,5 +146,6 @@ def generate_simulation_id(prefix: str = "sim") -> str:
     str
         A unique simulation ID like "sim_4jHB7kLP2x"
     """
-    unique_id = seed.uuid()[:10]  # Using first 10 chars for readability
-    return f"{prefix}_{unique_id}"
+    from .identity import Identity, IdentityConfig
+    identity = Identity()
+    return str(identity.simulation_id(prefix))

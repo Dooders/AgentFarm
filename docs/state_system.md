@@ -23,24 +23,35 @@ def to_dict(self) -> Dict[str, Any]:
 ## State Types
 
 ### 1. Agent State (`AgentState`)
-Represents an agent's perception of its environment.
+Captures the current state of an individual agent including its position, resources, health, and other key attributes.
 
 #### Attributes
-- `normalized_distance`: Distance to nearest resource (0-1)
-- `normalized_angle`: Angle to nearest resource (0-1)
-- `normalized_resource_level`: Agent's current resources (0-1)
-- `normalized_target_amount`: Target resource amount (0-1)
+- `agent_id`: Unique identifier for the agent
+- `step_number`: Current simulation step
+- `position_x`: Normalized X coordinate in environment (0-1)
+- `position_y`: Normalized Y coordinate in environment (0-1)
+- `position_z`: Normalized Z coordinate (usually 0 for 2D)
+- `resource_level`: Current resource amount (0-1)
+- `current_health`: Current health level (0-1)
+- `is_defending`: Whether agent is in defensive stance
+- `total_reward`: Cumulative reward received
+- `age`: Number of steps agent has existed
 
 #### Factory Method
 ```python
 @classmethod
 def from_raw_values(
     cls,
-    distance: float,
-    angle: float,
+    agent_id: str,
+    step_number: int,
+    position_x: float,
+    position_y: float,
+    position_z: float,
     resource_level: float,
-    target_amount: float,
-    env_diagonal: float
+    current_health: float,
+    is_defending: bool,
+    total_reward: float,
+    age: int
 ) -> "AgentState"
 ```
 
@@ -48,11 +59,17 @@ def from_raw_values(
 Captures global simulation state.
 
 #### Attributes
-- `normalized_resource_density`: Resource concentration
-- `normalized_agent_density`: Agent population density
-- `normalized_system_ratio`: System vs Independent agents
-- `normalized_resource_availability`: Resource levels
-- `normalized_time`: Simulation progress
+- `normalized_resource_density`: Resource concentration (0-1)
+- `normalized_agent_density`: Agent population density (0-1)
+- `normalized_system_ratio`: System vs Independent agents (0-1)
+- `normalized_resource_availability`: Resource levels (0-1)
+- `normalized_time`: Simulation progress (0-1)
+
+#### Factory Method
+```python
+@classmethod
+def from_environment(cls, env: "Environment") -> "EnvironmentState"
+```
 
 ### 3. Model State (`ModelState`)
 Tracks ML model parameters and performance.
@@ -74,17 +91,45 @@ Tracks ML model parameters and performance.
 def from_move_module(cls, move_module: "MoveModule") -> "ModelState"
 ```
 
+### 4. Simulation State (`SimulationState`)
+Captures the current state of the entire simulation including time progression, population metrics, resource metrics, and performance indicators.
+
+#### Attributes
+- `normalized_time_progress`: Current simulation progress (0-1)
+- `normalized_population_size`: Current total population relative to capacity (0-1)
+- `normalized_survival_rate`: Portion of original agents still alive (0-1)
+- `normalized_resource_efficiency`: Resource utilization effectiveness (0-1)
+- `normalized_system_performance`: System agents' performance metric (0-1)
+
+#### Factory Method
+```python
+@classmethod
+def from_environment(cls, environment: "Environment", num_steps: int) -> "SimulationState"
+```
+
 ## Usage Examples
 
 ### Creating Agent State
 ```python
 state = AgentState.from_raw_values(
-    distance=10.0,
-    angle=1.57,
-    resource_level=16.0,
-    target_amount=12.0,
-    env_diagonal=100.0
+    agent_id="agent_1",
+    step_number=100,
+    position_x=0.5,
+    position_y=0.3,
+    position_z=0.0,
+    resource_level=0.7,
+    current_health=0.9,
+    is_defending=False,
+    total_reward=10.5,
+    age=50
 )
+```
+
+### Creating Environment State
+```python
+env_state = EnvironmentState.from_environment(environment)
+print(f"Resource density: {env_state.normalized_resource_density}")
+print(f"Agent density: {env_state.normalized_agent_density}")
 ```
 
 ### Getting Model State
@@ -92,6 +137,13 @@ state = AgentState.from_raw_values(
 model_state = ModelState.from_move_module(move_module)
 print(f"Current epsilon: {model_state.epsilon}")
 print(f"Training metrics: {model_state.training_metrics}")
+```
+
+### Creating Simulation State
+```python
+sim_state = SimulationState.from_environment(environment, total_steps=1000)
+print(f"Time progress: {sim_state.normalized_time_progress}")
+print(f"Survival rate: {sim_state.normalized_survival_rate}")
 ```
 
 ### Converting to Tensor

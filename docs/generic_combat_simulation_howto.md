@@ -31,7 +31,7 @@ This guide provides a systematic approach to creating any type of grid-based com
 **Grid Layout Strategy:**
 ```python
 # Example: 100x100 grid with different spawn zones
-class CustomEnvironment(BaseEnvironment):
+class CustomEnvironment(Environment):
     def __init__(self, width=100, height=100, **kwargs):
         super().__init__(width, height, **kwargs)
         
@@ -53,48 +53,75 @@ class CustomEnvironment(BaseEnvironment):
 
 **Agent Specialization Strategy:**
 ```python
-# Example: Extend BaseAgent for different factions
-class TeamAAgent(BaseAgent):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.attack_multiplier = 1.2
-        self.defense_multiplier = 0.8
-        self.movement_range = 8
+# Example: Use BaseAgent with different agent_type and configuration
+# Team A agents (aggressive)
+def create_team_a_agent(agent_id, position, spatial_service, environment):
+    agent = BaseAgent(
+        agent_id=agent_id,
+        position=position,
+        resource_level=5,
+        spatial_service=spatial_service,
+        environment=environment,
+        agent_type="TeamAAgent"  # Custom type identifier
+    )
+    # Configure combat parameters
+    agent.attack_strength = 12.0  # Higher attack
+    agent.defense_strength = 1.6  # Lower defense
+    agent.max_movement = 8  # Higher movement range
+    return agent
 
-class TeamBAgent(BaseAgent):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.attack_multiplier = 0.8
-        self.defense_multiplier = 1.2
-        self.movement_range = 6
+# Team B agents (defensive)
+def create_team_b_agent(agent_id, position, spatial_service, environment):
+    agent = BaseAgent(
+        agent_id=agent_id,
+        position=position,
+        resource_level=5,
+        spatial_service=spatial_service,
+        environment=environment,
+        agent_type="TeamBAgent"  # Custom type identifier
+    )
+    # Configure combat parameters
+    agent.attack_strength = 8.0   # Lower attack
+    agent.defense_strength = 2.4  # Higher defense
+    agent.max_movement = 6  # Lower movement range
+    return agent
 ```
 
 **Key Attributes to Customize:**
-- Attack strength and range
-- Defense capabilities
-- Movement speed and range
-- Resource gathering efficiency
-- Special abilities or behaviors
+- `attack_strength`: Base damage dealt in combat
+- `defense_strength`: Damage reduction when defending
+- `max_movement`: Maximum movement distance per turn
+- `gathering_range`: Range for resource gathering
+- `agent_type`: String identifier for agent classification
+- `resource_level`: Starting and current resource amount
 
 ### Step 4: Configure Combat Mechanics
 
 **Leverage Existing Combat System:**
 ```yaml
 # config.yaml additions
-combat_scenario:
-  team_a:
-    attack_multiplier: 1.2
-    defense_multiplier: 0.8
-    movement_range: 8
-    special_ability: "charge_attack"
-  
-  team_b:
-    attack_multiplier: 0.8
-    defense_multiplier: 1.2
-    movement_range: 6
-    special_ability: "defensive_formation"
+# Combat Parameters (already exist in current config)
+starting_health: 100.0
+attack_range: 20.0
+attack_base_damage: 10.0
+attack_kill_reward: 5.0
 
-# Combat enhancements
+# Agent-specific parameters for different teams
+agent_parameters:
+  TeamAAgent:
+    attack_strength: 12.0
+    defense_strength: 1.6
+    max_movement: 8
+    gather_efficiency_multiplier: 0.8
+    attack_weight: 0.3
+  TeamBAgent:
+    attack_strength: 8.0
+    defense_strength: 2.4
+    max_movement: 6
+    gather_efficiency_multiplier: 1.2
+    attack_weight: 0.1
+
+# Combat enhancements (custom additions)
 territory_bonus: 1.3  # Bonus for fighting in own territory
 formation_bonus: 1.2  # Bonus for grouped agents
 ```
@@ -111,15 +138,17 @@ formation_bonus: 1.2  # Bonus for grouped agents
 **Victory Logic Examples:**
 ```python
 def check_victory_conditions(self):
-    """Check if any faction has won."""
-    team_a_alive = sum(1 for agent in self.agents if agent.faction == "A" and agent.alive)
-    team_b_alive = sum(1 for agent in self.agents if agent.faction == "B" and agent.alive)
+    """Check if any team has won."""
+    team_a_alive = sum(1 for agent in self._agent_objects.values() 
+                      if agent.agent_type == "TeamAAgent" and agent.alive)
+    team_b_alive = sum(1 for agent in self._agent_objects.values() 
+                      if agent.agent_type == "TeamBAgent" and agent.alive)
     
     if team_a_alive == 0:
         return "Team B Victory"
     elif team_b_alive == 0:
         return "Team A Victory"
-    elif self.time >= self.max_turns:
+    elif self.time >= self.max_steps:
         return "Time Limit - Draw"
     
     return None
@@ -136,14 +165,17 @@ def check_victory_conditions(self):
 
 **Extend Configuration Structure:**
 ```python
-# farm/core/config.py additions
+# Add to existing SimulationConfig in farm/core/config.py
 @dataclass
-class CombatScenarioConfig:
+class SimulationConfig:
+    # ... existing fields ...
+    
+    # Combat scenario additions
     scenario_type: str = "team_vs_team"
     team_a_count: int = 10
     team_b_count: int = 10
     victory_condition: str = "elimination"
-    max_turns: int = 1000
+    max_combat_turns: int = 1000
     
     # Territory settings
     territory_control_threshold: float = 0.8
@@ -162,14 +194,23 @@ class CombatScenarioConfig:
 def calculate_formation_bonus(self, agent, nearby_allies):
     """Calculate bonus for fighting in formation."""
     if len(nearby_allies) >= 3:
-        return self.config.formation_bonus
+        return getattr(self.config, 'formation_bonus', 1.2)
     return 1.0
 
 def apply_territory_bonus(self, agent, position):
     """Apply bonus for fighting in own territory."""
-    if self.is_in_territory(agent.faction, position):
-        return self.config.territory_bonus
+    if self.is_in_territory(agent.agent_type, position):
+        return getattr(self.config, 'territory_bonus', 1.3)
     return 1.0
+
+def is_in_territory(self, agent_type, position):
+    """Check if position is in agent's territory."""
+    x, y = position
+    if agent_type == "TeamAAgent":
+        return x < self.width // 2  # Left half
+    elif agent_type == "TeamBAgent":
+        return x >= self.width // 2  # Right half
+    return False
 ```
 
 **Common Special Mechanics:**
@@ -184,19 +225,19 @@ def apply_territory_bonus(self, agent, position):
 **Extend Existing Tracking:**
 ```python
 # Add to environment
-self.faction_stats = {
-    "team_a": {"kills": 0, "deaths": 0, "territory_controlled": 0},
-    "team_b": {"kills": 0, "deaths": 0, "territory_controlled": 0}
+self.team_stats = {
+    "TeamAAgent": {"kills": 0, "deaths": 0, "territory_controlled": 0},
+    "TeamBAgent": {"kills": 0, "deaths": 0, "territory_controlled": 0}
 }
 
 def track_combat_event(self, attacker, defender, damage, killed):
-    """Track combat statistics by faction."""
-    attacker_faction = attacker.faction
-    defender_faction = defender.faction
+    """Track combat statistics by team."""
+    attacker_team = attacker.agent_type
+    defender_team = defender.agent_type
     
     if killed:
-        self.faction_stats[attacker_faction]["kills"] += 1
-        self.faction_stats[defender_faction]["deaths"] += 1
+        self.team_stats[attacker_team]["kills"] += 1
+        self.team_stats[defender_team]["deaths"] += 1
 ```
 
 ### Step 9: Testing and Iteration
@@ -217,34 +258,36 @@ def track_combat_event(self, attacker, defender, damage, killed):
 
 **Required New Files:**
 ```
-farm/environments/your_scenario_environment.py
-farm/agents/your_faction_agent.py
-farm/core/your_scenario_config.py
+farm/core/your_scenario_environment.py  # Custom environment class
+farm/core/your_scenario_runner.py       # Custom simulation runner
 ```
 
 **Files to Modify:**
 ```
 config.yaml - Add scenario parameters
-farm/core/config.py - Add new configuration classes
+farm/core/config.py - Add new configuration fields to SimulationConfig
 farm/core/action.py - Attack action already uses spatial index for efficient combat
 ```
 
 ## Common Patterns and Best Practices
 
 ### Agent Design Patterns
-- **Inheritance**: Extend `BaseAgent` for faction-specific behavior
+- **Type-based**: Use `BaseAgent` with different `agent_type` strings
+- **Configuration**: Customize behavior via `agent_parameters` in config
 - **Composition**: Use existing action modules (move, attack, gather)
-- **Configuration**: Make behavior configurable via YAML
+- **Service Injection**: Leverage spatial service and other services
 
 ### Environment Design Patterns
-- **Zone-based Spawning**: Define clear spawn areas for each faction
+- **Zone-based Spawning**: Define clear spawn areas for each team
 - **Resource Management**: Strategic resource placement for conflict
 - **Territory Tracking**: Monitor control of different grid areas
+- **Agent Lifecycle**: Use existing agent creation and management systems
 
 ### Combat Enhancement Patterns
-- **Multiplier System**: Use configurable multipliers for balance
+- **Multiplier System**: Use configurable multipliers in `agent_parameters`
 - **Bonus Stacking**: Allow multiple bonuses to combine
 - **Cooldown Management**: Implement ability cooldowns for balance
+- **Spatial Queries**: Leverage existing spatial index for efficient combat targeting
 
 ## Troubleshooting Common Issues
 

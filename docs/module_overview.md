@@ -17,7 +17,7 @@ AgentFarm/
 │   └── State Management (farm.core.state)
 ├── Agent System
 │   ├── Base Agents (farm.core.agent)
-│   └── Decision Making (farm.actions)
+│   └── Decision Making (farm.core.action)
 ├── Data & Analysis
 │   ├── Database (farm.database)
 │   ├── Analysis Tools (farm.analysis)
@@ -61,10 +61,9 @@ Agents are autonomous entities with learning capabilities:
 - Resource gathering and sharing
 - Combat and conflict resolution
 - Reproduction and inheritance
-- Reinforcement learning via Deep Q-Networks<sup>**</sup>
-
-<sub>* Not implemented yet</sub>
-<sub>** RL algorithm will be configurable in the future (e.g., SB3, custom algorithms)</sub>
+- Reinforcement learning with multiple algorithms (DQN, PPO, SAC, A2C, DDQN, etc.)
+- Traditional ML algorithms (SVM, Random Forest, Gradient Boost, Naive Bayes, KNN)
+- Configurable decision-making through DecisionModule
 
 ### 3. Observation System (`farm.core.observations`)
 
@@ -76,7 +75,9 @@ Each agent maintains a **local observation** of the world:
 - `ENEMIES_HP`: Health of nearby enemies
 - `RESOURCES`: Resource locations and quantities
 - `OBSTACLES`: Terrain and obstacle information
+- `TERRAIN_COST`: Movement cost for different terrain types
 - `VISIBILITY`: Field-of-view mask
+- `KNOWN_EMPTY`: Previously observed empty cells (decays over time)
 - `DAMAGE_HEAT`: Recent combat events (decays over time)
 - `TRAILS`: Movement trails (decays over time)
 - `ALLY_SIGNAL`: Communication signals (decays over time)
@@ -122,19 +123,19 @@ dynamic_idx = register_channel(CustomDynamicChannel("DYNAMIC_CHANNEL"))
 persistent_idx = register_channel(CustomPersistentChannel("PERSISTENT_CHANNEL"))
 ```
 
-### 5. Action System (`farm.actions`)
+### 5. Action System (`farm.core.action`)
 
-Agents can perform various actions through specialized modules:
+Agents can perform various actions through the centralized action system:
 
-- **Movement**: Navigate the environment with pathfinding
-- **Gather**: Collect resources from the environment
-- **Attack**: Engage in combat with other agents
-- **Share**: Redistribute resources to allies
-- **Reproduce**: Create offspring (with inheritance)
-- **Defend**: Defend against enemies (damage-modifying)
-- **Pass**: Pass turn, no action
+- **Movement**: Navigate the environment with configurable movement patterns
+- **Gather**: Collect resources from the environment with range-based targeting
+- **Attack**: Engage in combat with other agents within attack range
+- **Share**: Redistribute resources to nearby allies
+- **Reproduce**: Create offspring with inheritance and resource costs
+- **Defend**: Enter defensive stance with damage reduction and healing
+- **Pass**: Strategic inaction for observation and resource conservation
 
-Each action module uses reinforcement learning to optimize behavior.
+Actions are implemented as functions with configurable parameters and use the action registry system for dynamic action management.
 
 ## Configuration System
 
@@ -142,27 +143,37 @@ AgentFarm uses a comprehensive YAML-based configuration system:
 
 ```yaml
 # config.yaml
-environment:
-  width: 50
-  height: 50
-  resource_distribution: clustered
+# Environment settings
+width: 50
+height: 50
 
-agents:
-  initial_count: 20
-  perception_radius: 6
-  initial_resources: 100
+# Agent settings
+system_agents: 10
+independent_agents: 10
+control_agents: 10
+initial_resource_level: 100
+max_population: 3000
+perception_radius: 6
 
-learning:
-  learning_rate: 0.001
-  memory_size: 10000
-  gamma: 0.99
+# Resource settings
+initial_resources: 20
+resource_regen_rate: 0.1
+max_resource_amount: 30
 
-channels:
-  observation_radius: 6
+# Learning parameters
+learning_rate: 0.001
+memory_size: 2000
+gamma: 0.95
+epsilon_start: 1.0
+epsilon_min: 0.01
+
+# Observation settings
+observation:
+  R: 6
   fov_radius: 5
-  decay_factors:
-    trails: 0.95
-    damage_heat: 0.90
+  gamma_trail: 0.90
+  gamma_dmg: 0.85
+  gamma_sig: 0.92
 ```
 
 ## Usage Examples
@@ -173,17 +184,27 @@ channels:
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 from farm.core.agent import BaseAgent
-import torch
+from farm.core.config import SimulationConfig
+import random
 
 # Configure observations
 obs_config = ObservationConfig(R=6, fov_radius=5)
 
-# Create environment
-env = Environment(
+# Create simulation configuration
+config = SimulationConfig(
     width=50,
     height=50,
-    resource_distribution="uniform",
-    obs_config=obs_config
+    system_agents=5,
+    independent_agents=5,
+    observation=obs_config
+)
+
+# Create environment
+env = Environment(
+    width=config.width,
+    height=config.height,
+    resource_distribution={"type": "uniform"},
+    config=config
 )
 
 # Add agents (environment is accepted and services are auto-injected)
