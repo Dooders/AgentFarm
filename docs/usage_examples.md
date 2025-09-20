@@ -18,6 +18,8 @@ import torch
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 from farm.core.agent import BaseAgent
+from farm.core.config import SimulationConfig
+from farm.core.services.factory import AgentServiceFactory
 
 def create_basic_simulation():
     """Create a basic simulation with 10 agents."""
@@ -26,29 +28,42 @@ def create_basic_simulation():
     obs_config = ObservationConfig(
         R=6,                    # Observation radius (6 cells in each direction)
         fov_radius=5,           # Field-of-view radius
-        decay_factors={
-            'trails': 0.95,     # Movement trails decay slowly
-            'damage_heat': 0.90 # Combat heat decays moderately
-        }
+        gamma_trail=0.95,       # Movement trails decay slowly
+        gamma_dmg=0.90          # Combat heat decays moderately
     )
 
-    # 2. Create environment
-    environment = Environment(
+    # 2. Create simulation configuration
+    config = SimulationConfig(
         width=50,               # 50x50 grid world
         height=50,
-        resource_distribution="uniform",  # Resources distributed evenly
-        obs_config=obs_config,
-        initial_resource_count=200,       # Start with 200 resource units
-        resource_regeneration_rate=0.02   # 2% regeneration per step
+        initial_resources=200,  # Start with 200 resource units
+        resource_regen_rate=0.02,  # 2% regeneration per step
+        system_agents=5,        # Number of system agents
+        independent_agents=5,   # Number of independent agents
+        control_agents=0        # Number of control agents
     )
 
-    # 3. Add agents (environment is accepted and services are auto-injected)
+    # 3. Create environment
+    environment = Environment(
+        width=50,
+        height=50,
+        resource_distribution={
+            "type": "random",
+            "amount": 200
+        },
+        config=config
+    )
+
+    # 4. Add agents (spatial service is required)
     for i in range(10):
         agent = BaseAgent(
             agent_id=f"agent_{i:02d}",
             position=(random.randint(0, 49), random.randint(0, 49)),
             resource_level=100,
+            spatial_service=environment.spatial_service,
             environment=environment,
+            agent_type="IndependentAgent",
+            generation=0,
         )
         environment.add_agent(agent)
 
@@ -62,14 +77,14 @@ def run_basic_simulation():
 
     print(f"Simulation initialized with {len(environment.agents)} agents")
     print(f"Environment size: {environment.width}x{environment.height}")
-    print(f"Initial resources: {environment.resources.total_count()}")
+    print(f"Initial resources: {len(environment.resources)}")
 
     # Run simulation
     for step in range(100):
         # Get actions from all active agents
         actions = {}
         for agent_id, agent in environment.agents.items():
-            if not agent.is_terminated:
+            if agent.alive:
                 action = agent.decide_action()
                 actions[agent_id] = action
 
@@ -79,17 +94,17 @@ def run_basic_simulation():
         # Print progress every 10 steps
         if step % 10 == 0:
             alive_agents = sum(1 for agent in environment.agents.values()
-                             if not agent.is_terminated)
+                             if agent.alive)
             print(f"Step {step:3d}: {alive_agents} agents alive, "
-                  f"{environment.resources.total_count()} resources")
+                  f"{len(environment.resources)} resources")
 
     print("Simulation completed!")
 
     # Print final statistics
     final_alive = sum(1 for agent in environment.agents.values()
-                     if not agent.is_terminated)
+                     if agent.alive)
     print(f"Final state: {final_alive} agents survived")
-    print(f"Final resources: {environment.resources.total_count()}")
+    print(f"Final resources: {len(environment.resources)}")
 
 if __name__ == "__main__":
     run_basic_simulation()
@@ -103,7 +118,8 @@ python basic_simulation.py
 ```
 
 **Expected Output:**
-```
+
+```text
 Creating basic simulation...
 Simulation initialized with 10 agents
 Environment size: 50x50
@@ -136,14 +152,14 @@ from typing import Tuple, Optional
 from farm.core.agent import BaseAgent
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
-from farm.actions.share import share_action
+from farm.core.config import SimulationConfig
 
 class CooperativeAgent(BaseAgent):
     """An agent that prioritizes cooperation and resource sharing."""
 
     def __init__(self, agent_id: str, position: Tuple[int, int],
-                 resource_level: int, environment: Environment, **kwargs):
-        super().__init__(agent_id, position, resource_level, environment, **kwargs)
+                 resource_level: int, spatial_service, environment: Environment = None, **kwargs):
+        super().__init__(agent_id, position, resource_level, spatial_service, environment, **kwargs)
 
         # Cooperative behavior parameters
         self.sharing_threshold = kwargs.get('sharing_threshold', 150)
@@ -183,7 +199,7 @@ class CooperativeAgent(BaseAgent):
                 continue
 
             agent = self.environment.agents[agent_id]
-            if not agent.is_terminated and agent.resource_level < 80:
+            if agent.alive and agent.resource_level < 80:
                 needy_allies.append((agent_id, agent.resource_level))
 
         # Return ally with lowest resources
@@ -197,8 +213,8 @@ class CompetitiveAgent(BaseAgent):
     """An agent that prioritizes competition and resource hoarding."""
 
     def __init__(self, agent_id: str, position: Tuple[int, int],
-                 resource_level: int, environment: Environment, **kwargs):
-        super().__init__(agent_id, position, resource_level, environment, **kwargs)
+                 resource_level: int, spatial_service, environment: Environment = None, **kwargs):
+        super().__init__(agent_id, position, resource_level, spatial_service, environment, **kwargs)
 
         self.competitive_radius = kwargs.get('competitive_radius', 4)
         self.attack_threshold = kwargs.get('attack_threshold', 120)
@@ -235,7 +251,7 @@ class CompetitiveAgent(BaseAgent):
                 continue
 
             agent = self.environment.agents[agent_id]
-            if not agent.is_terminated and agent.resource_level < self.resource_level * 0.7:
+            if agent.alive and agent.resource_level < self.resource_level * 0.7:
                 weak_targets.append((agent_id, agent.resource_level))
 
         # Return weakest target
@@ -249,12 +265,22 @@ def create_mixed_simulation():
     """Create simulation with different agent types."""
 
     obs_config = ObservationConfig(R=6, fov_radius=5)
+    
+    config = SimulationConfig(
+        width=60, height=60,
+        initial_resources=300,
+        system_agents=0,
+        independent_agents=0,
+        control_agents=0
+    )
 
     environment = Environment(
         width=60, height=60,
-        resource_distribution="clustered",
-        obs_config=obs_config,
-        initial_resource_count=300
+        resource_distribution={
+            "type": "clustered",
+            "amount": 300
+        },
+        config=config
     )
 
     # Add cooperative agents
@@ -263,7 +289,10 @@ def create_mixed_simulation():
             agent_id=f"coop_{i:02d}",
             position=(random.randint(10, 25), random.randint(10, 25)),
             resource_level=100,
+            spatial_service=environment.spatial_service,
             environment=environment,
+            agent_type="IndependentAgent",
+            generation=0,
             sharing_threshold=140,
             generosity_factor=0.4
         )
@@ -275,7 +304,10 @@ def create_mixed_simulation():
             agent_id=f"comp_{i:02d}",
             position=(random.randint(35, 50), random.randint(35, 50)),
             resource_level=100,
+            spatial_service=environment.spatial_service,
             environment=environment,
+            agent_type="IndependentAgent",
+            generation=0,
             attack_threshold=130
         )
         environment.add_agent(agent)
@@ -301,7 +333,7 @@ def run_behavior_comparison():
     for step in range(200):
         actions = {}
         for agent_id, agent in environment.agents.items():
-            if not agent.is_terminated:
+            if agent.alive:
                 action = agent.decide_action()
                 actions[agent_id] = action
 
@@ -316,9 +348,9 @@ def run_behavior_comparison():
         # Print progress
         if step % 50 == 0:
             alive_coop = sum(1 for aid in coop_agents
-                           if aid in environment.agents and not environment.agents[aid].is_terminated)
+                           if aid in environment.agents and environment.agents[aid].alive)
             alive_comp = sum(1 for aid in comp_agents
-                           if aid in environment.agents and not environment.agents[aid].is_terminated)
+                           if aid in environment.agents and environment.agents[aid].alive)
 
             print(f"Step {step:3d}: Coop={alive_coop}, Comp={alive_comp}, "
                   f"Sharing={sharing_events}, Attacks={attack_events}")
@@ -350,6 +382,7 @@ from farm.core.channels import ChannelHandler, ChannelBehavior, register_channel
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 from farm.core.agent import BaseAgent
+from farm.core.config import SimulationConfig
 
 class WeatherChannel(ChannelHandler):
     """Channel representing dynamic weather conditions."""
@@ -481,8 +514,8 @@ class WeatherAwareAgent(BaseAgent):
     """Agent that uses weather information for decision making."""
 
     def __init__(self, agent_id: str, position: Tuple[int, int],
-                 resource_level: int, environment: Environment, **kwargs):
-        super().__init__(agent_id, position, resource_level, environment, **kwargs)
+                 resource_level: int, spatial_service, environment: Environment = None, **kwargs):
+        super().__init__(agent_id, position, resource_level, spatial_service, environment, **kwargs)
         self.weather_aversion = kwargs.get('weather_aversion', 0.5)
 
     def decide_action(self):
@@ -538,13 +571,23 @@ def create_weather_simulation():
 
     # Configure observations
     obs_config = ObservationConfig(R=8, fov_radius=6)
+    
+    config = SimulationConfig(
+        width=50, height=50,
+        initial_resources=250,
+        system_agents=0,
+        independent_agents=0,
+        control_agents=0
+    )
 
     # Create environment with weather system
     environment = Environment(
         width=50, height=50,
-        resource_distribution="clustered",
-        obs_config=obs_config,
-        initial_resource_count=250
+        resource_distribution={
+            "type": "clustered",
+            "amount": 250
+        },
+        config=config
     )
 
     # Add weather system to environment
@@ -563,7 +606,10 @@ def create_weather_simulation():
             agent_id=f"weather_agent_{i:02d}",
             position=(random.randint(0, 49), random.randint(0, 49)),
             resource_level=100,
+            spatial_service=environment.spatial_service,
             environment=environment,
+            agent_type="IndependentAgent",
+            generation=0,
             weather_aversion=0.6
         )
         environment.add_agent(agent)
@@ -586,7 +632,7 @@ def run_weather_simulation():
         # Get actions from agents
         actions = {}
         for agent_id, agent in environment.agents.items():
-            if not agent.is_terminated:
+            if agent.alive:
                 action = agent.decide_action()
                 actions[agent_id] = action
 
@@ -596,9 +642,10 @@ def run_weather_simulation():
         # Print progress
         if step % 30 == 0:
             alive_agents = sum(1 for agent in environment.agents.values()
-                             if not agent.is_terminated)
+                             if agent.alive)
             total_weather = np.mean(weather_system.weather_map)
-            print(".3f")
+            print(f"Step {step:3d}: {alive_agents} agents alive, "
+                  f"avg weather: {total_weather:.3f}")
 
     print("Weather simulation completed!")
 
@@ -620,204 +667,101 @@ This tutorial shows how to set up and run systematic parameter studies.
 import json
 import random
 from typing import Dict, List, Any
+from pathlib import Path
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 from farm.core.agent import BaseAgent
-from farm.core.config import ExperimentConfig
+from farm.core.config import SimulationConfig
 from farm.runners.experiment_runner import ExperimentRunner
 
-class ExperimentRunner:
-    """Custom experiment runner for parameter studies."""
+def create_config_variations(base_config: SimulationConfig, 
+                           parameter_ranges: Dict[str, List[Any]]) -> List[SimulationConfig]:
+    """Create configuration variations for parameter studies."""
+    
+    import itertools
+    
+    # Get parameter names and values
+    param_names = list(parameter_ranges.keys())
+    param_values = list(parameter_ranges.values())
+    
+    # Generate all combinations
+    combinations = list(itertools.product(*param_values))
+    
+    configs = []
+    for combination in combinations:
+        # Create a copy of base config
+        config_dict = base_config.to_dict()
+        
+        # Update with current parameter combination
+        for param_name, param_value in zip(param_names, combination):
+            config_dict[param_name] = param_value
+            
+        # Create new config from updated dict
+        config = SimulationConfig.from_dict(config_dict)
+        configs.append(config)
+    
+    return configs
 
-    def __init__(self):
-        self.results = []
-
-    def run_parameter_study(self, base_config: Dict[str, Any],
-                           parameter_ranges: Dict[str, List[Any]],
-                           num_replications: int = 3,
-                           steps_per_run: int = 500) -> List[Dict[str, Any]]:
-        """Run parameter study with multiple configurations."""
-
-        print(f"Starting parameter study with {len(parameter_ranges)} parameters")
-        print(f"Running {num_replications} replications per configuration")
-
-        # Generate all parameter combinations
-        param_combinations = self._generate_parameter_combinations(parameter_ranges)
-
-        print(f"Total configurations to test: {len(param_combinations)}")
-
-        results = []
-        for i, params in enumerate(param_combinations):
-            print(f"\nRunning configuration {i+1}/{len(param_combinations)}")
-            print(f"Parameters: {params}")
-
-            # Run multiple replications for statistical significance
-            replication_results = []
-            for rep in range(num_replications):
-                print(f"  Replication {rep+1}/{num_replications}")
-
-                # Merge base config with current parameters
-                config = base_config.copy()
-                config.update(params)
-
-                # Run simulation
-                result = self._run_single_simulation(config, steps_per_run)
-                replication_results.append(result)
-
-            # Aggregate results across replications
-            aggregated_result = self._aggregate_results(replication_results, params)
-            results.append(aggregated_result)
-
-        return results
-
-    def _generate_parameter_combinations(self, parameter_ranges: Dict[str, List[Any]]) -> List[Dict[str, Any]]:
-        """Generate all combinations of parameters."""
-        if not parameter_ranges:
-            return [{}]
-
-        # Simple parameter combination (could use itertools.product for more complex cases)
-        combinations = []
-
-        def generate_combinations(current: Dict[str, Any], remaining_params: List[str]):
-            if not remaining_params:
-                combinations.append(current.copy())
-                return
-
-            param_name = remaining_params[0]
-            remaining = remaining_params[1:]
-
-            for value in parameter_ranges[param_name]:
-                current[param_name] = value
-                generate_combinations(current, remaining)
-
-        generate_combinations({}, list(parameter_ranges.keys()))
-        return combinations
-
-    def _run_single_simulation(self, config: Dict[str, Any], steps: int) -> Dict[str, Any]:
-        """Run a single simulation with given configuration."""
-
-        # Create observation configuration
-        obs_config = ObservationConfig(
-            R=config.get('observation_radius', 6),
-            fov_radius=config.get('fov_radius', 5)
-        )
-
-        # Create environment
-        environment = Environment(
-            width=config.get('world_width', 50),
-            height=config.get('world_height', 50),
-            resource_distribution=config.get('resource_distribution', 'uniform'),
-            obs_config=obs_config,
-            initial_resource_count=config.get('initial_resources', 200)
-        )
-
-        # Add agents
-        num_agents = config.get('num_agents', 10)
-        for i in range(num_agents):
-            agent = BaseAgent(
-                agent_id=f"agent_{i:02d}",
-                position=(random.randint(0, environment.width-1),
-                         random.randint(0, environment.height-1)),
-                resource_level=config.get('initial_agent_resources', 100),
-                environment=environment,
-                learning_rate=config.get('learning_rate', 0.001)
-            )
-            environment.add_agent(agent)
-
-        # Track metrics
-        survival_counts = []
-        resource_counts = []
-
-        # Run simulation
-        for step in range(steps):
-            actions = {}
-            for agent_id, agent in environment.agents.items():
-                if not agent.is_terminated:
-                    action = agent.decide_action()
-                    actions[agent_id] = action
-
-            environment.step(actions)
-
-            # Record metrics every 50 steps
-            if step % 50 == 0:
-                alive_count = sum(1 for agent in environment.agents.values()
-                                if not agent.is_terminated)
-                resource_count = environment.resources.total_count()
-
-                survival_counts.append(alive_count)
-                resource_counts.append(resource_count)
-
-        # Calculate final metrics
-        final_alive = sum(1 for agent in environment.agents.values()
-                         if not agent.is_terminated)
-
-        return {
-            'final_survival_rate': final_alive / num_agents,
-            'avg_survival_over_time': survival_counts,
-            'resource_trajectory': resource_counts,
-            'final_resources': environment.resources.total_count(),
-            'steps_completed': steps
-        }
-
-    def _aggregate_results(self, replication_results: List[Dict[str, Any]],
-                          params: Dict[str, Any]) -> Dict[str, Any]:
-        """Aggregate results across replications."""
-
-        aggregated = {
-            'parameters': params,
-            'num_replications': len(replication_results),
-            'avg_survival_rate': 0,
-            'std_survival_rate': 0,
-            'avg_final_resources': 0,
-            'survival_trajectories': [],
-            'resource_trajectories': []
-        }
-
-        # Collect all survival rates
-        survival_rates = [r['final_survival_rate'] for r in replication_results]
-
-        # Calculate statistics
-        aggregated['avg_survival_rate'] = sum(survival_rates) / len(survival_rates)
-        aggregated['std_survival_rate'] = (sum((x - aggregated['avg_survival_rate'])**2
-                                               for x in survival_rates) / len(survival_rates))**0.5
-
-        # Aggregate trajectories
-        for result in replication_results:
-            aggregated['survival_trajectories'].append(result['avg_survival_over_time'])
-            aggregated['resource_trajectories'].append(result['resource_trajectory'])
-
-        return aggregated
+def run_single_experiment(config: SimulationConfig, num_steps: int = 500) -> Dict[str, Any]:
+    """Run a single simulation experiment and return results."""
+    
+    from farm.core.simulation import run_simulation
+    
+    # Run simulation
+    environment = run_simulation(
+        num_steps=num_steps,
+        config=config,
+        path=None,
+        save_config=False,
+        seed=config.seed
+    )
+    
+    # Calculate final metrics
+    final_alive = sum(1 for agent in environment.agents.values() if agent.alive)
+    total_agents = len(environment.agents)
+    
+    return {
+        'final_survival_rate': final_alive / total_agents if total_agents > 0 else 0,
+        'final_alive_count': final_alive,
+        'total_agents': total_agents,
+        'final_resources': len(environment.resources),
+        'steps_completed': num_steps,
+        'config': config.to_dict()
+    }
 
 def run_resource_distribution_study():
     """Study how resource distribution affects agent behavior."""
 
     # Base configuration
-    base_config = {
-        'world_width': 60,
-        'world_height': 60,
-        'num_agents': 15,
-        'initial_agent_resources': 100,
-        'initial_resources': 300,
-        'observation_radius': 7,
-        'fov_radius': 5,
-        'learning_rate': 0.001
-    }
+    base_config = SimulationConfig(
+        width=60,
+        height=60,
+        system_agents=5,
+        independent_agents=5,
+        control_agents=5,
+        initial_resources=300,
+        learning_rate=0.001,
+        seed=42
+    )
 
     # Parameter ranges to study
     parameter_ranges = {
-        'resource_distribution': ['uniform', 'clustered', 'scattered'],
-        'num_agents': [10, 15, 20],
-        'initial_resources': [200, 300, 400]
+        'initial_resources': [200, 300, 400],
+        'system_agents': [3, 5, 7],
+        'independent_agents': [3, 5, 7]
     }
 
-    # Run experiment
-    runner = ExperimentRunner()
-    results = runner.run_parameter_study(
-        base_config=base_config,
-        parameter_ranges=parameter_ranges,
-        num_replications=3,
-        steps_per_run=300
-    )
+    # Create configuration variations
+    configs = create_config_variations(base_config, parameter_ranges)
+    
+    print(f"Running {len(configs)} configuration variations...")
+    
+    # Run experiments
+    results = []
+    for i, config in enumerate(configs):
+        print(f"Running experiment {i+1}/{len(configs)}")
+        result = run_single_experiment(config, num_steps=300)
+        results.append(result)
 
     # Save results
     with open('resource_study_results.json', 'w') as f:
@@ -826,25 +770,26 @@ def run_resource_distribution_study():
     # Print summary
     print("\n=== Resource Distribution Study Results ===")
     for result in results:
-        params = result['parameters']
-        print(".3f"
-              f"±{result['std_survival_rate']:.3f}")
+        config = result['config']
+        print(f"Resources: {config['initial_resources']}, "
+              f"System: {config['system_agents']}, "
+              f"Independent: {config['independent_agents']} -> "
+              f"Survival: {result['final_survival_rate']:.3f}")
 
     return results
 
 def run_learning_parameter_study():
     """Study how learning parameters affect agent performance."""
 
-    base_config = {
-        'world_width': 50,
-        'world_height': 50,
-        'num_agents': 12,
-        'initial_agent_resources': 100,
-        'initial_resources': 250,
-        'resource_distribution': 'clustered',
-        'observation_radius': 6,
-        'fov_radius': 5
-    }
+    base_config = SimulationConfig(
+        width=50,
+        height=50,
+        system_agents=4,
+        independent_agents=4,
+        control_agents=4,
+        initial_resources=250,
+        seed=42
+    )
 
     # Focus on learning parameters
     parameter_ranges = {
@@ -852,13 +797,17 @@ def run_learning_parameter_study():
         'memory_size': [1000, 5000, 10000]
     }
 
-    runner = ExperimentRunner()
-    results = runner.run_parameter_study(
-        base_config=base_config,
-        parameter_ranges=parameter_ranges,
-        num_replications=5,
-        steps_per_run=400
-    )
+    # Create configuration variations
+    configs = create_config_variations(base_config, parameter_ranges)
+    
+    print(f"Running {len(configs)} learning parameter variations...")
+    
+    # Run experiments
+    results = []
+    for i, config in enumerate(configs):
+        print(f"Running experiment {i+1}/{len(configs)}")
+        result = run_single_experiment(config, num_steps=400)
+        results.append(result)
 
     # Save results
     with open('learning_study_results.json', 'w') as f:
@@ -866,9 +815,10 @@ def run_learning_parameter_study():
 
     print("\n=== Learning Parameter Study Results ===")
     for result in results:
-        params = result['parameters']
-        print(".4f"
-              f"±{result['std_survival_rate']:.3f}")
+        config = result['config']
+        print(f"Learning Rate: {config['learning_rate']:.4f}, "
+              f"Memory Size: {config['memory_size']} -> "
+              f"Survival: {result['final_survival_rate']:.3f}")
 
     return results
 
@@ -929,34 +879,33 @@ class SimulationAnalyzer:
         # Prepare data
         survival_data = []
         for result in results:
-            params = result['parameters']
-            avg_survival = result['avg_survival_rate']
-            std_survival = result['std_survival_rate']
+            config = result['config']
+            avg_survival = result['final_survival_rate']
 
             survival_data.append({
-                'parameters': str(params),
+                'parameters': str(config),
                 'avg_survival': avg_survival,
-                'std_survival': std_survival,
-                'resource_dist': params.get('resource_distribution', 'unknown'),
-                'num_agents': params.get('num_agents', 0)
+                'std_survival': 0.0,  # Single run, no std dev
+                'initial_resources': config.get('initial_resources', 0),
+                'total_agents': config.get('system_agents', 0) + config.get('independent_agents', 0) + config.get('control_agents', 0)
             })
 
         df = pd.DataFrame(survival_data)
 
-        # Plot 1: Survival by resource distribution
-        if 'resource_dist' in df.columns:
+        # Plot 1: Survival by initial resources
+        if 'initial_resources' in df.columns:
             ax = axes[0, 0]
-            resource_survival = df.groupby('resource_dist')['avg_survival'].mean()
-            resource_survival.plot(kind='bar', ax=ax, yerr=df.groupby('resource_dist')['std_survival'].std())
-            ax.set_title('Survival Rate by Resource Distribution')
+            resource_survival = df.groupby('initial_resources')['avg_survival'].mean()
+            resource_survival.plot(kind='bar', ax=ax)
+            ax.set_title('Survival Rate by Initial Resources')
             ax.set_ylabel('Survival Rate')
             ax.tick_params(axis='x', rotation=45)
 
         # Plot 2: Survival by number of agents
-        if 'num_agents' in df.columns:
+        if 'total_agents' in df.columns:
             ax = axes[0, 1]
-            agent_survival = df.groupby('num_agents')['avg_survival'].mean()
-            agent_survival.plot(kind='bar', ax=ax, yerr=df.groupby('num_agents')['std_survival'].std())
+            agent_survival = df.groupby('total_agents')['avg_survival'].mean()
+            agent_survival.plot(kind='bar', ax=ax)
             ax.set_title('Survival Rate by Agent Count')
             ax.set_ylabel('Survival Rate')
 
@@ -972,7 +921,7 @@ class SimulationAnalyzer:
         ax = axes[1, 1]
         ax.hist(df['avg_survival'], bins=10, alpha=0.7, edgecolor='black')
         ax.axvline(df['avg_survival'].mean(), color='red', linestyle='--',
-                  label='.3f')
+                  label=f'Mean: {df["avg_survival"].mean():.3f}')
         ax.set_title('Survival Rate Distribution')
         ax.set_xlabel('Survival Rate')
         ax.set_ylabel('Frequency')
@@ -994,17 +943,15 @@ class SimulationAnalyzer:
         labels = []
 
         for result in results:
-            params = result['parameters']
-            label = f"{params.get('resource_distribution', 'unknown')}_agents{params.get('num_agents', 0)}"
+            config = result['config']
+            label = f"resources{config.get('initial_resources', 0)}_agents{config.get('system_agents', 0) + config.get('independent_agents', 0) + config.get('control_agents', 0)}"
 
-            if 'survival_trajectories' in result:
-                # Average across replications
-                survival_traj = np.mean(result['survival_trajectories'], axis=0)
-                survival_trajectories.append(survival_traj)
+            # For single runs, we don't have trajectories, so create simple ones
+            survival_traj = [result['final_survival_rate']] * 10  # Simple constant trajectory
+            survival_trajectories.append(survival_traj)
 
-            if 'resource_trajectories' in result:
-                resource_traj = np.mean(result['resource_trajectories'], axis=0)
-                resource_trajectories.append(resource_traj)
+            resource_traj = [result['final_resources']] * 10  # Simple constant trajectory
+            resource_trajectories.append(resource_traj)
 
             labels.append(label)
 
@@ -1071,36 +1018,36 @@ class SimulationAnalyzer:
         summary_lines = ["=== Statistical Summary ===\n"]
 
         # Overall statistics
-        survival_rates = [r['avg_survival_rate'] for r in results]
+        survival_rates = [r['final_survival_rate'] for r in results]
         summary_lines.append(f"Total configurations tested: {len(results)}")
-        summary_lines.append(".3f")
-        summary_lines.append(".3f")
+        summary_lines.append(f"Average survival rate: {np.mean(survival_rates):.3f}")
+        summary_lines.append(f"Standard deviation: {np.std(survival_rates):.3f}")
 
         # Best and worst performers
         best_idx = np.argmax(survival_rates)
         worst_idx = np.argmin(survival_rates)
 
         summary_lines.append(f"\nBest performing configuration:")
-        summary_lines.append(f"  Parameters: {results[best_idx]['parameters']}")
-        summary_lines.append(".3f")
+        summary_lines.append(f"  Parameters: {results[best_idx]['config']}")
+        summary_lines.append(f"  Survival rate: {results[best_idx]['final_survival_rate']:.3f}")
 
         summary_lines.append(f"\nWorst performing configuration:")
-        summary_lines.append(f"  Parameters: {results[worst_idx]['parameters']}")
-        summary_lines.append(".3f")
+        summary_lines.append(f"  Parameters: {results[worst_idx]['config']}")
+        summary_lines.append(f"  Survival rate: {results[worst_idx]['final_survival_rate']:.3f}")
 
-        # Group by resource distribution
+        # Group by initial resources
         resource_groups = {}
         for result in results:
-            dist = result['parameters'].get('resource_distribution', 'unknown')
-            if dist not in resource_groups:
-                resource_groups[dist] = []
-            resource_groups[dist].append(result['avg_survival_rate'])
+            resources = result['config'].get('initial_resources', 0)
+            if resources not in resource_groups:
+                resource_groups[resources] = []
+            resource_groups[resources].append(result['final_survival_rate'])
 
-        summary_lines.append(f"\nSurvival by Resource Distribution:")
-        for dist, rates in resource_groups.items():
+        summary_lines.append(f"\nSurvival by Initial Resources:")
+        for resources, rates in resource_groups.items():
             avg_rate = np.mean(rates)
             std_rate = np.std(rates)
-            summary_lines.append(".3f")
+            summary_lines.append(f"  {resources} resources: {avg_rate:.3f} ± {std_rate:.3f}")
 
         return "\n".join(summary_lines)
 
@@ -1175,7 +1122,7 @@ def create_custom_visualization():
     for bar, rate in zip(bars, survival_by_dist):
         height = bar.get_height()
         ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-               '.3f', ha='center', va='bottom')
+               f'{rate:.3f}', ha='center', va='bottom')
 
     plt.tight_layout()
     plt.savefig(analyzer.results_dir / "custom_comparison.png", dpi=300, bbox_inches='tight')
