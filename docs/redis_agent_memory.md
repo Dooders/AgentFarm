@@ -8,10 +8,10 @@ The Redis-based Agent Memory System provides a high-performance, scalable soluti
 
 ### 1. Performance Optimization
 
-- **In-Memory Processing**: Redis operations occur at memory speed (microseconds) versus disk-based storage (milliseconds)
+- **In-Memory Processing**: Redis operations occur at memory speed (sub-millisecond) versus disk-based storage (milliseconds)
 - **Non-Blocking Architecture**: Memory operations don't block agent decision loops
 - **Asynchronous Persistence**: Data is saved to disk without impacting performance
-- **Reduced Simulation Overhead**: Up to 50-100x faster than direct database writes
+- **High Throughput**: Benchmarked at 1,121 write ops/sec and 2,136 read ops/sec
 
 ### 2. Agent-Specific Memory Management
 
@@ -23,16 +23,17 @@ The Redis-based Agent Memory System provides a high-performance, scalable soluti
 ### 3. Advanced Query Capabilities
 
 - **Timeline Retrieval**: Access memories by time step or timeframe
-- **Spatial Search**: Find memories associated with specific locations
+- **Spatial Search**: Find memories associated with specific locations using radius-based search
 - **Action Pattern Analysis**: Analyze frequency and patterns of past actions
-- **Reward-Based Filtering**: Retrieve experiences with high/low rewards
+- **Metadata Filtering**: Search memories by custom metadata attributes
+- **State Value Search**: Find memories matching specific state attribute values
 
 ### 4. Simulation-Ready Architecture
 
-- **Connection Pooling**: Efficiently manages Redis connections across many agents
+- **Shared Connection Management**: Efficiently manages Redis connections across many agents using singleton pattern
 - **Automatic Failover**: Graceful degradation if Redis becomes unavailable
 - **Configurable Persistence**: Tune the durability vs. performance tradeoff
-- **Resource-Efficient**: Minimal memory footprint with configurable limits
+- **Resource-Efficient**: Minimal memory footprint with configurable limits (~626 bytes per entry)
 
 ## Architecture Diagram
 
@@ -68,14 +69,17 @@ The Redis-based Agent Memory System provides a high-performance, scalable soluti
                                        └───────────────────┘
 ```
 
-## Performance Comparison
+## Performance Benchmarks
 
-| Operation | Traditional Database | Redis Memory System | Improvement |
-|-----------|----------------------|---------------------|-------------|
-| Write state | 5-10ms | 0.1-0.3ms | 20-50x faster |
-| Read recent state | 3-8ms | 0.1-0.2ms | 15-40x faster |
-| Search operations | 50-200ms | 1-5ms | 40-60x faster |
-| Batch operations | Linear scaling | Near-constant time | Exponential at scale |
+Based on actual benchmark results with 500 memory entries:
+
+| Operation | Performance | Average Time |
+|-----------|-------------|--------------|
+| Write operations | 1,121 ops/sec | 0.89ms |
+| Read operations | 2,136 ops/sec | 0.47ms |
+| Batch operations | 39,707 ops/sec | 0.025ms |
+| Memory efficiency | 626 bytes/entry | - |
+| Spatial search | Variable by radius | 1-5ms typical |
 
 ## Real-World Benefits
 
@@ -104,7 +108,9 @@ The Redis-based Agent Memory System provides a high-performance, scalable soluti
 def decide_action(self, perception):
     # Retrieve relevant past experiences
     similar_situations = self.memory.search_by_position(
-        self.position, radius=10.0, limit=5
+        position=(self.position_x, self.position_y), 
+        radius=10.0, 
+        limit=5
     )
     
     # Consider past rewards in similar situations
@@ -134,8 +140,9 @@ def decide_action(self, perception):
     # Record this experience after taking action
     self.memory.remember_state(
         step=self.environment.time,
-        state=self.current_state,
+        state=self.get_state(),
         action=chosen_action,
+        reward=self.last_reward,
         perception=perception
     )
     
@@ -144,10 +151,11 @@ def decide_action(self, perception):
 
 ## Technical Requirements
 
-- **Redis Server**: v6.0+ (recommended)
-- **Python Redis Client**: redis-py v4.5.0+
+- **Redis Server**: v3.0+ (tested with v6.0+)
+- **Python Redis Client**: redis-py v4.0+
 - **Memory**: 1GB minimum, 4GB recommended for large simulations
 - **Optional**: Redis persistence configuration (AOF/RDB)
+- **Dependencies**: numpy (for perception data serialization)
 
 ## Conclusion
 

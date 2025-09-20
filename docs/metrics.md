@@ -3,54 +3,56 @@
 ## **Population Momentum**
 
 ## Definition:
-**Population Momentum (momentum)** is a composite metric designed to represent the overall dynamics and energy of a population during a simulation. It combines two key factors:
-1. **Survival Time**: How long the population lasts in the simulation (measured by `death_step`).
-2. **Peak Population**: The highest number of agents present during the simulation (`max_count`).
+**Population Momentum (momentum)** is a composite metric designed to capture the relationship between population growth and simulation duration. It measures population sustainability and growth efficiency by combining three key factors:
+1. **Survival Time**: How long the population lasts in the simulation (measured by `final_step`).
+2. **Peak Population**: The highest number of agents present during the simulation (`max_population`).
+3. **Initial Population**: The starting population size for normalization (`initial_population`).
 
 ### Formula:
 \[
-\text{momentum} = \text{death\_step} \cdot \text{max\_count}
+\text{momentum} = \frac{\text{final\_step} \cdot \text{max\_population}}{\text{initial\_population}}
 \]
-- **`death_step`**: The simulation step where the last agent perishes, marking the end of the simulation.
-- **`max_count`**: The maximum population size achieved at any step during the simulation.
+- **`final_step`**: The simulation step where the last agent perishes, marking the end of the simulation.
+- **`max_population`**: The maximum population size achieved at any step during the simulation.
+- **`initial_population`**: The population count at the first step of the simulation.
 
 ---
 
 ## Purpose:
-The **Population Momentum** metric quantifies the overall "energy" or activity level of a population during a simulation. It is useful for:
+The **Population Momentum** metric quantifies population sustainability and growth efficiency by normalizing for initial population size. It is useful for:
 1. **Comparing Simulations**:
-   - Identifying which configurations, environments, or parameters result in more dynamic populations.
+   - Identifying which configurations, environments, or parameters result in more sustainable populations.
 2. **Evaluating Strategies**:
-   - Understanding how changes in agent behavior, resources, or other variables affect population dynamics.
-3. **Highlighting Extremes**:
-   - Differentiating between populations that thrive with high peaks and those that decline quickly.
+   - Understanding how changes in agent behavior, resources, or other variables affect population growth efficiency.
+3. **Normalized Analysis**:
+   - Comparing populations with different starting sizes on an equal basis.
 
 ---
 
 ## Value:
 ### Interpretation:
-- **Higher Momentum**: Indicates a robust population with a long lifespan and/or large peak population.
-- **Lower Momentum**: Reflects a weaker population that either dies out quickly or fails to grow significantly.
+- **Higher Momentum**: Indicates a population that achieved high growth efficiency relative to its starting size, with either long survival time or significant population growth.
+- **Lower Momentum**: Reflects a population with poor growth efficiency, either dying out quickly or failing to grow significantly relative to its initial size.
 
 ### Examples:
-| **Simulation** | **death_step** | **max_count** | **Momentum** |
-|-----------------|----------------|---------------|--------------|
-| Simulation A    | 1000           | 50            | 50,000       |
-| Simulation B    | 500            | 200           | 100,000      |
-| Simulation C    | 200            | 20            | 4,000        |
+| **Simulation** | **final_step** | **max_population** | **initial_population** | **Momentum** |
+|-----------------|----------------|-------------------|----------------------|--------------|
+| Simulation A    | 1000           | 50                | 10                    | 5,000        |
+| Simulation B    | 500            | 200               | 20                    | 5,000        |
+| Simulation C    | 200            | 20                | 5                     | 800          |
 
 ---
 
 ## Limitations:
-While **Population Momentum** is a useful summary metric, it may not fully capture:
+While **Population Momentum** is a useful normalized metric, it may not fully capture:
 1. **Population Stability**: Simulations with erratic population fluctuations may have the same momentum as stable ones.
-2. **Sustainability**: Momentum does not reflect resource consumption or long-term viability of the population.
-3. **Variability Over Time**: It focuses only on peak size and end time, ignoring the shape of the population curve.
+2. **Resource Efficiency**: Momentum does not reflect resource consumption or resource utilization efficiency.
+3. **Population Dynamics**: It focuses only on peak size, end time, and initial size, ignoring the shape of the population curve or growth patterns.
 
 ---
 
 ## Usage:
-**Population Momentum** can be visualized alongside other simulation metrics to provide a quick yet meaningful assessment of population dynamics. For deeper insights, consider pairing it with additional metrics like **average population size**, **resource utilization**, or **stability measures**. 
+**Population Momentum** provides a normalized measure of population growth efficiency that accounts for different starting conditions. It can be visualized alongside other simulation metrics to provide a meaningful assessment of population sustainability. For deeper insights, consider pairing it with additional metrics like **average population size**, **resource utilization**, or **stability measures**. 
 
 ---
 

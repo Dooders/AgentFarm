@@ -14,7 +14,7 @@ The AgentFarm observation channels system provides a flexible, extensible framew
 4. [Custom Channel Development](#custom-channel-development)
 5. [Channel Registry & Management](#channel-registry--management)
 6. [Configuration](#configuration)
-7. [Performance Optimization](#performance-optimization)
+7. [Performance Characteristics](#performance-characteristics)
 8. [Integration & Usage](#integration--usage)
 9. [Examples & Use Cases](#examples--use-cases)
 10. [References & Technical Details](#references--technical-details)
@@ -344,118 +344,102 @@ handler = registry.get_handler("SELF_HP")      # O(1) dictionary lookup
 
 ### Basic Configuration
 
-```yaml
-channels:
-  # Core observation settings
-  observation_radius: 6             # Base observation radius
-  fov_radius: 5                     # Field-of-view radius
-  channel_stacking: true            # Stack multiple time steps
+The observation system is configured using the `ObservationConfig` class:
 
-  # Channel-specific settings
-  decay_factors:                    # Temporal decay rates (0-1)
-    trails: 0.95                    # Movement trail decay
-    damage_heat: 0.90               # Combat heat decay
-    ally_signals: 0.85              # Communication signal decay
-    known_empty: 0.98               # Memory of explored areas
+```python
+from farm.core.observations import ObservationConfig
 
-  # Channel enablement
-  enabled_channels:                 # Which channels to include
-    - SELF_HP
-    - ALLIES_HP
-    - ENEMIES_HP
-    - RESOURCES
-    - OBSTACLES
-    - VISIBILITY
-    - KNOWN_EMPTY
-    - DAMAGE_HEAT
-    - TRAILS
-
-  # Custom channels
-  custom_channels:                  # User-defined channels
-    - name: "WEATHER"
-      type: "dynamic"
-      gamma: 0.95
-    - name: "RESOURCE_DENSITY"
-      type: "instant"
-
-  # Channel processing
-  normalization: "layer"            # "none", "layer", "batch", "instance"
-  preprocessing:                    # Data preprocessing
-    gaussian_blur: false
+# Basic configuration with defaults
+config = ObservationConfig(
+    R=6,                    # Observation radius (cells visible in each direction)
+    fov_radius=6,           # Field-of-view radius for visibility mask
+    gamma_trail=0.90,       # Decay rate for movement trails
+    gamma_dmg=0.85,         # Decay rate for damage heat
+    gamma_sig=0.92,         # Decay rate for ally signals
+    gamma_known=0.98,       # Decay rate for known empty cells
+    device="cpu",           # Device for tensor operations
+    dtype="float32",        # PyTorch dtype as string
+    initialization="zeros"  # Tensor initialization method
+)
 ```
 
 ### Advanced Configuration
 
-```yaml
-# Performance tuning
-sparse_storage_threshold: 0.1       # Sparsity threshold for storage selection
-memory_pool_size: 1000              # Tensor reuse pool size
-decay_batch_size: 100               # Batch size for decay operations
-
-# Channel-specific optimization
-channel_optimization:
-  point_channels: "sparse"          # "sparse", "dense", "auto"
-  environmental_channels: "dense"   # "sparse", "dense", "auto"
-  temporal_channels: "sparse_decay" # "sparse_decay", "dense_decay", "auto"
-
-# Custom channel configuration
-custom_channel_settings:
-  weather:
-    update_rate: 0.1
-    diffusion_rate: 0.05
-  sound:
-    attenuation_model: "inverse_square"
-    frequency_response: "broadband"
+```python
+# Advanced configuration with custom settings
+config = ObservationConfig(
+    R=8,                    # Larger observation radius
+    fov_radius=7,           # Larger field-of-view
+    device="cuda",          # Use GPU if available
+    dtype="float16",        # Use half precision for memory efficiency
+    initialization="random", # Random initialization instead of zeros
+    random_min=-0.1,        # Random initialization range
+    random_max=0.1,
+    # Custom gamma factors for different decay rates
+    gamma_trail=0.95,       # Slower decay for movement trails
+    gamma_dmg=0.90,         # Moderate decay for damage heat
+    gamma_sig=0.85,         # Faster decay for communication signals
+    gamma_known=0.98        # Very slow decay for known empty areas
+)
 ```
+
+### YAML Configuration
+
+```yaml
+# config.yaml - Observation settings
+observation:
+  R: 6                      # Observation radius
+  fov_radius: 6             # Field-of-view radius
+  gamma_trail: 0.90         # Trail decay rate
+  gamma_dmg: 0.85           # Damage heat decay rate
+  gamma_sig: 0.92           # Signal decay rate
+  gamma_known: 0.98         # Known empty decay rate
+  device: "cpu"             # Device for tensor operations
+  dtype: "float32"          # PyTorch dtype
+  initialization: "zeros"   # Initialization method
+  random_min: 0.0           # Random init minimum
+  random_max: 1.0           # Random init maximum
+```
+
+All 13 default channels are always included. Custom channels can be added through the dynamic channel registry system.
 
 ---
 
-## Performance Optimization
+## Performance Characteristics
 
-### Sparse vs Dense Storage Selection
+### Memory Usage
 
-**Sparse Storage (Recommended for):**
+The observation system uses dense tensor storage for all channels. Memory usage scales with:
 
-- Point entity data (health, positions)
-- Temporal decay channels
-- Low-density environmental data
-- Memory-constrained scenarios
+- **Observation radius (R)**: Memory scales as O(R²) per channel
+- **Number of channels**: Currently 13 default channels
+- **Tensor precision**: float32 (default) or float16 for memory efficiency
 
-**Dense Storage (Required for):**
+### Channel Storage Patterns
 
-- Full grid environmental data (visibility masks)
-- Neural network convolution layers
-- High-frequency updates
-- Continuous value distributions
+#### Point Entity Channels
 
-### Channel-Specific Optimization
-
-#### Point Entity Channels (Sparse)
-
-- **SELF_HP**: Single center pixel storage
-- **ALLIES_HP/ENEMIES_HP**: Coordinate-value pairs with accumulation
+- **SELF_HP**: Single center pixel (R, R)
+- **ALLIES_HP/ENEMIES_HP**: Coordinate-value pairs at entity positions
 - **GOAL**: Single target coordinate (instant behavior)
 - **LANDMARKS**: Accumulating coordinate set (persistent behavior)
 
-#### Environmental Channels (Dense)
+#### Environmental Channels
 
-- **VISIBILITY**: Full disk mask (needed for NN convolution)
-- **RESOURCES**: Bilinear distributed (continuous values)
+- **VISIBILITY**: Full disk mask (needed for neural network convolution)
+- **RESOURCES**: Full grid with bilinear interpolation
 - **OBSTACLES/TERRAIN_COST**: Full grid data
 
-#### Temporal Channels (Optimization)
+#### Temporal Channels
 
-- **DAMAGE_HEAT/TRAILS/ALLY_SIGNAL**: Sparse points with exponential decay
-- **KNOWN_EMPTY**: Sparse known-empty cells with decay
+- **DAMAGE_HEAT/TRAILS/ALLY_SIGNAL**: Points with exponential decay
+- **KNOWN_EMPTY**: Known-empty cells with decay
 
-### Memory Performance
+### Performance Considerations
 
-| Channel Type | Typical Sparsity | Memory Savings | Best Storage |
-|-------------|------------------|----------------|--------------|
-| **Point Entities** | 92-100% | 95-99% | Sparse |
-| **Environmental** | 70-95% | Limited | Dense (NN compatibility) |
-| **Temporal** | 85-95% | 80-95% | Sparse with decay |
-| **Navigation** | 95-100% | 95-99% | Sparse |
+- **GPU Acceleration**: Use `device="cuda"` for GPU-accelerated operations
+- **Memory Efficiency**: Use `dtype="float16"` for reduced memory usage
+- **Initialization**: Random initialization can help with training stability
 
 ---
 
@@ -470,54 +454,39 @@ from farm.core.observations import AgentObservation, ObservationConfig
 config = ObservationConfig(R=6, fov_radius=5)
 agent_obs = AgentObservation(config)
 
-# Use with custom data
+# Update observation with world state
 agent_obs.perceive_world(
-    world_layers={"RESOURCES": resource_grid},
+    world_layers={"RESOURCES": resource_grid, "OBSTACLES": obstacle_grid},
     agent_world_pos=(50, 50),
-    self_hp01=0.8,
-    allies=[],
-    enemies=[],
-    goal_world_pos=None,
-    # Custom channel data
+    self_hp01=0.8,  # Required: agent's health normalized to [0,1]
+    allies=[(48, 50, 0.9), (52, 50, 0.7)],  # Optional: (y, x, hp) tuples
+    enemies=[(45, 45, 0.6)],  # Optional: (y, x, hp) tuples
+    goal_world_pos=(60, 60),  # Optional: (y, x) goal position
+    recent_damage_world=[(45, 47, 0.8), (52, 53, 0.6)],  # Optional: damage events
+    ally_signals_world=[(48, 49, 0.5)],  # Optional: communication signals
+    trails_world_points=[(49, 50, 0.3)],  # Optional: movement trails
+    # Custom channel data can be passed via **kwargs
     my_custom_data=custom_data,
-    decay_events=[(45, 47, 0.8), (52, 53, 0.6)],
     elevation_map=elevation_grid
 )
 
-# Access observation tensor (includes custom channels)
-obs_tensor = agent_obs.tensor()
+# Access observation tensor (includes all registered channels)
+obs_tensor = agent_obs.tensor()  # Shape: (num_channels, 2R+1, 2R+1)
 ```
 
 ### Channel Processing Pipeline
 
+The `perceive_world` method automatically handles the complete observation update process:
+
 ```python
-def update_observation(self, agent_position: Tuple[int, int], environment: Environment):
-    """Update agent's observation from current environment state."""
+# The perceive_world method orchestrates the full update sequence:
+# 1. Apply decay to dynamic channels (trails, damage heat, signals, known empty)
+# 2. Clear all instantaneous channels  
+# 3. Process all registered channels using their handlers
+# 4. Update known empty cells based on visibility and entity presence
 
-    # 1. Clear previous instant observations
-    self._clear_instant_channels()
-
-    # 2. Extract local view from world state
-    world_view = environment.get_world_view()
-    local_view = crop_local(world_view, agent_position, self.config.R)
-
-    # 3. Process each channel
-    for channel_name, channel_handler in self._channel_handlers.items():
-        channel_idx = get_channel_registry().get_index(channel_name)
-        channel_handler.process(
-            observation=self._observation,
-            channel_idx=channel_idx,
-            config=self.config,
-            agent_world_pos=agent_position,
-            environment=environment,
-            agent=self._agent
-        )
-
-    # 4. Apply field-of-view masking
-    self._apply_fov_mask()
-
-    # 5. Apply temporal decay to dynamic channels
-    self._apply_decay()
+# All channels are processed automatically through the dynamic registry system
+# Custom channels receive data via **kwargs in perceive_world()
 ```
 
 ### Integration with Reinforcement Learning
@@ -531,10 +500,69 @@ def get_observation_tensor(self, agent_id: str) -> torch.Tensor:
     # All channels (core + custom) are included in the tensor
     obs_tensor = agent.observation.tensor()
 
-    # Shape: (num_channels, height, width)
+    # Shape: (num_channels, 2R+1, 2R+1)
     # Includes all registered channels: core + custom
     return obs_tensor
 ```
+
+---
+
+## API Reference
+
+### ObservationConfig Class
+
+The `ObservationConfig` class configures the observation system:
+
+```python
+class ObservationConfig:
+    R: int = 6                    # Observation radius (cells visible in each direction)
+    fov_radius: int = 6           # Field-of-view radius for visibility mask
+    gamma_trail: float = 0.90     # Decay rate for movement trails
+    gamma_dmg: float = 0.85       # Decay rate for damage heat
+    gamma_sig: float = 0.92       # Decay rate for ally signals
+    gamma_known: float = 0.98     # Decay rate for known empty cells
+    device: str = "cpu"           # Device for tensor operations
+    dtype: str = "float32"        # PyTorch dtype as string
+    initialization: str = "zeros" # Tensor initialization method
+    random_min: float = 0.0       # Minimum value for random initialization
+    random_max: float = 1.0       # Maximum value for random initialization
+```
+
+### AgentObservation.perceive_world() Method
+
+```python
+def perceive_world(
+    self,
+    world_layers: Dict[str, torch.Tensor],  # Required: world tensors (H,W) with values [0,1]
+    agent_world_pos: Tuple[int, int],       # Required: (y,x) in world coordinates
+    self_hp01: float,                       # Required: agent's health normalized [0,1]
+    allies: Optional[List[Tuple[int, int, float]]] = None,      # Optional: (y,x,hp) tuples
+    enemies: Optional[List[Tuple[int, int, float]]] = None,     # Optional: (y,x,hp) tuples
+    goal_world_pos: Optional[Tuple[int, int]] = None,           # Optional: (y,x) goal position
+    recent_damage_world: Optional[List[Tuple[int, int, float]]] = None,  # Optional: damage events
+    ally_signals_world: Optional[List[Tuple[int, int, float]]] = None,   # Optional: signals
+    trails_world_points: Optional[List[Tuple[int, int, float]]] = None,  # Optional: trails
+    spatial_index: Optional[SpatialIndex] = None,               # Optional: for auto-computation
+    agent_object: Optional[object] = None,                      # Optional: agent reference
+    **kwargs  # Additional data for custom channels
+) -> None
+```
+
+**Required Parameters:**
+
+- `world_layers`: Dictionary with keys like "RESOURCES", "OBSTACLES", "TERRAIN_COST"
+- `agent_world_pos`: Agent's position in world coordinates (y, x)
+- `self_hp01`: Agent's health normalized to [0, 1]
+
+**Optional Parameters:**
+
+- `allies`: List of (y, x, hp) tuples for visible allies
+- `enemies`: List of (y, x, hp) tuples for visible enemies  
+- `goal_world_pos`: Goal position in world coordinates (y, x)
+- `recent_damage_world`: List of (y, x, intensity) tuples for recent damage events
+- `ally_signals_world`: List of (y, x, intensity) tuples for communication signals
+- `trails_world_points`: List of (y, x, intensity) tuples for movement trails
+- `**kwargs`: Custom channel data passed to registered channel handlers
 
 ---
 
@@ -543,6 +571,7 @@ def get_observation_tensor(self, agent_id: str) -> torch.Tensor:
 ### 1. Environmental Sensing
 
 **Weather Channel Implementation:**
+
 ```python
 class WeatherHandler(ChannelHandler):
     def __init__(self):
@@ -560,6 +589,7 @@ class WeatherHandler(ChannelHandler):
 ### 2. Multi-Modal Perception
 
 **Audio-Visual Integration:**
+
 ```python
 class AudioVisualHandler(ChannelHandler):
     def __init__(self):
@@ -581,6 +611,7 @@ class AudioVisualHandler(ChannelHandler):
 ### 3. Social Communication
 
 **Communication Network Channel:**
+
 ```python
 class CommunicationHandler(ChannelHandler):
     def __init__(self):
@@ -607,6 +638,7 @@ class CommunicationHandler(ChannelHandler):
 ### 4. Learning and Adaptation
 
 **Experience-Based Channel:**
+
 ```python
 class ExperienceHandler(ChannelHandler):
     def __init__(self):
@@ -633,11 +665,13 @@ class ExperienceHandler(ChannelHandler):
 For in-depth technical information, refer to:
 
 **Core Implementation:**
+
 - [Dynamic Channel System](dynamic_channel_system.md) - Complete channel implementation guide
 - [Perception System Design](perception_system_design.md) - Technical channel architecture details
 - [Core Architecture](core_architecture.md) - Channel processing pipeline and integration
 
 **Configuration & Usage:**
+
 - [Configuration Guide](configuration_guide.md) - Complete channel configuration reference
 - [Usage Examples](usage_examples.md) - Practical channel implementation examples
 - [Module Overview](module_overview.md) - High-level channel system overview
@@ -645,6 +679,7 @@ For in-depth technical information, refer to:
 ### 🔧 Implementation Files
 
 Key implementation modules:
+
 - `farm/core/channels.py` - Channel system implementation
 - `farm/core/observations.py` - Observation system integration
 - `farm/core/channel_handlers/` - Built-in channel handler implementations
@@ -653,6 +688,7 @@ Key implementation modules:
 ### ⚙️ Configuration Examples
 
 See [Configuration Guide](configuration_guide.md) for:
+
 - Complete configuration options
 - Performance tuning recommendations
 - Custom channel setup examples
@@ -660,6 +696,7 @@ See [Configuration Guide](configuration_guide.md) for:
 ### 📊 Performance Analysis
 
 For detailed performance characteristics:
+
 - Channel memory usage patterns
 - Processing time benchmarks
 - Sparsity optimization analysis
@@ -669,12 +706,13 @@ For detailed performance characteristics:
 
 ## Conclusion
 
-The AgentFarm observation channels system provides a powerful, extensible framework for multi-channel environmental perception. By supporting instant, dynamic, and persistent channel behaviors with efficient sparse/dense storage optimization, the system enables agents to maintain rich, temporally-aware representations of their environment.
+The AgentFarm observation channels system provides a powerful, extensible framework for multi-channel environmental perception. By supporting instant, dynamic, and persistent channel behaviors with efficient tensor-based storage, the system enables agents to maintain rich, temporally-aware representations of their environment.
 
 The channel system's key strengths include:
+
 - **Behavioral Flexibility**: Support for different temporal patterns (instant/dynamic/persistent)
 - **Extensibility**: Easy custom channel development without core modifications
-- **Performance Optimization**: Automatic sparse/dense storage selection
+- **Performance Optimization**: Efficient tensor-based storage and processing
 - **Integration**: Seamless compatibility with reinforcement learning frameworks
 - **Backward Compatibility**: Full compatibility with existing observation systems
 

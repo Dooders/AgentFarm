@@ -16,7 +16,6 @@ AgentFarm is a sophisticated platform for researching complex adaptive systems t
 
 ## 🚀 Quick Start Guides
 
-- [Simulation QuickStart Guide](SimulationQuickStart.md) - Beginner-friendly setup guide
 - [Experiment QuickStart Guide](ExperimentQuickStart.md) - Running parameter studies
 
 ## 🏗️ Core System Components
@@ -29,12 +28,6 @@ AgentFarm is a sophisticated platform for researching complex adaptive systems t
 ### Action System
 - [Action System](action_system.md) - Core action execution framework
 - [Action Data](action_data.md) - Action data structures and management
-- [Move Module](move_module.md) - Agent movement and navigation
-- [Gather Module](gather_module.md) - Resource collection mechanisms
-- [Attack Module](attack_module.md) - Conflict resolution systems
-- [Reproduce Module](reproduce_module.md) - Agent reproduction and inheritance
-- [Select Module](select_module.md) - Decision-making mechanisms
-- [Share Module](share_module.md) - Resource sharing and cooperation
 
 ### Observation & Channels
 - [Dynamic Channel System](dynamic_channel_system.md) - Flexible observation channel framework
@@ -46,7 +39,7 @@ AgentFarm is a sophisticated platform for researching complex adaptive systems t
 - [Data Retrieval](data/data_retrieval.md) - Methods for accessing simulation data
 - [Database Schema](data/database_schema.md) - Data structure and organization
 - [Metrics](metrics.md) - Performance and behavior measurement systems
-- [Repositories](repositories.md) - Data storage and retrieval patterns
+- [Repositories](data/repositories.md) - Data storage and retrieval patterns
 - [Health Resource Analysis](health_resource_analysis.md) - Agent health and resource utilization analysis
 - [Experiment Analysis](experiment_analysis.md) - Tools for analyzing experiment results
 
@@ -56,7 +49,6 @@ AgentFarm is a sophisticated platform for researching complex adaptive systems t
 
 ## 🔬 Research & Experiments
 
-- [Research](research.md) - Research methodologies and frameworks
 - [Experiments](experiments.md) - Experiment design and implementation
 - Experiment case studies (see [Usage Examples](usage_examples.md))
 

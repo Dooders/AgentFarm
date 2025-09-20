@@ -102,6 +102,7 @@ Handles learning-related data and analysis.
 
 ```python
 from farm.database.repositories import LearningRepository
+from farm.database.session_manager import SessionManager
 
 learning_repo = LearningRepository(session_manager)
 
@@ -120,10 +121,11 @@ performance = learning_repo.get_module_performance(
     scope="episode"
 )
 
-# Get agent learning stats
+# Get agent learning stats (note: agent_id is optional, scope defaults to "simulation")
 stats = learning_repo.get_agent_learning_stats(
     session,
-    agent_id=1
+    agent_id=1,  # optional
+    scope="simulation"  # optional, defaults to "simulation"
 )
 ```
 
@@ -140,6 +142,7 @@ Manages population-level data and demographics.
 
 ```python
 from farm.database.repositories import PopulationRepository
+from farm.database.session_manager import SessionManager
 
 pop_repo = PopulationRepository(session_manager)
 
@@ -155,8 +158,9 @@ distribution = pop_repo.get_agent_type_distribution(
     scope="episode"
 )
 
-# Get agent states
+# Get agent states (note: requires session parameter)
 states = pop_repo.get_states(
+    session,  # required session parameter
     scope="episode",
     agent_id=1  # optional
 )
@@ -182,23 +186,25 @@ Handles resource-related queries and analysis.
 
 ```python
 from farm.database.repositories import ResourceRepository
+from farm.database.session_manager import SessionManager
 
 resource_repo = ResourceRepository(session_manager)
 
+# Note: ResourceRepository methods use @execute_query decorator and require session parameter
 # Get resource distribution
-distribution = resource_repo.resource_distribution()
+distribution = resource_repo.resource_distribution(session)
 
 # Get consumption patterns
-consumption = resource_repo.consumption_patterns()
+consumption = resource_repo.consumption_patterns(session)
 
 # Get resource hotspots
-hotspots = resource_repo.resource_hotspots()
+hotspots = resource_repo.resource_hotspots(session)
 
 # Get efficiency metrics
-efficiency = resource_repo.efficiency_metrics()
+efficiency = resource_repo.efficiency_metrics(session)
 
 # Get comprehensive analysis
-analysis = resource_repo.execute()
+analysis = resource_repo.execute(session)
 ```
 
 **Available Data:**
@@ -215,7 +221,7 @@ Provides access to overall simulation state and metrics.
 ```python
 from farm.database.repositories import SimulationRepository
 
-sim_repo = SimulationRepository(session_manager)
+sim_repo = SimulationRepository(db)  # Note: uses db parameter, not session_manager
 
 # Get agent states
 agent_states = sim_repo.agent_states(step_number=100)  # optional
@@ -260,10 +266,10 @@ evolution = pop_repo.evolution(session, scope="simulation")
 
 ### 3. Resource Analysis
 ```python
-# Get resource analysis
-analysis = resource_repo.execute()
-hotspots = resource_repo.resource_hotspots()
-efficiency = resource_repo.efficiency_metrics()
+# Get resource analysis (note: requires session parameter)
+analysis = resource_repo.execute(session)
+hotspots = resource_repo.resource_hotspots(session)
+efficiency = resource_repo.efficiency_metrics(session)
 ```
 
 ## Best Practices
@@ -308,7 +314,7 @@ population_analysis = {
     "data": pop_repo.get_population_data(session, scope="simulation"),
     "distribution": pop_repo.get_agent_type_distribution(session, scope="simulation"),
     "evolution": pop_repo.evolution(session, scope="simulation"),
-    "resources": resource_repo.execute()
+    "resources": resource_repo.execute(session)  # Note: requires session parameter
 }
 ```
 
@@ -324,11 +330,13 @@ step_state = {
 
 ## Error Handling
 
-All repositories include built-in error handling and will:
-- Retry failed queries automatically
-- Roll back failed transactions
+All repositories include built-in error handling through the SessionManager and will:
+- Use `execute_with_retry()` for automatic retry of failed queries
+- Handle transaction rollbacks automatically
 - Return None for missing data
-- Raise appropriate exceptions for critical errors
+- Raise appropriate SQLAlchemy exceptions for critical errors
+- Use `@execute_query` decorator (ResourceRepository) for consistent error handling
+- Provide proper session management through SessionManager
 
 ## Dependencies
 
