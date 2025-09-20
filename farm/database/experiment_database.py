@@ -254,7 +254,12 @@ class ExperimentDataLogger(DataLogger):
                     # Create a set to track unique IDs and filter out duplicates
                     unique_states = {}
                     for mapping in agent_state_mappings:
-                        state_id = f"{mapping['agent_id']}-{mapping['step_number']}"
+                        # Include simulation_id in the ID to avoid collisions across simulations
+                        sim_id = mapping.get("simulation_id")
+                        if sim_id:
+                            state_id = f"{sim_id}:{mapping['agent_id']}-{mapping['step_number']}"
+                        else:
+                            state_id = f"{mapping['agent_id']}-{mapping['step_number']}"
                         mapping["id"] = state_id
                         # Keep only the latest state if there are duplicates
                         unique_states[state_id] = mapping
