@@ -9,6 +9,8 @@ The analysis consists of three main components:
 2. Fourier analysis to detect periodic patterns
 3. Multivariate regression model for health prediction
 
+**Data Source**: The analysis uses simulation data retrieved via `DataRetriever.get_simulation_data()`, which provides comprehensive agent state information including health, resources, age, and action history.
+
 ## Cross-Correlation Analysis
 
 ### Purpose
@@ -72,7 +74,7 @@ Predicts agent health based on multiple factors using multivariate regression.
 ### Model Features
 1. Age
 2. Resource level
-3. Recent action count
+3. Recent action count (actions in last 10 time steps)
 
 ### Interpreting Results
 ```python
@@ -177,6 +179,13 @@ if fourier_results['period']['resources'] < 10:
    - Add relevant features
    - Check for outliers
    - Consider non-linear models
+
+## Additional Analysis Features
+
+The implementation also includes:
+- **Health Strategy Clustering**: Identifies different agent health management patterns using K-means clustering
+- **Comprehensive Visualizations**: Time series plots, distribution analysis, and age impact studies
+- **Rolling Correlation Analysis**: Shows how health-resource relationships change over time
 
 ## References
 

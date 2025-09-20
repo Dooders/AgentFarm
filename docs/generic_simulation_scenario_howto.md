@@ -35,7 +35,9 @@ This guide provides a systematic approach to creating any type of agent-based si
 **Environment Design Strategy:**
 ```python
 # Example: Custom environment for any scenario
-class CustomScenarioEnvironment(BaseEnvironment):
+from farm.core.environment import Environment
+
+class CustomScenarioEnvironment(Environment):
     def __init__(self, width=100, height=100, **kwargs):
         super().__init__(width, height, **kwargs)
         
@@ -63,6 +65,8 @@ class CustomScenarioEnvironment(BaseEnvironment):
 **Agent Specialization Strategy:**
 ```python
 # Example: Extend BaseAgent for different agent types
+from farm.core.agent import BaseAgent
+
 class SpecialistAgent(BaseAgent):
     def __init__(self, specialization="general", **kwargs):
         super().__init__(**kwargs)
@@ -95,22 +99,42 @@ class CompetitiveAgent(BaseAgent):
 ### Step 4: Configure Interaction Mechanics
 
 **Leverage Existing Action Systems:**
+
+The action system is located in `farm/core/action.py` and includes:
+- Action registry for managing available actions
+- ActionType enum with predefined action types
+- Action execution functions for each behavior type
 ```yaml
 # config.yaml additions for any scenario
-scenario_type: "cooperation"  # or "competition", "exploration", etc.
+# Add to existing agent_type_ratios section
+agent_type_ratios:
+  SystemAgent: 0.4
+  IndependentAgent: 0.3
+  ControlAgent: 0.3
 
-agent_types:
-  specialist:
-    count: 5
+# Add custom agent parameters
+agent_parameters:
+  SystemAgent:
+    gather_efficiency_multiplier: 0.4
+    gather_cost_multiplier: 0.4
+    min_resource_threshold: 0.2
+    share_weight: 0.3
+    attack_weight: 0.05
+    # Custom scenario parameters
     cooperation_bonus: 1.3
     specialization_bonus: 1.2
-    
-  generalist:
-    count: 10
+  
+  IndependentAgent:
+    gather_efficiency_multiplier: 0.7
+    gather_cost_multiplier: 0.2
+    min_resource_threshold: 0.05
+    share_weight: 0.05
+    attack_weight: 0.25
+    # Custom scenario parameters
     adaptability_bonus: 1.1
     learning_rate: 1.2
 
-# Interaction mechanics
+# Interaction mechanics (add to existing config)
 cooperation_rewards:
   shared_success: 1.5
   team_formation: 1.2
@@ -122,16 +146,26 @@ competition_penalties:
 ```
 
 **Interaction Types to Consider:**
-- **Cooperation**: Sharing resources, working together, forming teams
-- **Competition**: Fighting, territory control, resource hoarding
+- **Cooperation**: Sharing resources (share action), working together, forming teams
+- **Competition**: Fighting (attack action), territory control, resource hoarding
 - **Communication**: Information sharing, coordination, negotiation
-- **Learning**: Teaching, imitation, knowledge transfer
+- **Learning**: Teaching, imitation, knowledge transfer via decision modules
 - **Social**: Relationship building, hierarchy formation, group dynamics
+
+**Available Actions in the System:**
+- `DEFEND`: Enter defensive stance, reducing incoming damage
+- `ATTACK`: Attack nearby agents within range
+- `GATHER`: Collect resources from nearby nodes
+- `SHARE`: Share resources with nearby allies
+- `MOVE`: Move to a new position
+- `REPRODUCE`: Create offspring if conditions are met
+- `PASS`: Take no action this turn
 
 ### Step 5: Implement Success Conditions
 
 **Success Logic Examples:**
 ```python
+# Add to your custom environment class
 def check_success_conditions(self):
     """Check if scenario objectives have been met."""
     
@@ -146,8 +180,8 @@ def check_success_conditions(self):
 
 def _check_cooperation_success(self):
     """Check if cooperation goals are met."""
-    total_cooperation_events = self.get_cooperation_events()
-    required_cooperation = self.config.required_cooperation_threshold
+    total_cooperation_events = self.scenario_stats.get("cooperation_events", 0)
+    required_cooperation = getattr(self.config, 'required_cooperation_threshold', 100)
     
     if total_cooperation_events >= required_cooperation:
         return "Cooperation Success"
@@ -166,17 +200,17 @@ def _check_cooperation_success(self):
 
 **Extend Configuration Structure:**
 ```python
-# farm/core/config.py additions
+# Extend existing SimulationConfig in farm/core/config.py
+# Add these fields to the existing SimulationConfig class:
+
 @dataclass
-class ScenarioConfig:
+class SimulationConfig:
+    # ... existing fields ...
+    
+    # Scenario-specific additions
     scenario_type: str = "general"
     max_turns: int = 1000
     success_threshold: float = 0.8
-    
-    # Agent distribution
-    agent_type_distribution: Dict[str, float] = field(
-        default_factory=lambda: {"general": 1.0}
-    )
     
     # Environment settings
     resource_distribution: str = "random"
@@ -187,23 +221,44 @@ class ScenarioConfig:
     required_cooperation_threshold: int = 100
     exploration_coverage_threshold: float = 0.8
     resource_efficiency_threshold: float = 0.7
+    
+    # Custom scenario parameters
+    cooperation_rewards: Dict[str, float] = field(
+        default_factory=lambda: {
+            "shared_success": 1.5,
+            "team_formation": 1.2,
+            "resource_sharing": 1.1
+        }
+    )
+    
+    competition_penalties: Dict[str, float] = field(
+        default_factory=lambda: {
+            "conflict_cost": -0.3,
+            "territory_dispute": -0.2
+        }
+    )
 ```
 
 ### Step 7: Implement Special Mechanics
 
 **Advanced Scenario Features:**
 ```python
+# Add to your custom environment class
 def calculate_cooperation_bonus(self, agent, partner):
     """Calculate bonus for cooperative actions."""
-    base_bonus = self.config.cooperation_rewards.shared_success
-    trust_bonus = agent.trust_network.get(partner.agent_id, 0.1)
+    cooperation_rewards = getattr(self.config, 'cooperation_rewards', {})
+    base_bonus = cooperation_rewards.get('shared_success', 1.0)
+    trust_bonus = getattr(agent, 'trust_network', {}).get(partner.agent_id, 0.1)
     return base_bonus * (1 + trust_bonus)
 
 def apply_learning_improvement(self, agent, action_success):
     """Apply learning improvements based on action outcomes."""
     if action_success:
+        if not hasattr(agent, 'learning_progress'):
+            agent.learning_progress = 0
         agent.learning_progress += 0.1
-        agent.adapt_behavior(action_success)
+        # Learning is handled by the decision modules in farm/core/decision/
+        # The agent's decision module will automatically update based on rewards
 ```
 
 **Common Special Mechanics:**
@@ -217,22 +272,30 @@ def apply_learning_improvement(self, agent, action_success):
 
 **Extend Existing Tracking:**
 ```python
-# Add to environment
-self.scenario_stats = {
-    "cooperation_events": 0,
-    "learning_progress": {},
-    "social_networks": {},
-    "resource_efficiency": 0.0,
-    "exploration_coverage": 0.0
-}
+# Add to custom environment class extending Environment
+from farm.core.environment import Environment
+from farm.core.metrics_tracker import MetricsTracker
 
-def track_scenario_event(self, event_type, agents, outcome):
-    """Track scenario-specific events."""
-    if event_type == "cooperation":
-        self.scenario_stats["cooperation_events"] += 1
-    elif event_type == "learning":
-        for agent in agents:
-            self.scenario_stats["learning_progress"][agent.agent_id] = agent.learning_progress
+class CustomScenarioEnvironment(Environment):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Add scenario-specific tracking
+        self.scenario_stats = {
+            "cooperation_events": 0,
+            "learning_progress": {},
+            "social_networks": {},
+            "resource_efficiency": 0.0,
+            "exploration_coverage": 0.0
+        }
+    
+    def track_scenario_event(self, event_type, agents, outcome):
+        """Track scenario-specific events."""
+        if event_type == "cooperation":
+            self.scenario_stats["cooperation_events"] += 1
+        elif event_type == "learning":
+            for agent in agents:
+                self.scenario_stats["learning_progress"][agent.agent_id] = getattr(agent, 'learning_progress', 0)
 ```
 
 ### Step 9: Testing and Iteration
@@ -254,32 +317,75 @@ def track_scenario_event(self, event_type, agents, outcome):
 
 **Required New Files:**
 ```
-farm/environments/your_scenario_environment.py
-farm/agents/your_agent_types.py
-farm/core/your_scenario_config.py
-farm/actions/your_special_actions.py (if needed)
+farm/core/your_scenario_environment.py  # Custom environment class
+farm/core/your_agent_types.py          # Custom agent classes
+farm/core/your_scenario_config.py      # Extended configuration (optional)
+farm/core/action.py                     # Add new action types if needed
 ```
 
 **Files to Modify:**
 ```
-config.yaml - Add scenario parameters
-farm/core/config.py - Add new configuration classes
-farm/actions/ - Add new action types if needed
+config.yaml - Add scenario parameters to existing sections
+farm/core/config.py - Extend SimulationConfig class
+farm/core/action.py - Add new action types if needed
+farm/core/environment.py - Extend Environment class if needed
+```
+
+## Integration with Existing Systems
+
+### Decision System Integration
+
+The AgentFarm system uses a sophisticated decision-making system located in `farm/core/decision/`:
+
+- **DecisionModule**: Main decision-making interface using DQN (Deep Q-Network)
+- **Action Algorithms**: Specialized algorithms for different behaviors
+- **Feature Engineering**: State representation and feature extraction
+- **Training System**: Experience replay and model training
+
+To integrate with the decision system:
+
+```python
+from farm.core.decision.decision import DecisionModule
+from farm.core.decision.config import DecisionConfig
+
+# Your custom agent can use the existing decision system
+class CustomAgent(BaseAgent):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # The decision module is automatically initialized by BaseAgent
+        # You can customize the decision config if needed
+        
+    def decide_action(self):
+        # This method is already implemented in BaseAgent
+        # It uses the DecisionModule to select actions
+        return super().decide_action()
+```
+
+### Memory System Integration
+
+The system includes Redis-based memory for persistent learning:
+
+```python
+from farm.memory.redis_memory import AgentMemoryManager
+
+# Memory is automatically available if configured
+# Access through agent.memory_manager if use_memory=True
 ```
 
 ## Common Patterns and Best Practices
 
 ### Agent Design Patterns
-- **Inheritance**: Extend `BaseAgent` for specialized behavior
-- **Composition**: Use existing action modules when possible
-- **Configuration**: Make behavior configurable via YAML
-- **Learning**: Implement adaptive behavior mechanisms
+- **Inheritance**: Extend `BaseAgent` from `farm.core.agent` for specialized behavior
+- **Composition**: Use existing action modules from `farm.core.action` when possible
+- **Configuration**: Make behavior configurable via YAML in `config.yaml`
+- **Learning**: Implement adaptive behavior mechanisms using existing decision modules
 
 ### Environment Design Patterns
 - **Zone-based Design**: Define clear areas for different activities
-- **Resource Management**: Strategic placement and regeneration
+- **Resource Management**: Strategic placement and regeneration using `ResourceManager`
 - **Dynamic Elements**: Changing conditions to maintain interest
 - **Interaction Spaces**: Areas that encourage desired behaviors
+- **Spatial Indexing**: Use existing `SpatialIndex` for efficient proximity queries
 
 ### Scenario Enhancement Patterns
 - **Progressive Complexity**: Start simple, add features gradually
@@ -332,11 +438,21 @@ farm/actions/ - Add new action types if needed
 
 ## Conclusion
 
-This framework provides a solid foundation for creating diverse simulation scenarios. The key is to start simple and gradually add complexity while maintaining balance and performance. The existing agent and environment systems provide powerful tools that can be extended for almost any scenario.
+This framework provides a solid foundation for creating diverse simulation scenarios using the existing AgentFarm codebase. The key is to start simple and gradually add complexity while maintaining balance and performance. The existing agent and environment systems provide powerful tools that can be extended for almost any scenario.
 
-Remember to:
+### Key Integration Points:
+- **Environment**: Extend `Environment` class from `farm.core.environment`
+- **Agents**: Extend `BaseAgent` class from `farm.core.agent`
+- **Actions**: Use existing action system in `farm.core.action` or add new actions
+- **Decisions**: Leverage existing DQN-based decision system in `farm.core.decision`
+- **Configuration**: Extend `SimulationConfig` in `farm.core.config`
+- **Memory**: Use Redis-based memory system in `farm.memory`
+
+### Remember to:
 - Leverage existing systems rather than rebuilding
 - Use the configuration system for easy parameter tuning
 - Test thoroughly at each development stage
 - Document your specific scenario requirements clearly
 - Focus on the core mechanics that make your scenario interesting
+- Follow the existing code patterns and architecture
+- Use the existing service interfaces for dependency injection
