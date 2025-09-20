@@ -415,16 +415,19 @@ def crop_local_rotated(
         inp,
         sample_grid,
         mode="bilinear",
-        padding_mode="zeros",  # pad_val must be 0.0 for now
+        padding_mode="zeros",
         align_corners=False,
     )
     crop = out.squeeze(0).squeeze(0)
+    if pad_val != 0.0:
+        # Replace out-of-bounds sampled regions with pad_val using normalized grid bounds
+        x_norm = sample_grid[0, :, :, 0]
+        y_norm = sample_grid[0, :, :, 1]
+        oob_mask = (x_norm.abs() > 1) | (y_norm.abs() > 1)
+        crop = crop.clone()
+        crop[oob_mask] = pad_val
     if dtype != torch.float32:
         crop = crop.to(dtype=dtype)
-    if pad_val != 0.0:
-        # Optional: replace zero-padded areas with pad_val by detecting zeros where sampling was out-of-bounds
-        # Heuristic: keep zeros as-is for performance; pad_val support can be added if needed
-        pass
     return crop
 
 
@@ -465,10 +468,21 @@ def rotate_local_grid(
         align_corners=True,
     )
     rot = out.squeeze(0).squeeze(0)
+    if pad_val != 0.0:
+        # Create a mask of out-of-bounds (padded) regions by sampling ones
+        ones_inp = torch.ones_like(grid, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
+        mask_out = F.grid_sample(
+            ones_inp,
+            sample_grid,
+            mode="bilinear",
+            padding_mode="zeros",
+            align_corners=True,
+        ).squeeze(0).squeeze(0)
+        mask = mask_out < 1e-6
+        rot = rot.clone()
+        rot[mask] = pad_val
     if dtype != torch.float32:
         rot = rot.to(dtype=dtype)
-    if pad_val != 0.0:
-        pass
     return rot
 
 def make_disk_mask(
