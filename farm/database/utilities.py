@@ -145,7 +145,7 @@ def validate_export_format(format: str) -> bool:
 
 
 def format_agent_state(
-    agent_id: str, step: int, state_data: Dict[str, Any]
+    agent_id: str, step: int, state_data: Dict[str, Any], simulation_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """Format agent state data for database storage.
 
@@ -164,7 +164,7 @@ def format_agent_state(
         Formatted state data ready for database
     """
     position = state_data.get("position", (0.0, 0.0))
-    return {
+    formatted = {
         "step_number": step,
         "agent_id": agent_id,
         "current_health": state_data.get("current_health", 0.0),
@@ -177,6 +177,9 @@ def format_agent_state(
         "starvation_counter": state_data.get("starvation_counter", 0),
         "age": step,
     }
+    if simulation_id is not None:
+        formatted["simulation_id"] = simulation_id
+    return formatted
 
 
 def execute_with_retry(

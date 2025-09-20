@@ -2,10 +2,8 @@ import os
 import time
 from datetime import datetime
 
-import sqlalchemy
-
 from farm.database.database import SimulationDatabase
-from farm.database.models import AgentModel, AgentStateModel, Simulation
+from farm.database.models import AgentModel, AgentStateModel
 
 
 def _make_db(tmp_name: str = None) -> tuple[SimulationDatabase, str]:
@@ -81,7 +79,6 @@ def test_update_agent_state_persists_simulation_id_and_columns():
 def test_agent_state_as_dict_includes_new_keys():
     # Construct a model instance directly and ensure keys present
     row = AgentStateModel(
-        id="a-1",
         simulation_id="sim_test",
         step_number=1,
         agent_id="a",

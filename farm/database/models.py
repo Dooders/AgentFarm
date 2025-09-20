@@ -194,7 +194,7 @@ class AgentStateModel(Base):
 
     id = Column(
         String(128), primary_key=True, nullable=False
-    )  # Will store "agent_id-step_number"
+    )  # Stores "<simulation_id>:<agent_id>-<step_number>" when simulation_id is present, else "agent_id-<step_number>"
     simulation_id = Column(String(64), ForeignKey("simulations.simulation_id"))
     step_number = Column(Integer)
     agent_id = Column(String(64), ForeignKey("agents.agent_id"))
@@ -203,7 +203,7 @@ class AgentStateModel(Base):
     position_z = Column(Float)
     resource_level = Column(Float)
     current_health = Column(Float)
-    starting_health = Column(Float)
+    starting_health = Column(Float(precision=4))
     starvation_counter = Column(Integer)
     is_defending = Column(Boolean)
     total_reward = Column(Float)
@@ -214,7 +214,11 @@ class AgentStateModel(Base):
     def __init__(self, **kwargs):
         # Generate id before initializing other attributes
         if "agent_id" in kwargs and "step_number" in kwargs:
-            kwargs["id"] = f"{kwargs['agent_id']}-{kwargs['step_number']}"
+            sim_id = kwargs.get("simulation_id")
+            if sim_id:
+                kwargs["id"] = f"{sim_id}:{kwargs['agent_id']}-{kwargs['step_number']}"
+            else:
+                kwargs["id"] = f"{kwargs['agent_id']}-{kwargs['step_number']}"
         elif "id" not in kwargs:
             raise ValueError(
                 "Both agent_id and step_number are required to create AgentStateModel"

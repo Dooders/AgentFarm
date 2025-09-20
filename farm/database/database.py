@@ -285,7 +285,7 @@ class SimulationDatabase:
             cursor.close()
 
         # Create session factory
-        session_factory = sessionmaker(bind=self.engine)
+        session_factory = sessionmaker(bind=self.engine, expire_on_commit=False)
         self.Session = scoped_session(session_factory)
 
         # Create tables and indexes
@@ -888,9 +888,9 @@ class SimulationDatabase:
                 logger.error(f"Agent {agent_id} not found")
                 return
 
-            formatted_state = format_agent_state(agent_id, step_number, state_data)
-            # Ensure simulation_id is set on the state for multi-simulation databases
-            formatted_state["simulation_id"] = self.simulation_id
+            formatted_state = format_agent_state(
+                agent_id, step_number, state_data, simulation_id=self.simulation_id
+            )
             agent_state = AgentStateModel(**formatted_state)
             session.add(agent_state)
 
