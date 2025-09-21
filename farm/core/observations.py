@@ -74,7 +74,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Set
 from enum import Enum
 import time as _time
 
@@ -354,6 +354,10 @@ class ObservationConfig(BaseModel):
     R: int = Field(default=6, gt=0, description="Radius -> window size = 2R+1")
     gamma_trail: float = Field(
         default=0.90, ge=0.0, le=1.0, description="Decay rate for trails"
+    )
+    high_frequency_channels: List[str] = Field(
+        default_factory=list,
+        description="Channel names to prebuild densely for frequent access",
     )
     gamma_dmg: float = Field(
         default=0.85, ge=0.0, le=1.0, description="Decay rate for damage heat"
@@ -651,6 +655,10 @@ class AgentObservation:
             "sparse_apply_time_s_total": 0.0,
             "sparse_apply_calls_per_channel": {},
             "sparse_apply_time_s_total_per_channel": {},
+            "grid_population_ops": 0,
+            "vectorized_point_assign_ops": 0,
+            "prebuilt_channel_copies": 0,
+            "prebuilt_channels_active": 0,
         }
 
         # Pre-allocate dense tensor only if initialization is non-zero
@@ -676,6 +684,22 @@ class AgentObservation:
             )
             self.cache_dirty = False
 
+        # High-frequency channel prebuild support
+        high_freq_names: Set[str] = set(config.high_frequency_channels or [])
+        self._high_freq_indices: Set[int] = set()
+        for name in high_freq_names:
+            try:
+                idx = self.registry.get_index(name)
+                self._high_freq_indices.add(int(idx))
+            except KeyError:
+                # Unknown channel name; ignore
+                pass
+        # Prebuilt per-channel dense slices for high-frequency channels
+        self._prebuilt_dense: Dict[int, torch.Tensor] = {}
+        if self._high_freq_indices:
+            # Pre-allocate zero tensors lazily per channel when first used
+            self._metrics["prebuilt_channels_active"] = len(self._high_freq_indices)
+
     def _ensure_dense_cache(self) -> None:
         """Ensure dense cache is initialized if needed."""
         if self.dense_cache is None:
@@ -698,7 +722,40 @@ class AgentObservation:
                 self._metrics["sparse_points_per_channel"][channel_idx] += 1
             return
 
-        if channel_idx not in self.sparse_channels or not isinstance(self.sparse_channels[channel_idx], SparsePoints):
+        # If channel is marked high-frequency, update prebuilt dense slice instead
+        if channel_idx in self._high_freq_indices:
+            S = 2 * self.config.R + 1
+            if channel_idx not in self._prebuilt_dense:
+                self._prebuilt_dense[channel_idx] = torch.zeros(
+                    S, S, device=self.config.device, dtype=self.config.torch_dtype
+                )
+            if 0 <= y < S and 0 <= x < S:
+                self._prebuilt_dense[channel_idx][y, x] = value
+            # Keep sparse mirror minimal to avoid rebuild cost
+            self.sparse_channels.pop(channel_idx, None)
+            self.cache_dirty = True
+            if self.config.enable_metrics:
+                self._metrics["sparse_points_count"] += 1
+                self._metrics["sparse_points_per_channel"].setdefault(channel_idx, 0)
+                self._metrics["sparse_points_per_channel"][channel_idx] += 1
+            return
+
+        # Non-high-frequency channels
+        existing = self.sparse_channels.get(channel_idx)
+        # If a dense grid is already stored for this channel, write directly
+        if isinstance(existing, torch.Tensor):
+            S = 2 * self.config.R + 1
+            if 0 <= y < S and 0 <= x < S:
+                existing[y, x] = value
+            self.cache_dirty = True
+            if self.config.enable_metrics:
+                self._metrics["sparse_points_count"] += 1
+                self._metrics["sparse_points_per_channel"].setdefault(channel_idx, 0)
+                self._metrics["sparse_points_per_channel"][channel_idx] += 1
+            return
+
+        # Ensure SparsePoints backend for point storage
+        if not isinstance(existing, SparsePoints):
             self.sparse_channels[channel_idx] = SparsePoints(self.config.device, self.config.torch_dtype)
         sp: SparsePoints = self.sparse_channels[channel_idx]
         sp.add_point(y, x, float(value))
@@ -733,11 +790,75 @@ class AgentObservation:
                 self._metrics["sparse_points_per_channel"][channel_idx] += inc
             return
 
-        if channel_idx not in self.sparse_channels or not isinstance(self.sparse_channels[channel_idx], SparsePoints):
+        if channel_idx in self._high_freq_indices:
+            S = 2 * self.config.R + 1
+            if channel_idx not in self._prebuilt_dense:
+                self._prebuilt_dense[channel_idx] = torch.zeros(
+                    S, S, device=self.config.device, dtype=self.config.torch_dtype
+                )
+            # Vectorized index put for prebuilt slice
+            if points:
+                ys, xs, vals = zip(*points)
+                ys_t = torch.as_tensor(ys, device=self.config.device, dtype=torch.long)
+                xs_t = torch.as_tensor(xs, device=self.config.device, dtype=torch.long)
+                vals_t = torch.as_tensor(vals, device=self.config.device, dtype=self.config.torch_dtype)
+                # Clamp valid indices
+                mask = (ys_t >= 0) & (ys_t < S) & (xs_t >= 0) & (xs_t < S)
+                if mask.any().item():
+                    ys_t = ys_t[mask]
+                    xs_t = xs_t[mask]
+                    vals_t = vals_t[mask]
+                    if accumulate:
+                        current = self._prebuilt_dense[channel_idx][ys_t, xs_t]
+                        updated = torch.maximum(current, vals_t)
+                        self._prebuilt_dense[channel_idx][ys_t, xs_t] = updated
+                    else:
+                        self._prebuilt_dense[channel_idx][ys_t, xs_t] = vals_t
+            # Drop sparse mirror
+            self.sparse_channels.pop(channel_idx, None)
+            self.cache_dirty = True
+            if self.config.enable_metrics:
+                inc = len(points)
+                self._metrics["sparse_points_count"] += inc
+                self._metrics["sparse_points_per_channel"].setdefault(channel_idx, 0)
+                self._metrics["sparse_points_per_channel"][channel_idx] += inc
+            return
+
+        # Non-high-frequency path
+        existing = self.sparse_channels.get(channel_idx)
+        # If dense grid stored, write directly with accumulate semantics
+        if isinstance(existing, torch.Tensor):
+            S = 2 * self.config.R + 1
+            if points:
+                ys, xs, vals = zip(*points)
+                ys_t = torch.as_tensor(ys, device=self.config.device, dtype=torch.long)
+                xs_t = torch.as_tensor(xs, device=self.config.device, dtype=torch.long)
+                vals_t = torch.as_tensor(vals, device=self.config.device, dtype=self.config.torch_dtype)
+                mask = (ys_t >= 0) & (ys_t < S) & (xs_t >= 0) & (xs_t < S)
+                if mask.any().item():
+                    ys_t = ys_t[mask]
+                    xs_t = xs_t[mask]
+                    vals_t = vals_t[mask]
+                    if accumulate:
+                        current = existing[ys_t, xs_t]
+                        updated = torch.maximum(current, vals_t)
+                        existing[ys_t, xs_t] = updated
+                    else:
+                        existing[ys_t, xs_t] = vals_t
+            self.cache_dirty = True
+            if self.config.enable_metrics:
+                inc = len(points)
+                self._metrics["sparse_points_count"] += inc
+                self._metrics["sparse_points_per_channel"].setdefault(channel_idx, 0)
+                self._metrics["sparse_points_per_channel"][channel_idx] += inc
+            return
+
+        # Ensure SparsePoints backend for point storage
+        if not isinstance(existing, SparsePoints):
             self.sparse_channels[channel_idx] = SparsePoints(self.config.device, self.config.torch_dtype)
         sp: SparsePoints = self.sparse_channels[channel_idx]
-        # We store points and resolve duplicates at dense reconstruction using max.
         sp.add_points(points)
+
         self.cache_dirty = True
         if self.config.enable_metrics:
             inc = len(points)
@@ -760,7 +881,13 @@ class AgentObservation:
                 self._metrics["sparse_points_per_channel"][channel_idx] += nz
             return
 
-        self.sparse_channels[channel_idx] = grid  # Store as dense for these
+        if channel_idx in self._high_freq_indices:
+            # Maintain prebuilt slice
+            self._prebuilt_dense[channel_idx] = grid.to(device=self.config.device, dtype=self.config.torch_dtype)
+            # Remove sparse mirror to avoid duplicate work
+            self.sparse_channels.pop(channel_idx, None)
+        else:
+            self.sparse_channels[channel_idx] = grid  # Store as dense for these
         self.cache_dirty = True
         if self.config.enable_metrics:
             try:
@@ -780,9 +907,17 @@ class AgentObservation:
             # No sparse data exists, clear the dense tensor directly
             if self.dense_cache is not None:
                 self.dense_cache[channel_idx].zero_()
+        # Also clear any prebuilt slice
+        if channel_idx in self._prebuilt_dense:
+            self._prebuilt_dense[channel_idx].zero_()
 
     def _decay_sparse_channel(self, channel_idx: int, decay_factor: float):
         """Apply decay to a sparse channel."""
+        if channel_idx in self._prebuilt_dense:
+            # Apply decay directly to prebuilt slice
+            self._prebuilt_dense[channel_idx] *= decay_factor
+            self.cache_dirty = True
+            return
         if channel_idx in self.sparse_channels:
             channel_data = self.sparse_channels[channel_idx]
             if isinstance(channel_data, SparsePoints):
@@ -825,8 +960,41 @@ class AgentObservation:
             t0 = _time.perf_counter()
         self.dense_cache.zero_()
 
-        # Populate from sparse data
+        # 1) Copy prebuilt high-frequency channels
+        if self._prebuilt_dense:
+            for channel_idx, grid in self._prebuilt_dense.items():
+                if grid is not None:
+                    self.dense_cache[int(channel_idx)].copy_(grid)
+                    if self.config.enable_metrics:
+                        self._metrics["prebuilt_channel_copies"] += 1
+                        self._metrics["grid_population_ops"] += 1
+
+        # 2) Populate remaining from sparse data
         for channel_idx, channel_data in self.sparse_channels.items():
+
+            # Skip if this channel is handled by prebuilt
+            if channel_idx in self._high_freq_indices and channel_idx in self._prebuilt_dense:
+                continue
+            if isinstance(channel_data, dict):
+                # Vectorized sparse points assignment
+                if channel_data:
+                    coords = list(channel_data.keys())
+                    if coords:
+                        ys, xs = zip(*coords)
+                        vals = [channel_data[(y, x)] for (y, x) in coords]
+                        ys_t = torch.as_tensor(ys, device=self.config.device, dtype=torch.long)
+                        xs_t = torch.as_tensor(xs, device=self.config.device, dtype=torch.long)
+                        vals_t = torch.as_tensor(vals, device=self.config.device, dtype=self.config.torch_dtype)
+                        # Clamp valid indices
+                        mask = (ys_t >= 0) & (ys_t < S) & (xs_t >= 0) & (xs_t < S)
+                        if mask.any().item():
+                            ys_t = ys_t[mask]
+                            xs_t = xs_t[mask]
+                            vals_t = vals_t[mask]
+                            self.dense_cache[channel_idx, ys_t, xs_t] = vals_t
+                            if self.config.enable_metrics:
+                                self._metrics["vectorized_point_assign_ops"] += 1
+                                
             if isinstance(channel_data, SparsePoints):
                 # Sparse points
                 channel_plane = self.dense_cache[channel_idx]
@@ -853,9 +1021,12 @@ class AgentObservation:
                 self._metrics["sparse_apply_time_s_total_per_channel"].setdefault(channel_idx, 0.0)
                 self._metrics["sparse_apply_calls_per_channel"][channel_idx] += int(delta_calls)
                 self._metrics["sparse_apply_time_s_total_per_channel"][channel_idx] += float(delta_time)
+
             else:
                 # Dense grid (VISIBILITY, RESOURCES, etc.)
                 self.dense_cache[channel_idx] = channel_data
+                if self.config.enable_metrics:
+                    self._metrics["grid_population_ops"] += 1
 
         self.cache_dirty = False
         if self.config.enable_metrics:
@@ -1259,6 +1430,10 @@ class AgentObservation:
             "cache_hit_rate": hit_rate,
             "dense_rebuilds": int(self._metrics.get("dense_rebuilds", 0)),
             "dense_rebuild_time_s_total": float(self._metrics.get("dense_rebuild_time_s_total", 0.0)),
+            "grid_population_ops": int(self._metrics.get("grid_population_ops", 0)),
+            "vectorized_point_assign_ops": int(self._metrics.get("vectorized_point_assign_ops", 0)),
+            "prebuilt_channel_copies": int(self._metrics.get("prebuilt_channel_copies", 0)),
+            "prebuilt_channels_active": int(self._metrics.get("prebuilt_channels_active", 0)),
             "sparse_apply_calls": int(self._metrics.get("sparse_apply_calls", 0)),
             "sparse_apply_time_s_total": float(self._metrics.get("sparse_apply_time_s_total", 0.0)),
         }
