@@ -38,6 +38,7 @@ import logging
 import math
 import random
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+import time as _time
 
 import numpy as np
 import torch
@@ -344,6 +345,15 @@ class Environment(AECEnv):
             list(self._agent_objects.values()), self.resources
         )
         self.spatial_index.update()
+
+        # Perception profiler accumulators
+        self._perception_profile = {
+            "spatial_query_time_s": 0.0,
+            "bilinear_time_s": 0.0,
+            "nearest_time_s": 0.0,
+            "bilinear_points": 0,
+            "nearest_points": 0,
+        }
 
     def _initialize_action_mapping(self) -> None:
         """Initialize the action mapping based on configuration and available actions.
@@ -1333,8 +1343,11 @@ class Environment(AECEnv):
         # Query nearby resources within a radius covering the local window
         # Use slightly larger than R to capture bilinear spread near the boundary
         try:
+            _tq0 = _time.perf_counter()
             nearby = self.spatial_index.get_nearby(agent.position, R + 1, ["resources"])
             nearby_resources = nearby.get("resources", [])
+            _tq1 = _time.perf_counter()
+            self._perception_profile["spatial_query_time_s"] += max(0.0, _tq1 - _tq0)
         except AttributeError as e:
             # Handle case where spatial_index or its attributes are None
             logger.warning("Spatial index not properly initialized: %s", e)
@@ -1355,6 +1368,7 @@ class Environment(AECEnv):
             nearby_resources = []
 
         if use_bilinear:
+            _tb0 = _time.perf_counter()
             for res in nearby_resources:
                 # Convert world to local continuous coords where (R, R) is agent center
                 lx = float(res.position[0]) - (ax - R)
@@ -1365,7 +1379,12 @@ class Environment(AECEnv):
                     resource_local,
                     (S, S),
                 )
+                # 4 target points per bilinear distribution
+                self._perception_profile["bilinear_points"] += 4
+            _tb1 = _time.perf_counter()
+            self._perception_profile["bilinear_time_s"] += max(0.0, _tb1 - _tb0)
         else:
+            _tn0 = _time.perf_counter()
             for res in nearby_resources:
                 rx, ry = discretize_position_continuous(
                     res.position, (width, height), discretization_method
@@ -1376,6 +1395,9 @@ class Environment(AECEnv):
                     resource_local[int(ly), int(lx)] += float(res.amount) / float(
                         max_amount
                     )
+                    self._perception_profile["nearest_points"] += 1
+            _tn1 = _time.perf_counter()
+            self._perception_profile["nearest_time_s"] += max(0.0, _tn1 - _tn0)
 
         # Empty local layers
         obstacles_local = torch.zeros_like(resource_local)
@@ -1851,6 +1873,18 @@ class Environment(AECEnv):
         )
 
         return observation, reward, terminated, truncated, {}
+
+    def get_perception_profile(self, reset: bool = False) -> Dict[str, float]:
+        """Return aggregated perception profiling stats.
+
+        Args:
+            reset: If True, reset accumulators after returning.
+        """
+        prof = dict(self._perception_profile)
+        if reset:
+            for k in self._perception_profile.keys():
+                self._perception_profile[k] = 0 if "points" in k else 0.0
+        return prof
 
     def render(self, mode: str = "human") -> None:
         """Render the current state of the environment.

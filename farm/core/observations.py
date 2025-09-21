@@ -93,6 +93,8 @@ from __future__ import annotations
 import logging
 import math
 from typing import Dict, List, Optional, Tuple
+from enum import Enum
+import time as _time
 
 import torch
 import torch.nn.functional as F
@@ -159,6 +161,34 @@ def create_observation_tensor(
         )
 
 
+class StorageMode(Enum):
+    """
+    Enum specifying storage modes for observation tensors.
+    
+    The storage mode determines how observation data is managed internally,
+    balancing memory efficiency with computational performance.
+    
+    HYBRID: Uses a combination of sparse and dense storage to optimize memory usage and performance.
+      - Stores only non-zero values in sparse format until needed
+      - Builds full dense tensors on-demand for neural network processing
+      - Uses lazy evaluation with caching to avoid unnecessary reconstruction
+      - Ideal for large observation spaces with sparse updates
+      - Provides O(active_entities) memory complexity for sparse storage
+    
+    DENSE: Uses a fully dense tensor for storage throughout the observation lifecycle.
+      - Allocates full dense tensor upfront and writes directly to it
+      - No sparse storage or lazy construction overhead
+      - May be faster for small or fully populated observation spaces
+      - Can consume more memory for large, mostly empty spaces
+      - Provides O(total_observation_space) memory complexity
+    
+    Use HYBRID when working with large observation spaces with sparse updates.
+    Use DENSE when the observation space is small or densely populated.
+    """
+    HYBRID = "hybrid"
+    DENSE = "dense"
+
+
 class ObservationConfig(BaseModel):
     """Configuration for agent observation system.
 
@@ -188,6 +218,14 @@ class ObservationConfig(BaseModel):
     initialization: str = Field(
         default="zeros",
         description="Observation tensor initialization method ('zeros' or 'random')",
+    )
+    storage_mode: StorageMode = Field(
+        default=StorageMode.HYBRID,
+        description="Storage mode: HYBRID (sparse + lazy dense) or DENSE baseline",
+    )
+    enable_metrics: bool = Field(
+        default=True,
+        description="Collect cache/memory metrics for benchmarking",
     )
     random_min: float = Field(
         default=0.0, description="Minimum value for random initialization"
@@ -591,6 +629,16 @@ class AgentObservation:
         self.dense_cache = None  # Lazy dense tensor
         self.cache_dirty = True  # Whether we need to rebuild dense
 
+        # Metrics
+        self._metrics = {
+            "cache_hits": 0,
+            "cache_misses": 0,
+            "dense_rebuilds": 0,
+            "dense_rebuild_time_s_total": 0.0,
+            "sparse_points_count": 0,
+            "sparse_points_per_channel": {},
+        }
+
         # Pre-allocate dense tensor only if initialization is non-zero
         if config.initialization != "zeros":
             self.dense_cache = create_observation_tensor(
@@ -604,12 +652,46 @@ class AgentObservation:
             )
             self.cache_dirty = False
 
+        # Dense baseline allocates zero tensor upfront
+        self._dense_storage = (
+            getattr(config, "storage_mode", StorageMode.HYBRID) == StorageMode.DENSE
+        )
+        if self._dense_storage and self.dense_cache is None:
+            self.dense_cache = torch.zeros(
+                self.registry.num_channels, S, S, device=self.config.device, dtype=self.config.torch_dtype
+            )
+            self.cache_dirty = False
+
+    def _ensure_dense_cache(self) -> None:
+        """Ensure dense cache is initialized if needed."""
+        if self.dense_cache is None:
+            S = 2 * self.config.R + 1
+            self.dense_cache = torch.zeros(
+                self.registry.num_channels, S, S, device=self.config.device, dtype=self.config.torch_dtype
+            )
+
     def _store_sparse_point(self, channel_idx: int, y: int, x: int, value: float):
         """Store a single point value in sparse format."""
+        if self._dense_storage:
+            # Write directly into dense cache
+            self._ensure_dense_cache()
+            H, W = self.dense_cache.shape[-2:]
+            if 0 <= y < H and 0 <= x < W:
+                self.dense_cache[channel_idx, y, x] = value
+            if self.config.enable_metrics:
+                self._metrics["sparse_points_count"] += 1
+                self._metrics["sparse_points_per_channel"].setdefault(channel_idx, 0)
+                self._metrics["sparse_points_per_channel"][channel_idx] += 1
+            return
+
         if channel_idx not in self.sparse_channels:
             self.sparse_channels[channel_idx] = {}
         self.sparse_channels[channel_idx][(y, x)] = value
         self.cache_dirty = True
+        if self.config.enable_metrics:
+            self._metrics["sparse_points_count"] += 1
+            self._metrics["sparse_points_per_channel"].setdefault(channel_idx, 0)
+            self._metrics["sparse_points_per_channel"][channel_idx] += 1
 
     def _store_sparse_points(
         self,
@@ -618,6 +700,24 @@ class AgentObservation:
         accumulate: bool = True,
     ):
         """Store multiple point values in sparse format."""
+        if self._dense_storage:
+            self._ensure_dense_cache()
+            H, W = self.dense_cache.shape[-2:]
+            for y, x, value in points:
+                if 0 <= y < H and 0 <= x < W:
+                    if accumulate:
+                        self.dense_cache[channel_idx, y, x] = max(
+                            float(self.dense_cache[channel_idx, y, x].item()), float(value)
+                        )
+                    else:
+                        self.dense_cache[channel_idx, y, x] = value
+            if self.config.enable_metrics:
+                inc = len(points)
+                self._metrics["sparse_points_count"] += inc
+                self._metrics["sparse_points_per_channel"].setdefault(channel_idx, 0)
+                self._metrics["sparse_points_per_channel"][channel_idx] += inc
+            return
+
         if channel_idx not in self.sparse_channels:
             self.sparse_channels[channel_idx] = {}
 
@@ -628,11 +728,37 @@ class AgentObservation:
             else:
                 channel_data[(y, x)] = value
         self.cache_dirty = True
+        if self.config.enable_metrics:
+            inc = len(points)
+            self._metrics["sparse_points_count"] += inc
+            self._metrics["sparse_points_per_channel"].setdefault(channel_idx, 0)
+            self._metrics["sparse_points_per_channel"][channel_idx] += inc
 
     def _store_sparse_grid(self, channel_idx: int, grid: torch.Tensor):
         """Store a full grid (for dense channels like VISIBILITY, RESOURCES)."""
+        if self._dense_storage:
+            self._ensure_dense_cache()
+            self.dense_cache[channel_idx].copy_(grid)
+            if self.config.enable_metrics:
+                try:
+                    nz = int((grid != 0).sum().item())
+                except Exception:
+                    nz = 0
+                self._metrics["sparse_points_count"] += nz
+                self._metrics["sparse_points_per_channel"].setdefault(channel_idx, 0)
+                self._metrics["sparse_points_per_channel"][channel_idx] += nz
+            return
+
         self.sparse_channels[channel_idx] = grid  # Store as dense for these
         self.cache_dirty = True
+        if self.config.enable_metrics:
+            try:
+                nz = int((grid != 0).sum().item())
+            except Exception:
+                nz = 0
+            self._metrics["sparse_points_count"] += nz
+            self._metrics["sparse_points_per_channel"].setdefault(channel_idx, 0)
+            self._metrics["sparse_points_per_channel"][channel_idx] += nz
 
     def _clear_sparse_channel(self, channel_idx: int):
         """Clear all data for a sparse channel."""
@@ -670,7 +796,18 @@ class AgentObservation:
 
     def _build_dense_tensor(self) -> torch.Tensor:
         """Build dense tensor from sparse data on-demand."""
+        # Dense baseline: always a cache hit
+        if self._dense_storage:
+            if self.config.enable_metrics:
+                self._metrics["cache_hits"] += 1
+            if self.dense_cache is not None:
+                return self.dense_cache
+            self._ensure_dense_cache()
+            return self.dense_cache
+
         if not self.cache_dirty and self.dense_cache is not None:
+            if self.config.enable_metrics:
+                self._metrics["cache_hits"] += 1
             return self.dense_cache
 
         S = 2 * self.config.R + 1
@@ -678,15 +815,12 @@ class AgentObservation:
 
         # Create dense tensor
         if self.dense_cache is None:
-            self.dense_cache = torch.zeros(
-                num_channels,
-                S,
-                S,
-                device=self.config.device,
-                dtype=self.config.torch_dtype,
-            )
+            self._ensure_dense_cache()
 
-        # Clear existing values
+        # Clear existing values and record rebuild time
+        t0 = None
+        if self.config.enable_metrics:
+            t0 = _time.perf_counter()
         self.dense_cache.zero_()
 
         # Populate from sparse data
@@ -701,6 +835,12 @@ class AgentObservation:
                 self.dense_cache[channel_idx] = channel_data
 
         self.cache_dirty = False
+        if self.config.enable_metrics:
+            t1 = _time.perf_counter()
+            self._metrics["cache_misses"] += 1
+            self._metrics["dense_rebuilds"] += 1
+            if t0 is not None:
+                self._metrics["dense_rebuild_time_s_total"] += max(0.0, t1 - t0)
         return self.dense_cache
 
     def _compute_entities_from_spatial_index(
@@ -1058,3 +1198,45 @@ class AgentObservation:
             palette=palette,
             initial_scale=initial_scale,
         )
+
+    def get_metrics(self) -> Dict:
+        """Return cache/memory metrics and estimates for this observation."""
+        dtype_size = torch.tensor(0, dtype=self.config.torch_dtype).element_size()
+        S = 2 * self.config.R + 1
+        channels = self.registry.num_channels
+        dense_bytes = int(channels * S * S * dtype_size)
+
+        # Count sparse logical points
+        sparse_points = 0
+        for _, channel_data in self.sparse_channels.items():
+            if isinstance(channel_data, dict):
+                sparse_points += len(channel_data)
+            else:
+                try:
+                    sparse_points += int((channel_data != 0).sum().item())
+                except Exception:
+                    pass
+        # Include points counted during dense baseline writes
+        if self._dense_storage:
+            sparse_points = max(sparse_points, int(self._metrics.get("sparse_points_count", 0)))
+
+        # Approximate sparse logical memory: value + y + x (floatsize + 2*int32)
+        sparse_logical_bytes = int(sparse_points * (dtype_size + 4 + 4))
+
+        cache_hits = int(self._metrics.get("cache_hits", 0))
+        cache_misses = int(self._metrics.get("cache_misses", 0))
+        total = cache_hits + cache_misses
+        hit_rate = (cache_hits / total) if total > 0 else 1.0
+        reduction = 1.0 - (sparse_logical_bytes / dense_bytes) if dense_bytes > 0 else 0.0
+
+        return {
+            "dense_bytes": dense_bytes,
+            "sparse_points": sparse_points,
+            "sparse_logical_bytes": sparse_logical_bytes,
+            "memory_reduction_percent": max(0.0, reduction * 100.0),
+            "cache_hits": cache_hits,
+            "cache_misses": cache_misses,
+            "cache_hit_rate": hit_rate,
+            "dense_rebuilds": int(self._metrics.get("dense_rebuilds", 0)),
+            "dense_rebuild_time_s_total": float(self._metrics.get("dense_rebuild_time_s_total", 0.0)),
+        }
