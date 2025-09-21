@@ -125,6 +125,9 @@ class SparsePoints:
         self.dtype = dtype
         self.indices = torch.empty(2, 0, dtype=torch.long, device=self.device)
         self.values = torch.empty(0, dtype=self.dtype, device=self.device)
+        # metrics
+        self._apply_calls = 0
+        self._apply_time_s_total = 0.0
 
     def __len__(self) -> int:
         return int(self.values.shape[0])
@@ -154,15 +157,22 @@ class SparsePoints:
                 self.values = self.values[mask]
 
     @torch.no_grad()
-    def apply_to_dense_max(self, dense_plane: torch.Tensor) -> None:
-        """Write points into a dense plane using max-reduction for duplicates.
+    def apply_to_dense(
+        self,
+        dense_plane: torch.Tensor,
+        reduction: str = "max",
+        backend: str = "scatter",
+    ) -> None:
+        """Write points into a dense plane using a specified reduction.
 
         Args:
             dense_plane: Tensor of shape (S, S) on target device/dtype.
+            reduction: One of {"max", "sum", "overwrite"}.
+            backend: One of {"scatter", "coo"}. "coo" supports sum efficiently.
         """
         if len(self) == 0:
             return
-
+        t0: float = _time.perf_counter()
         S = dense_plane.shape[-1]
         ys = self.indices[0]
         xs = self.indices[1]
@@ -170,6 +180,7 @@ class SparsePoints:
         # Filter out-of-bounds before scattering
         valid = (ys >= 0) & (ys < S) & (xs >= 0) & (xs < S)
         if not torch.any(valid):
+            self._apply_calls += 1
             return
         ys = ys[valid]
         xs = xs[valid]
@@ -184,28 +195,75 @@ class SparsePoints:
         flat_idx = ys * S + xs
         flat = dense_plane.view(-1)
 
-        # Prefer fast scatter-reduce if available
-        if hasattr(torch.Tensor, "scatter_reduce_"):
-            flat.scatter_reduce_(0, flat_idx, vals, reduce="amax", include_self=False)
+        # COO backend (primarily for sum, can emulate max via scatter-reduce beforehand)
+        if backend == "coo":
+            try:
+                # Build sparse COO (coalescing sums duplicates by sum)
+                coo = torch.sparse_coo_tensor(
+                    torch.stack([ys, xs], dim=0), vals, size=(S, S), device=dense_plane.device, dtype=dense_plane.dtype
+                )
+                coo = coo.coalesce()
+                if reduction == "sum":
+                    dense_plane.add_(coo.to_dense())
+                elif reduction == "overwrite":
+                    dense_plane.copy_(coo.to_dense())
+                elif reduction == "max":
+                    # compute per-index max via scatter-reduce then materialize
+                    tmp = torch.zeros_like(flat)
+                    if hasattr(torch.Tensor, "scatter_reduce_"):
+                        tmp.scatter_reduce_(0, flat_idx, vals, reduce="amax", include_self=False)
+                    else:
+                        # fallback to segment max
+                        order = torch.argsort(flat_idx)
+                        flat_idx_sorted = flat_idx[order]
+                        vals_sorted = vals[order]
+                        is_new = torch.ones_like(flat_idx_sorted, dtype=torch.bool)
+                        is_new[1:] = flat_idx_sorted[1:] != flat_idx_sorted[:-1]
+                        start_positions = torch.nonzero(is_new, as_tuple=False).flatten()
+                        end_positions = torch.cat([start_positions[1:], torch.tensor([len(vals_sorted)], device=start_positions.device)])
+                        for start, end in zip(start_positions.tolist(), end_positions.tolist()):
+                            t_idx = int(flat_idx_sorted[start].item())
+                            segment_max = torch.max(vals_sorted[start:end])
+                            tmp[t_idx] = torch.maximum(tmp[t_idx], segment_max)
+                    dense_plane.copy_(tmp.view(S, S))
+                else:
+                    raise ValueError(f"Unknown reduction: {reduction}")
+            finally:
+                self._apply_calls += 1
+                self._apply_time_s_total += max(0.0, _time.perf_counter() - t0)
             return
 
-        # Fallback: stable segment max on CPU using sorting
-        order = torch.argsort(flat_idx)
-        flat_idx_sorted = flat_idx[order]
-        vals_sorted = vals[order]
-        # Identify segment boundaries
-        is_new = torch.ones_like(flat_idx_sorted, dtype=torch.bool)
-        is_new[1:] = flat_idx_sorted[1:] != flat_idx_sorted[:-1]
-        unique_ids = flat_idx_sorted[is_new]
+        # Scatter backend (default)
+        if reduction == "max":
+            if hasattr(torch.Tensor, "scatter_reduce_"):
+                flat.scatter_reduce_(0, flat_idx, vals, reduce="amax", include_self=False)
+            else:
+                # Fallback: segment max
+                order = torch.argsort(flat_idx)
+                flat_idx_sorted = flat_idx[order]
+                vals_sorted = vals[order]
+                is_new = torch.ones_like(flat_idx_sorted, dtype=torch.bool)
+                is_new[1:] = flat_idx_sorted[1:] != flat_idx_sorted[:-1]
+                start_positions = torch.nonzero(is_new, as_tuple=False).flatten()
+                end_positions = torch.cat([start_positions[1:], torch.tensor([len(vals_sorted)], device=start_positions.device)])
+                for start, end in zip(start_positions.tolist(), end_positions.tolist()):
+                    t_idx = int(flat_idx_sorted[start].item())
+                    segment_max = torch.max(vals_sorted[start:end])
+                    flat[t_idx] = torch.maximum(flat[t_idx], segment_max)
+        elif reduction == "sum":
+            if hasattr(torch.Tensor, "scatter_reduce_"):
+                flat.scatter_reduce_(0, flat_idx, vals, reduce="sum", include_self=True)
+            else:
+                # Fallback: index_add
+                flat.index_add_(0, flat_idx, vals)
+        elif reduction == "overwrite":
+            # Overwrite semantics: last wins (order-dependent)
+            flat.index_put_((flat_idx,), vals, accumulate=False)
+        else:
+            raise ValueError(f"Unknown reduction: {reduction}")
 
-        # Compute max per segment
-        # Simple loop fallback (rare path); groups are typically small
-        start_positions = torch.nonzero(is_new, as_tuple=False).flatten()
-        end_positions = torch.cat([start_positions[1:], torch.tensor([len(vals_sorted)], device=start_positions.device)])
-        for start, end in zip(start_positions.tolist(), end_positions.tolist()):
-            target = int(unique_ids[(start_positions == start).nonzero(as_tuple=False)[0]].item())
-            segment_max = torch.max(vals_sorted[start:end])
-            flat[target] = torch.maximum(flat[target], segment_max)
+        self._apply_calls += 1
+        self._apply_time_s_total += max(0.0, _time.perf_counter() - t0)
 def create_observation_tensor(
     num_channels: int,
     size: int,
@@ -331,6 +389,18 @@ class ObservationConfig(BaseModel):
     )
     random_max: float = Field(
         default=1.0, description="Maximum value for random initialization"
+    )
+    sparse_backend: str = Field(
+        default="scatter",
+        description="Sparse apply backend: 'scatter' or 'coo'",
+    )
+    default_point_reduction: str = Field(
+        default="max",
+        description="Default reduction for point-sparse channels: 'max' | 'sum' | 'overwrite'",
+    )
+    channel_reduction_overrides: Dict[str, str] = Field(
+        default_factory=dict,
+        description="Optional per-channel reduction overrides by channel name",
     )
 
     @field_validator("dtype")
@@ -580,6 +650,10 @@ class AgentObservation:
             "dense_rebuild_time_s_total": 0.0,
             "sparse_points_count": 0,
             "sparse_points_per_channel": {},
+            "sparse_apply_calls": 0,
+            "sparse_apply_time_s_total": 0.0,
+            "sparse_apply_calls_per_channel": {},
+            "sparse_apply_time_s_total_per_channel": {},
         }
 
         # Pre-allocate dense tensor only if initialization is non-zero
@@ -759,7 +833,29 @@ class AgentObservation:
             if isinstance(channel_data, SparsePoints):
                 # Sparse points
                 channel_plane = self.dense_cache[channel_idx]
-                channel_data.apply_to_dense_max(channel_plane)
+                # Determine reduction per channel
+                handlers = self.registry.get_all_handlers()
+                channel_name = None
+                for name, _handler in handlers.items():
+                    if self.registry.get_index(name) == channel_idx:
+                        channel_name = name
+                        break
+                reduction = self.config.channel_reduction_overrides.get(
+                    channel_name or "", self.config.default_point_reduction
+                )
+                backend = self.config.sparse_backend
+                before_calls = channel_data._apply_calls
+                before_time = channel_data._apply_time_s_total
+                channel_data.apply_to_dense(channel_plane, reduction=reduction, backend=backend)
+                # accumulate metrics
+                delta_calls = channel_data._apply_calls - before_calls
+                delta_time = channel_data._apply_time_s_total - before_time
+                self._metrics["sparse_apply_calls"] += int(delta_calls)
+                self._metrics["sparse_apply_time_s_total"] += float(delta_time)
+                self._metrics["sparse_apply_calls_per_channel"].setdefault(channel_idx, 0)
+                self._metrics["sparse_apply_time_s_total_per_channel"].setdefault(channel_idx, 0.0)
+                self._metrics["sparse_apply_calls_per_channel"][channel_idx] += int(delta_calls)
+                self._metrics["sparse_apply_time_s_total_per_channel"][channel_idx] += float(delta_time)
             else:
                 # Dense grid (VISIBILITY, RESOURCES, etc.)
                 self.dense_cache[channel_idx] = channel_data
@@ -1166,4 +1262,6 @@ class AgentObservation:
             "cache_hit_rate": hit_rate,
             "dense_rebuilds": int(self._metrics.get("dense_rebuilds", 0)),
             "dense_rebuild_time_s_total": float(self._metrics.get("dense_rebuild_time_s_total", 0.0)),
+            "sparse_apply_calls": int(self._metrics.get("sparse_apply_calls", 0)),
+            "sparse_apply_time_s_total": float(self._metrics.get("sparse_apply_time_s_total", 0.0)),
         }
