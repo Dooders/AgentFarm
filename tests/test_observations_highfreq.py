@@ -34,12 +34,15 @@ def test_prebuilt_grid_copy_and_points_update(config_with_highfreq):
 
 
 def test_vectorized_sparse_population_and_metrics():
+    # Use non-high-frequency channels to test sparse point operations
     config = ObservationConfig(R=3, device="cpu", dtype="float32")
     obs = AgentObservation(config)
 
     enemies_idx = Channel.ENEMIES_HP
-    # Populate a bunch of points in dict-based sparse storage path
-    # Ensure this channel is NOT high-frequency so it uses dict path
+    # Verify ENEMIES_HP is not high-frequency (not in config.high_frequency_channels)
+    assert "ENEMIES_HP" not in config.high_frequency_channels
+    # Populate a bunch of points in SparsePoints-based sparse storage path
+    # This channel uses SparsePoints since it's not high-frequency
     points = []
     for y in range(0, 2 * config.R + 1):
         for x in range(0, 2 * config.R + 1):
@@ -53,9 +56,10 @@ def test_vectorized_sparse_population_and_metrics():
     assert dense[enemies_idx, 3, 4] == pytest.approx((3 + 4) / 100.0)
     assert dense[enemies_idx, 6, 6] == pytest.approx((6 + 6) / 100.0)
 
-    # Metrics should reflect vectorized assignment at least once
+    # Metrics should reflect sparse point application at least once
+    # This happens when tensor() is called and _build_dense_tensor processes SparsePoints data
     metrics = obs.get_metrics()
-    assert metrics["vectorized_point_assign_ops"] >= 1
+    assert metrics["sparse_apply_calls"] >= 1
 
 
 def test_decay_and_clear_on_prebuilt_channel(config_with_highfreq):

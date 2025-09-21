@@ -639,7 +639,7 @@ class AgentObservation:
         S = 2 * config.R + 1
 
         # Sparse storage: only allocate when needed
-        self.sparse_channels = {}  # {channel_idx: Union[SparsePoints, torch.Tensor]}
+        self.sparse_channels = {}  # {channel_idx: SparsePoints for point-sparse data, torch.Tensor for dense grids}
         self.dense_cache = None  # Lazy dense tensor
         self.cache_dirty = True  # Whether we need to rebuild dense
 
