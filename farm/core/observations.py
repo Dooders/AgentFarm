@@ -163,12 +163,29 @@ class SparsePoints:
         reduction: str = "max",
         backend: str = "scatter",
     ) -> None:
-        """Write points into a dense plane using a specified reduction.
+        """Write sparse points into a dense plane using a specified strategy.
 
         Args:
-            dense_plane: Tensor of shape (S, S) on target device/dtype.
-            reduction: One of {"max", "sum", "overwrite"}.
-            backend: One of {"scatter", "coo"}. "coo" supports sum efficiently.
+            dense_plane: Tensor of shape (S, S) on the target device and dtype.
+                Updated in-place.
+            reduction: Strategy to combine values when multiple points map to the
+                same (y, x):
+                - "max": keep the maximum value per index; good for presence/one-hot maps
+                - "sum": sum all contributions; good for accumulated intensity
+                - "overwrite": last write wins (order-dependent, non-deterministic with duplicates)
+            backend: Implementation used to materialize points:
+                - "scatter": uses torch.scatter_reduce_ if available; fast on GPU for "max" and "overwrite";
+                  supports "sum" via scatter or index_add as fallback.
+                - "coo": builds a sparse COO tensor; efficient for "sum" when many duplicates; can materialize
+                  and overwrite the dense plane; "max" is emulated.
+
+        Trade-offs:
+            - Prefer backend="scatter" for GPU-accelerated amax/sum when duplicates are modest.
+            - Prefer backend="coo" for heavy duplicate indices with reduction="sum".
+            - "overwrite" is order-dependent; prefer "max"/"sum" for reproducibility.
+
+        Notes:
+            Out-of-bounds indices are filtered prior to writing.
         """
         if len(self) == 0:
             return
@@ -213,18 +230,7 @@ class SparsePoints:
                     if hasattr(torch.Tensor, "scatter_reduce_"):
                         tmp.scatter_reduce_(0, flat_idx, vals, reduce="amax", include_self=False)
                     else:
-                        # fallback to segment max
-                        order = torch.argsort(flat_idx)
-                        flat_idx_sorted = flat_idx[order]
-                        vals_sorted = vals[order]
-                        is_new = torch.ones_like(flat_idx_sorted, dtype=torch.bool)
-                        is_new[1:] = flat_idx_sorted[1:] != flat_idx_sorted[:-1]
-                        start_positions = torch.nonzero(is_new, as_tuple=False).flatten()
-                        end_positions = torch.cat([start_positions[1:], torch.tensor([len(vals_sorted)], device=start_positions.device)])
-                        for start, end in zip(start_positions.tolist(), end_positions.tolist()):
-                            t_idx = int(flat_idx_sorted[start].item())
-                            segment_max = torch.max(vals_sorted[start:end])
-                            tmp[t_idx] = torch.maximum(tmp[t_idx], segment_max)
+                        self._segment_max_(tmp, flat_idx, vals)
                     dense_plane.copy_(tmp.view(S, S))
                 else:
                     raise ValueError(f"Unknown reduction: {reduction}")
@@ -239,17 +245,7 @@ class SparsePoints:
                 flat.scatter_reduce_(0, flat_idx, vals, reduce="amax", include_self=False)
             else:
                 # Fallback: segment max
-                order = torch.argsort(flat_idx)
-                flat_idx_sorted = flat_idx[order]
-                vals_sorted = vals[order]
-                is_new = torch.ones_like(flat_idx_sorted, dtype=torch.bool)
-                is_new[1:] = flat_idx_sorted[1:] != flat_idx_sorted[:-1]
-                start_positions = torch.nonzero(is_new, as_tuple=False).flatten()
-                end_positions = torch.cat([start_positions[1:], torch.tensor([len(vals_sorted)], device=start_positions.device)])
-                for start, end in zip(start_positions.tolist(), end_positions.tolist()):
-                    t_idx = int(flat_idx_sorted[start].item())
-                    segment_max = torch.max(vals_sorted[start:end])
-                    flat[t_idx] = torch.maximum(flat[t_idx], segment_max)
+                self._segment_max_(flat, flat_idx, vals)
         elif reduction == "sum":
             if hasattr(torch.Tensor, "scatter_reduce_"):
                 flat.scatter_reduce_(0, flat_idx, vals, reduce="sum", include_self=True)
@@ -264,6 +260,25 @@ class SparsePoints:
 
         self._apply_calls += 1
         self._apply_time_s_total += max(0.0, _time.perf_counter() - t0)
+
+    @staticmethod
+    def _segment_max_(flat: torch.Tensor, flat_idx: torch.Tensor, vals: torch.Tensor) -> None:
+        """Compute segment-wise max over flat indices and write into flat tensor in-place.
+
+        This CPU-friendly fallback sorts indices, finds contiguous segments of identical
+        indices, computes per-segment maxima, and updates the dense flat tensor.
+        """
+        order = torch.argsort(flat_idx)
+        flat_idx_sorted = flat_idx[order]
+        vals_sorted = vals[order]
+        is_new = torch.ones_like(flat_idx_sorted, dtype=torch.bool)
+        is_new[1:] = flat_idx_sorted[1:] != flat_idx_sorted[:-1]
+        start_positions = torch.nonzero(is_new, as_tuple=False).flatten()
+        end_positions = torch.cat([start_positions[1:], torch.tensor([len(vals_sorted)], device=start_positions.device)])
+        for start, end in zip(start_positions.tolist(), end_positions.tolist()):
+            t_idx = int(flat_idx_sorted[start].item())
+            segment_max = torch.max(vals_sorted[start:end])
+            flat[t_idx] = torch.maximum(flat[t_idx], segment_max)
 def create_observation_tensor(
     num_channels: int,
     size: int,
