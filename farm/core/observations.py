@@ -11,79 +11,61 @@ of the world from their own perspective. This includes both instantaneous observ
 (current state) and dynamic observations that persist and decay over time.
 
 Key Components:
-    - create_observation_tensor: Factory function for creating observation tensors with
-      zeros or random initialization
-    - Channel: Dynamic channel system with extensible handlers
-    - ObservationConfig: Configuration class for observation parameters
-    - AgentObservation: Main class managing an agent's observation buffer
-    - ChannelRegistry: Dynamic registry for managing observation channels
-    - ChannelHandler: Abstract base class for custom channel implementations
-    - Utility functions for local cropping and mask generation
+    - create_observation_tensor: Factory for creating observation tensors
+    - ObservationConfig: Configuration for observation parameters and storage
+    - AgentObservation: Manages an agent's observation buffer
+    - SparsePoints: Tensor-backed sparse point storage (y, x -> value)
+    - ChannelRegistry/ChannelHandler: Dynamic channel system APIs
+    - Utility functions: local cropping and disk mask generation
 
 Observation Channels:
-    The system supports multiple channels of information through a dynamic registry:
-    - SELF_HP: Agent's own health (center pixel only)
-    - ALLIES_HP: Health of visible allies
-    - ENEMIES_HP: Health of visible enemies
-    - RESOURCES: Resource locations and quantities
-    - OBSTACLES: Obstacle and terrain information
-    - TERRAIN_COST: Movement cost of terrain
-    - VISIBILITY: Field-of-view mask
-    - KNOWN_EMPTY: Previously observed empty cells (decays over time)
-    - DAMAGE_HEAT: Recent damage events (decays over time)
-    - TRAILS: Agent movement trails (decays over time)
-    - ALLY_SIGNAL: Communication signals from allies (decays over time)
-    - GOAL: Current goal or waypoint location
-    - LANDMARKS: Permanent landmarks and waypoints (persistent)
+    The system supports multiple channels via a dynamic registry:
+    - SELF_HP, ALLIES_HP, ENEMIES_HP, RESOURCES, OBSTACLES, TERRAIN_COST,
+      VISIBILITY, KNOWN_EMPTY, DAMAGE_HEAT, TRAILS, ALLY_SIGNAL, GOAL, LANDMARKS
 
 Egocentric View:
-    Each agent's observation is a square crop centered on their position with
-    shape (num_channels, 2R+1, 2R+1) where R is the observation radius and
-    num_channels is determined by the active channel registry.
-    The center pixel (R, R) represents the agent's own position.
+    Each observation is a square crop centered on the agent with
+    shape (num_channels, 2R+1, 2R+1), center at (R, R).
 
 Dynamic Decay:
-    Certain channels (trails, damage heat, signals, known empty) decay over time
-    using configurable gamma factors to simulate the gradual fading of information.
+    Dynamic channels (trails, damage heat, signals, known empty) decay using
+    configurable gamma factors.
 
-Channel Behavior Types:
-    - INSTANT: Overwritten each tick with fresh data
-    - DYNAMIC: Persists across ticks and decays over time
-    - PERSISTENT: Persists indefinitely until explicitly cleared
+Storage & Performance:
+    - HYBRID mode stores point-sparse channels as `SparsePoints` until needed,
+      building dense tensors on-demand. This reduces Python dict overhead and
+      improves GPU transfer efficiency.
+    - DENSE mode writes directly to a dense tensor.
+
+Config Highlights (ObservationConfig):
+    - storage_mode: HYBRID (default) | DENSE
+    - sparse_backend: "scatter" (default) | "coo"
+    - default_point_reduction: "max" (default) | "sum" | "overwrite"
+    - channel_reduction_overrides: per-channel reduction by name
+
+Metrics (AgentObservation.get_metrics):
+    - dense_bytes, sparse_points, sparse_logical_bytes, memory_reduction_percent
+    - cache_hits/misses, dense_rebuilds, dense_rebuild_time_s_total
+    - sparse_apply_calls, sparse_apply_time_s_total
 
 Usage:
     # Create configuration
-    config = ObservationConfig(R=6, fov_radius=5)
+    config = ObservationConfig(R=6, fov_radius=5, sparse_backend="scatter",
+                               default_point_reduction="max")
 
     # Initialize agent observation with zeros (default)
     agent_obs = AgentObservation(config)
 
-    # Or initialize with random values
-    config_random = ObservationConfig(
-        R=6,
-        fov_radius=5,
-        initialization="random",
-        random_min=0.0,
-        random_max=0.1
-    )
-    agent_obs_random = AgentObservation(config_random)
-
     # Update observation with world state
-    agent_obs.perceive_world(
-        world_layers={"RESOURCES": resource_grid, "OBSTACLES": obstacle_grid},
-        agent_world_pos=(50, 50),
-        self_hp01=0.8,
-        allies=[(48, 50, 0.9), (52, 50, 0.7)],
-        enemies=[(45, 45, 0.6)],
-        goal_world_pos=(60, 60)
-    )
+    agent_obs.perceive_world(world_layers, agent_world_pos=(50, 50), self_hp01=0.8)
 
-    # Get observation tensor for neural network input
+    # Access observation tensor and metrics
     observation_tensor = agent_obs.tensor()
+    metrics = agent_obs.get_metrics()
 
     # Factory function can also be used directly
     from farm.core.observations import create_observation_tensor
-    zeros_obs = create_observation_tensor(13, 13)  # 13 channels, 13x13 size
+    zeros_obs = create_observation_tensor(13, 13)
     random_obs = create_observation_tensor(13, 13, initialization="random")
 """
 

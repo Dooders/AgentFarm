@@ -33,6 +33,38 @@ AgentFarm is a sophisticated platform for researching complex adaptive systems t
 - [Dynamic Channel System](dynamic_channel_system.md) - Flexible observation channel framework
 - Custom channel implementation examples (see [Usage Examples](usage_examples.md))
 
+#### Sparse Observation Storage (HYBRID mode)
+The observation system supports tensor-backed sparse point storage via `SparsePoints` for channels that are naturally sparse (e.g., allies/enemies/trajectories). This reduces Python dict overhead and improves GPU transfers.
+
+- Configuration (in `ObservationConfig`):
+  - `storage_mode`: `HYBRID` (default) uses `SparsePoints` for point-sparse channels; `DENSE` writes directly to a dense tensor.
+  - `sparse_backend`: `"scatter"` (default) or `"coo"`. Use `coo` when `sum` reduction with many duplicates is common.
+  - `default_point_reduction`: `"max"` (default), `"sum"`, or `"overwrite"`.
+  - `channel_reduction_overrides`: per-channel overrides by channel name.
+
+- Reductions:
+  - `max`: keep maximum per index (deterministic, good for presence maps)
+  - `sum`: accumulate contributions (good for intensities)
+  - `overwrite`: last write wins (order-dependent; not deterministic with duplicates)
+
+- Metrics via `AgentObservation.get_metrics()`:
+  - `dense_bytes`, `sparse_points`, `sparse_logical_bytes`, `memory_reduction_percent`
+  - `cache_hits`, `cache_misses`, `dense_rebuilds`, `dense_rebuild_time_s_total`
+  - `sparse_apply_calls`, `sparse_apply_time_s_total`
+
+Example:
+```python
+config = ObservationConfig(
+  R=6,
+  sparse_backend="scatter",
+  default_point_reduction="max",
+  channel_reduction_overrides={"TRAILS": "sum"},
+)
+obs = AgentObservation(config)
+tensor = obs.tensor()
+metrics = obs.get_metrics()
+```
+
 ### Data & Analysis
 - [Data API](data/data_api.md) - Interfaces for data access and manipulation
 - [Data Services](data/data_services.md) - Data processing and management services
