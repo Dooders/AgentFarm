@@ -183,20 +183,41 @@ Configuration class for the observation system.
 #### Constructor
 
 ```python
-ObservationConfig(R: int = 6, fov_radius: int = 5,
-                 decay_factors: Dict[str, float] = None)
+ObservationConfig(
+    R: int = 6,
+    fov_radius: int = 5,
+    device: str = "cpu",
+    dtype: str = "float32",
+    gamma_trail: float = 0.90,
+    gamma_dmg: float = 0.85,
+    gamma_sig: float = 0.92,
+    gamma_known: float = 0.98,
+    initialization: str = "zeros",
+    random_min: float = 0.0,
+    random_max: float = 1.0,
+    storage_mode: StorageMode = StorageMode.HYBRID,
+    enable_metrics: bool = True,
+    high_frequency_channels: List[str] = []
+)
 ```
 
 **Parameters:**
 - `R` (int): Observation radius in cells
 - `fov_radius` (int): Field-of-view radius
-- `decay_factors` (Dict[str, float]): Channel-specific decay rates
+- `device` (str): Torch device
+- `dtype` (str): Torch dtype string (e.g., "float32")
+- `gamma_trail/gamma_dmg/gamma_sig/gamma_known` (float): Decay rates for dynamic channels
+- `initialization` (str): Tensor init method ("zeros" or "random")
+- `random_min/random_max` (float): Random initialization range
+- `storage_mode` (StorageMode): HYBRID or DENSE
+- `enable_metrics` (bool): Enable metrics collection
+- `high_frequency_channels` (List[str]): Channels to prebuild densely for faster dense construction
 
 #### Properties
 
 - `R` (int): Observation radius
 - `fov_radius` (int): Field-of-view radius
-- `decay_factors` (Dict[str, float]): Decay factors for dynamic channels
+- `high_frequency_channels` (List[str]): Prebuilt channel names for frequent access
 
 ### AgentObservation Class
 
@@ -235,6 +256,19 @@ Clear instant channels for new data.
 apply_decay() -> None
 ```
 Apply temporal decay to dynamic channels.
+
+```python
+get_metrics() -> Dict
+```
+
+Returns metrics related to dense construction and sparse storage, including:
+- `dense_bytes`
+- `sparse_points`
+- `sparse_logical_bytes`
+- `memory_reduction_percent`
+- `cache_hits`, `cache_misses`, `cache_hit_rate`
+- `dense_rebuilds`, `dense_rebuild_time_s_total`
+- `grid_population_ops`, `vectorized_point_assign_ops`, `prebuilt_channel_copies`, `prebuilt_channels_active`
 
 ## Agents Module (`farm.core.agent`)
 

@@ -379,9 +379,32 @@ config = ObservationConfig(
     gamma_trail=0.95,       # Slower decay for movement trails
     gamma_dmg=0.90,         # Moderate decay for damage heat
     gamma_sig=0.85,         # Faster decay for communication signals
-    gamma_known=0.98        # Very slow decay for known empty areas
+    gamma_known=0.98,       # Very slow decay for known empty areas
+    # High-frequency channel prebuilding (optional)
+    high_frequency_channels=["RESOURCES", "VISIBILITY"]
 )
 ```
+
+### High-Frequency Channels (Prebuilding Optimization)
+
+- Purpose: Mark channels that are frequently overwritten/read each tick to be maintained as prebuilt dense slices for fast copies during dense construction.
+- Recommended for: `RESOURCES`, `OBSTACLES`, `VISIBILITY`, or other dense world-layer channels accessed every step.
+- Trade-offs:
+  - Uses additional memory: one `(2R+1) x (2R+1)` tensor per high-frequency channel per agent
+  - Faster dense builds via single copy instead of many Python-loop assignments
+- Configuration:
+
+```python
+config = ObservationConfig(
+    R=6,
+    high_frequency_channels=["RESOURCES", "VISIBILITY"]
+)
+```
+
+- Behavior:
+  - Store/clear/decay operate directly on the prebuilt slice for marked channels
+  - `_build_dense_tensor()` copies prebuilt slices O(S²) once per channel
+  - Other sparse channels are vectorized using masked indexing (no Python loops)
 
 ### YAML Configuration
 
@@ -440,6 +463,18 @@ The observation system uses dense tensor storage for all channels. Memory usage 
 - **GPU Acceleration**: Use `device="cuda"` for GPU-accelerated operations
 - **Memory Efficiency**: Use `dtype="float16"` for reduced memory usage
 - **Initialization**: Random initialization can help with training stability
+- **High-Frequency Channels**: Use `high_frequency_channels` for channels updated every tick to reduce CPU overhead in dense tensor builds
+
+### Metrics
+
+`AgentObservation.get_metrics()` exposes fields to monitor optimization impact:
+
+- `grid_population_ops`: Number of full-grid copy operations
+- `vectorized_point_assign_ops`: Number of vectorized point assignment batches
+- `prebuilt_channel_copies`: Number of prebuilt channel copies into the dense cache
+- `prebuilt_channels_active`: Count of high-frequency channels configured
+
+These help validate that prebuilt channels are used (copies increase) and Python-loop assignments are avoided (vectorized ops >= 1 for sparse dict paths).
 
 ---
 

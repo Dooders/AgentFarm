@@ -35,8 +35,8 @@ The perception system provides:
 The system combines:
 
 - **Sparse internal storage** for memory efficiency
-- **Lazy dense construction** for computational performance
-- **Channel-specific optimization** strategies
+- **Lazy dense construction** for computational performance, with optional prebuilding of high-frequency channels (`high_frequency_channels`) for fast O(1) copies during dense builds
+- **Channel-specific optimization** strategies (including prebuilt high-frequency channels and vectorized sparse population)
 - **Spatial indexing** for efficient proximity queries
 
 ---
@@ -173,7 +173,8 @@ obs_config = ObservationConfig(
     gamma_known=0.98,             # Decay rate for known empty cells (default: 0.98)
     device="cpu",                 # Device for tensor operations (default: "cpu")
     dtype="float32",              # PyTorch dtype as string (default: "float32")
-    initialization="zeros"        # Tensor initialization method (default: "zeros")
+    initialization="zeros",       # Tensor initialization method (default: "zeros")
+    high_frequency_channels=["RESOURCES", "VISIBILITY"]  # Optional optimization
 )
 
 # Create simulation configuration with observation settings
@@ -256,6 +257,7 @@ config = SimulationConfig.from_yaml("config.yaml")
 | **Retrieval** | O(1) | O(1) | Cached construction |
 | **Decay** | O(grid_size) | O(active_elements) | Sparse much faster |
 | **NN Processing** | O(grid_size) | O(grid_size) | Same dense tensor |
+| **Dense Build (hybrid)** | — | — | Prebuilt channels copied O(S²), other sparse channels vectorized |
 
 ### Scalability Analysis
 
