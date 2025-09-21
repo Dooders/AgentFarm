@@ -515,7 +515,7 @@ class AgentObservation:
             self.cache_dirty = False
 
         # High-frequency channel prebuild support
-        high_freq_names: Set[str] = set(getattr(config, "high_frequency_channels", []) or [])
+        high_freq_names: Set[str] = set(config.high_frequency_channels or [])
         self._high_freq_indices: Set[int] = set()
         for name in high_freq_names:
             try:
@@ -609,7 +609,7 @@ class AgentObservation:
                 ys, xs, vals = zip(*points)
                 ys_t = torch.as_tensor(ys, device=self.config.device, dtype=torch.long)
                 xs_t = torch.as_tensor(xs, device=self.config.device, dtype=torch.long)
-                vals_t = torch.as_tensor(points, device=self.config.device, dtype=self.config.torch_dtype)[:, 2]
+                vals_t = torch.as_tensor(vals, device=self.config.device, dtype=self.config.torch_dtype)
                 # Clamp valid indices
                 mask = (ys_t >= 0) & (ys_t < S) & (xs_t >= 0) & (xs_t < S)
                 if mask.any().item():

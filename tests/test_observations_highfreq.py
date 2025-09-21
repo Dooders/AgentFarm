@@ -22,7 +22,7 @@ def test_prebuilt_grid_copy_and_points_update(config_with_highfreq):
 
     # Store points for ALLIES_HP (high-frequency) via public handler-style method
     # Use direct sparse API to simulate handler behavior
-    allies_idx = int(Channel.ALLIES_HP)
+    allies_idx = Channel.ALLIES_HP
     obs._store_sparse_points(allies_idx, [(2, 3, 0.5), (4, 3, 0.8)], accumulate=False)
 
     dense = obs.tensor()
@@ -37,7 +37,7 @@ def test_vectorized_sparse_population_and_metrics():
     config = ObservationConfig(R=3, device="cpu", dtype="float32")
     obs = AgentObservation(config)
 
-    enemies_idx = int(Channel.ENEMIES_HP)
+    enemies_idx = Channel.ENEMIES_HP
     # Populate a bunch of points in dict-based sparse storage path
     # Ensure this channel is NOT high-frequency so it uses dict path
     points = []
@@ -62,7 +62,7 @@ def test_decay_and_clear_on_prebuilt_channel(config_with_highfreq):
     obs = AgentObservation(config_with_highfreq)
 
     # Use ALLY_SIGNAL as dynamic but not prebuilt; then check ALLIES_HP prebuilt clear
-    allies_idx = int(Channel.ALLIES_HP)
+    allies_idx = Channel.ALLIES_HP
     # Seed values
     obs._store_sparse_points(allies_idx, [(2, 2, 1.0), (3, 3, 0.4)], accumulate=False)
 
@@ -72,7 +72,7 @@ def test_decay_and_clear_on_prebuilt_channel(config_with_highfreq):
     assert torch.all(dense[allies_idx] == 0.0)
 
     # Now test decay on prebuilt grid channel RESOURCES by writing grid, then decaying via decay helper
-    res_idx = int(Channel.RESOURCES)
+    res_idx = Channel.RESOURCES
     S = 2 * config_with_highfreq.R + 1
     grid = torch.ones(S, S, dtype=config_with_highfreq.torch_dtype)
     obs._store_sparse_grid(res_idx, grid)
