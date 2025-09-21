@@ -523,3 +523,71 @@ class TestIntegration:
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+class TestSparseReductionModes:
+    """Tests for different reduction modes in SparsePoints application."""
+
+    def test_max_reduction_scatter_backend(self):
+        config = ObservationConfig(R=1, default_point_reduction="max", sparse_backend="scatter")
+        obs = AgentObservation(config)
+        # Two points at the same location (1,1), expect max
+        obs._store_sparse_points(Channel.ALLIES_HP, [(1, 1, 0.4), (1, 1, 0.7)], accumulate=False)
+        tensor = obs.tensor()
+        assert tensor[Channel.ALLIES_HP, 1, 1] == pytest.approx(0.7)
+
+    def test_sum_reduction_scatter_backend(self):
+        config = ObservationConfig(R=1, default_point_reduction="sum", sparse_backend="scatter")
+        obs = AgentObservation(config)
+        obs._store_sparse_points(Channel.ALLIES_HP, [(1, 1, 0.4), (1, 1, 0.7)], accumulate=False)
+        tensor = obs.tensor()
+        assert tensor[Channel.ALLIES_HP, 1, 1].item() == pytest.approx(1.1, rel=1e-6, abs=1e-6)
+
+    def test_overwrite_reduction_scatter_backend(self):
+        config = ObservationConfig(R=1, default_point_reduction="overwrite", sparse_backend="scatter")
+        obs = AgentObservation(config)
+        obs._store_sparse_points(Channel.ALLIES_HP, [(1, 1, 0.4), (1, 1, 0.7)], accumulate=False)
+        tensor = obs.tensor()
+        # Last value should win
+        assert tensor[Channel.ALLIES_HP, 1, 1] == pytest.approx(0.7)
+
+
+class TestSparseCOOBackend:
+    """Tests for COO backend behavior, especially sum reduction efficiency."""
+
+    def test_sum_reduction_coo_backend(self):
+        config = ObservationConfig(R=1, default_point_reduction="sum", sparse_backend="coo")
+        obs = AgentObservation(config)
+        obs._store_sparse_points(Channel.ENEMIES_HP, [(1, 1, 0.25), (1, 1, 0.75)], accumulate=False)
+        tensor = obs.tensor()
+        assert tensor[Channel.ENEMIES_HP, 1, 1].item() == pytest.approx(1.0, rel=1e-6, abs=1e-6)
+
+
+class TestSparseMetrics:
+    """Tests for sparse/dense metrics exposure and reasonable values."""
+
+    def test_sparse_and_dense_metrics_exposed(self):
+        config = ObservationConfig(R=1, default_point_reduction="max", sparse_backend="scatter", enable_metrics=True)
+        obs = AgentObservation(config)
+        obs._store_sparse_points(Channel.ALLY_SIGNAL, [(0, 0, 0.5), (0, 0, 0.6)], accumulate=False)
+        # Trigger build
+        _ = obs.tensor()
+        metrics = obs.get_metrics()
+        # Check required keys present
+        for key in [
+            "dense_bytes",
+            "sparse_points",
+            "sparse_logical_bytes",
+            "memory_reduction_percent",
+            "cache_hits",
+            "cache_misses",
+            "dense_rebuilds",
+            "dense_rebuild_time_s_total",
+            "sparse_apply_calls",
+            "sparse_apply_time_s_total",
+        ]:
+            assert key in metrics
+        # Basic sanity checks
+        assert metrics["sparse_points"] >= 2
+        assert metrics["dense_rebuilds"] >= 1
+        assert metrics["sparse_apply_calls"] >= 1
