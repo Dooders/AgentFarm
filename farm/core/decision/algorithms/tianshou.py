@@ -11,6 +11,7 @@ import logging
 from typing import Any, Dict, Optional, Tuple, Union
 
 import numpy as np
+import gymnasium
 
 from .rl_base import RLAlgorithm, SimpleReplayBuffer
 
@@ -270,7 +271,6 @@ class TianshouWrapper(RLAlgorithm):
                 )
 
                 # Create policy
-                import gymnasium as gym
 
                 # Filter out parameters that shouldn't be passed to PPOPolicy
                 ppo_params = {
@@ -284,7 +284,7 @@ class TianshouWrapper(RLAlgorithm):
                     critic=critic_net,
                     optim=actor_optim,
                     dist_fn=torch.distributions.Categorical,
-                    action_space=gym.spaces.Discrete(self.num_actions),
+                    action_space=gymnasium.spaces.Discrete(self.num_actions),
                     **ppo_params,
                 )
 
@@ -407,7 +407,6 @@ class TianshouWrapper(RLAlgorithm):
                 )
 
                 # Create policy
-                import gymnasium as gym
 
                 # Filter parameters specifically for SACPolicy
                 sac_params = {
@@ -423,7 +422,7 @@ class TianshouWrapper(RLAlgorithm):
                     critic1_optim=critic1_optim,
                     critic2=critic2_net,
                     critic2_optim=critic2_optim,
-                    action_space=gym.spaces.Box(
+                    action_space=gymnasium.spaces.Box(
                         low=-1, high=1, shape=(1,)
                     ),  # Continuous action space (will be discretized)
                     **sac_params,
@@ -486,12 +485,11 @@ class TianshouWrapper(RLAlgorithm):
                 )
 
                 # Create policy
-                import gymnasium as gym
 
                 self.policy = DQNPolicy(
                     model=q_net,
                     optim=optim,
-                    action_space=gym.spaces.Discrete(self.num_actions),
+                    action_space=gymnasium.spaces.Discrete(self.num_actions),
                     **{
                         k: v
                         for k, v in self.algorithm_config.items()
@@ -601,7 +599,6 @@ class TianshouWrapper(RLAlgorithm):
                 )
 
                 # Create policy
-                import gymnasium as gym
 
                 # Filter out parameters that shouldn't be passed to A2CPolicy
                 a2c_params = {
@@ -615,7 +612,7 @@ class TianshouWrapper(RLAlgorithm):
                     critic=critic_net,
                     optim=actor_optim,
                     dist_fn=torch.distributions.Categorical,
-                    action_space=gym.spaces.Discrete(self.num_actions),
+                    action_space=gymnasium.spaces.Discrete(self.num_actions),
                     **a2c_params,
                 )
 
@@ -729,14 +726,13 @@ class TianshouWrapper(RLAlgorithm):
                 )
 
                 # Create policy
-                import gymnasium as gym
 
                 self.policy = DDPGPolicy(
                     actor=actor_net,
                     actor_optim=actor_optim,
                     critic=critic_net,
                     critic_optim=critic_optim,
-                    action_space=gym.spaces.Box(
+                    action_space=gymnasium.spaces.Box(
                         low=-1, high=1, shape=(1,)
                     ),  # Continuous action space (will be discretized)
                     **{

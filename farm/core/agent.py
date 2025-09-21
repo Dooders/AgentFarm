@@ -59,7 +59,11 @@ from farm.core.services.interfaces import (
 )
 from farm.core.state import AgentState
 from farm.database.data_types import GenomeId
-from farm.memory.redis_memory import AgentMemoryManager, RedisMemoryConfig
+try:
+    from farm.memory.redis_memory import AgentMemoryManager, RedisMemoryConfig
+except Exception:  # pragma: no cover - optional at runtime
+    AgentMemoryManager = None  # type: ignore
+    RedisMemoryConfig = None  # type: ignore
 
 if TYPE_CHECKING:
     from farm.core.environment import Environment
@@ -1460,6 +1464,8 @@ class BaseAgent:
         """
         try:
             # Create memory configuration
+            if RedisMemoryConfig is None or AgentMemoryManager is None:
+                raise RuntimeError("Redis memory is unavailable (redis not installed)")
             redis_config = RedisMemoryConfig(
                 host=getattr(self.config, "redis_host", "localhost"),
                 port=getattr(self.config, "redis_port", 6379),

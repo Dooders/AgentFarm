@@ -32,34 +32,63 @@ This document summarizes the performance testing results for the observation flo
 
 ## Performance Results
 
-### Basic Test Results (Latest Run - 2025-01-18)
+### Perception Metrics (Comprehensive Benchmark - 2025-09-20)
 
-**Configuration:**
-- Agents: 200
-- Steps: 100
-- Environment: 200×200
-- Total Expected Observations: 20,000
+**Test Configurations:**
+- Agent counts: 100, 1,000, 10,000
+- Observation radii: 5, 8, 10
+- Storage modes: hybrid (sparse + lazy dense), dense
+- Interpolation: bilinear, nearest-neighbor
+- Steps per run: 5
+- Device: CPU
 
-**Performance Metrics:**
-- Total observations: 20,000
-- Total time: 6.24 seconds
-- Throughput: 3,203 observations/second
-- Average step time: 0.0624 seconds
-- 95th percentile step time: 0.0666 seconds
+**Performance Results by Configuration:**
 
-**Efficiency Analysis:**
-- Observations per agent per step: 1.0
-- Time per 1K observations: 312.2 ms
-- Completion rate: 100%
+#### 100 Agents
+- **R=5, Hybrid + Bilinear**: 1,183 obs/sec, 0.85ms/agent, 15.1% memory reduction
+- **R=5, Hybrid + Nearest**: 1,350 obs/sec, 0.74ms/agent, 15.1% memory reduction  
+- **R=8, Hybrid + Bilinear**: 1,451 obs/sec, 0.69ms/agent, 15.0% memory reduction
+- **R=8, Hybrid + Nearest**: 1,393 obs/sec, 0.72ms/agent, 15.0% memory reduction
+- **R=10, Hybrid + Bilinear**: 1,439 obs/sec, 0.69ms/agent, 14.1% memory reduction
+- **R=10, Hybrid + Nearest**: 1,524 obs/sec, 0.66ms/agent, 14.1% memory reduction
 
-**Raw Metrics:**
-- total_observes: 20,000
-- total_time_s: 6.2438 seconds
-- observes_per_sec: 3,203.15
-- mean_step_time_s: 0.0624 seconds
-- p95_step_time_s: 0.0666 seconds
-- steps: 100
-- num_agents: 200
+#### 1,000 Agents
+- **R=5, Hybrid + Bilinear**: 1,508 obs/sec, 0.66ms/agent, 15.1% memory reduction
+- **R=5, Hybrid + Nearest**: 1,441 obs/sec, 0.69ms/agent, 15.1% memory reduction
+- **R=8, Hybrid + Bilinear**: 1,410 obs/sec, 0.71ms/agent, 15.0% memory reduction
+- **R=8, Hybrid + Nearest**: 1,513 obs/sec, 0.66ms/agent, 15.0% memory reduction
+- **R=10, Hybrid + Bilinear**: 1,496 obs/sec, 0.67ms/agent, 14.1% memory reduction
+- **R=10, Hybrid + Nearest**: 1,531 obs/sec, 0.65ms/agent, 14.1% memory reduction
+
+#### 10,000 Agents
+- **R=5, Hybrid + Bilinear**: 1,217 obs/sec, 0.82ms/agent, 15.1% memory reduction
+- **R=5, Hybrid + Nearest**: 971 obs/sec, 1.03ms/agent, 15.1% memory reduction
+- **R=8, Hybrid + Bilinear**: 1,108 obs/sec, 0.90ms/agent, 15.0% memory reduction
+- **R=8, Hybrid + Nearest**: 1,174 obs/sec, 0.85ms/agent, 15.0% memory reduction
+- **R=10, Hybrid + Bilinear**: 1,055 obs/sec, 0.95ms/agent, 14.1% memory reduction
+- **R=10, Hybrid + Nearest**: 1,033 obs/sec, 0.97ms/agent, 14.1% memory reduction
+
+**Memory Analysis:**
+- **Dense bytes per agent (R=5)**: 6,292 bytes
+- **Dense bytes per agent (R=8)**: 15,028 bytes
+- **Dense bytes per agent (R=10)**: 22,932 bytes
+- **Sparse bytes per agent (R=5)**: 5,340 bytes (15% of dense)
+- **Sparse bytes per agent (R=8)**: 12,780 bytes (15% of dense)
+- **Sparse bytes per agent (R=10)**: 19,692 bytes (14% of dense)
+- **Memory reduction**: 14-15% with hybrid storage
+
+**Compute Analysis:**
+- **GFLOPS range**: 3.06e-03 to 1.76e-02 (scales with radius and agent count)
+- **Best throughput**: 1,531 obs/sec (1,000 agents, R=10, hybrid, nearest)
+- **Per-agent update time**: 0.65-1.04ms across all configurations
+- **Scaling**: Linear scaling with agent count, quadratic with radius
+
+**Key Insights:**
+1. **Memory efficiency**: 14-15% reduction with hybrid storage
+2. **Interpolation choice**: Nearest-neighbor generally faster than bilinear
+3. **Storage mode**: Hybrid provides memory benefits with minimal performance impact
+4. **Scaling**: System maintains good performance up to 10,000 agents
+5. **Optimal configuration**: R=10, hybrid storage, nearest-neighbor for best throughput
 
 ### High Stress Test Results (Latest Run - 2025-01-18)
 

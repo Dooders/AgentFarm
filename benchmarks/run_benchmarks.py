@@ -19,7 +19,14 @@ def parse_args():
     parser.add_argument(
         "--benchmark",
         type=str,
-        choices=["memory_db", "pragma_profile", "redis_memory", "observation_flow", "all"],
+        choices=[
+            "memory_db",
+            "pragma_profile",
+            "redis_memory",
+            "observation_flow",
+            "perception_metrics",
+            "all",
+        ],
         default="all",
         help="Benchmark to run",
     )
@@ -153,6 +160,44 @@ def parse_args():
         default="cpu",
         help="Device for observation tensors (cpu/cuda) for observation_flow benchmark",
     )
+
+    # Perception metrics specific
+    parser.add_argument(
+        "--pm-agents",
+        type=str,
+        default="100,1000,10000",
+        help="Comma-separated agent counts for perception_metrics",
+    )
+    parser.add_argument(
+        "--pm-radii",
+        type=str,
+        default="5,8,10",
+        help="Comma-separated radii (R) for perception_metrics",
+    )
+    parser.add_argument(
+        "--pm-modes",
+        type=str,
+        default="hybrid,dense",
+        help="Comma-separated storage modes (hybrid,dense) for perception_metrics",
+    )
+    parser.add_argument(
+        "--pm-bilinear",
+        type=str,
+        default="true,false",
+        help="Comma-separated flags (true/false) for bilinear in perception_metrics",
+    )
+    parser.add_argument(
+        "--pm-steps",
+        type=int,
+        default=10,
+        help="Steps per run for perception_metrics",
+    )
+    parser.add_argument(
+        "--pm-device",
+        type=str,
+        default="cpu",
+        help="Device for perception_metrics (cpu/cuda)",
+    )
     
     return parser.parse_args()
 
@@ -218,6 +263,36 @@ def main():
             device=args.obs_device,
         )
         runner.register_benchmark(observation_benchmark)
+
+    if args.benchmark == "perception_metrics" or args.benchmark == "all":
+        from benchmarks.implementations.perception_metrics_benchmark import (
+            PerceptionMetricsBenchmark,
+        )
+
+        def _parse_list_int(csv: str) -> list[int]:
+            return [int(x.strip()) for x in csv.split(",") if x.strip()]
+
+        def _parse_list_str(csv: str) -> list[str]:
+            return [x.strip() for x in csv.split(",") if x.strip()]
+
+        def _parse_list_bool(csv: str) -> list[bool]:
+            vals = []
+            for x in csv.split(","):
+                x = x.strip().lower()
+                if not x:
+                    continue
+                vals.append(x in ("1", "true", "yes", "y", "t"))
+            return vals or [True]
+
+        perception_bench = PerceptionMetricsBenchmark(
+            agent_counts=_parse_list_int(args.pm_agents),
+            radii=_parse_list_int(args.pm_radii),
+            storage_modes=_parse_list_str(args.pm_modes),
+            use_bilinear_list=_parse_list_bool(args.pm_bilinear),
+            steps=args.pm_steps,
+            device=args.pm_device,
+        )
+        runner.register_benchmark(perception_bench)
     
     # Run benchmarks
     if args.benchmark == "all":
