@@ -107,6 +107,105 @@ from farm.core.spatial_index import SpatialIndex
 logger = logging.getLogger(__name__)
 
 
+class SparsePoints:
+    """Tensor-backed sparse point storage for (y, x) -> value entries.
+
+    Stores indices as a (2, N) int64 tensor [rows: (y_indices, x_indices)] and
+    values as a (N,) tensor with the observation dtype. This representation is
+    compact, GPU-friendly, and avoids Python dict overhead.
+
+    Notes:
+        - Duplicated indices are allowed during incremental builds. At dense
+          reconstruction time, duplicates are reduced via max by default.
+        - Out-of-bounds indices are filtered during dense reconstruction.
+    """
+
+    def __init__(self, device: str, dtype: torch.dtype):
+        self.device = device
+        self.dtype = dtype
+        self.indices = torch.empty(2, 0, dtype=torch.long, device=self.device)
+        self.values = torch.empty(0, dtype=self.dtype, device=self.device)
+
+    def __len__(self) -> int:
+        return int(self.values.shape[0])
+
+    def add_points(self, points: List[Tuple[int, int, float]]) -> None:
+        """Append a batch of (y, x, value) points."""
+        if not points:
+            return
+        ys = torch.tensor([p[0] for p in points], dtype=torch.long, device=self.device)
+        xs = torch.tensor([p[1] for p in points], dtype=torch.long, device=self.device)
+        vals = torch.tensor([float(p[2]) for p in points], dtype=self.dtype, device=self.device)
+
+        self.indices = torch.cat([self.indices, torch.stack([ys, xs], dim=0)], dim=1)
+        self.values = torch.cat([self.values, vals], dim=0)
+
+    def add_point(self, y: int, x: int, value: float) -> None:
+        self.add_points([(y, x, value)])
+
+    def decay(self, decay_factor: float, prune_eps: float = 1e-6) -> None:
+        if len(self) == 0:
+            return
+        self.values = self.values * decay_factor
+        if prune_eps is not None and prune_eps > 0:
+            mask = self.values.abs() >= prune_eps
+            if not torch.all(mask):
+                self.indices = self.indices[:, mask]
+                self.values = self.values[mask]
+
+    @torch.no_grad()
+    def apply_to_dense_max(self, dense_plane: torch.Tensor) -> None:
+        """Write points into a dense plane using max-reduction for duplicates.
+
+        Args:
+            dense_plane: Tensor of shape (S, S) on target device/dtype.
+        """
+        if len(self) == 0:
+            return
+
+        S = dense_plane.shape[-1]
+        ys = self.indices[0]
+        xs = self.indices[1]
+
+        # Filter out-of-bounds before scattering
+        valid = (ys >= 0) & (ys < S) & (xs >= 0) & (xs < S)
+        if not torch.any(valid):
+            return
+        ys = ys[valid]
+        xs = xs[valid]
+        vals = self.values[valid].to(dense_plane.dtype)
+
+        # If data device differs, move temporarily to match dense
+        if ys.device != dense_plane.device:
+            ys = ys.to(dense_plane.device)
+            xs = xs.to(dense_plane.device)
+            vals = vals.to(dense_plane.device)
+
+        flat_idx = ys * S + xs
+        flat = dense_plane.view(-1)
+
+        # Prefer fast scatter-reduce if available
+        if hasattr(torch.Tensor, "scatter_reduce_"):
+            flat.scatter_reduce_(0, flat_idx, vals, reduce="amax", include_self=False)
+            return
+
+        # Fallback: stable segment max on CPU using sorting
+        order = torch.argsort(flat_idx)
+        flat_idx_sorted = flat_idx[order]
+        vals_sorted = vals[order]
+        # Identify segment boundaries
+        is_new = torch.ones_like(flat_idx_sorted, dtype=torch.bool)
+        is_new[1:] = flat_idx_sorted[1:] != flat_idx_sorted[:-1]
+        unique_ids = flat_idx_sorted[is_new]
+
+        # Compute max per segment
+        # Simple loop fallback (rare path); groups are typically small
+        start_positions = torch.nonzero(is_new, as_tuple=False).flatten()
+        end_positions = torch.cat([start_positions[1:], torch.tensor([len(vals_sorted)], device=start_positions.device)])
+        for start, end in zip(start_positions.tolist(), end_positions.tolist()):
+            target = int(unique_ids[(start_positions == start).nonzero(as_tuple=False)[0]].item())
+            segment_max = torch.max(vals_sorted[start:end])
+            flat[target] = torch.maximum(flat[target], segment_max)
 def create_observation_tensor(
     num_channels: int,
     size: int,
@@ -469,7 +568,7 @@ class AgentObservation:
         S = 2 * config.R + 1
 
         # Sparse storage: only allocate when needed
-        self.sparse_channels = {}  # {channel_idx: sparse_data}
+        self.sparse_channels = {}  # {channel_idx: Union[SparsePoints, torch.Tensor]}
         self.dense_cache = None  # Lazy dense tensor
         self.cache_dirty = True  # Whether we need to rebuild dense
 
@@ -528,9 +627,10 @@ class AgentObservation:
                 self._metrics["sparse_points_per_channel"][channel_idx] += 1
             return
 
-        if channel_idx not in self.sparse_channels:
-            self.sparse_channels[channel_idx] = {}
-        self.sparse_channels[channel_idx][(y, x)] = value
+        if channel_idx not in self.sparse_channels or not isinstance(self.sparse_channels[channel_idx], SparsePoints):
+            self.sparse_channels[channel_idx] = SparsePoints(self.config.device, self.config.torch_dtype)
+        sp: SparsePoints = self.sparse_channels[channel_idx]
+        sp.add_point(y, x, float(value))
         self.cache_dirty = True
         if self.config.enable_metrics:
             self._metrics["sparse_points_count"] += 1
@@ -562,15 +662,11 @@ class AgentObservation:
                 self._metrics["sparse_points_per_channel"][channel_idx] += inc
             return
 
-        if channel_idx not in self.sparse_channels:
-            self.sparse_channels[channel_idx] = {}
-
-        channel_data = self.sparse_channels[channel_idx]
-        for y, x, value in points:
-            if accumulate:
-                channel_data[(y, x)] = max(channel_data.get((y, x), 0.0), value)
-            else:
-                channel_data[(y, x)] = value
+        if channel_idx not in self.sparse_channels or not isinstance(self.sparse_channels[channel_idx], SparsePoints):
+            self.sparse_channels[channel_idx] = SparsePoints(self.config.device, self.config.torch_dtype)
+        sp: SparsePoints = self.sparse_channels[channel_idx]
+        # We store points and resolve duplicates at dense reconstruction using max.
+        sp.add_points(points)
         self.cache_dirty = True
         if self.config.enable_metrics:
             inc = len(points)
@@ -618,17 +714,8 @@ class AgentObservation:
         """Apply decay to a sparse channel."""
         if channel_idx in self.sparse_channels:
             channel_data = self.sparse_channels[channel_idx]
-            if isinstance(channel_data, dict):
-                # Sparse points: decay each value
-                keys_to_remove = []
-                for pos, value in channel_data.items():
-                    new_value = value * decay_factor
-                    if abs(new_value) < 1e-6:  # Remove effectively zero values
-                        keys_to_remove.append(pos)
-                    else:
-                        channel_data[pos] = new_value
-                for pos in keys_to_remove:
-                    del channel_data[pos]
+            if isinstance(channel_data, SparsePoints):
+                channel_data.decay(decay_factor)
             else:
                 # Dense grid: decay the tensor
                 channel_data *= decay_factor
@@ -669,11 +756,10 @@ class AgentObservation:
 
         # Populate from sparse data
         for channel_idx, channel_data in self.sparse_channels.items():
-            if isinstance(channel_data, dict):
+            if isinstance(channel_data, SparsePoints):
                 # Sparse points
-                for (y, x), value in channel_data.items():
-                    if 0 <= y < S and 0 <= x < S:
-                        self.dense_cache[channel_idx, y, x] = value
+                channel_plane = self.dense_cache[channel_idx]
+                channel_data.apply_to_dense_max(channel_plane)
             else:
                 # Dense grid (VISIBILITY, RESOURCES, etc.)
                 self.dense_cache[channel_idx] = channel_data
@@ -1050,7 +1136,7 @@ class AgentObservation:
         # Count sparse logical points
         sparse_points = 0
         for _, channel_data in self.sparse_channels.items():
-            if isinstance(channel_data, dict):
+            if isinstance(channel_data, SparsePoints):
                 sparse_points += len(channel_data)
             else:
                 try:
