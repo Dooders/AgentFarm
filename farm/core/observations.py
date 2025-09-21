@@ -995,7 +995,7 @@ class AgentObservation:
                             if self.config.enable_metrics:
                                 self._metrics["vectorized_point_assign_ops"] += 1
                                 
-            if isinstance(channel_data, SparsePoints):
+            elif isinstance(channel_data, SparsePoints):
                 # Sparse points
                 channel_plane = self.dense_cache[channel_idx]
                 # Determine reduction per channel
