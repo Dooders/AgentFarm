@@ -29,7 +29,9 @@ def create_basic_simulation():
         R=6,                    # Observation radius (6 cells in each direction)
         fov_radius=5,           # Field-of-view radius
         gamma_trail=0.95,       # Movement trails decay slowly
-        gamma_dmg=0.90          # Combat heat decays moderately
+        gamma_dmg=0.90,         # Combat heat decays moderately
+        # Optional: prebuild frequently accessed channels for speed
+        high_frequency_channels=["RESOURCES", "VISIBILITY"]
     )
 
     # 2. Create simulation configuration
@@ -265,6 +267,8 @@ def create_mixed_simulation():
     """Create simulation with different agent types."""
 
     obs_config = ObservationConfig(R=6, fov_radius=5)
+    # Tip: For frequent access workloads, consider:
+    # obs_config.high_frequency_channels = ["RESOURCES", "VISIBILITY"]
     
     config = SimulationConfig(
         width=60, height=60,
@@ -571,6 +575,8 @@ def create_weather_simulation():
 
     # Configure observations
     obs_config = ObservationConfig(R=8, fov_radius=6)
+    # Optional optimization for frequent world layers
+    # obs_config.high_frequency_channels = ["RESOURCES", "VISIBILITY"]
     
     config = SimulationConfig(
         width=50, height=50,

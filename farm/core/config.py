@@ -375,6 +375,9 @@ class SimulationConfig:
                         obs_dict['dtype'] = obs_dict['dtype'].__name__
                     elif 'dtype' in obs_dict:
                         obs_dict['dtype'] = str(obs_dict['dtype'])
+                    # Convert StorageMode enum to string for JSON serialization
+                    if 'storage_mode' in obs_dict and hasattr(obs_dict['storage_mode'], 'value'):
+                        obs_dict['storage_mode'] = obs_dict['storage_mode'].value
                     config_dict[key] = obs_dict
                 else:
                     config_dict[key] = None
