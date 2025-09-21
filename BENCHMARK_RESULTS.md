@@ -32,34 +32,41 @@ This document summarizes the performance testing results for the observation flo
 
 ## Performance Results
 
-### Basic Test Results (Latest Run - 2025-01-18)
+### Perception Metrics (Sample Run - 2025-09-21)
 
 **Configuration:**
-- Agents: 200
-- Steps: 100
-- Environment: 200×200
-- Total Expected Observations: 20,000
+- Agents: 100
+- Steps: 3
+- Environment: auto-scaled
+- Observation Radius: 5
+- Storage: hybrid (sparse + lazy dense)
+- Interpolation: bilinear
 
 **Performance Metrics:**
-- Total observations: 20,000
-- Total time: 6.24 seconds
-- Throughput: 3,203 observations/second
-- Average step time: 0.0624 seconds
-- 95th percentile step time: 0.0666 seconds
+- Total observations: 300
+- Total time: 0.251–0.341 seconds
+- Throughput: 880–1,199 observations/second
+- Average step time: 0.083–0.114 seconds
 
 **Efficiency Analysis:**
 - Observations per agent per step: 1.0
-- Time per 1K observations: 312.2 ms
+- Time per 1K observations: 834–1,136 ms
 - Completion rate: 100%
 
-**Raw Metrics:**
-- total_observes: 20,000
-- total_time_s: 6.2438 seconds
-- observes_per_sec: 3,203.15
-- mean_step_time_s: 0.0624 seconds
-- p95_step_time_s: 0.0666 seconds
-- steps: 100
-- num_agents: 200
+**Memory & Cache:**
+- Dense bytes per agent (R=5): 6,292 bytes
+- Sparse logical bytes (sample): 984 bytes
+- Memory reduction vs dense: 84.36%
+- Cache hit rate: 0.50
+- Dense rebuilds: 4; rebuild time total: ~0.22–0.41 ms
+
+**Perception Profile (Totals over 3 steps):**
+- Spatial query time: 0.031–0.051 s
+- Bilinear time: ~1.12–1.34 ms; points: 48
+- Nearest time: ~0 s; points: 0
+
+**Compute:**
+- Estimated GFLOPS (dense reconstruction): ~3.7e-5–5.0e-5
 
 ### High Stress Test Results (Latest Run - 2025-01-18)
 

@@ -14,6 +14,7 @@ from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 from farm.core.services.implementations import SpatialIndexAdapter
 from farm.core.agent import BaseAgent
+import torch
 
 
 class ObservationFlowBenchmark(Benchmark):
@@ -160,6 +161,34 @@ class ObservationFlowBenchmark(Benchmark):
             else:
                 p95_step = 0.0
 
+        # Collect observation metrics from a sample agent if available
+        obs_metrics = {}
+        try:
+            if self._agent_ids:
+                sample_id = self._agent_ids[0]
+                obs = env.agent_observations.get(sample_id)
+                if obs is not None and hasattr(obs, "get_metrics"):
+                    obs_metrics = obs.get_metrics()
+        except Exception:
+            obs_metrics = {}
+
+        # Collect perception profiling from environment
+        perc_profile = {}
+        try:
+            if hasattr(env, "get_perception_profile"):
+                perc_profile = env.get_perception_profile(reset=True)
+        except Exception:
+            perc_profile = {}
+
+        # Rough GFLOPs estimate for observation tensor construction
+        # Assume ~k operations per cell when rebuilding dense from sparse
+        S = 2 * self._radius + 1
+        C = 13  # default channels
+        k_ops_per_cell = 2.0
+        total_cells = float(C * S * S)
+        dense_rebuilds = float(obs_metrics.get("dense_rebuilds", 0))
+        gflops_est = (total_cells * k_ops_per_cell * dense_rebuilds) / 1e9 / max(total_time, 1e-9)
+
         return {
             "total_observes": total_observes,
             "total_time_s": total_time,
@@ -168,6 +197,14 @@ class ObservationFlowBenchmark(Benchmark):
             "p95_step_time_s": p95_step,
             "steps": self._steps,
             "num_agents": self._num_agents,
+            "obs_dense_bytes": int(obs_metrics.get("dense_bytes", 0)),
+            "obs_sparse_bytes": int(obs_metrics.get("sparse_logical_bytes", 0)),
+            "obs_memory_reduction_percent": float(obs_metrics.get("memory_reduction_percent", 0.0)),
+            "obs_cache_hit_rate": float(obs_metrics.get("cache_hit_rate", 1.0)),
+            "obs_dense_rebuilds": int(obs_metrics.get("dense_rebuilds", 0)),
+            "obs_dense_rebuild_time_s_total": float(obs_metrics.get("dense_rebuild_time_s_total", 0.0)),
+            "gflops_observation_est": float(max(0.0, gflops_est)),
+            "perception_profile": perc_profile,
         }
 
     def cleanup(self) -> None:

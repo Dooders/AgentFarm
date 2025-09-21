@@ -243,7 +243,7 @@ config = SimulationConfig.from_yaml("config.yaml")
 
 | Component | Radius 5 | Radius 8 | Radius 10 |
 |-----------|----------|----------|-----------|
-| **Observation Tensor** | 6,332 bytes | 15,044 bytes | 23,508 bytes |
+| **Observation Tensor** | 6,292 bytes | 15,044 bytes | 23,508 bytes |
 | **Channel Overhead** | 256 bytes | 512 bytes | 768 bytes |
 | **Spatial Index** | 2,048 bytes | 2,048 bytes | 2,048 bytes |
 | **Total per Agent** | **8,636 bytes** | **17,604 bytes** | **26,324 bytes** |
@@ -265,22 +265,34 @@ config = SimulationConfig.from_yaml("config.yaml")
 | 1,000 agents | 8.6 MB | 17.6 MB | 9 MB (51%) |
 | 10,000 agents | 86.4 MB | 176 MB | 89.6 MB (51%) |
 
-### Benchmark Results (Latest Run)
+### Benchmarking and Metrics (Sample Run)
 
-#### Throughput Performance
+We added `perception_metrics` to measure perception throughput, memory, cache behavior, and interpolation cost.
 
-| Test Level | Agents | Steps | Observations | Time (s) | Throughput (obs/s) | Avg Step Time (ms) |
-|------------|--------|-------|--------------|----------|-------------------|-------------------|
-| **Basic** | 200 | 100 | 20,000 | 6.24 | 3,203 | 62.4 |
-| **High Stress** | 500 | 200 | 100,000 | 30.22 | 3,309 | 151.1 |
-| **Ultra Stress** | 1,000 | 500 | 500,000 | 154.77 | 3,231 | 309.5 |
+- Config: 100 agents, R=5, hybrid storage, bilinear on, CPU.
+- Results (3 iterations):
+  - Observes/sec: 880–1,199
+  - Mean step time: 83–114 ms
+  - Dense bytes per agent (R=5): 6,292 bytes
+  - Sparse logical bytes (sample): 984 bytes
+  - Memory reduction vs dense: 84.36%
+  - Cache hit rate: 0.50
+  - Dense rebuilds: 4; total rebuild time: ~0.22–0.41 ms
+  - Perception profile totals (3 steps):
+    - Spatial query time: 0.031–0.051 s
+    - Bilinear time: ~1.12–1.34 ms; points: 48
+    - Nearest time: ~0 s; points: 0
+  - Estimated GFLOPS (dense reconstruction): ~3.7e-5–5.0e-5
 
-#### Performance Characteristics
+Formulas:
+- Sparse per-channel memory ≈ `num_active_points * (sizeof(value) + sizeof(y) + sizeof(x))`.
+- Dense memory per agent = `channels * (2R+1)^2 * sizeof(dtype)`.
+- Cache hit rate = `hits / (hits + misses)` during `tensor()` calls.
+- Per-agent update time (ms) = `(total_time / (steps * agents)) * 1000`.
 
-- **Consistent Throughput**: ~3,200 observations/second across all test levels
-- **Linear Scaling**: Step time scales linearly with agent count
-- **Memory Efficiency**: 51% memory reduction vs dense implementation
-- **P95 Latency**: 66.6ms (basic) → 161.1ms (high) → 338.7ms (ultra)
+Notes:
+- Hybrid vs dense: hybrid cut logical memory by ~84% in this run with negligible rebuild cost.
+- Bilinear vs nearest: bilinear adds small overhead but preserves continuous positions; nearest is faster but coarser.
 
 ---
 
