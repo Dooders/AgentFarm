@@ -733,14 +733,30 @@ class AgentObservation:
                 self._prebuilt_dense[channel_idx][y, x] = value
             # Keep sparse mirror minimal to avoid rebuild cost
             self.sparse_channels.pop(channel_idx, None)
-        else:
-            if channel_idx not in self.sparse_channels:
-                self.sparse_channels[channel_idx] = {}
-            self.sparse_channels[channel_idx][(y, x)] = value
-            
-        if channel_idx not in self.sparse_channels or not isinstance(self.sparse_channels[channel_idx], SparsePoints):
+            self.cache_dirty = True
+            if self.config.enable_metrics:
+                self._metrics["sparse_points_count"] += 1
+                self._metrics["sparse_points_per_channel"].setdefault(channel_idx, 0)
+                self._metrics["sparse_points_per_channel"][channel_idx] += 1
+            return
+
+        # Non-high-frequency channels
+        existing = self.sparse_channels.get(channel_idx)
+        # If a dense grid is already stored for this channel, write directly
+        if isinstance(existing, torch.Tensor):
+            S = 2 * self.config.R + 1
+            if 0 <= y < S and 0 <= x < S:
+                existing[y, x] = value
+            self.cache_dirty = True
+            if self.config.enable_metrics:
+                self._metrics["sparse_points_count"] += 1
+                self._metrics["sparse_points_per_channel"].setdefault(channel_idx, 0)
+                self._metrics["sparse_points_per_channel"][channel_idx] += 1
+            return
+
+        # Ensure SparsePoints backend for point storage
+        if not isinstance(existing, SparsePoints):
             self.sparse_channels[channel_idx] = SparsePoints(self.config.device, self.config.torch_dtype)
-            
         sp: SparsePoints = self.sparse_channels[channel_idx]
         sp.add_point(y, x, float(value))
         self.cache_dirty = True
@@ -800,20 +816,47 @@ class AgentObservation:
                         self._prebuilt_dense[channel_idx][ys_t, xs_t] = vals_t
             # Drop sparse mirror
             self.sparse_channels.pop(channel_idx, None)
-        else:
-            if channel_idx not in self.sparse_channels:
-                self.sparse_channels[channel_idx] = {}
-            channel_data = self.sparse_channels[channel_idx]
-            for y, x, value in points:
-                if accumulate:
-                    channel_data[(y, x)] = max(channel_data.get((y, x), 0.0), value)
-                else:
-                    channel_data[(y, x)] = value
-                    
-        if channel_idx not in self.sparse_channels or not isinstance(self.sparse_channels[channel_idx], SparsePoints):
+            self.cache_dirty = True
+            if self.config.enable_metrics:
+                inc = len(points)
+                self._metrics["sparse_points_count"] += inc
+                self._metrics["sparse_points_per_channel"].setdefault(channel_idx, 0)
+                self._metrics["sparse_points_per_channel"][channel_idx] += inc
+            return
+
+        # Non-high-frequency path
+        existing = self.sparse_channels.get(channel_idx)
+        # If dense grid stored, write directly with accumulate semantics
+        if isinstance(existing, torch.Tensor):
+            S = 2 * self.config.R + 1
+            if points:
+                ys, xs, vals = zip(*points)
+                ys_t = torch.as_tensor(ys, device=self.config.device, dtype=torch.long)
+                xs_t = torch.as_tensor(xs, device=self.config.device, dtype=torch.long)
+                vals_t = torch.as_tensor(vals, device=self.config.device, dtype=self.config.torch_dtype)
+                mask = (ys_t >= 0) & (ys_t < S) & (xs_t >= 0) & (xs_t < S)
+                if mask.any().item():
+                    ys_t = ys_t[mask]
+                    xs_t = xs_t[mask]
+                    vals_t = vals_t[mask]
+                    if accumulate:
+                        current = existing[ys_t, xs_t]
+                        updated = torch.maximum(current, vals_t)
+                        existing[ys_t, xs_t] = updated
+                    else:
+                        existing[ys_t, xs_t] = vals_t
+            self.cache_dirty = True
+            if self.config.enable_metrics:
+                inc = len(points)
+                self._metrics["sparse_points_count"] += inc
+                self._metrics["sparse_points_per_channel"].setdefault(channel_idx, 0)
+                self._metrics["sparse_points_per_channel"][channel_idx] += inc
+            return
+
+        # Ensure SparsePoints backend for point storage
+        if not isinstance(existing, SparsePoints):
             self.sparse_channels[channel_idx] = SparsePoints(self.config.device, self.config.torch_dtype)
         sp: SparsePoints = self.sparse_channels[channel_idx]
-        # We store points and resolve duplicates at dense reconstruction using max.
         sp.add_points(points)
 
         self.cache_dirty = True
