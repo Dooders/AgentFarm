@@ -162,6 +162,29 @@ def create_observation_tensor(
 
 
 class StorageMode(Enum):
+    """
+    Enum specifying storage modes for observation tensors.
+    
+    The storage mode determines how observation data is managed internally,
+    balancing memory efficiency with computational performance.
+    
+    HYBRID: Uses a combination of sparse and dense storage to optimize memory usage and performance.
+      - Stores only non-zero values in sparse format until needed
+      - Builds full dense tensors on-demand for neural network processing
+      - Uses lazy evaluation with caching to avoid unnecessary reconstruction
+      - Ideal for large observation spaces with sparse updates
+      - Provides O(active_entities) memory complexity for sparse storage
+    
+    DENSE: Uses a fully dense tensor for storage throughout the observation lifecycle.
+      - Allocates full dense tensor upfront and writes directly to it
+      - No sparse storage or lazy construction overhead
+      - May be faster for small or fully populated observation spaces
+      - Can consume more memory for large, mostly empty spaces
+      - Provides O(total_observation_space) memory complexity
+    
+    Use HYBRID when working with large observation spaces with sparse updates.
+    Use DENSE when the observation space is small or densely populated.
+    """
     HYBRID = "hybrid"
     DENSE = "dense"
 
@@ -483,15 +506,19 @@ class AgentObservation:
             )
             self.cache_dirty = False
 
+    def _ensure_dense_cache(self) -> None:
+        """Ensure dense cache is initialized if needed."""
+        if self.dense_cache is None:
+            S = 2 * self.config.R + 1
+            self.dense_cache = torch.zeros(
+                self.registry.num_channels, S, S, device=self.config.device, dtype=self.config.torch_dtype
+            )
+
     def _store_sparse_point(self, channel_idx: int, y: int, x: int, value: float):
         """Store a single point value in sparse format."""
         if self._dense_storage:
             # Write directly into dense cache
-            if self.dense_cache is None:
-                S = 2 * self.config.R + 1
-                self.dense_cache = torch.zeros(
-                    self.registry.num_channels, S, S, device=self.config.device, dtype=self.config.torch_dtype
-                )
+            self._ensure_dense_cache()
             H, W = self.dense_cache.shape[-2:]
             if 0 <= y < H and 0 <= x < W:
                 self.dense_cache[channel_idx, y, x] = value
@@ -518,11 +545,7 @@ class AgentObservation:
     ):
         """Store multiple point values in sparse format."""
         if self._dense_storage:
-            if self.dense_cache is None:
-                S = 2 * self.config.R + 1
-                self.dense_cache = torch.zeros(
-                    self.registry.num_channels, S, S, device=self.config.device, dtype=self.config.torch_dtype
-                )
+            self._ensure_dense_cache()
             H, W = self.dense_cache.shape[-2:]
             for y, x, value in points:
                 if 0 <= y < H and 0 <= x < W:
@@ -558,11 +581,7 @@ class AgentObservation:
     def _store_sparse_grid(self, channel_idx: int, grid: torch.Tensor):
         """Store a full grid (for dense channels like VISIBILITY, RESOURCES)."""
         if self._dense_storage:
-            if self.dense_cache is None:
-                S = 2 * self.config.R + 1
-                self.dense_cache = torch.zeros(
-                    self.registry.num_channels, S, S, device=self.config.device, dtype=self.config.torch_dtype
-                )
+            self._ensure_dense_cache()
             self.dense_cache[channel_idx].copy_(grid)
             if self.config.enable_metrics:
                 try:
@@ -627,10 +646,7 @@ class AgentObservation:
                 self._metrics["cache_hits"] += 1
             if self.dense_cache is not None:
                 return self.dense_cache
-            S = 2 * self.config.R + 1
-            self.dense_cache = torch.zeros(
-                self.registry.num_channels, S, S, device=self.config.device, dtype=self.config.torch_dtype
-            )
+            self._ensure_dense_cache()
             return self.dense_cache
 
         if not self.cache_dirty and self.dense_cache is not None:
@@ -643,13 +659,7 @@ class AgentObservation:
 
         # Create dense tensor
         if self.dense_cache is None:
-            self.dense_cache = torch.zeros(
-                num_channels,
-                S,
-                S,
-                device=self.config.device,
-                dtype=self.config.torch_dtype,
-            )
+            self._ensure_dense_cache()
 
         # Clear existing values and record rebuild time
         t0 = None
