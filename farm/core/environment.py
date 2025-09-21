@@ -38,6 +38,7 @@ import logging
 import math
 import random
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+import time as _time
 
 import numpy as np
 import torch
@@ -1342,7 +1343,6 @@ class Environment(AECEnv):
         # Query nearby resources within a radius covering the local window
         # Use slightly larger than R to capture bilinear spread near the boundary
         try:
-            import time as _time
             _tq0 = _time.perf_counter()
             nearby = self.spatial_index.get_nearby(agent.position, R + 1, ["resources"])
             nearby_resources = nearby.get("resources", [])
@@ -1368,7 +1368,6 @@ class Environment(AECEnv):
             nearby_resources = []
 
         if use_bilinear:
-            import time as _time
             _tb0 = _time.perf_counter()
             for res in nearby_resources:
                 # Convert world to local continuous coords where (R, R) is agent center
@@ -1385,7 +1384,6 @@ class Environment(AECEnv):
             _tb1 = _time.perf_counter()
             self._perception_profile["bilinear_time_s"] += max(0.0, _tb1 - _tb0)
         else:
-            import time as _time
             _tn0 = _time.perf_counter()
             for res in nearby_resources:
                 rx, ry = discretize_position_continuous(

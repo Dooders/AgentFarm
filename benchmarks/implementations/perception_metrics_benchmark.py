@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from typing import Dict, Any, List, Tuple
+import time as _time
 
 import numpy as np
 
@@ -10,6 +11,12 @@ from farm.core.config import SimulationConfig
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 from farm.core.agent import BaseAgent
+
+
+DEFAULT_MIN_ENV_SIZE = 200
+DEFAULT_ENV_SCALE = 2.5
+DEFAULT_CHANNEL_COUNT = 13
+OPERATIONS_PER_CELL_ESTIMATE = 2.0
 
 
 class PerceptionMetricsBenchmark(Benchmark):
@@ -108,7 +115,7 @@ class PerceptionMetricsBenchmark(Benchmark):
     def _run_once(
         self, num_agents: int, R: int, storage_mode: str, use_bilinear: bool
     ) -> Dict[str, Any]:
-        width = max(200, int(2.5 * R * (num_agents ** 0.5)))
+        width = max(DEFAULT_MIN_ENV_SIZE, int(DEFAULT_ENV_SCALE * R * (num_agents ** 0.5)))
         height = width
         env = self._make_env(width, height, R, storage_mode, use_bilinear)
         agent_ids = self._spawn_agents(env, num_agents)
@@ -120,14 +127,14 @@ class PerceptionMetricsBenchmark(Benchmark):
         # Measure
         total_observes = 0
         per_step_times: List[float] = []
-        t0 = time.perf_counter()
+        t0 = _time.perf_counter()
         for _ in range(self._steps):
-            step_start = time.perf_counter()
+            step_start = _time.perf_counter()
             for aid in agent_ids:
                 _ = env.observe(aid)
                 total_observes += 1
-            per_step_times.append(time.perf_counter() - step_start)
-        total_time = time.perf_counter() - t0
+            per_step_times.append(_time.perf_counter() - step_start)
+        total_time = _time.perf_counter() - t0
 
         mean_step = float(np.mean(per_step_times)) if per_step_times else 0.0
         p95_step = float(np.percentile(per_step_times, 95)) if per_step_times else 0.0
@@ -141,9 +148,9 @@ class PerceptionMetricsBenchmark(Benchmark):
         perc_profile = getattr(env, "get_perception_profile", lambda reset=False: {})(reset=True)
 
         # GFLOPs est
-        C = 13
+        C = DEFAULT_CHANNEL_COUNT
         S = 2 * R + 1
-        k_ops_per_cell = 2.0
+        k_ops_per_cell = OPERATIONS_PER_CELL_ESTIMATE
         dense_rebuilds = float(obs_metrics.get("dense_rebuilds", 0))
         total_cells = float(C * S * S)
         gflops_est = (total_cells * k_ops_per_cell * dense_rebuilds) / 1e9 / max(total_time, 1e-9)

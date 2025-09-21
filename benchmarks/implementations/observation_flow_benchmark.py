@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from typing import Dict, Any, Optional
+import time as _time
 
 try:
     import numpy as np  # type: ignore
@@ -136,17 +137,17 @@ class ObservationFlowBenchmark(Benchmark):
 
         # Measure per-step observation for all agents for N steps
         total_observes = 0
-        t0 = time.perf_counter()
+        t0 = _time.perf_counter()
         per_step_times: list[float] = []
 
         for _ in range(self._steps):
-            step_start = time.perf_counter()
+            step_start = _time.perf_counter()
             for agent_id in self._agent_ids:
                 _ = env.observe(agent_id)
                 total_observes += 1
-            per_step_times.append(time.perf_counter() - step_start)
+            per_step_times.append(_time.perf_counter() - step_start)
 
-        total_time = time.perf_counter() - t0
+        total_time = _time.perf_counter() - t0
         obs_per_sec = total_observes / total_time if total_time > 0 else 0.0
         if np is not None:
             mean_step = float(np.mean(per_step_times)) if per_step_times else 0.0
