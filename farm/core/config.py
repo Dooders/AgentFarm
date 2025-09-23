@@ -354,9 +354,10 @@ class SimulationConfig:
 
     def to_yaml(self, file_path: str) -> None:
         """Save configuration to a YAML file."""
-        # Convert to dictionary, handling visualization config specially
+        # Convert to dictionary, handling visualization and redis configs specially
         config_dict = self.__dict__.copy()
         config_dict["visualization"] = self.visualization.to_dict()
+        config_dict["redis"] = self.redis.to_dict()
 
         with open(file_path, "w", encoding="utf-8") as f:
             yaml.dump(config_dict, f, default_flow_style=False)
