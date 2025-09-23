@@ -88,6 +88,17 @@ class SpatialIndex:
         self._agents = agents
         self._resources = resources
 
+        # Basic type validation to catch incorrect references early
+        try:
+            if any(isinstance(a, (str, bytes)) for a in agents):
+                logger.warning(
+                    "SpatialIndex.set_references received agent IDs (strings) instead of agent objects. "
+                    "This may cause empty agent indices. Ensure agent objects are passed."
+                )
+        except Exception:
+            # Be tolerant of non-iterable or unusual inputs
+            pass
+
         # Register default named indices mapping to agents/resources
         # Agents: filter only alive items
         self.register_index(
@@ -124,6 +135,9 @@ class SpatialIndex:
                 filter_func=cfg.get("filter_func", None),
             )
 
+        # Changing references should trigger KD-tree rebuild on next query/update
+        self.mark_positions_dirty()
+
     def mark_positions_dirty(self) -> None:
         """Mark that positions have changed and KD-trees need updating."""
         self._positions_dirty = True
@@ -147,7 +161,7 @@ class SpatialIndex:
             return
 
         # Precompute alive agents once to avoid redundant computation
-        alive_agents = [agent for agent in self._agents if agent.alive]
+        alive_agents = [agent for agent in self._agents if getattr(agent, "alive", False)]
         current_agent_count = len(alive_agents)
 
         # Count-based quick check for structural changes
@@ -258,7 +272,7 @@ class SpatialIndex:
         """
         # Update agent KD-tree
         if alive_agents is None:
-            alive_agents = [agent for agent in self._agents if agent.alive]
+            alive_agents = [agent for agent in self._agents if getattr(agent, "alive", False)]
 
         # Filter out agents without valid positions
         alive_agents = [agent for agent in alive_agents if agent.position is not None]
@@ -583,7 +597,7 @@ class SpatialIndex:
         int
             Number of alive agents
         """
-        return len([a for a in self._agents if a.alive])
+        return len([a for a in self._agents if getattr(a, "alive", False)])
 
     def get_resource_count(self) -> int:
         """Get the number of resources.

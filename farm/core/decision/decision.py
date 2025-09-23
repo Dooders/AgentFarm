@@ -461,7 +461,15 @@ class DecisionModule:
                 self.algorithm, "select_action_with_mask"
             ):
                 # Use action masking support if available
-                action = self.algorithm.select_action_with_mask(state_np, action_mask)
+                # Returned action is in FULL action space; convert to relative index if enabled_actions provided
+                action_full = self.algorithm.select_action_with_mask(state_np, action_mask)
+                if enabled_actions is not None and len(enabled_actions) > 0:
+                    if action_full in enabled_actions:
+                        return enabled_actions.index(action_full)
+                    # Fallback to a random valid enabled action index
+                    return int(np.random.randint(len(enabled_actions)))
+                # No enabled_actions restriction: return full-space index
+                action = action_full
             elif self.algorithm is not None and hasattr(
                 self.algorithm, "select_action"
             ):
