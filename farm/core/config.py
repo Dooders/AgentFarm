@@ -346,13 +346,18 @@ class SimulationConfig:
         vis_config = config_dict.pop("visualization", {})
         config_dict["visualization"] = VisualizationConfig(**vis_config)
 
+        # Handle redis config separately
+        redis_config = config_dict.pop("redis", {})
+        config_dict["redis"] = RedisMemoryConfig(**redis_config)
+
         return cls(**config_dict)
 
     def to_yaml(self, file_path: str) -> None:
         """Save configuration to a YAML file."""
-        # Convert to dictionary, handling visualization config specially
+        # Convert to dictionary, handling visualization and redis configs specially
         config_dict = self.__dict__.copy()
         config_dict["visualization"] = self.visualization.to_dict()
+        config_dict["redis"] = self.redis.to_dict()
 
         with open(file_path, "w", encoding="utf-8") as f:
             yaml.dump(config_dict, f, default_flow_style=False)
@@ -395,6 +400,10 @@ class SimulationConfig:
         # Handle visualization config specially
         vis_data = data.pop("visualization", {})
         data["visualization"] = VisualizationConfig(**vis_data)
+
+        # Handle redis config specially
+        redis_data = data.pop("redis", {})
+        data["redis"] = RedisMemoryConfig(**redis_data)
 
         # Handle observation config specially
         obs_data = data.pop("observation", None)
