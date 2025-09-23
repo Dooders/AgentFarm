@@ -346,6 +346,10 @@ class SimulationConfig:
         vis_config = config_dict.pop("visualization", {})
         config_dict["visualization"] = VisualizationConfig(**vis_config)
 
+        # Handle redis config separately
+        redis_config = config_dict.pop("redis", {})
+        config_dict["redis"] = RedisMemoryConfig(**redis_config)
+
         return cls(**config_dict)
 
     def to_yaml(self, file_path: str) -> None:
@@ -395,6 +399,10 @@ class SimulationConfig:
         # Handle visualization config specially
         vis_data = data.pop("visualization", {})
         data["visualization"] = VisualizationConfig(**vis_data)
+
+        # Handle redis config specially
+        redis_data = data.pop("redis", {})
+        data["redis"] = RedisMemoryConfig(**redis_data)
 
         # Handle observation config specially
         obs_data = data.pop("observation", None)

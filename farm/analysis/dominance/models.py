@@ -2,7 +2,7 @@ import logging
 from typing import Dict, List, Optional, Union
 
 import pandas as pd
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 
 class DominanceDataModel(BaseModel):
@@ -289,8 +289,7 @@ class DominanceDataModel(BaseModel):
     )
 
     # Allow for additional fields not explicitly defined
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 def validate_dataframe(df: pd.DataFrame) -> List[Union[DominanceDataModel, Dict]]:

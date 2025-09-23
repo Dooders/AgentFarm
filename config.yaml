@@ -192,11 +192,10 @@ agent_parameters:
     attack_weight: 0.15
 
 # Device configuration for neural network computations
-device:
-  preference: "auto" # Options: "auto", "cpu", "cuda", "cuda:X" (specific GPU)
-  fallback: true # Whether to fallback to CPU if preferred device unavailable
-  memory_fraction: null # GPU memory fraction to use (0.0-1.0), null = no limit
-  validate_compatibility: true # Whether to validate tensor compatibility when moving devices
+device_preference: "auto" # Options: "auto", "cpu", "cuda", "cuda:X" (specific GPU)
+device_fallback: true # Whether to fallback to CPU if preferred device unavailable
+device_memory_fraction: null # GPU memory fraction to use (0.0-1.0), null = no limit
+device_validate_compatibility: true # Whether to validate tensor compatibility when moving devices
 
 # Redis configuration
 redis:

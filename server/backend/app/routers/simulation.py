@@ -7,7 +7,7 @@ from typing import List, Optional
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import APIKeyHeader
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, validator
 from sqlalchemy.orm import Session
 
 from .. import models
@@ -47,8 +47,7 @@ class SimulationHistory(BaseModel):
     result: float
     timestamp: datetime
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SimulationResponse(BaseModel):

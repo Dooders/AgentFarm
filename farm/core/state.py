@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional
 
 import numpy as np
 import torch
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 if TYPE_CHECKING:
     from farm.core.environment import Environment
@@ -23,18 +23,11 @@ class BaseState(BaseModel):
         to_dict: Convert state to dictionary representation
     """
 
-    class Config:
-        """Pydantic configuration.
-
-        Attributes:
-            validate_assignment: Validate values when attributes are assigned
-            frozen: Make the state immutable after creation
-            arbitrary_types_allowed: Allow custom types like numpy arrays
-        """
-
-        validate_assignment = True
-        frozen = True
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(
+        validate_assignment=True,
+        frozen=True,
+        arbitrary_types_allowed=True
+    )
 
     def to_tensor(self, device: torch.device) -> torch.Tensor:
         """Convert state to tensor format for neural network input.
@@ -390,11 +383,10 @@ class ModelState(BaseModel):
         ..., description="Recent training performance metrics"
     )
 
-    class Config:
-        """Pydantic configuration."""
-
-        arbitrary_types_allowed = True
-        frozen = True
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        frozen=True
+    )
 
     @classmethod
     def from_move_module(cls, move_module) -> "ModelState":
