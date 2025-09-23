@@ -158,12 +158,24 @@ class TestSimulation(unittest.TestCase):
             db_path=self.db_path,
         )
 
+        # Create a test-specific config object to avoid mutating shared state
+        test_config = SimulationConfig(
+            width=self.config.width,
+            height=self.config.height,
+            initial_resources=self.config.initial_resources,
+            initial_resource_level=self.config.initial_resource_level,
+            base_consumption_rate=1.0,  # Force higher consumption rate for testing
+            # Add other necessary config fields as needed
+        )
+
         # Create agent with very low starvation threshold for testing
-        agent = BaseAgent("test_agent_3", (25, 25), 1, self.env.spatial_service, 
-                         environment=self.env, config=self.config)
-        agent.starvation_threshold = 3  # Override default threshold of 100
-        # Force higher consumption rate for testing
-        agent.config.base_consumption_rate = 1.0
+        class TestAgent(BaseAgent):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.starvation_threshold = 3  # Override default threshold of 100
+
+        agent = TestAgent("test_agent_3", (25, 25), 1, self.env.spatial_service, 
+                          environment=self.env, config=test_config)
         self.env.add_agent(agent)
 
         # Run until agent dies or we hit a reasonable limit
