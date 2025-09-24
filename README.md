@@ -48,7 +48,6 @@ This repository is being developed to support research in the [Dooders](https://
 - **Multi-Simulation Support**: Experiment database for comparing multiple simulation runs
 
 ### Additional Tools
-- **Interactive Notebooks**: Jupyter notebooks for data exploration and analysis
 - **Web Dashboard**: Browser-based interface for monitoring and visualization
 - **Benchmarking Suite**: Performance testing and optimization tools
 - **Research Tools**: Advanced analysis modules for academic research
@@ -76,12 +75,18 @@ source venv/bin/activate  # On Windows use `venv\Scripts\activate`
 # Install dependencies
 pip install -r requirements.txt
 
+# Optional: Redis Python client (required for Redis-backed memory)
+pip install redis
+
 # Optional: Install Redis for enhanced memory management
 # Note: Redis is used for agent memory storage and can improve performance
 # On Ubuntu/Debian: sudo apt-get install redis-server
 # On macOS: brew install redis
 # On Windows: Download from https://redis.io/download
 # Then start Redis: redis-server
+
+# Optional: Start Redis via Docker (from repo root)
+# docker compose up -d
 ```
 
 ### Running Your First Simulation
@@ -94,10 +99,8 @@ python run_simulation.py --config config.yaml --steps 1000
 ```
 
 **Command Line Interface (Advanced)**
+> Note: simulate mode is under active development; prefer run_simulation.py for now.
 ```bash
-# Run simulation with various options
-python farm/core/cli.py --mode simulate --config config.yaml --steps 1000
-
 # Run experiments with parameter variations
 python farm/core/cli.py --mode experiment --config config.yaml --experiment-name test --iterations 3
 
@@ -113,21 +116,34 @@ python farm/core/cli.py --mode analyze --db-path simulations/simulation.db
 python main.py
 ```
 
+Opens a basic Tk window to initialize the database; use the CLI or Web Dashboard for interaction.
+
+**Web Dashboard**
+```bash
+# Install backend dependencies
+pip install -r server/backend/requirements.txt
+
+# Start backend (FastAPI) and frontend (simple server)
+python server/run_servers.py
+# Then open http://localhost:3000 in your browser
+```
+
 **Results**
 All simulation results are saved in the `simulations` directory with database files, logs, and analysis reports.
 
 ## Documentation
 
 For detailed documentation and advanced usage:
-- [Simulation Guide](docs/SimulationQuickStart.md)
-- [Experiment Guide](docs/ExperimentQuickStart.md)
+- [Experiment QuickStart](docs/ExperimentQuickStart.md)
 - [Core Architecture](docs/core_architecture.md)
 - [Decision Module](farm/core/decision/README.md)
 - [Configuration Guide](docs/configuration_guide.md)
 - [Data System Architecture](docs/data/data_api.md)
 - [API Reference](docs/api_reference.md)
 - [Module Overview](docs/module_overview.md)
-- [Research Documentation](docs/research.md)
+- [Experiments Overview](docs/experiments.md)
+- [Benchmarking Overview](benchmarks/README.md)
+- [Redis Benchmarking](benchmarks/README_REDIS.md)
 - [Full Documentation Index](docs/README.md)
 
 ## Contributing
