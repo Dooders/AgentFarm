@@ -646,6 +646,109 @@ class BaseAgent:
         # Convert to torch tensor
         return torch.from_numpy(observation).to(device=self.device, dtype=torch.float32)
 
+    def reset(
+        self,
+        *,
+        agent_id: str,
+        position: tuple[float, float],
+        resource_level: int,
+        spatial_service: ISpatialQueryService,
+        environment: Optional["Environment"] = None,
+        agent_type: str = "BaseAgent",
+        metrics_service: IMetricsService | None = None,
+        logging_service: ILoggingService | None = None,
+        validation_service: IValidationService | None = None,
+        time_service: ITimeService | None = None,
+        lifecycle_service: IAgentLifecycleService | None = None,
+        config: object | None = None,
+        action_set: Optional[list[Action]] = None,
+        device: Optional[torch.device] = None,
+        parent_ids: Optional[list[str]] = None,
+        generation: int = 0,
+        use_memory: bool = False,
+        memory_config: Optional[dict] = None,
+    ) -> None:
+        """Reinitialize an existing agent instance for pooling reuse.
+
+        Mirrors the constructor but reuses heavy submodules when possible.
+        """
+        # Basic attributes
+        self.actions = (
+            action_set if action_set is not None else action_registry.get_all(normalized=True)
+        )
+        self.agent_id = agent_id
+        self.position = position
+        self.resource_level = resource_level
+        self.agent_type = agent_type
+        self.alive = True
+
+        # Services and environment
+        self._initialize_services(
+            environment=environment,
+            spatial_service=spatial_service,
+            metrics_service=metrics_service,
+            logging_service=logging_service,
+            validation_service=validation_service,
+            time_service=time_service,
+            lifecycle_service=lifecycle_service,
+            config=config,
+        )
+
+        # Device selection
+        if device is not None:
+            self.device = device
+        elif config is not None:
+            self.device = create_device_from_config(config)
+        else:
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        # Agent state
+        self._initialize_agent_state()
+
+        # Genome metadata
+        self.generation = generation
+        self.genome_id = self._generate_genome_id(parent_ids or [])
+
+        # Decision module: reuse if available, else create
+        if hasattr(self, "decision_module") and self.decision_module is not None:
+            try:
+                self.decision_module.reset()
+            except Exception:
+                self._initialize_decision_module()
+        else:
+            self._initialize_decision_module()
+
+        # Optional memory
+        self.memory = None
+        if use_memory:
+            self._init_memory(memory_config)
+
+        if self.metrics_service:
+            try:
+                self.metrics_service.record_birth()
+            except Exception as e:
+                logger.warning(
+                    f"Failed to record birth metrics for agent {self.agent_id}: {e}"
+                )
+
+    def prepare_for_release(self) -> None:
+        """Prepare this agent to be returned to an object pool.
+
+        Clears transient references and resets lightweight fields to reduce
+        retention. Heavy submodules can be reused on next reset.
+        """
+        # Clear cached selection state
+        if hasattr(self, "_cached_selection_state"):
+            self._cached_selection_state = None
+            self._cached_selection_time = -1
+        # Reset per-episode trackers
+        self.previous_state = None
+        if hasattr(self, "previous_state_tensor"):
+            self.previous_state_tensor = None
+        self.previous_action = None
+        self._previous_action_index = 0
+        self._previous_enabled_actions = None
+
     def get_state(self) -> AgentState:
         """Returns the current state of the agent as an AgentState object.
 
@@ -1250,23 +1353,50 @@ class BaseAgent:
 
         # Create new agent with all info
         try:
-            new_agent = agent_class(
-                agent_id=new_id,
-                position=self.position,
-                resource_level=(
-                    getattr(self.config, "offspring_initial_resources", 10)
-                    if self.config
-                    else 10
-                ),
-                spatial_service=self.spatial_service,
-                metrics_service=self.metrics_service,
-                logging_service=self.logging_service,
-                validation_service=self.validation_service,
-                time_service=self.time_service,
-                lifecycle_service=self.lifecycle_service,
-                config=self.config,
-                generation=generation,
-            )
+            # Prefer environment pool if available
+            if (
+                hasattr(self, "environment")
+                and self.environment is not None
+                and hasattr(self.environment, "agent_pool")
+                and self.environment.agent_pool is not None
+            ):
+                new_agent = self.environment.agent_pool.acquire(
+                    agent_id=new_id,
+                    position=self.position,
+                    resource_level=(
+                        getattr(self.config, "offspring_initial_resources", 10)
+                        if self.config
+                        else 10
+                    ),
+                    spatial_service=self.spatial_service,
+                    environment=self.environment,
+                    agent_type=agent_class.__name__,
+                    metrics_service=self.metrics_service,
+                    logging_service=self.logging_service,
+                    validation_service=self.validation_service,
+                    time_service=self.time_service,
+                    lifecycle_service=self.lifecycle_service,
+                    config=self.config,
+                    generation=generation,
+                )
+            else:
+                new_agent = agent_class(
+                    agent_id=new_id,
+                    position=self.position,
+                    resource_level=(
+                        getattr(self.config, "offspring_initial_resources", 10)
+                        if self.config
+                        else 10
+                    ),
+                    spatial_service=self.spatial_service,
+                    metrics_service=self.metrics_service,
+                    logging_service=self.logging_service,
+                    validation_service=self.validation_service,
+                    time_service=self.time_service,
+                    lifecycle_service=self.lifecycle_service,
+                    config=self.config,
+                    generation=generation,
+                )
         except Exception as e:
             logger.error(f"Failed to create offspring agent instance: {e}")
             raise RuntimeError(f"Failed to instantiate offspring agent: {e}") from e

@@ -12,6 +12,7 @@ from farm.core.action import (
     reproduce_action,
     share_action,
 )
+from farm.core.pool import global_action_pool
 
 if TYPE_CHECKING:
     from farm.core.agent import BaseAgent
@@ -126,7 +127,7 @@ class Genome:
 
         # Reconstruct action set
         action_set = [
-            Action(name, weight, ACTION_FUNCTIONS[name])
+            global_action_pool.acquire(name, weight, ACTION_FUNCTIONS[name])
             for name, weight in genome["action_set"]
         ]
 

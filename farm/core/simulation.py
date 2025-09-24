@@ -47,6 +47,7 @@ import torch
 from tqdm import tqdm
 
 from farm.core.agent import BaseAgent
+from farm.core.pool import AgentPool, pooling_enabled
 from farm.core.config import SimulationConfig
 from farm.core.environment import Environment
 from farm.utils.identity import Identity
@@ -124,10 +125,24 @@ def create_initial_agents(
             int(rng.uniform(0, environment.height)),
         )
 
-    # Create system agents (now using BaseAgent)
+    # Initialize a simple agent pool for BaseAgent reuse
+    agent_pool = AgentPool(BaseAgent) if pooling_enabled() else None
+
+    # Create system agents (from pool)
     for _ in range(num_system_agents):
         position = get_random_position()
-        agent = BaseAgent(
+        agent = (
+            agent_pool.acquire(
+                agent_id=environment.get_next_agent_id(),
+                position=position,
+                resource_level=1,
+                spatial_service=environment.spatial_service,
+                environment=environment,
+                agent_type="SystemAgent",
+                generation=0,
+            )
+            if agent_pool is not None
+            else BaseAgent(
             agent_id=environment.get_next_agent_id(),
             position=position,
             resource_level=1,
@@ -135,16 +150,28 @@ def create_initial_agents(
             environment=environment,
             agent_type="SystemAgent",
             generation=0,
+            )
         )
         environment.add_agent(agent)
         positions.append(position)
 
     logging.info(f"Created {num_system_agents} BaseAgents (system type)")
 
-    # Create independent agents (now using BaseAgent)
+    # Create independent agents (from pool)
     for _ in range(num_independent_agents):
         position = get_random_position()
-        agent = BaseAgent(
+        agent = (
+            agent_pool.acquire(
+                agent_id=environment.get_next_agent_id(),
+                position=position,
+                resource_level=1,
+                spatial_service=environment.spatial_service,
+                environment=environment,
+                agent_type="IndependentAgent",
+                generation=0,
+            )
+            if agent_pool is not None
+            else BaseAgent(
             agent_id=environment.get_next_agent_id(),
             position=position,
             resource_level=1,
@@ -152,16 +179,28 @@ def create_initial_agents(
             environment=environment,
             agent_type="IndependentAgent",
             generation=0,
+            )
         )
         environment.add_agent(agent)
         positions.append(position)
 
     logging.info(f"Created {num_independent_agents} BaseAgents (independent type)")
 
-    # Create control agents (now using BaseAgent)
+    # Create control agents (from pool)
     for _ in range(num_control_agents):
         position = get_random_position()
-        agent = BaseAgent(
+        agent = (
+            agent_pool.acquire(
+                agent_id=environment.get_next_agent_id(),
+                position=position,
+                resource_level=1,
+                spatial_service=environment.spatial_service,
+                environment=environment,
+                agent_type="ControlAgent",
+                generation=0,
+            )
+            if agent_pool is not None
+            else BaseAgent(
             agent_id=environment.get_next_agent_id(),
             position=position,
             resource_level=1,
@@ -169,6 +208,7 @@ def create_initial_agents(
             environment=environment,
             agent_type="ControlAgent",
             generation=0,
+            )
         )
         environment.add_agent(agent)
         positions.append(position)

@@ -47,6 +47,8 @@ from pettingzoo import AECEnv
 
 # Use action registry for cleaner action management
 from farm.core.action import ActionType, action_registry
+from farm.core.pool import AgentPool, pooling_enabled
+from farm.core.agent import BaseAgent
 from farm.core.channels import NUM_CHANNELS
 from farm.core.config import SimulationConfig
 from farm.core.metrics_tracker import MetricsTracker
@@ -323,6 +325,9 @@ class Environment(AECEnv):
             spatial_index=self.spatial_index,
         )
 
+        # Initialize a reusable agent pool unless disabled
+        self.agent_pool = AgentPool(BaseAgent) if pooling_enabled() else None
+
         # Initialize environment
         self.initialize_resources(self.resource_distribution)
 
@@ -569,6 +574,14 @@ class Environment(AECEnv):
         self.spatial_index.mark_positions_dirty()  # Mark positions as dirty when agent is removed
         if agent.agent_id in self.agent_observations:
             del self.agent_observations[agent.agent_id]
+
+        # Release to pool for reuse
+        if pooling_enabled():
+            try:
+                if hasattr(self, "agent_pool") and self.agent_pool is not None:
+                    self.agent_pool.release(agent)
+            except Exception:
+                pass
 
     def log_interaction_edge(
         self,
