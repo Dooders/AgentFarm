@@ -973,10 +973,12 @@ class BaseAgent:
             close_resources = []
 
         action = None
+        action_index = None
         if close_resources:
-            for a in enabled_actions:
+            for i, a in enumerate(enabled_actions):
                 if a.name == "gather":
                     action = a
+                    action_index = i
                     break
 
         # Select and execute action with curriculum restrictions if no forced gather

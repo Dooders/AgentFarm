@@ -47,9 +47,8 @@ def test_env_step_agent_gathers_from_colocated_resource(simple_config: Simulatio
         environment=env,
         config=simple_config,
     )
-    env.add_agent(agent)
 
-    # Reset to initialize PettingZoo bookkeeping while preserving our agent
+    # Reset to initialize PettingZoo bookkeeping and add our agent
     # Note: resources get regenerated in reset; we set them manually after
     env.reset(options={"agents": [agent]})
 
