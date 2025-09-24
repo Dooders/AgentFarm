@@ -968,7 +968,8 @@ class BaseAgent:
         try:
             nearby = self.spatial_service.get_nearby(self.position, 1.0, ["resources"])  # radius ~ 1 cell
             close_resources = nearby.get("resources", [])
-        except Exception:
+        except Exception as e:
+            logging.exception("Failed to get nearby resources in agent heuristic; defaulting to empty list.")
             close_resources = []
 
         action = None

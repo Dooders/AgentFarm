@@ -464,10 +464,26 @@ class DecisionModule:
                 # Returned action is in FULL action space; convert to relative index if enabled_actions provided
                 action_full = self.algorithm.select_action_with_mask(state_np, action_mask)
                 if enabled_actions is not None and len(enabled_actions) > 0:
+                    # The algorithm should return an action that's in enabled_actions due to masking
+                    # but we need to handle edge cases where this might not be true
                     if action_full in enabled_actions:
                         return enabled_actions.index(action_full)
-                    # Fallback to a random valid enabled action index
-                    return int(np.random.randint(len(enabled_actions)))
+                    else:
+                        # This should rarely happen if masking is working correctly
+                        # Log a warning and find the closest valid action
+                        logger.warning(
+                            f"Algorithm returned action {action_full} not in enabled_actions {enabled_actions}. "
+                            f"This suggests an issue with action masking. Using fallback."
+                        )
+                        # Find the first valid action that's actually enabled
+                        # This ensures we return a valid relative index even if the algorithm
+                        # returned an invalid action due to masking implementation issues
+                        for i, enabled_action in enumerate(enabled_actions):
+                            if enabled_action < self.num_actions and action_mask[enabled_action]:
+                                return i
+                        # Ultimate fallback: random valid action
+                        # This should never be reached if enabled_actions is properly constructed
+                        return int(np.random.randint(len(enabled_actions)))
                 # No enabled_actions restriction: return full-space index
                 action = action_full
             elif self.algorithm is not None and hasattr(

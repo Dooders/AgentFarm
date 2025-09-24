@@ -95,7 +95,7 @@ class SpatialIndex:
                     "SpatialIndex.set_references received agent IDs (strings) instead of agent objects. "
                     "This may cause empty agent indices. Ensure agent objects are passed."
                 )
-        except Exception:
+        except (TypeError, AttributeError):
             # Be tolerant of non-iterable or unusual inputs
             pass
 
