@@ -47,7 +47,7 @@ The system combines:
 
 **Local Perspective Fields**: Each agent receives a small window (configurable) centered on their position, creating **subjective, limited experiences** rather than global knowledge.
 
-**Orientation Alignment**: The agent's facing direction is always "up" in the perception grid, ensuring stable, agent-centric perspectives.
+**Orientation Alignment**: The agent's facing direction is aligned to "up" in the perception grid based on each agent's `orientation` (degrees, 0=north). World layers and entities are rotated accordingly for agent-centric perception. Default `orientation=0` preserves legacy behavior.
 
 **Limited Field of View**: Agents can only "see" within a certain radius, with areas beyond this masked as unknown, simulating **partial observability**.
 

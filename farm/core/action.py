@@ -726,7 +726,8 @@ def gather_action(agent: "BaseAgent") -> dict:
         resource_amount_before = closest_resource.amount
 
         # Determine how much to gather
-        max_gather = getattr(agent.config, "max_amount", 10)
+        # Prefer config.max_gather_amount if present; fall back to 10
+        max_gather = getattr(agent.config, "max_gather_amount", 10)
         gather_amount = min(max_gather, closest_resource.amount)
 
         if gather_amount <= 0:

@@ -341,6 +341,7 @@ class Environment(AECEnv):
                 self.add_agent(agent)
 
         # Update spatial index references now that resources and agents are initialized
+        # Pass a live view of agent objects to avoid accidental string ID lists
         self.spatial_index.set_references(
             list(self._agent_objects.values()), self.resources
         )
@@ -1424,6 +1425,7 @@ class Environment(AECEnv):
             trails_world_points=[],  # TODO: Implement if needed
             spatial_index=self.spatial_index,
             agent_object=agent,
+            agent_orientation=getattr(agent, "orientation", 0.0),
         )
 
         tensor = obs.tensor().cpu().numpy()
