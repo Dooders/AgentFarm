@@ -59,6 +59,7 @@ from farm.core.services.interfaces import (
 )
 from farm.core.state import AgentState
 from farm.database.data_types import GenomeId
+
 try:
     from farm.memory.redis_memory import AgentMemoryManager, RedisMemoryConfig
 except Exception:  # pragma: no cover - optional at runtime

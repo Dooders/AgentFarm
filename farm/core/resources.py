@@ -23,10 +23,16 @@ class Resource:
         return self.amount <= 0
 
     def consume(self, consumption_amount):
-        """Consume some amount of the resource."""
-        self.amount -= consumption_amount
-        if self.amount < 0:
-            self.amount = 0
+        """Consume some amount of the resource and return the actual amount consumed.
+
+        Ensures that consumption never reduces the amount below zero.
+        """
+        if consumption_amount <= 0:
+            return 0.0
+        available_before = float(self.amount)
+        actual = min(float(consumption_amount), available_before)
+        self.amount = max(0.0, available_before - actual)
+        return actual
 
     def regenerate(self, regen_amount):
         """Regenerate some amount of the resource up to max_amount."""

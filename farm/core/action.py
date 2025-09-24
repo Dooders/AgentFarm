@@ -551,7 +551,9 @@ def attack_action(agent: "BaseAgent") -> dict:
 
     try:
         # Find nearby agents using spatial index
-        nearby = agent.spatial_service.get_nearby(agent.position, attack_range, ["agents"])
+        nearby = agent.spatial_service.get_nearby(
+            agent.position, attack_range, ["agents"]
+        )
         nearby_agents = nearby.get("agents", [])
 
         # Filter out self and find valid targets
@@ -691,7 +693,9 @@ def gather_action(agent: "BaseAgent") -> dict:
 
     try:
         # Find nearby resources using spatial index
-        nearby = agent.spatial_service.get_nearby(agent.position, gathering_range, ["resources"])
+        nearby = agent.spatial_service.get_nearby(
+            agent.position, gathering_range, ["resources"]
+        )
         nearby_resources = nearby.get("resources", [])
 
         # Filter out depleted resources
@@ -726,7 +730,8 @@ def gather_action(agent: "BaseAgent") -> dict:
         resource_amount_before = closest_resource.amount
 
         # Determine how much to gather
-        max_gather = getattr(agent.config, "max_amount", 10)
+        # Prefer config.max_gather_amount if present; fall back to 10
+        max_gather = getattr(agent.config, "max_gather_amount", 10)
         gather_amount = min(max_gather, closest_resource.amount)
 
         if gather_amount <= 0:
@@ -840,7 +845,9 @@ def share_action(agent: "BaseAgent") -> dict:
 
     try:
         # Find nearby agents using spatial index
-        nearby = agent.spatial_service.get_nearby(agent.position, share_range, ["agents"])
+        nearby = agent.spatial_service.get_nearby(
+            agent.position, share_range, ["agents"]
+        )
         nearby_agents = nearby.get("agents", [])
 
         # Filter out self and find valid targets
