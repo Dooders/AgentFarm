@@ -30,7 +30,7 @@ class Resource:
         if consumption_amount <= 0:
             return 0.0
         available_before = float(self.amount)
-        actual = min(float(consumption_amount), max(0.0, available_before))
+        actual = min(float(consumption_amount), available_before)
         self.amount = max(0.0, available_before - actual)
         return actual
 

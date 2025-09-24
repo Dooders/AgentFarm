@@ -59,6 +59,7 @@ from farm.core.services.interfaces import (
 )
 from farm.core.state import AgentState
 from farm.database.data_types import GenomeId
+
 try:
     from farm.memory.redis_memory import AgentMemoryManager, RedisMemoryConfig
 except Exception:  # pragma: no cover - optional at runtime
@@ -964,30 +965,12 @@ class BaseAgent:
                         ]
                         break
 
-        # Simple heuristic: prioritize gather if resource collocated or very close
-        try:
-            nearby = self.spatial_service.get_nearby(self.position, 1.0, ["resources"])  # radius ~ 1 cell
-            close_resources = nearby.get("resources", [])
-        except Exception as e:
-            logging.exception("Failed to get nearby resources in agent heuristic; defaulting to empty list.")
-            close_resources = []
-
-        action = None
-        action_index = None
-        if close_resources:
-            for i, a in enumerate(enabled_actions):
-                if a.name == "gather":
-                    action = a
-                    action_index = i
-                    break
-
-        # Select and execute action with curriculum restrictions if no forced gather
-        if action is None:
-            action_index = self._select_action_with_curriculum(enabled_actions)
-            if enabled_actions:
-                action = enabled_actions[action_index]
-            else:
-                action = self.actions[action_index]
+        # Select and execute action with curriculum restrictions
+        action_index = self._select_action_with_curriculum(enabled_actions)
+        if enabled_actions:
+            action = enabled_actions[action_index]
+        else:
+            action = self.actions[action_index]
 
         # Capture resource level before action execution for accurate logging
         resources_before = self.resource_level
