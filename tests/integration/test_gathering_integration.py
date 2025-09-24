@@ -105,7 +105,7 @@ def test_agent_act_gathers_when_decision_returns_gather(simple_config: Simulatio
         from farm.core.action import ActionType
 
         for i, idx in enumerate(enabled):
-            if idx == ActionType.GATHER.value:
+            if idx == ActionType.GATHER:
                 return i
         return 0
 
