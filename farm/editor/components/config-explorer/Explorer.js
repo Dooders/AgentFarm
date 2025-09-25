@@ -13,6 +13,9 @@
 				unsaved: false,
 				fieldErrors: {}, // { sectionKey: { fieldName: [messages] } }
 				sectionDirty: {}, // { sectionKey: boolean }
+				// Compare & Presets
+				compare: { config: null, path: null },
+				presetStack: [], // stack of previous configs for undo
 			}
 			this._validateTimeout = null
 			this.init()
@@ -98,21 +101,36 @@
 				</div>
 				<div class="right">
 					<button id="open-config" class="btn">Open…</button>
+					<button id="open-compare" class="btn" title="Open secondary config for compare">Compare…</button>
+					<button id="clear-compare" class="btn" title="Clear comparison" disabled>Clear Compare</button>
 					<span class="sep"></span>
 					<input id="save-path" class="search" placeholder="Save path (optional)" />
 					<button id="browse-save" class="btn" title="Choose save location">Browse…</button>
 					<button id="save-config" class="btn">Save</button>
 					<button id="save-as" class="btn">Save As…</button>
+					<span class="sep"></span>
+					<button id="apply-preset" class="btn" title="Apply preset bundle to current">Apply Preset…</button>
+					<button id="undo-preset" class="btn" title="Undo last applied preset" disabled>Undo Preset</button>
 				</div>
 			`
 			bar.querySelector('#back-to-legacy').onclick = () => window.hideConfigExplorer()
 			bar.querySelector('#save-config').onclick = () => this.onSave()
 			const openBtn = bar.querySelector('#open-config')
 			if (openBtn) openBtn.onclick = () => this.onOpen()
+			const openCompareBtn = bar.querySelector('#open-compare')
+			if (openCompareBtn) openCompareBtn.onclick = () => this.onCompareOpen()
+			const clearCompareBtn = bar.querySelector('#clear-compare')
+			if (clearCompareBtn) clearCompareBtn.onclick = () => this.onClearCompare()
 			const browseBtn = bar.querySelector('#browse-save')
 			if (browseBtn) browseBtn.onclick = () => this.onBrowseSave()
 			const saveAsBtn = bar.querySelector('#save-as')
 			if (saveAsBtn) saveAsBtn.onclick = () => this.onSaveAs()
+			const applyPresetBtn = bar.querySelector('#apply-preset')
+			if (applyPresetBtn) applyPresetBtn.onclick = () => this.onApplyPreset()
+			const undoPresetBtn = bar.querySelector('#undo-preset')
+			if (undoPresetBtn) undoPresetBtn.onclick = () => this.onUndoPreset()
+			// Reflect initial disabled states
+			setTimeout(() => this.updateToolbarButtons(), 0)
 			return bar
 		}
 
@@ -273,6 +291,24 @@
 				const control = this.buildInputControl(key, name, p)
 				const msg = document.createElement('div')
 				msg.className = 'validation-msg'
+				// Diff indicator + copy from compare
+				if (this.isFieldDifferent(key, name)) {
+					row.classList.add('row-diff')
+					const copyBtn = document.createElement('button')
+					copyBtn.className = 'copy-btn'
+					copyBtn.textContent = 'Copy from compare'
+					copyBtn.onclick = () => this.copyFieldFromCompare(key, name, p)
+					// place small copy button next to label
+					const labelWrap = document.createElement('div')
+					labelWrap.className = 'label-wrap'
+					labelWrap.appendChild(label)
+					labelWrap.appendChild(copyBtn)
+					row.appendChild(labelWrap)
+					row.appendChild(control)
+					row.appendChild(msg)
+					form.appendChild(row)
+					return
+				}
 				row.appendChild(label)
 				row.appendChild(control)
 				row.appendChild(msg)
@@ -447,9 +483,7 @@
 		}
 
 		updateYamlPreview() {
-			const pre = this.yamlEl.querySelector('.yaml-code')
-			if (!pre) return
-			pre.textContent = this.toYaml(this.state.config)
+			this.renderYamlPanel()
 		}
 
 		toYaml(obj, indent = 0) {
@@ -566,6 +600,206 @@
 			} catch (e) {
 				this.showGlobalValidation('error', 'Open failed')
 			}
+		}
+
+		// Compare: open secondary config
+		async onCompareOpen() {
+			try {
+				const res = await this.invokeDialog('openConfigDialog', undefined)
+				if (!res || res.canceled) return
+				const load = await window.configSchemaService.loadConfig(res.filePath)
+				if (load && load.success && load.config) {
+					this.state.compare = { config: load.config, path: res.filePath }
+					this.renderDetailsContent(this.state.selectedSectionKey || (this.state.sections[0] && this.state.sections[0].key))
+					this.updateYamlPreview()
+					this.updateToolbarButtons()
+					this.showGlobalValidation('valid', 'Compare config loaded')
+				} else {
+					this.showGlobalValidation('error', (load && load.message) || 'Compare open failed')
+				}
+			} catch (e) {
+				this.showGlobalValidation('error', 'Compare open failed')
+			}
+		}
+
+		onClearCompare() {
+			this.state.compare = { config: null, path: null }
+			this.renderDetailsContent(this.state.selectedSectionKey || (this.state.sections[0] && this.state.sections[0].key))
+			this.updateYamlPreview()
+			this.updateToolbarButtons()
+		}
+
+		updateToolbarButtons() {
+			const clearBtn = this.root.querySelector('#clear-compare')
+			if (clearBtn) clearBtn.disabled = !this.state.compare || !this.state.compare.config
+			const undoBtn = this.root.querySelector('#undo-preset')
+			if (undoBtn) undoBtn.disabled = !(this.state.presetStack && this.state.presetStack.length > 0)
+		}
+
+		isFieldDifferent(sectionKey, fieldName) {
+			const compareCfg = this.state.compare && this.state.compare.config
+			if (!compareCfg) return false
+			const left = this.getFieldValue(sectionKey, fieldName)
+			const right = sectionKey === 'simulation' ? compareCfg?.[fieldName] : (compareCfg?.[sectionKey] ? compareCfg[sectionKey][fieldName] : undefined)
+			return !this.deepEqual(left, right)
+		}
+
+		copyFieldFromCompare(sectionKey, fieldName, meta) {
+			const compareCfg = this.state.compare && this.state.compare.config
+			if (!compareCfg) return
+			const value = sectionKey === 'simulation' ? compareCfg?.[fieldName] : (compareCfg?.[sectionKey] ? compareCfg[sectionKey][fieldName] : undefined)
+			// emulate change flow with coercion rules
+			this.onFieldChange(sectionKey, fieldName, this.prepareRawFromValue(value, meta), meta)
+			// re-render current section to drop diff highlight if equalized
+			this.renderDetailsContent(sectionKey)
+		}
+
+		prepareRawFromValue(value, meta) {
+			if (meta?.type === 'object' || meta?.type === 'array') {
+				try { return value == null ? '' : JSON.stringify(value, null, 2) } catch (_) { return '' }
+			}
+			if (meta?.type === 'boolean') return Boolean(value)
+			if (meta?.type === 'integer' || meta?.type === 'number') return value == null ? '' : String(value)
+			return value == null ? '' : String(value)
+		}
+
+		deepEqual(a, b) {
+			if (a === b) return true
+			if (typeof a !== typeof b) return false
+			if (a && b && typeof a === 'object') {
+				try { return JSON.stringify(a) === JSON.stringify(b) } catch (_) { return false }
+			}
+			return false
+		}
+
+		renderYamlPanel() {
+			const header = this.yamlEl.querySelector('.yaml-header')
+			const container = this.yamlEl.querySelector('.yaml-code')
+			if (!header || !container) return
+			const hasCompare = !!(this.state.compare && this.state.compare.config)
+			if (!hasCompare) {
+				header.innerHTML = 'YAML Preview'
+				container.textContent = this.toYaml(this.state.config)
+				container.classList.remove('yaml-grid')
+				return
+			}
+			// Side-by-side diff-like view using flattened entries
+			header.innerHTML = `YAML Diff <span class="note">Comparing current vs ${this.escapeHtml(this.state.compare.path || 'compare')}</span>`
+			const leftEntries = this.flattenForDiff(this.state.config)
+			const rightEntries = this.flattenForDiff(this.state.compare.config)
+			const allKeys = Array.from(new Set([...Object.keys(leftEntries), ...Object.keys(rightEntries)])).sort()
+			const rows = allKeys.map((k) => {
+				const lv = leftEntries[k]
+				const rv = rightEntries[k]
+				const same = this.deepEqual(lv, rv)
+				return `<div class="yaml-diff-row ${same ? 'same' : 'diff'}"><div class="col key">${this.escapeHtml(k)}</div><div class="col left">${this.escapeHtml(this.renderScalar(lv))}</div><div class="col right">${this.escapeHtml(this.renderScalar(rv))}</div></div>`
+			}).join('')
+			container.innerHTML = `<div class="yaml-grid">${rows}</div>`
+		}
+
+		renderScalar(v) {
+			if (v === undefined) return '—'
+			if (v === null) return 'null'
+			if (typeof v === 'object') {
+				try { return JSON.stringify(v) } catch (_) { return String(v) }
+			}
+			return String(v)
+		}
+
+		escapeHtml(s) {
+			return String(s)
+				.replace(/&/g, '&amp;')
+				.replace(/</g, '&lt;')
+				.replace(/>/g, '&gt;')
+			}
+
+		flattenForDiff(obj, prefix = '') {
+			const out = {}
+			const isObj = obj && typeof obj === 'object' && !Array.isArray(obj)
+			if (!isObj) { out[prefix || '(root)'] = obj; return out }
+			Object.keys(obj).sort().forEach((k) => {
+				const val = obj[k]
+				const keyPath = prefix ? `${prefix}.${k}` : k
+				if (val && typeof val === 'object' && !Array.isArray(val)) {
+					Object.assign(out, this.flattenForDiff(val, keyPath))
+				} else {
+					out[keyPath] = val
+				}
+			})
+			return out
+		}
+
+		// Presets
+		async onApplyPreset() {
+			try {
+				const res = await this.invokeDialog('openConfigDialog', undefined)
+				if (!res || res.canceled) return
+				const load = await window.configSchemaService.loadConfig(res.filePath)
+				if (!(load && load.success && load.config)) {
+					this.showGlobalValidation('error', (load && load.message) || 'Preset open failed')
+					return
+				}
+				// Snapshot before applying
+				this.state.presetStack.push(JSON.parse(JSON.stringify(this.state.config)))
+				this.state.config = this.deepMerge(JSON.parse(JSON.stringify(this.state.config)), load.config)
+				this.markUnsaved(true)
+				this.markDirtyByDiff(this.state.presetStack[this.state.presetStack.length - 1], this.state.config)
+				this.renderDetailsContent(this.state.selectedSectionKey || (this.state.sections[0] && this.state.sections[0].key))
+				this.updateYamlPreview()
+				this.updateToolbarButtons()
+				// trigger validation
+				clearTimeout(this._validateTimeout)
+				this._validateTimeout = setTimeout(() => this.runServerValidation(), 200)
+				this.showGlobalValidation('valid', 'Preset applied')
+			} catch (e) {
+				this.showGlobalValidation('error', 'Apply preset failed')
+			}
+		}
+
+		onUndoPreset() {
+			if (!this.state.presetStack || this.state.presetStack.length === 0) return
+			const prev = this.state.presetStack.pop()
+			this.state.config = prev
+			this.markUnsaved(true)
+			this.state.fieldErrors = {}
+			this.state.sectionDirty = {}
+			this.renderDetailsContent(this.state.selectedSectionKey || (this.state.sections[0] && this.state.sections[0].key))
+			this.updateYamlPreview()
+			this.updateToolbarButtons()
+			clearTimeout(this._validateTimeout)
+			this._validateTimeout = setTimeout(() => this.runServerValidation(), 200)
+			this.showGlobalValidation('valid', 'Preset undone')
+		}
+
+		deepMerge(target, source) {
+			if (source == null) return target
+			if (typeof source !== 'object' || Array.isArray(source)) return source
+			if (typeof target !== 'object' || target == null || Array.isArray(target)) target = {}
+			Object.keys(source).forEach((k) => {
+				const sv = source[k]
+				if (sv && typeof sv === 'object' && !Array.isArray(sv)) {
+					target[k] = this.deepMerge(target[k], sv)
+				} else {
+					target[k] = Array.isArray(sv) ? JSON.parse(JSON.stringify(sv)) : sv
+				}
+			})
+			return target
+		}
+
+		markDirtyByDiff(oldCfg, newCfg) {
+			const left = this.flattenForDiff(oldCfg || {})
+			const right = this.flattenForDiff(newCfg || {})
+			const changedKeys = new Set()
+			Object.keys({ ...left, ...right }).forEach((k) => {
+				if (!this.deepEqual(left[k], right[k])) changedKeys.add(k)
+			})
+			// Map to sections
+			const sections = Object.keys(this.state.schema?.sections || {})
+			changedKeys.forEach((path) => {
+				const top = path.split('.')[0]
+				const sec = sections.includes(top) ? top : 'simulation'
+				this.markSectionDirty(sec, true)
+			})
 		}
 	}
 

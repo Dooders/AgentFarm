@@ -243,9 +243,25 @@
 .form-row { display: contents; }
 .form-row label { align-self: center; opacity: 0.9; }
 .form-row input { background: #2c3e50; border: 1px solid rgba(255,255,255,0.12); color: #bdc3c7; padding: 6px 8px; border-radius: 4px; }
+.form-row textarea { background: #2c3e50; border: 1px solid rgba(255,255,255,0.12); color: #bdc3c7; padding: 6px 8px; border-radius: 4px; }
+
+/* Diff highlighting and copy action */
+.row-diff input, .row-diff select, .row-diff textarea { border-color: #8e44ad !important; box-shadow: 0 0 0 2px rgba(142, 68, 173, 0.2); }
+.label-wrap { display: flex; align-items: center; gap: 8px; }
+.copy-btn { background: #8e44ad; border: none; color: #fff; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+.copy-btn:hover { background: #7a3a94; }
 
 .yaml-header { font-weight: bold; margin-bottom: 8px; }
 .yaml-code { background: #0f1620; color: #e0e6ed; padding: 10px; border-radius: 4px; overflow: auto; }
+
+/* YAML side-by-side diff grid */
+.yaml-grid { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 6px; font-family: monospace; }
+.yaml-diff-row { display: contents; }
+.yaml-diff-row .col { padding: 2px 6px; border-bottom: 1px dashed rgba(255,255,255,0.08); }
+.yaml-diff-row.diff .left { background: rgba(52, 152, 219, 0.12); }
+.yaml-diff-row.diff .right { background: rgba(231, 76, 60, 0.12); }
+.yaml-diff-row.same .left, .yaml-diff-row.same .right { opacity: 0.7; }
+.yaml-grid .key { color: #9bd2ff; }
 
 body.resizing { cursor: col-resize; }
 body.resizing .resizer-h { cursor: row-resize; }
