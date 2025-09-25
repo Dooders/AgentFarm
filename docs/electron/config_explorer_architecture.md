@@ -147,6 +147,16 @@ Channel names are namespaced as `config:*` and `explorer:*`.
 - preview:progress (event)
   - payload: `{ runId: string, percent: number, message?: string }`
 
+### Native File Dialogs (Renderer-triggered)
+
+- dialog:openConfig
+  - req: none
+  - res: `{ canceled: boolean, filePath?: string }`
+
+- dialog:saveConfig
+  - req: `{ suggestedPath?: string }`
+  - res: `{ canceled: boolean, filePath?: string }`
+
 Diagnostic shape:
 
 Diagnostic shape:
@@ -182,6 +192,8 @@ Selectors compute derived views (e.g., visible nodes) and keep components simple
 - Long-running tasks (preview) are cancellable and emit progress events
 - Watchers are debounced and coalesced to avoid floods
 
+Note: Until the preload boundary is introduced, a temporary renderer service (`window.dialogService`) wraps `ipcRenderer.invoke` calls for `dialog:openConfig` and `dialog:saveConfig`. This will be migrated behind a typed preload API in a future phase.
+
 ---
 
 ## Migration Plan (Phased)
@@ -190,6 +202,7 @@ Phase 1: Architecture & Skeleton
 - Add `ipcRoutes`, `configStore`, `fileSystemService` in main; `ipcClient` in renderer
 - Implement read-only features: `config:listRoots`, `config:listTree`, `config:get`
 - Introduce `ConfigExplorer` panel behind a feature flag while keeping existing sidebar
+ - Add native file dialogs for open/save and basic toolbar controls (Open, Save, Save As)
 
 Phase 2: Editing & Validation
 - Implement `config:update`, `config:validate`, `config:save`
