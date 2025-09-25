@@ -62,8 +62,8 @@ describe('DualPanelLayout', () => {
     const rightPanel = container.querySelector('.right-panel')
     const splitHandle = container.querySelector('.split-handle')
 
-    expect(layout).toContainElement(leftPanel)
-    expect(layout).toContainElement(splitHandle)
-    expect(layout).toContainElement(rightPanel)
+    expect(layout).toContainElement(leftPanel as HTMLElement)
+    expect(layout).toContainElement(splitHandle as HTMLElement)
+    expect(layout).toContainElement(rightPanel as HTMLElement)
   })
 })

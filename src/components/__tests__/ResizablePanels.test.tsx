@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { ResizablePanels } from '../Layout/ResizablePanels'
 
@@ -63,7 +63,7 @@ describe('ResizablePanels', () => {
     const mouseUpEvent = new MouseEvent('mouseup', { bubbles: true })
 
     // Test mouse down
-    fireEvent(handle, mouseDownEvent)
+    fireEvent(handle as HTMLElement, mouseDownEvent)
     expect(document.body.style.cursor).toBe('col-resize')
 
     // Test mouse move (would update split position)

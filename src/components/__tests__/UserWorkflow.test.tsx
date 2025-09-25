@@ -1,11 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { render, screen } from '@testing-library/react'
 import { ConfigExplorer } from '../ConfigExplorer/ConfigExplorer'
 
 describe('User Workflow Tests', () => {
   it('allows user to interact with the interface', async () => {
-    const user = userEvent.setup()
     render(<ConfigExplorer />)
 
     // Test that the interface is interactive
@@ -23,7 +21,6 @@ describe('User Workflow Tests', () => {
   })
 
   it('responds to user interactions', async () => {
-    const user = userEvent.setup()
     render(<ConfigExplorer />)
 
     // Test that the interface responds to basic interactions
@@ -38,7 +35,6 @@ describe('User Workflow Tests', () => {
   })
 
   it('maintains state during user interactions', async () => {
-    const user = userEvent.setup()
     render(<ConfigExplorer />)
 
     // Test state persistence
@@ -52,7 +48,6 @@ describe('User Workflow Tests', () => {
   })
 
   it('provides feedback for user actions', async () => {
-    const user = userEvent.setup()
     render(<ConfigExplorer />)
 
     // Test that the interface provides appropriate feedback
@@ -86,7 +81,6 @@ describe('User Workflow Tests', () => {
   })
 
   it('supports keyboard navigation', async () => {
-    const user = userEvent.setup()
     render(<ConfigExplorer />)
 
     // Test keyboard accessibility
@@ -121,8 +115,6 @@ describe('User Workflow Tests', () => {
   })
 
   it('maintains performance during extended use', async () => {
-    const user = userEvent.setup()
-
     // Simulate extended usage
     for (let i = 0; i < 5; i++) {
       const { container } = render(<ConfigExplorer />)

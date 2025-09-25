@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom'
-import { expect, afterEach, vi } from 'vitest'
+import { afterEach, vi } from 'vitest'
 
 // Mock ResizeObserver which is not available in test environment
 global.ResizeObserver = vi.fn().mockImplementation(() => ({

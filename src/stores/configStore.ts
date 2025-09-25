@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { SimulationConfig, ConfigStore, ValidationError } from '@/types/config'
+import { SimulationConfig, ConfigStore } from '@/types/config'
 import { persistState, retrieveState } from './persistence'
 import { useValidationStore } from './validationStore'
 import { validationService } from '@/services/validationService'
@@ -275,15 +275,16 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     })
 
     if (persistedState && typeof persistedState === 'object' && persistedState !== null) {
+      const state = persistedState as Record<string, unknown>
       set({
-        selectedSection: (persistedState as any).selectedSection || 'environment',
-        expandedFolders: new Set((persistedState as any).expandedFolders || [
+        selectedSection: (state.selectedSection as string) || 'environment',
+        expandedFolders: new Set((state.expandedFolders as string[]) || [
           'environment',
           'agents',
           'learning',
           'visualization'
         ]),
-        showComparison: (persistedState as any).showComparison || false
+        showComparison: (state.showComparison as boolean) || false
       })
     }
   },
@@ -432,13 +433,13 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 
     // Simple diff - in real implementation, use a proper diff library
     const allKeys = new Set([
-      ...getAllKeys(originalConfig as Record<string, unknown>),
-      ...getAllKeys(config as Record<string, unknown>)
+      ...getAllKeys(originalConfig as unknown as Record<string, unknown>),
+      ...getAllKeys(config as unknown as Record<string, unknown>)
     ])
 
     allKeys.forEach(key => {
-      const originalValue = getNestedValue(originalConfig as Record<string, unknown>, key)
-      const currentValue = getNestedValue(config as Record<string, unknown>, key)
+      const originalValue = getNestedValue(originalConfig as unknown as Record<string, unknown>, key)
+      const currentValue = getNestedValue(config as unknown as Record<string, unknown>, key)
       const changed = JSON.stringify(originalValue) !== JSON.stringify(currentValue)
 
       if (changed) {
