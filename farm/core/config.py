@@ -48,7 +48,7 @@ class VisualizationConfig:
             if isinstance(val, dict):
                 return {k: _jsonify(v) for k, v in val.items()}
             if isinstance(val, list):
-                return [ _jsonify(v) for v in val ]
+                return [_jsonify(v) for v in val]
             return val
 
         return {

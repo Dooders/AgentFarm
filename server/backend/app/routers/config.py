@@ -36,23 +36,47 @@ class ConfigResponse(BaseModel):
     path: Optional[str] = None
 
 
+def _get_repo_root() -> Path:
+    current = Path(__file__).resolve()
+    for parent in current.parents:
+        if (parent / "pyproject.toml").exists() or (parent / ".git").exists():
+            return parent
+    return Path.cwd().resolve()
+
+
 def _resolve_default_config_path() -> Path:
-    # Prefer repo root config.yaml if present
-    candidates = [
-        Path("config.yaml"),
-        Path("./config.yaml"),
-    ]
-    for p in candidates:
-        if p.exists():
-            return p.resolve()
-    # Fallback to repo root location even if missing
-    return candidates[0].resolve()
+    root = _get_repo_root()
+    config_path = root / "config.yaml"
+    return config_path.resolve()
+
+
+def _resolve_safe_path(user_path: Optional[str]) -> Path:
+    root = _get_repo_root()
+    if user_path is None or user_path.strip() == "":
+        return _resolve_default_config_path()
+
+    candidate = Path(user_path)
+    # If relative, treat as relative to repo root
+    if not candidate.is_absolute():
+        candidate = (root / candidate).resolve()
+    else:
+        candidate = candidate.resolve()
+
+    try:
+        if not candidate.is_relative_to(root):  # type: ignore[attr-defined]
+            raise ValueError("Path outside allowed base directory")
+    except AttributeError:
+        # For Python versions without is_relative_to
+        if str(candidate).startswith(str(root)) is False:
+            raise ValueError("Path outside allowed base directory")
+
+    return candidate
 
 
 @router.post("/load", response_model=ConfigResponse)
 def load_config(req: ConfigLoadRequest) -> ConfigResponse:
     try:
-        path = Path(req.path) if req.path else _resolve_default_config_path()
+        path = _resolve_safe_path(req.path)
         if not path.exists():
             return ConfigResponse(success=False, message="Config file not found", errors=[f"Missing: {str(path)}"], path=str(path))
         if path.suffix.lower() not in (".yml", ".yaml"):
@@ -72,7 +96,7 @@ def save_config(req: ConfigSaveRequest) -> ConfigResponse:
         cfg = SimulationConfig.from_dict(dict(req.config))
 
         # Resolve path
-        path = Path(req.path) if req.path else _resolve_default_config_path()
+        path = _resolve_safe_path(req.path)
         if path.suffix.lower() not in (".yml", ".yaml"):
             # If user gave a path without extension, add .yaml
             if path.suffix == "":
