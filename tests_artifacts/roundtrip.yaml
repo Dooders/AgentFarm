@@ -1,0 +1,220 @@
+agent_parameters:
+  ControlAgent:
+    attack_weight: 0.15
+    gather_cost_multiplier: 0.3
+    gather_efficiency_multiplier: 0.55
+    min_resource_threshold: 0.125
+    share_weight: 0.15
+  IndependentAgent:
+    attack_weight: 0.25
+    gather_cost_multiplier: 0.2
+    gather_efficiency_multiplier: 0.7
+    min_resource_threshold: 0.05
+    share_weight: 0.05
+  SystemAgent:
+    attack_weight: 0.05
+    gather_cost_multiplier: 0.4
+    gather_efficiency_multiplier: 0.4
+    min_resource_threshold: 0.2
+    share_weight: 0.3
+agent_type_ratios:
+  ControlAgent: 0.34
+  IndependentAgent: 0.33
+  SystemAgent: 0.33
+attack_base_cost: -0.2
+attack_base_damage: 10.0
+attack_batch_size: 32
+attack_defense_boost: 2.0
+attack_defense_threshold: 0.3
+attack_dqn_hidden_size: 64
+attack_epsilon_decay: 0.995
+attack_epsilon_min: 0.01
+attack_epsilon_start: 1.0
+attack_failure_penalty: -0.3
+attack_gamma: 0.99
+attack_kill_reward: 5.0
+attack_learning_rate: 0.001
+attack_memory_size: 10000
+attack_mult_desperate: 1.4
+attack_mult_stable: 0.6
+attack_range: 20.0
+attack_starvation_threshold: 0.5
+attack_success_reward: 1.0
+attack_target_update_freq: 100
+attack_tau: 0.005
+base_attack_strength: 2
+base_consumption_rate: 0.15
+base_defense_strength: 2
+batch_size: 32
+control_agents: 10
+cooperation_memory: 100
+cooperation_score_threshold: 0.5
+curriculum_phases:
+- enabled_actions:
+  - move
+  - gather
+  steps: 100
+- enabled_actions:
+  - move
+  - gather
+  - share
+  - attack
+  steps: 200
+- enabled_actions:
+  - move
+  - gather
+  - share
+  - attack
+  - reproduce
+  steps: -1
+db_cache_size_mb: 200
+db_custom_pragmas: {}
+db_journal_mode: WAL
+db_pragma_profile: balanced
+db_synchronous_mode: NORMAL
+device_fallback: true
+device_memory_fraction: null
+device_preference: auto
+device_validate_compatibility: true
+dqn_hidden_size: 24
+epsilon_decay: 0.995
+epsilon_min: 0.01
+epsilon_start: 1.0
+gamma: 0.95
+gather_base_cost: -0.05
+gather_batch_size: 32
+gather_competition_penalty: -0.2
+gather_distance_penalty_factor: 0.1
+gather_dqn_hidden_size: 64
+gather_efficiency_bonus: 0.3
+gather_epsilon_decay: 0.995
+gather_epsilon_min: 0.01
+gather_epsilon_start: 1.0
+gather_failure_penalty: -0.1
+gather_gamma: 0.99
+gather_learning_rate: 0.001
+gather_memory_size: 10000
+gather_mult_low_resources: 1.5
+gather_resource_threshold: 0.2
+gather_success_reward: 0.5
+gather_target_update_freq: 100
+gather_tau: 0.005
+gathering_range: 30
+height: 77
+in_memory_db_memory_limit_mb: null
+in_memory_tables_to_persist: null
+independent_agents: 10
+initial_resource_level: 0
+initial_resources: 20
+learning_rate: 0.001
+max_gather_amount: 3
+max_movement: 8
+max_population: 3000
+max_resource_amount: 30
+max_share_amount: 5
+max_steps: 1000
+max_wait_steps: 10
+memory_size: 2000
+min_reproduction_resources: 8
+min_share_amount: 1
+move_base_cost: -0.1
+move_batch_size: 32
+move_dqn_hidden_size: 64
+move_epsilon_adapt_factor: 1.5
+move_epsilon_adapt_threshold: 0.1
+move_epsilon_decay: 0.995
+move_epsilon_min: 0.01
+move_epsilon_start: 1.0
+move_gamma: 0.99
+move_learning_rate: 0.001
+move_memory_size: 10000
+move_min_reward_samples: 10
+move_mult_no_resources: 1.5
+move_resource_approach_reward: 0.3
+move_resource_retreat_penalty: -0.2
+move_reward_history_size: 100
+move_target_update_freq: 100
+move_tau: 0.005
+observation: null
+offspring_cost: 3
+offspring_initial_resources: 5
+perception_radius: 2
+persist_db_on_completion: true
+position_discretization_method: floor
+redis:
+  db: 0
+  decode_responses: true
+  environment: default
+  host: localhost
+  password: null
+  port: 6379
+resource_regen_amount: 2
+resource_regen_rate: 0.1
+seed: 1234567890
+share_altruism_factor: 1.2
+share_base_cost: -0.05
+share_batch_size: 32
+share_cooperation_bonus: 0.2
+share_dqn_hidden_size: 64
+share_epsilon_decay: 0.995
+share_epsilon_min: 0.01
+share_epsilon_start: 1.0
+share_failure_penalty: -0.1
+share_gamma: 0.99
+share_learning_rate: 0.001
+share_memory_size: 10000
+share_mult_poor: 0.5
+share_mult_wealthy: 1.3
+share_range: 30.0
+share_success_reward: 0.5
+share_target_update_freq: 100
+share_tau: 0.005
+share_threshold: 0.3
+simulation_steps: 100
+social_range: 30
+starting_health: 100.0
+starvation_threshold: 100
+system_agents: 10
+tau: 0.005
+territory_range: 30
+training_frequency: 4
+use_bilinear_interpolation: true
+use_in_memory_db: false
+visualization:
+  agent_colors:
+    IndependentAgent: red
+    SystemAgent: blue
+  agent_radius_scale: 2
+  animation_min_delay: 50
+  background_color: black
+  birth_mark_color:
+  - 255
+  - 255
+  - 255
+  birth_radius_scale: 4
+  canvas_size:
+  - 400
+  - 400
+  death_mark_color:
+  - 255
+  - 0
+  - 0
+  death_mark_scale: 1.5
+  font_family: arial
+  font_scale_factor: 40
+  max_animation_frames: 5
+  max_resource_amount: 30
+  metric_colors:
+    average_agent_resources: '#9b59b6'
+    independent_agents: '#e74c3c'
+    system_agents: '#50c878'
+    total_agents: '#4a90e2'
+    total_resources: '#f39c12'
+  min_font_size: 10
+  padding: 20
+  resource_colors:
+    glow_blue: 50
+    glow_green: 255
+    glow_red: 150
+  resource_size: 2
+width: 123

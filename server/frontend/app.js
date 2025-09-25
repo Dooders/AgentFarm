@@ -3,6 +3,81 @@ let activeSimulations = {};
 
 const API_BASE_URL = 'http://192.168.1.182:8000';  // Update this to match your server IP
 
+// --------------------
+// Config service utils
+// --------------------
+async function loadConfig() {
+    const pathInput = document.getElementById('config-path');
+    const editor = document.getElementById('config-editor');
+    const results = document.getElementById('config-results');
+    try {
+        const response = await fetch(`${API_BASE_URL}/config/load`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ path: pathInput && pathInput.value ? pathInput.value : null })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            const errs = data.errors && data.errors.length ? data.errors.join('; ') : `HTTP ${response.status}`;
+            results.innerHTML = `<div class="error"><strong>Load failed:</strong> ${data.message || errs}</div>`;
+            return;
+        }
+        editor.value = JSON.stringify(data.config, null, 2);
+        results.innerHTML = `<div class="success"><strong>Loaded.</strong> ${data.path ? `From: ${data.path}` : ''}</div>`;
+    } catch (e) {
+        results.innerHTML = `<div class="error"><strong>Load failed:</strong> ${e.message}</div>`;
+    }
+}
+
+async function validateConfig() {
+    const editor = document.getElementById('config-editor');
+    const results = document.getElementById('config-results');
+    try {
+        const parsed = JSON.parse(editor.value || '{}');
+        const response = await fetch(`${API_BASE_URL}/config/validate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ config: parsed })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            const errs = data.errors && data.errors.length ? data.errors.join('; ') : `HTTP ${response.status}`;
+            results.innerHTML = `<div class="error"><strong>Invalid:</strong> ${data.message || errs}</div>`;
+            return;
+        }
+        // Normalize editor with server-canonical config
+        editor.value = JSON.stringify(data.config, null, 2);
+        results.innerHTML = `<div class="success"><strong>Valid.</strong> ${data.message || ''}</div>`;
+    } catch (e) {
+        results.innerHTML = `<div class="error"><strong>Validation failed:</strong> ${e.message}</div>`;
+    }
+}
+
+async function saveConfig() {
+    const pathInput = document.getElementById('config-path');
+    const editor = document.getElementById('config-editor');
+    const results = document.getElementById('config-results');
+    try {
+        const parsed = JSON.parse(editor.value || '{}');
+        const response = await fetch(`${API_BASE_URL}/config/save`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ config: parsed, path: pathInput && pathInput.value ? pathInput.value : null })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            const errs = data.errors && data.errors.length ? data.errors.join('; ') : `HTTP ${response.status}`;
+            results.innerHTML = `<div class="error"><strong>Save failed:</strong> ${data.message || errs}</div>`;
+            return;
+        }
+        // Normalize editor with saved content
+        editor.value = JSON.stringify(data.config, null, 2);
+        results.innerHTML = `<div class="success"><strong>Saved.</strong> ${data.path ? `To: ${data.path}` : ''}</div>`;
+    } catch (e) {
+        results.innerHTML = `<div class="error"><strong>Save failed:</strong> ${e.message}</div>`;
+    }
+}
+
 async function startSimulation() {
     const name = document.getElementById('simulation-name').value;
     const steps = parseInt(document.getElementById('simulation-steps').value);
