@@ -339,7 +339,9 @@ class Environment(AECEnv):
                         + int(getattr(self.config, "independent_agents", 0))
                         + int(getattr(self.config, "control_agents", 0))
                     )
-                max_size = max(intended * 2, 1024)  # sensible upper bound
+                # Use intended population size as max pool size to prevent memory bloat
+                # This ensures we don't hold more agents than needed in the pool
+                max_size = max(intended, 512)  # Cap at reasonable size
             self.agent_pool = AgentPool(BaseAgent, max_size=max_size)
         else:
             self.agent_pool = None

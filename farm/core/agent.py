@@ -752,6 +752,18 @@ class BaseAgent:
         self._previous_action_index = 0
         self._previous_enabled_actions = None
 
+        # Clear episode-specific data
+        self.episode_rewards.clear()
+        self.losses.clear()
+
+        # Reset agent state to minimize memory retention
+        self.starvation_counter = 0
+        self.total_reward = 0.0
+        self.current_health = self.starting_health  # Reset to full health
+        self.is_defending = False
+        self.defense_timer = 0
+        self.orientation = 0.0
+
     def get_state(self) -> AgentState:
         """Returns the current state of the agent as an AgentState object.
 
