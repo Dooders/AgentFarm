@@ -46,18 +46,6 @@ def run_once(steps: int, agents: int, use_pooling: bool, seed: int | None) -> di
         env.cleanup()
     elapsed, mem_delta, peak = finish()
 
-    # Get pool statistics if available
-    pool_stats = None
-    if use_pooling and hasattr(env, "agent_pool") and env.agent_pool is not None:
-        pool_stats = {
-            "total_created": env.agent_pool.total_created,
-            "total_reused": env.agent_pool.total_reused,
-            "pool_size": env.agent_pool.size(),
-            "reuse_rate": (env.agent_pool.total_reused / max(env.agent_pool.total_created, 1)) * 100,
-        }
-
-    return {
-
     result = {
         "use_pooling": use_pooling,
         "elapsed_s": elapsed,
@@ -65,7 +53,6 @@ def run_once(steps: int, agents: int, use_pooling: bool, seed: int | None) -> di
         "peak_rss_bytes": peak,
         "agents": agents,
         "steps": steps,
-        "pool_stats": pool_stats,
     }
     
     # Capture pool statistics if pooling was used
@@ -105,14 +92,6 @@ def main():
     if 'pool_stats' in with_pool:
         stats = with_pool['pool_stats']
         print(f"Pool stats: {stats['total_reused']} reused, {stats['total_created']} created, {stats['reuse_rate_percent']:.1f}% reuse rate")
-
-    # Show pool statistics
-    if with_pool["pool_stats"]:
-        print("Pool Statistics:")
-        print(f"  Total created: {with_pool['pool_stats']['total_created']}")
-        print(f"  Total reused: {with_pool['pool_stats']['total_reused']}")
-        print(f"  Reuse rate: {with_pool['pool_stats']['reuse_rate']:.1f}%")
-        print(f"  Pool size: {with_pool['pool_stats']['pool_size']}")
 
     # Improvement estimates
     time_impr = (without_pool["elapsed_s"] - with_pool["elapsed_s"]) / max(

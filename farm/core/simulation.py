@@ -46,7 +46,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from farm.core.agent import BaseAgent
+from farm.core.agent import BaseAgent, get_available_agent_pool
 from farm.core.pool import AgentPool, pooling_enabled
 from farm.core.config import SimulationConfig
 from farm.core.environment import Environment
@@ -126,7 +126,7 @@ def create_initial_agents(
         )
 
     # Use environment-level pool if available (keeps reuse consistent across lifecycle)
-    agent_pool = environment.agent_pool if pooling_enabled() and hasattr(environment, "agent_pool") else None
+    agent_pool = get_available_agent_pool(environment) if pooling_enabled() else None
 
     # Create system agents (from pool)
     for _ in range(num_system_agents):

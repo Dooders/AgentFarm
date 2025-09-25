@@ -37,7 +37,7 @@ Integration Points:
 import logging
 import math
 import random
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 import torch
@@ -49,6 +49,8 @@ from farm.core.device_utils import create_device_from_config
 from farm.core.genome import Genome
 from farm.core.perception import PerceptionData
 from farm.core.services.factory import AgentServiceFactory
+
+# AgentPool imported locally to avoid linter issues
 from farm.core.services.implementations import (
     EnvironmentAgentLifecycleService,
     EnvironmentLoggingService,
@@ -77,6 +79,30 @@ if TYPE_CHECKING:
     from farm.core.environment import Environment
 
 logger = logging.getLogger(__name__)
+
+
+def get_available_agent_pool(environment) -> Optional[Any]:
+    """
+    Helper function to safely check if an environment has an available agent pool.
+
+    This eliminates code duplication between agent reproduction and simulation
+    agent creation logic.
+
+    Args:
+        environment: The environment object to check for agent pool
+
+    Returns:
+        AgentPool if available, None otherwise
+    """
+    from farm.core.pool import AgentPool  # Import locally to avoid linter issues
+
+    if (
+        environment is not None
+        and hasattr(environment, "agent_pool")
+        and environment.agent_pool is not None
+    ):
+        return environment.agent_pool
+    return None
 
 
 class BaseAgent:
@@ -681,7 +707,9 @@ class BaseAgent:
         """
         # Basic attributes - fast assignments
         self.actions = (
-            action_set if action_set is not None else action_registry.get_all(normalized=True)
+            action_set
+            if action_set is not None
+            else action_registry.get_all(normalized=True)
         )
         self.agent_id = agent_id
         self.position = position
@@ -696,28 +724,28 @@ class BaseAgent:
             self.environment = environment
         if config is not None:
             self.config = config
-            
+
         # Only update services that are explicitly provided or missing
         if metrics_service is not None:
             self.metrics_service = metrics_service
         elif self.metrics_service is None and environment is not None:
             self.metrics_service = EnvironmentMetricsService(environment)
-            
+
         if logging_service is not None:
             self.logging_service = logging_service
         elif self.logging_service is None and environment is not None:
             self.logging_service = EnvironmentLoggingService(environment)
-            
+
         if validation_service is not None:
             self.validation_service = validation_service
         elif self.validation_service is None and environment is not None:
             self.validation_service = EnvironmentValidationService(environment)
-            
+
         if time_service is not None:
             self.time_service = time_service
         elif self.time_service is None and environment is not None:
             self.time_service = EnvironmentTimeService(environment)
-            
+
         if lifecycle_service is not None:
             self.lifecycle_service = lifecycle_service
         elif self.lifecycle_service is None and environment is not None:
@@ -1398,13 +1426,9 @@ class BaseAgent:
         # Create new agent with all info
         try:
             # Prefer environment pool if available
-            if (
-                hasattr(self, "environment")
-                and self.environment is not None
-                and hasattr(self.environment, "agent_pool")
-                and self.environment.agent_pool is not None
-            ):
-                new_agent = self.environment.agent_pool.acquire(
+            agent_pool = get_available_agent_pool(self.environment)
+            if agent_pool is not None:
+                new_agent = agent_pool.acquire(
                     agent_id=new_id,
                     position=self.position,
                     resource_level=(

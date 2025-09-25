@@ -52,6 +52,7 @@ class AgentPool:
                 agent.reset(**kwargs)
                 return agent
             # Fallback: construct a fresh instance if reset is not available
+            self.release(agent)  # Return the popped agent to the pool
             agent = self._agent_cls(**kwargs)
             self.total_created += 1
             return agent
