@@ -281,3 +281,14 @@ body.resizing .resizer-h { cursor: row-resize; }
 .badge.valid { background: rgba(46, 204, 113, 0.2); color: #2ecc71; border: 1px solid rgba(46, 204, 113, 0.35); }
 .badge.error { background: rgba(231, 76, 60, 0.2); color: #e74c3c; border: 1px solid rgba(231, 76, 60, 0.35); }
 .yaml-header .note { margin-left: 8px; opacity: 0.75; font-weight: normal; font-size: 12px; }
+
+/* Grayscale Mode */
+body.grayscale #app,
+body.grayscale #config-explorer {
+	filter: grayscale(1) contrast(1.05);
+}
+
+/* Optional visual hint on toggled buttons */
+.btn.toggled {
+	box-shadow: 0 0 0 2px rgba(255,255,255,0.15) inset;
+}

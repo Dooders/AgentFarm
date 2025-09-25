@@ -100,6 +100,7 @@
 					<span id="unsaved-indicator" class="unsaved-indicator" style="display:none;"><span class="dot"></span> Unsaved</span>
 				</div>
 				<div class="right">
+					<button id="toggle-grayscale" class="btn" title="Toggle grayscale UI">Grayscale</button>
 					<button id="open-config" class="btn">Open…</button>
 					<button id="open-compare" class="btn" title="Open secondary config for compare">Compare…</button>
 					<button id="clear-compare" class="btn" title="Clear comparison" disabled>Clear Compare</button>
@@ -115,6 +116,8 @@
 			`
 			bar.querySelector('#back-to-legacy').onclick = () => window.hideConfigExplorer()
 			bar.querySelector('#save-config').onclick = () => this.onSave()
+			const grayBtn = bar.querySelector('#toggle-grayscale')
+			if (grayBtn) grayBtn.onclick = () => this.toggleGrayscale(grayBtn)
 			const openBtn = bar.querySelector('#open-config')
 			if (openBtn) openBtn.onclick = () => this.onOpen()
 			const openCompareBtn = bar.querySelector('#open-compare')
@@ -131,7 +134,26 @@
 			if (undoPresetBtn) undoPresetBtn.onclick = () => this.onUndoPreset()
 			// Reflect initial disabled states
 			setTimeout(() => this.updateToolbarButtons(), 0)
+			// Initialize grayscale UI state on first render
+			setTimeout(() => this.syncGrayscaleButtonState(), 0)
 			return bar
+		}
+
+		toggleGrayscale(buttonEl) {
+			const enabled = document.body.classList.toggle('grayscale')
+			try { localStorage.setItem('ui:grayscale', enabled ? '1' : '0') } catch (_) {}
+			if (buttonEl) buttonEl.classList.toggle('toggled', enabled)
+			if (typeof window !== 'undefined' && typeof window.__setSidebarGrayscale === 'function') {
+				window.__setSidebarGrayscale(enabled)
+			}
+		}
+
+		syncGrayscaleButtonState() {
+			let enabled = false
+			try { enabled = localStorage.getItem('ui:grayscale') === '1' } catch (_) {}
+			if (enabled) document.body.classList.add('grayscale')
+			const btn = this.root.querySelector('#toggle-grayscale')
+			if (btn) btn.classList.toggle('toggled', enabled)
 		}
 
 		enableVerticalResizer(resizer, leftEl, rightEl) {
@@ -848,6 +870,19 @@
 			if (main) main.style.display = ''
 			const explorer = document.getElementById('config-explorer')
 			if (explorer) explorer.style.display = 'none'
+		}
+		// Cross-panel grayscale sync helpers
+		window.__setSidebarGrayscale = function(enabled) {
+			try { localStorage.setItem('ui:grayscale', enabled ? '1' : '0') } catch (_) {}
+			document.body.classList.toggle('grayscale', !!enabled)
+			const btn = document.getElementById('toggle-grayscale-sidebar')
+			if (btn) btn.classList.toggle('toggled', !!enabled)
+		}
+		window.__setExplorerGrayscale = function(enabled) {
+			try { localStorage.setItem('ui:grayscale', enabled ? '1' : '0') } catch (_) {}
+			document.body.classList.toggle('grayscale', !!enabled)
+			const btn = configExplorer.root && configExplorer.root.querySelector('#toggle-grayscale')
+			if (btn) btn.classList.toggle('toggled', !!enabled)
 		}
 	}
 

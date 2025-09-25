@@ -245,6 +245,15 @@ Rollback Strategy
 
 ---
 
+## Theming and Accessibility
+
+- Grayscale UI mode is available across the editor and Config Explorer to aid in accessibility and visual focus testing.
+  - Toggle from the Config Explorer toolbar or from the Sidebar; both remain in sync.
+  - Preference is persisted via `localStorage` and applied at startup.
+  - Implementation uses a body-level CSS class (`body.grayscale`) and a `filter: grayscale(1)` for simple global theming.
+
+---
+
 ## Notes on Current Codebase
 
 Today, the Electron editor (`farm/editor`) directly loads UI with Node integration and talks to a Python backend via HTTP and Socket.IO. This proposal introduces typed IPC boundaries, moves file IO and validation to the main process, and gradually replaces the sidebar controls with a dedicated configuration explorer.
