@@ -769,6 +769,16 @@ class TestBaseAgentLifeCycle:
             mock_factory.return_value = (None, None, None, None, None, None)
             mock_decision_class.return_value = Mock()
 
+            # Mock the agent pool to return a proper agent
+            mock_agent_pool = Mock()
+            mock_offspring = Mock()
+            mock_offspring.agent_id = "test_agent_002"
+            mock_offspring.position = (5.0, 5.0)
+            mock_offspring.resource_level = 10
+            mock_offspring.generation = 1
+            mock_agent_pool.acquire.return_value = mock_offspring
+            sample_base_agent.environment.agent_pool = mock_agent_pool
+
             offspring = sample_base_agent._create_offspring()
 
             assert offspring.agent_id == "test_agent_002"  # From mock lifecycle service
