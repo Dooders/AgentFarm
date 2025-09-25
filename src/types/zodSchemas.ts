@@ -52,8 +52,8 @@ export const AgentParameterSchema = z.object({
     .max(100.0, 'Success reward must be at most 100.0'),
 
   failure_penalty: z.number()
-    .min(0.1, 'Failure penalty must be at least 0.1')
-    .max(100.0, 'Failure penalty must be at most 100.0'),
+    .min(-100.0, 'Failure penalty must be at least -100.0')
+    .max(-0.1, 'Failure penalty must be at most -0.1'),
 
   base_cost: z.number()
     .min(0.0, 'Base cost must be at least 0.0')

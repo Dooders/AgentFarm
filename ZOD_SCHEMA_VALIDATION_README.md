@@ -112,7 +112,7 @@ AgentParameterSchema: {
   batch_size: number (16-1024, integer)
   tau: number (0.001-1.0)
   success_reward: number (0.1-100.0)
-  failure_penalty: number (0.1-100.0)
+  failure_penalty: number (-100.0 to -0.1)
   base_cost: number (0.0-10.0)
 }
 ```

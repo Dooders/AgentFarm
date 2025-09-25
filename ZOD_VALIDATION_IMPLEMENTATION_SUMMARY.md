@@ -155,6 +155,12 @@ const errors = validateField('width', 5)  // Invalid: too small
 - **Programmatic**: Error codes for automation
 - **Comprehensive**: Covers all validation scenarios
 
+### 🐛 **Bug Fixes Applied**
+
+1. **Negative Penalty Validation**: Fixed `failure_penalty` validation to correctly allow negative values (-100.0 to -0.1) instead of requiring positive values, which is the correct behavior for reinforcement learning penalties.
+
+2. **Memory Calculation Error**: Fixed memory usage calculation in business rules validation to properly multiply each agent type's memory_size by its specific agent count rather than by the total count of all agents.
+
 ## 🎉 **Conclusion**
 
 The Zod Schema Validation System has been **successfully implemented** and **all acceptance criteria have been met**. The implementation provides:

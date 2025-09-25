@@ -70,8 +70,20 @@ export class ZodValidationService implements ValidationService {
     }
 
     // Memory efficiency checks
-    const totalMemory = Object.values(config.agent_parameters).reduce((total, params) => {
-      return total + params.memory_size * (config.system_agents + config.independent_agents + config.control_agents)
+    const totalMemory = Object.entries(config.agent_parameters).reduce((total, [agentType, params]) => {
+      let agentCount = 0
+      switch (agentType) {
+        case 'SystemAgent':
+          agentCount = config.system_agents
+          break
+        case 'IndependentAgent':
+          agentCount = config.independent_agents
+          break
+        case 'ControlAgent':
+          agentCount = config.control_agents
+          break
+      }
+      return total + params.memory_size * agentCount
     }, 0)
 
     if (totalMemory > 10000000) { // 10M memory entries
