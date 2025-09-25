@@ -1,7 +1,13 @@
 import { create } from 'zustand'
-import { ValidationError, ValidationResult, ValidationState } from '@/types/validation'
+import { ValidationError, ValidationResult } from '@/types/validation'
 
-interface ValidationStore extends ValidationState {
+interface ValidationStore {
+  // Core state
+  isValidating: boolean
+  errors: ValidationError[]
+  warnings: ValidationError[]
+  lastValidationTime: number
+
   // Validation actions
   setValidating: (validating: boolean) => void
   addError: (error: ValidationError) => void
@@ -22,12 +28,12 @@ interface ValidationStore extends ValidationState {
   clearFieldErrors: (path: string) => void
   validateField: (path: string, value: any) => Promise<ValidationResult>
 
-  // State selectors
-  isValid: boolean
-  hasErrors: boolean
-  hasWarnings: boolean
-  errorCount: number
-  warningCount: number
+  // Computed selectors (these are computed from state)
+  get isValid(): boolean
+  get hasErrors(): boolean
+  get hasWarnings(): boolean
+  get errorCount(): number
+  get warningCount(): number
 }
 
 export const useValidationStore = create<ValidationStore>((set, get) => ({
@@ -36,6 +42,27 @@ export const useValidationStore = create<ValidationStore>((set, get) => ({
   errors: [],
   warnings: [],
   lastValidationTime: 0,
+
+  // Computed properties
+  get isValid() {
+    return get().errors.length === 0
+  },
+
+  get hasErrors() {
+    return get().errors.length > 0
+  },
+
+  get hasWarnings() {
+    return get().warnings.length > 0
+  },
+
+  get errorCount() {
+    return get().errors.length
+  },
+
+  get warningCount() {
+    return get().warnings.length
+  },
 
   // Actions
   setValidating: (validating: boolean) => {
@@ -109,7 +136,7 @@ export const useValidationStore = create<ValidationStore>((set, get) => ({
     }))
   },
 
-  validateField: async (path: string, value: any): Promise<ValidationResult> => {
+  validateField: async (path: string, _value: any): Promise<ValidationResult> => {
     const { setValidating, addError, clearFieldErrors } = get()
 
     setValidating(true)
@@ -142,8 +169,5 @@ export const useValidationStore = create<ValidationStore>((set, get) => ({
     } finally {
       setValidating(false)
     }
-  },
-
-  // Note: Computed selectors are defined as separate functions in selectors.ts
-  // These are just aliases for backward compatibility
+  }
 }))

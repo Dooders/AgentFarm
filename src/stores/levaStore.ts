@@ -390,19 +390,20 @@ export const useLevaStore = create<LevaStore>((set, get) => ({
       onError: (error) => console.warn('Failed to restore Leva settings:', error)
     })
 
-    if (persistedSettings) {
+    if (persistedSettings && typeof persistedSettings === 'object' && persistedSettings !== null) {
+      const settings = persistedSettings as any
       set({
-        isVisible: persistedSettings.isVisible ?? defaultState.isVisible,
-        isCollapsed: persistedSettings.isCollapsed ?? defaultState.isCollapsed,
-        panelPosition: persistedSettings.panelPosition ?? defaultState.panelPosition,
-        panelWidth: persistedSettings.panelWidth ?? defaultState.panelWidth,
-        theme: persistedSettings.theme ?? defaultState.theme,
-        customTheme: persistedSettings.customTheme ?? defaultState.customTheme,
-        expandedFolders: new Set(persistedSettings.expandedFolders ?? defaultState.expandedFolders),
-        collapsedFolders: new Set(persistedSettings.collapsedFolders ?? defaultState.collapsedFolders),
-        activeControls: persistedSettings.activeControls ?? defaultState.activeControls,
-        disabledControls: new Set(persistedSettings.disabledControls ?? []),
-        hiddenControls: new Set(persistedSettings.hiddenControls ?? [])
+        isVisible: settings.isVisible ?? defaultState.isVisible,
+        isCollapsed: settings.isCollapsed ?? defaultState.isCollapsed,
+        panelPosition: settings.panelPosition ?? defaultState.panelPosition,
+        panelWidth: settings.panelWidth ?? defaultState.panelWidth,
+        theme: settings.theme ?? defaultState.theme,
+        customTheme: settings.customTheme ?? defaultState.customTheme,
+        expandedFolders: new Set(settings.expandedFolders ?? defaultState.expandedFolders),
+        collapsedFolders: new Set(settings.collapsedFolders ?? defaultState.collapsedFolders),
+        activeControls: settings.activeControls ?? defaultState.activeControls,
+        disabledControls: new Set(settings.disabledControls ?? []),
+        hiddenControls: new Set(settings.hiddenControls ?? [])
       })
     }
   },

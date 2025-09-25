@@ -3,7 +3,6 @@
  * These selectors are memoized and provide efficient access to derived state
  */
 
-import { SimulationConfig } from '@/types/config'
 import { ValidationError } from '@/types/validation'
 
 // Re-export stores for convenience
@@ -279,7 +278,7 @@ export const combinedSelectors = {
   }),
 
   // Get validation status for current config section
-  getSectionValidationStatus: (section: string) => (configState: any, validationState: any) => {
+  getSectionValidationStatus: (section: string) => (_configState: any, validationState: any) => {
     const sectionErrors = validationState.errors.filter((error: ValidationError) =>
       error.path.startsWith(section)
     )

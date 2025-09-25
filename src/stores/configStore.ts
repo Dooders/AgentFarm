@@ -152,6 +152,8 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   selectedSection: 'environment',
   expandedFolders: new Set(['environment', 'agents', 'learning', 'visualization']),
   validationErrors: [],
+  history: [defaultConfig],
+  historyIndex: 0,
 
   updateConfig: (path: string, value: any) => {
     const currentConfig = get().config
@@ -287,16 +289,16 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       onError: (error) => console.warn('Failed to restore UI preferences:', error)
     })
 
-    if (persistedState) {
+    if (persistedState && typeof persistedState === 'object' && persistedState !== null) {
       set({
-        selectedSection: persistedState.selectedSection || 'environment',
-        expandedFolders: new Set(persistedState.expandedFolders || [
+        selectedSection: (persistedState as any).selectedSection || 'environment',
+        expandedFolders: new Set((persistedState as any).expandedFolders || [
           'environment',
           'agents',
           'learning',
           'visualization'
         ]),
-        showComparison: persistedState.showComparison || false
+        showComparison: (persistedState as any).showComparison || false
       })
     }
   },
@@ -323,7 +325,6 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     const currentConfig = get().config
     const newConfig = { ...currentConfig }
 
-    let target = newConfig as any
     const updatePaths: string[] = []
 
     // Apply all updates
@@ -364,7 +365,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       })
 
       // Trigger validation
-      useValidationStore.getState().validateConfig()
+      get().validateConfig()
     }
   },
 
@@ -379,7 +380,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       })
 
       // Trigger validation
-      useValidationStore.getState().validateConfig()
+      get().validateConfig()
     }
   },
 
@@ -416,7 +417,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       })
 
       // Trigger validation
-      useValidationStore.getState().validateConfig()
+      get().validateConfig()
 
       return { success: true }
     } catch (error) {

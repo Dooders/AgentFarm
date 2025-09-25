@@ -94,8 +94,7 @@ export function retrieveState<T>(
   } = options
 
   try {
-    const storageAdapter = createStorage(storage)
-    const storedValue = storageAdapter.getItem(name)
+    const storedValue = createStorage(storage).getItem(name)
 
     if (!storedValue) {
       return null
@@ -131,8 +130,7 @@ export function retrieveState<T>(
  * Removes persisted state from storage
  */
 export function clearPersistedState(name: string, storage: 'localStorage' | 'sessionStorage' = 'localStorage'): void {
-  const storageAdapter = createStorage(storage)
-  storageAdapter.removeItem(name)
+  createStorage(storage).removeItem(name)
 }
 
 /**
@@ -158,7 +156,6 @@ export function getStorageUsage(storage: 'localStorage' | 'sessionStorage' = 'lo
   percentage: number
 } {
   try {
-    const storageAdapter = createStorage(storage)
     const used = JSON.stringify(window[storage]).length
 
     // Estimate available space (rough approximation)

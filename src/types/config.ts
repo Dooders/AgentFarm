@@ -105,6 +105,8 @@ export interface ConfigStore {
   selectedSection: string
   expandedFolders: Set<string>
   validationErrors: ValidationError[]
+  history: SimulationConfig[]
+  historyIndex: number
 
   // Basic actions
   updateConfig: (path: string, value: any) => void

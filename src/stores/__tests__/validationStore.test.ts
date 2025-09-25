@@ -31,7 +31,6 @@ describe('ValidationStore', () => {
 
   it('adds and removes errors correctly', () => {
     const { result } = renderHook(() => useValidationStore())
-    const selector = renderHook(() => validationSelectors)
 
     const testError: ValidationError = {
       path: 'width',
@@ -139,18 +138,13 @@ describe('ValidationStore', () => {
     const { result } = renderHook(() => useValidationStore())
 
     // Mock successful validation
-    const mockValidation = async (path: string, value: any) => {
-      await new Promise(resolve => setTimeout(resolve, 10))
-      return { success: true, errors: [] }
-    }
-
-    let validationResult
+    let validationResult: any
     await act(async () => {
       validationResult = await result.current.validateField('width', 100)
     })
 
-    expect(validationResult.success).toBe(true)
-    expect(validationResult.errors).toHaveLength(0)
+    expect(validationResult?.success).toBe(true)
+    expect(validationResult?.errors).toHaveLength(0)
     expect(result.current.isValidating).toBe(false)
   })
 
