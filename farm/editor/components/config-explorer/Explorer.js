@@ -139,7 +139,7 @@
 			try {
 				const res = await window.configSchemaService.fetchSchema()
 				this.state.schema = res
-				const sections = Object.entries(res.sections || {}).map(([key, meta]) => ({ key, title: meta.title || key }))
+				const sections = Object.entries((res && res.sections) || {}).map(([key, meta]) => ({ key, title: (meta && meta.title) || key }))
 				this.state.sections = sections
 			} catch (err) {
 				console.error('Failed to load schema', err)
@@ -154,6 +154,7 @@
 				const item = document.createElement('button')
 				item.className = 'section-item'
 				item.textContent = s.title
+				item.setAttribute('data-key', s.key)
 				item.onclick = () => this.onSelectSection(s.key)
 				if (s.key === this.state.selectedSectionKey) item.classList.add('active')
 				list.appendChild(item)
@@ -174,7 +175,7 @@
 		onSelectSection(key) {
 			this.state.selectedSectionKey = key
 			Array.from(this.sectionListEl.querySelectorAll('.section-item')).forEach((el) => {
-				el.classList.toggle('active', el.textContent === (this.state.schema.sections[key].title || key))
+				el.classList.toggle('active', el.getAttribute('data-key') === key)
 			})
 			const titleEl = this.detailsEl.querySelector('#details-title')
 			if (titleEl) titleEl.textContent = this.state.schema.sections[key].title || key
