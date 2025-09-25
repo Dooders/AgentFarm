@@ -236,6 +236,12 @@ Rollback Strategy
 - Covers module responsibilities, SRP, Electron process concerns
 - Defines IPC message types and contracts
 - Provides a phased migration plan from current sidebar to config explorer
+- Renderer implements multi-config workflows: open primary and compare configurations simultaneously
+- Visual diffing available:
+  - Form-based: field-level diff highlighting and one-click "Copy from compare"
+  - YAML-based: side-by-side grid listing key paths and values (current vs compare)
+- Preset bundles supported: apply preset (deep merge) and undo last applied preset
+- Validation and unsaved state clearly indicated in UI during edits/merges
 
 ---
 
