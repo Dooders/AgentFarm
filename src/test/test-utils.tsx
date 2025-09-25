@@ -64,6 +64,36 @@ export const mockConfig = {
       success_reward: 1.0,
       failure_penalty: -0.1,
       base_cost: 0.01
+    },
+    IndependentAgent: {
+      target_update_freq: 100,
+      memory_size: 1000,
+      learning_rate: 0.001,
+      gamma: 0.99,
+      epsilon_start: 1.0,
+      epsilon_min: 0.1,
+      epsilon_decay: 0.995,
+      dqn_hidden_size: 64,
+      batch_size: 32,
+      tau: 0.01,
+      success_reward: 1.0,
+      failure_penalty: -0.1,
+      base_cost: 0.01
+    },
+    ControlAgent: {
+      target_update_freq: 100,
+      memory_size: 1000,
+      learning_rate: 0.001,
+      gamma: 0.99,
+      epsilon_start: 1.0,
+      epsilon_min: 0.1,
+      epsilon_decay: 0.995,
+      dqn_hidden_size: 64,
+      batch_size: 32,
+      tau: 0.01,
+      success_reward: 1.0,
+      failure_penalty: -0.1,
+      base_cost: 0.01
     }
   },
   visualization: {
