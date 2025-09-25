@@ -9,6 +9,11 @@ The Electron-based Config Explorer provides an interactive way to view and edit 
 - Open the Explorer from the sidebar button in the Electron app.
 - Use "Open…" to load a configuration, "Save"/"Save As…" to persist changes.
 
+### Grayscale Mode
+
+- Toggle grayscale UI from either the Sidebar or the Config Explorer toolbar.
+- The mode is persisted and will be restored on next launch.
+
 ### Multi-Config Compare
 
 - Click "Compare…" to open a secondary configuration for side-by-side comparison.
@@ -32,6 +37,7 @@ Acceptance Criteria covered:
 - View two configurations concurrently and highlight differences in both form and YAML views.
 - Apply preset bundles with undo support.
 - Maintain validation and unsaved indicators after modifications.
+- Provide a grayscale theme toggle, synchronized between panels and persisted across sessions.
 
 ## Configuration File Structure
 
