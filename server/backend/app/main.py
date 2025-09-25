@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import models
 from .db import engine
-from .routers import simulation
+from .routers import simulation, config
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -44,6 +44,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Include routers
 app.include_router(simulation.router)
+app.include_router(config.router)
 
 
 @app.get("/")
