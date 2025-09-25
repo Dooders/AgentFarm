@@ -63,11 +63,15 @@ def _resolve_safe_path(user_path: Optional[str]) -> Path:
         candidate = candidate.resolve()
 
     try:
-        if not candidate.is_relative_to(root):  # type: ignore[attr-defined]
-            raise ValueError("Path outside allowed base directory")
-    except AttributeError:
-        # For Python versions without is_relative_to
-        if str(candidate).startswith(str(root)) is False:
+        # Prefer pathlib's relative_to when available (Python 3.9+)
+        candidate.relative_to(root)  # type: ignore[attr-defined]
+    except Exception:
+        # Robust fallback using commonpath
+        import os
+        root_str = str(root)
+        cand_str = str(candidate)
+        common = os.path.commonpath([root_str, cand_str])
+        if common != root_str:
             raise ValueError("Path outside allowed base directory")
 
     return candidate
@@ -84,9 +88,9 @@ def load_config(req: ConfigLoadRequest) -> ConfigResponse:
 
         cfg = SimulationConfig.from_yaml(str(path))
         return ConfigResponse(success=True, config=cfg.to_dict(), path=str(path))
-    except Exception as e:
-        # Do not leak stack traces, return unified error payload
-        return ConfigResponse(success=False, message="Failed to load configuration", errors=[str(e)])
+    except Exception:
+        # Do not leak internal error details
+        return ConfigResponse(success=False, message="Failed to load configuration", errors=["An error occurred while loading the configuration."])
 
 
 @router.post("/save", response_model=ConfigResponse)
@@ -107,8 +111,8 @@ def save_config(req: ConfigSaveRequest) -> ConfigResponse:
         path.parent.mkdir(parents=True, exist_ok=True)
         cfg.to_yaml(str(path))
         return ConfigResponse(success=True, message="Configuration saved", config=cfg.to_dict(), path=str(path))
-    except Exception as e:
-        return ConfigResponse(success=False, message="Failed to save configuration", errors=[str(e)])
+    except Exception:
+        return ConfigResponse(success=False, message="Failed to save configuration", errors=["An error occurred while saving the configuration."])
 
 
 @router.post("/validate", response_model=ConfigResponse)
@@ -117,6 +121,6 @@ def validate_config(req: ConfigValidateRequest) -> ConfigResponse:
         cfg = SimulationConfig.from_dict(dict(req.config))
         # If construction succeeds, consider it valid; return normalized config
         return ConfigResponse(success=True, message="Configuration is valid", config=cfg.to_dict())
-    except Exception as e:
-        return ConfigResponse(success=False, message="Invalid configuration", errors=[str(e)])
+    except Exception:
+        return ConfigResponse(success=False, message="Invalid configuration", errors=["Configuration failed validation."])
 

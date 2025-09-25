@@ -4,7 +4,7 @@ from dataclasses import is_dataclass, fields
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, get_args, get_origin
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from farm.core.config import (
     SimulationConfig,
@@ -64,7 +64,6 @@ def _get_default_from_instance(instance: Any, name: str) -> Any:
 
 
 def _dataclass_to_properties(dc_cls: type, known_enums: Optional[Dict[str, List[Any]]] = None) -> Dict[str, Dict[str, Any]]:
-    instance = dc_cls()  # relies on defaults in dataclass
     props: Dict[str, Dict[str, Any]] = {}
 
     for f in fields(dc_cls):
@@ -72,9 +71,19 @@ def _dataclass_to_properties(dc_cls: type, known_enums: Optional[Dict[str, List[
         if is_dataclass(f.type):
             continue
 
+        # Determine default without instantiating the dataclass
+        default_value = None
+        if f.default is not dataclasses.MISSING:
+            default_value = f.default
+        elif getattr(f, "default_factory", dataclasses.MISSING) is not dataclasses.MISSING:  # type: ignore[attr-defined]
+            try:
+                default_value = f.default_factory()  # type: ignore[misc]
+            except Exception:
+                default_value = None
+
         schema_entry: Dict[str, Any] = {
             "type": _python_type_to_schema_type(f.type),
-            "default": _get_default_from_instance(instance, f.name),
+            "default": default_value,
         }
 
         # Add enums if known by name
@@ -97,9 +106,11 @@ def _pydantic_model_to_properties(model_cls: type[BaseModel]) -> Dict[str, Dict[
     result: Dict[str, Dict[str, Any]] = {}
 
     # Build a default instance to pull resolved defaults when missing
+    default_instance = None
     try:
         default_instance = model_cls()  # type: ignore[call-arg]
-    except Exception:
+    except (TypeError, ValueError, ValidationError):
+        # Required args missing or validation-time errors; skip instance-based defaults
         default_instance = None
 
     for name, meta in properties.items():
