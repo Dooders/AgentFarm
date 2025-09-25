@@ -1,135 +1,48 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Virtual Environment
-venv/
-ENV/
-env/
-.env/
-.venv/
+# Production builds
+/dist
+/dist-electron
 
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-.project
-.pydevproject
-.settings/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-*.ipynb
-
-# Distribution / packaging
-*.manifest
-*.spec
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-
-# Logs
-logs/
-*.log
-log/
-
-# Local development settings
+# Environment variables
 .env
 .env.local
-.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# System Files
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
-# PyInstaller
-*.manifest
-*.spec
+# Logs
+logs
+*.log
 
-# Sphinx documentation
-docs/_build/
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
 
-# PyBuilder
-target/
+# Coverage directory used by tools like istanbul
+coverage/
 
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# Database files
-*.db
-*.sqlite
-*.sqlite3
-
-# Generated reports and data
-simulation_report.html
-simulation_data.csv
-efficiency_plot.png
-# Allow PNGs in docs directory, but ignore them elsewhere
-*.png
-!docs/**/*.png
-*.gif
-
-# Python cache
-__pycache__/
-*.py[cod]
-*$py.class
-
-# Environment
-.env
-.venv
-env/
-venv/
-
-# Test data
-test_data/
-.pytest_cache/
-simulation.db-journal
-*.csv
-config_*.yaml
-node_modules/
-simulations/last_config.json
-last_config.json
-
-*.json
-*.pdf
-
-results/
-# Allow benchmark results to be committed
-!benchmarks/redis/results/**
-
-# Allow MP4s in docs directory, but ignore them elsewhere
-*.mp4
-!docs/**/*.mp4
-!docs/**/*.gif
+# Electron build files
+electron-builder-effective-config.yaml
