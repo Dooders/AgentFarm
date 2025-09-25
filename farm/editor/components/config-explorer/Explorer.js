@@ -190,14 +190,16 @@
 			Object.entries(simProps).forEach(([name, meta]) => {
 				combined[name] = this.cloneDefault(meta.default)
 			})
-			// Nested sections
-			;['visualization','redis','observation'].forEach((sec) => {
-				const props = sections[sec]?.properties || {}
-				combined[sec] = {}
-				Object.entries(props).forEach(([name, meta]) => {
-					combined[sec][name] = this.cloneDefault(meta.default)
+			// Nested sections (derive dynamically)
+			Object.keys(sections)
+				.filter((key) => key !== 'simulation')
+				.forEach((sec) => {
+					const props = sections[sec]?.properties || {}
+					combined[sec] = {}
+					Object.entries(props).forEach(([name, meta]) => {
+						combined[sec][name] = this.cloneDefault(meta.default)
+					})
 				})
-			})
 			return combined
 		}
 
@@ -352,6 +354,10 @@
 					this.setFieldError(sectionKey, fieldName, null)
 				} catch (e) {
 					this.setFieldError(sectionKey, fieldName, ['Invalid JSON'])
+					this.markUnsaved(true)
+					this.markSectionDirty(sectionKey, true)
+					this.updateUnsavedIndicator()
+					this.updateYamlPreview()
 					return
 				}
 			}
@@ -441,8 +447,7 @@
 			if (obj === null || obj === undefined) return 'null'
 			if (typeof obj !== 'object') {
 				if (typeof obj === 'string') {
-					if (obj.includes('\n') || obj.includes(':') || obj.includes('#') || obj.trim() !== obj) return JSON.stringify(obj)
-					return obj
+					return JSON.stringify(obj)
 				}
 				return String(obj)
 			}
@@ -512,13 +517,15 @@
 	function boot() {
 		const root = document.getElementById('config-explorer')
 		if (!root) return
+		if (root.__configExplorerBootDone) return
+		root.__configExplorerBootDone = true
 		const explorer = new ConfigExplorer(root)
 		ensureGlobalToggles(explorer)
 	}
 
 	if (document.readyState === 'loading') {
 		document.addEventListener('DOMContentLoaded', boot)
-		// Fallback for environments where DOMContentLoaded may not fire
+		// Fallback for environments where DOMContentLoaded may not fire; guarded in boot()
 		setTimeout(boot, 0)
 	} else {
 		boot()
