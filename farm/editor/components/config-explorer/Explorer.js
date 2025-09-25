@@ -270,7 +270,7 @@
 				item.textContent = s.title
 				item.setAttribute('data-key', s.key)
 				item.setAttribute('role', 'option')
-				item.onclick = () => this.onSelectSection(s.key)
+				item.onclick = () => this.onSelectSection(s.key, { focus: true })
 				if (s.key === this.state.selectedSectionKey) item.classList.add('active')
 				const isActive = s.key === this.state.selectedSectionKey
 				item.setAttribute('aria-selected', isActive ? 'true' : 'false')
@@ -327,12 +327,8 @@
 				}
 				const target = items[targetIndex]
 				if (target) {
-					// Update tabindex for roving focus
-					items.forEach((el, i) => { el.tabIndex = i === targetIndex ? 0 : -1 })
-					target.focus()
-					// Also select to update content as we navigate
 					const key = target.getAttribute('data-key')
-					if (key) this.onSelectSection(key)
+					if (key) this.onSelectSection(key, { focus: true })
 				}
 			}
 		}
@@ -341,7 +337,8 @@
 			if (this.state.sections.length > 0) this.onSelectSection(this.state.sections[0].key)
 		}
 
-		onSelectSection(key) {
+		onSelectSection(key, opts) {
+			const options = opts || {}
 			this.state.selectedSectionKey = key
 			Array.from(this.sectionListEl.querySelectorAll('.section-item')).forEach((el) => {
 				const isActive = el.getAttribute('data-key') === key
@@ -352,6 +349,10 @@
 			const titleEl = this.detailsEl.querySelector('#details-title')
 			if (titleEl) titleEl.textContent = this.state.schema.sections[key].title || key
 			this.renderDetailsContent(key)
+			if (options.focus) {
+				const activeEl = this.sectionListEl.querySelector('.section-item.active')
+				if (activeEl) activeEl.focus()
+			}
 		}
 
 		renderDetailsContent(key) {
