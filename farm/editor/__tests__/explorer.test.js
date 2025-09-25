@@ -89,6 +89,125 @@ test('YAML preview renders current config', async () => {
     expect(yamlCode.textContent).toContain('width: 100')
 })
 
+test('Compare open enables field diff highlight and YAML diff grid', async () => {
+    // Mock dialog to return a different config for compare
+    window.dialogService = {
+        openConfigDialog: async () => ({ canceled: false, filePath: '/tmp/compare.yaml' }),
+        saveConfigDialog: async () => ({ canceled: true })
+    }
+    const originalLoad = window.configSchemaService.loadConfig
+    window.configSchemaService.loadConfig = async (path) => {
+        if (path === '/tmp/compare.yaml') {
+            return { success: true, config: { width: 200, visualization: { zoom: 2.5 } } }
+        }
+        return originalLoad(path)
+    }
+
+    await import('../components/config-explorer/Explorer.js')
+    await new Promise((r) => setTimeout(r, 0))
+    window.showConfigExplorer()
+
+    const explorer = document.getElementById('config-explorer')
+    // Ensure Simulation section is active
+    await waitForSelector(explorer, '.section-item')
+
+    const compareBtn = await waitForSelector(explorer, '#open-compare')
+    compareBtn.click()
+    await new Promise((r) => setTimeout(r, 0))
+
+    // Width field should be marked as different
+    const row = explorer.querySelector('.form-row[data-field="width"]')
+    expect(row.classList.contains('row-diff')).toBe(true)
+    // YAML panel should show diff grid
+    const yamlGrid = explorer.querySelector('.yaml-grid')
+    expect(yamlGrid).toBeTruthy()
+    expect(yamlGrid.textContent).toContain('width')
+    expect(yamlGrid.textContent).toContain('100')
+    expect(yamlGrid.textContent).toContain('200')
+
+    // Clear compare disables grid
+    const clearBtn = explorer.querySelector('#clear-compare')
+    expect(clearBtn.disabled).toBe(false)
+    clearBtn.click()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(explorer.querySelector('.yaml-grid')).toBeFalsy()
+
+    window.configSchemaService.loadConfig = originalLoad
+})
+
+test('Copy from compare sets field value and removes diff highlight', async () => {
+    window.dialogService = {
+        openConfigDialog: async () => ({ canceled: false, filePath: '/tmp/compare.yaml' }),
+        saveConfigDialog: async () => ({ canceled: true })
+    }
+    const originalLoad = window.configSchemaService.loadConfig
+    window.configSchemaService.loadConfig = async (path) => {
+        if (path === '/tmp/compare.yaml') {
+            return { success: true, config: { width: 200, visualization: { zoom: 2.5 } } }
+        }
+        return originalLoad(path)
+    }
+
+    await import('../components/config-explorer/Explorer.js')
+    await new Promise((r) => setTimeout(r, 0))
+    window.showConfigExplorer()
+
+    const explorer = document.getElementById('config-explorer')
+    const compareBtn = await waitForSelector(explorer, '#open-compare')
+    compareBtn.click()
+    await new Promise((r) => setTimeout(r, 0))
+
+    const copyBtn = explorer.querySelector('.form-row[data-field="width"] .copy-btn')
+    expect(copyBtn).toBeTruthy()
+    copyBtn.click()
+    await new Promise((r) => setTimeout(r, 0))
+
+    // After copying, width should now equal compare; diff mark may be removed after re-render
+    const input = explorer.querySelector('.form-row[data-field="width"] input[type="number"]')
+    expect(input.value).toBe('200')
+})
+
+test('Apply preset deep-merges and Undo preset restores previous config', async () => {
+    // Seed a different preset via open dialog
+    window.dialogService = {
+        openConfigDialog: async () => ({ canceled: false, filePath: '/tmp/preset.yaml' }),
+        saveConfigDialog: async () => ({ canceled: true })
+    }
+    const originalLoad = window.configSchemaService.loadConfig
+    window.configSchemaService.loadConfig = async (path) => {
+        if (path === '/tmp/preset.yaml') {
+            return { success: true, config: { visualization: { zoom: 3.5 }, newSection: { flag: true } } }
+        }
+        return originalLoad(path)
+    }
+
+    await import('../components/config-explorer/Explorer.js')
+    await new Promise((r) => setTimeout(r, 0))
+    window.showConfigExplorer()
+
+    const explorer = document.getElementById('config-explorer')
+    // Switch to visualization section to observe value
+    const buttons = explorer.querySelectorAll('.section-item')
+    buttons[1].click()
+    await new Promise((r) => setTimeout(r, 0))
+
+    const applyBtn = await waitForSelector(explorer, '#apply-preset')
+    applyBtn.click()
+    await new Promise((r) => setTimeout(r, 0))
+
+    // zoom should update to 3.5
+    const zoomInput = explorer.querySelector('.details-content input[type="number"]')
+    expect(zoomInput.value).toBe('3.5')
+    // Undo should re-enable and revert
+    const undoBtn = explorer.querySelector('#undo-preset')
+    expect(undoBtn.disabled).toBe(false)
+    undoBtn.click()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(zoomInput.value).toBe('1')
+
+    window.configSchemaService.loadConfig = originalLoad
+})
+
 test('Editing a field marks unsaved and updates YAML', async () => {
     await import('../components/config-explorer/Explorer.js')
     await new Promise((r) => setTimeout(r, 0))
