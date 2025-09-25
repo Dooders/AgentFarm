@@ -143,3 +143,26 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Project specific
+# Benchmark results and charts
+benchmarks/redis/benchmark_results/
+benchmarks/redis/charts/
+benchmarks/redis/performance_history.png
+benchmarks/redis/redis_benchmark_results.json
+benchmarks/redis/redis_performance_history.json
+benchmarks/redis/results/
+benchmarks/results/
+
+# Experiment data
+docs/experiments/one_of_a_kind/data/
+
+# Dashboard files
+farm/dashboard/
+
+# Jupyter notebooks
+notebooks/
+playground.ipynb
+
+# Simulation data
+simulations/
