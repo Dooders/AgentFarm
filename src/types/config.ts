@@ -105,10 +105,29 @@ export interface ConfigStore {
   selectedSection: string
   expandedFolders: Set<string>
   validationErrors: ValidationError[]
+  history: SimulationConfig[]
+  historyIndex: number
+
+  // Basic actions
   updateConfig: (path: string, value: any) => void
   loadConfig: (filePath: string) => Promise<void>
   saveConfig: (filePath?: string) => Promise<void>
   setComparison: (config: SimulationConfig | null) => void
   toggleSection: (section: string) => void
   validateConfig: () => void
+
+  // Persistence
+  persistUIState: () => void
+  restoreUIState: () => void
+  clearPersistedState: () => void
+
+  // Advanced features
+  batchUpdateConfig: (updates: Array<{ path: string; value: any }>) => void
+  undo: () => void
+  redo: () => void
+  resetToDefaults: () => void
+  exportConfig: () => string
+  importConfig: (configJson: string) => { success: boolean; error?: string }
+  getConfigDiff: () => Record<string, { original: any; current: any; changed: boolean }>
+  validateField: (path: string, value: any) => { success: boolean; errors: ValidationError[] }
 }

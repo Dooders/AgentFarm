@@ -1,5 +1,8 @@
 import { create } from 'zustand'
 import { SimulationConfig, ConfigStore, ValidationError } from '@/types/config'
+import { persistState, retrieveState } from './persistence'
+import { useValidationStore } from './validationStore'
+import { validationService } from '@/services/validationService'
 
 // Default configuration for initial state
 const defaultConfig: SimulationConfig = {
@@ -150,9 +153,12 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   selectedSection: 'environment',
   expandedFolders: new Set(['environment', 'agents', 'learning', 'visualization']),
   validationErrors: [],
+  history: [defaultConfig],
+  historyIndex: 0,
 
   updateConfig: (path: string, value: any) => {
     const currentConfig = get().config
+    const { history, historyIndex } = get()
 
     // Simple path-based update (in a real implementation, this would use a library like lodash.set)
     const keys = path.split('.')
@@ -167,9 +173,15 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     }
     target[keys[keys.length - 1]] = value
 
+    // Update history - truncate future history if we're not at the end
+    const newHistory = history.slice(0, historyIndex + 1)
+    newHistory.push(newConfig)
+
     set({
       config: newConfig,
-      isDirty: true
+      isDirty: true,
+      history: newHistory,
+      historyIndex: historyIndex + 1
     })
   },
 
@@ -186,7 +198,9 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
         config: defaultConfig,
         originalConfig: defaultConfig,
         isDirty: false,
-        validationErrors: []
+        validationErrors: [],
+        history: [defaultConfig],
+        historyIndex: 0
       })
     } catch (error) {
       console.error('Failed to load config:', error)
@@ -205,7 +219,9 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 
       set({
         originalConfig: get().config,
-        isDirty: false
+        isDirty: false,
+        history: [get().config],
+        historyIndex: 0
       })
     } catch (error) {
       console.error('Failed to save config:', error)
@@ -228,37 +244,253 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   },
 
   validateConfig: () => {
-    // Basic validation - in real implementation, this would use Zod schemas
     const config = get().config
-    const errors: ValidationError[] = []
+    const result = validationService.validateConfig(config)
 
-    // Simple validation rules
-    if (config.width < 10 || config.width > 1000) {
-      errors.push({
-        path: 'width',
-        message: 'Width must be between 10 and 1000',
-        code: 'invalid_range'
-      })
+    // Update validation store with results
+    useValidationStore.getState().setValidationResult(result)
+  },
+
+  // Persistence methods for UI preferences
+  persistUIState: () => {
+    const state = get()
+    const uiPreferences = {
+      selectedSection: state.selectedSection,
+      expandedFolders: Array.from(state.expandedFolders),
+      showComparison: state.showComparison
     }
 
-    if (config.height < 10 || config.height > 1000) {
-      errors.push({
-        path: 'height',
-        message: 'Height must be between 10 and 1000',
-        code: 'invalid_range'
+    persistState(uiPreferences, {
+      name: 'config-ui-preferences',
+      version: 1,
+      onError: (error) => console.error('Failed to persist UI preferences:', error)
+    })
+  },
+
+  restoreUIState: () => {
+    const persistedState = retrieveState({
+      name: 'config-ui-preferences',
+      version: 1,
+      onError: (error) => console.warn('Failed to restore UI preferences:', error)
+    })
+
+    if (persistedState && typeof persistedState === 'object' && persistedState !== null) {
+      set({
+        selectedSection: (persistedState as any).selectedSection || 'environment',
+        expandedFolders: new Set((persistedState as any).expandedFolders || [
+          'environment',
+          'agents',
+          'learning',
+          'visualization'
+        ]),
+        showComparison: (persistedState as any).showComparison || false
       })
     }
+  },
 
-    // Validate agent ratios sum to 1
-    const ratioSum = Object.values(config.agent_type_ratios).reduce((sum, ratio) => sum + ratio, 0)
-    if (Math.abs(ratioSum - 1.0) > 0.001) {
-      errors.push({
-        path: 'agent_type_ratios',
-        message: 'Agent type ratios must sum to 1.0',
-        code: 'invalid_sum'
-      })
+  // Clear persisted state
+  clearPersistedState: () => {
+    try {
+      // Clear UI preferences
+      const storage = typeof window !== 'undefined' && window.localStorage
+        ? window.localStorage
+        : null
+
+      if (storage) {
+        storage.removeItem('config-ui-preferences')
+      }
+    } catch (error) {
+      console.warn('Failed to clear persisted state:', error)
+    }
+  },
+
+  // Advanced features
+  // Batch update multiple config values
+  batchUpdateConfig: (updates: Array<{ path: string; value: any }>) => {
+    const currentConfig = get().config
+    const { history, historyIndex } = get()
+    const newConfig = { ...currentConfig }
+
+    const updatePaths: string[] = []
+
+    // Apply all updates
+    for (const update of updates) {
+      const keys = update.path.split('.')
+      let currentTarget = newConfig as any
+
+      for (let i = 0; i < keys.length - 1; i++) {
+        if (!currentTarget[keys[i]]) {
+          currentTarget[keys[i]] = {}
+        }
+        currentTarget = currentTarget[keys[i]]
+      }
+      currentTarget[keys[keys.length - 1]] = update.value
+      updatePaths.push(update.path)
     }
 
-    set({ validationErrors: errors })
+    // Update history - truncate future history if we're not at the end
+    const newHistory = history.slice(0, historyIndex + 1)
+    newHistory.push(newConfig)
+
+    set({
+      config: newConfig,
+      isDirty: true,
+      history: newHistory,
+      historyIndex: historyIndex + 1
+    })
+
+    // Trigger validation for updated fields
+    updatePaths.forEach(path => {
+      const result = validationService.validateField(path, getNestedValue(newConfig, path))
+      if (result.errors.length > 0) {
+        useValidationStore.getState().addErrors(result.errors)
+      }
+    })
+  },
+
+  // Undo/redo functionality
+  undo: () => {
+    const { history, historyIndex } = get()
+    if (historyIndex > 0) {
+      const previousConfig = history[historyIndex - 1]
+      set({
+        config: previousConfig,
+        historyIndex: historyIndex - 1,
+        isDirty: true
+      })
+
+      // Trigger validation
+      get().validateConfig()
+    }
+  },
+
+  redo: () => {
+    const { history, historyIndex } = get()
+    if (historyIndex < history.length - 1) {
+      const nextConfig = history[historyIndex + 1]
+      set({
+        config: nextConfig,
+        historyIndex: historyIndex + 1,
+        isDirty: true
+      })
+
+      // Trigger validation
+      get().validateConfig()
+    }
+  },
+
+  // Reset to default configuration
+  resetToDefaults: () => {
+    set({
+      config: defaultConfig,
+      originalConfig: defaultConfig,
+      isDirty: false,
+      validationErrors: [],
+      history: [defaultConfig],
+      historyIndex: 0
+    })
+    useValidationStore.getState().clearErrors()
+  },
+
+  // Export configuration as JSON
+  exportConfig: () => {
+    const { config } = get()
+    return JSON.stringify(config, null, 2)
+  },
+
+  // Import configuration from JSON
+  importConfig: (configJson: string) => {
+    try {
+      const importedConfig = JSON.parse(configJson)
+
+      // Basic validation
+      if (typeof importedConfig !== 'object' || importedConfig === null) {
+        throw new Error('Invalid configuration format')
+      }
+
+      set({
+        config: { ...defaultConfig, ...importedConfig },
+        isDirty: true
+      })
+
+      // Trigger validation
+      get().validateConfig()
+
+      return { success: true }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Import failed'
+      }
+    }
+  },
+
+  // Get configuration diff
+  getConfigDiff: () => {
+    const { config, originalConfig } = get()
+    const diff: Record<string, { original: any; current: any; changed: boolean }> = {}
+
+    // Simple diff - in real implementation, use a proper diff library
+    const allKeys = new Set([
+      ...getAllKeys(originalConfig as Record<string, unknown>),
+      ...getAllKeys(config as Record<string, unknown>)
+    ])
+
+    allKeys.forEach(key => {
+      const originalValue = getNestedValue(originalConfig as Record<string, unknown>, key)
+      const currentValue = getNestedValue(config as Record<string, unknown>, key)
+      const changed = JSON.stringify(originalValue) !== JSON.stringify(currentValue)
+
+      if (changed) {
+        diff[key] = { original: originalValue, current: currentValue, changed: true }
+      }
+    })
+
+    return diff
+  },
+
+  // Enhanced validation with field-specific feedback
+  validateField: (path: string, value: any) => {
+    const result = validationService.validateField(path, value)
+
+    // Update validation store with results
+    if (result.errors.length > 0) {
+      useValidationStore.getState().addErrors(result.errors)
+    } else {
+      useValidationStore.getState().clearFieldErrors(path)
+    }
+
+    return result
   }
 }))
+
+// Helper functions for advanced features
+function getNestedValue<T extends Record<string, unknown>>(obj: T, path: string): unknown {
+  const keys = path.split('.')
+  let current: unknown = obj
+
+  for (const key of keys) {
+    if (current === null || current === undefined || typeof current !== 'object') {
+      return undefined
+    }
+    current = (current as Record<string, unknown>)[key]
+  }
+
+  return current
+}
+
+function getAllKeys(obj: Record<string, unknown>, prefix = ''): string[] {
+  const keys: string[] = []
+
+  for (const [key, value] of Object.entries(obj)) {
+    const fullKey = prefix ? `${prefix}.${key}` : key
+
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      keys.push(...getAllKeys(value as Record<string, unknown>, fullKey))
+    } else {
+      keys.push(fullKey)
+    }
+  }
+
+  return keys
+}

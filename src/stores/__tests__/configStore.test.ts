@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useConfigStore } from '../configStore'
+import { useValidationStore } from '../validationStore'
 
 describe('ConfigStore', () => {
   beforeEach(() => {
@@ -67,6 +68,7 @@ describe('ConfigStore', () => {
 
   it('validates configuration and sets errors', () => {
     const { result } = renderHook(() => useConfigStore())
+    const validationStore = renderHook(() => useValidationStore())
 
     // Set invalid width
     act(() => {
@@ -74,8 +76,9 @@ describe('ConfigStore', () => {
       result.current.validateConfig()
     })
 
-    expect(result.current.validationErrors.length).toBeGreaterThan(0)
-    expect(result.current.validationErrors[0].path).toBe('width')
+    // Check that validation errors are in the validation store
+    expect(validationStore.result.current.errors.length).toBeGreaterThan(0)
+    expect(validationStore.result.current.errors[0].path).toBe('width')
   })
 
   it('loads config and resets state', async () => {
