@@ -14,7 +14,23 @@
         </div>
     </div>
 
+    <div id="config-explorer" style="display:none;"></div>
+
+    <script>
+    (function() {
+        try {
+            if (localStorage.getItem('ui:grayscale') === '1') {
+                document.body.classList.add('grayscale');
+            }
+        } catch (e) {}
+    })();
+    </script>
+
     <script src="components/sidebar.js"></script>
     <script src="components/editor.js"></script>
+    <script src="services/schema.js"></script>
+    <script src="services/dialog.js"></script>
+    <script src="components/config-explorer/SplitPane.js"></script>
+    <script src="components/config-explorer/Explorer.js"></script>
 </body>
 </html> 

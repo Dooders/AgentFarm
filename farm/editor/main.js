@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const path = require('path')
 const { spawn } = require('child_process')
 
@@ -73,3 +73,37 @@ app.on('activate', () => {
         createWindow()
     }
 }) 
+
+// IPC: Native File Dialogs for Config
+ipcMain.handle('dialog:openConfig', async () => {
+    const win = BrowserWindow.getFocusedWindow()
+    const result = await dialog.showOpenDialog(win || undefined, {
+        title: 'Open Configuration',
+        properties: ['openFile'],
+        filters: [
+            { name: 'YAML', extensions: ['yml', 'yaml'] },
+            { name: 'JSON', extensions: ['json'] },
+            { name: 'All Files', extensions: ['*'] }
+        ]
+    })
+    if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+        return { canceled: true }
+    }
+    return { canceled: false, filePath: result.filePaths[0] }
+})
+
+ipcMain.handle('dialog:saveConfig', async (_evt, suggestedPath) => {
+    const win = BrowserWindow.getFocusedWindow()
+    const result = await dialog.showSaveDialog(win || undefined, {
+        title: 'Save Configuration',
+        defaultPath: suggestedPath || undefined,
+        filters: [
+            { name: 'YAML', extensions: ['yml', 'yaml'] },
+            { name: 'JSON', extensions: ['json'] }
+        ]
+    })
+    if (result.canceled || !result.filePath) {
+        return { canceled: true }
+    }
+    return { canceled: false, filePath: result.filePath }
+})

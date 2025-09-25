@@ -147,6 +147,16 @@ Channel names are namespaced as `config:*` and `explorer:*`.
 - preview:progress (event)
   - payload: `{ runId: string, percent: number, message?: string }`
 
+### Native File Dialogs (Renderer-triggered)
+
+- dialog:openConfig
+  - req: none
+  - res: `{ canceled: boolean, filePath?: string }`
+
+- dialog:saveConfig
+  - req: `{ suggestedPath?: string }`
+  - res: `{ canceled: boolean, filePath?: string }`
+
 Diagnostic shape:
 
 Diagnostic shape:
@@ -182,6 +192,8 @@ Selectors compute derived views (e.g., visible nodes) and keep components simple
 - Long-running tasks (preview) are cancellable and emit progress events
 - Watchers are debounced and coalesced to avoid floods
 
+Note: Until the preload boundary is introduced, a temporary renderer service (`window.dialogService`) wraps `ipcRenderer.invoke` calls for `dialog:openConfig` and `dialog:saveConfig`. This will be migrated behind a typed preload API in a future phase.
+
 ---
 
 ## Migration Plan (Phased)
@@ -190,6 +202,7 @@ Phase 1: Architecture & Skeleton
 - Add `ipcRoutes`, `configStore`, `fileSystemService` in main; `ipcClient` in renderer
 - Implement read-only features: `config:listRoots`, `config:listTree`, `config:get`
 - Introduce `ConfigExplorer` panel behind a feature flag while keeping existing sidebar
+ - Add native file dialogs for open/save and basic toolbar controls (Open, Save, Save As)
 
 Phase 2: Editing & Validation
 - Implement `config:update`, `config:validate`, `config:save`
@@ -223,6 +236,26 @@ Rollback Strategy
 - Covers module responsibilities, SRP, Electron process concerns
 - Defines IPC message types and contracts
 - Provides a phased migration plan from current sidebar to config explorer
+- Renderer implements multi-config workflows: open primary and compare configurations simultaneously
+- Visual diffing available:
+  - Form-based: field-level diff highlighting and one-click "Copy from compare"
+  - YAML-based: side-by-side grid listing key paths and values (current vs compare)
+- Preset bundles supported: apply preset (deep merge) and undo last applied preset
+- Validation and unsaved state clearly indicated in UI during edits/merges
+
+---
+
+## Theming and Accessibility
+
+- Grayscale UI mode is available across the editor and Config Explorer to aid in accessibility and visual focus testing.
+  - Toggle from the Config Explorer toolbar or from the Sidebar; both remain in sync.
+  - Preference is persisted via `localStorage` and applied at startup.
+  - Implementation uses a body-level CSS class (`body.grayscale`) and a `filter: grayscale(1)` for simple global theming.
+  
+- Keyboard accessibility:
+  - Section list uses ARIA roles (`role="listbox"` and `role="option"`), roving tabindex, and supports Arrow/Home/End navigation and Enter/Space activation.
+  - Buttons and interactive elements expose clear focus indicators using `:focus-visible`.
+  - Disabled states are visually distinct and non-interactive.
 
 ---
 
