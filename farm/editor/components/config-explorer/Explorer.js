@@ -483,7 +483,7 @@
 		}
 
 		updateYamlPreview() {
-			this.renderYamlPanel()
+			this.renderYamlPreview()
 		}
 
 		toYaml(obj, indent = 0) {
@@ -665,14 +665,31 @@
 
 		deepEqual(a, b) {
 			if (a === b) return true
+			if (a == null || b == null) return a === b
 			if (typeof a !== typeof b) return false
-			if (a && b && typeof a === 'object') {
-				try { return JSON.stringify(a) === JSON.stringify(b) } catch (_) { return false }
+			if (Array.isArray(a) || Array.isArray(b)) {
+				if (!Array.isArray(a) || !Array.isArray(b)) return false
+				if (a.length !== b.length) return false
+				for (let i = 0; i < a.length; i++) {
+					if (!this.deepEqual(a[i], b[i])) return false
+				}
+				return true
 			}
-			return false
+			if (typeof a === 'object') {
+				const aKeys = Object.keys(a)
+				const bKeys = Object.keys(b)
+				if (aKeys.length !== bKeys.length) return false
+				for (let i = 0; i < aKeys.length; i++) {
+					const key = aKeys[i]
+					if (!Object.prototype.hasOwnProperty.call(b, key)) return false
+					if (!this.deepEqual(a[key], b[key])) return false
+				}
+				return true
+			}
+			return a === b
 		}
 
-		renderYamlPanel() {
+		renderYamlPreview() {
 			const header = this.yamlEl.querySelector('.yaml-header')
 			const container = this.yamlEl.querySelector('.yaml-code')
 			if (!header || !container) return
@@ -711,6 +728,8 @@
 				.replace(/&/g, '&amp;')
 				.replace(/</g, '&lt;')
 				.replace(/>/g, '&gt;')
+				.replace(/\"/g, '&quot;')
+				.replace(/'/g, '&#x27;')
 			}
 
 		flattenForDiff(obj, prefix = '') {
@@ -740,8 +759,8 @@
 					return
 				}
 				// Snapshot before applying
-				this.state.presetStack.push(JSON.parse(JSON.stringify(this.state.config)))
-				this.state.config = this.deepMerge(JSON.parse(JSON.stringify(this.state.config)), load.config)
+				this.state.presetStack.push(this.deepClone(this.state.config))
+				this.state.config = this.deepMerge(this.deepClone(this.state.config), load.config)
 				this.markUnsaved(true)
 				this.markDirtyByDiff(this.state.presetStack[this.state.presetStack.length - 1], this.state.config)
 				this.renderDetailsContent(this.state.selectedSectionKey || (this.state.sections[0] && this.state.sections[0].key))
@@ -780,10 +799,21 @@
 				if (sv && typeof sv === 'object' && !Array.isArray(sv)) {
 					target[k] = this.deepMerge(target[k], sv)
 				} else {
-					target[k] = Array.isArray(sv) ? JSON.parse(JSON.stringify(sv)) : sv
+					target[k] = Array.isArray(sv) ? this.deepClone(sv) : sv
 				}
 			})
 			return target
+		}
+
+		deepClone(value) {
+			if (value == null) return value
+			if (Array.isArray(value)) return value.map((v) => this.deepClone(v))
+			if (typeof value === 'object') {
+				const out = {}
+				Object.keys(value).forEach((k) => { out[k] = this.deepClone(value[k]) })
+				return out
+			}
+			return value
 		}
 
 		markDirtyByDiff(oldCfg, newCfg) {
