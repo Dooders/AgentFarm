@@ -8,7 +8,7 @@ independent_agents: 10
 control_agents: 10
 initial_resource_level: 5
 max_population: 300
-starvation_threshold: 100
+starvation_threshold: 10
 offspring_cost: 3 # down form 6
 min_reproduction_resources: 8 # down from 10
 offspring_initial_resources: 5
@@ -24,7 +24,7 @@ resource_regen_amount: 2
 max_resource_amount: 30
 
 # Agent behavior settings
-base_consumption_rate: 0.15
+base_consumption_rate: 1.0
 max_movement: 8
 gathering_range: 30 # up from 20
 max_gather_amount: 3

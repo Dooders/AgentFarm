@@ -24,7 +24,7 @@ def measure_memory():
 
 
 def run_once(steps: int, agents: int, use_pooling: bool, seed: int | None) -> dict:
-    # Configure initial agent counts
+    # Configure initial agent counts with starvation-friendly settings
     cfg = SimulationConfig(
         width=200,
         height=200,
@@ -35,6 +35,15 @@ def run_once(steps: int, agents: int, use_pooling: bool, seed: int | None) -> di
         persist_db_on_completion=False,
         max_steps=steps,
         simulation_steps=steps,
+        # High turnover conditions for pool reuse testing
+        initial_resources=5,   # Limited resources
+        gathering_range=10,    # Smaller gathering range
+        max_gather_amount=1,   # Limited gathering
+        base_consumption_rate=1.0,  # Higher consumption
+        starvation_threshold=2,     # Die after 2 steps without resources
+        min_reproduction_resources=1,  # Very low reproduction threshold
+        offspring_initial_resources=1,  # Low offspring cost
+        offspring_cost=1,      # Low cost to reproduce
     )
 
     # Toggle pooling via env var (benchmark switch)
@@ -64,8 +73,8 @@ def run_once(steps: int, agents: int, use_pooling: bool, seed: int | None) -> di
 
 def main():
     parser = argparse.ArgumentParser(description="Benchmark object pooling impact")
-    parser.add_argument("--agents", type=int, default=1200)
-    parser.add_argument("--steps", type=int, default=50)
+    parser.add_argument("--agents", type=int, default=2000)
+    parser.add_argument("--steps", type=int, default=100)
     parser.add_argument("--seed", type=int, default=1234)
     args = parser.parse_args()
 
