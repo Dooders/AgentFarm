@@ -288,6 +288,9 @@ class SimulationConfig:
     move_resource_approach_reward: float = 0.3
     move_resource_retreat_penalty: float = -0.2
 
+    # Pooling configuration
+    agent_pool_max_size: Optional[int] = None  # Auto-compute if None
+
     # Attack Module Parameters
     attack_target_update_freq: int = 100
     attack_memory_size: int = 10000

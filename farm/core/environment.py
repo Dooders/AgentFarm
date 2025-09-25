@@ -326,7 +326,23 @@ class Environment(AECEnv):
         )
 
         # Initialize a reusable agent pool unless disabled
-        self.agent_pool = AgentPool(BaseAgent) if pooling_enabled() else None
+        if pooling_enabled():
+            max_size = (
+                getattr(self.config, "agent_pool_max_size", None) if self.config else None
+            )
+            # Auto-cap to ~2x intended population to avoid pathological growth
+            if max_size is None:
+                intended = 0
+                if self.config:
+                    intended = (
+                        int(getattr(self.config, "system_agents", 0))
+                        + int(getattr(self.config, "independent_agents", 0))
+                        + int(getattr(self.config, "control_agents", 0))
+                    )
+                max_size = max(intended * 2, 1024)  # sensible upper bound
+            self.agent_pool = AgentPool(BaseAgent, max_size=max_size)
+        else:
+            self.agent_pool = None
 
         # Initialize environment
         self.initialize_resources(self.resource_distribution)

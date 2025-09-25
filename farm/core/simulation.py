@@ -125,8 +125,8 @@ def create_initial_agents(
             int(rng.uniform(0, environment.height)),
         )
 
-    # Initialize a simple agent pool for BaseAgent reuse
-    agent_pool = AgentPool(BaseAgent) if pooling_enabled() else None
+    # Use environment-level pool if available (keeps reuse consistent across lifecycle)
+    agent_pool = environment.agent_pool if pooling_enabled() and hasattr(environment, "agent_pool") else None
 
     # Create system agents (from pool)
     for _ in range(num_system_agents):
