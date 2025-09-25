@@ -718,10 +718,13 @@ class BaseAgent:
         else:
             self._initialize_decision_module()
 
-        # Optional memory
-        self.memory = None
-        if use_memory:
-            self._init_memory(memory_config)
+        # Optional memory (avoid creating per-agent Redis memory by default)
+        try:
+            self.memory = None
+            if use_memory:
+                self._init_memory(memory_config)
+        except Exception as e:
+            logger.warning(f"Skipping memory init for agent {self.agent_id}: {e}")
 
         if self.metrics_service:
             try:

@@ -47,6 +47,37 @@ Notes:
 - **Expectations for real simulation**:
   - `BaseAgent.reset` reuses the `DecisionModule` and avoids reconstructing heavy submodules, which should reduce creation time and GC pauses in practice.
 
+### Real Simulation Benchmark (User Run)
+```
+With pooling   -> time: 145.42s, mem Δ: 25519.07 MB, peak RSS: 27130.10 MB
+Without pooling-> time: 138.00s, mem Δ:  8869.12 MB, peak RSS: 27611.26 MB
+```
+
+Observed:
+- Time: ~5.4% slower with pooling
+- Memory: Δ memory significantly worse with pooling; peak RSS ~similar (slightly better without pooling)
+
+Preliminary Diagnosis:
+- Pool size was unbounded, causing retained agents to inflate Δ memory. We added:
+  - `SimulationConfig.agent_pool_max_size` with auto-cap (~2× intended population, minimum 1024)
+  - Environment now initializes `AgentPool(BaseAgent, max_size=...)` to prevent unbounded growth
+- Creation path is now consistent: `simulation.create_initial_agents` uses the environment’s pool; `remove_agent` releases back.
+- Memory subsystem init is guarded in `reset` to avoid heavy per-agent memory where not requested.
+
+Next Validation Steps:
+1. Set a cap explicitly if needed (example):
+   ```yaml
+   agent_pool_max_size: 2400  # ~2x of 1200 agents
+   ```
+2. Re-run the real benchmark:
+   ```bash
+   # With pooling
+   python3 scripts/benchmark_object_pooling.py --agents 1200 --steps 50
+   # Without pooling
+   FARM_DISABLE_POOLING=1 python3 scripts/benchmark_object_pooling.py --agents 1200 --steps 50
+   ```
+3. Compare peak RSS and time; target: 20–30% lower peak memory, non-regressing time.
+
 ### Next Steps to Improve Timing
 - **Make reset cheaper**: Avoid re-allocations in `BaseAgent.reset`; zero or reuse buffers/submodules where possible.
 - **Pre-warm the pool** for large spawns to remove “first creation” cost spikes.
