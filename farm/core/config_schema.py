@@ -40,7 +40,7 @@ def _python_type_to_schema_type(annotation: Any) -> str:
     try:
         if issubclass(annotation, Enum):
             return "string"
-    except Exception:
+    except TypeError:
         pass
 
     # Fallback
@@ -51,7 +51,7 @@ def _enum_values(annotation: Any) -> Optional[List[Any]]:
     try:
         if issubclass(annotation, Enum):
             return [e.value for e in annotation]
-    except Exception:
+    except TypeError:
         pass
     return None
 
@@ -63,7 +63,7 @@ def _get_default_from_instance(instance: Any, name: str) -> Any:
         return None
 
 
-def _dataclass_to_properties(dc_cls: type, known_enums: Dict[str, List[Any]] | None = None) -> Dict[str, Dict[str, Any]]:
+def _dataclass_to_properties(dc_cls: type, known_enums: Optional[Dict[str, List[Any]]] = None) -> Dict[str, Dict[str, Any]]:
     instance = dc_cls()  # relies on defaults in dataclass
     props: Dict[str, Dict[str, Any]] = {}
 
@@ -173,7 +173,7 @@ def generate_combined_config_schema() -> Dict[str, Any]:
 
     return {
         "version": 1,
-        "generated_at": datetime.datetime.utcnow().isoformat() + "Z",
+        "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
         "sections": {
             "simulation": {
                 "title": "Simulation",
