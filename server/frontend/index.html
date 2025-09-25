@@ -39,6 +39,20 @@
             <div id="history-cards"></div>
         </div>
 
+        <div id="config-panel" class="control-panel">
+            <h2>Configuration</h2>
+            <div class="input-group">
+                <input type="text" id="config-path" placeholder="Path to config.yaml (optional)">
+            </div>
+            <div class="button-group">
+                <button onclick="loadConfig()" class="btn secondary">Load Config</button>
+                <button onclick="validateConfig()" class="btn secondary">Validate</button>
+                <button onclick="saveConfig()" class="btn primary">Save</button>
+            </div>
+            <textarea id="config-editor" rows="16" placeholder="Config JSON will appear here..."></textarea>
+            <div id="config-results"></div>
+        </div>
+
         <div id="results"></div>
     </div>
     <script src="app.js"></script>

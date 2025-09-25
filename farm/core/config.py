@@ -42,8 +42,17 @@ class VisualizationConfig:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert visualization config to a JSON-serializable dictionary."""
+        def _jsonify(val):
+            if isinstance(val, tuple):
+                return list(val)
+            if isinstance(val, dict):
+                return {k: _jsonify(v) for k, v in val.items()}
+            if isinstance(val, list):
+                return [_jsonify(v) for v in val]
+            return val
+
         return {
-            key: value
+            key: _jsonify(value)
             for key, value in self.__dict__.items()
             if not key.startswith("_")
         }
@@ -355,9 +364,7 @@ class SimulationConfig:
     def to_yaml(self, file_path: str) -> None:
         """Save configuration to a YAML file."""
         # Convert to dictionary, handling visualization and redis configs specially
-        config_dict = self.__dict__.copy()
-        config_dict["visualization"] = self.visualization.to_dict()
-        config_dict["redis"] = self.redis.to_dict()
+        config_dict = self.to_dict()
 
         with open(file_path, "w", encoding="utf-8") as f:
             yaml.dump(config_dict, f, default_flow_style=False)
