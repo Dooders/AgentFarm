@@ -10,6 +10,7 @@ AgentFarm is a sophisticated platform for researching complex adaptive systems t
 
 - **[Module Overview](module_overview.md)** - High-level introduction to AgentFarm's architecture and capabilities
 - **[Core Architecture](core_architecture.md)** - Deep dive into fundamental components and design patterns
+- **[Electron Config Explorer Architecture](electron/config_explorer_architecture.md)** - Electron renderer/main boundaries, IPC, and migration plan
 - **[Usage Examples](usage_examples.md)** - Practical tutorials and code examples
 - **[Configuration Guide](configuration_guide.md)** - Comprehensive configuration system documentation
 - **[API Reference](api_reference.md)** - Complete API documentation for all modules

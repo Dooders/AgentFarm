@@ -122,6 +122,7 @@ For detailed documentation and advanced usage:
 - [Simulation Guide](docs/SimulationQuickStart.md)
 - [Experiment Guide](docs/ExperimentQuickStart.md)
 - [Core Architecture](docs/core_architecture.md)
+- [Electron Config Explorer Architecture](docs/electron/config_explorer_architecture.md)
 - [Decision Module](farm/core/decision/README.md)
 - [Configuration Guide](docs/configuration_guide.md)
 - [Data System Architecture](docs/data/data_api.md)
