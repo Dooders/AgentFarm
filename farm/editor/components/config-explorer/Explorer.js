@@ -505,19 +505,33 @@
 			}
 		}
 
+		// Helper to invoke dialog service safely
+		async invokeDialog(methodName, arg) {
+			const svc = (typeof window !== 'undefined') ? window.dialogService : null
+			if (!svc || typeof svc[methodName] !== 'function') return { canceled: true }
+			try {
+				return arg === undefined ? await svc[methodName]() : await svc[methodName](arg)
+			} catch (e) {
+				return { canceled: true, error: String(e && e.message ? e.message : e) }
+			}
+		}
+
 		async onBrowseSave() {
 			try {
 				const suggested = this.root.querySelector('#save-path')?.value || undefined
-				const res = await (window.dialogService && window.dialogService.saveConfigDialog ? window.dialogService.saveConfigDialog(suggested) : Promise.resolve({ canceled: true }))
+				const res = await this.invokeDialog('saveConfigDialog', suggested)
 				if (!res || res.canceled) return
 				const input = this.root.querySelector('#save-path')
 				if (input) input.value = res.filePath
-			} catch (_) {}
+			} catch (e) {
+				console.error('Browse Save failed:', e)
+				this.showGlobalValidation('error', 'Browse failed')
+			}
 		}
 
 		async onSaveAs() {
 			try {
-				const res = await (window.dialogService && window.dialogService.saveConfigDialog ? window.dialogService.saveConfigDialog(undefined) : Promise.resolve({ canceled: true }))
+				const res = await this.invokeDialog('saveConfigDialog', undefined)
 				if (!res || res.canceled) return
 				const input = this.root.querySelector('#save-path')
 				if (input) input.value = res.filePath
@@ -529,13 +543,18 @@
 
 		async onOpen() {
 			try {
-				const res = await (window.dialogService && window.dialogService.openConfigDialog ? window.dialogService.openConfigDialog() : Promise.resolve({ canceled: true }))
+				const res = await this.invokeDialog('openConfigDialog', undefined)
 				if (!res || res.canceled) return
 				const load = await window.configSchemaService.loadConfig(res.filePath)
 				if (load && load.success && load.config) {
 					this.state.config = load.config
 					this.state.lastSavedConfig = JSON.parse(JSON.stringify(load.config))
+					// Reset UI state: clear errors and dirty indicators
+					this.state.fieldErrors = {}
+					this.state.sectionDirty = {}
 					this.markUnsaved(false)
+					// Clear any existing dirty flags on section buttons
+					Array.from(this.sectionListEl.querySelectorAll('.section-item')).forEach((btn) => btn.classList.remove('dirty'))
 					this.renderDetailsContent(this.state.selectedSectionKey || (this.state.sections[0] && this.state.sections[0].key))
 					this.updateYamlPreview()
 					const input = this.root.querySelector('#save-path')

@@ -1,4 +1,4 @@
-;(function() {
+(function() {
     const { ipcRenderer } = require('electron')
 
     async function openConfigDialog() {
