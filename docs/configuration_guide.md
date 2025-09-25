@@ -14,6 +14,12 @@ The Electron-based Config Explorer provides an interactive way to view and edit 
 - Toggle grayscale UI from either the Sidebar or the Config Explorer toolbar.
 - The mode is persisted and will be restored on next launch.
 
+### Keyboard Navigation & Accessibility
+
+- Navigate the section list with Arrow keys; Home/End jump to first/last.
+- Press Enter or Space to select a focused section.
+- Focus indicators are visible when tabbing; disabled controls are clearly indicated.
+
 ### Multi-Config Compare
 
 - Click "Compare…" to open a secondary configuration for side-by-side comparison.

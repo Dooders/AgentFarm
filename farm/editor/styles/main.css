@@ -239,9 +239,9 @@
 
 .details-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .details-header .docs-links a { color: #9bd2ff; margin-left: 12px; text-decoration: none; }
-.details-content .form-scaffold { display: grid; grid-template-columns: 220px 1fr; gap: 10px; }
+.details-content .form-scaffold { display: grid; grid-template-columns: 240px 1fr; column-gap: 14px; row-gap: 8px; }
 .form-row { display: contents; }
-.form-row label { align-self: center; opacity: 0.9; }
+.form-row label { align-self: center; opacity: 0.9; line-height: 1.4; }
 .form-row input { background: #2c3e50; border: 1px solid rgba(255,255,255,0.12); color: #bdc3c7; padding: 6px 8px; border-radius: 4px; }
 .form-row textarea { background: #2c3e50; border: 1px solid rgba(255,255,255,0.12); color: #bdc3c7; padding: 6px 8px; border-radius: 4px; }
 
@@ -292,3 +292,33 @@ body.grayscale #config-explorer {
 .btn.toggled {
 	box-shadow: 0 0 0 2px rgba(255,255,255,0.15) inset;
 }
+
+/* Unified button focus/disabled styles */
+.explorer-toolbar .btn,
+.open-explorer,
+.control-btn {
+	transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.explorer-toolbar .btn:focus-visible,
+.open-explorer:focus-visible,
+.control-btn:focus-visible,
+.section-item:focus-visible {
+	outline: 2px solid #9bd2ff;
+	outline-offset: 2px;
+}
+
+.explorer-toolbar .btn:disabled,
+.open-explorer:disabled,
+.control-btn:disabled,
+.section-item:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+/* Section list spacing & readability */
+.section-header { padding: 12px; font-weight: bold; opacity: 0.9; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.sections { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.section-item { text-align: left; padding: 10px 12px; background: #34495e; border: none; color: #ecf0f1; border-radius: 4px; cursor: pointer; }
+.section-item:hover { background: #3b5672; }
+.section-item.active { background: #3498db; }

@@ -38,6 +38,8 @@
 
 			this.sectionListEl = document.createElement('div')
 			this.sectionListEl.className = 'section-list'
+			this.sectionListEl.setAttribute('role', 'listbox')
+			this.sectionListEl.setAttribute('aria-label', 'Configuration Sections')
 
 			const resizerV = document.createElement('div')
 			resizerV.className = 'resizer-v'
@@ -267,8 +269,12 @@
 				item.className = 'section-item'
 				item.textContent = s.title
 				item.setAttribute('data-key', s.key)
+				item.setAttribute('role', 'option')
 				item.onclick = () => this.onSelectSection(s.key)
 				if (s.key === this.state.selectedSectionKey) item.classList.add('active')
+				const isActive = s.key === this.state.selectedSectionKey
+				item.setAttribute('aria-selected', isActive ? 'true' : 'false')
+				item.tabIndex = isActive ? 0 : -1
 				list.appendChild(item)
 			})
 
@@ -278,6 +284,57 @@
 			header.textContent = 'Sections'
 			this.sectionListEl.appendChild(header)
 			this.sectionListEl.appendChild(list)
+			this.initSectionKeyboardNav()
+		}
+
+		initSectionKeyboardNav() {
+			const container = this.sectionListEl
+			if (!container) return
+			container.onkeydown = (e) => {
+				const items = Array.from(container.querySelectorAll('.section-item'))
+				if (!items.length) return
+				const activeIndex = items.findIndex((el) => el.classList.contains('active'))
+				let targetIndex = activeIndex >= 0 ? activeIndex : 0
+				switch (e.key) {
+					case 'ArrowDown':
+					case 'ArrowRight':
+						e.preventDefault()
+						targetIndex = Math.min(items.length - 1, (activeIndex + 1))
+						break
+					case 'ArrowUp':
+					case 'ArrowLeft':
+						e.preventDefault()
+						targetIndex = Math.max(0, (activeIndex - 1))
+						break
+					case 'Home':
+						e.preventDefault()
+						targetIndex = 0
+						break
+					case 'End':
+						e.preventDefault()
+						targetIndex = items.length - 1
+						break
+					case 'Enter':
+					case ' ': // Space
+						e.preventDefault()
+						const focused = document.activeElement
+						if (focused && focused.classList.contains('section-item')) {
+							focused.click()
+						}
+						return
+					default:
+						return
+				}
+				const target = items[targetIndex]
+				if (target) {
+					// Update tabindex for roving focus
+					items.forEach((el, i) => { el.tabIndex = i === targetIndex ? 0 : -1 })
+					target.focus()
+					// Also select to update content as we navigate
+					const key = target.getAttribute('data-key')
+					if (key) this.onSelectSection(key)
+				}
+			}
 		}
 
 		selectFirstSection() {
@@ -287,7 +344,10 @@
 		onSelectSection(key) {
 			this.state.selectedSectionKey = key
 			Array.from(this.sectionListEl.querySelectorAll('.section-item')).forEach((el) => {
-				el.classList.toggle('active', el.getAttribute('data-key') === key)
+				const isActive = el.getAttribute('data-key') === key
+				el.classList.toggle('active', isActive)
+				el.setAttribute('aria-selected', isActive ? 'true' : 'false')
+				el.tabIndex = isActive ? 0 : -1
 			})
 			const titleEl = this.detailsEl.querySelector('#details-title')
 			if (titleEl) titleEl.textContent = this.state.schema.sections[key].title || key

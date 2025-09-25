@@ -251,6 +251,11 @@ Rollback Strategy
   - Toggle from the Config Explorer toolbar or from the Sidebar; both remain in sync.
   - Preference is persisted via `localStorage` and applied at startup.
   - Implementation uses a body-level CSS class (`body.grayscale`) and a `filter: grayscale(1)` for simple global theming.
+  
+- Keyboard accessibility:
+  - Section list uses ARIA roles (`role="listbox"` and `role="option"`), roving tabindex, and supports Arrow/Home/End navigation and Enter/Space activation.
+  - Buttons and interactive elements expose clear focus indicators using `:focus-visible`.
+  - Disabled states are visually distinct and non-interactive.
 
 ---
 
