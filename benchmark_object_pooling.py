@@ -57,6 +57,8 @@ def run_once(steps: int, agents: int, use_pooling: bool, seed: int | None) -> di
         }
 
     return {
+
+    result = {
         "use_pooling": use_pooling,
         "elapsed_s": elapsed,
         "mem_delta_bytes": mem_delta,
@@ -65,6 +67,12 @@ def run_once(steps: int, agents: int, use_pooling: bool, seed: int | None) -> di
         "steps": steps,
         "pool_stats": pool_stats,
     }
+    
+    # Capture pool statistics if pooling was used
+    if use_pooling and hasattr(env, 'agent_pool') and env.agent_pool is not None:
+        result["pool_stats"] = env.agent_pool.get_stats()
+    
+    return result
 
 
 def main():
@@ -92,6 +100,11 @@ def main():
     print(
         f"Without pooling-> time: {without_pool['elapsed_s']:.2f}s, mem Δ: {fmt_mb(without_pool['mem_delta_bytes'])}, peak RSS: {fmt_mb(without_pool['peak_rss_bytes'])}"
     )
+    
+    # Show pool statistics if available
+    if 'pool_stats' in with_pool:
+        stats = with_pool['pool_stats']
+        print(f"Pool stats: {stats['total_reused']} reused, {stats['total_created']} created, {stats['reuse_rate_percent']:.1f}% reuse rate")
 
     # Show pool statistics
     if with_pool["pool_stats"]:

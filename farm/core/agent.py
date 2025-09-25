@@ -49,6 +49,13 @@ from farm.core.device_utils import create_device_from_config
 from farm.core.genome import Genome
 from farm.core.perception import PerceptionData
 from farm.core.services.factory import AgentServiceFactory
+from farm.core.services.implementations import (
+    EnvironmentAgentLifecycleService,
+    EnvironmentLoggingService,
+    EnvironmentMetricsService,
+    EnvironmentTimeService,
+    EnvironmentValidationService,
+)
 from farm.core.services.interfaces import (
     IAgentLifecycleService,
     ILoggingService,
@@ -670,9 +677,9 @@ class BaseAgent:
     ) -> None:
         """Reinitialize an existing agent instance for pooling reuse.
 
-        Mirrors the constructor but reuses heavy submodules when possible.
+        Optimized version that reuses existing services instead of recreating them.
         """
-        # Basic attributes
+        # Basic attributes - fast assignments
         self.actions = (
             action_set if action_set is not None else action_registry.get_all(normalized=True)
         )
@@ -682,17 +689,39 @@ class BaseAgent:
         self.agent_type = agent_type
         self.alive = True
 
-        # Services and environment
-        self._initialize_services(
-            environment=environment,
-            spatial_service=spatial_service,
-            metrics_service=metrics_service,
-            logging_service=logging_service,
-            validation_service=validation_service,
-            time_service=time_service,
-            lifecycle_service=lifecycle_service,
-            config=config,
-        )
+        # Update services only if they changed or are None - avoid recreation
+        if spatial_service is not None:
+            self.spatial_service = spatial_service
+        if environment is not None:
+            self.environment = environment
+        if config is not None:
+            self.config = config
+            
+        # Only update services that are explicitly provided or missing
+        if metrics_service is not None:
+            self.metrics_service = metrics_service
+        elif self.metrics_service is None and environment is not None:
+            self.metrics_service = EnvironmentMetricsService(environment)
+            
+        if logging_service is not None:
+            self.logging_service = logging_service
+        elif self.logging_service is None and environment is not None:
+            self.logging_service = EnvironmentLoggingService(environment)
+            
+        if validation_service is not None:
+            self.validation_service = validation_service
+        elif self.validation_service is None and environment is not None:
+            self.validation_service = EnvironmentValidationService(environment)
+            
+        if time_service is not None:
+            self.time_service = time_service
+        elif self.time_service is None and environment is not None:
+            self.time_service = EnvironmentTimeService(environment)
+            
+        if lifecycle_service is not None:
+            self.lifecycle_service = lifecycle_service
+        elif self.lifecycle_service is None and environment is not None:
+            self.lifecycle_service = EnvironmentAgentLifecycleService(environment)
 
         # Device selection
         if device is not None:
