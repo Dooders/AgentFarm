@@ -149,14 +149,11 @@ Channel names are namespaced as `config:*` and `explorer:*`.
 
 Diagnostic shape:
 
-```ts
-type Diagnostic = {
-  nodePath: string;
-  level: 'error' | 'warning' | 'info';
-  code?: string;
-  message: string;
-};
-```
+Diagnostic shape:
+  - `nodePath`: string
+  - `level`: 'error' | 'warning' | 'info'
+  - `code?`: string (optional)
+  - `message`: string
 
 Validation rules are enforced on the main side (AJV or equivalent) so the renderer remains untrusted. Renderer performs optimistic UI validation only for UX hints.
 
