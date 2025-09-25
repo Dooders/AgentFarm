@@ -381,3 +381,76 @@ test('Save As prompts for path and saves there', async () => {
     window.configSchemaService.saveConfig = originalSave
 })
 
+test('Grayscale toggle button toggles body class and persists', async () => {
+    try { localStorage.removeItem('ui:grayscale') } catch (e) {}
+    await import('../components/config-explorer/Explorer.js')
+    await new Promise((r) => setTimeout(r, 0))
+    window.showConfigExplorer()
+
+    const explorer = document.getElementById('config-explorer')
+    const grayBtn = explorer.querySelector('#toggle-grayscale')
+    expect(grayBtn).toBeTruthy()
+
+    grayBtn.click()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(document.body.classList.contains('grayscale')).toBe(true)
+    expect(grayBtn.classList.contains('toggled')).toBe(true)
+    expect(localStorage.getItem('ui:grayscale')).toBe('1')
+
+    grayBtn.click()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(document.body.classList.contains('grayscale')).toBe(false)
+    expect(grayBtn.classList.contains('toggled')).toBe(false)
+    expect(localStorage.getItem('ui:grayscale')).toBe('0')
+})
+
+test('Grayscale sync helpers update toolbar and sidebar buttons', async () => {
+    await import('../components/config-explorer/Explorer.js')
+    await new Promise((r) => setTimeout(r, 0))
+    window.showConfigExplorer()
+
+    const explorer = document.getElementById('config-explorer')
+    const toolbarBtn = explorer.querySelector('#toggle-grayscale')
+    expect(toolbarBtn).toBeTruthy()
+
+    const sidebarBtn = document.createElement('button')
+    sidebarBtn.id = 'toggle-grayscale-sidebar'
+    document.body.appendChild(sidebarBtn)
+
+    window.__setExplorerGrayscale(true)
+    expect(document.body.classList.contains('grayscale')).toBe(true)
+    expect(toolbarBtn.classList.contains('toggled')).toBe(true)
+
+    window.__setSidebarGrayscale(false)
+    expect(document.body.classList.contains('grayscale')).toBe(false)
+    expect(sidebarBtn.classList.contains('toggled')).toBe(false)
+})
+
+test('Keyboard navigation moves focus and updates selection in section list', async () => {
+    await import('../components/config-explorer/Explorer.js')
+    await new Promise((r) => setTimeout(r, 0))
+    window.showConfigExplorer()
+
+    const explorer = document.getElementById('config-explorer')
+    const list = explorer.querySelector('.section-list')
+    const items = explorer.querySelectorAll('.section-item')
+    expect(items.length).toBeGreaterThan(1)
+
+    // Focus first item
+    items[0].focus()
+    // ArrowDown should move to second and select it
+    const evt = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })
+    list.dispatchEvent(evt)
+
+    expect(document.activeElement).toBe(items[1])
+    const title = explorer.querySelector('#details-title').textContent
+    expect(title).toBe('Visualization')
+
+    // Home should move to first
+    const homeEvt = new KeyboardEvent('keydown', { key: 'Home', bubbles: true })
+    list.dispatchEvent(homeEvt)
+    expect(document.activeElement).toBe(items[0])
+    const title2 = explorer.querySelector('#details-title').textContent
+    expect(title2).toBe('Simulation')
+})
+

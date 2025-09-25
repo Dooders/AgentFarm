@@ -38,6 +38,8 @@
 
 			this.sectionListEl = document.createElement('div')
 			this.sectionListEl.className = 'section-list'
+			this.sectionListEl.setAttribute('role', 'listbox')
+			this.sectionListEl.setAttribute('aria-label', 'Configuration Sections')
 
 			const resizerV = document.createElement('div')
 			resizerV.className = 'resizer-v'
@@ -100,6 +102,7 @@
 					<span id="unsaved-indicator" class="unsaved-indicator" style="display:none;"><span class="dot"></span> Unsaved</span>
 				</div>
 				<div class="right">
+					<button id="toggle-grayscale" class="btn" title="Toggle grayscale UI">Grayscale</button>
 					<button id="open-config" class="btn">Open…</button>
 					<button id="open-compare" class="btn" title="Open secondary config for compare">Compare…</button>
 					<button id="clear-compare" class="btn" title="Clear comparison" disabled>Clear Compare</button>
@@ -115,6 +118,8 @@
 			`
 			bar.querySelector('#back-to-legacy').onclick = () => window.hideConfigExplorer()
 			bar.querySelector('#save-config').onclick = () => this.onSave()
+			const grayBtn = bar.querySelector('#toggle-grayscale')
+			if (grayBtn) grayBtn.onclick = () => this.toggleGrayscale(grayBtn)
 			const openBtn = bar.querySelector('#open-config')
 			if (openBtn) openBtn.onclick = () => this.onOpen()
 			const openCompareBtn = bar.querySelector('#open-compare')
@@ -131,7 +136,26 @@
 			if (undoPresetBtn) undoPresetBtn.onclick = () => this.onUndoPreset()
 			// Reflect initial disabled states
 			setTimeout(() => this.updateToolbarButtons(), 0)
+			// Initialize grayscale UI state on first render
+			setTimeout(() => this.syncGrayscaleButtonState(), 0)
 			return bar
+		}
+
+		toggleGrayscale(buttonEl) {
+			const enabled = document.body.classList.toggle('grayscale')
+			try { localStorage.setItem('ui:grayscale', enabled ? '1' : '0') } catch (_) {}
+			if (buttonEl) buttonEl.classList.toggle('toggled', enabled)
+			if (typeof window !== 'undefined' && typeof window.__setSidebarGrayscale === 'function') {
+				window.__setSidebarGrayscale(enabled)
+			}
+		}
+
+		syncGrayscaleButtonState() {
+			let enabled = false
+			try { enabled = localStorage.getItem('ui:grayscale') === '1' } catch (_) {}
+			if (enabled) document.body.classList.add('grayscale')
+			const btn = this.root.querySelector('#toggle-grayscale')
+			if (btn) btn.classList.toggle('toggled', enabled)
 		}
 
 		enableVerticalResizer(resizer, leftEl, rightEl) {
@@ -245,8 +269,12 @@
 				item.className = 'section-item'
 				item.textContent = s.title
 				item.setAttribute('data-key', s.key)
-				item.onclick = () => this.onSelectSection(s.key)
+				item.setAttribute('role', 'option')
+				item.onclick = () => this.onSelectSection(s.key, { focus: true })
 				if (s.key === this.state.selectedSectionKey) item.classList.add('active')
+				const isActive = s.key === this.state.selectedSectionKey
+				item.setAttribute('aria-selected', isActive ? 'true' : 'false')
+				item.tabIndex = isActive ? 0 : -1
 				list.appendChild(item)
 			})
 
@@ -256,20 +284,75 @@
 			header.textContent = 'Sections'
 			this.sectionListEl.appendChild(header)
 			this.sectionListEl.appendChild(list)
+			this.initSectionKeyboardNav()
+		}
+
+		initSectionKeyboardNav() {
+			const container = this.sectionListEl
+			if (!container) return
+			container.onkeydown = (e) => {
+				const items = Array.from(container.querySelectorAll('.section-item'))
+				if (!items.length) return
+				const activeIndex = items.findIndex((el) => el.classList.contains('active'))
+				let targetIndex = activeIndex >= 0 ? activeIndex : 0
+				switch (e.key) {
+					case 'ArrowDown':
+					case 'ArrowRight':
+						e.preventDefault()
+						targetIndex = Math.min(items.length - 1, (activeIndex + 1))
+						break
+					case 'ArrowUp':
+					case 'ArrowLeft':
+						e.preventDefault()
+						targetIndex = Math.max(0, (activeIndex - 1))
+						break
+					case 'Home':
+						e.preventDefault()
+						targetIndex = 0
+						break
+					case 'End':
+						e.preventDefault()
+						targetIndex = items.length - 1
+						break
+					case 'Enter':
+					case ' ': // Space
+						e.preventDefault()
+						const focused = document.activeElement
+						if (focused && focused.classList.contains('section-item')) {
+							focused.click()
+						}
+						return
+					default:
+						return
+				}
+				const target = items[targetIndex]
+				if (target) {
+					const key = target.getAttribute('data-key')
+					if (key) this.onSelectSection(key, { focus: true })
+				}
+			}
 		}
 
 		selectFirstSection() {
 			if (this.state.sections.length > 0) this.onSelectSection(this.state.sections[0].key)
 		}
 
-		onSelectSection(key) {
+		onSelectSection(key, opts) {
+			const options = opts || {}
 			this.state.selectedSectionKey = key
 			Array.from(this.sectionListEl.querySelectorAll('.section-item')).forEach((el) => {
-				el.classList.toggle('active', el.getAttribute('data-key') === key)
+				const isActive = el.getAttribute('data-key') === key
+				el.classList.toggle('active', isActive)
+				el.setAttribute('aria-selected', isActive ? 'true' : 'false')
+				el.tabIndex = isActive ? 0 : -1
 			})
 			const titleEl = this.detailsEl.querySelector('#details-title')
 			if (titleEl) titleEl.textContent = this.state.schema.sections[key].title || key
 			this.renderDetailsContent(key)
+			if (options.focus) {
+				const activeEl = this.sectionListEl.querySelector('.section-item.active')
+				if (activeEl) activeEl.focus()
+			}
 		}
 
 		renderDetailsContent(key) {
@@ -848,6 +931,19 @@
 			if (main) main.style.display = ''
 			const explorer = document.getElementById('config-explorer')
 			if (explorer) explorer.style.display = 'none'
+		}
+		// Cross-panel grayscale sync helpers
+		window.__setSidebarGrayscale = function(enabled) {
+			try { localStorage.setItem('ui:grayscale', enabled ? '1' : '0') } catch (_) {}
+			document.body.classList.toggle('grayscale', !!enabled)
+			const btn = document.getElementById('toggle-grayscale-sidebar')
+			if (btn) btn.classList.toggle('toggled', !!enabled)
+		}
+		window.__setExplorerGrayscale = function(enabled) {
+			try { localStorage.setItem('ui:grayscale', enabled ? '1' : '0') } catch (_) {}
+			document.body.classList.toggle('grayscale', !!enabled)
+			const btn = configExplorer.root && configExplorer.root.querySelector('#toggle-grayscale')
+			if (btn) btn.classList.toggle('toggled', !!enabled)
 		}
 	}
 
