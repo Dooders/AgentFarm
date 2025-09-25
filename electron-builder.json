@@ -1,0 +1,39 @@
+{
+  "appId": "com.configexplorer.app",
+  "productName": "Live Simulation Config Explorer",
+  "directories": {
+    "output": "dist-electron"
+  },
+  "files": [
+    "dist",
+    "electron/main.js",
+    "electron/preload.js",
+    "electron/ipcHandlers.js",
+    "node_modules",
+    "package.json"
+  ],
+  "mac": {
+    "category": "public.app-category.developer-tools",
+    "target": [
+      {
+        "target": "dmg",
+        "arch": [
+          "x64",
+          "arm64"
+        ]
+      }
+    ]
+  },
+  "win": {
+    "target": "nsis",
+    "icon": "build/icon.ico"
+  },
+  "linux": {
+    "target": "AppImage",
+    "category": "Development"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true
+  }
+}
