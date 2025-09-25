@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { SimulationConfig, ConfigStore, ValidationError } from '@/types/config'
 import { persistState, retrieveState } from './persistence'
 import { useValidationStore } from './validationStore'
+import { validationService } from '@/services/validationService'
 
 // Default configuration for initial state
 const defaultConfig: SimulationConfig = {
@@ -157,6 +158,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 
   updateConfig: (path: string, value: any) => {
     const currentConfig = get().config
+    const { history, historyIndex } = get()
 
     // Simple path-based update (in a real implementation, this would use a library like lodash.set)
     const keys = path.split('.')
@@ -171,9 +173,15 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     }
     target[keys[keys.length - 1]] = value
 
+    // Update history - truncate future history if we're not at the end
+    const newHistory = history.slice(0, historyIndex + 1)
+    newHistory.push(newConfig)
+
     set({
       config: newConfig,
-      isDirty: true
+      isDirty: true,
+      history: newHistory,
+      historyIndex: historyIndex + 1
     })
   },
 
@@ -190,7 +198,9 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
         config: defaultConfig,
         originalConfig: defaultConfig,
         isDirty: false,
-        validationErrors: []
+        validationErrors: [],
+        history: [defaultConfig],
+        historyIndex: 0
       })
     } catch (error) {
       console.error('Failed to load config:', error)
@@ -209,7 +219,9 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 
       set({
         originalConfig: get().config,
-        isDirty: false
+        isDirty: false,
+        history: [get().config],
+        historyIndex: 0
       })
     } catch (error) {
       console.error('Failed to save config:', error)
@@ -232,38 +244,11 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   },
 
   validateConfig: () => {
-    // Basic validation - in real implementation, this would use Zod schemas
     const config = get().config
-    const errors: ValidationError[] = []
+    const result = validationService.validateConfig(config)
 
-    // Simple validation rules
-    if (config.width < 10 || config.width > 1000) {
-      errors.push({
-        path: 'width',
-        message: 'Width must be between 10 and 1000',
-        code: 'invalid_range'
-      })
-    }
-
-    if (config.height < 10 || config.height > 1000) {
-      errors.push({
-        path: 'height',
-        message: 'Height must be between 10 and 1000',
-        code: 'invalid_range'
-      })
-    }
-
-    // Validate agent ratios sum to 1
-    const ratioSum = Object.values(config.agent_type_ratios).reduce((sum, ratio) => sum + ratio, 0)
-    if (Math.abs(ratioSum - 1.0) > 0.001) {
-      errors.push({
-        path: 'agent_type_ratios',
-        message: 'Agent type ratios must sum to 1.0',
-        code: 'invalid_sum'
-      })
-    }
-
-    set({ validationErrors: errors })
+    // Update validation store with results
+    useValidationStore.getState().setValidationResult(result)
   },
 
   // Persistence methods for UI preferences
@@ -323,6 +308,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   // Batch update multiple config values
   batchUpdateConfig: (updates: Array<{ path: string; value: any }>) => {
     const currentConfig = get().config
+    const { history, historyIndex } = get()
     const newConfig = { ...currentConfig }
 
     const updatePaths: string[] = []
@@ -342,14 +328,23 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       updatePaths.push(update.path)
     }
 
+    // Update history - truncate future history if we're not at the end
+    const newHistory = history.slice(0, historyIndex + 1)
+    newHistory.push(newConfig)
+
     set({
       config: newConfig,
-      isDirty: true
+      isDirty: true,
+      history: newHistory,
+      historyIndex: historyIndex + 1
     })
 
     // Trigger validation for updated fields
     updatePaths.forEach(path => {
-      useValidationStore.getState().validateField(path, getNestedValue(newConfig, path))
+      const result = validationService.validateField(path, getNestedValue(newConfig, path))
+      if (result.errors.length > 0) {
+        useValidationStore.getState().addErrors(result.errors)
+      }
     })
   },
 
@@ -390,7 +385,9 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       config: defaultConfig,
       originalConfig: defaultConfig,
       isDirty: false,
-      validationErrors: []
+      validationErrors: [],
+      history: [defaultConfig],
+      historyIndex: 0
     })
     useValidationStore.getState().clearErrors()
   },
@@ -435,13 +432,13 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 
     // Simple diff - in real implementation, use a proper diff library
     const allKeys = new Set([
-      ...getAllKeys(originalConfig),
-      ...getAllKeys(config)
+      ...getAllKeys(originalConfig as Record<string, unknown>),
+      ...getAllKeys(config as Record<string, unknown>)
     ])
 
     allKeys.forEach(key => {
-      const originalValue = getNestedValue(originalConfig, key)
-      const currentValue = getNestedValue(config, key)
+      const originalValue = getNestedValue(originalConfig as Record<string, unknown>, key)
+      const currentValue = getNestedValue(config as Record<string, unknown>, key)
       const changed = JSON.stringify(originalValue) !== JSON.stringify(currentValue)
 
       if (changed) {
@@ -453,127 +450,47 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   },
 
   // Enhanced validation with field-specific feedback
-  validateField: async (path: string, value: any) => {
-    const validationStore = useValidationStore.getState()
+  validateField: (path: string, value: any) => {
+    const result = validationService.validateField(path, value)
 
-    // Clear existing errors for this field
-    validationStore.clearFieldErrors(path)
-
-    try {
-      // Basic field validation
-      const errors = validateSingleField(path, value)
-
-      if (errors.length > 0) {
-        validationStore.addErrors(errors)
-      } else {
-        // Clear any existing success state
-        validationStore.clearFieldErrors(path)
-      }
-
-      return { success: errors.length === 0, errors }
-    } catch (error) {
-      const validationError: ValidationError = {
-        path,
-        message: error instanceof Error ? error.message : 'Validation failed',
-        code: 'validation_error'
-      }
-
-      validationStore.addError(validationError)
-      return { success: false, errors: [validationError] }
+    // Update validation store with results
+    if (result.errors.length > 0) {
+      useValidationStore.getState().addErrors(result.errors)
+    } else {
+      useValidationStore.getState().clearFieldErrors(path)
     }
+
+    return result
   }
 }))
 
 // Helper functions for advanced features
-function getNestedValue(obj: any, path: string): any {
+function getNestedValue<T extends Record<string, unknown>>(obj: T, path: string): unknown {
   const keys = path.split('.')
-  let current = obj
+  let current: unknown = obj
 
   for (const key of keys) {
-    if (current === null || current === undefined) {
+    if (current === null || current === undefined || typeof current !== 'object') {
       return undefined
     }
-    current = current[key]
+    current = (current as Record<string, unknown>)[key]
   }
 
   return current
 }
 
-function getAllKeys(obj: any, prefix = ''): string[] {
+function getAllKeys(obj: Record<string, unknown>, prefix = ''): string[] {
   const keys: string[] = []
 
   for (const [key, value] of Object.entries(obj)) {
     const fullKey = prefix ? `${prefix}.${key}` : key
 
     if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-      keys.push(...getAllKeys(value, fullKey))
+      keys.push(...getAllKeys(value as Record<string, unknown>, fullKey))
     } else {
       keys.push(fullKey)
     }
   }
 
   return keys
-}
-
-function validateSingleField(path: string, value: any): ValidationError[] {
-  const errors: ValidationError[] = []
-
-  // Field-specific validation rules
-  switch (path) {
-    case 'width':
-    case 'height':
-      if (typeof value !== 'number' || value < 10 || value > 1000) {
-        errors.push({
-          path,
-          message: `${path} must be a number between 10 and 1000`,
-          code: 'invalid_range'
-        })
-      }
-      break
-
-    case 'system_agents':
-    case 'independent_agents':
-    case 'control_agents':
-      if (typeof value !== 'number' || value < 0 || value > 10000) {
-        errors.push({
-          path,
-          message: `${path} must be a number between 0 and 10000`,
-          code: 'invalid_range'
-        })
-      }
-      break
-
-    case 'learning_rate':
-      if (typeof value !== 'number' || value <= 0 || value > 1) {
-        errors.push({
-          path,
-          message: 'learning_rate must be a number between 0 and 1',
-          code: 'invalid_range'
-        })
-      }
-      break
-
-    case 'epsilon_start':
-    case 'epsilon_min':
-      if (typeof value !== 'number' || value < 0 || value > 1) {
-        errors.push({
-          path,
-          message: `${path} must be a number between 0 and 1`,
-          code: 'invalid_range'
-        })
-      }
-      break
-
-    case 'epsilon_decay':
-      if (typeof value !== 'number' || value <= 0 || value > 1) {
-        errors.push({
-          path,
-          message: 'epsilon_decay must be a number between 0 and 1',
-          code: 'invalid_range'
-        })
-      }
-      break
-  }
-
-  return errors
 }

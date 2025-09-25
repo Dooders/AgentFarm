@@ -28,12 +28,12 @@ interface ValidationStore {
   clearFieldErrors: (path: string) => void
   validateField: (path: string, value: any) => Promise<ValidationResult>
 
-  // Computed selectors (these are computed from state)
-  get isValid(): boolean
-  get hasErrors(): boolean
-  get hasWarnings(): boolean
-  get errorCount(): number
-  get warningCount(): number
+  // Computed properties - these are implemented as getters in the store
+  readonly isValid: boolean
+  readonly hasErrors: boolean
+  readonly hasWarnings: boolean
+  readonly errorCount: number
+  readonly warningCount: number
 }
 
 export const useValidationStore = create<ValidationStore>((set, get) => ({
@@ -43,25 +43,30 @@ export const useValidationStore = create<ValidationStore>((set, get) => ({
   warnings: [],
   lastValidationTime: 0,
 
-  // Computed properties
+  // Computed properties - these are computed from the current state
   get isValid() {
-    return get().errors.length === 0
+    const state = get()
+    return state.errors.length === 0
   },
 
   get hasErrors() {
-    return get().errors.length > 0
+    const state = get()
+    return state.errors.length > 0
   },
 
   get hasWarnings() {
-    return get().warnings.length > 0
+    const state = get()
+    return state.warnings.length > 0
   },
 
   get errorCount() {
-    return get().errors.length
+    const state = get()
+    return state.errors.length
   },
 
   get warningCount() {
-    return get().warnings.length
+    const state = get()
+    return state.warnings.length
   },
 
   // Actions

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { SimulationConfig } from '@/types/config'
 import { persistState, retrieveState } from './persistence'
 
-interface LevaStore {
+export interface LevaStore {
   // Leva panel state
   isVisible: boolean
   isCollapsed: boolean

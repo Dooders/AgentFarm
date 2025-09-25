@@ -129,5 +129,5 @@ export interface ConfigStore {
   exportConfig: () => string
   importConfig: (configJson: string) => { success: boolean; error?: string }
   getConfigDiff: () => Record<string, { original: any; current: any; changed: boolean }>
-  validateField: (path: string, value: any) => Promise<{ success: boolean; errors: ValidationError[] }>
+  validateField: (path: string, value: any) => { success: boolean; errors: ValidationError[] }
 }

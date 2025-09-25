@@ -4,6 +4,9 @@
  */
 
 import { ValidationError } from '@/types/validation'
+import { ConfigStore } from '@/types/config'
+import { ValidationState } from '@/types/validation'
+import { LevaStore } from './levaStore'
 
 // Re-export stores for convenience
 export { useConfigStore } from './configStore'
@@ -13,40 +16,40 @@ export { useLevaStore } from './levaStore'
 // Config Store Selectors
 export const configSelectors = {
   // Basic state selectors
-  getConfig: (state: any) => state.config,
-  getOriginalConfig: (state: any) => state.originalConfig,
-  getIsDirty: (state: any) => state.isDirty,
-  getCompareConfig: (state: any) => state.compareConfig,
-  getShowComparison: (state: any) => state.showComparison,
-  getSelectedSection: (state: any) => state.selectedSection,
-  getExpandedFolders: (state: any) => state.expandedFolders,
-  getValidationErrors: (state: any) => state.validationErrors,
+  getConfig: (state: ConfigStore) => state.config,
+  getOriginalConfig: (state: ConfigStore) => state.originalConfig,
+  getIsDirty: (state: ConfigStore) => state.isDirty,
+  getCompareConfig: (state: ConfigStore) => state.compareConfig,
+  getShowComparison: (state: ConfigStore) => state.showComparison,
+  getSelectedSection: (state: ConfigStore) => state.selectedSection,
+  getExpandedFolders: (state: ConfigStore) => state.expandedFolders,
+  getValidationErrors: (state: ConfigStore) => state.validationErrors,
 
   // Derived state selectors
-  getEnvironmentConfig: (state: any) => ({
+  getEnvironmentConfig: (state: ConfigStore) => ({
     width: state.config.width,
     height: state.config.height,
     position_discretization_method: state.config.position_discretization_method,
     use_bilinear_interpolation: state.config.use_bilinear_interpolation
   }),
 
-  getAgentConfig: (state: any) => ({
+  getAgentConfig: (state: ConfigStore) => ({
     system_agents: state.config.system_agents,
     independent_agents: state.config.independent_agents,
     control_agents: state.config.control_agents,
     agent_type_ratios: state.config.agent_type_ratios
   }),
 
-  getLearningConfig: (state: any) => ({
+  getLearningConfig: (state: ConfigStore) => ({
     learning_rate: state.config.learning_rate,
     epsilon_start: state.config.epsilon_start,
     epsilon_min: state.config.epsilon_min,
     epsilon_decay: state.config.epsilon_decay
   }),
 
-  getVisualizationConfig: (state: any) => state.config.visualization,
+  getVisualizationConfig: (state: ConfigStore) => state.config.visualization,
 
-  getModuleConfigs: (state: any) => ({
+  getModuleConfigs: (state: ConfigStore) => ({
     gather: state.config.gather_parameters,
     share: state.config.share_parameters,
     move: state.config.move_parameters,
@@ -54,13 +57,13 @@ export const configSelectors = {
   }),
 
   // Computed selectors
-  getTotalAgents: (state: any) => {
+  getTotalAgents: (state: ConfigStore) => {
     return state.config.system_agents +
            state.config.independent_agents +
            state.config.control_agents
   },
 
-  getAgentTypePercentages: (state: any) => {
+  getAgentTypePercentages: (state: ConfigStore) => {
     const ratios = state.config.agent_type_ratios
     return {
       SystemAgent: Math.round(ratios.SystemAgent * 100),
@@ -69,24 +72,24 @@ export const configSelectors = {
     }
   },
 
-  getHasUnsavedChanges: (state: any) => state.isDirty,
+  getHasUnsavedChanges: (state: ConfigStore) => state.isDirty,
 
-  getIsValid: (state: any) => state.validationErrors.length === 0,
+  getIsValid: (state: ConfigStore) => state.validationErrors.length === 0,
 
-  getErrorCount: (state: any) => state.validationErrors.length,
+  getErrorCount: (state: ConfigStore) => state.validationErrors.length,
 
-  getFieldError: (path: string) => (state: any) => {
+  getFieldError: (path: string) => (state: ConfigStore) => {
     return state.validationErrors.find((error: ValidationError) => error.path === path)
   },
 
-  getFieldErrors: (path: string) => (state: any) => {
+  getFieldErrors: (path: string) => (state: ConfigStore) => {
     return state.validationErrors.filter((error: ValidationError) =>
       error.path.startsWith(path)
     )
   },
 
   // Comparison selectors
-  getComparisonData: (state: any) => {
+  getComparisonData: (state: ConfigStore) => {
     if (!state.compareConfig) return null
 
     const current = state.config
@@ -105,44 +108,44 @@ export const configSelectors = {
 // Validation Store Selectors
 export const validationSelectors = {
   // Basic state selectors
-  getIsValidating: (state: any) => state.isValidating,
-  getErrors: (state: any) => state.errors,
-  getWarnings: (state: any) => state.warnings,
-  getLastValidationTime: (state: any) => state.lastValidationTime,
+  getIsValidating: (state: ValidationState) => state.isValidating,
+  getErrors: (state: ValidationState) => state.errors,
+  getWarnings: (state: ValidationState) => state.warnings,
+  getLastValidationTime: (state: ValidationState) => state.lastValidationTime,
 
   // Derived state selectors
-  getErrorCount: (state: any) => state.errors.length,
-  getWarningCount: (state: any) => state.warnings.length,
-  getTotalIssues: (state: any) => state.errors.length + state.warnings.length,
+  getErrorCount: (state: ValidationState) => state.errors.length,
+  getWarningCount: (state: ValidationState) => state.warnings.length,
+  getTotalIssues: (state: ValidationState) => state.errors.length + state.warnings.length,
 
-  getIsValid: (state: any) => state.errors.length === 0,
-  getHasWarnings: (state: any) => state.warnings.length > 0,
-  getHasErrors: (state: any) => state.errors.length > 0,
+  getIsValid: (state: ValidationState) => state.errors.length === 0,
+  getHasWarnings: (state: ValidationState) => state.warnings.length > 0,
+  getHasErrors: (state: ValidationState) => state.errors.length > 0,
 
-  getFieldError: (path: string) => (state: any) => {
+  getFieldError: (path: string) => (state: ValidationState) => {
     return state.errors.find((error: ValidationError) => error.path === path)
   },
 
-  getFieldErrors: (path: string) => (state: any) => {
+  getFieldErrors: (path: string) => (state: ValidationState) => {
     return state.errors.filter((error: ValidationError) =>
       error.path.startsWith(path)
     )
   },
 
-  getFieldWarnings: (path: string) => (state: any) => {
+  getFieldWarnings: (path: string) => (state: ValidationState) => {
     return state.warnings.filter((warning: ValidationError) =>
       warning.path.startsWith(path)
     )
   },
 
   // Validation result selectors
-  getValidationResult: (state: any) => ({
+  getValidationResult: (state: ValidationState) => ({
     success: state.errors.length === 0,
     errors: state.errors,
     warnings: state.warnings
   }),
 
-  getValidationSummary: (state: any) => ({
+  getValidationSummary: (state: ValidationState) => ({
     isValidating: state.isValidating,
     totalErrors: state.errors.length,
     totalWarnings: state.warnings.length,
@@ -154,60 +157,60 @@ export const validationSelectors = {
 // Leva Store Selectors
 export const levaSelectors = {
   // Basic state selectors
-  getPanelState: (state: any) => ({
+  getPanelState: (state: LevaStore) => ({
     isVisible: state.isVisible,
     isCollapsed: state.isCollapsed,
     panelPosition: state.panelPosition,
     panelWidth: state.panelWidth
   }),
 
-  getControlState: (state: any) => ({
+  getControlState: (state: LevaStore) => ({
     activeControls: state.activeControls,
     disabledControls: state.disabledControls,
     hiddenControls: state.hiddenControls
   }),
 
-  getFolderState: (state: any) => ({
+  getFolderState: (state: LevaStore) => ({
     collapsedFolders: state.collapsedFolders,
     expandedFolders: state.expandedFolders
   }),
 
-  getThemeState: (state: any) => ({
+  getThemeState: (state: LevaStore) => ({
     theme: state.theme,
     customTheme: state.customTheme
   }),
 
   // Derived state selectors
-  getActiveControls: (state: any) => {
+  getActiveControls: (state: LevaStore) => {
     return state.activeControls.filter((control: string) =>
       !state.disabledControls.has(control) && !state.hiddenControls.has(control)
     )
   },
 
-  getVisibleControls: (state: any) => {
+  getVisibleControls: (state: LevaStore) => {
     return state.activeControls.filter((control: string) =>
       !state.hiddenControls.has(control)
     )
   },
 
-  isControlEnabled: (controlPath: string) => (state: any) => {
+  isControlEnabled: (controlPath: string) => (state: LevaStore) => {
     return !state.disabledControls.has(controlPath)
   },
 
-  isControlVisible: (controlPath: string) => (state: any) => {
+  isControlVisible: (controlPath: string) => (state: LevaStore) => {
     return !state.hiddenControls.has(controlPath)
   },
 
-  isFolderCollapsed: (folderPath: string) => (state: any) => {
+  isFolderCollapsed: (folderPath: string) => (state: LevaStore) => {
     return state.collapsedFolders.has(folderPath)
   },
 
-  isFolderExpanded: (folderPath: string) => (state: any) => {
+  isFolderExpanded: (folderPath: string) => (state: LevaStore) => {
     return state.expandedFolders.has(folderPath)
   },
 
   // Panel selectors
-  getPanelSettings: (state: any) => ({
+  getPanelSettings: (state: LevaStore) => ({
     visible: state.isVisible,
     collapsed: state.isCollapsed,
     position: state.panelPosition,
@@ -215,7 +218,7 @@ export const levaSelectors = {
   }),
 
   // Theme selectors
-  getCurrentTheme: (state: any) => {
+  getCurrentTheme: (state: LevaStore) => {
     if (state.theme === 'custom') {
       return state.customTheme
     }
@@ -256,7 +259,7 @@ export const levaSelectors = {
 // Combined selectors for multiple stores
 export const combinedSelectors = {
   // Get complete UI state
-  getUIState: (configState: any, validationState: any, levaState: any) => ({
+  getUIState: (configState: ConfigStore, validationState: ValidationState, levaState: LevaStore) => ({
     config: {
       selectedSection: configState.selectedSection,
       expandedFolders: configState.expandedFolders,
@@ -278,7 +281,7 @@ export const combinedSelectors = {
   }),
 
   // Get validation status for current config section
-  getSectionValidationStatus: (section: string) => (_configState: any, validationState: any) => {
+  getSectionValidationStatus: (section: string) => (_configState: ConfigStore, validationState: ValidationState) => {
     const sectionErrors = validationState.errors.filter((error: ValidationError) =>
       error.path.startsWith(section)
     )
@@ -297,7 +300,7 @@ export const combinedSelectors = {
   },
 
   // Get complete application state snapshot
-  getAppState: (configState: any, validationState: any, levaState: any) => ({
+  getAppState: (configState: ConfigStore, validationState: ValidationState, levaState: LevaStore) => ({
     config: {
       current: configState.config,
       original: configState.originalConfig,

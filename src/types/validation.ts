@@ -21,12 +21,12 @@ export interface ValidationState {
   warnings: ValidationError[]
   lastValidationTime: number
 
-  // Computed properties
-  isValid: boolean
-  hasErrors: boolean
-  hasWarnings: boolean
-  errorCount: number
-  warningCount: number
+  // Computed properties - these are implemented as getters in the store
+  readonly isValid: boolean
+  readonly hasErrors: boolean
+  readonly hasWarnings: boolean
+  readonly errorCount: number
+  readonly warningCount: number
 }
 
 // Zod schema exports (will be defined in services/validationService.ts)
