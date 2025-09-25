@@ -119,6 +119,19 @@ input, button {
     border-radius: 5px;
 }
 
+#config-panel textarea#config-editor {
+    width: 100%;
+    font-family: monospace;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    margin-top: 10px;
+}
+
+#config-results {
+    margin-top: 10px;
+}
+
 #connection-status {
     font-weight: bold;
 }
