@@ -1,5 +1,7 @@
 import logging
+import os
 import random
+import tempfile
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -33,6 +35,7 @@ class ResourceManager:
         seed: Optional[int] = None,
         database_logger=None,
         spatial_index=None,
+        simulation_id: Optional[str] = None,
     ):
         """
         Initialize the resource manager.
@@ -58,6 +61,7 @@ class ResourceManager:
         self.seed_value = seed
         self.database_logger = database_logger
         self.spatial_index = spatial_index
+        self.simulation_id = simulation_id
 
         # Resource tracking
         self.resources: List[Resource] = []
@@ -76,6 +80,114 @@ class ResourceManager:
         if self.seed_value is not None:
             random.seed(self.seed_value)
             np.random.seed(self.seed_value)
+
+        # Memmap-backed resource grid (optional)
+        self._use_memmap: bool = bool(
+            getattr(self.config, "use_memmap_resources", False)
+        )
+        self._memmap: Optional[np.memmap] = None
+        self._memmap_path: Optional[str] = None
+        self._memmap_shape: Tuple[int, int] = (int(self.height), int(self.width))
+        self._memmap_dtype = getattr(self.config, "memmap_dtype", "float32") if self.config else "float32"
+        self._memmap_mode = getattr(self.config, "memmap_mode", "w+") if self.config else "w+"
+        if self._use_memmap:
+            self._init_memmap()
+
+    # -----------------
+    # Memmap utilities
+    # -----------------
+    def _init_memmap(self) -> None:
+        try:
+            mem_dir = (
+                getattr(self.config, "memmap_dir", None) if self.config else None
+            ) or tempfile.gettempdir()
+            os.makedirs(mem_dir, exist_ok=True)
+            pid_part = f"_p{os.getpid()}"
+            sim_part = f"_{self.simulation_id}" if self.simulation_id else ""
+            filename = f"resources{sim_part}{pid_part}_{int(self.width)}x{int(self.height)}.dat"
+            path = os.path.join(mem_dir, filename)
+            self._memmap_path = path
+            self._memmap = np.memmap(
+                path,
+                dtype=self._memmap_dtype,
+                mode=self._memmap_mode,
+                shape=self._memmap_shape,
+            )
+            # Initialize zeros for deterministic start
+            self._memmap[:] = 0
+            self._memmap.flush()
+            logger.info("Resource memmap initialized at %s", path)
+        except Exception as e:
+            logger.error("Failed to initialize resource memmap: %s", e)
+            self._memmap = None
+            self._memmap_path = None
+            self._use_memmap = False
+
+    @property
+    def has_memmap(self) -> bool:
+        return bool(self._use_memmap and self._memmap is not None)
+
+    def _rebuild_memmap_from_resources(self) -> None:
+        if not self.has_memmap:
+            return
+        try:
+            mm = self._memmap  # type: ignore[assignment]
+            assert mm is not None
+            mm[:] = 0
+            max_amount = (
+                getattr(self.config, "max_resource_amount", 10) if self.config else 10
+            )
+            H, W = self._memmap_shape
+            for r in self.resources:
+                x = int(r.position[0])
+                y = int(r.position[1])
+                if 0 <= x < W and 0 <= y < H:
+                    mm[y, x] = min(max_amount, float(r.amount))
+            mm.flush()
+        except Exception as e:
+            logger.error("Failed to rebuild resource memmap: %s", e)
+
+    def get_resource_window(
+        self, y0: int, y1: int, x0: int, x1: int, normalize: bool = True
+    ) -> np.ndarray:
+        """Return a window from the resource memmap [y0:y1, x0:x1] with zero padding.
+
+        If memmap is disabled or unavailable, returns zeros.
+        """
+        H, W = self._memmap_shape
+        h = max(0, y1 - y0)
+        w = max(0, x1 - x0)
+        out = np.zeros((h, w), dtype=np.float32)
+        if not self.has_memmap or h == 0 or w == 0:
+            return out
+        ys0 = max(0, y0)
+        ys1 = min(H, y1)
+        xs0 = max(0, x0)
+        xs1 = min(W, x1)
+        ty0 = ys0 - y0
+        tx0 = xs0 - x0
+        if ys1 > ys0 and xs1 > xs0:
+            view = self._memmap[ys0:ys1, xs0:xs1]
+            out[ty0 : ty0 + (ys1 - ys0), tx0 : tx0 + (xs1 - xs0)] = view.astype(
+                np.float32, copy=False
+            )
+        if normalize:
+            max_amount = (
+                getattr(self.config, "max_resource_amount", 10) if self.config else 10
+            )
+            if max_amount and max_amount > 0:
+                out = out / float(max_amount)
+        return out
+
+    def cleanup_memmap(self, delete: bool = True) -> None:
+        try:
+            if self._memmap is not None:
+                self._memmap.flush()
+                self._memmap = None
+            if delete and self._memmap_path and os.path.exists(self._memmap_path):
+                os.remove(self._memmap_path)
+        except Exception as e:
+            logger.warning("Failed to cleanup resource memmap: %s", e)
 
     def set_spatial_index(self, spatial_index):
         """Set the spatial index reference for efficient spatial queries.
@@ -166,6 +278,10 @@ class ResourceManager:
                     initial_amount=resource.amount,
                     position=resource.position,
                 )
+
+        # Build/refresh memmap grid if enabled
+        if self.has_memmap:
+            self._rebuild_memmap_from_resources()
 
         logger.info(f"Successfully initialized {len(self.resources)} resources")
         return self.resources
@@ -396,6 +512,10 @@ class ResourceManager:
         self.regeneration_step = time_step
         self.regeneration_events += stats["regeneration_events"]
         self.total_resources_regenerated += stats["resources_regenerated"]
+
+        # Refresh memmap after updates
+        if self.has_memmap:
+            self._rebuild_memmap_from_resources()
 
         return stats
 

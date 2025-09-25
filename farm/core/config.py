@@ -116,6 +116,12 @@ class SimulationConfig:
     resource_regen_amount: int = 2
     max_resource_amount: int = 30
 
+    # Memory-mapped storage options (for large grids/state representations)
+    use_memmap_resources: bool = False  # Enable on-disk memmap for resource grids
+    memmap_dir: Optional[str] = None  # Directory for memmap files; defaults to OS temp dir
+    memmap_dtype: str = "float32"  # Numpy dtype string for memmapped arrays
+    memmap_mode: str = "w+"  # File mode for memmap: 'r+', 'w+', 'c'
+
     # Agent behavior settings
     base_consumption_rate: float = 0.15
     max_movement: int = 8
@@ -386,6 +392,9 @@ class SimulationConfig:
                     config_dict[key] = obs_dict
                 else:
                     config_dict[key] = None
+            elif key in ("memmap_dtype", "memmap_mode"):
+                # keep as string
+                config_dict[key] = value
             else:
                 config_dict[key] = value
         return config_dict
@@ -409,5 +418,7 @@ class SimulationConfig:
         obs_data = data.pop("observation", None)
         if obs_data:
             data["observation"] = ObservationConfig(**obs_data)
+
+        # Pass through memmap fields if present (already strings/bools)
 
         return cls(**data)

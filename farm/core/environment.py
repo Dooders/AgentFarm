@@ -321,6 +321,7 @@ class Environment(AECEnv):
             seed=self.seed_value,
             database_logger=self.db.logger if self.db else None,
             spatial_index=self.spatial_index,
+            simulation_id=self.simulation_id,
         )
 
         # Initialize environment
@@ -910,6 +911,12 @@ class Environment(AECEnv):
         not exist or may already be closed, preventing exceptions during
         cleanup operations.
         """
+        if hasattr(self, "resource_manager") and self.resource_manager is not None:
+            # Ensure memmap file is flushed; keep file for reuse by default
+            try:
+                self.resource_manager.cleanup_memmap(delete=False)
+            except Exception:
+                pass
         if hasattr(self, "db") and self.db is not None:
             self.db.close()
 
@@ -1343,32 +1350,44 @@ class Environment(AECEnv):
 
         # Query nearby resources within a radius covering the local window
         # Use slightly larger than R to capture bilinear spread near the boundary
+        # If ResourceManager has a memmap grid, slice directly for the window; else use spatial queries
+        nearby_resources = []
+        used_memmap = False
         try:
-            _tq0 = _time.perf_counter()
-            nearby = self.spatial_index.get_nearby(agent.position, R + 1, ["resources"])
-            nearby_resources = nearby.get("resources", [])
-            _tq1 = _time.perf_counter()
-            self._perception_profile["spatial_query_time_s"] += max(0.0, _tq1 - _tq0)
+            if (
+                hasattr(self, "resource_manager")
+                and getattr(self.resource_manager, "has_memmap", False)
+                and self.resource_manager.has_memmap
+            ):
+                used_memmap = True
+                # Compute world-space window bounds (y,x) centered at (ay, ax)
+                y0 = ay - R
+                y1 = ay + R + 1
+                x0 = ax - R
+                x1 = ax + R + 1
+                window_np = self.resource_manager.get_resource_window(y0, y1, x0, x1, normalize=True)
+                # Convert to torch tensor of correct dtype/device
+                resource_local = torch.from_numpy(window_np).to(
+                    dtype=self.observation_config.torch_dtype,
+                    device=self.observation_config.device,
+                )
+            else:
+                _tq0 = _time.perf_counter()
+                nearby = self.spatial_index.get_nearby(agent.position, R + 1, ["resources"])
+                nearby_resources = nearby.get("resources", [])
+                _tq1 = _time.perf_counter()
+                self._perception_profile["spatial_query_time_s"] += max(0.0, _tq1 - _tq0)
         except AttributeError as e:
-            # Handle case where spatial_index or its attributes are None
-            logger.warning("Spatial index not properly initialized: %s", e)
+            logger.warning("Spatial or resource manager not properly initialized: %s", e)
             nearby_resources = []
         except (ValueError, TypeError) as e:
-            # Handle invalid input parameters (position format, radius type)
-            logger.warning("Invalid parameters for spatial query: %s", e)
+            logger.warning("Invalid parameters during observation: %s", e)
             nearby_resources = []
-        except IndexError as e:
-            # Handle case where KD-tree indices are out of bounds
-            logger.warning("Index error in spatial query: %s", e)
-            nearby_resources = []
-        except (RuntimeError, KeyError) as e:
-            # Catch any other unexpected errors for debugging
-            logger.exception(
-                "Unexpected error querying nearby resources in spatial index"
-            )
+        except Exception:
+            logger.exception("Unexpected error building resource layer")
             nearby_resources = []
 
-        if use_bilinear:
+        if not used_memmap and use_bilinear:
             _tb0 = _time.perf_counter()
             for res in nearby_resources:
                 # Convert world to local continuous coords where (R, R) is agent center
@@ -1384,7 +1403,7 @@ class Environment(AECEnv):
                 self._perception_profile["bilinear_points"] += 4
             _tb1 = _time.perf_counter()
             self._perception_profile["bilinear_time_s"] += max(0.0, _tb1 - _tb0)
-        else:
+        elif not used_memmap:
             _tn0 = _time.perf_counter()
             for res in nearby_resources:
                 rx, ry = discretize_position_continuous(
