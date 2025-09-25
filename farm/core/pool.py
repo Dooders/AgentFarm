@@ -30,6 +30,8 @@ class AgentPool:
         self._max_size = max_size
         self.total_created = 0
         self.total_reused = 0
+        self.total_acquired = 0
+        self.total_released = 0
 
         # Optionally preload empty instances; they will be reset on acquire
         for _ in range(max(0, preload)):
@@ -40,6 +42,8 @@ class AgentPool:
 
         Keyword args are passed to the agent's reset (preferred) or __init__.
         """
+        self.total_acquired += 1
+        
         if self._pool:
             agent = self._pool.pop()
             self.total_reused += 1
@@ -59,6 +63,8 @@ class AgentPool:
 
     def release(self, agent: Any) -> None:
         """Return an agent to the pool after preparing it for reuse."""
+        self.total_released += 1
+        
         try:
             if hasattr(agent, "prepare_for_release") and callable(
                 getattr(agent, "prepare_for_release")
@@ -78,6 +84,23 @@ class AgentPool:
 
     def capacity(self) -> Optional[int]:
         return self._max_size
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get pool statistics for monitoring and debugging."""
+        reuse_rate = (
+            self.total_reused / max(self.total_acquired, 1) * 100
+            if self.total_acquired > 0
+            else 0.0
+        )
+        return {
+            "pool_size": len(self._pool),
+            "max_size": self._max_size,
+            "total_created": self.total_created,
+            "total_reused": self.total_reused,
+            "total_acquired": self.total_acquired,
+            "total_released": self.total_released,
+            "reuse_rate_percent": reuse_rate,
+        }
 
     def clear(self) -> None:
         self._pool.clear()
