@@ -184,3 +184,70 @@
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 } 
+
+/* Config Explorer */
+.explorer-root {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background-color: #2c3e50;
+    color: #ecf0f1;
+}
+
+.explorer-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    background-color: #34495e;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.explorer-toolbar .btn {
+    background: #2ecc71;
+    border: none;
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.explorer-toolbar .sep { margin: 0 10px; opacity: 0.6; }
+.explorer-toolbar .search {
+    background: #2c3e50;
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #ecf0f1;
+    padding: 6px 8px;
+    border-radius: 4px;
+}
+
+.split-h { display: flex; flex: 1; min-height: 0; }
+.section-list { width: 280px; min-width: 200px; max-width: 600px; overflow: auto; background: #2c3e50; }
+.right-pane { flex: 1; min-width: 0; display: flex; }
+.resizer-v { width: 6px; cursor: col-resize; background: rgba(255,255,255,0.08); }
+
+.split-v { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.details-panel { height: 55%; min-height: 200px; overflow: auto; padding: 12px; }
+.resizer-h { height: 6px; cursor: row-resize; background: rgba(255,255,255,0.08); }
+.yaml-panel { height: calc(45% - 6px); min-height: 160px; overflow: auto; padding: 12px; background: #1f2a35; }
+
+.section-header { padding: 10px 12px; font-weight: bold; opacity: 0.9; border-bottom: 1px solid rgba(255,255,255,0.06); }
+.sections { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.section-item { text-align: left; padding: 8px 10px; background: #34495e; border: none; color: #ecf0f1; border-radius: 4px; cursor: pointer; }
+.section-item:hover { background: #3b5672; }
+.section-item.active { background: #3498db; }
+
+.details-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.details-header .docs-links a { color: #9bd2ff; margin-left: 12px; text-decoration: none; }
+.details-content .form-scaffold { display: grid; grid-template-columns: 220px 1fr; gap: 10px; }
+.form-row { display: contents; }
+.form-row label { align-self: center; opacity: 0.9; }
+.form-row input { background: #2c3e50; border: 1px solid rgba(255,255,255,0.12); color: #bdc3c7; padding: 6px 8px; border-radius: 4px; }
+
+.yaml-header { font-weight: bold; margin-bottom: 8px; }
+.yaml-code { background: #0f1620; color: #e0e6ed; padding: 10px; border-radius: 4px; overflow: auto; }
+
+body.resizing { cursor: col-resize; }
+body.resizing .resizer-h { cursor: row-resize; }
+
+/* Sidebar extension */
+.open-explorer { margin-left: 8px; background: #3498db; color: #fff; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; }
+.open-explorer:hover { background: #2d86c2; }

@@ -5,9 +5,10 @@ class Sidebar {
     }
 
     init() {
-        this.element.innerHTML = `
+		this.element.innerHTML = `
             <div class="sidebar-header">
-                <h2>Simulation Controls</h2>
+				<h2>Simulation Controls</h2>
+				<button id="open-explorer" class="open-explorer">Config Explorer</button>
             </div>
             <div class="sidebar-content">
                 <button id="new-sim">New Simulation</button>
@@ -35,6 +36,9 @@ class Sidebar {
     }
 
     attachEventListeners() {
+		document.getElementById('open-explorer').addEventListener('click', () => {
+			if (window.showConfigExplorer) window.showConfigExplorer();
+		});
         document.getElementById('new-sim').addEventListener('click', () => {
             this.createNewSimulation();
         });
