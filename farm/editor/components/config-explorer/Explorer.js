@@ -12,6 +12,7 @@
 				lastSavedConfig: null,
 				unsaved: false,
 				fieldErrors: {}, // { sectionKey: { fieldName: [messages] } }
+				sectionDirty: {}, // { sectionKey: boolean }
 			}
 			this._validateTimeout = null
 			this.init()
@@ -366,11 +367,21 @@
 			// Update state
 			this.setFieldValue(sectionKey, fieldName, value)
 			this.markUnsaved(true)
+			this.markSectionDirty(sectionKey, true)
 			this.updateYamlPreview()
 
 			// Debounced server validation
 			clearTimeout(this._validateTimeout)
 			this._validateTimeout = setTimeout(() => this.runServerValidation(), 350)
+		}
+
+		markSectionDirty(sectionKey, flag) {
+			this.state.sectionDirty[sectionKey] = !!flag
+			// update section button label with dot
+			Array.from(this.sectionListEl.querySelectorAll('.section-item')).forEach((btn) => {
+				const key = btn.getAttribute('data-key')
+				if (key === sectionKey) btn.classList.toggle('dirty', !!flag)
+			})
 		}
 
 		setFieldError(sectionKey, fieldName, messages) {
@@ -505,6 +516,12 @@
 		ensureGlobalToggles(explorer)
 	}
 
-	document.addEventListener('DOMContentLoaded', boot)
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', boot)
+		// Fallback for environments where DOMContentLoaded may not fire
+		setTimeout(boot, 0)
+	} else {
+		boot()
+	}
 })()
 

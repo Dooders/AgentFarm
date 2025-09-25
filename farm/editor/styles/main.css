@@ -234,6 +234,8 @@
 .section-item { text-align: left; padding: 8px 10px; background: #34495e; border: none; color: #ecf0f1; border-radius: 4px; cursor: pointer; }
 .section-item:hover { background: #3b5672; }
 .section-item.active { background: #3498db; }
+.section-item.dirty { position: relative; }
+.section-item.dirty::after { content: ''; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); width: 8px; height: 8px; background: #f1c40f; border-radius: 50%; }
 
 .details-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .details-header .docs-links a { color: #9bd2ff; margin-left: 12px; text-decoration: none; }
@@ -251,3 +253,15 @@ body.resizing .resizer-h { cursor: row-resize; }
 /* Sidebar extension */
 .open-explorer { margin-left: 8px; background: #3498db; color: #fff; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; }
 .open-explorer:hover { background: #2d86c2; }
+
+/* Validation and Unsaved Indicators */
+.unsaved-indicator { margin-left: 10px; color: #f1c40f; font-weight: normal; opacity: 0.9; }
+.unsaved-indicator .dot { display: inline-block; width: 8px; height: 8px; background: #f1c40f; border-radius: 50%; margin-right: 6px; position: relative; top: -1px; }
+
+.validation-msg { grid-column: 2 / span 1; color: #e67e22; font-size: 12px; margin-top: 2px; opacity: 0.95; }
+.row-error input, .row-error select, .row-error textarea { border-color: #e67e22 !important; box-shadow: 0 0 0 2px rgba(230, 126, 34, 0.15); }
+
+.badge { display: inline-block; padding: 2px 6px; border-radius: 10px; font-size: 12px; margin-left: 8px; }
+.badge.valid { background: rgba(46, 204, 113, 0.2); color: #2ecc71; border: 1px solid rgba(46, 204, 113, 0.35); }
+.badge.error { background: rgba(231, 76, 60, 0.2); color: #e74c3c; border: 1px solid rgba(231, 76, 60, 0.35); }
+.yaml-header .note { margin-left: 8px; opacity: 0.75; font-weight: normal; font-size: 12px; }
