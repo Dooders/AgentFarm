@@ -97,12 +97,22 @@
 					<span id="unsaved-indicator" class="unsaved-indicator" style="display:none;"><span class="dot"></span> Unsaved</span>
 				</div>
 				<div class="right">
+					<button id="open-config" class="btn">Open…</button>
+					<span class="sep"></span>
 					<input id="save-path" class="search" placeholder="Save path (optional)" />
+					<button id="browse-save" class="btn" title="Choose save location">Browse…</button>
 					<button id="save-config" class="btn">Save</button>
+					<button id="save-as" class="btn">Save As…</button>
 				</div>
 			`
 			bar.querySelector('#back-to-legacy').onclick = () => window.hideConfigExplorer()
 			bar.querySelector('#save-config').onclick = () => this.onSave()
+			const openBtn = bar.querySelector('#open-config')
+			if (openBtn) openBtn.onclick = () => this.onOpen()
+			const browseBtn = bar.querySelector('#browse-save')
+			if (browseBtn) browseBtn.onclick = () => this.onBrowseSave()
+			const saveAsBtn = bar.querySelector('#save-as')
+			if (saveAsBtn) saveAsBtn.onclick = () => this.onSaveAs()
 			return bar
 		}
 
@@ -492,6 +502,69 @@
 				this.showGlobalValidation('error', 'Save failed')
 			} finally {
 				if (btn) { btn.disabled = !this.state.unsaved; btn.textContent = 'Save' }
+			}
+		}
+
+		// Helper to invoke dialog service safely
+		async invokeDialog(methodName, arg) {
+			const svc = (typeof window !== 'undefined') ? window.dialogService : null
+			if (!svc || typeof svc[methodName] !== 'function') return { canceled: true }
+			try {
+				return arg === undefined ? await svc[methodName]() : await svc[methodName](arg)
+			} catch (e) {
+				return { canceled: true, error: String(e && e.message ? e.message : e) }
+			}
+		}
+
+		async onBrowseSave() {
+			try {
+				const suggested = this.root.querySelector('#save-path')?.value || undefined
+				const res = await this.invokeDialog('saveConfigDialog', suggested)
+				if (!res || res.canceled) return
+				const input = this.root.querySelector('#save-path')
+				if (input) input.value = res.filePath
+			} catch (e) {
+				console.error('Browse Save failed:', e)
+				this.showGlobalValidation('error', 'Browse failed')
+			}
+		}
+
+		async onSaveAs() {
+			try {
+				const res = await this.invokeDialog('saveConfigDialog', undefined)
+				if (!res || res.canceled) return
+				const input = this.root.querySelector('#save-path')
+				if (input) input.value = res.filePath
+				await this.onSave()
+			} catch (e) {
+				this.showGlobalValidation('error', 'Save As failed')
+			}
+		}
+
+		async onOpen() {
+			try {
+				const res = await this.invokeDialog('openConfigDialog', undefined)
+				if (!res || res.canceled) return
+				const load = await window.configSchemaService.loadConfig(res.filePath)
+				if (load && load.success && load.config) {
+					this.state.config = load.config
+					this.state.lastSavedConfig = JSON.parse(JSON.stringify(load.config))
+					// Reset UI state: clear errors and dirty indicators
+					this.state.fieldErrors = {}
+					this.state.sectionDirty = {}
+					this.markUnsaved(false)
+					// Clear any existing dirty flags on section buttons
+					Array.from(this.sectionListEl.querySelectorAll('.section-item')).forEach((btn) => btn.classList.remove('dirty'))
+					this.renderDetailsContent(this.state.selectedSectionKey || (this.state.sections[0] && this.state.sections[0].key))
+					this.updateYamlPreview()
+					const input = this.root.querySelector('#save-path')
+					if (input) input.value = res.filePath
+					this.showGlobalValidation('valid', 'Configuration loaded')
+				} else {
+					this.showGlobalValidation('error', (load && load.message) || 'Open failed')
+				}
+			} catch (e) {
+				this.showGlobalValidation('error', 'Open failed')
 			}
 		}
 	}

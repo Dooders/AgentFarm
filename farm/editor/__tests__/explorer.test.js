@@ -155,3 +155,110 @@ test('Client validation shows message and row-error for bounds', async () => {
     expect(msg).toMatch(/Must be ≥ 10/)
 })
 
+test('Toolbar shows Open, Browse, Save As buttons', async () => {
+    await import('../components/config-explorer/Explorer.js')
+    await new Promise((r) => setTimeout(r, 0))
+    window.showConfigExplorer()
+
+    const explorer = document.getElementById('config-explorer')
+    const openBtn = explorer.querySelector('#open-config')
+    const browseBtn = explorer.querySelector('#browse-save')
+    const saveAsBtn = explorer.querySelector('#save-as')
+    expect(openBtn).toBeTruthy()
+    expect(browseBtn).toBeTruthy()
+    expect(saveAsBtn).toBeTruthy()
+})
+
+test('Open button uses dialog service and loads config', async () => {
+    // Mock dialog service and capture path passed to loadConfig
+    const openedPath = '/tmp/opened.yaml'
+    window.dialogService = {
+        openConfigDialog: async () => ({ canceled: false, filePath: openedPath }),
+        saveConfigDialog: async () => ({ canceled: true })
+    }
+    const originalLoad = window.configSchemaService.loadConfig
+    let receivedPath = null
+    window.configSchemaService.loadConfig = async (path) => {
+        receivedPath = path
+        return { success: true, config: { width: 200, visualization: { zoom: 2.0 } } }
+    }
+
+    await import('../components/config-explorer/Explorer.js')
+    await new Promise((r) => setTimeout(r, 0))
+    window.showConfigExplorer()
+
+    const explorer = document.getElementById('config-explorer')
+    const openBtn = await waitForSelector(explorer, '#open-config')
+    openBtn.click()
+    await new Promise((r) => setTimeout(r, 0))
+
+    // loadConfig should have been called with path from dialog
+    expect(receivedPath).toBe(openedPath)
+    // YAML should reflect loaded config
+    const yamlCode = await waitForSelector(explorer, '.yaml-code')
+    expect(yamlCode.textContent).toContain('width: 200')
+    // Save path input should be populated
+    const savePath = explorer.querySelector('#save-path')
+    expect(savePath.value).toBe(openedPath)
+
+    // Restore original
+    window.configSchemaService.loadConfig = originalLoad
+})
+
+test('Browse button fills save path from dialog', async () => {
+    const targetPath = '/tmp/save-here.yaml'
+    window.dialogService = {
+        openConfigDialog: async () => ({ canceled: true }),
+        saveConfigDialog: async () => ({ canceled: false, filePath: targetPath })
+    }
+
+    await import('../components/config-explorer/Explorer.js')
+    await new Promise((r) => setTimeout(r, 0))
+    window.showConfigExplorer()
+
+    const explorer = document.getElementById('config-explorer')
+    const browseBtn = await waitForSelector(explorer, '#browse-save')
+    browseBtn.click()
+    await new Promise((r) => setTimeout(r, 0))
+
+    const savePath = explorer.querySelector('#save-path')
+    expect(savePath.value).toBe(targetPath)
+})
+
+test('Save As prompts for path and saves there', async () => {
+    const saveAsPath = '/tmp/config-new.yaml'
+    let savedPathObserved = null
+    window.dialogService = {
+        openConfigDialog: async () => ({ canceled: true }),
+        saveConfigDialog: async () => ({ canceled: false, filePath: saveAsPath })
+    }
+    const originalSave = window.configSchemaService.saveConfig
+    window.configSchemaService.saveConfig = async (config, path) => {
+        savedPathObserved = path
+        return { success: true, config, path }
+    }
+
+    await import('../components/config-explorer/Explorer.js')
+    await new Promise((r) => setTimeout(r, 0))
+    window.showConfigExplorer()
+
+    const explorer = document.getElementById('config-explorer')
+    // Make a change to enable Save button
+    const input = await waitForSelector(explorer, '.details-content input[type="number"]')
+    input.value = '250'
+    input.dispatchEvent(new Event('input'))
+
+    const saveAsBtn = await waitForSelector(explorer, '#save-as')
+    saveAsBtn.click()
+    await new Promise((r) => setTimeout(r, 0))
+
+    // Save should be called with selected path
+    expect(savedPathObserved).toBe(saveAsPath)
+    // Unsaved indicator should be hidden after successful save
+    const unsaved = explorer.querySelector('#unsaved-indicator')
+    expect(unsaved && unsaved.style.display).toBe('none')
+
+    // Restore original
+    window.configSchemaService.saveConfig = originalSave
+})
+
