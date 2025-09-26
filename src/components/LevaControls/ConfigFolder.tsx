@@ -39,6 +39,7 @@ const ToggleIcon = styled.span<{ collapsed: boolean }>`
   transform: ${props => props.collapsed ? 'rotate(-90deg)' : 'rotate(0deg)'};
   transition: transform 0.2s ease;
   display: inline-block;
+  transform-origin: center;
 `
 
 const FolderContent = styled.div<{ collapsed: boolean }>`

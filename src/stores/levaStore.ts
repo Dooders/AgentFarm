@@ -22,6 +22,9 @@ export interface LevaStore {
   theme: 'dark' | 'light' | 'custom'
   customTheme: Record<string, any>
 
+  // Pending updates for config synchronization
+  pendingUpdates: Array<{ path: string; value: any }>
+
   // Actions
   setPanelVisible: (visible: boolean) => void
   setPanelCollapsed: (collapsed: boolean) => void
@@ -64,6 +67,9 @@ export interface LevaStore {
   persistSettings: () => void
   restoreSettings: () => void
   clearPersistedSettings: () => void
+
+  // Update processing
+  processPendingUpdates: () => void
 }
 
 const defaultState = {
@@ -114,7 +120,8 @@ const defaultState = {
       md: '16px',
       lg: '24px',
     }
-  }
+  },
+  pendingUpdates: [] as Array<{ path: string; value: any }>,
 }
 
 export const useLevaStore = create<LevaStore>((set, get) => ({
@@ -256,12 +263,45 @@ export const useLevaStore = create<LevaStore>((set, get) => ({
     // and would need to update the config store
     console.log('Leva update:', path, value)
 
-    // Import the config store dynamically to avoid circular dependencies
-    import('./configStore').then(({ useConfigStore }) => {
-      const configStore = useConfigStore.getState()
-      configStore.updateConfig(path, value)
+    // Note: This method is deprecated in favor of the callback approach
+    // The actual integration is now handled in the LevaControls component
+    // through the onChange callback
+
+    // For backward compatibility, we can still call the config store
+    // but this should be avoided in favor of the callback approach
+    try {
+      // We'll store the update to be processed later to avoid circular dependencies
+      set(state => ({
+        pendingUpdates: [...state.pendingUpdates, { path, value }]
+      }))
+    } catch (error) {
+      console.error('Failed to queue Leva update:', error)
+    }
+  },
+
+  // Add method to process pending updates
+  processPendingUpdates: () => {
+    set(state => {
+      if (state.pendingUpdates.length === 0) return state
+
+      // Import config store dynamically only when needed
+      import('./configStore').then(({ useConfigStore }) => {
+        const configStore = useConfigStore.getState()
+        state.pendingUpdates.forEach(({ path, value }) => {
+          try {
+            configStore.updateConfig(path, value)
+          } catch (error) {
+            console.error(`Failed to process update for ${path}:`, error)
+          }
+        })
+      })
+
+      return { pendingUpdates: [] }
     })
   },
+
+  // State for pending updates
+  pendingUpdates: [] as Array<{ path: string; value: any }>,
 
   // Enhanced integration methods
   bindConfigValue: (path: string, value: any) => {
@@ -412,7 +452,8 @@ export const useLevaStore = create<LevaStore>((set, get) => ({
       collapsedFolders: Array.from(state.collapsedFolders),
       activeControls: state.activeControls,
       disabledControls: Array.from(state.disabledControls),
-      hiddenControls: Array.from(state.hiddenControls)
+      hiddenControls: Array.from(state.hiddenControls),
+      pendingUpdates: state.pendingUpdates // Include pending updates in persistence
     }
 
     persistState(settings, {
@@ -442,8 +483,13 @@ export const useLevaStore = create<LevaStore>((set, get) => ({
         collapsedFolders: new Set((settings.collapsedFolders as string[]) ?? []),
         activeControls: (settings.activeControls as string[]) ?? defaultState.activeControls,
         disabledControls: new Set((settings.disabledControls as string[]) ?? []),
-        hiddenControls: new Set((settings.hiddenControls as string[]) ?? [])
+        hiddenControls: new Set((settings.hiddenControls as string[]) ?? []),
+        pendingUpdates: (settings.pendingUpdates as Array<{ path: string; value: any }>) ?? []
       })
+
+      // Process any pending updates after restoring
+      const { processPendingUpdates } = get()
+      processPendingUpdates()
     }
   },
 
@@ -459,6 +505,29 @@ export const useLevaStore = create<LevaStore>((set, get) => ({
     } catch (error) {
       console.warn('Failed to clear persisted Leva settings:', error)
     }
+  },
+
+  // Process pending updates
+  processPendingUpdates: () => {
+    set(state => {
+      if (state.pendingUpdates.length === 0) return state
+
+      // Import config store dynamically only when needed
+      import('./configStore').then(({ useConfigStore }) => {
+        const configStore = useConfigStore.getState()
+        state.pendingUpdates.forEach(({ path, value }) => {
+          try {
+            configStore.updateConfig(path, value)
+          } catch (error) {
+            console.error(`Failed to process update for ${path}:`, error)
+          }
+        })
+      }).catch(error => {
+        console.error('Failed to import config store:', error)
+      })
+
+      return { pendingUpdates: [] }
+    })
   }
 }))
 
