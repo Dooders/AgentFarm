@@ -91,5 +91,32 @@
     "outDir": "dist",
     "sourcemap": true,
     "target": "esnext"
+  },
+  "accessibility": {
+    "compliance": "WCAG 2.1 AA",
+    "features": [
+      "Enhanced focus states with high-contrast support",
+      "Comprehensive keyboard navigation",
+      "ARIA landmarks and live regions",
+      "Skip navigation links",
+      "Screen reader compatibility",
+      "High contrast mode toggle",
+      "Focus management and trapping"
+    ],
+    "testing": {
+      "automated": [
+        "axe-core integration",
+        "Keyboard navigation simulation",
+        "Screen reader compatibility testing",
+        "High contrast mode validation",
+        "Focus state verification"
+      ],
+      "manual": [
+        "Screen reader navigation",
+        "Keyboard-only usage",
+        "High contrast mode verification",
+        "Focus indicator visibility"
+      ]
+    }
   }
 }
