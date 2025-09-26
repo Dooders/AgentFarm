@@ -8,7 +8,7 @@ const meta: Meta<typeof LevaControls> = {
     layout: 'fullscreen',
     docs: {
       description: {
-        component: 'Custom Leva controls for configuration parameters with folder structure.',
+        component: 'Complete hierarchical Leva controls implementation with 4 main sections and 12 sub-folders for comprehensive simulation configuration management.',
       },
     },
   },
@@ -37,6 +37,17 @@ export const WithCustomConfig: Story = {
       epsilon_start: 1.0,
       epsilon_min: 0.1,
       epsilon_decay: 0.995,
+    },
+  },
+}
+
+export const HierarchicalFolderStructure: Story = {
+  render: () => <LevaControls />,
+  parameters: {
+    docs: {
+      description: {
+        story: 'Complete hierarchical folder structure with all 4 main sections and 12 sub-folders for comprehensive parameter organization.',
+      },
     },
   },
 }

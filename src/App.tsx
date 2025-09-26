@@ -1,10 +1,13 @@
 import { ConfigExplorer } from '@/components/ConfigExplorer/ConfigExplorer'
+import { AccessibilityProvider } from '@/components/UI/AccessibilityProvider'
 
 function App() {
   return (
-    <div className="App">
-      <ConfigExplorer />
-    </div>
+    <AccessibilityProvider>
+      <div className="App">
+        <ConfigExplorer />
+      </div>
+    </AccessibilityProvider>
   )
 }
 

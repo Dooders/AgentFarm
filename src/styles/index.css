@@ -1,5 +1,6 @@
 /* Import Leva theme configuration */
 @import './leva-theme.css';
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 /* Reset and base styles */
 * {
@@ -11,10 +12,15 @@
 html, body {
   height: 100%;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  background-color: #f8fafc;
-  color: #0f172a;
+  background-color: var(--background-primary);
+  color: var(--text-primary);
   font-size: 14px;
   line-height: 1.5;
+}
+
+/* Optional global grayscale filter class */
+body.grayscale {
+  filter: grayscale(1);
 }
 
 /* CSS Custom Properties for the greyscale theme */
@@ -59,6 +65,12 @@ html, body {
   --accent-primary: var(--slate-700);
   --accent-hover: var(--slate-800);
 
+  /* High Contrast Mode Colors */
+  --high-contrast-bg: #000000;
+  --high-contrast-text: #ffffff;
+  --high-contrast-focus: #ffff00;
+  --high-contrast-border: #ffffff;
+
   /* Validation States */
   --error-bg: var(--stone-100);
   --error-border: var(--stone-400);
@@ -73,7 +85,7 @@ html, body {
 
 /* Typography */
 .leva-c-control__label {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Albertus', 'Cinzel', serif;
   font-size: 12px;
   color: var(--text-primary);
 }
@@ -97,13 +109,93 @@ html, body {
   border-color: var(--border-medium);
 }
 
-/* Focus States */
+/* Compact controls: enforce 28px control heights */
+.leva-c .leva__input input,
+.leva-c .leva__input select,
+.leva-c .leva__input textarea {
+  height: 28px;
+  line-height: 28px;
+  padding: 0 8px;
+}
+
+.leva-c-button,
+.leva-c .leva__button {
+  height: 28px;
+  line-height: 28px;
+}
+
+/* Enhanced Focus States - WCAG AA Compliant */
 .leva-c-input__input:focus,
 .leva-c-button:focus,
-.leva-c-select__select:focus {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
+.leva-c-select__select:focus,
+button:focus,
+input:focus,
+select:focus,
+textarea:focus,
+[tabindex]:focus {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
   border-color: var(--focus-ring-hover);
+  box-shadow: 0 0 0 1px var(--focus-ring);
+}
+
+/* High Contrast Focus Mode */
+.high-contrast .leva-c-input__input:focus,
+.high-contrast button:focus,
+.high-contrast input:focus,
+.high-contrast select:focus,
+.high-contrast textarea:focus,
+.high-contrast [tabindex]:focus {
+  outline: 4px solid var(--focus-ring);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 2px var(--focus-ring), 0 0 0 6px var(--focus-ring-hover);
+}
+
+/* Folder Focus States */
+.leva-c-folder__title:focus {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+  background-color: var(--background-tertiary);
+}
+
+/* Skip Navigation Focus */
+.skip-link:focus {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+  transform: translateY(0);
+  clip: auto;
+  width: auto;
+  height: auto;
+}
+
+/* Skip Navigation Links */
+.skip-navigation {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+}
+
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 6px;
+  background: var(--background-primary);
+  color: var(--text-primary);
+  padding: 8px;
+  text-decoration: none;
+  border-radius: 4px;
+  border: 2px solid var(--focus-ring);
+  font-weight: 600;
+  transition: top 0.3s ease;
+  z-index: 1001;
+}
+
+.skip-link:hover,
+.skip-link:focus {
+  top: 6px;
+  background: var(--focus-ring);
+  color: var(--background-primary);
 }
 
 /* Resizable Panels Styles */
@@ -120,9 +212,7 @@ html, body {
 }
 
 /* Desktop Layout */
-.resizable-panels.desktop {
-  /* Standard desktop layout */
-}
+/* .resizable-panels.desktop reserved for potential desktop-specific overrides */
 
 .resizable-panels.desktop .split-handle {
   width: 8px;
@@ -310,4 +400,48 @@ html, body {
   background: var(--error-bg);
   color: var(--error-text);
   border-bottom: 1px solid var(--error-border);
+}
+
+/* =====================================================
+   HIGH CONTRAST MODE SUPPORT
+   ===================================================== */
+
+.high-contrast {
+  --background-primary: var(--high-contrast-bg);
+  --background-secondary: var(--high-contrast-bg);
+  --background-tertiary: var(--high-contrast-bg);
+  --text-primary: var(--high-contrast-text);
+  --text-secondary: var(--high-contrast-text);
+  --text-muted: var(--high-contrast-text);
+  --border-subtle: var(--high-contrast-border);
+  --border-medium: var(--high-contrast-border);
+  --focus-ring: var(--high-contrast-focus);
+  --focus-ring-hover: var(--high-contrast-focus);
+  --accent-primary: var(--high-contrast-text);
+  --accent-hover: var(--high-contrast-text);
+  --error-bg: var(--high-contrast-bg);
+  --error-border: var(--high-contrast-focus);
+  --error-text: var(--high-contrast-focus);
+  --warning-bg: var(--high-contrast-bg);
+  --warning-border: var(--high-contrast-focus);
+  --warning-text: var(--high-contrast-focus);
+  --success-bg: var(--high-contrast-bg);
+  --success-border: var(--high-contrast-focus);
+  --success-text: var(--high-contrast-focus);
+}
+
+.high-contrast * {
+  border-color: var(--high-contrast-border) !important;
+}
+
+.high-contrast .leva-c {
+  --leva-colors-elevation1: var(--high-contrast-bg) !important;
+  --leva-colors-elevation2: var(--high-contrast-bg) !important;
+  --leva-colors-elevation3: var(--high-contrast-bg) !important;
+  --leva-colors-accent1: var(--high-contrast-text) !important;
+  --leva-colors-accent2: var(--high-contrast-text) !important;
+  --leva-colors-accent3: var(--high-contrast-text) !important;
+  --leva-colors-highlight1: var(--high-contrast-focus) !important;
+  --leva-colors-highlight2: var(--high-contrast-focus) !important;
+  --leva-colors-highlight3: var(--high-contrast-focus) !important;
 }

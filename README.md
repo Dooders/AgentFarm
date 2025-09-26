@@ -47,6 +47,14 @@ This repository is being developed to support research in the [Dooders](https://
 - **High-Level Services**: Coordinated analysis operations with built-in error handling
 - **Multi-Simulation Support**: Experiment database for comparing multiple simulation runs
 
+### Accessibility & User Experience
+- **Comprehensive Accessibility Support**: WCAG 2.1 AA compliant interface
+- **Keyboard Navigation**: Full keyboard support with arrow keys, tab navigation, and shortcuts
+- **Screen Reader Compatibility**: Proper ARIA labels, roles, and live regions
+- **High Contrast Mode**: Enhanced visibility for users with visual impairments
+- **Focus Management**: Proper focus trapping and restoration for modals and dynamic content
+- **Skip Navigation Links**: Quick access to main content, validation errors, and comparison tools
+
 ### Additional Tools
 - **Interactive Notebooks**: Jupyter notebooks for data exploration and analysis
 - **Web Dashboard**: Browser-based interface for monitoring and visualization
@@ -133,6 +141,32 @@ All simulation results are saved in the `simulations` directory with database fi
 
 The project includes a modern React-based configuration explorer built with Electron for cross-platform desktop deployment:
 
+**Hierarchical Configuration Interface:**
+- **Environment**: World settings, population parameters, resource management
+- **Agent Behavior**: Movement, gathering, combat, and sharing parameters
+- **Learning & AI**: General and module-specific learning configurations
+- **Visualization**: Display settings, animation controls, and metrics display
+
+The interface features a complete hierarchical folder structure with collapsible sections for intuitive parameter organization and real-time configuration editing with live validation.
+
+**Greyscale Theme**
+
+- Professional greyscale palette via CSS variables in `src/styles/index.css`
+- Leva greyscale overrides in `src/styles/leva-theme.css` with `data-theme="custom"`
+- Typography: Albertus for labels (12px), JetBrains Mono for numbers (11-12px)
+- Compact controls: exactly 28px height; subtle borders; monochrome focus rings
+- Optional full-UI grayscale filter: `localStorage.setItem('ui:grayscale','true')`
+
+**📋 Issue #9: Complete Leva Folder Structure - COMPLETED**
+- ✅ All configuration sections organized in logical Leva folders
+- ✅ Folder hierarchy matches design specification
+- ✅ Folders can be collapsed/expanded
+- ✅ Configuration values properly bound to folders
+- ✅ No missing parameters or orphaned controls
+- ✅ Comprehensive path mapping system implemented
+- ✅ Complete test coverage for all functionality
+- ✅ Updated documentation and Storybook stories
+
 **Development**
 ```bash
 # Start the development server
@@ -167,12 +201,32 @@ npm run docs
 **Features:**
 - Modern React 18 + TypeScript interface
 - Real-time configuration editing with Zod validation
+- **Complete hierarchical folder structure** with 4 main sections and 12 sub-folders
+- **Validation Display System (Issue #12)**: Inline errors/warnings with section scoping and a summary panel
 - Hot Module Replacement (HMR) for rapid development
 - Cross-platform packaging (Windows, macOS, Linux)
 - Zustand state management with persistence
-- Leva controls integration for interactive UI
+- Advanced Leva controls integration with path mapping system
 - Comprehensive testing with Vitest and Jest
 - TypeScript path mapping with `@/` aliases
+
+### Validation UI and Integration
+
+- Components:
+  - `src/components/Validation/ValidationDisplay.tsx`: Show errors/warnings for exact paths or prefixed sections.
+  - `src/components/Validation/ValidationSummary.tsx`: Form-level overview with counts and top issues.
+
+- Where used:
+  - `src/components/ConfigExplorer/RightPanel.tsx`: Renders `ValidationSummary` in the Validation Status section.
+  - `src/components/ConfigExplorer/LeftPanel.tsx`: Renders section-scoped `ValidationDisplay` blocks.
+  - `src/components/LevaControls/LevaControls.tsx`: Debounced field validation on change updates the validation store.
+
+- Validation service:
+  - `src/services/validationService.ts` integrates Zod results and classifies extra rules: capacity=error; performance/memory=warnings.
+
+- Tests:
+  - `src/components/__tests__/ValidationDisplay.test.tsx`
+  - `src/components/__tests__/ValidationSummary.test.tsx`
 
 ## Documentation
 

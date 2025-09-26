@@ -425,25 +425,4 @@ export class IPCServiceImpl implements IPCService {
 
 export const ipcService = new IPCServiceImpl()
 
-// =====================================================
-// Type Augmentation for Window Object
-// =====================================================
-
-declare global {
-  interface Window {
-    electronAPI?: {
-      loadConfig: (filePath?: string) => Promise<any>
-      saveConfig: (config: any, filePath?: string) => Promise<any>
-      exportConfig: (config: any, format: string) => Promise<any>
-      showOpenDialog: (options?: any) => Promise<any>
-      showSaveDialog: (options?: any) => Promise<any>
-      platform: string
-      on: (channel: string, callback: Function) => void
-      once: (channel: string, callback: Function) => void
-      invoke: (channel: string, payload?: any) => Promise<any>
-      send: (channel: string, payload?: any) => Promise<any>
-      removeListener: (channel: string, listener: Function) => void
-      removeAllListeners: (channel?: string) => void
-    }
-  }
-}
+// Global Window type augmentation moved to src/types/electron.d.ts

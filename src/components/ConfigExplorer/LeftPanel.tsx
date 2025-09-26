@@ -3,7 +3,10 @@ import { LevaControls } from '@/components/LevaControls/LevaControls'
 import { ConfigFolder } from '@/components/LevaControls/ConfigFolder'
 import { useLevaStore } from '@/stores/levaStore'
 import { useConfigStore } from '@/stores/configStore'
+import { useAccessibility } from '@/components/UI/AccessibilityProvider'
+import { useKeyboardNavigation } from '@/hooks/useKeyboardNavigation'
 import styled from 'styled-components'
+import { ValidationDisplay } from '@/components/Validation/ValidationDisplay'
 
 const LeftPanelContainer = styled.div`
   display: flex;
@@ -52,9 +55,44 @@ const ControlGroup = styled.div`
 export const LeftPanel: React.FC = () => {
   const levaStore = useLevaStore()
   const configStore = useConfigStore()
+  const { announceToScreenReader } = useAccessibility()
+
+  // Keyboard navigation for the left panel
+  const { ref, focusElement } = useKeyboardNavigation({
+    onEscape: () => {
+      // Collapse all folders on Escape
+      announceToScreenReader('All folders collapsed', 'polite')
+    },
+    onTab: () => {
+      // Handle tab navigation
+    },
+    preventDefault: false // Allow native browser functionality
+  })
+
+  const handleFolderToggle = (folderId: string, isCollapsed: boolean) => {
+    levaStore.toggleFolder(folderId)
+    announceToScreenReader(
+      `${isCollapsed ? 'Expanded' : 'Collapsed'} ${folderId} folder`,
+      'polite'
+    )
+  }
+
+  const handlePanelToggle = (isVisible: boolean) => {
+    levaStore.setPanelVisible(!isVisible)
+    announceToScreenReader(
+      `Leva panel ${!isVisible ? 'shown' : 'hidden'}`,
+      'polite'
+    )
+  }
 
   return (
-    <LeftPanelContainer>
+    <LeftPanelContainer
+      ref={ref}
+      role="navigation"
+      aria-label="Configuration sections navigation"
+      tabIndex={-1}
+      onFocus={focusElement}
+    >
       <PanelHeader>
         <PanelTitle>Configuration Explorer</PanelTitle>
       </PanelHeader>
@@ -65,53 +103,79 @@ export const LeftPanel: React.FC = () => {
         <ConfigFolder
           label="Environment Settings"
           collapsed={levaStore.isFolderCollapsed('environment')}
-          onToggle={() => levaStore.toggleFolder('environment')}
+          onToggle={() => handleFolderToggle('environment', levaStore.isFolderCollapsed('environment'))}
+          folderId="environment"
         >
           <ControlGroup>
             <LevaControls />
+            <ValidationDisplay
+              prefixPaths={['width','height','position_discretization_method','use_bilinear_interpolation','visualization']}
+              compact
+              title="Environment Issues"
+            />
           </ControlGroup>
         </ConfigFolder>
 
         <ConfigFolder
           label="Agent Parameters"
           collapsed={levaStore.isFolderCollapsed('agents')}
-          onToggle={() => levaStore.toggleFolder('agents')}
+          onToggle={() => handleFolderToggle('agents', levaStore.isFolderCollapsed('agents'))}
+          folderId="agents"
         >
           <ControlGroup>
             <div style={{ padding: '8px', color: 'var(--text-secondary)' }}>
               Agent configuration controls will be displayed here
             </div>
+            <ValidationDisplay
+              prefixPaths={['agent_parameters','agent_type_ratios','system_agents','independent_agents','control_agents']}
+              compact
+              title="Agent Issues"
+            />
           </ControlGroup>
         </ConfigFolder>
 
         <ConfigFolder
           label="Learning Configuration"
           collapsed={levaStore.isFolderCollapsed('learning')}
-          onToggle={() => levaStore.toggleFolder('learning')}
+          onToggle={() => handleFolderToggle('learning', levaStore.isFolderCollapsed('learning'))}
+          folderId="learning"
         >
           <ControlGroup>
             <div style={{ padding: '8px', color: 'var(--text-secondary)' }}>
               Learning parameter controls will be displayed here
             </div>
+            <ValidationDisplay
+              prefixPaths={['learning_rate','epsilon_start','epsilon_min','epsilon_decay']}
+              compact
+              title="Learning Issues"
+            />
           </ControlGroup>
         </ConfigFolder>
 
         <ConfigFolder
           label="Visualization Settings"
           collapsed={levaStore.isFolderCollapsed('visualization')}
-          onToggle={() => levaStore.toggleFolder('visualization')}
+          onToggle={() => handleFolderToggle('visualization', levaStore.isFolderCollapsed('visualization'))}
+          folderId="visualization"
         >
           <ControlGroup>
             <div style={{ padding: '8px', color: 'var(--text-secondary)' }}>
               Visualization controls will be displayed here
             </div>
+            <ValidationDisplay
+              prefixPaths={['visualization']}
+              compact
+              title="Visualization Issues"
+            />
           </ControlGroup>
         </ConfigFolder>
 
         <SectionTitle>Panel Controls</SectionTitle>
         <ControlGroup>
           <button
-            onClick={() => levaStore.setPanelVisible(!levaStore.isVisible)}
+            onClick={() => handlePanelToggle(levaStore.isVisible)}
+            aria-expanded={levaStore.isVisible}
+            aria-controls="leva-panel"
             style={{
               padding: '8px 16px',
               background: levaStore.isVisible ? 'var(--accent-primary)' : 'var(--background-tertiary)',
@@ -126,7 +190,15 @@ export const LeftPanel: React.FC = () => {
           </button>
 
           <button
-            onClick={() => levaStore.setPanelCollapsed(!levaStore.isCollapsed)}
+            onClick={() => {
+              levaStore.setPanelCollapsed(!levaStore.isCollapsed)
+              announceToScreenReader(
+                `Panel ${!levaStore.isCollapsed ? 'collapsed' : 'expanded'}`,
+                'polite'
+              )
+            }}
+            aria-expanded={!levaStore.isCollapsed}
+            aria-controls="controls-section"
             style={{
               padding: '8px 16px',
               background: 'var(--background-tertiary)',

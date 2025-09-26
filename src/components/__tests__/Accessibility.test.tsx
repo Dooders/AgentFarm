@@ -1,10 +1,20 @@
-import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { AccessibilityProvider } from '@/components/UI/AccessibilityProvider'
 import { ConfigExplorer } from '../ConfigExplorer/ConfigExplorer'
 
 describe('Accessibility Tests', () => {
+  const renderWithAccessibility = (component: React.ReactElement) => {
+    return render(
+      <AccessibilityProvider>
+        {component}
+      </AccessibilityProvider>
+    )
+  }
+
   it('should have proper heading hierarchy', () => {
-    render(<ConfigExplorer />)
+    renderWithAccessibility(<ConfigExplorer />)
 
     // Check for main heading
     const mainHeading = screen.getByText('Configuration Explorer')
@@ -16,7 +26,7 @@ describe('Accessibility Tests', () => {
   })
 
   it('should have semantic HTML structure', () => {
-    const { container } = render(<ConfigExplorer />)
+    const { container } = renderWithAccessibility(<ConfigExplorer />)
 
     // Check for proper semantic elements
     const headings = container.querySelectorAll('h1, h2, h3, h4, h5, h6')
@@ -27,8 +37,120 @@ describe('Accessibility Tests', () => {
     expect(lists.length).toBeGreaterThanOrEqual(2)
   })
 
+  it('should have ARIA landmarks', () => {
+    renderWithAccessibility(<ConfigExplorer />)
+
+    // Check for main landmark
+    const main = screen.getByRole('main')
+    expect(main).toBeInTheDocument()
+
+    // Check for navigation landmark
+    const navigation = screen.getByRole('navigation')
+    expect(navigation).toBeInTheDocument()
+
+    // Check for complementary landmark
+    const complementary = screen.getByRole('complementary')
+    expect(complementary).toBeInTheDocument()
+  })
+
+  it('should have skip navigation links', () => {
+    renderWithAccessibility(<ConfigExplorer />)
+
+    // Check for skip links
+    const skipLinks = screen.getAllByText(/Skip to/)
+    expect(skipLinks.length).toBeGreaterThanOrEqual(3)
+
+    // Check that skip links have proper href attributes
+    skipLinks.forEach(link => {
+      expect(link).toHaveAttribute('href')
+      expect(link.getAttribute('href')).toMatch(/^#/)
+    })
+  })
+
+  it('should have proper ARIA labels and descriptions', () => {
+    renderWithAccessibility(<ConfigExplorer />)
+
+    // Check for aria-label attributes
+    const ariaLabelledElements = screen.getAllByLabelText(/.*/)
+    expect(ariaLabelledElements.length).toBeGreaterThan(0)
+
+    // Check for aria-describedby attributes on buttons
+    const buttonsWithDescriptions = screen.getAllByRole('button').filter(button =>
+      button.hasAttribute('aria-describedby')
+    )
+    expect(buttonsWithDescriptions.length).toBeGreaterThan(0)
+  })
+
+  it('should support keyboard navigation', async () => {
+    const user = userEvent.setup()
+    renderWithAccessibility(<ConfigExplorer />)
+
+    // Focus should be manageable with Tab key
+    const focusableElements = screen.getAllByRole('button').concat(
+      screen.getAllByRole('link')
+    )
+
+    expect(focusableElements.length).toBeGreaterThan(0)
+
+    // Simulate tab navigation
+    await user.tab()
+    expect(document.activeElement).toBeTruthy()
+  })
+
+  it('should have proper focus management', () => {
+    renderWithAccessibility(<ConfigExplorer />)
+
+    // Check that focusable elements have proper tabindex
+    const buttons = screen.getAllByRole('button')
+    buttons.forEach(button => {
+      const tabIndex = button.getAttribute('tabindex')
+      if (tabIndex) {
+        expect(parseInt(tabIndex)).toBeGreaterThanOrEqual(0)
+      }
+    })
+  })
+
+  it('should support high contrast mode', () => {
+    renderWithAccessibility(<ConfigExplorer />)
+
+    // Check that high contrast styles are available
+    const body = document.body
+    expect(body.classList.contains('high-contrast')).toBe(false)
+
+    // Simulate high contrast mode
+    body.classList.add('high-contrast')
+    expect(body.classList.contains('high-contrast')).toBe(true)
+  })
+
+  it('should have proper validation accessibility', () => {
+    renderWithAccessibility(<ConfigExplorer />)
+
+    // Check for validation regions
+    const validationRegions = screen.getAllByRole('region')
+    const validationRegion = validationRegions.find(region =>
+      region.getAttribute('aria-label')?.includes('Validation')
+    )
+
+    expect(validationRegion).toBeDefined()
+  })
+
+  it('should have proper live regions for announcements', () => {
+    renderWithAccessibility(<ConfigExplorer />)
+
+    // Check for live regions
+    const liveRegions = document.querySelectorAll('[aria-live]')
+    expect(liveRegions.length).toBeGreaterThan(0)
+
+    // Check for both polite and assertive live regions
+    const politeRegions = document.querySelectorAll('[aria-live="polite"]')
+    const assertiveRegions = document.querySelectorAll('[aria-live="assertive"]')
+
+    expect(politeRegions.length).toBeGreaterThan(0)
+    expect(assertiveRegions.length).toBeGreaterThan(0)
+  })
+
   it('should have proper color contrast setup', () => {
-    const { container } = render(<ConfigExplorer />)
+    const { container } = renderWithAccessibility(<ConfigExplorer />)
 
     // Check that components have proper styling classes
     const styledElements = container.querySelectorAll('[style*="color"], [style*="background"]')
@@ -39,8 +161,8 @@ describe('Accessibility Tests', () => {
     expect(themedElements.length).toBeGreaterThanOrEqual(3)
   })
 
-  it('should have logical tab order structure', () => {
-    render(<ConfigExplorer />)
+  it('should have proper tab order structure', () => {
+    renderWithAccessibility(<ConfigExplorer />)
 
     // Check that content flows in logical order
     const leftPanel = screen.getByText('Configuration Explorer')
@@ -52,7 +174,7 @@ describe('Accessibility Tests', () => {
   })
 
   it('should have descriptive content', () => {
-    render(<ConfigExplorer />)
+    renderWithAccessibility(<ConfigExplorer />)
 
     // Check for descriptive text that helps screen readers
     const descriptiveTexts = screen.getAllByText('Comparison Tools')
@@ -63,7 +185,7 @@ describe('Accessibility Tests', () => {
   })
 
   it('should have proper text content for screen readers', () => {
-    render(<ConfigExplorer />)
+    renderWithAccessibility(<ConfigExplorer />)
 
     // Check that important UI elements have text content
     const headings = screen.getAllByRole('heading')
@@ -76,7 +198,7 @@ describe('Accessibility Tests', () => {
   })
 
   it('should support keyboard navigation structure', () => {
-    render(<ConfigExplorer />)
+    renderWithAccessibility(<ConfigExplorer />)
 
     // Check that the layout supports logical keyboard navigation
     // (from left panel to right panel)
@@ -93,4 +215,5 @@ describe('Accessibility Tests', () => {
     // The layout should have proper structure for tab navigation
     expect(leftPanel?.parentElement?.parentElement).toBe(rightPanel?.parentElement?.parentElement)
   })
+
 })

@@ -9,10 +9,14 @@ The Electron-based Config Explorer provides an interactive way to view and edit 
 - Open the Explorer from the sidebar button in the Electron app.
 - Use "Open…" to load a configuration, "Save"/"Save As…" to persist changes.
 
-### Grayscale Mode
+### Grayscale Mode and Theme
 
-- Toggle grayscale UI from either the Sidebar or the Config Explorer toolbar.
-- The mode is persisted and will be restored on next launch.
+- The Explorer uses a professional greyscale theme by default via CSS variables in `src/styles/index.css` and Leva overrides in `src/styles/leva-theme.css`.
+- `ThemeProvider` sets `data-theme="custom"` on the root element to activate the Leva greyscale.
+- Toggle additional full-UI grayscale filter with:
+  - In console: `localStorage.setItem('ui:grayscale', 'true'); location.reload()`
+  - Remove: `localStorage.removeItem('ui:grayscale'); location.reload()`
+- Controls are compact: 28px height, subtle borders, high-contrast monochrome focus rings.
 
 ### Keyboard Navigation & Accessibility
 
