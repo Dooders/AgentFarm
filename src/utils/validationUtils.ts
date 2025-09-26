@@ -96,6 +96,9 @@ function getCustomErrorMessage(error: z.ZodIssue): string {
 // Validate configuration using Zod schemas
 export function validateSimulationConfig(config: unknown): ValidationResult {
   try {
+    // Import and validate using Zod schema
+    const { SimulationConfigSchema } = require('@/types/zodSchemas')
+    SimulationConfigSchema.parse(config)
 
     return {
       success: true,

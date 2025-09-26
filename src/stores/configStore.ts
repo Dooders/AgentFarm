@@ -435,9 +435,9 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   undo: async () => {
     const { history, historyIndex } = get()
     if (historyIndex > 0) {
-      const previousConfig = history[historyIndex - 1]
+      const historyEntry = history[historyIndex - 1]
       set({
-        config: previousConfig as SimulationConfigType,
+        config: historyEntry.config,
         historyIndex: historyIndex - 1,
         isDirty: true
       })
@@ -450,9 +450,9 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   redo: async () => {
     const { history, historyIndex } = get()
     if (historyIndex < history.length - 1) {
-      const nextConfig = history[historyIndex + 1]
+      const historyEntry = history[historyIndex + 1]
       set({
-        config: nextConfig as SimulationConfigType,
+        config: historyEntry.config,
         historyIndex: historyIndex + 1,
         isDirty: true
       })
@@ -492,7 +492,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       })
 
       return {
-        config: result.config,
+        config: get().config,
         metadata: {
           version: '1.0.0',
           lastModified: Date.now(),

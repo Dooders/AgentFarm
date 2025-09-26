@@ -370,7 +370,7 @@ export const LevaControls: React.FC = () => {
     }
   }, [configStore?.config])
 
-  const worldSettingsControls = useControls('Environment/World Settings', worldSettingsConfig)
+  const worldSettingsControls = useControls('Environment/World Settings', worldSettingsConfig, { onChange: handleLevaUpdate })
 
   // Population sub-folder
   const populationConfig = useMemo(() => {
@@ -435,7 +435,7 @@ export const LevaControls: React.FC = () => {
     }
   }, [configStore?.config])
 
-  const populationControls = useControls('Environment/Population', populationConfig)
+  const populationControls = useControls('Environment/Population', populationConfig, { onChange: handleLevaUpdate })
 
   // Resource Management sub-folder
   const resourceConfig = useMemo(() => {
@@ -488,7 +488,7 @@ export const LevaControls: React.FC = () => {
     }
   }, [configStore?.config])
 
-  const resourceControls = useControls('Environment/Resource Management', resourceConfig)
+  const resourceControls = useControls('Environment/Resource Management', resourceConfig, { onChange: handleLevaUpdate })
 
   // ========================================
   // AGENT BEHAVIOR FOLDER STRUCTURE
@@ -537,7 +537,7 @@ export const LevaControls: React.FC = () => {
     }
   }, [configStore?.config])
 
-  const movementControls = useControls('Agent Behavior/Movement Parameters', movementConfig)
+  const movementControls = useControls('Agent Behavior/Movement Parameters', movementConfig, { onChange: handleLevaUpdate })
 
   // Gathering Parameters sub-folder
   const gatheringConfig = useMemo(() => {
@@ -598,7 +598,7 @@ export const LevaControls: React.FC = () => {
     }
   }, [configStore?.config])
 
-  const gatheringControls = useControls('Agent Behavior/Gathering Parameters', gatheringConfig)
+  const gatheringControls = useControls('Agent Behavior/Gathering Parameters', gatheringConfig, { onChange: handleLevaUpdate })
 
   // Combat Parameters sub-folder
   const combatConfig = useMemo(() => {
@@ -659,7 +659,7 @@ export const LevaControls: React.FC = () => {
     }
   }, [configStore?.config])
 
-  const combatControls = useControls('Agent Behavior/Combat Parameters', combatConfig)
+  const combatControls = useControls('Agent Behavior/Combat Parameters', combatConfig, { onChange: handleLevaUpdate })
 
   // Sharing Parameters sub-folder
   const sharingConfig = useMemo(() => {
@@ -720,7 +720,7 @@ export const LevaControls: React.FC = () => {
     }
   }, [configStore?.config])
 
-  const sharingControls = useControls('Agent Behavior/Sharing Parameters', sharingConfig)
+  const sharingControls = useControls('Agent Behavior/Sharing Parameters', sharingConfig, { onChange: handleLevaUpdate })
 
   // ========================================
   // LEARNING & AI FOLDER STRUCTURE
@@ -777,7 +777,7 @@ export const LevaControls: React.FC = () => {
     }
   }, [configStore?.config])
 
-  const generalLearningControls = useControls('Learning & AI/General Learning', generalLearningConfig)
+  const generalLearningControls = useControls('Learning & AI/General Learning', generalLearningConfig, { onChange: handleLevaUpdate })
 
   // Module-Specific Learning sub-folder
   const moduleLearningConfig = useMemo(() => {
@@ -874,7 +874,7 @@ export const LevaControls: React.FC = () => {
     }
   }, [configStore?.config])
 
-  const moduleLearningControls = useControls('Learning & AI/Module-Specific Learning', moduleLearningConfig)
+  const moduleLearningControls = useControls('Learning & AI/Module-Specific Learning', moduleLearningConfig, { onChange: handleLevaUpdate })
 
   // ========================================
   // VISUALIZATION FOLDER STRUCTURE
@@ -920,7 +920,7 @@ export const LevaControls: React.FC = () => {
     }
   }, [configStore?.config])
 
-  const displayControls = useControls('Visualization/Display Settings', displayConfig)
+  const displayControls = useControls('Visualization/Display Settings', displayConfig, { onChange: handleLevaUpdate })
 
   // Animation Settings sub-folder
   const animationConfig = useMemo(() => {
@@ -962,7 +962,7 @@ export const LevaControls: React.FC = () => {
     }
   }, [configStore?.config])
 
-  const animationControls = useControls('Visualization/Animation Settings', animationConfig)
+  const animationControls = useControls('Visualization/Animation Settings', animationConfig, { onChange: handleLevaUpdate })
 
   // Metrics Display sub-folder
   const metricsConfig = useMemo(() => {
@@ -1013,7 +1013,7 @@ export const LevaControls: React.FC = () => {
     }
   }, [configStore?.config])
 
-  const metricsControls = useControls('Visualization/Metrics Display', metricsConfig)
+  const metricsControls = useControls('Visualization/Metrics Display', metricsConfig, { onChange: handleLevaUpdate })
 
   // ========================================
   // ENHANCED CUSTOM CONTROLS DEMONSTRATION (Issue #14)
@@ -1178,7 +1178,7 @@ export const LevaControls: React.FC = () => {
     }
   }, [configStore])
 
-  const enhancedControls = useControls('Enhanced Controls', enhancedControlsConfig)
+  const enhancedControls = useControls('Enhanced Controls', enhancedControlsConfig, { onChange: handleEnhancedUpdate })
 
   // Get current theme from Leva store
   const currentTheme = levaStore.getCurrentTheme()
