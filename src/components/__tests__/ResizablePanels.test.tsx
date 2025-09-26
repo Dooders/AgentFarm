@@ -24,12 +24,12 @@ describe('ResizablePanels', () => {
       <ResizablePanels
         leftPanel={<MockLeftPanel />}
         rightPanel={<MockRightPanel />}
-        defaultSplit={0.6}
+        defaultSplit={0.5}
       />
     )
 
     const leftPanel = container.querySelector('.left-panel')
-    expect(leftPanel).toHaveStyle({ width: '60%' })
+    expect(leftPanel).toHaveStyle({ width: '50%' })
   })
 
   it('has draggable split handle', () => {

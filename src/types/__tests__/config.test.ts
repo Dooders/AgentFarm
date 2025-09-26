@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import type { SimulationConfig, AgentParameters, ModuleParameters } from '../config'
+import type { SimulationConfigType, AgentParameters, ModuleParameters } from '../config'
 
 describe('Config Types', () => {
   it('creates valid SimulationConfig object', () => {
-    const config: SimulationConfig = {
+    const config: SimulationConfigType = {
       width: 100,
       height: 100,
       position_discretization_method: 'floor',

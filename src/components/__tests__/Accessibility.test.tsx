@@ -44,7 +44,7 @@ describe('Accessibility Tests', () => {
 
     // Check that content flows in logical order
     const leftPanel = screen.getByText('Configuration Explorer')
-    const rightPanel = screen.getByText('Comparison Panel')
+    const rightPanel = screen.getByText('Configuration Comparison')
 
     // Both panels should be present and visible
     expect(leftPanel).toBeVisible()
@@ -55,11 +55,11 @@ describe('Accessibility Tests', () => {
     render(<ConfigExplorer />)
 
     // Check for descriptive text that helps screen readers
-    const descriptiveTexts = screen.getAllByText('This will contain:')
-    expect(descriptiveTexts.length).toBeGreaterThanOrEqual(2)
+    const descriptiveTexts = screen.getAllByText('Comparison Tools')
+    expect(descriptiveTexts.length).toBeGreaterThanOrEqual(1)
 
-    expect(screen.getByText('Navigation tree')).toBeInTheDocument()
-    expect(screen.getByText('Leva controls')).toBeInTheDocument()
+    expect(screen.getByText('Configuration Explorer')).toBeInTheDocument()
+    expect(screen.getByText('Leva Controls')).toBeInTheDocument()
   })
 
   it('should have proper text content for screen readers', () => {
@@ -81,7 +81,7 @@ describe('Accessibility Tests', () => {
     // Check that the layout supports logical keyboard navigation
     // (from left panel to right panel)
     const leftPanel = screen.getByText('Configuration Explorer').closest('.left-panel')
-    const rightPanel = screen.getByText('Comparison Panel').closest('.right-panel')
+    const rightPanel = screen.getByText('Configuration Comparison').closest('.right-panel')
 
     expect(leftPanel).toBeInTheDocument()
     expect(rightPanel).toBeInTheDocument()

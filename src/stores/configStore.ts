@@ -1,11 +1,11 @@
 import { create } from 'zustand'
-import { SimulationConfig, ConfigStore } from '@/types/config'
+import { SimulationConfigType, ConfigStore } from '@/types/config'
 import { persistState, retrieveState } from './persistence'
 import { useValidationStore } from './validationStore'
 import { validationService } from '@/services/validationService'
 
 // Default configuration for initial state
-const defaultConfig: SimulationConfig = {
+const defaultConfig: SimulationConfigType = {
   width: 100,
   height: 100,
   position_discretization_method: 'floor',
@@ -156,6 +156,10 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   history: [defaultConfig],
   historyIndex: 0,
 
+  // Layout state - default to 50/50 split for balanced desktop experience
+  leftPanelWidth: 0.5,
+  rightPanelWidth: 0.5,
+
   updateConfig: (path: string, value: any) => {
     const currentConfig = get().config
     const { history, historyIndex } = get()
@@ -229,7 +233,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     }
   },
 
-  setComparison: (config: SimulationConfig | null) => {
+  setComparison: (config: SimulationConfigType | null) => {
     set({ compareConfig: config })
   },
 
@@ -257,7 +261,9 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     const uiPreferences = {
       selectedSection: state.selectedSection,
       expandedFolders: Array.from(state.expandedFolders),
-      showComparison: state.showComparison
+      showComparison: state.showComparison,
+      leftPanelWidth: state.leftPanelWidth,
+      rightPanelWidth: state.rightPanelWidth
     }
 
     persistState(uiPreferences, {
@@ -284,9 +290,36 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
           'learning',
           'visualization'
         ]),
-        showComparison: (state.showComparison as boolean) || false
+        showComparison: (state.showComparison as boolean) || false,
+        leftPanelWidth: (state.leftPanelWidth as number) || 0.5,
+        rightPanelWidth: (state.rightPanelWidth as number) || 0.5
       })
     }
+  },
+
+  // Layout actions
+  setPanelWidths: (leftWidth: number, rightWidth: number) => {
+    const total = leftWidth + rightWidth
+    const normalizedLeft = leftWidth / total
+    const normalizedRight = rightWidth / total
+
+    set({
+      leftPanelWidth: normalizedLeft,
+      rightPanelWidth: normalizedRight
+    })
+
+    // Persist the updated layout state
+    get().persistUIState()
+  },
+
+  resetPanelWidths: () => {
+    set({
+      leftPanelWidth: 0.5,
+      rightPanelWidth: 0.5
+    })
+
+    // Persist the reset layout state
+    get().persistUIState()
   },
 
   // Clear persisted state

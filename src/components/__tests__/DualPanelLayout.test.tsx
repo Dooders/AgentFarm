@@ -8,7 +8,7 @@ describe('DualPanelLayout', () => {
 
     // Check that both panels are rendered
     expect(screen.getByText('Configuration Explorer')).toBeInTheDocument()
-    expect(screen.getByText('Comparison Panel')).toBeInTheDocument()
+    expect(screen.getByText('Configuration Comparison')).toBeInTheDocument()
   })
 
   it('uses ResizablePanels as the layout container', () => {
@@ -37,23 +37,22 @@ describe('DualPanelLayout', () => {
     const { container } = render(<DualPanelLayout />)
 
     const leftPanel = container.querySelector('.left-panel')
-    // Should be 60% width based on default split of 0.6
-    expect(leftPanel).toHaveStyle({ width: '60%' })
+    // Should be 50% width based on desktop-focused default split of 0.5
+    expect(leftPanel).toHaveStyle({ width: '50%' })
   })
 
   it('contains both LeftPanel and RightPanel components', () => {
     render(<DualPanelLayout />)
 
     // Left panel content
-    expect(screen.getByText('Navigation tree')).toBeInTheDocument()
-    expect(screen.getByText('Leva controls')).toBeInTheDocument()
+    expect(screen.getByText('Configuration Explorer')).toBeInTheDocument()
+    expect(screen.getByText('Leva Controls')).toBeInTheDocument()
 
     // Right panel content
-    expect(screen.getByText('Diff highlighting')).toBeInTheDocument()
-    expect(screen.getByText('Copy controls')).toBeInTheDocument()
+    expect(screen.getByText('Configuration Comparison')).toBeInTheDocument()
   })
 
-  it('maintains responsive layout structure', () => {
+  it('maintains desktop-focused layout structure', () => {
     const { container } = render(<DualPanelLayout />)
 
     // Check that the layout is properly structured

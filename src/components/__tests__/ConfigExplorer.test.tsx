@@ -13,15 +13,15 @@ describe('ConfigExplorer', () => {
     expect(container.firstChild).toHaveClass('config-explorer')
   })
 
-  it('contains placeholder content for left panel', () => {
+  it('contains configuration explorer content for left panel', () => {
     render(<ConfigExplorer />)
-    expect(screen.getByText('Left panel content will be implemented in subsequent issues.')).toBeInTheDocument()
-    expect(screen.getByText('Navigation tree')).toBeInTheDocument()
+    expect(screen.getByText('Configuration Explorer')).toBeInTheDocument()
+    expect(screen.getByText('Leva Controls')).toBeInTheDocument()
   })
 
-  it('contains placeholder content for right panel', () => {
+  it('contains comparison content for right panel', () => {
     render(<ConfigExplorer />)
-    expect(screen.getByText('Comparison Panel')).toBeInTheDocument()
-    expect(screen.getByText('Diff highlighting')).toBeInTheDocument()
+    expect(screen.getByText('Configuration Comparison')).toBeInTheDocument()
+    expect(screen.getByText('Current Configuration')).toBeInTheDocument()
   })
 })
