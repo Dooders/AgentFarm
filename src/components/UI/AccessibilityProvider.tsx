@@ -1,10 +1,10 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react'
 
 interface AccessibilityContextType {
   highContrast: boolean
   setHighContrast: (enabled: boolean) => void
   focusElement: (selector: string) => void
-  announceToScreenReader: (message: string, priority: 'polite' | 'assertive') => void
+  announceToScreenReader: (message: string, priority?: 'polite' | 'assertive') => void
   keyboardNavigationActive: boolean
   setKeyboardNavigationActive: (active: boolean) => void
 }
@@ -49,8 +49,8 @@ export const AccessibilityProvider: React.FC<AccessibilityProviderProps> = ({ ch
     }
   }
 
-  // Screen reader announcements
-  const announceToScreenReader = (message: string, priority: 'polite' | 'assertive' = 'polite') => {
+  // Screen reader announcements - memoized to prevent re-renders
+  const announceToScreenReader = useCallback((message: string, priority: 'polite' | 'assertive' = 'polite') => {
     const announcement = document.createElement('div')
     announcement.setAttribute('aria-live', priority)
     announcement.setAttribute('aria-atomic', 'true')
@@ -63,10 +63,21 @@ export const AccessibilityProvider: React.FC<AccessibilityProviderProps> = ({ ch
 
     document.body.appendChild(announcement)
 
-    setTimeout(() => {
-      document.body.removeChild(announcement)
+    // Clear timeout if component unmounts to prevent memory leaks
+    const timeoutId = setTimeout(() => {
+      if (document.body.contains(announcement)) {
+        document.body.removeChild(announcement)
+      }
     }, 1000)
-  }
+
+    // Cleanup function to prevent memory leaks
+    return () => {
+      clearTimeout(timeoutId)
+      if (document.body.contains(announcement)) {
+        document.body.removeChild(announcement)
+      }
+    }
+  }, [])
 
   // Keyboard navigation detection
   useEffect(() => {

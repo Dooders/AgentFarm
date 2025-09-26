@@ -91,7 +91,7 @@ export const ConfigExplorer: React.FC = () => {
   }
 
   return (
-    <div className="config-explorer" role="application" aria-label="Configuration Explorer Application">
+    <div className="config-explorer" role="application" aria-label="Configuration Explorer Application" aria-expanded="true">
       <SkipNavigation
         mainContentId="main-content"
         validationContentId="validation-content"

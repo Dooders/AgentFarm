@@ -91,7 +91,6 @@ export const ValidationDisplay: React.FC<ValidationDisplayProps> = ({
         <ErrorItem
           key={`err-${idx}`}
           role="alert"
-          aria-live="polite"
           aria-label={`Validation error: ${err.message}`}
         >
           {showIcons && <span aria-hidden="true">✖</span>}
@@ -105,7 +104,6 @@ export const ValidationDisplay: React.FC<ValidationDisplayProps> = ({
         <WarningItem
           key={`warn-${idx}`}
           role="status"
-          aria-live="polite"
           aria-label={`Validation warning: ${warn.message}`}
         >
           {showIcons && <span aria-hidden="true">⚠</span>}

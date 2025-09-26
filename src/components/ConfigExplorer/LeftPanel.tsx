@@ -57,17 +57,16 @@ export const LeftPanel: React.FC = () => {
   const configStore = useConfigStore()
   const { announceToScreenReader } = useAccessibility()
 
-  // Folder IDs for keyboard navigation
-  const folderIds = ['environment', 'agents', 'learning', 'visualization']
-
-  const { keyboardOptions } = useKeyboardNavigation({
+  // Keyboard navigation for the left panel
+  const { ref, focusElement } = useKeyboardNavigation({
     onEscape: () => {
       // Collapse all folders on Escape
       announceToScreenReader('All folders collapsed', 'polite')
     },
     onTab: () => {
       // Handle tab navigation
-    }
+    },
+    preventDefault: false // Allow native browser functionality
   })
 
   const handleFolderToggle = (folderId: string, isCollapsed: boolean) => {
@@ -88,9 +87,11 @@ export const LeftPanel: React.FC = () => {
 
   return (
     <LeftPanelContainer
-      {...keyboardOptions}
+      ref={ref}
       role="navigation"
       aria-label="Configuration sections navigation"
+      tabIndex={-1}
+      onFocus={focusElement}
     >
       <PanelHeader>
         <PanelTitle>Configuration Explorer</PanelTitle>

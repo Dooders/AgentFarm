@@ -25,10 +25,15 @@ export const useKeyboardNavigation = (options: KeyboardNavigationOptions = {}) =
       onArrowLeft,
       onArrowRight,
       onTab,
-      preventDefault = true
+      preventDefault = false
     } = options
 
-    if (preventDefault) {
+    // Only prevent default for specific keys we want to handle exclusively
+    const shouldPreventDefault = preventDefault || [
+      'Enter', ' ', 'Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'
+    ].includes(event.key)
+
+    if (shouldPreventDefault) {
       event.preventDefault()
     }
 
@@ -55,7 +60,10 @@ export const useKeyboardNavigation = (options: KeyboardNavigationOptions = {}) =
         onArrowRight?.()
         break
       case 'Tab':
-        onTab?.()
+        // Only prevent tab default if explicitly requested
+        if (preventDefault) {
+          onTab?.()
+        }
         break
     }
   }, [options])
