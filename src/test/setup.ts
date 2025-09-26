@@ -1,25 +1,26 @@
 import '@testing-library/jest-dom'
-import { afterEach, vi, beforeAll, afterAll } from 'vitest'
+import '@testing-library/jest-dom/vitest'
+import { beforeAll, afterAll, afterEach, vi } from 'vitest'
 import { startMSW, stopMSW, resetMSW } from './mocks/server'
 
 // Start MSW before all tests
 beforeAll(async () => {
-  await startMSW('worker')
+  await startMSW('server')
 })
 
 // Stop MSW after all tests
 afterAll(async () => {
-  await stopMSW('worker')
+  await stopMSW('server')
 })
 
 // Reset handlers after each test
 afterEach(async () => {
-  await resetMSW('worker')
+  await resetMSW('server')
   vi.clearAllMocks()
 })
 
 // Mock ResizeObserver which is not available in test environment
-global.ResizeObserver = vi.fn().mockImplementation(() => ({
+globalThis.ResizeObserver = vi.fn().mockImplementation(() => ({
   observe: vi.fn(),
   unobserve: vi.fn(),
   disconnect: vi.fn(),
@@ -28,7 +29,7 @@ global.ResizeObserver = vi.fn().mockImplementation(() => ({
 // Mock matchMedia which is not available in test environment
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
-  value: vi.fn().mockImplementation(query => ({
+  value: vi.fn().mockImplementation((query: string) => ({
     matches: false,
     media: query,
     onchange: null,
@@ -41,14 +42,14 @@ Object.defineProperty(window, 'matchMedia', {
 })
 
 // Mock IntersectionObserver
-global.IntersectionObserver = vi.fn().mockImplementation(() => ({
+globalThis.IntersectionObserver = vi.fn().mockImplementation(() => ({
   observe: vi.fn(),
   unobserve: vi.fn(),
   disconnect: vi.fn(),
 }))
 
 // Mock WebSocket for testing
-global.WebSocket = vi.fn().mockImplementation(() => ({
+globalThis.WebSocket = vi.fn().mockImplementation(() => ({
   addEventListener: vi.fn(),
   removeEventListener: vi.fn(),
   dispatchEvent: vi.fn(),

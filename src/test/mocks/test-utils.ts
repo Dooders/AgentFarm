@@ -1,4 +1,6 @@
-import { rest } from 'msw'
+// eslint-disable-next-line import/no-extraneous-dependencies
+import { rest, RestRequest, ResponseComposition, DefaultBodyType, RestContext } from 'msw'
+import { beforeAll, afterEach, afterAll, expect } from 'vitest'
 import { server } from './server'
 import { mockConfig } from './handlers'
 
@@ -18,20 +20,32 @@ export const generateMockConfigs = (count: number, overrides: Partial<typeof moc
 
 // Custom handler creators
 export const createErrorHandler = (status: number, error: any) => {
-  return rest.get('/api/test-error', (req, res, ctx) => {
+  return rest.get('/api/test-error', (
+    _req: RestRequest,
+    res: ResponseComposition<DefaultBodyType>,
+    ctx: RestContext
+  ) => {
     return res(ctx.status(status), ctx.json(error))
   })
 }
 
 export const createDelayHandler = (delay: number) => {
-  return rest.get('/api/test-delay', async (req, res, ctx) => {
+  return rest.get('/api/test-delay', async (
+    _req: RestRequest,
+    res: ResponseComposition<DefaultBodyType>,
+    ctx: RestContext
+  ) => {
     await new Promise(resolve => setTimeout(resolve, delay))
     return res(ctx.json({ message: 'Delayed response' }))
   })
 }
 
 export const createLargeDataHandler = (itemCount: number) => {
-  return rest.get('/api/test-large-data', (req, res, ctx) => {
+  return rest.get('/api/test-large-data', (
+    _req: RestRequest,
+    res: ResponseComposition<DefaultBodyType>,
+    ctx: RestContext
+  ) => {
     const data = Array.from({ length: itemCount }, (_, i) => ({
       id: i,
       name: `Item ${i}`,
@@ -63,7 +77,7 @@ export const createMockResponse = (data: any, status = 200) => ({
   status,
   json: () => Promise.resolve(data),
   text: () => Promise.resolve(JSON.stringify(data)),
-  clone: () => ({ ...this }),
+  clone() { return { ...this } },
   headers: new Headers(),
 })
 
