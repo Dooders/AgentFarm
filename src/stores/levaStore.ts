@@ -120,8 +120,7 @@ const defaultState = {
       md: '16px',
       lg: '24px',
     }
-  },
-  pendingUpdates: [] as Array<{ path: string; value: any }>,
+  }
 }
 
 export const useLevaStore = create<LevaStore>((set, get) => ({
@@ -294,14 +293,16 @@ export const useLevaStore = create<LevaStore>((set, get) => ({
             console.error(`Failed to process update for ${path}:`, error)
           }
         })
+        // Clear pending updates after processing is complete
+        set({ pendingUpdates: [] })
+      }).catch(error => {
+        console.error('Failed to import config store:', error)
       })
 
-      return { pendingUpdates: [] }
+      return state
     })
   },
 
-  // State for pending updates
-  pendingUpdates: [] as Array<{ path: string; value: any }>,
 
   // Enhanced integration methods
   bindConfigValue: (path: string, value: any) => {
@@ -505,29 +506,6 @@ export const useLevaStore = create<LevaStore>((set, get) => ({
     } catch (error) {
       console.warn('Failed to clear persisted Leva settings:', error)
     }
-  },
-
-  // Process pending updates
-  processPendingUpdates: () => {
-    set(state => {
-      if (state.pendingUpdates.length === 0) return state
-
-      // Import config store dynamically only when needed
-      import('./configStore').then(({ useConfigStore }) => {
-        const configStore = useConfigStore.getState()
-        state.pendingUpdates.forEach(({ path, value }) => {
-          try {
-            configStore.updateConfig(path, value)
-          } catch (error) {
-            console.error(`Failed to process update for ${path}:`, error)
-          }
-        })
-      }).catch(error => {
-        console.error('Failed to import config store:', error)
-      })
-
-      return { pendingUpdates: [] }
-    })
   }
 }))
 

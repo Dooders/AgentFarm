@@ -5,9 +5,14 @@ import { Leva, useControls, folder } from 'leva'
 import styled from 'styled-components'
 import { SimulationConfig } from '@/types/config'
 
+// Define proper interface for config store
+interface ConfigStoreInterface {
+  updateConfig: (path: string, value: any) => void
+}
+
 // Utility function to safely update config
 const safeConfigUpdate = (
-  configStore: any,
+  configStore: ConfigStoreInterface,
   path: string,
   value: any,
   fallbackValue?: any

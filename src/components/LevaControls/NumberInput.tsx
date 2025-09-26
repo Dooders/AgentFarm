@@ -56,25 +56,42 @@ export const NumberInput: React.FC<NumberInputProps> = ({
   disabled = false
 }) => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const numValue = parseFloat(e.target.value)
+    const { value: inputValue } = e.target
+
+    // Allow empty input (user clearing the field)
+    if (inputValue === '') {
+      onChange('')
+      return
+    }
+
+    const numValue = parseFloat(inputValue)
+
+    // Allow intermediate values (e.g. '-', '.', '1.') for better UX
+    if (isNaN(numValue)) {
+      // Only allow valid intermediate characters
+      if (inputValue === '-' || inputValue === '.' || inputValue.endsWith('.')) {
+        onChange(inputValue)
+      }
+      return
+    }
 
     // Validate against min/max if provided
-    if (!isNaN(numValue)) {
-      if (min !== undefined && numValue < min) return
-      if (max !== undefined && numValue > max) return
-      onChange(numValue)
-    }
+    if (min !== undefined && numValue < min) return
+    if (max !== undefined && numValue > max) return
+    onChange(numValue)
   }
 
   const handleIncrement = () => {
     const currentValue = typeof value === 'number' ? value : 0
-    const newValue = Math.min(currentValue + step, max || Infinity)
+    const maxBoundary = max ?? Infinity
+    const newValue = Math.min(currentValue + step, maxBoundary)
     onChange(newValue)
   }
 
   const handleDecrement = () => {
     const currentValue = typeof value === 'number' ? value : 0
-    const newValue = Math.max(currentValue - step, min || -Infinity)
+    const minBoundary = min ?? -Infinity
+    const newValue = Math.max(currentValue - step, minBoundary)
     onChange(newValue)
   }
 

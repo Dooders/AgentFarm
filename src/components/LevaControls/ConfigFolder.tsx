@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { ConfigFolderProps } from '@/types/leva'
 import styled from 'styled-components'
 
@@ -58,10 +58,15 @@ export const ConfigFolder: React.FC<ConfigFolderProps> = ({
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(collapsed)
 
+  // Sync internal state with collapsed prop changes
+  useEffect(() => {
+    setIsCollapsed(collapsed)
+  }, [collapsed])
+
   const handleToggle = () => {
     const newCollapsed = !isCollapsed
     setIsCollapsed(newCollapsed)
-    onToggle?.()
+    onToggle?.(newCollapsed) // Pass the new collapsed state
   }
 
   return (
