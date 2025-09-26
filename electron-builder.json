@@ -150,10 +150,6 @@
       "height": 380
     }
   },
-  "publish": {
-    "provider": "generic",
-    "url": "https://releases.yourdomain.com/"
-  },
   "buildDependenciesFromSource": false,
   "nodeGypRebuild": false,
   "npmRebuild": false

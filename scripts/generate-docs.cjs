@@ -23,9 +23,9 @@ function generateDocumentation() {
       }
     }
 
-  // Write documentation to file
-  const docsPath = path.join(__dirname, '..', 'PROJECT_DOCS.json')
-  fs.writeFileSync(docsPath, JSON.stringify(docs, null, 2))
+    // Write documentation to file
+    const docsPath = path.join(__dirname, '..', 'PROJECT_DOCS.json')
+    fs.writeFileSync(docsPath, JSON.stringify(docs, null, 2))
 
   console.log('📚 Project documentation generated successfully!')
   console.log(`📄 Documentation saved to: ${docsPath}`)

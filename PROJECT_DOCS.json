@@ -40,7 +40,6 @@
     "clean:all": "rm -rf dist dist-electron node_modules/.vite node_modules",
     "install:clean": "rm -rf node_modules package-lock.json && npm install",
     "prebuild": "npm run clean && npm run typecheck",
-    "postinstall": "npm run build",
     "version": "npm run docs && git add .",
     "analyze": "npm run build:analyze && npx vite-bundle-analyzer dist/stats.html",
     "docker:build": "docker build -t live-simulation-config-explorer .",

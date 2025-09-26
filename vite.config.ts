@@ -63,7 +63,7 @@ export default defineConfig(({ command, mode }) => {
     define: {
       __ELECTRON__: isElectron,
       __DEV__: isDevelopment,
-      __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
+      __APP_VERSION__: JSON.stringify(process.env.npm_package_version || '0.1.0'),
       // Make environment variables available at runtime
       'process.env.VITE_APP_NAME': JSON.stringify(env.VITE_APP_NAME),
       'process.env.VITE_APP_VERSION': JSON.stringify(env.VITE_APP_VERSION),
