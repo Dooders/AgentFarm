@@ -227,21 +227,12 @@ export interface ConfigStoreContext {
 // Utility Types for Nested Configs and Manipulation
 // =====================================================
 
-// Type for extracting the type of a nested property from SimulationConfigType
-export type ConfigPathValue<T extends SimulationConfigType, K extends ConfigPath> =
-  K extends keyof T ? T[K] :
-  K extends `${infer Key1}.${infer Key2}` ?
-    Key1 extends keyof T ?
-      T[Key1] extends Record<string, any> ?
-        Key2 extends keyof T[Key1] ? T[Key1][Key2] :
-        T[Key1] extends AgentParameterType | ModuleParameterType ?
-          Key2 extends keyof T[Key1] ? T[Key1][Key2] : never : never
-      : never
-    : never
-  : never
-
-// Simplified type for nested config access
-export type NestedConfigValue = any
+// Note: ConfigPathValue was removed as it was not being used.
+// For nested config access, use the Zod-inferred types directly:
+// - SimulationConfigType for full config access
+// - AgentParameterType for agent parameters
+// - ModuleParameterType for module parameters
+// - VisualizationConfigType for visualization settings
 
 // Type for creating a new config type with optional properties at a specific path
 export type OptionalConfigPath = Partial<SimulationConfigType>

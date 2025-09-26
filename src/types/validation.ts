@@ -74,12 +74,6 @@ export interface FieldValidationOptions {
   customValidators?: Array<(value: unknown) => ValidationError | null>
 }
 
-// Validation context for cross-field validation
-export interface ValidationContext {
-  config: Record<string, unknown>
-  errors: ValidationError[]
-  warnings: ValidationError[]
-}
 
 // =====================================================
 // Store Action Types for Validation
@@ -248,11 +242,16 @@ export interface ValidationMetrics {
   validationQueueLength: number
 }
 
-// Validation middleware types
-export type ValidationMiddleware = (
-  config: any,
-  enhancer: any
-) => (next: any) => (action: any) => any
+// Validation middleware types - generic middleware for validation operations
+export type ValidationMiddleware<T = any> = (
+  config: T,
+  enhancer: (next: (action: any) => any) => (action: any) => any
+) => (next: (action: any) => any) => (action: any) => any
+
+// Specific middleware types for different validation contexts
+export type ValidationStoreMiddleware = ValidationMiddleware<ValidationStore>
+export type ValidationStateMiddleware = ValidationMiddleware<ValidationState>
+export type ValidationActionsMiddleware = ValidationMiddleware<ValidationActions>
 
 // Validation context for cross-field validation
 export interface ValidationContext {
