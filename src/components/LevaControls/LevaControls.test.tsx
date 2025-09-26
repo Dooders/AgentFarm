@@ -1,20 +1,23 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, cleanup, fireEvent } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { LevaControls } from './LevaControls'
 import { NumberInput } from './NumberInput'
 import { BooleanInput } from './BooleanInput'
 import { StringInput } from './StringInput'
 import { ConfigFolder } from './ConfigFolder'
-import { useLevaStore } from '@/stores/levaStore'
-import { useConfigStore } from '@/stores/configStore'
-import type { NumberInputProps, BooleanInputProps, StringInputProps, ConfigFolderProps } from '@/types/leva'
+import { PercentageInput } from './PercentageInput'
+import { ControlGroup } from './ControlGroup'
+import { MetadataProvider, useMetadata } from './MetadataSystem'
+import { Vector2Input } from './Vector2Input'
+import { ColorInput } from './ColorInput'
+import { FilePathInput } from './FilePathInput'
 
 // Test path mapping utility function
 describe('Path Mapping Utility', () => {
   it('converts Environment folder paths to config paths', () => {
     const convertLevaPathToConfigPath = (levaPath: string): string => {
       // Import the actual PATH_MAPPING from the component
-      const PATH_MAPPING = {
+      const PATH_MAPPING: Record<string, string> = {
         'Environment/World Settings.width': 'width',
         'Environment/World Settings.height': 'height',
         'Environment/Population.system_agents': 'system_agents',
@@ -49,7 +52,7 @@ describe('Path Mapping Utility', () => {
   })
 
   it('converts Agent Behavior folder paths to config paths', () => {
-    const PATH_MAPPING = {
+    const PATH_MAPPING: Record<string, string> = {
       'Agent Behavior/Movement Parameters.move_target_update_freq': 'move_parameters.target_update_freq'
     }
 
@@ -77,11 +80,17 @@ describe('Path Mapping Utility', () => {
   })
 
   it('converts Learning & AI folder paths to config paths', () => {
-    const PATH_MAPPING = {
+    const PATH_MAPPING: Record<string, string> = {
       'Learning & AI/General Learning.learning_rate': 'learning_rate'
     }
 
-    const { MODULE_NAME_MAPPING } = require('@/constants/moduleMapping')
+    // Mock MODULE_NAME_MAPPING for testing
+    const MODULE_NAME_MAPPING: Record<string, string> = {
+      'Movement': 'move_parameters',
+      'Combat': 'attack_parameters',
+      'Gathering': 'gather_parameters',
+      'Sharing': 'share_parameters'
+    }
 
     const convertLevaPathToConfigPath = (levaPath: string): string => {
       if (PATH_MAPPING[levaPath]) {
@@ -120,7 +129,7 @@ describe('Path Mapping Utility', () => {
   })
 
   it('converts Visualization folder paths to config paths', () => {
-    const PATH_MAPPING = {
+    const PATH_MAPPING: Record<string, string> = {
       'Visualization/Display Settings.canvas_width': 'visualization.canvas_width'
     }
 
@@ -171,7 +180,13 @@ describe('Path Mapping Utility', () => {
   })
 
   it('correctly maps module names using MODULE_NAME_MAPPING', () => {
-    const { MODULE_NAME_MAPPING } = require('@/constants/moduleMapping')
+    // Mock MODULE_NAME_MAPPING for testing
+    const MODULE_NAME_MAPPING: Record<string, string> = {
+      'Movement': 'move_parameters',
+      'Combat': 'attack_parameters',
+      'Gathering': 'gather_parameters',
+      'Sharing': 'share_parameters'
+    }
 
     const convertLevaPathToConfigPath = (levaPath: string): string => {
       const pathParts = levaPath.split('.')
@@ -518,8 +533,6 @@ describe('Leva Control Components', () => {
       render(<LevaControls />)
 
       // Test that the path mapping converts hierarchical paths to config paths
-      const levaStore = useLevaStore.getState()
-      const configStore = useConfigStore.getState()
 
       // These paths should be mapped correctly in the implementation
       const testPaths = [
@@ -758,36 +771,6 @@ const mockConfigStore = {
   subscribe: vi.fn(() => vi.fn()) // Return unsubscribe function
 }
 
-// Create a proper Zustand store mock
-const createMockConfigStore = (initialConfig = mockConfigStore.config) => {
-  let currentConfig = { ...initialConfig }
-  let subscribers: Array<(state: any) => void> = []
-
-  return {
-    ...mockConfigStore,
-    config: currentConfig,
-    updateConfig: vi.fn((path: string, value: any) => {
-      // Simple path-based update for testing
-      const keys = path.split('.')
-      let target = currentConfig as any
-      for (let i = 0; i < keys.length - 1; i++) {
-        if (!target[keys[i]]) target[keys[i]] = {}
-        target = target[keys[i]]
-      }
-      target[keys[keys.length - 1]] = value
-      currentConfig = { ...currentConfig }
-
-      // Notify subscribers
-      subscribers.forEach(callback => callback({ config: currentConfig }))
-    }),
-    subscribe: vi.fn((callback: (state: any) => void) => {
-      subscribers.push(callback)
-      return () => {
-        subscribers = subscribers.filter(sub => sub !== callback)
-      }
-    })
-  }
-}
 
 vi.mock('@/stores/levaStore', () => ({
   useLevaStore: vi.fn(() => mockLevaStore)
@@ -1259,7 +1242,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('handles decimal input correctly', () => {
-      const { PercentageInput } = require('./PercentageInput')
       const mockOnChange = vi.fn()
 
       render(
@@ -1283,7 +1265,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('handles slider interaction', () => {
-      const { PercentageInput } = require('./PercentageInput')
       const mockOnChange = vi.fn()
 
       render(
@@ -1307,7 +1288,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('formats percentage display correctly', () => {
-      const { PercentageInput } = require('./PercentageInput')
       const mockOnChange = vi.fn()
 
       render(
@@ -1330,7 +1310,6 @@ describe('Enhanced Custom Controls', () => {
 
   describe('ControlGroup', () => {
     it('renders with group configuration', () => {
-      const { ControlGroup } = require('./ControlGroup')
       const mockOnToggle = vi.fn()
 
       render(
@@ -1356,7 +1335,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('toggles collapsed state', () => {
-      const { ControlGroup } = require('./ControlGroup')
       const mockOnToggle = vi.fn()
 
       render(
@@ -1386,7 +1364,6 @@ describe('Enhanced Custom Controls', () => {
 
   describe('MetadataProvider', () => {
     it('provides metadata context', () => {
-      const { MetadataProvider, useMetadata } = require('./MetadataSystem')
 
       const TestComponent = () => {
         const metadata = useMetadata()
@@ -1407,7 +1384,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('handles empty metadata gracefully', () => {
-      const { MetadataProvider, useMetadata } = require('./MetadataSystem')
 
       const TestComponent = () => {
         const metadata = useMetadata()
@@ -1428,7 +1404,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('validates controls using metadata context', () => {
-      const { MetadataProvider, useMetadata } = require('./MetadataSystem')
 
       const TestComponent = () => {
         const { validateControl } = useMetadata()
@@ -1463,7 +1438,6 @@ describe('Enhanced Custom Controls', () => {
 
   describe('Accessibility Tests', () => {
     it('provides proper ARIA labels for Vector2Input', () => {
-      const { Vector2Input } = require('./Vector2Input')
       const mockOnChange = vi.fn()
 
       render(
@@ -1484,7 +1458,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('provides proper ARIA labels for ColorInput', () => {
-      const { ColorInput } = require('./ColorInput')
       const mockOnChange = vi.fn()
 
       render(
@@ -1505,7 +1478,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('provides proper ARIA labels for FilePathInput', () => {
-      const { FilePathInput } = require('./FilePathInput')
       const mockOnChange = vi.fn()
 
       render(
@@ -1526,7 +1498,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('provides proper ARIA labels for PercentageInput', () => {
-      const { PercentageInput } = require('./PercentageInput')
       const mockOnChange = vi.fn()
 
       render(
@@ -1545,7 +1516,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('provides proper ARIA labels for ControlGroup', () => {
-      const { ControlGroup } = require('./ControlGroup')
 
       render(
         <ControlGroup
@@ -1569,7 +1539,6 @@ describe('Enhanced Custom Controls', () => {
 
   describe('Error Handling', () => {
     it('handles Vector2Input validation errors', () => {
-      const { Vector2Input } = require('./Vector2Input')
       const mockOnChange = vi.fn()
 
       render(
@@ -1588,7 +1557,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('handles ColorInput format errors', () => {
-      const { ColorInput } = require('./ColorInput')
       const mockOnChange = vi.fn()
 
       render(
@@ -1605,7 +1573,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('handles FilePathInput path errors', () => {
-      const { FilePathInput } = require('./FilePathInput')
       const mockOnChange = vi.fn()
 
       render(
@@ -1622,7 +1589,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('handles PercentageInput range errors', () => {
-      const { PercentageInput } = require('./PercentageInput')
       const mockOnChange = vi.fn()
 
       render(
@@ -1639,7 +1605,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('handles ControlGroup render errors gracefully', () => {
-      const { ControlGroup } = require('./ControlGroup')
 
       // Test with minimal required props
       render(

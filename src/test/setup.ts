@@ -61,3 +61,43 @@ globalThis.WebSocket = vi.fn().mockImplementation(() => ({
   CLOSING: 2,
   CLOSED: 3,
 })) as any
+
+// Mock AccessibilityProvider for testing
+vi.mock('@/components/UI/AccessibilityProvider', () => ({
+  AccessibilityProvider: ({ children }: { children: React.ReactNode }) => children,
+  useAccessibility: () => ({
+    announce: vi.fn(),
+    announceToScreenReader: vi.fn(),
+    setFocus: vi.fn(),
+    getFocus: vi.fn(),
+    isKeyboardNavigation: false,
+    isScreenReader: false,
+    isHighContrast: false,
+    isReducedMotion: false,
+    setKeyboardNavigation: vi.fn(),
+    setScreenReader: vi.fn(),
+    setHighContrast: vi.fn(),
+    setReducedMotion: vi.fn(),
+  }),
+}))
+
+// Mock IPC service for testing
+vi.mock('@/services/ipcService', () => ({
+  ipcService: {
+    getConnectionStatus: vi.fn(() => 'connected'),
+    initializeConnection: vi.fn(() => Promise.resolve()),
+    loadConfig: vi.fn(() => Promise.resolve({ success: true, config: {} })),
+    saveConfig: vi.fn(() => Promise.resolve({ success: true })),
+    executeRequest: vi.fn(() => Promise.resolve({ success: true })),
+  },
+}))
+
+// Mock window.electronAPI for testing
+Object.defineProperty(window, 'electronAPI', {
+  value: {
+    invoke: vi.fn(() => Promise.resolve({ success: true })),
+    on: vi.fn(),
+    removeAllListeners: vi.fn(),
+  },
+  writable: true,
+})
