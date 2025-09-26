@@ -7,6 +7,20 @@ import styled from 'styled-components'
 import { useValidationStore } from '@/stores/validationStore'
 import { validationService } from '@/services/validationService'
 
+// Import enhanced custom controls (Issue #14)
+import {
+  LevaFolder,
+  createSectionFolder,
+  Vector2Input,
+  ColorInput,
+  FilePathInput,
+  PercentageInput,
+  MetadataProvider,
+  ControlGroup,
+  createControlGroup,
+  MetadataTemplates
+} from './index'
+
 // Static path mapping - moved outside component to avoid unnecessary recreation
 const PATH_MAPPING: Record<string, string> = {
   // Environment folder mappings
@@ -1001,6 +1015,171 @@ export const LevaControls: React.FC = () => {
 
   const metricsControls = useControls('Visualization/Metrics Display', metricsConfig, { onChange: handleLevaUpdate })
 
+  // ========================================
+  // ENHANCED CUSTOM CONTROLS DEMONSTRATION (Issue #14)
+  // ========================================
+
+  // Example metadata for enhanced controls
+  const enhancedControlsMetadata = useMemo(() => ({
+    'enhanced_position': MetadataTemplates.coordinates(),
+    'enhanced_background': MetadataTemplates.color(true), // Greyscale only
+    'enhanced_config_file': MetadataTemplates.filePath(['json', 'yaml', 'yml']),
+    'enhanced_learning_rate': MetadataTemplates.percentage(),
+    'enhanced_memory_size': MetadataTemplates.number(1000, 100000)
+  }), [])
+
+  // Example control groups
+  const enhancedGroups = useMemo(() => ({
+    display_settings: createControlGroup(
+      'display_settings',
+      'Display Configuration',
+      ['enhanced_position', 'enhanced_background'],
+      {
+        description: 'Visual display and rendering settings',
+        icon: '👁️',
+        color: '#4a9eff'
+      }
+    ),
+    performance_settings: createControlGroup(
+      'performance_settings',
+      'Performance Tuning',
+      ['enhanced_learning_rate', 'enhanced_memory_size'],
+      {
+        description: 'AI learning and memory configuration',
+        icon: '⚡',
+        color: '#ff6b4a'
+      }
+    )
+  }), [])
+
+  // Enhanced custom controls configuration
+  const enhancedControlsConfig = useMemo(() => {
+    const config = configStore?.config
+    if (!config || !validateControlConfig(config)) {
+      return {
+        // Position settings with Vector2Input
+        enhanced_position: {
+          value: { x: 100, y: 100 },
+          min: 0,
+          max: 1000,
+          step: 1,
+          showLabels: true,
+          label: 'Display Position',
+          help: 'X, Y coordinates for display positioning'
+        },
+        // Color settings with ColorInput (greyscale mode)
+        enhanced_background: {
+          value: '#1a1a1a',
+          format: 'hex',
+          greyscaleOnly: true,
+          showPreview: true,
+          label: 'Background Color',
+          help: 'Background color (greyscale only)'
+        },
+        // File path with FilePathInput
+        enhanced_config_file: {
+          value: null,
+          mode: 'file',
+          filters: ['json', 'yaml'],
+          allowRelative: true,
+          label: 'Configuration File',
+          help: 'Path to configuration file (JSON or YAML)'
+        },
+        // Percentage with PercentageInput
+        enhanced_learning_rate: {
+          value: 0.001,
+          min: 0.0001,
+          max: 0.1,
+          step: 0.0001,
+          asPercentage: false,
+          showProgress: true,
+          label: 'Learning Rate',
+          help: 'Neural network learning rate (0-1 range)'
+        },
+        // Numeric input with metadata
+        enhanced_memory_size: {
+          value: 10000,
+          min: 1000,
+          max: 100000,
+          step: 100,
+          label: 'Memory Size',
+          help: 'Memory buffer size for experience replay'
+        }
+      }
+    }
+
+    return {
+      enhanced_position: {
+        value: { x: config.width || 100, y: config.height || 100 },
+        min: 0,
+        max: 1000,
+        step: 1,
+        showLabels: true,
+        label: 'Display Position',
+        help: 'X, Y coordinates for display positioning'
+      },
+      enhanced_background: {
+        value: config.visualization?.background_color || '#1a1a1a',
+        format: 'hex',
+        greyscaleOnly: true,
+        showPreview: true,
+        label: 'Background Color',
+        help: 'Background color (greyscale only)'
+      },
+      enhanced_config_file: {
+        value: null, // Would typically come from config
+        mode: 'file',
+        filters: ['json', 'yaml'],
+        allowRelative: true,
+        label: 'Configuration File',
+        help: 'Path to configuration file (JSON or YAML)'
+      },
+      enhanced_learning_rate: {
+        value: config.learning_rate || 0.001,
+        min: 0.0001,
+        max: 0.1,
+        step: 0.0001,
+        asPercentage: false,
+        showProgress: true,
+        label: 'Learning Rate',
+        help: 'Neural network learning rate (0-1 range)'
+      },
+      enhanced_memory_size: {
+        value: config.move_parameters?.memory_size || 10000,
+        min: 1000,
+        max: 100000,
+        step: 100,
+        label: 'Memory Size',
+        help: 'Memory buffer size for experience replay'
+      }
+    }
+  }, [configStore?.config])
+
+  // Custom controls using enhanced components
+  const handleEnhancedUpdate = useCallback((path: string, value: any) => {
+    console.log('Enhanced control update:', path, value)
+
+    // Convert enhanced control paths to config paths
+    const configPathMap: Record<string, string> = {
+      'enhanced_position': 'visualization.position',
+      'enhanced_background': 'visualization.background_color',
+      'enhanced_config_file': 'config_file_path',
+      'enhanced_learning_rate': 'learning_rate',
+      'enhanced_memory_size': 'move_parameters.memory_size'
+    }
+
+    const configPath = configPathMap[path] || path
+    const success = safeConfigUpdate(configStore, configPath, value)
+
+    if (success) {
+      console.log(`Successfully updated enhanced config at path: ${configPath}`)
+    } else {
+      console.warn(`Failed to update enhanced config at path: ${configPath}`)
+    }
+  }, [configStore])
+
+  const enhancedControls = useControls('Enhanced Controls', enhancedControlsConfig, { onChange: handleEnhancedUpdate })
+
   // Get current theme from Leva store
   const currentTheme = levaStore.getCurrentTheme()
 
@@ -1011,6 +1190,116 @@ export const LevaControls: React.FC = () => {
         hidden={!levaStore.isVisible}
         theme={currentTheme}
       />
+
+      {/* Enhanced Controls Demo Panel */}
+      <MetadataProvider
+        initialMetadata={enhancedControlsMetadata}
+        initialGroups={enhancedGroups}
+      >
+        <div style={{
+          position: 'fixed',
+          top: '10px',
+          right: levaStore.isVisible ? '350px' : '10px',
+          width: '320px',
+          maxHeight: '80vh',
+          overflow: 'auto',
+          background: 'var(--leva-colors-elevation1, #1a1a1a)',
+          borderRadius: 'var(--leva-radii-md, 8px)',
+          border: '1px solid var(--leva-colors-elevation2, #2a2a2a)',
+          zIndex: 1000,
+          transition: 'right 0.3s ease'
+        }}>
+          <div style={{ padding: '16px' }}>
+            <h3 style={{
+              margin: '0 0 16px 0',
+              color: 'var(--leva-colors-highlight1, #ffffff)',
+              fontFamily: 'var(--leva-fonts-sans, Albertus)',
+              fontSize: '14px'
+            }}>
+              🎛️ Enhanced Controls Demo
+            </h3>
+
+            <ControlGroup
+              group={{
+                id: 'demo_display',
+                label: 'Display Settings',
+                description: 'Enhanced visual configuration controls',
+                icon: '👁️',
+                controls: ['enhanced_position', 'enhanced_background'],
+                color: '#4a9eff'
+              }}
+            >
+              <Vector2Input
+                path="enhanced_position"
+                label="Display Position"
+                value={enhancedControls.enhanced_position || { x: 100, y: 100 }}
+                onChange={(value) => handleEnhancedUpdate('enhanced_position', value)}
+                min={0}
+                max={1000}
+                showLabels={true}
+                help="X, Y coordinates for display positioning"
+              />
+
+              <ColorInput
+                path="enhanced_background"
+                label="Background Color"
+                value={enhancedControls.enhanced_background || '#1a1a1a'}
+                onChange={(value) => handleEnhancedUpdate('enhanced_background', value)}
+                greyscaleOnly={true}
+                showPreview={true}
+                help="Background color (greyscale only)"
+              />
+            </ControlGroup>
+
+            <ControlGroup
+              group={{
+                id: 'demo_performance',
+                label: 'Performance Settings',
+                description: 'AI and performance tuning parameters',
+                icon: '⚡',
+                controls: ['enhanced_learning_rate', 'enhanced_memory_size'],
+                color: '#ff6b4a'
+              }}
+            >
+              <PercentageInput
+                path="enhanced_learning_rate"
+                label="Learning Rate"
+                value={enhancedControls.enhanced_learning_rate || 0.001}
+                onChange={(value) => handleEnhancedUpdate('enhanced_learning_rate', value)}
+                min={0.0001}
+                max={0.1}
+                asPercentage={false}
+                showProgress={true}
+                help="Neural network learning rate (0-1 range)"
+              />
+
+              <PercentageInput
+                path="enhanced_memory_size"
+                label="Memory Size"
+                value={(enhancedControls.enhanced_memory_size || 10000) / 100000}
+                onChange={(value) => handleEnhancedUpdate('enhanced_memory_size', value * 100000)}
+                min={1000 / 100000}
+                max={100000 / 100000}
+                asPercentage={true}
+                showProgress={true}
+                help="Memory buffer size for experience replay"
+              />
+            </ControlGroup>
+
+            <FilePathInput
+              path="enhanced_config_file"
+              label="Configuration File"
+              value={enhancedControls.enhanced_config_file}
+              onChange={(value) => handleEnhancedUpdate('enhanced_config_file', value)}
+              mode="file"
+              filters={['json', 'yaml']}
+              showBrowser={true}
+              allowRelative={true}
+              help="Path to configuration file (JSON or YAML)"
+            />
+          </div>
+        </div>
+      </MetadataProvider>
     </LevaWrapper>
   )
 }
