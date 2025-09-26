@@ -1,12 +1,8 @@
 {
   "appId": "com.live-simulation-config-explorer.app",
   "productName": "Live Simulation Config Explorer",
-  "copyright": "Copyright © 2024 Live Simulation Config Explorer",
-  "description": "A modern React-based configuration explorer for simulation systems",
-  "version": "0.1.0",
   "directories": {
-    "output": "dist-electron",
-    "buildResources": "build"
+    "output": "dist-electron"
   },
   "files": [
     "dist",
@@ -14,12 +10,7 @@
     "electron/preload.js",
     "electron/ipcHandlers.js",
     "node_modules",
-    "package.json",
-    "!**/.gitkeep"
-  ],
-  "extraFiles": [
-    "config.yaml",
-    "README.md"
+    "package.json"
   ],
   "mac": {
     "category": "public.app-category.developer-tools",

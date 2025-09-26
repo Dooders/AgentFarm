@@ -2,6 +2,7 @@
   "name": "live-simulation-config-explorer",
   "version": "0.1.0",
   "description": "A modern React-based configuration explorer for simulation systems",
+  "main": "electron/main.js",
   "type": "module",
   "scripts": {
     "dev": "vite",
