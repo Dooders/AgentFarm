@@ -207,7 +207,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       })
 
       // Trigger validation
-      get().validateConfig()
+      await get().validateConfig()
     } catch (error) {
       console.error('Failed to load config:', error)
       throw error
@@ -402,7 +402,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   },
 
   // Undo/redo functionality
-  undo: () => {
+  undo: async () => {
     const { history, historyIndex } = get()
     if (historyIndex > 0) {
       const previousConfig = history[historyIndex - 1]
@@ -413,11 +413,11 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       })
 
       // Trigger validation
-      get().validateConfig()
+      await get().validateConfig()
     }
   },
 
-  redo: () => {
+  redo: async () => {
     const { history, historyIndex } = get()
     if (historyIndex < history.length - 1) {
       const nextConfig = history[historyIndex + 1]
@@ -428,7 +428,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       })
 
       // Trigger validation
-      get().validateConfig()
+      await get().validateConfig()
     }
   },
 
@@ -479,7 +479,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       })
 
       // Trigger validation
-      get().validateConfig()
+      await get().validateConfig()
 
       return { success: true }
     } catch (error) {

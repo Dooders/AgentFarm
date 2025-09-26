@@ -115,7 +115,7 @@ export class IPCServiceImpl implements IPCService {
       return response.payload
     } catch (error) {
       this.performanceMetrics.errorRate = this.performanceMetrics.totalRequests > 0
-        ? this.performanceMetrics.totalResponses / this.performanceMetrics.totalRequests
+        ? (this.performanceMetrics.totalRequests - this.performanceMetrics.totalResponses) / this.performanceMetrics.totalRequests
         : 0
 
       throw this.createIPCError('REQUEST_FAILED', error)
@@ -123,7 +123,7 @@ export class IPCServiceImpl implements IPCService {
   }
 
   private generateRequestId(): string {
-    return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    return `req_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
   }
 
   // =====================================================

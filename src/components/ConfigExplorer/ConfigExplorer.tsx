@@ -14,12 +14,19 @@ export const ConfigExplorer: React.FC = () => {
         if (typeof window !== 'undefined' && window.electronAPI) {
           console.log('Initializing IPC service...')
 
-          // Wait for IPC service to initialize
-          await new Promise<void>((resolve) => {
+          // Wait for IPC service to initialize with timeout
+          await new Promise<void>((resolve, reject) => {
+            const maxAttempts = 50 // 5 seconds timeout
+            let attempts = 0
+
             const checkConnection = () => {
+              attempts++
               const status = ipcService.getConnectionStatus()
+
               if (status === 'connected') {
                 resolve()
+              } else if (attempts >= maxAttempts) {
+                reject(new Error('IPC service connection timeout'))
               } else {
                 setTimeout(checkConnection, 100)
               }

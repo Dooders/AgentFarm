@@ -192,10 +192,10 @@ ipcMain.handle('config:validate', async (event, request) => {
       errors.push('Configuration must be a valid object')
     }
 
-    // Check for required fields
-    const requiredFields = ['environment', 'agents', 'simulation']
+    // Check for required fields based on actual config structure
+    const requiredFields = ['width', 'height', 'system_agents', 'independent_agents', 'control_agents']
     for (const field of requiredFields) {
-      if (!request.config[field]) {
+      if (request.config[field] === undefined || request.config[field] === null) {
         errors.push(`Missing required field: ${field}`)
       }
     }
@@ -340,7 +340,7 @@ ipcMain.handle('config:template:list', async (event, request) => {
 
     if (includeUser) {
       const userTemplates = store.get('templates.user', {})
-      Object.entries(userTemplates).forEach(([name, template]: [string, any]) => {
+      Object.entries(userTemplates).forEach(([name, template]) => {
         templates.push({
           name,
           description: template.description || '',
@@ -349,7 +349,7 @@ ipcMain.handle('config:template:list', async (event, request) => {
           version: template.version || '1.0.0',
           lastModified: template.lastModified || Date.now(),
           size: JSON.stringify(template.config).length,
-          type: 'user' as const
+          type: 'user'
         })
       })
       categoryCount.user = Object.keys(userTemplates).length
@@ -357,7 +357,7 @@ ipcMain.handle('config:template:list', async (event, request) => {
 
     if (includeSystem) {
       const systemTemplates = store.get('templates.system', {})
-      Object.entries(systemTemplates).forEach(([name, template]: [string, any]) => {
+      Object.entries(systemTemplates).forEach(([name, template]) => {
         templates.push({
           name,
           description: template.description || '',
@@ -366,7 +366,7 @@ ipcMain.handle('config:template:list', async (event, request) => {
           version: template.version || '1.0.0',
           lastModified: template.lastModified || Date.now(),
           size: JSON.stringify(template.config).length,
-          type: 'system' as const
+          type: 'system'
         })
       })
       categoryCount.system = Object.keys(systemTemplates).length
@@ -691,6 +691,11 @@ ipcMain.handle('fs:directory:delete', async (event, request) => {
 // =====================================================
 // Application Operations
 // =====================================================
+
+// App ping handler for connection testing
+ipcMain.handle('app:ping', async (event, request) => {
+  return { success: true, timestamp: Date.now(), ...request }
+})
 
 // Settings get handler
 ipcMain.handle('app:settings:get', async (event, request) => {
