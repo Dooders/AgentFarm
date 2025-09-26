@@ -18,11 +18,12 @@ const BooleanInputLabel = styled.label`
   align-items: center;
   gap: 8px;
   cursor: pointer;
+  min-height: 28px;
 `
 
 const BooleanInputField = styled.input`
-  width: 16px;
-  height: 16px;
+  width: 28px;
+  height: 28px;
   background: var(--leva-colors-elevation2);
   border: 2px solid var(--leva-colors-accent1);
   border-radius: var(--leva-radii-sm);
@@ -42,7 +43,7 @@ const BooleanInputField = styled.input`
     left: 50%;
     transform: translate(-50%, -50%);
     color: var(--leva-colors-elevation1);
-    font-size: 12px;
+    font-size: 16px;
     font-weight: bold;
   }
 

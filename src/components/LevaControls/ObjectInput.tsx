@@ -63,6 +63,12 @@ const Pre = styled.pre`
   font-size: 11px;
   max-height: 220px;
   overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  /* Simple inline syntax highlight tones (greyscale accent) */
+  .k { color: var(--leva-colors-accent3); } /* keys */
+  .s { color: var(--leva-colors-highlight2); } /* strings */
+  .n { color: var(--leva-colors-accent2); } /* numbers */
 `
 
 const ErrorText = styled.div`
@@ -90,7 +96,16 @@ export const ObjectInput: React.FC<ConfigInputProps> = ({
 
   const pretty = useMemo(() => {
     try {
-      return JSON.stringify(value ?? {}, null, 2)
+      const json = JSON.stringify(value ?? {}, null, 2) || '{}'
+      // Lightweight syntax highlighting: wrap tokens in spans with classes
+      const highlighted = json
+        // Keys: "key":
+        .replace(/(\"[^\"]+\"):\s/g, (m) => `<span class="k">${m.replace(':', '')}</span>:`)
+        // Strings (values)
+        .replace(/:\s(\"[^\"]*\")/g, (_m, g1) => `: <span class="s">${g1}</span>`)
+        // Numbers
+        .replace(/:\s(-?\d+(?:\.\d+)?)/g, (_m, g1) => `: <span class="n">${g1}</span>`)
+      return highlighted
     } catch {
       return '{}'
     }
@@ -116,9 +131,7 @@ export const ObjectInput: React.FC<ConfigInputProps> = ({
         </ToggleButton>
       </Header>
       {collapsed ? (
-        <Pre>
-          {pretty}
-        </Pre>
+        <Pre dangerouslySetInnerHTML={{ __html: pretty }} />
       ) : (
         <Editor
           value={text}
