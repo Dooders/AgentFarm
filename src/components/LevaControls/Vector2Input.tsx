@@ -210,16 +210,58 @@ const NumberInput: React.FC<{
 }
 
 /**
- * Vector2Input component for coordinate pairs (x, y)
+ * Vector2Input component for coordinate pair inputs (x, y)
+ *
+ * A specialized input component for handling two-dimensional coordinate values.
+ * Provides two synchronized numeric inputs for X and Y coordinates with comprehensive
+ * validation, formatting, and visual feedback.
+ *
+ * @component
+ * @example
+ * ```tsx
+ * <Vector2Input
+ *   path="display.position"
+ *   label="Display Position"
+ *   value={{ x: 100, y: 200 }}
+ *   onChange={(value) => console.log('Position:', value)}
+ *   min={0}
+ *   max={1000}
+ *   step={1}
+ *   showLabels={true}
+ *   precision={0}
+ *   help="X, Y coordinates for display positioning"
+ * />
+ * ```
  *
  * Features:
- * - Two numeric inputs for x and y coordinates
- * - Optional labels for coordinates
- * - Min/max/step validation
- * - Precision control
- * - Negative value control
- * - Compact layout option
- * - Consistent theming
+ * - Two numeric inputs for x and y coordinates with proper validation
+ * - Min/max/step constraints and precision control for both coordinates
+ * - Optional coordinate labels (X/Y) for better user guidance
+ * - Negative value control with configurable allowance
+ * - Compact layout option for space-constrained interfaces
+ * - Real-time value synchronization between inputs
+ * - Consistent theming with greyscale professional design
+ * - Error handling and validation feedback
+ *
+ * @param props - The component props
+ * @param props.path - Unique identifier for the input
+ * @param props.label - Display label for the coordinate pair
+ * @param props.value - Current coordinate values as object or array
+ * @param props.onChange - Callback when coordinate values change
+ * @param props.min - Minimum allowed value for both x and y (optional)
+ * @param props.max - Maximum allowed value for both x and y (optional)
+ * @param props.step - Step size for increments (default: 1)
+ * @param props.showLabels - Show X/Y labels (default: true)
+ * @param props.allowNegative - Allow negative coordinate values (default: true)
+ * @param props.precision - Decimal places to display (default: 2)
+ * @param props.compact - Use compact layout (default: false)
+ * @param props.disabled - Disable input interaction (default: false)
+ * @param props.error - Error message to display (optional)
+ * @param props.help - Help text or description (optional)
+ * @param props.metadata - Additional metadata for the input (optional)
+ * @param props.className - Additional CSS class (optional)
+ *
+ * @returns React component that renders coordinate input controls
  */
 export const Vector2Input: React.FC<Vector2Props> = ({
   path,

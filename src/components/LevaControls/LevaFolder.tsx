@@ -77,12 +77,42 @@ export interface EnhancedFolderSettings extends FolderSettings {
 /**
  * Enhanced Leva Folder wrapper component with custom styling and metadata support
  *
+ * This component provides an enhanced folder wrapper that extends Leva's built-in folder
+ * functionality with custom styling, icons, descriptions, and better visual integration
+ * with the professional greyscale theme.
+ *
+ * @component
+ * @example
+ * ```tsx
+ * <LevaFolder
+ *   label="Display Settings"
+ *   icon="👁️"
+ *   description="Visual display configuration controls"
+ *   collapsed={false}
+ * >
+ *   <Vector2Input label="Position" value={{x: 100, y: 200}} onChange={handleChange} />
+ *   <ColorInput label="Background" value="#1a1a1a" onChange={handleChange} />
+ * </LevaFolder>
+ * ```
+ *
  * Features:
- * - Custom greyscale theme integration
- * - Icon support for different section types
- * - Tooltip descriptions
- * - Collapsible/expandable functionality
- * - Enhanced visual styling
+ * - Custom greyscale theme integration with CSS custom properties
+ * - Icon support for different section types using emojis or text
+ * - Tooltip descriptions for better user guidance
+ * - Collapsible/expandable functionality with smooth animations
+ * - Enhanced visual styling with hover effects and proper spacing
+ * - Consistent 28px height following design specifications
+ *
+ * @param props - The component props
+ * @param props.label - Display name for the folder
+ * @param props.collapsed - Initial collapsed state (default: false)
+ * @param props.icon - Custom icon or emoji for the folder (default: collapse/expand arrows)
+ * @param props.description - Folder description for tooltips
+ * @param props.children - Child components to render inside the folder
+ * @param props.onToggle - Callback when folder is toggled
+ * @param props.className - Additional CSS class for styling
+ *
+ * @returns React component that renders an enhanced Leva folder
  */
 export const LevaFolder: React.FC<LevaFolderProps> = ({
   label,

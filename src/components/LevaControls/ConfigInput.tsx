@@ -209,13 +209,54 @@ const HelpText: React.FC<{ help: string; metadata?: InputMetadata }> = ({ help, 
 /**
  * Base ConfigInput component that provides a unified interface for all input types
  *
+ * This foundational component establishes the standard interface and behavior for all
+ * enhanced custom controls. It provides consistent styling, error handling, metadata
+ * integration, and accessibility features that all specialized controls inherit.
+ *
+ * @component
+ * @example
+ * ```tsx
+ * <ConfigInput
+ *   path="test.control"
+ *   label="Test Control"
+ *   value={42}
+ *   onChange={handleChange}
+ *   metadata={{
+ *     category: 'parameters',
+ *     tooltip: 'Test control description',
+ *     validationRules: [ValidationRules.range(0, 100)]
+ *   }}
+ * />
+ * ```
+ *
  * Features:
- * - Consistent styling and theming
- * - Error handling and display
- * - Help text and tooltips
- * - Metadata support
- * - Validation integration
- * - Accessibility features
+ * - Consistent styling and theming across all derived controls
+ * - Comprehensive error handling and display system
+ * - Help text and tooltips with metadata integration
+ * - Validation rule system with real-time feedback
+ * - Accessibility features with ARIA compliance
+ * - Extensible architecture for custom input types
+ * - TypeScript support with comprehensive type definitions
+ *
+ * @param props - The component props
+ * @param props.path - Unique identifier for the input
+ * @param props.label - Display label for the input
+ * @param props.value - Current input value
+ * @param props.onChange - Callback when value changes
+ * @param props.disabled - Whether the input is disabled (optional)
+ * @param props.error - Error message(s) to display (optional)
+ * @param props.help - Help text or description (optional)
+ * @param props.unit - Unit or suffix to display (optional)
+ * @param props.min - Minimum allowed value (for numeric inputs)
+ * @param props.max - Maximum allowed value (for numeric inputs)
+ * @param props.step - Step size for numeric inputs (optional)
+ * @param props.placeholder - Placeholder text (optional)
+ * @param props.options - Options for select inputs (optional)
+ * @param props.required - Whether the input is required (optional)
+ * @param props.metadata - Additional metadata for the input (optional)
+ * @param props.className - Additional CSS class (optional)
+ *
+ * @returns React component that renders a standardized input control
  */
 export const ConfigInput: React.FC<BaseInputProps> = ({
   path,

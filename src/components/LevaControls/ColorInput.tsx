@@ -203,13 +203,61 @@ const COLOR_PRESETS = [
 /**
  * ColorInput component for color parameters with greyscale compatibility
  *
+ * A comprehensive color input component that supports multiple formats and provides
+ * professional greyscale-only mode for consistent theming. Includes color preview,
+ * preset selection, and robust validation for various color formats.
+ *
+ * @component
+ * @example
+ * ```tsx
+ * // Basic hex color input
+ * <ColorInput
+ *   path="background.color"
+ *   label="Background Color"
+ *   value="#1a1a1a"
+ *   onChange={(value) => console.log('Color:', value)}
+ *   greyscaleOnly={true}
+ *   showPreview={true}
+ * />
+ *
+ * // RGBA color with alpha
+ * <ColorInput
+ *   path="overlay.color"
+ *   label="Overlay Color"
+ *   value={{ r: 255, g: 255, b: 255, a: 0.8 }}
+ *   onChange={(value) => console.log('RGBA:', value)}
+ *   showAlpha={true}
+ * />
+ * ```
+ *
  * Features:
- * - Multiple color formats (hex, rgb, rgba, greyscale)
- * - Greyscale-only mode for professional themes
- * - Color preview and presets
- * - Alpha channel support
- * - Validation for color values
- * - Consistent theming
+ * - Multiple color formats: hex, rgb, rgba, greyscale
+ * - **Greyscale-only mode** for professional themes and consistency
+ * - Color preview square with live updates
+ * - Preset color selection with customizable palettes
+ * - Alpha channel support for transparency
+ * - Comprehensive validation for all supported formats
+ * - Consistent theming with greyscale professional design
+ * - Error handling and user feedback
+ *
+ * @param props - The component props
+ * @param props.path - Unique identifier for the input
+ * @param props.label - Display label for the color input
+ * @param props.value - Current color value as string or RGB object
+ * @param props.onChange - Callback when color value changes
+ * @param props.format - Color format ('hex' | 'rgb' | 'rgba' | 'greyscale')
+ * @param props.showAlpha - Enable alpha channel support (default: false)
+ * @param props.greyscaleOnly - Force greyscale-only mode (default: false)
+ * @param props.showPreview - Show color preview square (default: true)
+ * @param props.presets - Custom color preset array (optional)
+ * @param props.compact - Use compact layout (default: false)
+ * @param props.disabled - Disable input interaction (default: false)
+ * @param props.error - Error message to display (optional)
+ * @param props.help - Help text or description (optional)
+ * @param props.metadata - Additional metadata for the input (optional)
+ * @param props.className - Additional CSS class (optional)
+ *
+ * @returns React component that renders color input controls
  */
 export const ColorInput: React.FC<ColorProps> = ({
   path,
