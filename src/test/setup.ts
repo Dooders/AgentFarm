@@ -86,7 +86,16 @@ vi.mock('@/components/UI/AccessibilityProvider', () => ({
 const mockIpcService = {
   getConnectionStatus: vi.fn(() => 'connected'),
   initializeConnection: vi.fn(() => Promise.resolve()),
-  loadConfig: vi.fn(() => Promise.resolve({
+  // Error state for testing
+  _shouldError: false,
+  _setErrorState: (shouldError: boolean) => {
+    mockIpcService._shouldError = shouldError
+  },
+  loadConfig: vi.fn(() => {
+    if (mockIpcService._shouldError) {
+      return Promise.reject(new Error('IPC Error'))
+    }
+    return Promise.resolve({
     success: true,
     config: {
       width: 100,
@@ -226,7 +235,8 @@ const mockIpcService = {
         base_cost: 0.01,
       },
     }
-  })),
+    })
+  }),
   saveConfig: vi.fn(() => Promise.resolve({ success: true })),
   executeRequest: vi.fn(() => Promise.resolve({ success: true })),
   validateConfig: vi.fn(() => Promise.reject(new Error('IPC validation not available in tests'))),
@@ -277,9 +287,32 @@ class MockIPCServiceImpl {
 
   listeners = new Map()
   onceListeners = new Map()
+  _shouldError = false
 
   constructor() {
     // Initialize connection
+    this.initializeConnection()
+  }
+
+  _setErrorState(shouldError: boolean) {
+    this._shouldError = shouldError
+  }
+
+  // Track performance metrics
+  private trackRequest(channel: string) {
+    this.performanceMetrics.totalRequests++
+    this.performanceMetrics.requestsByChannel[channel] = (this.performanceMetrics.requestsByChannel[channel] || 0) + 1
+    this.performanceMetrics.lastRequestTime = Date.now()
+  }
+
+  private trackResponse(channel: string, responseTime: number) {
+    this.performanceMetrics.totalResponses++
+    this.performanceMetrics.responseTimeByChannel[channel] = (this.performanceMetrics.responseTimeByChannel[channel] || 0) + responseTime
+    this.performanceMetrics.averageResponseTime = this.performanceMetrics.totalResponses > 0
+      ? (this.performanceMetrics.averageResponseTime * (this.performanceMetrics.totalResponses - 1) + responseTime) / this.performanceMetrics.totalResponses
+      : responseTime
+    this.performanceMetrics.peakResponseTime = Math.max(this.performanceMetrics.peakResponseTime, responseTime)
+    this.performanceMetrics.lastResponseTime = Date.now()
   }
 
   async initializeConnection(): Promise<void> {
@@ -307,11 +340,96 @@ class MockIPCServiceImpl {
   }
 
   async executeRequest(type: string, payload: any) {
-    return mockIpcService.executeRequest(payload)
+    if (this._shouldError) {
+      throw new Error('IPC Error')
+    }
+
+    const startTime = Date.now()
+    this.trackRequest(type)
+    const result = await mockIpcService.executeRequest(payload)
+    const responseTime = Date.now() - startTime
+    this.trackResponse(type, responseTime)
+    return result
   }
 
   async validateConfig(request: any) {
     return mockIpcService.validateConfig(request)
+  }
+
+  async readFile(request: any) {
+    return mockIpcService.readFile(request)
+  }
+
+  async writeFile(request: any) {
+    return mockIpcService.writeFile(request)
+  }
+
+  async fileExists(request: any) {
+    return mockIpcService.fileExists(request)
+  }
+
+  async exportConfig(request: any) {
+    return mockIpcService.exportConfig(request)
+  }
+
+  async importConfig(request: any) {
+    return mockIpcService.importConfig(request)
+  }
+
+  async loadTemplate(request: any) {
+    return mockIpcService.loadTemplate(request)
+  }
+
+  async saveTemplate(request: any) {
+    return mockIpcService.saveTemplate(request)
+  }
+
+  async listTemplates(request: any) {
+    return mockIpcService.listTemplates(request)
+  }
+
+  async getAppVersion() {
+    return mockIpcService.getAppVersion()
+  }
+
+  async getAppPath(request: any) {
+    return mockIpcService.getAppPath(request)
+  }
+
+  async getSystemInfo() {
+    return mockIpcService.getSystemInfo()
+  }
+
+  async getSettings(request: any) {
+    return mockIpcService.getSettings(request)
+  }
+
+  async setSettings(request: any) {
+    return mockIpcService.setSettings(request)
+  }
+
+  async send<T = any>(channel: string, payload?: any): Promise<T> {
+    return this.executeRequest(channel, payload)
+  }
+
+  async invoke<T = any>(channel: string, payload?: any): Promise<T> {
+    return this.executeRequest(channel, payload)
+  }
+
+  on<T = any>(channel: string, listener: (payload: T) => void): () => void {
+    return mockIpcService.on(channel, listener)
+  }
+
+  once<T = any>(channel: string, listener: (payload: T) => void): Promise<T> {
+    return mockIpcService.once(channel, listener)
+  }
+
+  removeListener(channel: string, listener: Function): void {
+    return mockIpcService.removeListener(channel, listener)
+  }
+
+  removeAllListeners(channel?: string): void {
+    return mockIpcService.removeAllListeners(channel)
   }
 
   async reconnect(): Promise<void> {
