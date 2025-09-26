@@ -19,12 +19,12 @@ export class ZodValidationService implements ValidationService {
     const zodResult = validateSimulationConfig(config)
 
     // Add any additional business logic validation if needed
-    const additionalErrors = this.validateBusinessRules(config)
+    const { errors: additionalErrors, warnings: additionalWarnings } = this.validateBusinessRules(config)
 
     return {
       success: zodResult.success && additionalErrors.length === 0,
       errors: [...zodResult.errors, ...additionalErrors],
-      warnings: zodResult.warnings
+      warnings: [...zodResult.warnings, ...additionalWarnings]
     }
   }
 
@@ -45,19 +45,20 @@ export class ZodValidationService implements ValidationService {
   /**
    * Additional business rule validation that complements Zod schema validation
    */
-  private validateBusinessRules(config: SimulationConfigType): ValidationError[] {
+  private validateBusinessRules(config: SimulationConfigType): { errors: ValidationError[]; warnings: ValidationError[] } {
     const errors: ValidationError[] = []
+    const warnings: ValidationError[] = []
 
     // Performance warnings
     if (config.width * config.height > 50000) {
-      errors.push({
+      warnings.push({
         path: 'environment',
         message: 'Large environment size may impact performance',
         code: 'performance_warning'
       })
     }
 
-    // Agent capacity validation
+    // Agent capacity validation (error)
     const totalAgents = config.system_agents + config.independent_agents + config.control_agents
     const environmentCapacity = config.width * config.height
 
@@ -69,7 +70,7 @@ export class ZodValidationService implements ValidationService {
       })
     }
 
-    // Memory efficiency checks
+    // Memory efficiency checks (warning)
     const totalMemory = Object.entries(config.agent_parameters).reduce((total, [agentType, params]) => {
       let agentCount = 0
       switch (agentType) {
@@ -83,18 +84,22 @@ export class ZodValidationService implements ValidationService {
           agentCount = config.control_agents
           break
       }
-      return total + params.memory_size * agentCount
+      const memorySizeCandidate = (params as any)?.memory_size
+      const memorySize = typeof memorySizeCandidate === 'number' && isFinite(memorySizeCandidate)
+        ? memorySizeCandidate
+        : 0
+      return total + memorySize * agentCount
     }, 0)
 
     if (totalMemory > 10000000) { // 10M memory entries
-      errors.push({
+      warnings.push({
         path: 'memory',
         message: 'Total memory usage may be excessive for available system resources',
         code: 'memory_warning'
       })
     }
 
-    return errors
+    return { errors, warnings }
   }
 }
 

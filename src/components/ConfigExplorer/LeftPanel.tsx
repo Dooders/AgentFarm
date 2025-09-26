@@ -4,6 +4,7 @@ import { ConfigFolder } from '@/components/LevaControls/ConfigFolder'
 import { useLevaStore } from '@/stores/levaStore'
 import { useConfigStore } from '@/stores/configStore'
 import styled from 'styled-components'
+import { ValidationDisplay } from '@/components/Validation/ValidationDisplay'
 
 const LeftPanelContainer = styled.div`
   display: flex;
@@ -69,6 +70,10 @@ export const LeftPanel: React.FC = () => {
         >
           <ControlGroup>
             <LevaControls />
+            <ValidationDisplay prefixPaths={['width','height','position_discretization_method','use_bilinear_interpolation','visualization']}
+                                compact
+                                title="Environment Issues"
+            />
           </ControlGroup>
         </ConfigFolder>
 
@@ -81,6 +86,10 @@ export const LeftPanel: React.FC = () => {
             <div style={{ padding: '8px', color: 'var(--text-secondary)' }}>
               Agent configuration controls will be displayed here
             </div>
+            <ValidationDisplay prefixPaths={['agent_parameters','agent_type_ratios','system_agents','independent_agents','control_agents']}
+                                compact
+                                title="Agent Issues"
+            />
           </ControlGroup>
         </ConfigFolder>
 
@@ -93,6 +102,10 @@ export const LeftPanel: React.FC = () => {
             <div style={{ padding: '8px', color: 'var(--text-secondary)' }}>
               Learning parameter controls will be displayed here
             </div>
+            <ValidationDisplay prefixPaths={['learning_rate','epsilon_start','epsilon_min','epsilon_decay']}
+                                compact
+                                title="Learning Issues"
+            />
           </ControlGroup>
         </ConfigFolder>
 
@@ -105,6 +118,10 @@ export const LeftPanel: React.FC = () => {
             <div style={{ padding: '8px', color: 'var(--text-secondary)' }}>
               Visualization controls will be displayed here
             </div>
+            <ValidationDisplay prefixPaths={['visualization']}
+                                compact
+                                title="Visualization Issues"
+            />
           </ControlGroup>
         </ConfigFolder>
 
