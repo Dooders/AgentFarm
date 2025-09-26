@@ -14,9 +14,9 @@ export interface ValidationService {
 }
 
 export class ZodValidationService implements ValidationService {
-  async validateConfig(config: SimulationConfigType): Promise<ValidationResult> {
+  validateConfig(config: SimulationConfigType): ValidationResult {
     // Use the Zod-based validation utility
-    const zodResult = await validateSimulationConfig(config)
+    const zodResult = validateSimulationConfig(config)
 
     // Add any additional business logic validation if needed
     const { errors: additionalErrors, warnings: additionalWarnings } = this.validateBusinessRules(config)

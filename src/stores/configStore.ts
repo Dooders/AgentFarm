@@ -293,7 +293,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       console.error('Failed to validate config:', error)
       // Fallback to local validation
       const config = get().config
-      const result = await validationService.validateConfig(config)
+      const result = validationService.validateConfig(config)
       useValidationStore.getState().setValidationResult(result)
     }
   },

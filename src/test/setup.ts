@@ -1,3 +1,4 @@
+import React from 'react'
 import '@testing-library/jest-dom'
 import '@testing-library/jest-dom/vitest'
 import { beforeAll, afterAll, afterEach, vi } from 'vitest'
@@ -238,9 +239,58 @@ vi.mock('@/services/ipcService', () => ({
 // Mock window.electronAPI for testing
 Object.defineProperty(window, 'electronAPI', {
   value: {
-    invoke: vi.fn(() => Promise.resolve({ success: true })),
-    on: vi.fn(),
-    removeAllListeners: vi.fn(),
+    invoke: vi.fn(() => Promise.resolve({ success: true }))
   },
-  writable: true,
+  writable: true
 })
+
+// Mock Leva hooks and components for testing
+vi.mock('leva', () => ({
+  Leva: ({ children }: { children: React.ReactNode }) => React.createElement('div', { 'data-testid': 'leva-root' }, children),
+  useControls: vi.fn(() => ({})),
+  folder: vi.fn((config) => config),
+  button: vi.fn((config) => config),
+  monitor: vi.fn((config) => config),
+  LevaPanel: ({ children }: { children: React.ReactNode }) => React.createElement('div', { 'data-testid': 'leva-panel' }, children)
+}))
+
+// Mock MetadataSystem for testing
+vi.mock('@/components/LevaControls/MetadataSystem', () => ({
+  MetadataProvider: ({ children }: { children: React.ReactNode }) => children,
+  useMetadata: () => ({
+    metadata: {},
+    isLoading: false,
+    error: null,
+    getFieldMetadata: vi.fn(() => ({})),
+    getValidationRules: vi.fn(() => []),
+    getFieldDescription: vi.fn(() => ''),
+    getFieldRange: vi.fn(() => ({ min: 0, max: 100 })),
+    getFieldType: vi.fn(() => 'number'),
+    hasMetadata: false,
+    validateControl: vi.fn(() => [])
+  })
+}))
+
+// Mock styled-components for testing
+const createStyledComponent = (tagName: string) => {
+  const Component = vi.fn((strings: TemplateStringsArray, ...args: any[]) => {
+    const StyledComponent = ({ children, ...props }: any) => React.createElement(tagName, props, children)
+    StyledComponent.attrs = vi.fn(() => StyledComponent)
+    StyledComponent.withConfig = vi.fn(() => StyledComponent)
+    return StyledComponent
+  })
+  Component.attrs = vi.fn(() => Component)
+  Component.withConfig = vi.fn(() => Component)
+  return Component
+}
+
+vi.mock('styled-components', () => ({
+  default: new Proxy(createStyledComponent('div'), {
+    get(target, prop) {
+      if (typeof prop === 'string') {
+        return createStyledComponent(prop)
+      }
+      return target
+    }
+  })
+}))
