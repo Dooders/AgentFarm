@@ -84,8 +84,11 @@ export class ZodValidationService implements ValidationService {
           agentCount = config.control_agents
           break
       }
-      const p = params as unknown as { memory_size: number }
-      return total + p.memory_size * agentCount
+      const memorySizeCandidate = (params as any)?.memory_size
+      const memorySize = typeof memorySizeCandidate === 'number' && isFinite(memorySizeCandidate)
+        ? memorySizeCandidate
+        : 0
+      return total + memorySize * agentCount
     }, 0)
 
     if (totalMemory > 10000000) { // 10M memory entries
