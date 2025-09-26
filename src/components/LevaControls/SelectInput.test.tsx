@@ -22,7 +22,7 @@ describe('SelectInput', () => {
     expect(screen.getByText('Test Select')).toBeInTheDocument()
 
     // Search narrows options
-    const search = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    const search = screen.getByPlaceholderText('Search...')
     fireEvent.change(search, { target: { value: 'c' } })
     expect(screen.getByRole('combobox')).toBeInTheDocument()
   })

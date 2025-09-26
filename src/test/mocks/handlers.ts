@@ -1,4 +1,4 @@
-import { rest } from 'msw'
+import { http } from 'msw'
 import { SimulationConfigType } from '@/types/config'
 
 // Mock configuration data
@@ -144,54 +144,54 @@ export const mockConfig: SimulationConfigType = {
 // API handlers for mocking
 export const handlers = [
   // Configuration endpoints
-  rest.get('/api/config', (req, res, ctx) => {
-    return res(ctx.json(mockConfig))
+  http.get('/api/config', () => {
+    return Response.json(mockConfig)
   }),
 
-  rest.post('/api/config', (req, res, ctx) => {
-    return res(ctx.json({ success: true, message: 'Configuration saved successfully' }))
+  http.post('/api/config', async () => {
+    return Response.json({ success: true, message: 'Configuration saved successfully' })
   }),
 
-  rest.put('/api/config', (req, res, ctx) => {
-    return res(ctx.json({ success: true, message: 'Configuration updated successfully' }))
+  http.put('/api/config', async () => {
+    return Response.json({ success: true, message: 'Configuration updated successfully' })
   }),
 
-  rest.delete('/api/config', (req, res, ctx) => {
-    return res(ctx.json({ success: true, message: 'Configuration deleted successfully' }))
+  http.delete('/api/config', async () => {
+    return Response.json({ success: true, message: 'Configuration deleted successfully' })
   }),
 
   // File operations
-  rest.post('/api/files/load', (req, res, ctx) => {
-    return res(ctx.json({ success: true, config: mockConfig }))
+  http.post('/api/files/load', async () => {
+    return Response.json({ success: true, config: mockConfig })
   }),
 
-  rest.post('/api/files/save', (req, res, ctx) => {
-    return res(ctx.json({ success: true, message: 'File saved successfully' }))
+  http.post('/api/files/save', async () => {
+    return Response.json({ success: true, message: 'File saved successfully' })
   }),
 
-  rest.get('/api/files/recent', (req, res, ctx) => {
-    return res(ctx.json([
+  http.get('/api/files/recent', () => {
+    return Response.json([
       { name: 'config1.json', path: '/path/to/config1.json', lastModified: Date.now() },
       { name: 'config2.yaml', path: '/path/to/config2.yaml', lastModified: Date.now() - 3600000 },
-    ]))
+    ])
   }),
 
   // Export endpoints
-  rest.post('/api/export/yaml', (req, res, ctx) => {
-    return res(ctx.json({ success: true, data: 'exported YAML content' }))
+  http.post('/api/export/yaml', async () => {
+    return Response.json({ success: true, data: 'exported YAML content' })
   }),
 
-  rest.post('/api/export/json', (req, res, ctx) => {
-    return res(ctx.json({ success: true, data: mockConfig }))
+  http.post('/api/export/json', async () => {
+    return Response.json({ success: true, data: mockConfig })
   }),
 
-  rest.post('/api/export/toml', (req, res, ctx) => {
-    return res(ctx.json({ success: true, data: 'exported TOML content' }))
+  http.post('/api/export/toml', async () => {
+    return Response.json({ success: true, data: 'exported TOML content' })
   }),
 
   // Validation endpoints
-  rest.post('/api/validate', (req, res, ctx) => {
-    return res(ctx.json({
+  http.post('/api/validate', async () => {
+    return Response.json({
       valid: true,
       errors: [],
       warnings: [],
@@ -201,12 +201,12 @@ export const handlers = [
         invalidFields: 0,
         warnings: 0,
       }
-    }))
+    })
   }),
 
   // Preset endpoints
-  rest.get('/api/presets', (req, res, ctx) => {
-    return res(ctx.json([
+  http.get('/api/presets', () => {
+    return Response.json([
       {
         id: 'preset1',
         name: 'Default Configuration',
@@ -215,17 +215,18 @@ export const handlers = [
         createdAt: Date.now(),
         updatedAt: Date.now(),
       }
-    ]))
+    ])
   }),
 
-  rest.post('/api/presets', (req, res, ctx) => {
-    return res(ctx.json({ success: true, id: 'new-preset-id' }))
+  http.post('/api/presets', async () => {
+    return Response.json({ success: true, id: 'new-preset-id' })
   }),
 
   // Search endpoints
-  rest.get('/api/search', (req, res, ctx) => {
-    const query = req.url.searchParams.get('q')
-    return res(ctx.json({
+  http.get('/api/search', ({ request }) => {
+    const url = new URL(request.url)
+    const query = url.searchParams.get('q')
+    return Response.json({
       results: [
         {
           path: 'system_agents',
@@ -236,50 +237,50 @@ export const handlers = [
       ],
       total: 1,
       query: query || ''
-    }))
+    })
   }),
 
   // IPC simulation for Electron
-  rest.post('/api/ipc/config/load', (req, res, ctx) => {
-    return res(ctx.json({ success: true, config: mockConfig }))
+  http.post('/api/ipc/config/load', async () => {
+    return Response.json({ success: true, config: mockConfig })
   }),
 
-  rest.post('/api/ipc/config/save', (req, res, ctx) => {
-    return res(ctx.json({ success: true, message: 'Configuration saved via IPC' }))
+  http.post('/api/ipc/config/save', async () => {
+    return Response.json({ success: true, message: 'Configuration saved via IPC' })
   }),
 
-  rest.get('/api/ipc/system/info', (req, res, ctx) => {
-    return res(ctx.json({
+  http.get('/api/ipc/system/info', () => {
+    return Response.json({
       platform: 'test',
       version: '1.0.0',
       electronVersion: '28.0.0',
       userDataPath: '/test/path',
-    }))
+    })
   }),
 
   // Error simulation endpoints
-  rest.get('/api/error/network', (req, res, ctx) => {
-    return res(ctx.status(500), ctx.json({ error: 'Network error occurred' }))
+  http.get('/api/error/network', () => {
+    return Response.json({ error: 'Network error occurred' }, { status: 500 })
   }),
 
-  rest.get('/api/error/validation', (req, res, ctx) => {
-    return res(ctx.status(400), ctx.json({
+  http.get('/api/error/validation', () => {
+    return Response.json({
       valid: false,
       errors: [
         { field: 'system_agents', message: 'Must be greater than 0' },
         { field: 'learning_rate', message: 'Must be between 0 and 1' }
       ]
-    }))
+    }, { status: 400 })
   }),
 
   // Performance simulation endpoints
-  rest.get('/api/performance/slow', async (req, res, ctx) => {
+  http.get('/api/performance/slow', async () => {
     // Simulate slow response
     await new Promise(resolve => setTimeout(resolve, 2000))
-    return res(ctx.json({ message: 'Slow response completed' }))
+    return Response.json({ message: 'Slow response completed' })
   }),
 
-  rest.get('/api/performance/large-data', (req, res, ctx) => {
+  http.get('/api/performance/large-data', () => {
     // Generate large dataset for testing
     const largeData = Array.from({ length: 1000 }, (_, i) => ({
       id: i,
@@ -287,6 +288,6 @@ export const handlers = [
       value: Math.random(),
       data: 'x'.repeat(100), // 100 character string
     }))
-    return res(ctx.json(largeData))
+    return Response.json(largeData)
   }),
 ]

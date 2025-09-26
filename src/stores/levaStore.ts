@@ -130,7 +130,10 @@ const defaultState = {
       md: '16px',
       lg: '24px',
     }
-  }
+  },
+
+  // Pending updates for config synchronization
+  pendingUpdates: []
 }
 
 export const useLevaStore = create<LevaStore>((set, get) => ({
@@ -319,7 +322,7 @@ export const useLevaStore = create<LevaStore>((set, get) => ({
 
 
   // Enhanced integration methods
-  bindConfigValue: (path: string, value: any) => {
+  bindConfigValue: (path: string, _value: any) => {
     const currentControls = get().activeControls
     if (!currentControls.includes(path)) {
       set({ activeControls: [...currentControls, path] })

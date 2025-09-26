@@ -18,7 +18,7 @@ describe('ObjectInput', () => {
 
     // Expand editor
     fireEvent.click(screen.getByRole('button', { name: /expand/i }))
-    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
+    const textarea = screen.getByRole('textbox')
     fireEvent.change(textarea, { target: { value: '{"a":2}' } })
     fireEvent.blur(textarea)
     expect(onChange).toHaveBeenCalledWith({ a: 2 })

@@ -1,5 +1,5 @@
 // eslint-disable-next-line import/no-extraneous-dependencies
-import { rest, RestRequest, ResponseComposition, DefaultBodyType, RestContext } from 'msw'
+import { http } from 'msw'
 import { beforeAll, afterEach, afterAll, expect } from 'vitest'
 import { server } from './server'
 import { mockConfig } from './handlers'
@@ -20,32 +20,20 @@ export const generateMockConfigs = (count: number, overrides: Partial<typeof moc
 
 // Custom handler creators
 export const createErrorHandler = (status: number, error: any) => {
-  return rest.get('/api/test-error', (
-    _req: RestRequest,
-    res: ResponseComposition<DefaultBodyType>,
-    ctx: RestContext
-  ) => {
-    return res(ctx.status(status), ctx.json(error))
+  return http.get('/api/test-error', () => {
+    return Response.json(error, { status })
   })
 }
 
 export const createDelayHandler = (delay: number) => {
-  return rest.get('/api/test-delay', async (
-    _req: RestRequest,
-    res: ResponseComposition<DefaultBodyType>,
-    ctx: RestContext
-  ) => {
+  return http.get('/api/test-delay', async () => {
     await new Promise(resolve => setTimeout(resolve, delay))
-    return res(ctx.json({ message: 'Delayed response' }))
+    return Response.json({ message: 'Delayed response' })
   })
 }
 
 export const createLargeDataHandler = (itemCount: number) => {
-  return rest.get('/api/test-large-data', (
-    _req: RestRequest,
-    res: ResponseComposition<DefaultBodyType>,
-    ctx: RestContext
-  ) => {
+  return http.get('/api/test-large-data', () => {
     const data = Array.from({ length: itemCount }, (_, i) => ({
       id: i,
       name: `Item ${i}`,
@@ -61,7 +49,7 @@ export const createLargeDataHandler = (itemCount: number) => {
         },
       },
     }))
-    return res(ctx.json(data))
+    return Response.json(data)
   })
 }
 

@@ -1,4 +1,4 @@
-import { SimulationConfigType, ConfigImportResult, ConfigExport, ConfigurationMetadata, ConfigTemplate, ConfigPath } from './config'
+import { SimulationConfigType, ConfigImportResult, ConfigurationMetadata, ConfigTemplate } from './config'
 import { ValidationResult } from './validation'
 
 // =====================================================

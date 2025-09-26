@@ -29,10 +29,10 @@ export function formatZodError(zodError: z.ZodError): ValidationError[] {
 
 // Get custom error messages based on error code and path
 function getCustomErrorMessage(error: z.ZodIssue): string {
-  const { code, path, message } = error
+  const { message } = error
 
   // Handle specific error types with custom messages
-  switch (code) {
+  switch (error.code) {
     case 'invalid_type':
       if (error.expected === 'number' && error.received === 'string') {
         return `Expected a number, but received a string. Please enter a valid number.`
@@ -96,7 +96,9 @@ function getCustomErrorMessage(error: z.ZodIssue): string {
 // Validate configuration using Zod schemas
 export function validateSimulationConfig(config: unknown): ValidationResult {
   try {
-    const validatedConfig = SimulationConfigSchema.parse(config)
+    // Import and validate using Zod schema
+    const { SimulationConfigSchema } = require('@/types/zodSchemas')
+    SimulationConfigSchema.parse(config)
 
     return {
       success: true,

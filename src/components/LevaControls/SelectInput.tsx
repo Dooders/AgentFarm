@@ -127,7 +127,7 @@ export const SelectInput: React.FC<SelectInputProps> = ({
     return idx >= 0 ? String(idx) : ''
   }
   const controlledValue = multiple
-    ? (Array.isArray(value) ? (value.map((v) => toIndexValue(v)).filter(Boolean) as string[]) : [])
+    ? (Array.isArray(value) ? (value.map((v) => toIndexValue(v)).filter(Boolean)) : [])
     : toIndexValue(value)
 
   return (

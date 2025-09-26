@@ -2,7 +2,7 @@
  * Focus management utilities for accessibility
  */
 
-let focusStack: HTMLElement[] = []
+const focusStack: HTMLElement[] = []
 
 /**
  * Save the current focus to the stack
@@ -90,7 +90,7 @@ export const focusFirstFocusable = (container: HTMLElement): void => {
 export const focusNextFocusable = (currentElement: HTMLElement): void => {
   const allFocusable = Array.from(document.querySelectorAll(
     'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-  )) as HTMLElement[]
+  ))
 
   const currentIndex = allFocusable.indexOf(currentElement)
   const nextIndex = currentIndex + 1
@@ -108,7 +108,7 @@ export const focusNextFocusable = (currentElement: HTMLElement): void => {
 export const focusPreviousFocusable = (currentElement: HTMLElement): void => {
   const allFocusable = Array.from(document.querySelectorAll(
     'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-  )) as HTMLElement[]
+  ))
 
   const currentIndex = allFocusable.indexOf(currentElement)
   const prevIndex = currentIndex - 1
@@ -149,5 +149,5 @@ export const getFocusableElements = (container: HTMLElement): HTMLElement[] => {
     '[tabindex]:not([tabindex="-1"])'
   ].join(', ')
 
-  return Array.from(container.querySelectorAll(focusableSelectors)) as HTMLElement[]
+  return Array.from(container.querySelectorAll(focusableSelectors))
 }

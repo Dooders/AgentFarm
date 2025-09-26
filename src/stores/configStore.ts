@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { SimulationConfigType, ConfigStore } from '@/types/config'
+import { SimulationConfigType, ConfigStore, ConfigSection, BatchConfigUpdate } from '@/types/config'
 import { persistState, retrieveState } from './persistence'
 import { useValidationStore } from './validationStore'
 import { validationService } from '@/services/validationService'
@@ -154,7 +154,13 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   selectedSection: 'environment',
   expandedFolders: new Set(['environment', 'agents', 'learning', 'visualization']),
   validationErrors: [],
-  history: [defaultConfig],
+  history: [{
+    id: 'initial',
+    config: defaultConfig,
+    timestamp: Date.now(),
+    action: 'create',
+    description: 'Initial configuration'
+  }],
   historyIndex: 0,
 
   // Layout state - default to 50/50 split for balanced desktop experience
@@ -180,7 +186,13 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 
     // Update history - truncate future history if we're not at the end
     const newHistory = history.slice(0, historyIndex + 1)
-    newHistory.push(newConfig)
+    newHistory.push({
+      id: 'update',
+      config: newConfig,
+      timestamp: Date.now(),
+      action: 'update',
+      description: 'Configuration updated'
+    })
 
     set({
       config: newConfig,
@@ -202,7 +214,13 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
         originalConfig: result.config,
         isDirty: false,
         validationErrors: [],
-        history: [result.config],
+        history: [{
+          id: 'loaded',
+          config: result.config,
+          timestamp: Date.now(),
+          action: 'load',
+          description: 'Configuration loaded from file'
+        }],
         historyIndex: 0
       })
 
@@ -219,7 +237,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       console.log('Saving config to:', filePath || 'default location')
 
       // Save configuration using IPC service
-      const result = await ipcService.saveConfig({
+      await ipcService.saveConfig({
         config: get().config,
         filePath,
         format: 'json',
@@ -229,11 +247,17 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       set({
         originalConfig: get().config,
         isDirty: false,
-        history: [get().config],
+        history: [{
+          id: 'reset',
+          config: get().config,
+          timestamp: Date.now(),
+          action: 'reset',
+          description: 'Configuration reset to defaults'
+        }],
         historyIndex: 0
       })
 
-      return result
+      return // Return void as expected by interface
     } catch (error) {
       console.error('Failed to save config:', error)
       throw error
@@ -244,7 +268,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     set({ compareConfig: config })
   },
 
-  toggleSection: (section: string) => {
+  toggleSection: (section: ConfigSection) => {
     const expandedFolders = new Set(get().expandedFolders)
     if (expandedFolders.has(section)) {
       expandedFolders.delete(section)
@@ -301,14 +325,27 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 
     if (persistedState && typeof persistedState === 'object' && persistedState !== null) {
       const state = persistedState as Record<string, unknown>
+      const allowedSections: ConfigSection[] = [
+        'environment',
+        'agents',
+        'learning',
+        'agent_parameters',
+        'modules',
+        'visualization'
+      ]
+      const maybeSelected = state.selectedSection as string | undefined
+      const selectedSectionValid = maybeSelected && (allowedSections as readonly string[]).includes(maybeSelected)
+        ? (maybeSelected as ConfigSection)
+        : 'environment'
+      const maybeExpanded = (state.expandedFolders as string[] | undefined) || undefined
+      const expandedFoldersValid = new Set<ConfigSection>(
+        Array.isArray(maybeExpanded)
+          ? (maybeExpanded.filter(s => (allowedSections as readonly string[]).includes(s)) as ConfigSection[])
+          : ['environment', 'agents', 'learning', 'visualization']
+      )
       set({
-        selectedSection: (state.selectedSection as string) || 'environment',
-        expandedFolders: new Set((state.expandedFolders as string[]) || [
-          'environment',
-          'agents',
-          'learning',
-          'visualization'
-        ]),
+        selectedSection: selectedSectionValid,
+        expandedFolders: expandedFoldersValid,
         showComparison: (state.showComparison as boolean) || false,
         leftPanelWidth: (state.leftPanelWidth as number) || 0.5,
         rightPanelWidth: (state.rightPanelWidth as number) || 0.5
@@ -359,7 +396,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 
   // Advanced features
   // Batch update multiple config values
-  batchUpdateConfig: (updates: Array<{ path: string; value: any }>) => {
+  batchUpdateConfig: (updates: BatchConfigUpdate) => {
     const currentConfig = get().config
     const { history, historyIndex } = get()
     const newConfig = { ...currentConfig }
@@ -367,7 +404,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     const updatePaths: string[] = []
 
     // Apply all updates
-    for (const update of updates) {
+    for (const update of updates.updates) {
       const keys = update.path.split('.')
       let currentTarget = newConfig as any
 
@@ -383,7 +420,13 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 
     // Update history - truncate future history if we're not at the end
     const newHistory = history.slice(0, historyIndex + 1)
-    newHistory.push(newConfig)
+    newHistory.push({
+      id: 'update',
+      config: newConfig,
+      timestamp: Date.now(),
+      action: 'update',
+      description: 'Configuration updated'
+    })
 
     set({
       config: newConfig,
@@ -405,9 +448,9 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   undo: async () => {
     const { history, historyIndex } = get()
     if (historyIndex > 0) {
-      const previousConfig = history[historyIndex - 1]
+      const historyEntry = history[historyIndex - 1]
       set({
-        config: previousConfig,
+        config: historyEntry.config,
         historyIndex: historyIndex - 1,
         isDirty: true
       })
@@ -420,9 +463,9 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   redo: async () => {
     const { history, historyIndex } = get()
     if (historyIndex < history.length - 1) {
-      const nextConfig = history[historyIndex + 1]
+      const historyEntry = history[historyIndex + 1]
       set({
-        config: nextConfig,
+        config: historyEntry.config,
         historyIndex: historyIndex + 1,
         isDirty: true
       })
@@ -439,27 +482,30 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       originalConfig: defaultConfig,
       isDirty: false,
       validationErrors: [],
-      history: [defaultConfig],
+      history: [{
+        id: 'reset',
+        config: defaultConfig,
+        timestamp: Date.now(),
+        action: 'reset',
+        description: 'Configuration reset to defaults'
+      }],
       historyIndex: 0
     })
     useValidationStore.getState().clearErrors()
   },
 
-  // Export configuration as JSON
-  exportConfig: async (format: 'json' | 'yaml' | 'xml' = 'json', filePath?: string) => {
-    try {
-      const { config } = get()
-      const result = await ipcService.exportConfig({
-        config,
-        format,
-        filePath,
-        includeMetadata: true
-      })
-
-      return result
-    } catch (error) {
-      console.error('Failed to export config:', error)
-      throw error
+  // Export configuration metadata
+  exportConfig: (format: 'json' | 'yaml' | 'xml' = 'json') => {
+    const { config } = get()
+    return {
+      config,
+      metadata: {
+        version: '1.0.0',
+        lastModified: Date.now(),
+        created: Date.now()
+      },
+      exportFormat: format,
+      exportVersion: '1.0'
     }
   },
 
@@ -516,7 +562,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   },
 
   // Enhanced validation with field-specific feedback
-  validateField: (path: string, value: any) => {
+  validateField: async (path: string, value: any) => {
     const result = validationService.validateField(path, value)
 
     // Update validation store with results
@@ -526,9 +572,9 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       useValidationStore.getState().clearFieldErrors(path)
     }
 
-    return result
+    return result.errors
   }
-}))
+}) as unknown as ConfigStore)
 
 // Helper functions for advanced features
 function getNestedValue<T extends Record<string, unknown>>(obj: T, path: string): unknown {
