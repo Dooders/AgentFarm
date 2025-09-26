@@ -1,4 +1,4 @@
-import { SimulationConfigType, AgentParameterType, ModuleParameterType, VisualizationConfigType, ValidationError, AgentTypeRatiosType } from './validation'
+import { SimulationConfigType, AgentParameterType, ModuleParameterType, VisualizationConfigType, ValidationError } from './validation'
 
 // Base types for configuration system
 export type AgentType = 'SystemAgent' | 'IndependentAgent' | 'ControlAgent'
@@ -39,8 +39,7 @@ export type {
   SimulationConfigType,
   AgentParameterType,
   ModuleParameterType,
-  VisualizationConfigType,
-  AgentTypeRatiosType
+  VisualizationConfigType
 } from './validation'
 
 // Extended configuration interfaces with additional metadata

@@ -154,7 +154,13 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   selectedSection: 'environment',
   expandedFolders: new Set(['environment', 'agents', 'learning', 'visualization']),
   validationErrors: [],
-  history: [defaultConfig],
+  history: [{
+    id: 'initial',
+    config: defaultConfig,
+    timestamp: Date.now(),
+    action: 'create',
+    description: 'Initial configuration'
+  }],
   historyIndex: 0,
 
   // Layout state - default to 50/50 split for balanced desktop experience
@@ -180,7 +186,13 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 
     // Update history - truncate future history if we're not at the end
     const newHistory = history.slice(0, historyIndex + 1)
-    newHistory.push(newConfig)
+    newHistory.push({
+      id: 'update',
+      config: newConfig,
+      timestamp: Date.now(),
+      action: 'update',
+      description: 'Configuration updated'
+    })
 
     set({
       config: newConfig,
@@ -202,7 +214,13 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
         originalConfig: result.config,
         isDirty: false,
         validationErrors: [],
-        history: [result.config],
+        history: [{
+          id: 'loaded',
+          config: result.config,
+          timestamp: Date.now(),
+          action: 'load',
+          description: 'Configuration loaded from file'
+        }],
         historyIndex: 0
       })
 
@@ -229,11 +247,17 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       set({
         originalConfig: get().config,
         isDirty: false,
-        history: [get().config],
+        history: [{
+          id: 'reset',
+          config: get().config,
+          timestamp: Date.now(),
+          action: 'reset',
+          description: 'Configuration reset to defaults'
+        }],
         historyIndex: 0
       })
 
-      return result
+      return // Return void as expected by interface
     } catch (error) {
       console.error('Failed to save config:', error)
       throw error
@@ -383,7 +407,13 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 
     // Update history - truncate future history if we're not at the end
     const newHistory = history.slice(0, historyIndex + 1)
-    newHistory.push(newConfig)
+    newHistory.push({
+      id: 'update',
+      config: newConfig,
+      timestamp: Date.now(),
+      action: 'update',
+      description: 'Configuration updated'
+    })
 
     set({
       config: newConfig,
@@ -405,9 +435,9 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   undo: async () => {
     const { history, historyIndex } = get()
     if (historyIndex > 0) {
-      const previousConfig = history[historyIndex - 1]
+      const historyEntry = history[historyIndex - 1]
       set({
-        config: previousConfig,
+        config: historyEntry.config,
         historyIndex: historyIndex - 1,
         isDirty: true
       })
@@ -420,9 +450,9 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   redo: async () => {
     const { history, historyIndex } = get()
     if (historyIndex < history.length - 1) {
-      const nextConfig = history[historyIndex + 1]
+      const historyEntry = history[historyIndex + 1]
       set({
-        config: nextConfig,
+        config: historyEntry.config,
         historyIndex: historyIndex + 1,
         isDirty: true
       })
@@ -439,24 +469,40 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       originalConfig: defaultConfig,
       isDirty: false,
       validationErrors: [],
-      history: [defaultConfig],
+      history: [{
+        id: 'reset',
+        config: defaultConfig,
+        timestamp: Date.now(),
+        action: 'reset',
+        description: 'Configuration reset to defaults'
+      }],
       historyIndex: 0
     })
     useValidationStore.getState().clearErrors()
   },
 
   // Export configuration as JSON
-  exportConfig: async (format: 'json' | 'yaml' | 'xml' = 'json', filePath?: string) => {
+  exportConfig: async (format: 'json' | 'yaml' | 'xml' = 'json') => {
     try {
       const { config } = get()
       const result = await ipcService.exportConfig({
         config,
         format,
-        filePath,
         includeMetadata: true
       })
 
-      return result
+      return {
+        config: get().config,
+        metadata: {
+          version: '1.0.0',
+          lastModified: Date.now(),
+          created: Date.now(),
+          format,
+          exportVersion: '1.0'
+        },
+        exportFormat: format,
+        exportVersion: '1.0'
+      }
     } catch (error) {
       console.error('Failed to export config:', error)
       throw error
@@ -516,7 +562,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   },
 
   // Enhanced validation with field-specific feedback
-  validateField: (path: string, value: any) => {
+  validateField: async (path: string, value: any) => {
     const result = validationService.validateField(path, value)
 
     // Update validation store with results
@@ -526,7 +572,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       useValidationStore.getState().clearFieldErrors(path)
     }
 
-    return result
+    return result.errors
   }
 }))
 

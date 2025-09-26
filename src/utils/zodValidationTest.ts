@@ -3,7 +3,6 @@
  * This file demonstrates the validation system and can be used for testing
  */
 
-import { SimulationConfigSchema } from '@/types/zodSchemas'
 import { validateSimulationConfig, getDefaultConfig } from '@/utils/validationUtils'
 
 // Test valid configuration

@@ -5,17 +5,17 @@ import { startMSW, stopMSW, resetMSW } from './mocks/server'
 
 // Start MSW before all tests
 beforeAll(async () => {
-  await startMSW('server')
+  await startMSW()
 })
 
 // Stop MSW after all tests
 afterAll(async () => {
-  await stopMSW('server')
+  await stopMSW()
 })
 
 // Reset handlers after each test
 afterEach(async () => {
-  await resetMSW('server')
+  await resetMSW()
   vi.clearAllMocks()
 })
 
