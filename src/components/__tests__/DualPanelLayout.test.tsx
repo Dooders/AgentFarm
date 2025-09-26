@@ -8,7 +8,7 @@ describe('DualPanelLayout', () => {
 
     // Check that both panels are rendered
     expect(screen.getByText('Configuration Explorer')).toBeInTheDocument()
-    expect(screen.getByText('Comparison Panel')).toBeInTheDocument()
+    expect(screen.getByText('Configuration Comparison')).toBeInTheDocument()
   })
 
   it('uses ResizablePanels as the layout container', () => {
@@ -45,12 +45,11 @@ describe('DualPanelLayout', () => {
     render(<DualPanelLayout />)
 
     // Left panel content
-    expect(screen.getByText('Navigation tree')).toBeInTheDocument()
-    expect(screen.getByText('Leva controls')).toBeInTheDocument()
+    expect(screen.getByText('Configuration Explorer')).toBeInTheDocument()
+    expect(screen.getByText('Leva Controls')).toBeInTheDocument()
 
     // Right panel content
-    expect(screen.getByText('Diff highlighting')).toBeInTheDocument()
-    expect(screen.getByText('Copy controls')).toBeInTheDocument()
+    expect(screen.getByText('Configuration Comparison')).toBeInTheDocument()
   })
 
   it('maintains responsive layout structure', () => {

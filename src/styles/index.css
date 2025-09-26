@@ -105,3 +105,126 @@ html, body {
   outline-offset: 1px;
   border-color: var(--focus-ring-hover);
 }
+
+/* Resizable Panels Styles */
+.resizable-panels {
+  transition: all 0.2s ease;
+}
+
+/* Mobile Layout */
+.resizable-panels.mobile {
+  flex-direction: column;
+}
+
+.resizable-panels.mobile .left-panel,
+.resizable-panels.mobile .right-panel {
+  height: 50%;
+  width: 100%;
+  overflow: auto;
+}
+
+/* Tablet Layout */
+.resizable-panels.tablet {
+  /* Larger touch targets for tablet */
+}
+
+.resizable-panels.tablet .split-handle {
+  width: 12px;
+  cursor: col-resize;
+}
+
+/* Desktop Layout */
+.resizable-panels.desktop {
+  /* Standard desktop layout */
+}
+
+.resizable-panels.desktop .split-handle {
+  width: 8px;
+  cursor: col-resize;
+}
+
+/* Split Handle Styling */
+.split-handle {
+  position: relative;
+  background-color: var(--border-subtle);
+  border-left: 1px solid var(--border-medium);
+  border-right: 1px solid var(--border-medium);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+}
+
+.split-handle:hover {
+  background-color: var(--border-medium);
+}
+
+.split-handle:active {
+  background-color: var(--accent-primary);
+}
+
+/* Panel Styling */
+.left-panel,
+.right-panel {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  /* Mobile specific styles */
+  .resizable-panels {
+    flex-direction: column;
+  }
+
+  .left-panel,
+  .right-panel {
+    height: 50vh;
+    width: 100%;
+  }
+
+  .split-handle {
+    display: none;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  /* Tablet specific styles */
+  .resizable-panels {
+    flex-direction: row;
+  }
+
+  .left-panel {
+    min-width: 300px;
+    max-width: 70%;
+  }
+
+  .right-panel {
+    min-width: 250px;
+  }
+
+  .split-handle {
+    width: 12px;
+  }
+}
+
+@media (min-width: 1025px) {
+  /* Desktop specific styles */
+  .resizable-panels {
+    flex-direction: row;
+  }
+
+  .left-panel {
+    min-width: 200px;
+    max-width: 80%;
+  }
+
+  .right-panel {
+    min-width: 200px;
+  }
+
+  .split-handle {
+    width: 8px;
+  }
+}

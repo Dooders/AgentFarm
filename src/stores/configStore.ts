@@ -156,6 +156,10 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   history: [defaultConfig],
   historyIndex: 0,
 
+  // Layout state - default to 60% for left panel, 40% for right panel
+  leftPanelWidth: 0.6,
+  rightPanelWidth: 0.4,
+
   updateConfig: (path: string, value: any) => {
     const currentConfig = get().config
     const { history, historyIndex } = get()
@@ -257,7 +261,9 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     const uiPreferences = {
       selectedSection: state.selectedSection,
       expandedFolders: Array.from(state.expandedFolders),
-      showComparison: state.showComparison
+      showComparison: state.showComparison,
+      leftPanelWidth: state.leftPanelWidth,
+      rightPanelWidth: state.rightPanelWidth
     }
 
     persistState(uiPreferences, {
@@ -284,9 +290,36 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
           'learning',
           'visualization'
         ]),
-        showComparison: (state.showComparison as boolean) || false
+        showComparison: (state.showComparison as boolean) || false,
+        leftPanelWidth: (state.leftPanelWidth as number) || 0.6,
+        rightPanelWidth: (state.rightPanelWidth as number) || 0.4
       })
     }
+  },
+
+  // Layout actions
+  setPanelWidths: (leftWidth: number, rightWidth: number) => {
+    const total = leftWidth + rightWidth
+    const normalizedLeft = leftWidth / total
+    const normalizedRight = rightWidth / total
+
+    set({
+      leftPanelWidth: normalizedLeft,
+      rightPanelWidth: normalizedRight
+    })
+
+    // Persist the updated layout state
+    get().persistUIState()
+  },
+
+  resetPanelWidths: () => {
+    set({
+      leftPanelWidth: 0.6,
+      rightPanelWidth: 0.4
+    })
+
+    // Persist the reset layout state
+    get().persistUIState()
   },
 
   // Clear persisted state

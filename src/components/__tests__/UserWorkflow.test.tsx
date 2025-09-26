@@ -16,8 +16,8 @@ describe('User Workflow Tests', () => {
     // - Clicking buttons
     // - Typing in inputs
 
-    // For now, test that the placeholder content is visible
-    expect(screen.getByText('Left panel content will be implemented in subsequent issues.')).toBeVisible()
+    // Test that the configuration explorer content is visible
+    expect(screen.getByText('Configuration Explorer')).toBeVisible()
   })
 
   it('responds to user interactions', async () => {
@@ -26,11 +26,11 @@ describe('User Workflow Tests', () => {
     // Test that the interface responds to basic interactions
     // In a real app, this would test actual functionality
 
-    // For now, just verify the structure is in place
-    const leftPanel = screen.getByText('Navigation tree')
+    // Verify the structure is in place
+    const leftPanel = screen.getByText('Configuration Explorer')
     expect(leftPanel).toBeVisible()
 
-    const rightPanel = screen.getByText('Comparison Panel')
+    const rightPanel = screen.getByText('Configuration Comparison')
     expect(rightPanel).toBeVisible()
   })
 
@@ -57,9 +57,9 @@ describe('User Workflow Tests', () => {
     // - Validation feedback
     // - Progress indicators
 
-    // For now, just verify placeholder content shows what will be implemented
-    const feedbackElements = screen.getAllByText('This will contain:')
-    expect(feedbackElements.length).toBeGreaterThan(0)
+    // Verify that the comparison tools are available
+    const comparisonTools = screen.getByText('Comparison Tools')
+    expect(comparisonTools).toBeVisible()
   })
 
   it('handles error states gracefully', async () => {

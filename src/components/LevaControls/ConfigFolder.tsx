@@ -32,7 +32,9 @@ const FolderTitle = styled.h3`
   letter-spacing: 0.5px;
 `
 
-const ToggleIcon = styled.span<{ collapsed: boolean }>`
+const ToggleIcon = styled.span.withConfig({
+  shouldForwardProp: (prop) => prop !== 'collapsed'
+})<{ collapsed: boolean }>`
   margin-right: var(--leva-space-sm);
   font-size: 10px;
   color: var(--leva-colors-accent2);
@@ -42,7 +44,9 @@ const ToggleIcon = styled.span<{ collapsed: boolean }>`
   transform-origin: center;
 `
 
-const FolderContent = styled.div<{ collapsed: boolean }>`
+const FolderContent = styled.div.withConfig({
+  shouldForwardProp: (prop) => prop !== 'collapsed'
+})<{ collapsed: boolean }>`
   padding: ${props => props.collapsed ? '0' : 'var(--leva-space-md)'};
   max-height: ${props => props.collapsed ? '0' : 'none'};
   overflow: hidden;
