@@ -230,9 +230,97 @@ const mockIpcService = {
   saveConfig: vi.fn(() => Promise.resolve({ success: true })),
   executeRequest: vi.fn(() => Promise.resolve({ success: true })),
   validateConfig: vi.fn(() => Promise.reject(new Error('IPC validation not available in tests'))),
+  // Add missing methods for tests
+  readFile: vi.fn(() => Promise.resolve({ success: true, content: '{}' })),
+  writeFile: vi.fn(() => Promise.resolve({ success: true })),
+  fileExists: vi.fn(() => Promise.resolve({ exists: true })),
+  exportConfig: vi.fn(() => Promise.resolve({ success: true })),
+  importConfig: vi.fn(() => Promise.resolve({ success: true })),
+  loadTemplate: vi.fn(() => Promise.resolve({ success: true })),
+  saveTemplate: vi.fn(() => Promise.resolve({ success: true })),
+  listTemplates: vi.fn(() => Promise.resolve({ success: true, templates: [] })),
+  getAppVersion: vi.fn(() => Promise.resolve('1.0.0')),
+  getAppPath: vi.fn(() => Promise.resolve('/app/path')),
+  getSystemInfo: vi.fn(() => Promise.resolve({ platform: 'darwin', arch: 'x64' })),
+  getSettings: vi.fn(() => Promise.resolve({})),
+  setSettings: vi.fn(() => Promise.resolve({ success: true })),
+  on: vi.fn(() => vi.fn()), // Return unsubscribe function
+  once: vi.fn(() => Promise.resolve()),
+  removeListener: vi.fn(),
+  removeAllListeners: vi.fn(),
+  send: vi.fn(() => Promise.resolve()),
+  invoke: vi.fn(() => Promise.resolve()),
+}
+
+// Mock IPCServiceImpl class
+class MockIPCServiceImpl {
+  connectionStatus = 'connected'
+  connectionInfo = {
+    status: 'connected' as const,
+    lastPing: Date.now(),
+    retryCount: 0,
+    maxRetries: 3,
+    timeout: 5000
+  }
+
+  performanceMetrics = {
+    totalRequests: 0,
+    totalResponses: 0,
+    averageResponseTime: 0,
+    errorRate: 0,
+    requestsByChannel: {},
+    responseTimeByChannel: {},
+    peakResponseTime: 0,
+    lastRequestTime: 0,
+    lastResponseTime: 0
+  }
+
+  listeners = new Map()
+  onceListeners = new Map()
+
+  constructor() {
+    // Initialize connection
+  }
+
+  async initializeConnection(): Promise<void> {
+    this.connectionStatus = 'connected'
+  }
+
+  getConnectionStatus() {
+    return this.connectionStatus
+  }
+
+  getConnectionInfo() {
+    return { ...this.connectionInfo }
+  }
+
+  getPerformanceMetrics() {
+    return { ...this.performanceMetrics }
+  }
+
+  async loadConfig(request: any) {
+    return mockIpcService.loadConfig(request)
+  }
+
+  async saveConfig(request: any) {
+    return mockIpcService.saveConfig(request)
+  }
+
+  async executeRequest(type: string, payload: any) {
+    return mockIpcService.executeRequest(payload)
+  }
+
+  async validateConfig(request: any) {
+    return mockIpcService.validateConfig(request)
+  }
+
+  async reconnect(): Promise<void> {
+    await this.initializeConnection()
+  }
 }
 
 vi.mock('@/services/ipcService', () => ({
+  IPCServiceImpl: MockIPCServiceImpl,
   ipcService: mockIpcService,
 }))
 
@@ -268,20 +356,24 @@ vi.mock('@/components/LevaControls/MetadataSystem', () => ({
     getFieldType: vi.fn(() => 'number'),
     hasMetadata: false,
     validateControl: vi.fn(() => [])
-  })
+  }),
+  MetadataTemplates: {
+    percentage: vi.fn(() => ({})),
+    ratio: vi.fn(() => ({})),
+    coordinates: vi.fn(() => ({})),
+    color: vi.fn(() => ({})),
+    filePath: vi.fn(() => ({})),
+    number: vi.fn(() => ({}))
+  }
 }))
 
 // Mock styled-components for testing
 const createStyledComponent = (tagName: string) => {
-  const Component = vi.fn((strings: TemplateStringsArray, ...args: any[]) => {
-    const StyledComponent = ({ children, ...props }: any) => React.createElement(tagName, props, children)
-    StyledComponent.attrs = vi.fn(() => StyledComponent)
-    StyledComponent.withConfig = vi.fn(() => StyledComponent)
-    return StyledComponent
-  })
-  Component.attrs = vi.fn(() => Component)
-  Component.withConfig = vi.fn(() => Component)
-  return Component
+  const StyledComponent = vi.fn(({ children, ...props }: any) => React.createElement(tagName, props, children))
+  StyledComponent.attrs = vi.fn(() => StyledComponent)
+  StyledComponent.withConfig = vi.fn(() => StyledComponent)
+  StyledComponent.displayName = `styled.${tagName}`
+  return StyledComponent
 }
 
 vi.mock('styled-components', () => ({
