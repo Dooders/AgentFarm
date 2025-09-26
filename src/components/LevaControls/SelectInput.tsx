@@ -57,6 +57,17 @@ const Select = styled.select`
   }
 `
 
+const ClearButton = styled.button`
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--leva-colors-accent1);
+  background: var(--leva-colors-elevation2);
+  color: var(--leva-colors-highlight1);
+  border-radius: var(--leva-radii-sm);
+  font-size: 11px;
+  font-family: var(--leva-fonts-sans);
+`
+
 const ErrorText = styled.div`
   font-size: 10px;
   color: #ff6b6b;
@@ -92,10 +103,16 @@ export const SelectInput: React.FC<SelectInputProps> = ({
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     if (multiple) {
-      const selected = Array.from(e.target.selectedOptions).map((o) => o.value)
-      onChange(selected)
+      const selectedIndices = Array.from(e.target.selectedOptions).map((o) => Number(o.value))
+      const selectedValues = selectedIndices
+        .map((idx) => filtered[idx])
+        .filter(Boolean)
+        .map((o) => o.value)
+      onChange(selectedValues)
     } else {
-      onChange(e.target.value)
+      const idx = Number(e.target.value)
+      const match = filtered[idx]
+      onChange(match ? match.value : e.target.value)
     }
   }
 
@@ -104,29 +121,41 @@ export const SelectInput: React.FC<SelectInputProps> = ({
     else onChange('')
   }
 
+  // Compute controlled value(s) as index strings for the rendered options
+  const toIndexValue = (val: any): string | '' => {
+    const idx = filtered.findIndex((o) => o.value === val)
+    return idx >= 0 ? String(idx) : ''
+  }
+  const controlledValue = multiple
+    ? (Array.isArray(value) ? (value.map((v) => toIndexValue(v)).filter(Boolean) as string[]) : [])
+    : toIndexValue(value)
+
   return (
     <Container>
       {label && <Label>{label}</Label>}
       {searchable && (
         <SearchInput
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)}
           placeholder={placeholder || 'Search...'}
           disabled={disabled}
         />
       )}
       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-        <Select value={value} onChange={handleChange} multiple={multiple} disabled={disabled}>
-          {filtered.map((o) => (
-            <option key={o.label} value={o.value}>
+        <Select
+          value={controlledValue}
+          onChange={handleChange}
+          multiple={multiple}
+          disabled={disabled}
+        >
+          {filtered.map((o, idx) => (
+            <option key={`${o.label}-${idx}`} value={String(idx)}>
               {o.label}
             </option>
           ))}
         </Select>
         {clearable && !disabled && (
-          <button type="button" onClick={handleClear} style={{ height: '28px' }}>
-            Clear
-          </button>
+          <ClearButton type="button" onClick={handleClear}>Clear</ClearButton>
         )}
       </div>
       {error && <ErrorText>{error}</ErrorText>}

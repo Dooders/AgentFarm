@@ -94,20 +94,36 @@ export const ObjectInput: React.FC<ConfigInputProps> = ({
   })
   const [parseError, setParseError] = useState<string | null>(null)
 
-  const pretty = useMemo(() => {
+  const highlightedLines = useMemo(() => {
     try {
       const json = JSON.stringify(value ?? {}, null, 2) || '{}'
-      // Lightweight syntax highlighting: wrap tokens in spans with classes
-      const highlighted = json
-        // Keys: "key":
-        .replace(/(\"[^\"]+\"):\s/g, (m) => `<span class="k">${m.replace(':', '')}</span>:`)
-        // Strings (values)
-        .replace(/:\s(\"[^\"]*\")/g, (_m, g1) => `: <span class="s">${g1}</span>`)
-        // Numbers
-        .replace(/:\s(-?\d+(?:\.\d+)?)/g, (_m, g1) => `: <span class="n">${g1}</span>`)
-      return highlighted
+      const toValueNode = (token: string) => {
+        const str = token.trim()
+        let m = str.match(/^"([^"]*)"(,?)$/)
+        if (m) return (<><span className="s">"{m[1]}"</span>{m[2]}</>)
+        m = str.match(/^(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(,?)$/)
+        if (m) return (<><span className="n">{m[1]}</span>{m[2]}</>)
+        m = str.match(/^(true|false|null)(,?)$/)
+        if (m) return (<><span className="n">{m[1]}</span>{m[2]}</>)
+        return token
+      }
+      return json.split('\n').map((line, i) => {
+        const keyMatch = line.match(/^(\s*)"([^"]+)"\s*:\s*(.*)$/)
+        if (keyMatch) {
+          const [, indent, key, rest] = keyMatch
+          return (
+            <div key={i}>
+              {indent}
+              <span className="k">"{key}"</span>
+              {": "}
+              {toValueNode(rest)}
+            </div>
+          )
+        }
+        return (<div key={i}>{line}</div>)
+      })
     } catch {
-      return '{}'
+      return [<div key="0">{`{}`}</div>]
     }
   }, [value])
 
@@ -131,7 +147,9 @@ export const ObjectInput: React.FC<ConfigInputProps> = ({
         </ToggleButton>
       </Header>
       {collapsed ? (
-        <Pre dangerouslySetInnerHTML={{ __html: pretty }} />
+        <Pre>
+          {highlightedLines}
+        </Pre>
       ) : (
         <Editor
           value={text}

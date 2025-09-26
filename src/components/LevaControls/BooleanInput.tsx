@@ -1,5 +1,11 @@
 import React from 'react'
-import { BooleanInputProps } from '@/types/leva'
+interface BooleanFieldProps {
+  value: boolean
+  onChange: (value: boolean) => void
+  label?: string
+  error?: string
+  disabled?: boolean
+}
 import styled from 'styled-components'
 
 const BooleanInputContainer = styled.div`
@@ -64,7 +70,7 @@ const BooleanInputError = styled.div`
   margin-top: 2px;
 `
 
-export const BooleanInput: React.FC<BooleanInputProps> = ({
+export const BooleanInput: React.FC<BooleanFieldProps> = ({
   value,
   onChange,
   label,

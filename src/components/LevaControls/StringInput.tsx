@@ -1,5 +1,13 @@
 import React from 'react'
-import { StringInputProps } from '@/types/leva'
+interface StringFieldProps {
+  value: string
+  onChange: (value: string) => void
+  placeholder?: string
+  maxLength?: number
+  label?: string
+  error?: string
+  disabled?: boolean
+}
 import styled from 'styled-components'
 
 const StringInputContainer = styled.div`
@@ -50,7 +58,7 @@ const StringInputError = styled.div`
   margin-top: 2px;
 `
 
-export const StringInput: React.FC<StringInputProps> = ({
+export const StringInput: React.FC<StringFieldProps> = ({
   value,
   onChange,
   placeholder,

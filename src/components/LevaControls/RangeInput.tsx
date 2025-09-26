@@ -86,13 +86,16 @@ export const RangeInput: React.FC<RangeInputProps> = ({
   error,
   disabled = false
 }) => {
+  const safeMin = typeof min === 'number' ? min : 0
+  const safeMax = typeof max === 'number' ? max : 100
+
   const [start, end] = useMemo<RangeTuple>(() => {
     if (Array.isArray(value) && value.length === 2) return [value[0], value[1]] as RangeTuple
-    if (value && typeof value === 'object' && 'min' in value && 'max' in value) return [value.min, value.max] as RangeTuple
-    return [min, max] as RangeTuple
-  }, [value, min, max])
+    if (value && typeof value === 'object' && 'min' in value && 'max' in value) return [value.min as number, value.max as number] as RangeTuple
+    return [safeMin, safeMax] as RangeTuple
+  }, [value, safeMin, safeMax])
 
-  const clamp = (n: number) => Math.min(Math.max(n, min), max)
+  const clamp = (n: number) => Math.min(Math.max(n, safeMin), safeMax)
 
   const updateStart = (n: number) => {
     const s = clamp(Math.min(n, end))
@@ -117,19 +120,21 @@ export const RangeInput: React.FC<RangeInputProps> = ({
         <Track />
         <ThumbInput
           type="range"
-          min={min}
-          max={max}
+          min={safeMin}
+          max={safeMax}
           step={step}
           value={start}
+          aria-label={label ? `${label} start` : 'Range start'}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateStart(Number(e.target.value))}
           disabled={disabled}
         />
         <ThumbInput
           type="range"
-          min={min}
-          max={max}
+          min={safeMin}
+          max={safeMax}
           step={step}
           value={end}
+          aria-label={label ? `${label} end` : 'Range end'}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateEnd(Number(e.target.value))}
           disabled={disabled}
         />
