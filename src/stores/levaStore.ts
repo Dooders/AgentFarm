@@ -237,15 +237,54 @@ export const useLevaStore = create<LevaStore>((set, get) => ({
 
   // Leva integration
   syncWithConfig: (config: SimulationConfig) => {
-    // This would sync the Leva controls with the current configuration
-    // Implementation would depend on specific Leva integration requirements
-    set({ activeControls: Object.keys(config) })
+    // Sync Leva controls with the current configuration
+    const configPaths = extractConfigPaths(config)
+    set({ activeControls: configPaths })
+
+    // Update expanded folders based on config structure
+    const configSections = ['environment', 'agents', 'learning', 'visualization', 'modules']
+    const newExpandedFolders = new Set([
+      ...get().expandedFolders,
+      ...configSections
+    ])
+
+    set({ expandedFolders: newExpandedFolders })
   },
 
   updateFromLeva: (path: string, value: any) => {
     // This would be called when Leva controls are updated
     // and would need to update the config store
     console.log('Leva update:', path, value)
+
+    // Import the config store dynamically to avoid circular dependencies
+    import('./configStore').then(({ useConfigStore }) => {
+      const configStore = useConfigStore.getState()
+      configStore.updateConfig(path, value)
+    })
+  },
+
+  // Enhanced integration methods
+  bindConfigValue: (path: string, value: any) => {
+    const currentControls = get().activeControls
+    if (!currentControls.includes(path)) {
+      set({ activeControls: [...currentControls, path] })
+    }
+  },
+
+  unbindConfigValue: (path: string) => {
+    const currentControls = get().activeControls
+    const newControls = currentControls.filter(control => control !== path)
+    set({ activeControls: newControls })
+  },
+
+  // Get configuration value for a specific path
+  getConfigValue: (path: string, config: SimulationConfig) => {
+    return getNestedValue(config, path)
+  },
+
+  // Set configuration value for a specific path
+  setConfigValue: (path: string, value: any, config: SimulationConfig) => {
+    return setNestedValue(config, path, value)
   },
 
   // Utilities
@@ -422,3 +461,55 @@ export const useLevaStore = create<LevaStore>((set, get) => ({
     }
   }
 }))
+
+// Helper functions for Leva integration
+function extractConfigPaths(config: SimulationConfig): string[] {
+  const paths: string[] = []
+
+  function extractPaths(obj: any, prefix = ''): void {
+    for (const [key, value] of Object.entries(obj)) {
+      const path = prefix ? `${prefix}.${key}` : key
+
+      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        extractPaths(value, path)
+      } else {
+        paths.push(path)
+      }
+    }
+  }
+
+  extractPaths(config)
+  return paths
+}
+
+function getNestedValue(obj: any, path: string): any {
+  const keys = path.split('.')
+  let current = obj
+
+  for (const key of keys) {
+    if (current === null || current === undefined || typeof current !== 'object') {
+      return undefined
+    }
+    current = current[key]
+  }
+
+  return current
+}
+
+function setNestedValue(obj: any, path: string, value: any): any {
+  const keys = path.split('.')
+  const result = { ...obj }
+
+  let current = result
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (!current[keys[i]] || typeof current[keys[i]] !== 'object' || Array.isArray(current[keys[i]])) {
+      current[keys[i]] = {}
+    } else {
+      current[keys[i]] = { ...current[keys[i]] }
+    }
+    current = current[keys[i]]
+  }
+
+  current[keys[keys.length - 1]] = value
+  return result
+}
