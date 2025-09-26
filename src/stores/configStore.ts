@@ -1,0 +1,562 @@
+import { create } from 'zustand'
+import { SimulationConfigType, ConfigStore } from '@/types/config'
+import { persistState, retrieveState } from './persistence'
+import { useValidationStore } from './validationStore'
+import { validationService } from '@/services/validationService'
+import { ipcService } from '@/services/ipcService'
+
+// Default configuration for initial state
+const defaultConfig: SimulationConfigType = {
+  width: 100,
+  height: 100,
+  position_discretization_method: 'floor',
+  use_bilinear_interpolation: true,
+  system_agents: 20,
+  independent_agents: 20,
+  control_agents: 10,
+  agent_type_ratios: {
+    SystemAgent: 0.4,
+    IndependentAgent: 0.4,
+    ControlAgent: 0.2
+  },
+  learning_rate: 0.001,
+  epsilon_start: 1.0,
+  epsilon_min: 0.1,
+  epsilon_decay: 0.995,
+  agent_parameters: {
+    SystemAgent: {
+      target_update_freq: 100,
+      memory_size: 1000,
+      learning_rate: 0.001,
+      gamma: 0.99,
+      epsilon_start: 1.0,
+      epsilon_min: 0.1,
+      epsilon_decay: 0.995,
+      dqn_hidden_size: 64,
+      batch_size: 32,
+      tau: 0.01,
+      success_reward: 1.0,
+      failure_penalty: -0.1,
+      base_cost: 0.01
+    },
+    IndependentAgent: {
+      target_update_freq: 100,
+      memory_size: 1000,
+      learning_rate: 0.001,
+      gamma: 0.99,
+      epsilon_start: 1.0,
+      epsilon_min: 0.1,
+      epsilon_decay: 0.995,
+      dqn_hidden_size: 64,
+      batch_size: 32,
+      tau: 0.01,
+      success_reward: 1.0,
+      failure_penalty: -0.1,
+      base_cost: 0.01
+    },
+    ControlAgent: {
+      target_update_freq: 100,
+      memory_size: 1000,
+      learning_rate: 0.001,
+      gamma: 0.99,
+      epsilon_start: 1.0,
+      epsilon_min: 0.1,
+      epsilon_decay: 0.995,
+      dqn_hidden_size: 64,
+      batch_size: 32,
+      tau: 0.01,
+      success_reward: 1.0,
+      failure_penalty: -0.1,
+      base_cost: 0.01
+    }
+  },
+  visualization: {
+    canvas_width: 800,
+    canvas_height: 600,
+    background_color: '#000000',
+    agent_colors: {
+      SystemAgent: '#ff6b6b',
+      IndependentAgent: '#4ecdc4',
+      ControlAgent: '#45b7d1'
+    },
+    show_metrics: true,
+    font_size: 12,
+    line_width: 1
+  },
+  gather_parameters: {
+    target_update_freq: 100,
+    memory_size: 1000,
+    learning_rate: 0.001,
+    gamma: 0.99,
+    epsilon_start: 1.0,
+    epsilon_min: 0.1,
+    epsilon_decay: 0.995,
+    dqn_hidden_size: 64,
+    batch_size: 32,
+    tau: 0.01,
+    success_reward: 1.0,
+    failure_penalty: -0.1,
+    base_cost: 0.01
+  },
+  share_parameters: {
+    target_update_freq: 100,
+    memory_size: 1000,
+    learning_rate: 0.001,
+    gamma: 0.99,
+    epsilon_start: 1.0,
+    epsilon_min: 0.1,
+    epsilon_decay: 0.995,
+    dqn_hidden_size: 64,
+    batch_size: 32,
+    tau: 0.01,
+    success_reward: 1.0,
+    failure_penalty: -0.1,
+    base_cost: 0.01
+  },
+  move_parameters: {
+    target_update_freq: 100,
+    memory_size: 1000,
+    learning_rate: 0.001,
+    gamma: 0.99,
+    epsilon_start: 1.0,
+    epsilon_min: 0.1,
+    epsilon_decay: 0.995,
+    dqn_hidden_size: 64,
+    batch_size: 32,
+    tau: 0.01,
+    success_reward: 1.0,
+    failure_penalty: -0.1,
+    base_cost: 0.01
+  },
+  attack_parameters: {
+    target_update_freq: 100,
+    memory_size: 1000,
+    learning_rate: 0.001,
+    gamma: 0.99,
+    epsilon_start: 1.0,
+    epsilon_min: 0.1,
+    epsilon_decay: 0.995,
+    dqn_hidden_size: 64,
+    batch_size: 32,
+    tau: 0.01,
+    success_reward: 1.0,
+    failure_penalty: -0.1,
+    base_cost: 0.01
+  }
+}
+
+export const useConfigStore = create<ConfigStore>((set, get) => ({
+  config: defaultConfig,
+  originalConfig: defaultConfig,
+  isDirty: false,
+  compareConfig: null,
+  showComparison: false,
+  selectedSection: 'environment',
+  expandedFolders: new Set(['environment', 'agents', 'learning', 'visualization']),
+  validationErrors: [],
+  history: [defaultConfig],
+  historyIndex: 0,
+
+  // Layout state - default to 50/50 split for balanced desktop experience
+  leftPanelWidth: 0.5,
+  rightPanelWidth: 0.5,
+
+  updateConfig: (path: string, value: any) => {
+    const currentConfig = get().config
+    const { history, historyIndex } = get()
+
+    // Simple path-based update (in a real implementation, this would use a library like lodash.set)
+    const keys = path.split('.')
+    const newConfig = { ...currentConfig }
+
+    let target = newConfig as any
+    for (let i = 0; i < keys.length - 1; i++) {
+      if (!target[keys[i]]) {
+        target[keys[i]] = {}
+      }
+      target = target[keys[i]]
+    }
+    target[keys[keys.length - 1]] = value
+
+    // Update history - truncate future history if we're not at the end
+    const newHistory = history.slice(0, historyIndex + 1)
+    newHistory.push(newConfig)
+
+    set({
+      config: newConfig,
+      isDirty: true,
+      history: newHistory,
+      historyIndex: historyIndex + 1
+    })
+  },
+
+  loadConfig: async (filePath: string) => {
+    try {
+      console.log('Loading config from:', filePath)
+
+      // Load configuration using IPC service
+      const result = await ipcService.loadConfig({ filePath })
+
+      set({
+        config: result.config,
+        originalConfig: result.config,
+        isDirty: false,
+        validationErrors: [],
+        history: [result.config],
+        historyIndex: 0
+      })
+
+      // Trigger validation
+      await get().validateConfig()
+    } catch (error) {
+      console.error('Failed to load config:', error)
+      throw error
+    }
+  },
+
+  saveConfig: async (filePath?: string) => {
+    try {
+      console.log('Saving config to:', filePath || 'default location')
+
+      // Save configuration using IPC service
+      const result = await ipcService.saveConfig({
+        config: get().config,
+        filePath,
+        format: 'json',
+        backup: true
+      })
+
+      set({
+        originalConfig: get().config,
+        isDirty: false,
+        history: [get().config],
+        historyIndex: 0
+      })
+
+      return result
+    } catch (error) {
+      console.error('Failed to save config:', error)
+      throw error
+    }
+  },
+
+  setComparison: (config: SimulationConfigType | null) => {
+    set({ compareConfig: config })
+  },
+
+  toggleSection: (section: string) => {
+    const expandedFolders = new Set(get().expandedFolders)
+    if (expandedFolders.has(section)) {
+      expandedFolders.delete(section)
+    } else {
+      expandedFolders.add(section)
+    }
+    set({ expandedFolders })
+  },
+
+  validateConfig: async () => {
+    try {
+      const config = get().config
+      const result = await ipcService.validateConfig({
+        config,
+        partial: false,
+        rules: ['population_positive', 'world_size_valid']
+      })
+
+      // Update validation store with results
+      useValidationStore.getState().setValidationResult(result)
+    } catch (error) {
+      console.error('Failed to validate config:', error)
+      // Fallback to local validation
+      const config = get().config
+      const result = validationService.validateConfig(config)
+      useValidationStore.getState().setValidationResult(result)
+    }
+  },
+
+  // Persistence methods for UI preferences
+  persistUIState: () => {
+    const state = get()
+    const uiPreferences = {
+      selectedSection: state.selectedSection,
+      expandedFolders: Array.from(state.expandedFolders),
+      showComparison: state.showComparison,
+      leftPanelWidth: state.leftPanelWidth,
+      rightPanelWidth: state.rightPanelWidth
+    }
+
+    persistState(uiPreferences, {
+      name: 'config-ui-preferences',
+      version: 1,
+      onError: (error) => console.error('Failed to persist UI preferences:', error)
+    })
+  },
+
+  restoreUIState: () => {
+    const persistedState = retrieveState({
+      name: 'config-ui-preferences',
+      version: 1,
+      onError: (error) => console.warn('Failed to restore UI preferences:', error)
+    })
+
+    if (persistedState && typeof persistedState === 'object' && persistedState !== null) {
+      const state = persistedState as Record<string, unknown>
+      set({
+        selectedSection: (state.selectedSection as string) || 'environment',
+        expandedFolders: new Set((state.expandedFolders as string[]) || [
+          'environment',
+          'agents',
+          'learning',
+          'visualization'
+        ]),
+        showComparison: (state.showComparison as boolean) || false,
+        leftPanelWidth: (state.leftPanelWidth as number) || 0.5,
+        rightPanelWidth: (state.rightPanelWidth as number) || 0.5
+      })
+    }
+  },
+
+  // Layout actions
+  setPanelWidths: (leftWidth: number, rightWidth: number) => {
+    const total = leftWidth + rightWidth
+    const normalizedLeft = leftWidth / total
+    const normalizedRight = rightWidth / total
+
+    set({
+      leftPanelWidth: normalizedLeft,
+      rightPanelWidth: normalizedRight
+    })
+
+    // Persist the updated layout state
+    get().persistUIState()
+  },
+
+  resetPanelWidths: () => {
+    set({
+      leftPanelWidth: 0.5,
+      rightPanelWidth: 0.5
+    })
+
+    // Persist the reset layout state
+    get().persistUIState()
+  },
+
+  // Clear persisted state
+  clearPersistedState: () => {
+    try {
+      // Clear UI preferences
+      const storage = typeof window !== 'undefined' && window.localStorage
+        ? window.localStorage
+        : null
+
+      if (storage) {
+        storage.removeItem('config-ui-preferences')
+      }
+    } catch (error) {
+      console.warn('Failed to clear persisted state:', error)
+    }
+  },
+
+  // Advanced features
+  // Batch update multiple config values
+  batchUpdateConfig: (updates: Array<{ path: string; value: any }>) => {
+    const currentConfig = get().config
+    const { history, historyIndex } = get()
+    const newConfig = { ...currentConfig }
+
+    const updatePaths: string[] = []
+
+    // Apply all updates
+    for (const update of updates) {
+      const keys = update.path.split('.')
+      let currentTarget = newConfig as any
+
+      for (let i = 0; i < keys.length - 1; i++) {
+        if (!currentTarget[keys[i]]) {
+          currentTarget[keys[i]] = {}
+        }
+        currentTarget = currentTarget[keys[i]]
+      }
+      currentTarget[keys[keys.length - 1]] = update.value
+      updatePaths.push(update.path)
+    }
+
+    // Update history - truncate future history if we're not at the end
+    const newHistory = history.slice(0, historyIndex + 1)
+    newHistory.push(newConfig)
+
+    set({
+      config: newConfig,
+      isDirty: true,
+      history: newHistory,
+      historyIndex: historyIndex + 1
+    })
+
+    // Trigger validation for updated fields
+    updatePaths.forEach(path => {
+      const result = validationService.validateField(path, getNestedValue(newConfig, path))
+      if (result.errors.length > 0) {
+        useValidationStore.getState().addErrors(result.errors)
+      }
+    })
+  },
+
+  // Undo/redo functionality
+  undo: async () => {
+    const { history, historyIndex } = get()
+    if (historyIndex > 0) {
+      const previousConfig = history[historyIndex - 1]
+      set({
+        config: previousConfig,
+        historyIndex: historyIndex - 1,
+        isDirty: true
+      })
+
+      // Trigger validation
+      await get().validateConfig()
+    }
+  },
+
+  redo: async () => {
+    const { history, historyIndex } = get()
+    if (historyIndex < history.length - 1) {
+      const nextConfig = history[historyIndex + 1]
+      set({
+        config: nextConfig,
+        historyIndex: historyIndex + 1,
+        isDirty: true
+      })
+
+      // Trigger validation
+      await get().validateConfig()
+    }
+  },
+
+  // Reset to default configuration
+  resetToDefaults: () => {
+    set({
+      config: defaultConfig,
+      originalConfig: defaultConfig,
+      isDirty: false,
+      validationErrors: [],
+      history: [defaultConfig],
+      historyIndex: 0
+    })
+    useValidationStore.getState().clearErrors()
+  },
+
+  // Export configuration as JSON
+  exportConfig: async (format: 'json' | 'yaml' | 'xml' = 'json', filePath?: string) => {
+    try {
+      const { config } = get()
+      const result = await ipcService.exportConfig({
+        config,
+        format,
+        filePath,
+        includeMetadata: true
+      })
+
+      return result
+    } catch (error) {
+      console.error('Failed to export config:', error)
+      throw error
+    }
+  },
+
+  // Import configuration from JSON
+  importConfig: async (configJson: string, format: 'json' | 'yaml' | 'xml' = 'json') => {
+    try {
+      const result = await ipcService.importConfig({
+        content: configJson,
+        format,
+        validate: true,
+        merge: false
+      })
+
+      set({
+        config: result.config,
+        isDirty: true
+      })
+
+      // Trigger validation
+      await get().validateConfig()
+
+      return { success: true }
+    } catch (error) {
+      console.error('Failed to import config:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Import failed'
+      }
+    }
+  },
+
+  // Get configuration diff
+  getConfigDiff: () => {
+    const { config, originalConfig } = get()
+    const diff: Record<string, { original: any; current: any; changed: boolean }> = {}
+
+    // Simple diff - in real implementation, use a proper diff library
+    const allKeys = new Set([
+      ...getAllKeys(originalConfig as unknown as Record<string, unknown>),
+      ...getAllKeys(config as unknown as Record<string, unknown>)
+    ])
+
+    allKeys.forEach(key => {
+      const originalValue = getNestedValue(originalConfig as unknown as Record<string, unknown>, key)
+      const currentValue = getNestedValue(config as unknown as Record<string, unknown>, key)
+      const changed = JSON.stringify(originalValue) !== JSON.stringify(currentValue)
+
+      if (changed) {
+        diff[key] = { original: originalValue, current: currentValue, changed: true }
+      }
+    })
+
+    return diff
+  },
+
+  // Enhanced validation with field-specific feedback
+  validateField: (path: string, value: any) => {
+    const result = validationService.validateField(path, value)
+
+    // Update validation store with results
+    if (result.errors.length > 0) {
+      useValidationStore.getState().addErrors(result.errors)
+    } else {
+      useValidationStore.getState().clearFieldErrors(path)
+    }
+
+    return result
+  }
+}))
+
+// Helper functions for advanced features
+function getNestedValue<T extends Record<string, unknown>>(obj: T, path: string): unknown {
+  const keys = path.split('.')
+  let current: unknown = obj
+
+  for (const key of keys) {
+    if (current === null || current === undefined || typeof current !== 'object') {
+      return undefined
+    }
+    current = (current as Record<string, unknown>)[key]
+  }
+
+  return current
+}
+
+function getAllKeys(obj: Record<string, unknown>, prefix = ''): string[] {
+  const keys: string[] = []
+
+  for (const [key, value] of Object.entries(obj)) {
+    const fullKey = prefix ? `${prefix}.${key}` : key
+
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      keys.push(...getAllKeys(value as Record<string, unknown>, fullKey))
+    } else {
+      keys.push(fullKey)
+    }
+  }
+
+  return keys
+}

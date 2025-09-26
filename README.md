@@ -54,6 +54,16 @@ This repository is being developed to support research in the [Dooders](https://
 - **Research Tools**: Advanced analysis modules for academic research
 - **Genome Embeddings**: Machine learning tools for agent evolution analysis
 
+### IPC Service Layer
+- **Comprehensive IPC Communication**: Full TypeScript implementation with type safety
+- **Configuration Management**: Load, save, export, and import simulation configurations
+- **File System Operations**: Complete file and directory operations with backup support
+- **Template Management**: Save, load, and manage configuration templates
+- **Settings Persistence**: Application settings and UI state management
+- **Error Handling**: Robust error handling with retry logic and graceful fallbacks
+- **Performance Monitoring**: Built-in metrics tracking and optimization
+- **Cross-Platform Support**: Works in both Electron and browser environments
+
 ## Quick Start
 
 ### Prerequisites
@@ -75,6 +85,9 @@ source venv/bin/activate  # On Windows use `venv\Scripts\activate`
 
 # Install dependencies
 pip install -r requirements.txt
+
+# Install Node.js dependencies for the Live Simulation Config Explorer
+npm install
 
 # Optional: Install Redis for enhanced memory management
 # Note: Redis is used for agent memory storage and can improve performance
@@ -115,6 +128,51 @@ python main.py
 
 **Results**
 All simulation results are saved in the `simulations` directory with database files, logs, and analysis reports.
+
+### Live Simulation Config Explorer
+
+The project includes a modern React-based configuration explorer built with Electron for cross-platform desktop deployment:
+
+**Development**
+```bash
+# Start the development server
+npm run dev
+
+# Start Electron development mode with HMR
+npm run electron:dev
+
+# Build for production
+npm run build:prod
+
+# Package Electron app for distribution
+npm run electron:pack
+
+# Run tests
+npm run test:all
+
+# Generate documentation
+npm run docs
+```
+
+**Key Scripts:**
+- `npm run dev` - Start Vite development server
+- `npm run dev:electron` - Start Vite with Electron environment variables
+- `npm run electron:dev` - Run Electron in development mode with HMR
+- `npm run build:prod` - Build optimized production bundle
+- `npm run electron:pack` - Package Electron app for distribution
+- `npm run test:all` - Run both Vitest and Jest test suites
+- `npm run lint` - Lint TypeScript/React code
+- `npm run format` - Format code with Prettier
+
+**Features:**
+- Modern React 18 + TypeScript interface
+- Real-time configuration editing with Zod validation
+- Hot Module Replacement (HMR) for rapid development
+- Cross-platform packaging (Windows, macOS, Linux)
+- Zustand state management with persistence
+- Leva controls integration for interactive UI
+- Comprehensive testing with Vitest and Jest
+- TypeScript path mapping with `@/` aliases
 
 ## Documentation
 
