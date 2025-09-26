@@ -141,6 +141,14 @@ The project includes a modern React-based configuration explorer built with Elec
 
 The interface features a complete hierarchical folder structure with collapsible sections for intuitive parameter organization and real-time configuration editing with live validation.
 
+**Greyscale Theme**
+
+- Professional greyscale palette via CSS variables in `src/styles/index.css`
+- Leva greyscale overrides in `src/styles/leva-theme.css` with `data-theme="custom"`
+- Typography: Albertus for labels (12px), JetBrains Mono for numbers (11-12px)
+- Compact controls: exactly 28px height; subtle borders; monochrome focus rings
+- Optional full-UI grayscale filter: `localStorage.setItem('ui:grayscale','true')`
+
 **📋 Issue #9: Complete Leva Folder Structure - COMPLETED**
 - ✅ All configuration sections organized in logical Leva folders
 - ✅ Folder hierarchy matches design specification

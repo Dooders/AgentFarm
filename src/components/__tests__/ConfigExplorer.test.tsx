@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import { ThemeProvider } from '@/components/UI/ThemeProvider'
 import { ConfigExplorer } from '../ConfigExplorer/ConfigExplorer'
 
 // Mock the modules BEFORE importing the component
@@ -27,17 +28,29 @@ describe('ConfigExplorer', () => {
   })
 
   it('renders without crashing', () => {
-    const { container } = render(<ConfigExplorer />)
+    const { container } = render(
+      <ThemeProvider>
+        <ConfigExplorer />
+      </ThemeProvider>
+    )
     expect(container.firstChild).toHaveClass('config-explorer')
   })
 
   it('renders dual panel layout', () => {
-    render(<ConfigExplorer />)
+    render(
+      <ThemeProvider>
+        <ConfigExplorer />
+      </ThemeProvider>
+    )
     expect(screen.getByTestId('dual-panel-layout')).toBeInTheDocument()
   })
 
   it('shows browser mode warning', () => {
-    render(<ConfigExplorer />)
+    render(
+      <ThemeProvider>
+        <ConfigExplorer />
+      </ThemeProvider>
+    )
     expect(screen.getByText(/Running in browser mode/)).toBeInTheDocument()
   })
 })
