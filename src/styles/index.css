@@ -1,5 +1,6 @@
 /* Import Leva theme configuration */
 @import './leva-theme.css';
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 /* Reset and base styles */
 * {
@@ -78,7 +79,7 @@ body.grayscale {
 
 /* Typography */
 .leva-c-control__label {
-  font-family: 'Albertus', serif;
+  font-family: 'Albertus', 'Cinzel', serif;
   font-size: 12px;
   color: var(--text-primary);
 }

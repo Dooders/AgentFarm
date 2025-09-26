@@ -17,7 +17,9 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       } else {
         document.body.classList.remove('grayscale')
       }
-    } catch {}
+    } catch (error) {
+      console.warn('Failed to read grayscale preference:', error)
+    }
   }, [])
 
   return (
