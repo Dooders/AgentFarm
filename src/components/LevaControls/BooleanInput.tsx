@@ -1,5 +1,11 @@
 import React from 'react'
-import { BooleanInputProps } from '@/types/leva'
+interface BooleanFieldProps {
+  value: boolean
+  onChange: (value: boolean) => void
+  label?: string
+  error?: string
+  disabled?: boolean
+}
 import styled from 'styled-components'
 
 const BooleanInputContainer = styled.div`
@@ -18,11 +24,12 @@ const BooleanInputLabel = styled.label`
   align-items: center;
   gap: 8px;
   cursor: pointer;
+  min-height: 28px;
 `
 
 const BooleanInputField = styled.input`
-  width: 16px;
-  height: 16px;
+  width: 28px;
+  height: 28px;
   background: var(--leva-colors-elevation2);
   border: 2px solid var(--leva-colors-accent1);
   border-radius: var(--leva-radii-sm);
@@ -42,7 +49,7 @@ const BooleanInputField = styled.input`
     left: 50%;
     transform: translate(-50%, -50%);
     color: var(--leva-colors-elevation1);
-    font-size: 12px;
+    font-size: 16px;
     font-weight: bold;
   }
 
@@ -63,7 +70,7 @@ const BooleanInputError = styled.div`
   margin-top: 2px;
 `
 
-export const BooleanInput: React.FC<BooleanInputProps> = ({
+export const BooleanInput: React.FC<BooleanFieldProps> = ({
   value,
   onChange,
   label,

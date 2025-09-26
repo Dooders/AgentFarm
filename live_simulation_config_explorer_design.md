@@ -439,6 +439,10 @@ const ModuleParameterSchema = z.object({
 1. Implement all Leva folder structures and controls
 2. Apply greyscale theme with custom typography
 3. Create type-specific input components
+   - SelectInput: enum dropdown with search and clear support
+   - ObjectInput: collapsible JSON editor with pretty preview and error display
+   - ArrayInput: dynamic array editor with add/remove and inferred item type
+   - RangeInput: dual handle range input with clamped values and live labels
 4. Implement validation display components
 5. Add focus states and accessibility features
 
