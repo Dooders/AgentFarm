@@ -74,6 +74,12 @@ export interface LevaStore {
 
   // Update processing
   processPendingUpdates: () => void
+
+  // Enhanced integration methods
+  bindConfigValue: (path: string, value: any) => void
+  unbindConfigValue: (path: string) => void
+  getConfigValue: (path: string, config: SimulationConfigType) => any
+  setConfigValue: (path: string, value: any, config: SimulationConfigType) => any
 }
 
 const defaultState = {

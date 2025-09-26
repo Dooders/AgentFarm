@@ -1,5 +1,8 @@
 import React from 'react'
-import { render, screen } from '@/test/test-utils'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { render } from '../../test/test-utils'
+import { screen } from '@testing-library/react'
+import '@testing-library/jest-dom'
 import { useValidationStore } from '@/stores/validationStore'
 import { ValidationSummary } from '@/components/Validation/ValidationSummary'
 

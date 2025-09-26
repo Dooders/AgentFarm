@@ -1,5 +1,8 @@
 import React from 'react'
-import { render, screen } from '@/test/test-utils'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { render } from '../../test/test-utils'
+import { screen } from '@testing-library/react'
+import '@testing-library/jest-dom'
 import { useValidationStore } from '@/stores/validationStore'
 import { ValidationDisplay } from '@/components/Validation/ValidationDisplay'
 
@@ -27,7 +30,7 @@ describe('ValidationDisplay', () => {
 
     expect(screen.getByText('Env Issues')).toBeInTheDocument()
     expect(screen.getByText('Invalid width')).toBeInTheDocument()
-    expect(screen.queryByText('Too high')).toBeNull()
+    expect(screen.queryByText('Too high')).not.toBeInTheDocument()
   })
 
   it('renders warnings', () => {

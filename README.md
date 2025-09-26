@@ -194,12 +194,31 @@ npm run docs
 - Modern React 18 + TypeScript interface
 - Real-time configuration editing with Zod validation
 - **Complete hierarchical folder structure** with 4 main sections and 12 sub-folders
+- **Validation Display System (Issue #12)**: Inline errors/warnings with section scoping and a summary panel
 - Hot Module Replacement (HMR) for rapid development
 - Cross-platform packaging (Windows, macOS, Linux)
 - Zustand state management with persistence
 - Advanced Leva controls integration with path mapping system
 - Comprehensive testing with Vitest and Jest
 - TypeScript path mapping with `@/` aliases
+
+### Validation UI and Integration
+
+- Components:
+  - `src/components/Validation/ValidationDisplay.tsx`: Show errors/warnings for exact paths or prefixed sections.
+  - `src/components/Validation/ValidationSummary.tsx`: Form-level overview with counts and top issues.
+
+- Where used:
+  - `src/components/ConfigExplorer/RightPanel.tsx`: Renders `ValidationSummary` in the Validation Status section.
+  - `src/components/ConfigExplorer/LeftPanel.tsx`: Renders section-scoped `ValidationDisplay` blocks.
+  - `src/components/LevaControls/LevaControls.tsx`: Debounced field validation on change updates the validation store.
+
+- Validation service:
+  - `src/services/validationService.ts` integrates Zod results and classifies extra rules: capacity=error; performance/memory=warnings.
+
+- Tests:
+  - `src/components/__tests__/ValidationDisplay.test.tsx`
+  - `src/components/__tests__/ValidationSummary.test.tsx`
 
 ## Documentation
 
