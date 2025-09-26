@@ -12,17 +12,17 @@ import type { NumberInputProps, BooleanInputProps, StringInputProps, ConfigFolde
 // Test path mapping utility function
 describe('Path Mapping Utility', () => {
   it('converts Environment folder paths to config paths', () => {
-    // Mock the path mapping logic from LevaControls
-    const pathMapping = {
-      'Environment/World Settings.width': 'width',
-      'Environment/World Settings.height': 'height',
-      'Environment/Population.system_agents': 'system_agents',
-      'Environment/Resource Management.resource_regeneration_rate': 'resource_regeneration_rate'
-    }
-
     const convertLevaPathToConfigPath = (levaPath: string): string => {
-      if (pathMapping[levaPath]) {
-        return pathMapping[levaPath]
+      // Import the actual PATH_MAPPING from the component
+      const PATH_MAPPING = {
+        'Environment/World Settings.width': 'width',
+        'Environment/World Settings.height': 'height',
+        'Environment/Population.system_agents': 'system_agents',
+        'Environment/Resource Management.resource_regeneration_rate': 'resource_regeneration_rate'
+      }
+
+      if (PATH_MAPPING[levaPath]) {
+        return PATH_MAPPING[levaPath]
       }
 
       const pathParts = levaPath.split('.')
@@ -49,13 +49,13 @@ describe('Path Mapping Utility', () => {
   })
 
   it('converts Agent Behavior folder paths to config paths', () => {
-    const pathMapping = {
+    const PATH_MAPPING = {
       'Agent Behavior/Movement Parameters.move_target_update_freq': 'move_parameters.target_update_freq'
     }
 
     const convertLevaPathToConfigPath = (levaPath: string): string => {
-      if (pathMapping[levaPath]) {
-        return pathMapping[levaPath]
+      if (PATH_MAPPING[levaPath]) {
+        return PATH_MAPPING[levaPath]
       }
 
       const pathParts = levaPath.split('.')
@@ -77,13 +77,20 @@ describe('Path Mapping Utility', () => {
   })
 
   it('converts Learning & AI folder paths to config paths', () => {
-    const pathMapping = {
+    const PATH_MAPPING = {
       'Learning & AI/General Learning.learning_rate': 'learning_rate'
     }
 
+    const MODULE_NAME_MAPPING = {
+      'Movement': 'move_parameters',
+      'Gathering': 'gather_parameters',
+      'Combat': 'attack_parameters',
+      'Sharing': 'share_parameters'
+    }
+
     const convertLevaPathToConfigPath = (levaPath: string): string => {
-      if (pathMapping[levaPath]) {
-        return pathMapping[levaPath]
+      if (PATH_MAPPING[levaPath]) {
+        return PATH_MAPPING[levaPath]
       }
 
       const pathParts = levaPath.split('.')
@@ -94,6 +101,19 @@ describe('Path Mapping Utility', () => {
         if (secondLastPart && ['move_parameters', 'gather_parameters', 'attack_parameters', 'share_parameters'].includes(secondLastPart)) {
           return `${secondLastPart}.${lastPart}`
         }
+
+        // Check if this is a module-specific learning parameter - test the fixed logic
+        if (levaPath.includes('module_specific_learning')) {
+          const moduleIndex = pathParts.findIndex(part => part === 'module_specific_learning')
+          if (moduleIndex !== -1 && pathParts.length > moduleIndex + 2) {
+            const moduleName = pathParts[moduleIndex + 1]
+            const paramName = pathParts[moduleIndex + 2]
+
+            // Use the proper module name mapping instead of toLowerCase()
+            const modulePrefix = MODULE_NAME_MAPPING[moduleName] || `${moduleName.toLowerCase()}_parameters`
+            return `${modulePrefix}.${paramName}`
+          }
+        }
       }
 
       return levaPath
@@ -101,16 +121,17 @@ describe('Path Mapping Utility', () => {
 
     expect(convertLevaPathToConfigPath('Learning & AI/General Learning.learning_rate')).toBe('learning_rate')
     expect(convertLevaPathToConfigPath('Learning & AI/Module-Specific Learning.module_specific_learning.Movement.learning_rate')).toBe('move_parameters.learning_rate')
+    expect(convertLevaPathToConfigPath('Learning & AI/Module-Specific Learning.module_specific_learning.Combat.batch_size')).toBe('attack_parameters.batch_size')
   })
 
   it('converts Visualization folder paths to config paths', () => {
-    const pathMapping = {
+    const PATH_MAPPING = {
       'Visualization/Display Settings.canvas_width': 'visualization.canvas_width'
     }
 
     const convertLevaPathToConfigPath = (levaPath: string): string => {
-      if (pathMapping[levaPath]) {
-        return pathMapping[levaPath]
+      if (PATH_MAPPING[levaPath]) {
+        return PATH_MAPPING[levaPath]
       }
 
       const pathParts = levaPath.split('.')
@@ -152,6 +173,47 @@ describe('Path Mapping Utility', () => {
     expect(convertLevaPathToConfigPath('agent_parameters.SystemAgent.target_update_freq')).toBe('agent_parameters.SystemAgent.target_update_freq')
     expect(convertLevaPathToConfigPath('agent_parameters.IndependentAgent.memory_size')).toBe('agent_parameters.IndependentAgent.memory_size')
     expect(convertLevaPathToConfigPath('agent_parameters.ControlAgent.learning_rate')).toBe('agent_parameters.ControlAgent.learning_rate')
+  })
+
+  it('correctly maps module names using MODULE_NAME_MAPPING', () => {
+    const MODULE_NAME_MAPPING = {
+      'Movement': 'move_parameters',
+      'Gathering': 'gather_parameters',
+      'Combat': 'attack_parameters',
+      'Sharing': 'share_parameters'
+    }
+
+    const convertLevaPathToConfigPath = (levaPath: string): string => {
+      const pathParts = levaPath.split('.')
+      if (pathParts.length >= 2) {
+        const lastPart = pathParts[pathParts.length - 1]
+        const secondLastPart = pathParts[pathParts.length - 2]
+
+        // Check if this is a module-specific learning parameter
+        if (levaPath.includes('module_specific_learning')) {
+          const moduleIndex = pathParts.findIndex(part => part === 'module_specific_learning')
+          if (moduleIndex !== -1 && pathParts.length > moduleIndex + 2) {
+            const moduleName = pathParts[moduleIndex + 1]
+            const paramName = pathParts[moduleIndex + 2]
+
+            // Use the proper module name mapping instead of toLowerCase()
+            const modulePrefix = MODULE_NAME_MAPPING[moduleName] || `${moduleName.toLowerCase()}_parameters`
+            return `${modulePrefix}.${paramName}`
+          }
+        }
+      }
+
+      return levaPath
+    }
+
+    // Test proper module name mapping
+    expect(convertLevaPathToConfigPath('Learning & AI/Module-Specific Learning.module_specific_learning.Movement.learning_rate')).toBe('move_parameters.learning_rate')
+    expect(convertLevaPathToConfigPath('Learning & AI/Module-Specific Learning.module_specific_learning.Gathering.batch_size')).toBe('gather_parameters.batch_size')
+    expect(convertLevaPathToConfigPath('Learning & AI/Module-Specific Learning.module_specific_learning.Combat.tau')).toBe('attack_parameters.tau')
+    expect(convertLevaPathToConfigPath('Learning & AI/Module-Specific Learning.module_specific_learning.Sharing.success_reward')).toBe('share_parameters.success_reward')
+
+    // Test fallback for unmapped module names
+    expect(convertLevaPathToConfigPath('Learning & AI/Module-Specific Learning.module_specific_learning.UnknownModule.param')).toBe('unknownmodule_parameters.param')
   })
 })
 
@@ -281,7 +343,7 @@ describe('Leva Control Components', () => {
         />
       )
 
-      const checkbox = screen.getByRole('checkbox') as HTMLInputElement
+      const checkbox = screen.getByRole('checkbox')
       expect(checkbox.checked).toBe(true)
       expect(screen.getByText('Test Boolean')).toBeTruthy()
     })
@@ -336,7 +398,7 @@ describe('Leva Control Components', () => {
         />
       )
 
-      const input = screen.getByDisplayValue('test') as HTMLInputElement
+      const input = screen.getByDisplayValue('test')
       expect(input).toBeTruthy()
       expect(input.placeholder).toBe('Enter text')
       expect(screen.getByText('Test String')).toBeTruthy()

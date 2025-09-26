@@ -5,6 +5,102 @@ import { Leva, useControls, folder } from 'leva'
 import styled from 'styled-components'
 import { SimulationConfig } from '@/types/config'
 
+// Static path mapping - moved outside component to avoid unnecessary recreation
+const PATH_MAPPING: Record<string, string> = {
+  // Environment folder mappings
+  'Environment/World Settings.width': 'width',
+  'Environment/World Settings.height': 'height',
+  'Environment/World Settings.position_discretization_method': 'position_discretization_method',
+  'Environment/World Settings.use_bilinear_interpolation': 'use_bilinear_interpolation',
+  'Environment/World Settings.grid_type': 'grid_type',
+  'Environment/World Settings.wrap_around': 'wrap_around',
+
+  // Population folder mappings
+  'Environment/Population.system_agents': 'system_agents',
+  'Environment/Population.independent_agents': 'independent_agents',
+  'Environment/Population.control_agents': 'control_agents',
+  'Environment/Population.agent_type_ratios.SystemAgent': 'agent_type_ratios.SystemAgent',
+  'Environment/Population.agent_type_ratios.IndependentAgent': 'agent_type_ratios.IndependentAgent',
+  'Environment/Population.agent_type_ratios.ControlAgent': 'agent_type_ratios.ControlAgent',
+
+  // Resource Management folder mappings
+  'Environment/Resource Management.resource_regeneration_rate': 'resource_regeneration_rate',
+  'Environment/Resource Management.resource_max_level': 'resource_max_level',
+  'Environment/Resource Management.resource_consumption_rate': 'resource_consumption_rate',
+  'Environment/Resource Management.resource_spawn_chance': 'resource_spawn_chance',
+  'Environment/Resource Management.resource_scarcity_factor': 'resource_scarcity_factor',
+
+  // Agent Behavior folder mappings
+  'Agent Behavior/Movement Parameters.move_target_update_freq': 'move_parameters.target_update_freq',
+  'Agent Behavior/Movement Parameters.move_memory_size': 'move_parameters.memory_size',
+  'Agent Behavior/Movement Parameters.move_learning_rate': 'move_parameters.learning_rate',
+  'Agent Behavior/Movement Parameters.move_gamma': 'move_parameters.gamma',
+
+  'Agent Behavior/Gathering Parameters.gather_target_update_freq': 'gather_parameters.target_update_freq',
+  'Agent Behavior/Gathering Parameters.gather_memory_size': 'gather_parameters.memory_size',
+  'Agent Behavior/Gathering Parameters.gather_learning_rate': 'gather_parameters.learning_rate',
+  'Agent Behavior/Gathering Parameters.gather_success_reward': 'gather_parameters.success_reward',
+  'Agent Behavior/Gathering Parameters.gather_failure_penalty': 'gather_parameters.failure_penalty',
+  'Agent Behavior/Gathering Parameters.gather_base_cost': 'gather_parameters.base_cost',
+
+  'Agent Behavior/Combat Parameters.attack_target_update_freq': 'attack_parameters.target_update_freq',
+  'Agent Behavior/Combat Parameters.attack_memory_size': 'attack_parameters.memory_size',
+  'Agent Behavior/Combat Parameters.attack_learning_rate': 'attack_parameters.learning_rate',
+  'Agent Behavior/Combat Parameters.attack_success_reward': 'attack_parameters.success_reward',
+  'Agent Behavior/Combat Parameters.attack_failure_penalty': 'attack_parameters.failure_penalty',
+  'Agent Behavior/Combat Parameters.attack_base_cost': 'attack_parameters.base_cost',
+
+  'Agent Behavior/Sharing Parameters.share_target_update_freq': 'share_parameters.target_update_freq',
+  'Agent Behavior/Sharing Parameters.share_memory_size': 'share_parameters.memory_size',
+  'Agent Behavior/Sharing Parameters.share_learning_rate': 'share_parameters.learning_rate',
+  'Agent Behavior/Sharing Parameters.share_success_reward': 'share_parameters.success_reward',
+  'Agent Behavior/Sharing Parameters.share_failure_penalty': 'share_parameters.failure_penalty',
+  'Agent Behavior/Sharing Parameters.share_base_cost': 'share_parameters.base_cost',
+
+  // Learning & AI folder mappings
+  'Learning & AI/General Learning.learning_rate': 'learning_rate',
+  'Learning & AI/General Learning.epsilon_start': 'epsilon_start',
+  'Learning & AI/General Learning.epsilon_min': 'epsilon_min',
+  'Learning & AI/General Learning.epsilon_decay': 'epsilon_decay',
+  'Learning & AI/General Learning.batch_size': 'batch_size',
+
+  // Module-specific learning mappings
+  'Learning & AI/Module-Specific Learning.module_specific_learning.Movement.learning_rate': 'move_parameters.learning_rate',
+  'Learning & AI/Module-Specific Learning.module_specific_learning.Movement.batch_size': 'move_parameters.batch_size',
+  'Learning & AI/Module-Specific Learning.module_specific_learning.Gathering.learning_rate': 'gather_parameters.learning_rate',
+  'Learning & AI/Module-Specific Learning.module_specific_learning.Gathering.batch_size': 'gather_parameters.batch_size',
+  'Learning & AI/Module-Specific Learning.module_specific_learning.Combat.learning_rate': 'attack_parameters.learning_rate',
+  'Learning & AI/Module-Specific Learning.module_specific_learning.Combat.batch_size': 'attack_parameters.batch_size',
+  'Learning & AI/Module-Specific Learning.module_specific_learning.Sharing.learning_rate': 'share_parameters.learning_rate',
+  'Learning & AI/Module-Specific Learning.module_specific_learning.Sharing.batch_size': 'share_parameters.batch_size',
+
+  // Visualization folder mappings
+  'Visualization/Display Settings.canvas_width': 'visualization.canvas_width',
+  'Visualization/Display Settings.canvas_height': 'visualization.canvas_height',
+  'Visualization/Display Settings.background_color': 'visualization.background_color',
+  'Visualization/Display Settings.line_width': 'visualization.line_width',
+
+  'Visualization/Animation Settings.max_frames': 'max_frames',
+  'Visualization/Animation Settings.frame_delay': 'frame_delay',
+  'Visualization/Animation Settings.animation_speed': 'animation_speed',
+  'Visualization/Animation Settings.smooth_transitions': 'smooth_transitions',
+
+  'Visualization/Metrics Display.show_metrics': 'visualization.show_metrics',
+  'Visualization/Metrics Display.font_size': 'visualization.font_size',
+  'Visualization/Metrics Display.agent_colors.SystemAgent': 'visualization.agent_colors.SystemAgent',
+  'Visualization/Metrics Display.agent_colors.IndependentAgent': 'visualization.agent_colors.IndependentAgent',
+  'Visualization/Metrics Display.agent_colors.ControlAgent': 'visualization.agent_colors.ControlAgent',
+  'Visualization/Metrics Display.metrics_position': 'metrics_position'
+}
+
+// Module name mapping for proper conversion (instead of toLowerCase())
+const MODULE_NAME_MAPPING: Record<string, string> = {
+  'Movement': 'move_parameters',
+  'Gathering': 'gather_parameters',
+  'Combat': 'attack_parameters',
+  'Sharing': 'share_parameters'
+}
+
 // Define proper interface for config store
 interface ConfigStoreInterface {
   updateConfig: (path: string, value: any) => void
@@ -95,145 +191,12 @@ export const LevaControls: React.FC = () => {
   // automatically re-renders when configStore.config changes, and
   // the onChange callbacks update the config store when Leva controls change
 
-  // Path mapping utility to convert hierarchical Leva paths to actual config paths
-  const pathMapping = useMemo(() => ({
-    // Environment folder mappings
-    'Environment/World Settings.width': 'width',
-    'Environment/World Settings.height': 'height',
-    'Environment/World Settings.position_discretization_method': 'position_discretization_method',
-    'Environment/World Settings.use_bilinear_interpolation': 'use_bilinear_interpolation',
-    'Environment/World Settings.grid_type': 'grid_type',
-    'Environment/World Settings.wrap_around': 'wrap_around',
-
-    // Population folder mappings
-    'Environment/Population.system_agents': 'system_agents',
-    'Environment/Population.independent_agents': 'independent_agents',
-    'Environment/Population.control_agents': 'control_agents',
-    'Environment/Population.agent_type_ratios.SystemAgent': 'agent_type_ratios.SystemAgent',
-    'Environment/Population.agent_type_ratios.IndependentAgent': 'agent_type_ratios.IndependentAgent',
-    'Environment/Population.agent_type_ratios.ControlAgent': 'agent_type_ratios.ControlAgent',
-
-    // Resource Management folder mappings
-    'Environment/Resource Management.resource_regeneration_rate': 'resource_regeneration_rate',
-    'Environment/Resource Management.resource_max_level': 'resource_max_level',
-    'Environment/Resource Management.resource_consumption_rate': 'resource_consumption_rate',
-    'Environment/Resource Management.resource_spawn_chance': 'resource_spawn_chance',
-    'Environment/Resource Management.resource_scarcity_factor': 'resource_scarcity_factor',
-
-    // Agent Behavior folder mappings
-    'Agent Behavior/Movement Parameters.move_target_update_freq': 'move_parameters.target_update_freq',
-    'Agent Behavior/Movement Parameters.move_memory_size': 'move_parameters.memory_size',
-    'Agent Behavior/Movement Parameters.move_learning_rate': 'move_parameters.learning_rate',
-    'Agent Behavior/Movement Parameters.move_gamma': 'move_parameters.gamma',
-
-    'Agent Behavior/Gathering Parameters.gather_target_update_freq': 'gather_parameters.target_update_freq',
-    'Agent Behavior/Gathering Parameters.gather_memory_size': 'gather_parameters.memory_size',
-    'Agent Behavior/Gathering Parameters.gather_learning_rate': 'gather_parameters.learning_rate',
-    'Agent Behavior/Gathering Parameters.gather_success_reward': 'gather_parameters.success_reward',
-    'Agent Behavior/Gathering Parameters.gather_failure_penalty': 'gather_parameters.failure_penalty',
-    'Agent Behavior/Gathering Parameters.gather_base_cost': 'gather_parameters.base_cost',
-
-    'Agent Behavior/Combat Parameters.attack_target_update_freq': 'attack_parameters.target_update_freq',
-    'Agent Behavior/Combat Parameters.attack_memory_size': 'attack_parameters.memory_size',
-    'Agent Behavior/Combat Parameters.attack_learning_rate': 'attack_parameters.learning_rate',
-    'Agent Behavior/Combat Parameters.attack_success_reward': 'attack_parameters.success_reward',
-    'Agent Behavior/Combat Parameters.attack_failure_penalty': 'attack_parameters.failure_penalty',
-    'Agent Behavior/Combat Parameters.attack_base_cost': 'attack_parameters.base_cost',
-
-    'Agent Behavior/Sharing Parameters.share_target_update_freq': 'share_parameters.target_update_freq',
-    'Agent Behavior/Sharing Parameters.share_memory_size': 'share_parameters.memory_size',
-    'Agent Behavior/Sharing Parameters.share_learning_rate': 'share_parameters.learning_rate',
-    'Agent Behavior/Sharing Parameters.share_success_reward': 'share_parameters.success_reward',
-    'Agent Behavior/Sharing Parameters.share_failure_penalty': 'share_parameters.failure_penalty',
-    'Agent Behavior/Sharing Parameters.share_base_cost': 'share_parameters.base_cost',
-
-    // Learning & AI folder mappings
-    'Learning & AI/General Learning.learning_rate': 'learning_rate',
-    'Learning & AI/General Learning.epsilon_start': 'epsilon_start',
-    'Learning & AI/General Learning.epsilon_min': 'epsilon_min',
-    'Learning & AI/General Learning.epsilon_decay': 'epsilon_decay',
-    'Learning & AI/General Learning.batch_size': 'batch_size',
-
-    // Module-specific learning mappings
-    'Learning & AI/Module-Specific Learning.module_specific_learning.Movement.learning_rate': 'move_parameters.learning_rate',
-    'Learning & AI/Module-Specific Learning.module_specific_learning.Movement.batch_size': 'move_parameters.batch_size',
-    'Learning & AI/Module-Specific Learning.module_specific_learning.Gathering.learning_rate': 'gather_parameters.learning_rate',
-    'Learning & AI/Module-Specific Learning.module_specific_learning.Gathering.batch_size': 'gather_parameters.batch_size',
-    'Learning & AI/Module-Specific Learning.module_specific_learning.Combat.learning_rate': 'attack_parameters.learning_rate',
-    'Learning & AI/Module-Specific Learning.module_specific_learning.Combat.batch_size': 'attack_parameters.batch_size',
-    'Learning & AI/Module-Specific Learning.module_specific_learning.Sharing.learning_rate': 'share_parameters.learning_rate',
-    'Learning & AI/Module-Specific Learning.module_specific_learning.Sharing.batch_size': 'share_parameters.batch_size',
-
-    // Visualization folder mappings
-    'Visualization/Display Settings.canvas_width': 'visualization.canvas_width',
-    'Visualization/Display Settings.canvas_height': 'visualization.canvas_height',
-    'Visualization/Display Settings.background_color': 'visualization.background_color',
-    'Visualization/Display Settings.line_width': 'visualization.line_width',
-
-    'Visualization/Animation Settings.max_frames': 'max_frames',
-    'Visualization/Animation Settings.frame_delay': 'frame_delay',
-    'Visualization/Animation Settings.animation_speed': 'animation_speed',
-    'Visualization/Animation Settings.smooth_transitions': 'smooth_transitions',
-
-    'Visualization/Metrics Display.show_metrics': 'visualization.show_metrics',
-    'Visualization/Metrics Display.font_size': 'visualization.font_size',
-    'Visualization/Metrics Display.agent_colors.SystemAgent': 'visualization.agent_colors.SystemAgent',
-    'Visualization/Metrics Display.agent_colors.IndependentAgent': 'visualization.agent_colors.IndependentAgent',
-    'Visualization/Metrics Display.agent_colors.ControlAgent': 'visualization.agent_colors.ControlAgent',
-    'Visualization/Metrics Display.metrics_position': 'metrics_position',
-
-    // Agent Parameters mappings (for all agent types)
-    // SystemAgent parameters
-    'agent_parameters.SystemAgent.target_update_freq': 'agent_parameters.SystemAgent.target_update_freq',
-    'agent_parameters.SystemAgent.memory_size': 'agent_parameters.SystemAgent.memory_size',
-    'agent_parameters.SystemAgent.learning_rate': 'agent_parameters.SystemAgent.learning_rate',
-    'agent_parameters.SystemAgent.gamma': 'agent_parameters.SystemAgent.gamma',
-    'agent_parameters.SystemAgent.epsilon_start': 'agent_parameters.SystemAgent.epsilon_start',
-    'agent_parameters.SystemAgent.epsilon_min': 'agent_parameters.SystemAgent.epsilon_min',
-    'agent_parameters.SystemAgent.epsilon_decay': 'agent_parameters.SystemAgent.epsilon_decay',
-    'agent_parameters.SystemAgent.dqn_hidden_size': 'agent_parameters.SystemAgent.dqn_hidden_size',
-    'agent_parameters.SystemAgent.batch_size': 'agent_parameters.SystemAgent.batch_size',
-    'agent_parameters.SystemAgent.tau': 'agent_parameters.SystemAgent.tau',
-    'agent_parameters.SystemAgent.success_reward': 'agent_parameters.SystemAgent.success_reward',
-    'agent_parameters.SystemAgent.failure_penalty': 'agent_parameters.SystemAgent.failure_penalty',
-    'agent_parameters.SystemAgent.base_cost': 'agent_parameters.SystemAgent.base_cost',
-
-    // IndependentAgent parameters
-    'agent_parameters.IndependentAgent.target_update_freq': 'agent_parameters.IndependentAgent.target_update_freq',
-    'agent_parameters.IndependentAgent.memory_size': 'agent_parameters.IndependentAgent.memory_size',
-    'agent_parameters.IndependentAgent.learning_rate': 'agent_parameters.IndependentAgent.learning_rate',
-    'agent_parameters.IndependentAgent.gamma': 'agent_parameters.IndependentAgent.gamma',
-    'agent_parameters.IndependentAgent.epsilon_start': 'agent_parameters.IndependentAgent.epsilon_start',
-    'agent_parameters.IndependentAgent.epsilon_min': 'agent_parameters.IndependentAgent.epsilon_min',
-    'agent_parameters.IndependentAgent.epsilon_decay': 'agent_parameters.IndependentAgent.epsilon_decay',
-    'agent_parameters.IndependentAgent.dqn_hidden_size': 'agent_parameters.IndependentAgent.dqn_hidden_size',
-    'agent_parameters.IndependentAgent.batch_size': 'agent_parameters.IndependentAgent.batch_size',
-    'agent_parameters.IndependentAgent.tau': 'agent_parameters.IndependentAgent.tau',
-    'agent_parameters.IndependentAgent.success_reward': 'agent_parameters.IndependentAgent.success_reward',
-    'agent_parameters.IndependentAgent.failure_penalty': 'agent_parameters.IndependentAgent.failure_penalty',
-    'agent_parameters.IndependentAgent.base_cost': 'agent_parameters.IndependentAgent.base_cost',
-
-    // ControlAgent parameters
-    'agent_parameters.ControlAgent.target_update_freq': 'agent_parameters.ControlAgent.target_update_freq',
-    'agent_parameters.ControlAgent.memory_size': 'agent_parameters.ControlAgent.memory_size',
-    'agent_parameters.ControlAgent.learning_rate': 'agent_parameters.ControlAgent.learning_rate',
-    'agent_parameters.ControlAgent.gamma': 'agent_parameters.ControlAgent.gamma',
-    'agent_parameters.ControlAgent.epsilon_start': 'agent_parameters.ControlAgent.epsilon_start',
-    'agent_parameters.ControlAgent.epsilon_min': 'agent_parameters.ControlAgent.epsilon_min',
-    'agent_parameters.ControlAgent.epsilon_decay': 'agent_parameters.ControlAgent.epsilon_decay',
-    'agent_parameters.ControlAgent.dqn_hidden_size': 'agent_parameters.ControlAgent.dqn_hidden_size',
-    'agent_parameters.ControlAgent.batch_size': 'agent_parameters.ControlAgent.batch_size',
-    'agent_parameters.ControlAgent.tau': 'agent_parameters.ControlAgent.tau',
-    'agent_parameters.ControlAgent.success_reward': 'agent_parameters.ControlAgent.success_reward',
-    'agent_parameters.ControlAgent.failure_penalty': 'agent_parameters.ControlAgent.failure_penalty',
-    'agent_parameters.ControlAgent.base_cost': 'agent_parameters.ControlAgent.base_cost'
-  }), [])
 
   // Convert hierarchical Leva path to actual config path
   const convertLevaPathToConfigPath = useCallback((levaPath: string): string => {
-    // First check if there's a direct mapping
-    if (pathMapping[levaPath]) {
-      return pathMapping[levaPath]
+    // First check if there's a direct mapping using the static PATH_MAPPING
+    if (PATH_MAPPING[levaPath]) {
+      return PATH_MAPPING[levaPath]
     }
 
     // If no direct mapping, try to extract the config path from the hierarchical path
@@ -270,13 +233,16 @@ export const LevaControls: React.FC = () => {
         return `agent_type_ratios.${lastPart}`
       }
 
-      // Check if this is a module-specific learning parameter
+      // Check if this is a module-specific learning parameter - FIXED: use proper mapping instead of toLowerCase()
       if (levaPath.includes('module_specific_learning')) {
         const moduleIndex = pathParts.findIndex(part => part === 'module_specific_learning')
         if (moduleIndex !== -1 && pathParts.length > moduleIndex + 2) {
           const moduleName = pathParts[moduleIndex + 1]
           const paramName = pathParts[moduleIndex + 2]
-          return `${moduleName.toLowerCase()}_parameters.${paramName}`
+
+          // Use the proper module name mapping instead of toLowerCase()
+          const modulePrefix = MODULE_NAME_MAPPING[moduleName] || `${moduleName.toLowerCase()}_parameters`
+          return `${modulePrefix}.${paramName}`
         }
       }
     }
@@ -284,7 +250,7 @@ export const LevaControls: React.FC = () => {
     // Default: return the original path if no mapping found
     console.warn(`No mapping found for Leva path: ${levaPath}, using as-is`)
     return levaPath
-  }, [pathMapping])
+  }, [])
 
   // Callback to handle Leva control updates with error handling
   const handleLevaUpdate = useCallback((path: string, value: any) => {
