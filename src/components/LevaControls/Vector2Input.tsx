@@ -163,8 +163,9 @@ const NumberInput: React.FC<{
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const inputValue = e.target.value
 
-    // Allow empty input
+    // Handle empty input - allow clearing by setting to 0
     if (inputValue === '') {
+      onChange(0)
       return
     }
 

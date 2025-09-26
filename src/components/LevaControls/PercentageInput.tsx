@@ -207,27 +207,29 @@ const PercentageSlider: React.FC<{
   const normalizedValue = (value - min) / (max - min)
   const clampedValue = Math.max(0, Math.min(1, normalizedValue))
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    setIsDragging(true)
-    updateValueFromMouse(e)
-  }, [value, min, max, step, onChange])
-
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging) return
-    updateValueFromMouse(e)
-  }, [isDragging, updateValueFromMouse])
-
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false)
-  }, [])
-
-  const updateValueFromMouse = useCallback((e: MouseEvent | React.MouseEvent) => {
-    const rect = e.currentTarget.getBoundingClientRect()
+  const updateValueFromMouse = useCallback((e: MouseEvent | React.MouseEvent, sliderElement: HTMLElement) => {
+    const rect = sliderElement.getBoundingClientRect()
     const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
     const newValue = min + x * (max - min)
     const steppedValue = Math.round(newValue / step) * step
     onChange(Math.max(min, Math.min(max, steppedValue)))
   }, [min, max, step, onChange])
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    setIsDragging(true)
+    updateValueFromMouse(e, e.currentTarget as HTMLElement)
+  }, [updateValueFromMouse])
+
+  const sliderRef = React.useRef<HTMLDivElement>(null)
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!isDragging || !sliderRef.current) return
+    updateValueFromMouse(e, sliderRef.current)
+  }, [isDragging, updateValueFromMouse])
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false)
+  }, [])
 
   // Add/remove event listeners
   React.useEffect(() => {
@@ -247,6 +249,7 @@ const PercentageSlider: React.FC<{
 
   return (
     <div
+      ref={sliderRef}
       className="percentage-slider"
       style={{ backgroundColor }}
       onMouseDown={handleMouseDown}
@@ -304,8 +307,9 @@ const PercentageNumberInput: React.FC<{
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const inputValue = e.target.value
 
-    // Allow empty input
+    // Handle empty input - allow clearing by setting to 0
     if (inputValue === '') {
+      onChange(0)
       return
     }
 

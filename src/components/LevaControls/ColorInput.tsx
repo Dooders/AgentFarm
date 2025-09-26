@@ -312,17 +312,50 @@ export const ColorInput: React.FC<ColorProps> = ({
   const handleColorChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const inputValue = e.target.value
 
-    // Validate color format
-    if (format === 'hex' && !isValidHexColor(inputValue)) {
+    // Allow empty input for clearing
+    if (inputValue === '') {
+      onChange(inputValue)
       return
     }
 
-    if (format === 'rgb' && !isValidRgbColor(inputValue)) {
-      return
+    // For hex colors, allow partial input during typing (e.g., "#ff", "#ff0000")
+    if (format === 'hex' && inputValue.startsWith('#')) {
+      // Allow partial hex input (e.g., "#", "#f", "#ff", "#ff0000")
+      if (inputValue.length <= 7) {
+        onChange(inputValue)
+        return
+      }
+      // Only validate complete hex colors
+      if (!isValidHexColor(inputValue)) {
+        return
+      }
     }
 
-    if (format === 'rgba' && !isValidRgbaColor(inputValue)) {
-      return
+    // For RGB/RGBA colors, allow partial input during typing
+    if ((format === 'rgb' || format === 'rgba') && inputValue.includes('(')) {
+      // Allow partial RGB/RGBA input
+      if (inputValue.includes('rgb') && !inputValue.includes(')')) {
+        onChange(inputValue)
+        return
+      }
+      // Validate complete RGB/RGBA colors
+      if (format === 'rgb' && !isValidRgbColor(inputValue)) {
+        return
+      }
+      if (format === 'rgba' && !isValidRgbaColor(inputValue)) {
+        return
+      }
+    }
+
+    // For greyscale format, allow partial input
+    if (format === 'greyscale' && inputValue.startsWith('#')) {
+      if (inputValue.length <= 7) {
+        onChange(inputValue)
+        return
+      }
+      if (!isValidGreyscaleColor(inputValue)) {
+        return
+      }
     }
 
     onChange(inputValue)

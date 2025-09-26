@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import styled from 'styled-components'
 import { ConfigInput, BaseInputProps, InputMetadata, ValidationRule } from './ConfigInput'
 import { ValidationError } from '@/types/validation'
@@ -234,26 +234,30 @@ const FileStatus: React.FC<{
 }> = ({ path, mode, validateExistence = false }) => {
   const [status, setStatus] = useState<'valid' | 'invalid' | 'checking' | 'none'>('none')
 
-  useMemo(async () => {
-    if (!validateExistence || !path) {
-      setStatus('none')
-      return
-    }
-
-    setStatus('checking')
-
-    try {
-      // Use Electron API or fs API to check file existence
-      if (window.electron) {
-        const exists = await window.electron.fileExists(path, mode === 'directory')
-        setStatus(exists ? 'valid' : 'invalid')
-      } else {
-        // Browser fallback - we can't check file existence
-        setStatus('valid')
+  useEffect(() => {
+    const checkFileStatus = async () => {
+      if (!validateExistence || !path) {
+        setStatus('none')
+        return
       }
-    } catch (error) {
-      setStatus('invalid')
+
+      setStatus('checking')
+
+      try {
+        // Use Electron API or fs API to check file existence
+        if (window.electron) {
+          const exists = await window.electron.fileExists(path, mode === 'directory')
+          setStatus(exists ? 'valid' : 'invalid')
+        } else {
+          // Browser fallback - we can't check file existence
+          setStatus('valid')
+        }
+      } catch (error) {
+        setStatus('invalid')
+      }
     }
+
+    checkFileStatus()
   }, [path, mode, validateExistence])
 
   if (!validateExistence || status === 'none') {
