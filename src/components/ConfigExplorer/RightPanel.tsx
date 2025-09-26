@@ -1,5 +1,6 @@
 import React from 'react'
 import styled from 'styled-components'
+import { ValidationSummary } from '@/components/Validation/ValidationSummary'
 
 const RightPanelContainer = styled.div`
   display: flex;
@@ -131,18 +132,7 @@ export const RightPanel: React.FC = () => {
         <SectionTitle>Validation Status</SectionTitle>
 
         <ContentSection>
-          <div style={{ color: 'var(--success-text)', marginBottom: '8px' }}>
-            ✓ All parameters validated successfully
-          </div>
-          <div style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>
-            <p>Configuration passes all validation rules:</p>
-            <ul style={{ marginTop: '8px', paddingLeft: '16px' }}>
-              <li>Parameter ranges: Valid</li>
-              <li>Type consistency: Valid</li>
-              <li>Dependency rules: Valid</li>
-              <li>Performance constraints: Valid</li>
-            </ul>
-          </div>
+          <ValidationSummary />
         </ContentSection>
       </ContentArea>
     </RightPanelContainer>

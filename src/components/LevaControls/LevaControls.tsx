@@ -3,7 +3,9 @@ import { useLevaStore } from '@/stores/levaStore'
 import { useConfigStore } from '@/stores/configStore'
 import { Leva, useControls, folder } from 'leva'
 import styled from 'styled-components'
-import { SimulationConfig } from '@/types/config'
+// removed unused SimulationConfig import
+import { useValidationStore } from '@/stores/validationStore'
+import { validationService } from '@/services/validationService'
 
 // Static path mapping - moved outside component to avoid unnecessary recreation
 const PATH_MAPPING: Record<string, string> = {
@@ -276,7 +278,30 @@ export const LevaControls: React.FC = () => {
 
     // Update the Leva store to track active controls
     levaStore.bindConfigValue(configPath, value)
+
+    // Debounced field validation to avoid thrashing
+    debounceValidate(configPath, value)
   }, [configStore, levaStore, convertLevaPathToConfigPath])
+
+  // Simple debounce map scoped to component instance
+  const debounceMap = useMemo(() => new Map<string, any>(), [])
+
+  const debounceValidate = useCallback((path: string, value: any) => {
+    const key = path
+    const existing = debounceMap.get(key)
+    if (existing) {
+      clearTimeout(existing)
+    }
+    const timeout = setTimeout(() => {
+      const result = validationService.validateField(path, value)
+      if (result.errors.length > 0) {
+        useValidationStore.getState().addErrors(result.errors)
+      } else {
+        useValidationStore.getState().clearFieldErrors(path)
+      }
+    }, 200)
+    debounceMap.set(key, timeout)
+  }, [debounceMap])
 
   // ========================================
   // ENVIRONMENT FOLDER STRUCTURE
