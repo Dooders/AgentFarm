@@ -54,6 +54,16 @@ This repository is being developed to support research in the [Dooders](https://
 - **Research Tools**: Advanced analysis modules for academic research
 - **Genome Embeddings**: Machine learning tools for agent evolution analysis
 
+### IPC Service Layer
+- **Comprehensive IPC Communication**: Full TypeScript implementation with type safety
+- **Configuration Management**: Load, save, export, and import simulation configurations
+- **File System Operations**: Complete file and directory operations with backup support
+- **Template Management**: Save, load, and manage configuration templates
+- **Settings Persistence**: Application settings and UI state management
+- **Error Handling**: Robust error handling with retry logic and graceful fallbacks
+- **Performance Monitoring**: Built-in metrics tracking and optimization
+- **Cross-Platform Support**: Works in both Electron and browser environments
+
 ## Quick Start
 
 ### Prerequisites

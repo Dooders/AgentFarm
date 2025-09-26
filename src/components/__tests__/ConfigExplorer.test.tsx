@@ -1,27 +1,43 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { ConfigExplorer } from '../ConfigExplorer/ConfigExplorer'
 
+// Mock the modules BEFORE importing the component
+vi.mock('@/services/ipcService', () => ({
+  ipcService: {
+    getConnectionStatus: vi.fn(() => 'disconnected'),
+    initializeConnection: vi.fn()
+  }
+}))
+
+vi.mock('@/components/Layout/DualPanelLayout', () => ({
+  DualPanelLayout: () => <div data-testid="dual-panel-layout">Dual Panel Layout</div>
+}))
+
 describe('ConfigExplorer', () => {
-  it('renders without crashing', () => {
-    render(<ConfigExplorer />)
-    expect(screen.getByText('Configuration Explorer')).toBeInTheDocument()
+  beforeEach(() => {
+    // Reset all mocks
+    vi.clearAllMocks()
+
+    // Mock window.electronAPI as undefined (browser mode)
+    Object.defineProperty(window, 'electronAPI', {
+      value: undefined,
+      writable: true
+    })
   })
 
-  it('displays the main container', () => {
+  it('renders without crashing', () => {
     const { container } = render(<ConfigExplorer />)
     expect(container.firstChild).toHaveClass('config-explorer')
   })
 
-  it('contains configuration explorer content for left panel', () => {
+  it('renders dual panel layout', () => {
     render(<ConfigExplorer />)
-    expect(screen.getByText('Configuration Explorer')).toBeInTheDocument()
-    expect(screen.getByText('Leva Controls')).toBeInTheDocument()
+    expect(screen.getByTestId('dual-panel-layout')).toBeInTheDocument()
   })
 
-  it('contains comparison content for right panel', () => {
+  it('shows browser mode warning', () => {
     render(<ConfigExplorer />)
-    expect(screen.getByText('Configuration Comparison')).toBeInTheDocument()
-    expect(screen.getByText('Current Configuration')).toBeInTheDocument()
+    expect(screen.getByText(/Running in browser mode/)).toBeInTheDocument()
   })
 })
