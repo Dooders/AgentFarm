@@ -47,6 +47,14 @@ This repository is being developed to support research in the [Dooders](https://
 - **High-Level Services**: Coordinated analysis operations with built-in error handling
 - **Multi-Simulation Support**: Experiment database for comparing multiple simulation runs
 
+### Accessibility & User Experience
+- **Comprehensive Accessibility Support**: WCAG 2.1 AA compliant interface
+- **Keyboard Navigation**: Full keyboard support with arrow keys, tab navigation, and shortcuts
+- **Screen Reader Compatibility**: Proper ARIA labels, roles, and live regions
+- **High Contrast Mode**: Enhanced visibility for users with visual impairments
+- **Focus Management**: Proper focus trapping and restoration for modals and dynamic content
+- **Skip Navigation Links**: Quick access to main content, validation errors, and comparison tools
+
 ### Additional Tools
 - **Interactive Notebooks**: Jupyter notebooks for data exploration and analysis
 - **Web Dashboard**: Browser-based interface for monitoring and visualization
