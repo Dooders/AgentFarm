@@ -18,7 +18,7 @@ describe('RangeInput', () => {
       />
     )
 
-    const sliders = screen.getAllByRole('slider') as HTMLInputElement[]
+    const sliders = screen.getAllByRole('slider')
     fireEvent.change(sliders[0], { target: { value: '2' } })
     expect(onChange).toHaveBeenCalledWith([2, 10])
   })

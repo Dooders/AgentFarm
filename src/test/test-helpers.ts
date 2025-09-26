@@ -42,7 +42,7 @@ export const setNumberInput = async (label: string | RegExp, value: number) => {
 }
 
 export const setBooleanControl = async (label: string, checked: boolean) => {
-  const control = screen.getByLabelText(label) as HTMLInputElement
+  const control = screen.getByLabelText(label)
   if (control) {
     if (checked !== control.checked) {
       await user.click(control)

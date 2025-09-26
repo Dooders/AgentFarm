@@ -57,13 +57,13 @@ describe('ConfigStore', () => {
   it('adds new sections to expanded folders', () => {
     const { result } = renderHook(() => useConfigStore())
 
-    expect(result.current.expandedFolders.has('new_section')).toBe(false)
+    expect(result.current.expandedFolders.has('agent_parameters')).toBe(false)
 
     act(() => {
-      result.current.toggleSection('new_section')
+      result.current.toggleSection('agent_parameters')
     })
 
-    expect(result.current.expandedFolders.has('new_section')).toBe(true)
+    expect(result.current.expandedFolders.has('agent_parameters')).toBe(true)
   })
 
   it('validates configuration and sets errors', () => {
