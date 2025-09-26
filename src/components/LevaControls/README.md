@@ -179,6 +179,58 @@ Organizes controls into collapsible folders for improved UX.
 - Proper state management
 - Consistent styling with theme
 
+### New Type-Specific Inputs (Issue #11)
+
+These inputs are added to support schema-driven editing with professional theming and accessibility. All controls target 28px height and use JetBrains Mono for numeric/text inputs and Albertus for labels.
+
+**SelectInput**
+Dropdown for enum-like values with optional search and clear.
+
+Props:
+- `value`: current selection (string or any)
+- `onChange(value)`: callback when selection changes
+- `options`: string[] or key→value map
+- `multiple?`: allow multi-select (returns array)
+- `searchable?`: enable client-side filtering (default: true)
+- `clearable?`: show Clear button
+- `label?`, `placeholder?`, `error?`, `disabled?`
+
+**ObjectInput**
+Collapsible JSON editor with pretty preview and validation-on-blur.
+
+Props:
+- `value`: object to edit
+- `onChange(object)`: fires when valid JSON is committed on blur
+- `label?`, `error?`, `disabled?`
+
+Behavior:
+- Collapsed state shows pretty JSON preview
+- Expanded state shows textarea with JSON, validates on blur and displays error
+
+**ArrayInput**
+Dynamic array editor with add/remove and type-specific item inputs.
+
+Props:
+- `value`: array of primitives (string | number | boolean)
+- `onChange(array)`: updates array
+- `label?`, `error?`, `disabled?`
+
+Behavior:
+- Infers item type from first element; defaults to string when empty
+- Renders corresponding input per item and supports Add/Remove
+
+**RangeInput**
+Dual-handle numeric range control rendered with two overlapped sliders.
+
+Props:
+- `value`: `[minValue, maxValue]` tuple or `{min, max}` object
+- `onChange([start, end])`: updates range
+- `min`, `max`, `step?`, `showValue?`, `formatValue?`, `label?`, `error?`, `disabled?`
+
+Behavior:
+- Displays current range; clamps updates within min/max
+- Maintains `start ≤ end` while dragging
+
 ## 🔧 Integration & State Management
 
 ### Store Integration

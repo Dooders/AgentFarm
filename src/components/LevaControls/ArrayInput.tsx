@@ -100,13 +100,28 @@ export const ArrayInput: React.FC<ConfigInputProps> = ({
         {items.map((item, idx) => (
           <Row key={idx}>
             {inferredType === 'number' && (
-              <NumberInput value={item as number} onChange={(v: number) => updateItem(idx, v)} />
+              <NumberInput
+                path={`array.${idx}`}
+                schema={{}}
+                value={item as number}
+                onChange={(v: number) => updateItem(idx, v)}
+              />
             )}
             {inferredType === 'string' && (
-              <StringInput value={item as string} onChange={(v: string) => updateItem(idx, v)} />
+              <StringInput
+                path={`array.${idx}`}
+                schema={{}}
+                value={item as string}
+                onChange={(v: string) => updateItem(idx, v)}
+              />
             )}
             {inferredType === 'boolean' && (
-              <BooleanInput value={item as boolean} onChange={(v: boolean) => updateItem(idx, v)} />
+              <BooleanInput
+                path={`array.${idx}`}
+                schema={{}}
+                value={item as boolean}
+                onChange={(v: boolean) => updateItem(idx, v)}
+              />
             )}
             <Button type="button" onClick={() => removeItem(idx)} disabled={disabled}>Remove</Button>
           </Row>
