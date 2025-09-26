@@ -1,10 +1,15 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import { ThemeProvider } from '@/components/UI/ThemeProvider'
 import { ConfigExplorer } from '../ConfigExplorer/ConfigExplorer'
 
 describe('Accessibility Tests', () => {
   it('should have proper heading hierarchy', () => {
-    render(<ConfigExplorer />)
+    render(
+      <ThemeProvider>
+        <ConfigExplorer />
+      </ThemeProvider>
+    )
 
     // Check for main heading
     const mainHeading = screen.getByText('Configuration Explorer')
@@ -16,7 +21,11 @@ describe('Accessibility Tests', () => {
   })
 
   it('should have semantic HTML structure', () => {
-    const { container } = render(<ConfigExplorer />)
+    const { container } = render(
+      <ThemeProvider>
+        <ConfigExplorer />
+      </ThemeProvider>
+    )
 
     // Check for proper semantic elements
     const headings = container.querySelectorAll('h1, h2, h3, h4, h5, h6')
@@ -28,7 +37,11 @@ describe('Accessibility Tests', () => {
   })
 
   it('should have proper color contrast setup', () => {
-    const { container } = render(<ConfigExplorer />)
+    const { container } = render(
+      <ThemeProvider>
+        <ConfigExplorer />
+      </ThemeProvider>
+    )
 
     // Check that components have proper styling classes
     const styledElements = container.querySelectorAll('[style*="color"], [style*="background"]')

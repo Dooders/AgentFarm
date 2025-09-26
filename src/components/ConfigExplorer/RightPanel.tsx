@@ -131,7 +131,7 @@ export const RightPanel: React.FC = () => {
         <SectionTitle>Validation Status</SectionTitle>
 
         <ContentSection>
-          <div style={{ color: 'var(--success-color, #4caf50)', marginBottom: '8px' }}>
+          <div style={{ color: 'var(--success-text)', marginBottom: '8px' }}>
             ✓ All parameters validated successfully
           </div>
           <div style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>

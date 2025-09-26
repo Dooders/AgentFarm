@@ -17,6 +17,11 @@ html, body {
   line-height: 1.5;
 }
 
+/* Optional global grayscale filter class */
+body.grayscale {
+  filter: grayscale(1);
+}
+
 /* CSS Custom Properties for the greyscale theme */
 :root {
   /* Base Colors */
@@ -135,9 +140,7 @@ html, body {
 }
 
 /* Desktop Layout */
-.resizable-panels.desktop {
-  /* Standard desktop layout */
-}
+/* .resizable-panels.desktop reserved for potential desktop-specific overrides */
 
 .resizable-panels.desktop .split-handle {
   width: 8px;
