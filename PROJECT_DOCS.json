@@ -2,7 +2,6 @@
   "name": "live-simulation-config-explorer",
   "version": "0.1.0",
   "description": "A modern React-based configuration explorer for simulation systems",
-  "type": "module",
   "scripts": {
     "dev": "vite",
     "dev:electron": "cross-env IS_ELECTRON=true vite",
@@ -88,5 +87,10 @@
     "vite-tsconfig-paths": "^4.2.2",
     "vitest": "^1.0.4",
     "wait-on": "^7.2.0"
+  },
+  "build": {
+    "outDir": "dist",
+    "sourcemap": true,
+    "target": "esnext"
   }
 }

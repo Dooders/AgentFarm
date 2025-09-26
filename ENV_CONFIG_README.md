@@ -1,0 +1,49 @@
+# Environment Variables
+
+The following environment variables can be configured:
+
+## Environment Configuration Example
+
+## Copy this file to .env.development or .env.production and adjust values as needed
+
+## Application Configuration
+
+- `NODE_ENV`: development
+- `IS_ELECTRON`: false
+- `VITE_APP_NAME`: "Live Simulation Config Explorer"
+- `VITE_APP_VERSION`: "0.1.0"
+## API and Server Configuration
+
+- `VITE_API_BASE_URL`: "http://localhost:3000"
+- `VITE_ELECTRON_DEV`: true
+- `VITE_HOT_RELOAD`: true
+- `VITE_DEBUG`: true
+- `VITE_LOG_LEVEL`: "debug"
+## Development Server Configuration
+
+- `VITE_DEV_TOOLS`: true
+- `VITE_SOURCEMAPS`: true
+- `VITE_DEV_SERVER_HOST`: "localhost"
+- `VITE_DEV_SERVER_PORT`: 3000
+## Simulation Configuration
+
+- `VITE_DEFAULT_SIMULATION_CONFIG`: "config.yaml"
+- `VITE_SIMULATION_DATA_PATH`: "./simulations"
+- `VITE_MAX_SIMULATION_STEPS`: 10000
+## Performance Settings
+
+- `VITE_ENABLE_PERFORMANCE_MONITORING`: true
+- `VITE_PROFILING_ENABLED`: false
+## Feature Flags
+
+- `VITE_ENABLE_ADVANCED_ANALYTICS`: false
+- `VITE_ENABLE_REAL_TIME_COLLABORATION`: false
+- `VITE_ENABLE_CLOUD_BACKUP`: false
+## Instructions:
+
+## - For development: copy to .env.development and set IS_ELECTRON=false
+
+## - For Electron development: copy to .env.development and set IS_ELECTRON=true
+
+## - For production: copy to .env.production and set IS_ELECTRON=true
+
