@@ -7,6 +7,15 @@ interface ResizablePanelsProps {
   defaultSplit: number
 }
 
+/**
+ * ResizablePanels - Desktop-focused dual panel layout component
+ *
+ * Optimized for desktop use with:
+ * - Horizontal side-by-side panel layout
+ * - Drag-to-resize functionality
+ * - Persistent panel sizing via localStorage
+ * - Minimal responsive behavior for ultra-wide monitors only
+ */
 export const ResizablePanels: React.FC<ResizablePanelsProps> = ({
   leftPanel,
   rightPanel,
@@ -14,8 +23,6 @@ export const ResizablePanels: React.FC<ResizablePanelsProps> = ({
 }) => {
   const { leftPanelWidth, setPanelWidths } = useConfigStore()
   const [splitPosition, setSplitPosition] = useState(leftPanelWidth || defaultSplit)
-  const [isMobile, setIsMobile] = useState(false)
-  const [isTablet, setIsTablet] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
 
@@ -24,62 +31,31 @@ export const ResizablePanels: React.FC<ResizablePanelsProps> = ({
     setSplitPosition(leftPanelWidth)
   }, [leftPanelWidth])
 
-  // Handle responsive layout changes with debouncing and breakpoint transition detection
+  // Handle desktop-focused layout changes - simplified for desktop use
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout
-    let currentBreakpoint: string
+    // Desktop-focused: No responsive state management needed
 
-    const getBreakpoint = (width: number): string => {
-      if (width <= 768) return 'mobile'
-      if (width <= 1024) return 'tablet'
-      return 'desktop'
-    }
-
+    // Optional: Add minimal responsive behavior for very large desktop screens
     const handleResize = () => {
       const width = window.innerWidth
-      const newBreakpoint = getBreakpoint(width)
 
-      // Only update if we've transitioned between breakpoints
-      if (newBreakpoint !== currentBreakpoint) {
-        currentBreakpoint = newBreakpoint
-
-        // Check if mobile (stack panels vertically)
-        if (width <= 768) {
-          setIsMobile(true)
-          setIsTablet(false)
-          // On mobile, reset to equal split only when transitioning TO mobile
-          if (leftPanelWidth !== 0.5) {
-            setPanelWidths(0.5, 0.5)
-          }
-        } else if (width <= 1024) {
-          setIsMobile(false)
-          setIsTablet(true)
-          // On tablet, use a more balanced split only when transitioning TO tablet
-          if (leftPanelWidth < 0.4 || leftPanelWidth > 0.6) {
-            setPanelWidths(0.5, 0.5)
-          }
-        } else {
-          setIsMobile(false)
-          setIsTablet(false)
+      // Only apply constraints for very wide screens (ultra-wide monitors)
+      if (width > 1920) {
+        // For ultra-wide screens, ensure panels don't get too extreme
+        if (leftPanelWidth < 0.3 || leftPanelWidth > 0.7) {
+          setPanelWidths(0.5, 0.5) // Reset to balanced 50/50 split
         }
       }
     }
 
-    // Set initial state and breakpoint
-    currentBreakpoint = getBreakpoint(window.innerWidth)
+    // Set initial layout
     handleResize()
 
-    // Debounced resize listener to prevent excessive updates
-    const debouncedResize = () => {
-      clearTimeout(timeoutId)
-      timeoutId = setTimeout(handleResize, 150) // 150ms debounce
-    }
-
-    window.addEventListener('resize', debouncedResize)
+    // Minimal resize listener - only for ultra-wide screens
+    window.addEventListener('resize', handleResize)
 
     return () => {
-      clearTimeout(timeoutId)
-      window.removeEventListener('resize', debouncedResize)
+      window.removeEventListener('resize', handleResize)
     }
   }, [leftPanelWidth, setPanelWidths])
 
@@ -120,50 +96,12 @@ export const ResizablePanels: React.FC<ResizablePanelsProps> = ({
     }
   }, [handleMouseMove, handleMouseUp])
 
-  // Responsive layout rendering
-  if (isMobile) {
-    // Mobile: Stack panels vertically
-    return (
-      <div
-        ref={containerRef}
-        className="resizable-panels mobile"
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100%',
-          width: '100%',
-          position: 'relative'
-        }}
-      >
-        <div
-          className="left-panel"
-          style={{
-            height: '50%',
-            overflow: 'hidden',
-            borderBottom: '1px solid var(--border-medium)'
-          }}
-        >
-          {leftPanel}
-        </div>
+  // Desktop-focused layout rendering
 
-        <div
-          className="right-panel"
-          style={{
-            height: '50%',
-            overflow: 'hidden'
-          }}
-        >
-          {rightPanel}
-        </div>
-      </div>
-    )
-  }
-
-  // Desktop/Tablet: Side-by-side layout
   return (
     <div
       ref={containerRef}
-      className={`resizable-panels ${isTablet ? 'tablet' : 'desktop'}`}
+      className="resizable-panels"
       style={{
         display: 'flex',
         height: '100%',
@@ -176,8 +114,8 @@ export const ResizablePanels: React.FC<ResizablePanelsProps> = ({
         style={{
           width: `${splitPosition * 100}%`,
           overflow: 'hidden',
-          minWidth: isTablet ? '300px' : '200px',
-          maxWidth: isTablet ? '70%' : '80%'
+          minWidth: '200px',
+          maxWidth: '80%'
         }}
       >
         {leftPanel}
@@ -186,13 +124,12 @@ export const ResizablePanels: React.FC<ResizablePanelsProps> = ({
       <div
         className="split-handle"
         style={{
-          width: isTablet ? '12px' : '8px',
-          cursor: isMobile ? 'default' : 'col-resize',
+          width: '8px',
+          cursor: 'col-resize',
           backgroundColor: 'var(--border-subtle)',
           borderLeft: '1px solid var(--border-medium)',
           borderRight: '1px solid var(--border-medium)',
-          position: 'relative',
-          display: isMobile ? 'none' : 'block'
+          position: 'relative'
         }}
         onMouseDown={handleMouseDown}
       >
@@ -214,7 +151,8 @@ export const ResizablePanels: React.FC<ResizablePanelsProps> = ({
         style={{
           width: `${(1 - splitPosition) * 100}%`,
           overflow: 'hidden',
-          minWidth: isTablet ? '250px' : '200px'
+          minWidth: '200px',
+          maxWidth: '80%'
         }}
       >
         {rightPanel}

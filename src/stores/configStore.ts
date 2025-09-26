@@ -156,9 +156,9 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   history: [defaultConfig],
   historyIndex: 0,
 
-  // Layout state - default to 60% for left panel, 40% for right panel
-  leftPanelWidth: 0.6,
-  rightPanelWidth: 0.4,
+  // Layout state - default to 50/50 split for balanced desktop experience
+  leftPanelWidth: 0.5,
+  rightPanelWidth: 0.5,
 
   updateConfig: (path: string, value: any) => {
     const currentConfig = get().config
@@ -291,8 +291,8 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
           'visualization'
         ]),
         showComparison: (state.showComparison as boolean) || false,
-        leftPanelWidth: (state.leftPanelWidth as number) || 0.6,
-        rightPanelWidth: (state.rightPanelWidth as number) || 0.4
+        leftPanelWidth: (state.leftPanelWidth as number) || 0.5,
+        rightPanelWidth: (state.rightPanelWidth as number) || 0.5
       })
     }
   },
@@ -314,8 +314,8 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 
   resetPanelWidths: () => {
     set({
-      leftPanelWidth: 0.6,
-      rightPanelWidth: 0.4
+      leftPanelWidth: 0.5,
+      rightPanelWidth: 0.5
     })
 
     // Persist the reset layout state

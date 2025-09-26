@@ -111,26 +111,12 @@ html, body {
   transition: all 0.2s ease;
 }
 
-/* Mobile Layout */
-.resizable-panels.mobile {
-  flex-direction: column;
-}
-
-.resizable-panels.mobile .left-panel,
-.resizable-panels.mobile .right-panel {
-  height: 50%;
+/* Desktop-focused layout - simplified for desktop use */
+.resizable-panels {
+  display: flex;
+  height: 100%;
   width: 100%;
-  overflow: auto;
-}
-
-/* Tablet Layout */
-.resizable-panels.tablet {
-  /* Larger touch targets for tablet */
-}
-
-.resizable-panels.tablet .split-handle {
-  width: 12px;
-  cursor: col-resize;
+  position: relative;
 }
 
 /* Desktop Layout */

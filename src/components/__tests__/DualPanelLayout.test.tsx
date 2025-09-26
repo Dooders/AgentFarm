@@ -37,8 +37,8 @@ describe('DualPanelLayout', () => {
     const { container } = render(<DualPanelLayout />)
 
     const leftPanel = container.querySelector('.left-panel')
-    // Should be 60% width based on default split of 0.6
-    expect(leftPanel).toHaveStyle({ width: '60%' })
+    // Should be 50% width based on desktop-focused default split of 0.5
+    expect(leftPanel).toHaveStyle({ width: '50%' })
   })
 
   it('contains both LeftPanel and RightPanel components', () => {
@@ -52,7 +52,7 @@ describe('DualPanelLayout', () => {
     expect(screen.getByText('Configuration Comparison')).toBeInTheDocument()
   })
 
-  it('maintains responsive layout structure', () => {
+  it('maintains desktop-focused layout structure', () => {
     const { container } = render(<DualPanelLayout />)
 
     // Check that the layout is properly structured
