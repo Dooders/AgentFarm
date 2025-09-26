@@ -43,6 +43,10 @@ function getCustomErrorMessage(error: z.ZodIssue): string {
       return `Invalid type. Expected ${error.expected}, received ${error.received}.`
 
     case 'invalid_enum_value':
+      // Use custom message if provided, otherwise use generic message
+      if (message && message !== 'Invalid enum value') {
+        return message
+      }
       const allowedValues = error.options?.join(', ') || 'unknown'
       return `Invalid value. Allowed values are: ${allowedValues}`
 
@@ -72,6 +76,10 @@ function getCustomErrorMessage(error: z.ZodIssue): string {
 
     case 'invalid_string':
       if (error.validation === 'regex') {
+        // Use custom message if provided, otherwise use generic message
+        if (message && message !== 'Invalid string') {
+          return message
+        }
         return `Invalid format. Please check the required format.`
       }
       return `Invalid text format`
@@ -138,7 +146,12 @@ export function validateField(path: string, value: unknown): ValidationError[] {
     return []
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return formatZodError(error)
+      // For field validation, we want the path to be the field name, not 'root'
+      const formattedErrors = formatZodError(error)
+      return formattedErrors.map(error => ({
+        ...error,
+        path: error.path === 'root' ? path : error.path
+      }))
     }
 
     return [{
@@ -158,16 +171,22 @@ function getFieldSchema(path: string): z.ZodSchema | null {
     switch (path) {
       case 'width':
       case 'height':
+        return z.number().min(10).max(1000).int()
       case 'system_agents':
       case 'independent_agents':
       case 'control_agents':
+        return z.number().min(0).max(10000).int()
       case 'learning_rate':
+        return z.number().min(0.0001).max(1.0).positive()
       case 'epsilon_start':
       case 'epsilon_min':
+        return z.number().min(0.0).max(1.0)
       case 'epsilon_decay':
+        return z.number().min(0.9).max(0.9999)
       case 'position_discretization_method':
+        return z.enum(['floor', 'round', 'ceil'])
       case 'use_bilinear_interpolation':
-        return z.any() // These are handled by the main schema
+        return z.boolean()
 
       case 'agent_type_ratios':
         return AgentTypeRatiosSchema
@@ -224,6 +243,39 @@ function getFieldSchema(path: string): z.ZodSchema | null {
 
   if (pathSegments.length === 3) {
     const [parent, child, grandchild] = pathSegments
+
+    // Agent parameters nested fields
+    if (parent === 'agent_parameters' && ['SystemAgent', 'IndependentAgent', 'ControlAgent'].includes(child)) {
+      switch (grandchild) {
+        case 'target_update_freq':
+          return z.number().min(1).max(1000).int()
+        case 'memory_size':
+          return z.number().min(1000).max(1000000).int()
+        case 'learning_rate':
+          return z.number().min(0.0001).max(1.0).positive()
+        case 'gamma':
+          return z.number().min(0.0).max(1.0)
+        case 'epsilon_start':
+        case 'epsilon_min':
+          return z.number().min(0.0).max(1.0)
+        case 'epsilon_decay':
+          return z.number().min(0.9).max(0.9999)
+        case 'dqn_hidden_size':
+          return z.number().min(32).max(2048).int()
+        case 'batch_size':
+          return z.number().min(16).max(1024).int()
+        case 'tau':
+          return z.number().min(0.001).max(1.0)
+        case 'success_reward':
+          return z.number().min(0.1).max(100.0)
+        case 'failure_penalty':
+          return z.number().min(-100.0).max(-0.1)
+        case 'base_cost':
+          return z.number().min(0.0).max(10.0)
+        default:
+          return null
+      }
+    }
 
     // Agent colors
     if (parent === 'visualization' && child === 'agent_colors' &&

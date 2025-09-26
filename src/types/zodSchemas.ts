@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
-// Agent parameter schema with comprehensive validation
-export const AgentParameterSchema = z.object({
+// Base agent parameter schema (without refinements for extending)
+const BaseAgentParameterSchema = z.object({
   target_update_freq: z.number()
     .min(1, 'Target update frequency must be at least 1')
     .max(1000, 'Target update frequency must be at most 1000')
@@ -58,20 +58,23 @@ export const AgentParameterSchema = z.object({
   base_cost: z.number()
     .min(0.0, 'Base cost must be at least 0.0')
     .max(10.0, 'Base cost must be at most 10.0')
-}).refine((data) => data.epsilon_min <= data.epsilon_start, {
+})
+
+// Module parameter schema (similar to agent parameters but for modules)
+export const ModuleParameterSchema = BaseAgentParameterSchema.extend({
+  // Module-specific refinements can be added here
+}).refine((data) => data.batch_size <= 256, {
+  message: 'Module batch size should not exceed 256 for performance',
+  path: ['batch_size']
+})
+
+// Agent parameter schema with comprehensive validation
+export const AgentParameterSchema = BaseAgentParameterSchema.refine((data) => data.epsilon_min <= data.epsilon_start, {
   message: 'Epsilon minimum must be less than or equal to epsilon start',
   path: ['epsilon_min']
 }).refine((data) => data.gamma > 0, {
   message: 'Gamma must be greater than 0 for effective learning',
   path: ['gamma']
-})
-
-// Module parameter schema (similar to agent parameters but for modules)
-export const ModuleParameterSchema = AgentParameterSchema.extend({
-  // Module-specific refinements can be added here
-}).refine((data) => data.batch_size <= 256, {
-  message: 'Module batch size should not exceed 256 for performance',
-  path: ['batch_size']
 })
 
 // Visualization configuration schema
