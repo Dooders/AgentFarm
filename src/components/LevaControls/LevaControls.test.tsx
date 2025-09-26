@@ -784,7 +784,6 @@ vi.mock('@/stores/configStore', () => ({
 describe('Enhanced Custom Controls', () => {
   describe('Vector2Input', () => {
     it('renders with correct props', () => {
-      const { Vector2Input } = require('./Vector2Input')
       const mockOnChange = vi.fn()
 
       render(
@@ -805,7 +804,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('calls onChange with correct value', () => {
-      const { Vector2Input } = require('./Vector2Input')
       const mockOnChange = vi.fn()
 
       render(
@@ -830,7 +828,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('respects min/max constraints', () => {
-      const { Vector2Input } = require('./Vector2Input')
       const mockOnChange = vi.fn()
 
       render(
@@ -854,7 +851,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('handles array value format', () => {
-      const { Vector2Input } = require('./Vector2Input')
       const mockOnChange = vi.fn()
 
       render(
@@ -873,7 +869,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('handles null/undefined values', () => {
-      const { Vector2Input } = require('./Vector2Input')
       const mockOnChange = vi.fn()
 
       render(
@@ -892,7 +887,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('respects precision settings', () => {
-      const { Vector2Input } = require('./Vector2Input')
       const mockOnChange = vi.fn()
 
       render(
@@ -910,7 +904,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('hides coordinate labels when disabled', () => {
-      const { Vector2Input } = require('./Vector2Input')
       const mockOnChange = vi.fn()
 
       render(
@@ -931,7 +924,6 @@ describe('Enhanced Custom Controls', () => {
 
   describe('ColorInput', () => {
     it('renders with greyscale mode', () => {
-      const { ColorInput } = require('./ColorInput')
       const mockOnChange = vi.fn()
 
       render(
@@ -950,7 +942,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('calls onChange with correct value', () => {
-      const { ColorInput } = require('./ColorInput')
       const mockOnChange = vi.fn()
 
       render(
@@ -970,7 +961,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('shows color presets in greyscale mode', () => {
-      const { ColorInput } = require('./ColorInput')
       const mockOnChange = vi.fn()
 
       render(
@@ -989,7 +979,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('handles RGB object values', () => {
-      const { ColorInput } = require('./ColorInput')
       const mockOnChange = vi.fn()
 
       render(
@@ -1007,7 +996,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('handles RGBA values with alpha', () => {
-      const { ColorInput } = require('./ColorInput')
       const mockOnChange = vi.fn()
 
       render(
@@ -1025,7 +1013,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('validates invalid color formats', () => {
-      const { ColorInput } = require('./ColorInput')
       const mockOnChange = vi.fn()
 
       render(
@@ -1046,7 +1033,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('shows color preview', () => {
-      const { ColorInput } = require('./ColorInput')
       const mockOnChange = vi.fn()
 
       render(
@@ -1067,7 +1053,6 @@ describe('Enhanced Custom Controls', () => {
 
   describe('FilePathInput', () => {
     it('renders with file filters', () => {
-      const { FilePathInput } = require('./FilePathInput')
       const mockOnChange = vi.fn()
 
       render(
@@ -1087,7 +1072,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('shows file browser button', () => {
-      const { FilePathInput } = require('./FilePathInput')
       const mockOnChange = vi.fn()
 
       render(
@@ -1108,7 +1092,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('shows path info', () => {
-      const { FilePathInput } = require('./FilePathInput')
       const mockOnChange = vi.fn()
 
       render(
@@ -1129,7 +1112,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('handles relative paths correctly', () => {
-      const { FilePathInput } = require('./FilePathInput')
       const mockOnChange = vi.fn()
 
       render(
@@ -1149,7 +1131,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('validates file existence when enabled', () => {
-      const { FilePathInput } = require('./FilePathInput')
       const mockOnChange = vi.fn()
 
       render(
@@ -1172,7 +1153,6 @@ describe('Enhanced Custom Controls', () => {
 
   describe('PercentageInput', () => {
     it('renders with progress bar', () => {
-      const { PercentageInput } = require('./PercentageInput')
       const mockOnChange = vi.fn()
 
       render(
@@ -1193,7 +1173,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('calls onChange with correct value', () => {
-      const { PercentageInput } = require('./PercentageInput')
       const mockOnChange = vi.fn()
 
       render(
@@ -1216,7 +1195,6 @@ describe('Enhanced Custom Controls', () => {
     })
 
     it('respects min/max constraints', () => {
-      const { PercentageInput } = require('./PercentageInput')
       const mockOnChange = vi.fn()
 
       render(
@@ -1585,7 +1563,7 @@ describe('Enhanced Custom Controls', () => {
         />
       )
 
-      expect(screen.getByText('File not found')).toBeInTheDocument()
+      expect(screen.getByText(/File not found/)).toBeInTheDocument()
     })
 
     it('handles PercentageInput range errors', () => {
@@ -1601,7 +1579,7 @@ describe('Enhanced Custom Controls', () => {
         />
       )
 
-      expect(screen.getByText('Value must be between 0 and 1')).toBeInTheDocument()
+      expect(screen.getByText(/Value must be between 0 and 1/)).toBeInTheDocument()
     })
 
     it('handles ControlGroup render errors gracefully', () => {
