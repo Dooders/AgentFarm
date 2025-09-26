@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react'
-import { RangeInputProps } from '@/types/leva'
+import { RangeInputProps } from '../../types/leva'
 import styled from 'styled-components'
 
 const Container = styled.div`
