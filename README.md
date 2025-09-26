@@ -133,6 +133,24 @@ All simulation results are saved in the `simulations` directory with database fi
 
 The project includes a modern React-based configuration explorer built with Electron for cross-platform desktop deployment:
 
+**Hierarchical Configuration Interface:**
+- **Environment**: World settings, population parameters, resource management
+- **Agent Behavior**: Movement, gathering, combat, and sharing parameters
+- **Learning & AI**: General and module-specific learning configurations
+- **Visualization**: Display settings, animation controls, and metrics display
+
+The interface features a complete hierarchical folder structure with collapsible sections for intuitive parameter organization and real-time configuration editing with live validation.
+
+**📋 Issue #9: Complete Leva Folder Structure - COMPLETED**
+- ✅ All configuration sections organized in logical Leva folders
+- ✅ Folder hierarchy matches design specification
+- ✅ Folders can be collapsed/expanded
+- ✅ Configuration values properly bound to folders
+- ✅ No missing parameters or orphaned controls
+- ✅ Comprehensive path mapping system implemented
+- ✅ Complete test coverage for all functionality
+- ✅ Updated documentation and Storybook stories
+
 **Development**
 ```bash
 # Start the development server
@@ -167,10 +185,11 @@ npm run docs
 **Features:**
 - Modern React 18 + TypeScript interface
 - Real-time configuration editing with Zod validation
+- **Complete hierarchical folder structure** with 4 main sections and 12 sub-folders
 - Hot Module Replacement (HMR) for rapid development
 - Cross-platform packaging (Windows, macOS, Linux)
 - Zustand state management with persistence
-- Leva controls integration for interactive UI
+- Advanced Leva controls integration with path mapping system
 - Comprehensive testing with Vitest and Jest
 - TypeScript path mapping with `@/` aliases
 

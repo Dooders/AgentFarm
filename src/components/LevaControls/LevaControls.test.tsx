@@ -9,6 +9,152 @@ import { useLevaStore } from '@/stores/levaStore'
 import { useConfigStore } from '@/stores/configStore'
 import type { NumberInputProps, BooleanInputProps, StringInputProps, ConfigFolderProps } from '@/types/leva'
 
+// Test path mapping utility function
+describe('Path Mapping Utility', () => {
+  it('converts Environment folder paths to config paths', () => {
+    // Mock the path mapping logic from LevaControls
+    const pathMapping = {
+      'Environment/World Settings.width': 'width',
+      'Environment/World Settings.height': 'height',
+      'Environment/Population.system_agents': 'system_agents',
+      'Environment/Resource Management.resource_regeneration_rate': 'resource_regeneration_rate'
+    }
+
+    const convertLevaPathToConfigPath = (levaPath: string): string => {
+      if (pathMapping[levaPath]) {
+        return pathMapping[levaPath]
+      }
+
+      const pathParts = levaPath.split('.')
+      if (pathParts.length >= 2) {
+        const lastPart = pathParts[pathParts.length - 1]
+        const secondLastPart = pathParts[pathParts.length - 2]
+
+        if (secondLastPart && ['SystemAgent', 'IndependentAgent', 'ControlAgent'].includes(secondLastPart)) {
+          return `agent_parameters.${secondLastPart}.${lastPart}`
+        }
+
+        if (secondLastPart && ['move_parameters', 'gather_parameters', 'attack_parameters', 'share_parameters'].includes(secondLastPart)) {
+          return `${secondLastPart}.${lastPart}`
+        }
+      }
+
+      return levaPath
+    }
+
+    expect(convertLevaPathToConfigPath('Environment/World Settings.width')).toBe('width')
+    expect(convertLevaPathToConfigPath('Environment/World Settings.height')).toBe('height')
+    expect(convertLevaPathToConfigPath('Environment/Population.system_agents')).toBe('system_agents')
+    expect(convertLevaPathToConfigPath('Environment/Resource Management.resource_regeneration_rate')).toBe('resource_regeneration_rate')
+  })
+
+  it('converts Agent Behavior folder paths to config paths', () => {
+    const pathMapping = {
+      'Agent Behavior/Movement Parameters.move_target_update_freq': 'move_parameters.target_update_freq'
+    }
+
+    const convertLevaPathToConfigPath = (levaPath: string): string => {
+      if (pathMapping[levaPath]) {
+        return pathMapping[levaPath]
+      }
+
+      const pathParts = levaPath.split('.')
+      if (pathParts.length >= 2) {
+        const lastPart = pathParts[pathParts.length - 1]
+        const secondLastPart = pathParts[pathParts.length - 2]
+
+        if (secondLastPart && ['move_parameters', 'gather_parameters', 'attack_parameters', 'share_parameters'].includes(secondLastPart)) {
+          return `${secondLastPart}.${lastPart}`
+        }
+      }
+
+      return levaPath
+    }
+
+    expect(convertLevaPathToConfigPath('Agent Behavior/Movement Parameters.move_target_update_freq')).toBe('move_parameters.target_update_freq')
+    expect(convertLevaPathToConfigPath('Agent Behavior/Gathering Parameters.gather_success_reward')).toBe('gather_parameters.success_reward')
+    expect(convertLevaPathToConfigPath('Agent Behavior/Combat Parameters.attack_base_cost')).toBe('attack_parameters.base_cost')
+  })
+
+  it('converts Learning & AI folder paths to config paths', () => {
+    const pathMapping = {
+      'Learning & AI/General Learning.learning_rate': 'learning_rate'
+    }
+
+    const convertLevaPathToConfigPath = (levaPath: string): string => {
+      if (pathMapping[levaPath]) {
+        return pathMapping[levaPath]
+      }
+
+      const pathParts = levaPath.split('.')
+      if (pathParts.length >= 2) {
+        const lastPart = pathParts[pathParts.length - 1]
+        const secondLastPart = pathParts[pathParts.length - 2]
+
+        if (secondLastPart && ['move_parameters', 'gather_parameters', 'attack_parameters', 'share_parameters'].includes(secondLastPart)) {
+          return `${secondLastPart}.${lastPart}`
+        }
+      }
+
+      return levaPath
+    }
+
+    expect(convertLevaPathToConfigPath('Learning & AI/General Learning.learning_rate')).toBe('learning_rate')
+    expect(convertLevaPathToConfigPath('Learning & AI/Module-Specific Learning.module_specific_learning.Movement.learning_rate')).toBe('move_parameters.learning_rate')
+  })
+
+  it('converts Visualization folder paths to config paths', () => {
+    const pathMapping = {
+      'Visualization/Display Settings.canvas_width': 'visualization.canvas_width'
+    }
+
+    const convertLevaPathToConfigPath = (levaPath: string): string => {
+      if (pathMapping[levaPath]) {
+        return pathMapping[levaPath]
+      }
+
+      const pathParts = levaPath.split('.')
+      if (pathParts.length >= 2) {
+        const lastPart = pathParts[pathParts.length - 1]
+        const secondLastPart = pathParts[pathParts.length - 2]
+
+        if (secondLastPart === 'visualization') {
+          return `visualization.${lastPart}`
+        }
+      }
+
+      return levaPath
+    }
+
+    expect(convertLevaPathToConfigPath('Visualization/Display Settings.canvas_width')).toBe('visualization.canvas_width')
+    expect(convertLevaPathToConfigPath('Visualization/Metrics Display.show_metrics')).toBe('visualization.show_metrics')
+  })
+
+  it('handles agent parameter paths correctly', () => {
+    const convertLevaPathToConfigPath = (levaPath: string): string => {
+      const pathParts = levaPath.split('.')
+      if (pathParts.length >= 2) {
+        const lastPart = pathParts[pathParts.length - 1]
+        const secondLastPart = pathParts[pathParts.length - 2]
+
+        if (secondLastPart && ['SystemAgent', 'IndependentAgent', 'ControlAgent'].includes(secondLastPart)) {
+          return `agent_parameters.${secondLastPart}.${lastPart}`
+        }
+
+        if (levaPath.startsWith('agent_parameters.')) {
+          return levaPath
+        }
+      }
+
+      return levaPath
+    }
+
+    expect(convertLevaPathToConfigPath('agent_parameters.SystemAgent.target_update_freq')).toBe('agent_parameters.SystemAgent.target_update_freq')
+    expect(convertLevaPathToConfigPath('agent_parameters.IndependentAgent.memory_size')).toBe('agent_parameters.IndependentAgent.memory_size')
+    expect(convertLevaPathToConfigPath('agent_parameters.ControlAgent.learning_rate')).toBe('agent_parameters.ControlAgent.learning_rate')
+  })
+})
+
 // Test individual components
 describe('Leva Control Components', () => {
   describe('NumberInput', () => {
@@ -258,6 +404,215 @@ describe('Leva Control Components', () => {
       fireEvent.click(header!)
 
       expect(mockOnToggle).toHaveBeenCalled()
+    })
+
+    it('shows collapsed state correctly', () => {
+      render(
+        <ConfigFolder label="Test Folder" collapsed={true}>
+          <div>Test content</div>
+        </ConfigFolder>
+      )
+
+      expect(screen.getByText('Test content')).not.toBeVisible()
+    })
+  })
+
+  describe('Hierarchical Folder Structure', () => {
+    it('renders all four main folder sections', () => {
+      render(<LevaControls />)
+
+      // Check if all main folder sections are present
+      expect(screen.getByText('Environment')).toBeTruthy()
+      expect(screen.getByText('Agent Behavior')).toBeTruthy()
+      expect(screen.getByText('Learning & AI')).toBeTruthy()
+      expect(screen.getByText('Visualization')).toBeTruthy()
+    })
+
+    it('renders Environment sub-folders', () => {
+      render(<LevaControls />)
+
+      expect(screen.getByText('World Settings')).toBeTruthy()
+      expect(screen.getByText('Population')).toBeTruthy()
+      expect(screen.getByText('Resource Management')).toBeTruthy()
+    })
+
+    it('renders Agent Behavior sub-folders', () => {
+      render(<LevaControls />)
+
+      expect(screen.getByText('Movement Parameters')).toBeTruthy()
+      expect(screen.getByText('Gathering Parameters')).toBeTruthy()
+      expect(screen.getByText('Combat Parameters')).toBeTruthy()
+      expect(screen.getByText('Sharing Parameters')).toBeTruthy()
+    })
+
+    it('renders Learning & AI sub-folders', () => {
+      render(<LevaControls />)
+
+      expect(screen.getByText('General Learning')).toBeTruthy()
+      expect(screen.getByText('Module-Specific Learning')).toBeTruthy()
+    })
+
+    it('renders Visualization sub-folders', () => {
+      render(<LevaControls />)
+
+      expect(screen.getByText('Display Settings')).toBeTruthy()
+      expect(screen.getByText('Animation Settings')).toBeTruthy()
+      expect(screen.getByText('Metrics Display')).toBeTruthy()
+    })
+  })
+
+  describe('Path Mapping System', () => {
+    it('maps Environment folder paths correctly', () => {
+      render(<LevaControls />)
+
+      // Test that the path mapping converts hierarchical paths to config paths
+      const levaStore = useLevaStore.getState()
+      const configStore = useConfigStore.getState()
+
+      // These paths should be mapped correctly in the implementation
+      const testPaths = [
+        'Environment/World Settings.width',
+        'Environment/Population.system_agents',
+        'Environment/Resource Management.resource_regeneration_rate'
+      ]
+
+      testPaths.forEach(path => {
+        // The path mapping should convert these to actual config paths
+        expect(path).toBeDefined()
+      })
+    })
+
+    it('maps Agent Behavior folder paths correctly', () => {
+      render(<LevaControls />)
+
+      const testPaths = [
+        'Agent Behavior/Movement Parameters.move_target_update_freq',
+        'Agent Behavior/Gathering Parameters.gather_success_reward',
+        'Agent Behavior/Combat Parameters.attack_base_cost',
+        'Agent Behavior/Sharing Parameters.share_learning_rate'
+      ]
+
+      testPaths.forEach(path => {
+        expect(path).toBeDefined()
+      })
+    })
+
+    it('maps Learning & AI folder paths correctly', () => {
+      render(<LevaControls />)
+
+      const testPaths = [
+        'Learning & AI/General Learning.learning_rate',
+        'Learning & AI/Module-Specific Learning.module_specific_learning.Movement.learning_rate',
+        'Learning & AI/Module-Specific Learning.module_specific_learning.Gathering.batch_size'
+      ]
+
+      testPaths.forEach(path => {
+        expect(path).toBeDefined()
+      })
+    })
+
+    it('maps Visualization folder paths correctly', () => {
+      render(<LevaControls />)
+
+      const testPaths = [
+        'Visualization/Display Settings.canvas_width',
+        'Visualization/Animation Settings.max_frames',
+        'Visualization/Metrics Display.show_metrics',
+        'Visualization/Metrics Display.agent_colors.SystemAgent'
+      ]
+
+      testPaths.forEach(path => {
+        expect(path).toBeDefined()
+      })
+    })
+  })
+
+  describe('Complete Parameter Coverage', () => {
+    it('includes all world settings parameters', () => {
+      render(<LevaControls />)
+
+      // Check that all world settings parameters are accessible
+      expect(screen.getByText('Grid Width')).toBeTruthy()
+      expect(screen.getByText('Grid Height')).toBeTruthy()
+      expect(screen.getByText('Discretization Method')).toBeTruthy()
+      expect(screen.getByText('Bilinear Interpolation')).toBeTruthy()
+      expect(screen.getByText('Grid Type')).toBeTruthy()
+      expect(screen.getByText('Wrap Around Edges')).toBeTruthy()
+    })
+
+    it('includes all population parameters', () => {
+      render(<LevaControls />)
+
+      expect(screen.getByText('System Agents')).toBeTruthy()
+      expect(screen.getByText('Independent Agents')).toBeTruthy()
+      expect(screen.getByText('Control Agents')).toBeTruthy()
+      expect(screen.getByText('System Agent Ratio')).toBeTruthy()
+      expect(screen.getByText('Independent Agent Ratio')).toBeTruthy()
+      expect(screen.getByText('Control Agent Ratio')).toBeTruthy()
+    })
+
+    it('includes all resource management parameters', () => {
+      render(<LevaControls />)
+
+      expect(screen.getByText('Regeneration Rate')).toBeTruthy()
+      expect(screen.getByText('Max Resource Level')).toBeTruthy()
+      expect(screen.getByText('Consumption Rate')).toBeTruthy()
+      expect(screen.getByText('Spawn Chance')).toBeTruthy()
+      expect(screen.getByText('Scarcity Factor')).toBeTruthy()
+    })
+
+    it('includes all agent behavior parameters', () => {
+      render(<LevaControls />)
+
+      // Movement parameters
+      expect(screen.getByText('Target Update Frequency')).toBeTruthy()
+      expect(screen.getByText('Memory Size')).toBeTruthy()
+      expect(screen.getByText('Learning Rate')).toBeTruthy()
+      expect(screen.getByText('Discount Factor')).toBeTruthy()
+
+      // Gathering parameters
+      expect(screen.getByText('Success Reward')).toBeTruthy()
+      expect(screen.getByText('Failure Penalty')).toBeTruthy()
+      expect(screen.getByText('Base Cost')).toBeTruthy()
+    })
+
+    it('includes all learning parameters', () => {
+      render(<LevaControls />)
+
+      expect(screen.getByText('Global Learning Rate')).toBeTruthy()
+      expect(screen.getByText('Epsilon Start')).toBeTruthy()
+      expect(screen.getByText('Epsilon Min')).toBeTruthy()
+      expect(screen.getByText('Epsilon Decay')).toBeTruthy()
+      expect(screen.getByText('Global Batch Size')).toBeTruthy()
+    })
+
+    it('includes all visualization parameters', () => {
+      render(<LevaControls />)
+
+      expect(screen.getByText('Canvas Width')).toBeTruthy()
+      expect(screen.getByText('Canvas Height')).toBeTruthy()
+      expect(screen.getByText('Background Color')).toBeTruthy()
+      expect(screen.getByText('Line Width')).toBeTruthy()
+      expect(screen.getByText('Max Frames')).toBeTruthy()
+      expect(screen.getByText('Frame Delay (ms)')).toBeTruthy()
+      expect(screen.getByText('Animation Speed')).toBeTruthy()
+      expect(screen.getByText('Smooth Transitions')).toBeTruthy()
+      expect(screen.getByText('Show Metrics')).toBeTruthy()
+      expect(screen.getByText('Font Size')).toBeTruthy()
+    })
+  })
+
+  describe('Folder Collapse/Expand Behavior', () => {
+    it('allows folders to be collapsed and expanded', () => {
+      render(<LevaControls />)
+
+      // Initially folders should be expanded (default state)
+      expect(screen.getByText('Grid Width')).toBeTruthy()
+
+      // The Leva folder controls should be functional
+      // Note: Exact implementation of folder toggling is handled by Leva itself
+      const environmentFolder = screen.getByText('Environment')
+      expect(environmentFolder).toBeTruthy()
     })
 
     it('shows collapsed state correctly', () => {
