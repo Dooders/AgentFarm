@@ -109,13 +109,7 @@ const PATH_MAPPING: Record<string, string> = {
   'Visualization/Metrics Display.metrics_position': 'metrics_position'
 }
 
-// Module name mapping for proper conversion (instead of toLowerCase())
-const MODULE_NAME_MAPPING: Record<string, string> = {
-  'Movement': 'move_parameters',
-  'Gathering': 'gather_parameters',
-  'Combat': 'attack_parameters',
-  'Sharing': 'share_parameters'
-}
+import { MODULE_NAME_MAPPING } from '@/constants/moduleMapping'
 
 // Define proper interface for config store
 interface ConfigStoreInterface {

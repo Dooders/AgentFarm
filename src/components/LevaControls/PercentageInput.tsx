@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 import { ConfigInput, BaseInputProps, InputMetadata, ValidationRule } from './ConfigInput'
 import { ValidationError } from '@/types/validation'
@@ -190,6 +190,7 @@ const PercentageSlider: React.FC<{
   progressColor?: string
   backgroundColor?: string
   asPercentage: boolean
+  debounceMs?: number
 }> = ({
   value,
   min,
@@ -199,21 +200,39 @@ const PercentageSlider: React.FC<{
   showValueLabels = false,
   progressColor = 'var(--leva-colors-accent1, #666666)',
   backgroundColor = 'var(--leva-colors-elevation1, #1a1a1a)',
-  asPercentage
+  asPercentage,
+  debounceMs = 16
 }) => {
   const [isDragging, setIsDragging] = useState(false)
+  const rafIdRef = useRef<number | null>(null)
+  const pendingValueRef = useRef<number | null>(null)
 
   // Convert value to 0-1 range for slider
   const normalizedValue = (value - min) / (max - min)
   const clampedValue = Math.max(0, Math.min(1, normalizedValue))
+
+  const flushPending = useCallback(() => {
+    if (pendingValueRef.current == null) return
+    onChange(pendingValueRef.current)
+    pendingValueRef.current = null
+    rafIdRef.current = null
+  }, [onChange])
+
+  const scheduleChange = useCallback((nextValue: number) => {
+    pendingValueRef.current = nextValue
+    if (rafIdRef.current == null) {
+      rafIdRef.current = requestAnimationFrame(flushPending)
+    }
+  }, [flushPending])
 
   const updateValueFromMouse = useCallback((e: MouseEvent | React.MouseEvent, sliderElement: HTMLElement) => {
     const rect = sliderElement.getBoundingClientRect()
     const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
     const newValue = min + x * (max - min)
     const steppedValue = Math.round(newValue / step) * step
-    onChange(Math.max(min, Math.min(max, steppedValue)))
-  }, [min, max, step, onChange])
+    const clamped = Math.max(min, Math.min(max, steppedValue))
+    scheduleChange(clamped)
+  }, [min, max, step, scheduleChange])
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     setIsDragging(true)
@@ -229,6 +248,7 @@ const PercentageSlider: React.FC<{
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false)
+    flushPending()
   }, [])
 
   // Add/remove event listeners
@@ -237,6 +257,7 @@ const PercentageSlider: React.FC<{
       document.addEventListener('mousemove', handleMouseMove)
       document.addEventListener('mouseup', handleMouseUp)
       return () => {
+        if (rafIdRef.current != null) cancelAnimationFrame(rafIdRef.current)
         document.removeEventListener('mousemove', handleMouseMove)
         document.removeEventListener('mouseup', handleMouseUp)
       }
@@ -252,6 +273,12 @@ const PercentageSlider: React.FC<{
       ref={sliderRef}
       className="percentage-slider"
       style={{ backgroundColor }}
+      role="slider"
+      aria-valuemin={min}
+      aria-valuemax={max}
+      aria-valuenow={value}
+      aria-label="percentage slider"
+      tabIndex={0}
       onMouseDown={handleMouseDown}
     >
       <div
@@ -483,6 +510,7 @@ export const PercentageInput: React.FC<PercentageProps> = ({
               progressColor={progressColor}
               backgroundColor={backgroundColor}
               asPercentage={asPercentage}
+              debounceMs={16}
             />
           )}
         </div>
@@ -514,7 +542,6 @@ export const createPercentageInput = (
 ) => {
   return (props: PercentageProps) => (
     <PercentageInput
-      label={label}
       {...config}
       {...props}
     />

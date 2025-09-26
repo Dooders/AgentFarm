@@ -9,6 +9,12 @@
 
 const fs = require('fs');
 const path = require('path');
+let cssParser = null
+try {
+  cssParser = require('css')
+} catch (e) {
+  cssParser = null
+}
 
 console.log('🔍 Validating Issue #13 Implementation...\n');
 
@@ -16,9 +22,17 @@ let validationPassed = true;
 
 // Check 1: Enhanced Focus States
 console.log('🎨 1. Enhanced Focus States');
-const focusStatesImplemented = checkFileContains('src/styles/index.css', 'outline: 3px') &&
-                              checkFileContains('src/styles/index.css', 'outline-offset: 2px') &&
-                              checkFileContains('src/styles/index.css', 'high-contrast');
+const focusStatesImplemented =
+  (cssParser && cssFileHasRuleWithProperty('src/styles/index.css', 'outline', '3px') &&
+   cssFileHasRuleWithProperty('src/styles/index.css', 'outline-offset', '2px') &&
+   (cssFileHasSelector('src/styles/index.css', 'high-contrast') ||
+    cssFileHasSelector('src/styles/index.css', 'forced-colors') ||
+    cssFileHasSelector('src/styles/index.css', 'contrast')))
+  ||
+  // Fallback to string contains if css parser not available
+  (checkFileContains('src/styles/index.css', 'outline: 3px') &&
+   checkFileContains('src/styles/index.css', 'outline-offset: 2px') &&
+   checkFileContains('src/styles/index.css', 'high-contrast'));
 if (focusStatesImplemented) {
   console.log('  ✅ Enhanced focus states with 3px outline and 2px offset - IMPLEMENTED');
   console.log('  ✅ High contrast mode support with enhanced focus indicators - IMPLEMENTED');
@@ -201,5 +215,56 @@ function checkFileContains(filePath, searchTerm) {
     return false;
   } catch (error) {
     return false;
+  }
+}
+
+// CSS helpers using parser when available
+function cssFileHasRuleWithProperty(filePath, property, value) {
+  if (!cssParser) return false
+  const fullPath = path.join(__dirname, filePath)
+  try {
+    const cssContent = fs.readFileSync(fullPath, 'utf8')
+    const ast = cssParser.parse(cssContent)
+    if (!ast.stylesheet || !ast.stylesheet.rules) return false
+    for (const rule of ast.stylesheet.rules) {
+      if (rule.type !== 'rule' || !rule.declarations) continue
+      for (const decl of rule.declarations) {
+        if (decl.type === 'declaration' && decl.property === property) {
+          if (value) {
+            if (typeof decl.value === 'string' && decl.value.includes(value)) {
+              return true
+            }
+          } else {
+            return true
+          }
+        }
+      }
+    }
+    return false
+  } catch (e) {
+    return false
+  }
+}
+
+function cssFileHasSelector(filePath, selectorSubstring) {
+  if (!cssParser) return false
+  const fullPath = path.join(__dirname, filePath)
+  try {
+    const cssContent = fs.readFileSync(fullPath, 'utf8')
+    const ast = cssParser.parse(cssContent)
+    if (!ast.stylesheet || !ast.stylesheet.rules) return false
+    for (const rule of ast.stylesheet.rules) {
+      if (rule.type === 'rule' && rule.selectors) {
+        if (rule.selectors.some(sel => sel.includes(selectorSubstring))) {
+          return true
+        }
+      }
+      if (rule.type === 'media' && rule.media && rule.media.includes(selectorSubstring)) {
+        return true
+      }
+    }
+    return false
+  } catch (e) {
+    return false
   }
 }

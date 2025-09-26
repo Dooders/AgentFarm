@@ -481,18 +481,7 @@ function isAbsolutePath(path: string): boolean {
   return path.startsWith('/')
 }
 
-// Extend window interface for Electron APIs
-declare global {
-  interface Window {
-    electron?: {
-      openFileDialog: (options: {
-        mode: 'file' | 'directory' | 'save'
-        filters?: { name: string; extensions: string[] }[]
-      }) => Promise<{ filePaths: string[] }>
-      fileExists: (path: string, isDirectory?: boolean) => Promise<boolean>
-    }
-  }
-}
+// Global Window type augmentation moved to src/types/electron.d.ts
 
 /**
  * Utility function to create FilePathInput with preset configuration

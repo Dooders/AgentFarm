@@ -81,12 +81,7 @@ describe('Path Mapping Utility', () => {
       'Learning & AI/General Learning.learning_rate': 'learning_rate'
     }
 
-    const MODULE_NAME_MAPPING = {
-      'Movement': 'move_parameters',
-      'Gathering': 'gather_parameters',
-      'Combat': 'attack_parameters',
-      'Sharing': 'share_parameters'
-    }
+    const { MODULE_NAME_MAPPING } = require('@/constants/moduleMapping')
 
     const convertLevaPathToConfigPath = (levaPath: string): string => {
       if (PATH_MAPPING[levaPath]) {
@@ -176,12 +171,7 @@ describe('Path Mapping Utility', () => {
   })
 
   it('correctly maps module names using MODULE_NAME_MAPPING', () => {
-    const MODULE_NAME_MAPPING = {
-      'Movement': 'move_parameters',
-      'Gathering': 'gather_parameters',
-      'Combat': 'attack_parameters',
-      'Sharing': 'share_parameters'
-    }
+    const { MODULE_NAME_MAPPING } = require('@/constants/moduleMapping')
 
     const convertLevaPathToConfigPath = (levaPath: string): string => {
       const pathParts = levaPath.split('.')

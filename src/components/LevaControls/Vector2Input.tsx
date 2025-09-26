@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react'
 import styled from 'styled-components'
-import { ConfigInput, BaseInputProps, InputMetadata, ValidationRule } from './ConfigInput'
+import { BaseInputProps, InputMetadata, ValidationRule } from './ConfigInput'
 import { ValidationError } from '@/types/validation'
 
 // Vector2 specific props
@@ -23,6 +23,8 @@ export interface Vector2Props extends Omit<BaseInputProps, 'value' | 'onChange' 
   precision?: number
   /** Whether to use compact layout */
   compact?: boolean
+  /** Behavior when an input field is cleared */
+  emptyBehavior?: 'zero' | 'ignore'
 }
 
 // Styled components for Vector2 input
@@ -149,6 +151,7 @@ const NumberInput: React.FC<{
   allowNegative?: boolean
   placeholder?: string
   disabled?: boolean
+  emptyBehavior?: 'zero' | 'ignore'
 }> = ({
   value,
   onChange,
@@ -158,14 +161,16 @@ const NumberInput: React.FC<{
   precision = 2,
   allowNegative = true,
   placeholder,
-  disabled = false
+  disabled = false,
+  emptyBehavior = 'zero'
 }) => {
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const inputValue = e.target.value
 
-    // Handle empty input - allow clearing by setting to 0
+    // Handle empty input behavior
     if (inputValue === '') {
-      onChange(0)
+      if (emptyBehavior === 'zero') onChange(0)
+      // ignore -> do not propagate change
       return
     }
 
@@ -281,6 +286,7 @@ export const Vector2Input: React.FC<Vector2Props> = ({
   precision = 2,
   required = false,
   compact = false,
+  emptyBehavior = 'zero',
   className
 }) => {
   // Normalize value to consistent format
@@ -378,6 +384,7 @@ export const Vector2Input: React.FC<Vector2Props> = ({
               allowNegative={allowNegative}
               disabled={disabled}
               placeholder="0"
+              emptyBehavior={emptyBehavior}
             />
           </div>
 
@@ -395,6 +402,7 @@ export const Vector2Input: React.FC<Vector2Props> = ({
               allowNegative={allowNegative}
               disabled={disabled}
               placeholder="0"
+              emptyBehavior={emptyBehavior}
             />
           </div>
         </div>
@@ -426,7 +434,6 @@ export const createVector2Input = (
 ) => {
   return (props: Vector2Props) => (
     <Vector2Input
-      label={label}
       {...config}
       {...props}
     />

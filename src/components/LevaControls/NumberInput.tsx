@@ -1,6 +1,7 @@
 import React from 'react'
 import { NumberInputProps } from '@/types/leva'
 import styled from 'styled-components'
+import { isIntermediateNumericInput } from '@/utils/numberInput'
 
 const NumberInputContainer = styled.div`
   display: flex;
@@ -65,11 +66,7 @@ export const NumberInput: React.FC<NumberInputProps> = ({
     }
 
     // Allow intermediate values and rely on parseFloat which supports scientific notation
-    const isIntermediate =
-      inputValue === '-' ||
-      inputValue === '+' ||
-      inputValue.endsWith('.') ||
-      /e[+-]?$/i.test(inputValue)
+    const isIntermediate = isIntermediateNumericInput(inputValue)
 
     const numValue = parseFloat(inputValue)
 
