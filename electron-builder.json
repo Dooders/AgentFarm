@@ -1,5 +1,5 @@
 {
-  "appId": "com.configexplorer.app",
+  "appId": "com.live-simulation-config-explorer.app",
   "productName": "Live Simulation Config Explorer",
   "directories": {
     "output": "dist-electron"
@@ -21,19 +21,136 @@
           "x64",
           "arm64"
         ]
+      },
+      {
+        "target": "zip",
+        "arch": [
+          "x64",
+          "arm64"
+        ]
       }
-    ]
+    ],
+    "icon": "build/icon.icns",
+    "hardenedRuntime": true,
+    "entitlements": "build/entitlements.plist",
+    "entitlementsInherit": "build/entitlements.plist",
+    "gatekeeperAssess": false
   },
   "win": {
-    "target": "nsis",
-    "icon": "build/icon.ico"
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64",
+          "ia32"
+        ]
+      },
+      {
+        "target": "portable",
+        "arch": [
+          "x64",
+          "ia32"
+        ]
+      }
+    ],
+    "icon": "build/icon.ico",
+    "verifyUpdateCodeSignature": false,
+    "requestedExecutionLevel": "asInvoker"
   },
   "linux": {
-    "target": "AppImage",
-    "category": "Development"
+    "target": [
+      {
+        "target": "AppImage",
+        "arch": [
+          "x64"
+        ]
+      },
+      {
+        "target": "deb",
+        "arch": [
+          "x64"
+        ]
+      },
+      {
+        "target": "rpm",
+        "arch": [
+          "x64"
+        ]
+      }
+    ],
+    "category": "Development",
+    "icon": "build/icon.png"
   },
   "nsis": {
     "oneClick": false,
-    "allowToChangeInstallationDirectory": true
-  }
+    "allowToChangeInstallationDirectory": true,
+    "deleteAppDataOnUninstall": false,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Live Simulation Config Explorer",
+    "include": "build/installer.nsh"
+  },
+  "portable": {
+    "artifactName": "${productName}-${version}-portable.${ext}"
+  },
+  "appImage": {
+    "artifactName": "${productName}-${version}.${ext}"
+  },
+  "deb": {
+    "depends": [
+      "libgtk-3-0",
+      "libnotify4",
+      "libnss3",
+      "libxss1",
+      "libgconf-2-4",
+      "libxrandr2",
+      "libasound2",
+      "libpangocairo-1.0-0",
+      "libatk1.0-0",
+      "libcairo-gobject2",
+      "libgtk-3-0",
+      "libgdk-pixbuf2.0-0"
+    ],
+    "priority": "optional"
+  },
+  "rpm": {
+    "depends": [
+      "libgtk-3-0",
+      "libnotify4",
+      "libnss3",
+      "libxss1",
+      "libgconf-2-4",
+      "libxrandr2",
+      "libasound2",
+      "libpangocairo-1.0-0",
+      "libatk1.0-0",
+      "libcairo-gobject2",
+      "libgtk-3-0",
+      "libgdk-pixbuf2.0-0"
+    ]
+  },
+  "dmg": {
+    "title": "${productName} ${version}",
+    "icon": "build/icon.icns",
+    "background": "build/dmg-background.png",
+    "contents": [
+      {
+        "x": 130,
+        "y": 220
+      },
+      {
+        "x": 410,
+        "y": 220,
+        "type": "link",
+        "path": "/Applications"
+      }
+    ],
+    "window": {
+      "width": 540,
+      "height": 380
+    }
+  },
+  "buildDependenciesFromSource": false,
+  "nodeGypRebuild": false,
+  "npmRebuild": false
 }
