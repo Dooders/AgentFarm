@@ -84,7 +84,7 @@ class TestMemmapResources(unittest.TestCase):
         # File should still exist by default (delete=False)
         self.assertTrue(path and os.path.exists(path))
         # Now delete explicitly
-        rm.cleanup_memmap(delete=True)
+        rm.cleanup_memmap(delete_file=True)
         self.assertFalse(os.path.exists(path))
 
     def test_filename_contains_pid_and_simulation_id(self):

@@ -2,6 +2,7 @@ import logging
 import os
 import random
 import tempfile
+import math
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -96,6 +97,10 @@ class ResourceManager:
     # -----------------
     # Memmap utilities
     # -----------------
+    def _sanitize_for_filename(self, value: str) -> str:
+        # Keep alnum, dash, underscore; replace others with '-'
+        return "".join(c if (c.isalnum() or c in ("-", "_")) else "-" for c in value)[:64]
+
     def _init_memmap(self) -> None:
         try:
             mem_dir = (
@@ -103,7 +108,11 @@ class ResourceManager:
             ) or tempfile.gettempdir()
             os.makedirs(mem_dir, exist_ok=True)
             pid_part = f"_p{os.getpid()}"
-            sim_part = f"_{self.simulation_id}" if self.simulation_id else ""
+            if self.simulation_id:
+                sim_safe = self._sanitize_for_filename(str(self.simulation_id))
+                sim_part = f"_{sim_safe}"
+            else:
+                sim_part = ""
             filename = f"resources{sim_part}{pid_part}_{int(self.width)}x{int(self.height)}.dat"
             path = os.path.join(mem_dir, filename)
             self._memmap_path = path
@@ -138,11 +147,21 @@ class ResourceManager:
                 getattr(self.config, "max_resource_amount", 10) if self.config else 10
             )
             H, W = self._memmap_shape
+            # Discretization
+            method = getattr(self.config, "position_discretization_method", "floor") if self.config else "floor"
             for r in self.resources:
-                x = int(r.position[0])
-                y = int(r.position[1])
-                if 0 <= x < W and 0 <= y < H:
-                    mm[y, x] = min(max_amount, float(r.amount))
+                rx, ry = r.position[0], r.position[1]
+                if method == "round":
+                    x = max(0, min(int(round(rx)), W - 1))
+                    y = max(0, min(int(round(ry)), H - 1))
+                elif method == "ceil":
+                    x = max(0, min(int(math.ceil(rx)), W - 1))
+                    y = max(0, min(int(math.ceil(ry)), H - 1))
+                else:  # floor
+                    x = max(0, min(int(math.floor(rx)), W - 1))
+                    y = max(0, min(int(math.floor(ry)), H - 1))
+                # Accumulate (clamped by max)
+                mm[y, x] = min(max_amount, float(mm[y, x]) + float(r.amount))
             mm.flush()
         except Exception as e:
             logger.error("Failed to rebuild resource memmap: %s", e)
@@ -168,9 +187,12 @@ class ResourceManager:
         tx0 = xs0 - x0
         if ys1 > ys0 and xs1 > xs0:
             view = self._memmap[ys0:ys1, xs0:xs1]
-            out[ty0 : ty0 + (ys1 - ys0), tx0 : tx0 + (xs1 - xs0)] = view.astype(
-                np.float32, copy=False
-            )
+            if view.dtype == np.float32:
+                out[ty0 : ty0 + (ys1 - ys0), tx0 : tx0 + (xs1 - xs0)] = view
+            elif view.dtype.itemsize == np.dtype(np.float32).itemsize:
+                out[ty0 : ty0 + (ys1 - ys0), tx0 : tx0 + (xs1 - xs0)] = view.view(np.float32)
+            else:
+                out[ty0 : ty0 + (ys1 - ys0), tx0 : tx0 + (xs1 - xs0)] = view.astype(np.float32)
         if normalize:
             max_amount = (
                 getattr(self.config, "max_resource_amount", 10) if self.config else 10
@@ -179,12 +201,12 @@ class ResourceManager:
                 out = out / float(max_amount)
         return out
 
-    def cleanup_memmap(self, delete: bool = True) -> None:
+    def cleanup_memmap(self, delete_file: bool = True) -> None:
         try:
             if self._memmap is not None:
                 self._memmap.flush()
                 self._memmap = None
-            if delete and self._memmap_path and os.path.exists(self._memmap_path):
+            if delete_file and self._memmap_path and os.path.exists(self._memmap_path):
                 os.remove(self._memmap_path)
         except Exception as e:
             logger.warning("Failed to cleanup resource memmap: %s", e)

@@ -914,9 +914,9 @@ class Environment(AECEnv):
         if hasattr(self, "resource_manager") and self.resource_manager is not None:
             # Ensure memmap file is flushed; keep file for reuse by default
             try:
-                self.resource_manager.cleanup_memmap(delete=False)
-            except Exception:
-                pass
+                self.resource_manager.cleanup_memmap(delete_file=False)
+            except Exception as e:
+                logger.exception("Error during memmap cleanup in Environment.close(): %s", e)
         if hasattr(self, "db") and self.db is not None:
             self.db.close()
 
