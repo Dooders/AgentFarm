@@ -22,6 +22,7 @@ export type IPCEventType =
   | 'config:template:load'
   | 'config:template:save'
   | 'config:template:delete'
+  | 'config:template:list'
   | 'config:history:load'
   | 'config:history:save'
   | 'config:history:clear'

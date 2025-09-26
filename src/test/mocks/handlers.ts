@@ -1,8 +1,8 @@
 import { rest } from 'msw'
-import { SimulationConfig } from '@/types/config'
+import { SimulationConfigType } from '@/types/config'
 
 // Mock configuration data
-export const mockConfig: SimulationConfig = {
+export const mockConfig: SimulationConfigType = {
   width: 100,
   height: 100,
   position_discretization_method: 'floor',

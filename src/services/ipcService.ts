@@ -61,6 +61,9 @@ export class IPCServiceImpl implements IPCService {
 
   private async ping(): Promise<boolean> {
     try {
+      if (!window.electronAPI || typeof window.electronAPI.invoke !== 'function') {
+        throw new Error('IPC invoke method is not available')
+      }
       const response = await window.electronAPI.invoke('app:ping', { timestamp: Date.now() })
       return response.success
     } catch (error) {
@@ -92,8 +95,8 @@ export class IPCServiceImpl implements IPCService {
     this.performanceMetrics.lastRequestTime = Date.now()
 
     try {
-      if (!window.electronAPI) {
-        throw new Error('Electron API not available')
+      if (!window.electronAPI || typeof window.electronAPI.invoke !== 'function') {
+        throw new Error('IPC invoke method is not available')
       }
 
       const startTime = Date.now()

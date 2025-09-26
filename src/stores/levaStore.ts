@@ -45,6 +45,10 @@ export interface LevaStore {
 
   // Leva integration
   syncWithConfig: (config: SimulationConfigType) => void
+  /**
+   * @deprecated Use the LevaControls onChange callback integration instead.
+   * This method remains for backward compatibility and queues updates only.
+   */
   updateFromLeva: (path: string, value: any) => void
 
   // Utilities
@@ -257,6 +261,10 @@ export const useLevaStore = create<LevaStore>((set, get) => ({
     set({ expandedFolders: newExpandedFolders })
   },
 
+  /**
+   * @deprecated Use the LevaControls onChange callback integration instead.
+   * This method remains for backward compatibility and queues updates only.
+   */
   updateFromLeva: (path: string, value: any) => {
     // This would be called when Leva controls are updated
     // and would need to update the config store

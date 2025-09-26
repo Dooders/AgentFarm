@@ -23,17 +23,33 @@ export interface ValidationResult {
 
 // Validation state type
 export interface ValidationState {
+  // Core validation state
   isValidating: boolean
   errors: ValidationError[]
   warnings: ValidationError[]
   lastValidationTime: number
 
-  // Computed properties - these are implemented as getters in the store
-  readonly isValid: boolean
-  readonly hasErrors: boolean
-  readonly hasWarnings: boolean
-  readonly errorCount: number
-  readonly warningCount: number
+  // Optional field-specific validation state
+  fieldValidationCache?: Record<string, {
+    result: ValidationResult
+    timestamp: number
+    ttl: number
+  }>
+
+  // Optional validation configuration
+  validationRules?: Record<string, {
+    enabled: boolean
+    severity: 'error' | 'warning' | 'info'
+    debounceMs?: number
+  }>
+
+  // Optional performance metrics
+  validationMetrics?: {
+    totalValidations: number
+    averageValidationTime: number
+    lastValidationDuration: number
+    validationErrorsByPath: Record<string, number>
+  }
 }
 
 // Zod schema exports
@@ -79,36 +95,7 @@ export interface FieldValidationOptions {
 // Store Action Types for Validation
 // =====================================================
 
-// Validation store state interface
-export interface ValidationState {
-  // Core validation state
-  isValidating: boolean
-  errors: ValidationError[]
-  warnings: ValidationError[]
-  lastValidationTime: number
-
-  // Field-specific validation state
-  fieldValidationCache: Record<string, {
-    result: ValidationResult
-    timestamp: number
-    ttl: number
-  }>
-
-  // Validation configuration
-  validationRules: Record<string, {
-    enabled: boolean
-    severity: 'error' | 'warning' | 'info'
-    debounceMs?: number
-  }>
-
-  // Performance metrics
-  validationMetrics: {
-    totalValidations: number
-    averageValidationTime: number
-    lastValidationDuration: number
-    validationErrorsByPath: Record<string, number>
-  }
-}
+// (Duplicate ValidationState definition removed; unified interface declared above)
 
 // Validation store actions interface
 export interface ValidationActions {

@@ -4,7 +4,7 @@
  * Acceptance Criteria Validation Runner
  *
  * This script validates all acceptance criteria for Issue #3: Zod Schema Validation System
- * Run with: node validate-acceptance-criteria.js
+ * Run with: node validate-acceptance-criteria.cjs
  *
  * Exit codes:
  * 0 - All criteria passed
