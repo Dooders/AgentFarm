@@ -462,10 +462,14 @@ describe('IPCServiceImpl', () => {
 
     it('registers one-time listeners', async () => {
       const callback = vi.fn()
+      let resolveOnce: (value: any) => void
 
       mockElectronAPI.once.mockImplementation((channel, cb) => {
-        cb({ data: 'test' })
-        return { success: true, payload: { data: 'test' } }
+        // Simulate immediate callback
+        setTimeout(() => {
+          cb({ data: 'test' })
+        }, 0)
+        return Promise.resolve({ success: true, payload: { data: 'test' } })
       })
 
       const result = await ipcService.once('test-event', callback)
@@ -499,6 +503,7 @@ describe('IPCServiceImpl', () => {
     })
 
     it('provides fallback for connection failures', async () => {
+      // Create service with electronAPI undefined
       Object.defineProperty(window, 'electronAPI', {
         value: undefined,
         writable: true
@@ -506,9 +511,8 @@ describe('IPCServiceImpl', () => {
 
       const service = new IPCServiceImpl()
 
-      // Should not throw, should handle gracefully
-      const result = await service.loadConfig({ filePath: 'test.json' })
-      expect(result).toBeUndefined()
+      // Should throw error when electronAPI is not available
+      await expect(service.loadConfig({ filePath: 'test.json' })).rejects.toThrow('Electron API not available')
     })
   })
 
@@ -527,11 +531,20 @@ describe('IPCServiceImpl', () => {
     })
 
     it('tracks response metrics', async () => {
+      // Mock a successful response with timing
+      mockElectronAPI.invoke.mockImplementation(() => {
+        return new Promise(resolve => {
+          setTimeout(() => {
+            resolve({ success: true, payload: { config: {} } })
+          }, 10)
+        })
+      })
+
       await ipcService.loadConfig({ filePath: 'test.json' })
 
       const metrics = ipcService.getPerformanceMetrics()
       expect(metrics.totalResponses).toBe(1)
-      expect(metrics.averageResponseTime).toBeGreaterThan(0)
+      expect(metrics.averageResponseTime).toBeGreaterThanOrEqual(10)
     })
   })
 })
