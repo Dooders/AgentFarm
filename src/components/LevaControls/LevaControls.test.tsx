@@ -7,16 +7,20 @@ import { StringInput } from './StringInput'
 import { ConfigFolder } from './ConfigFolder'
 import { useLevaStore } from '@/stores/levaStore'
 import { useConfigStore } from '@/stores/configStore'
+import type { NumberInputProps, BooleanInputProps, StringInputProps, ConfigFolderProps } from '@/types/leva'
 
 // Test individual components
 describe('Leva Control Components', () => {
   describe('NumberInput', () => {
     it('renders number input with correct props', () => {
       const mockOnChange = vi.fn()
+      const mockSchema = { type: 'number', minimum: 0, maximum: 100 }
       render(
         <NumberInput
+          path="test.number"
           value={42}
           onChange={mockOnChange}
+          schema={mockSchema}
           min={0}
           max={100}
           step={1}
@@ -30,10 +34,13 @@ describe('Leva Control Components', () => {
 
     it('calls onChange with correct value', () => {
       const mockOnChange = vi.fn()
+      const mockSchema = { type: 'number', minimum: 0, maximum: 100 }
       render(
         <NumberInput
+          path="test.number"
           value={42}
           onChange={mockOnChange}
+          schema={mockSchema}
           min={0}
           max={100}
           step={1}
@@ -48,10 +55,13 @@ describe('Leva Control Components', () => {
 
     it('respects min/max constraints', () => {
       const mockOnChange = vi.fn()
+      const mockSchema = { type: 'number', minimum: 0, maximum: 100 }
       render(
         <NumberInput
+          path="test.number"
           value={50}
           onChange={mockOnChange}
+          schema={mockSchema}
           min={0}
           max={100}
           step={1}
@@ -71,10 +81,13 @@ describe('Leva Control Components', () => {
 
     it('handles increment/decrement buttons', () => {
       const mockOnChange = vi.fn()
+      const mockSchema = { type: 'number', minimum: 0, maximum: 100 }
       render(
         <NumberInput
+          path="test.number"
           value={50}
           onChange={mockOnChange}
+          schema={mockSchema}
           min={0}
           max={100}
           step={5}
@@ -93,10 +106,13 @@ describe('Leva Control Components', () => {
 
     it('shows error message when provided', () => {
       const mockOnChange = vi.fn()
+      const mockSchema = { type: 'number' }
       render(
         <NumberInput
+          path="test.number"
           value={50}
           onChange={mockOnChange}
+          schema={mockSchema}
           error="Invalid value"
         />
       )
@@ -108,10 +124,13 @@ describe('Leva Control Components', () => {
   describe('BooleanInput', () => {
     it('renders boolean input with correct props', () => {
       const mockOnChange = vi.fn()
+      const mockSchema = { type: 'boolean' }
       render(
         <BooleanInput
+          path="test.boolean"
           value={true}
           onChange={mockOnChange}
+          schema={mockSchema}
           label="Test Boolean"
         />
       )
@@ -123,10 +142,13 @@ describe('Leva Control Components', () => {
 
     it('calls onChange with correct value', () => {
       const mockOnChange = vi.fn()
+      const mockSchema = { type: 'boolean' }
       render(
         <BooleanInput
+          path="test.boolean"
           value={false}
           onChange={mockOnChange}
+          schema={mockSchema}
         />
       )
 
@@ -138,10 +160,13 @@ describe('Leva Control Components', () => {
 
     it('shows error message when provided', () => {
       const mockOnChange = vi.fn()
+      const mockSchema = { type: 'boolean' }
       render(
         <BooleanInput
+          path="test.boolean"
           value={false}
           onChange={mockOnChange}
+          schema={mockSchema}
           error="Invalid state"
         />
       )
@@ -153,10 +178,13 @@ describe('Leva Control Components', () => {
   describe('StringInput', () => {
     it('renders string input with correct props', () => {
       const mockOnChange = vi.fn()
+      const mockSchema = { type: 'string' }
       render(
         <StringInput
+          path="test.string"
           value="test"
           onChange={mockOnChange}
+          schema={mockSchema}
           placeholder="Enter text"
           label="Test String"
         />
@@ -170,10 +198,13 @@ describe('Leva Control Components', () => {
 
     it('calls onChange with correct value', () => {
       const mockOnChange = vi.fn()
+      const mockSchema = { type: 'string' }
       render(
         <StringInput
+          path="test.string"
           value="test"
           onChange={mockOnChange}
+          schema={mockSchema}
         />
       )
 
@@ -185,10 +216,13 @@ describe('Leva Control Components', () => {
 
     it('respects maxLength constraint', () => {
       const mockOnChange = vi.fn()
+      const mockSchema = { type: 'string', maxLength: 5 }
       render(
         <StringInput
+          path="test.string"
           value="test"
           onChange={mockOnChange}
+          schema={mockSchema}
           maxLength={5}
         />
       )
