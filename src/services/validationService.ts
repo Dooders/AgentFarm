@@ -1,8 +1,9 @@
 import { ValidationError, ValidationResult } from '@/types/validation'
 import { SimulationConfig } from '@/types/config'
+import { validateSimulationConfig, validateField as zodValidateField } from '@/utils/validationUtils'
 
 /**
- * Validation service for configuration validation
+ * Validation service for configuration validation using Zod schemas
  * This service provides validation logic without direct store dependencies
  */
 
@@ -12,46 +13,23 @@ export interface ValidationService {
   validateSingleField: (path: string, value: any) => ValidationError[]
 }
 
-export class ConfigValidationService implements ValidationService {
+export class ZodValidationService implements ValidationService {
   validateConfig(config: SimulationConfig): ValidationResult {
-    const errors: ValidationError[] = []
-    const warnings: ValidationError[] = []
+    // Use the Zod-based validation utility
+    const zodResult = validateSimulationConfig(config)
 
-    // Validate basic config fields
-    const fieldErrors = this.validateSingleField('width', config.width)
-    errors.push(...fieldErrors)
-
-    const heightErrors = this.validateSingleField('height', config.height)
-    errors.push(...heightErrors)
-
-    // Validate agent ratios sum to 1
-    const ratioSum = Object.values(config.agent_type_ratios).reduce((sum, ratio) => sum + ratio, 0)
-    if (Math.abs(ratioSum - 1.0) > 0.001) {
-      errors.push({
-        path: 'agent_type_ratios',
-        message: 'Agent type ratios must sum to 1.0',
-        code: 'invalid_sum'
-      })
-    }
-
-    // Add warnings for performance considerations
-    if (config.width * config.height > 50000) {
-      warnings.push({
-        path: 'environment',
-        message: 'Large environment size may impact performance',
-        code: 'performance_warning'
-      })
-    }
+    // Add any additional business logic validation if needed
+    const additionalErrors = this.validateBusinessRules(config)
 
     return {
-      success: errors.length === 0,
-      errors,
-      warnings
+      success: zodResult.success && additionalErrors.length === 0,
+      errors: [...zodResult.errors, ...additionalErrors],
+      warnings: zodResult.warnings
     }
   }
 
   validateField(path: string, value: any): ValidationResult {
-    const errors = this.validateSingleField(path, value)
+    const errors = zodValidateField(path, value)
 
     return {
       success: errors.length === 0,
@@ -61,63 +39,59 @@ export class ConfigValidationService implements ValidationService {
   }
 
   validateSingleField(path: string, value: any): ValidationError[] {
+    return zodValidateField(path, value)
+  }
+
+  /**
+   * Additional business rule validation that complements Zod schema validation
+   */
+  private validateBusinessRules(config: SimulationConfig): ValidationError[] {
     const errors: ValidationError[] = []
 
-    // Field-specific validation rules
-    switch (path) {
-      case 'width':
-      case 'height':
-        if (typeof value !== 'number' || value < 10 || value > 1000) {
-          errors.push({
-            path,
-            message: `${path} must be a number between 10 and 1000`,
-            code: 'invalid_range'
-          })
-        }
-        break
+    // Performance warnings
+    if (config.width * config.height > 50000) {
+      errors.push({
+        path: 'environment',
+        message: 'Large environment size may impact performance',
+        code: 'performance_warning'
+      })
+    }
 
-      case 'system_agents':
-      case 'independent_agents':
-      case 'control_agents':
-        if (typeof value !== 'number' || value < 0 || value > 10000) {
-          errors.push({
-            path,
-            message: `${path} must be a number between 0 and 10000`,
-            code: 'invalid_range'
-          })
-        }
-        break
+    // Agent capacity validation
+    const totalAgents = config.system_agents + config.independent_agents + config.control_agents
+    const environmentCapacity = config.width * config.height
 
-      case 'learning_rate':
-        if (typeof value !== 'number' || value <= 0 || value > 1) {
-          errors.push({
-            path,
-            message: 'learning_rate must be a number between 0 and 1',
-            code: 'invalid_range'
-          })
-        }
-        break
+    if (totalAgents > environmentCapacity) {
+      errors.push({
+        path: 'agents',
+        message: 'Total number of agents exceeds environment capacity',
+        code: 'capacity_exceeded'
+      })
+    }
 
-      case 'epsilon_start':
-      case 'epsilon_min':
-        if (typeof value !== 'number' || value < 0 || value > 1) {
-          errors.push({
-            path,
-            message: `${path} must be a number between 0 and 1`,
-            code: 'invalid_range'
-          })
-        }
-        break
+    // Memory efficiency checks
+    const totalMemory = Object.entries(config.agent_parameters).reduce((total, [agentType, params]) => {
+      let agentCount = 0
+      switch (agentType) {
+        case 'SystemAgent':
+          agentCount = config.system_agents
+          break
+        case 'IndependentAgent':
+          agentCount = config.independent_agents
+          break
+        case 'ControlAgent':
+          agentCount = config.control_agents
+          break
+      }
+      return total + params.memory_size * agentCount
+    }, 0)
 
-      case 'epsilon_decay':
-        if (typeof value !== 'number' || value <= 0 || value > 1) {
-          errors.push({
-            path,
-            message: 'epsilon_decay must be a number between 0 and 1',
-            code: 'invalid_range'
-          })
-        }
-        break
+    if (totalMemory > 10000000) { // 10M memory entries
+      errors.push({
+        path: 'memory',
+        message: 'Total memory usage may be excessive for available system resources',
+        code: 'memory_warning'
+      })
     }
 
     return errors
@@ -125,4 +99,4 @@ export class ConfigValidationService implements ValidationService {
 }
 
 // Create singleton instance
-export const validationService = new ConfigValidationService()
+export const validationService = new ZodValidationService()
