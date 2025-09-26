@@ -18,14 +18,14 @@ const StringInputLabel = styled.label`
 
 const StringInputField = styled.input`
   width: 100%;
-  height: 24px;
+  height: 28px;
   padding: 0 8px;
   background: var(--leva-colors-elevation2);
   border: 1px solid var(--leva-colors-accent1);
   border-radius: var(--leva-radii-sm);
   color: var(--leva-colors-highlight1);
   font-family: var(--leva-fonts-mono);
-  font-size: 12px;
+  font-size: 11px;
 
   &:focus {
     outline: none;

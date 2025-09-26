@@ -18,14 +18,14 @@ const NumberInputLabel = styled.label`
 
 const NumberInputField = styled.input`
   width: 100%;
-  height: 24px;
+  height: 28px;
   padding: 0 8px;
   background: var(--leva-colors-elevation2);
   border: 1px solid var(--leva-colors-accent1);
   border-radius: var(--leva-radii-sm);
   color: var(--leva-colors-highlight1);
   font-family: var(--leva-fonts-mono);
-  font-size: 12px;
+  font-size: 11px;
 
   &:focus {
     outline: none;
@@ -64,7 +64,9 @@ export const NumberInput: React.FC<NumberInputProps> = ({
       return
     }
 
-    const numValue = parseFloat(inputValue)
+    // Support scientific notation and standard floats
+    const sciMatch = inputValue.match(/^[-+]?\d*\.?\d+(e[-+]?\d+)?$/i)
+    const numValue = sciMatch ? Number(inputValue) : parseFloat(inputValue)
 
     // Allow intermediate values (e.g. '-', '.', '1.') for better UX
     if (isNaN(numValue)) {
