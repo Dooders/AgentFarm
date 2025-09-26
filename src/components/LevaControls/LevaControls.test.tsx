@@ -7,16 +7,20 @@ import { StringInput } from './StringInput'
 import { ConfigFolder } from './ConfigFolder'
 import { useLevaStore } from '@/stores/levaStore'
 import { useConfigStore } from '@/stores/configStore'
+import type { NumberInputProps, BooleanInputProps, StringInputProps, ConfigFolderProps } from '@/types/leva'
 
 // Test individual components
 describe('Leva Control Components', () => {
   describe('NumberInput', () => {
     it('renders number input with correct props', () => {
       const mockOnChange = vi.fn()
+      const mockSchema = { type: 'number', minimum: 0, maximum: 100 }
       render(
         <NumberInput
+          path="test.number"
           value={42}
           onChange={mockOnChange}
+          schema={mockSchema}
           min={0}
           max={100}
           step={1}
@@ -30,10 +34,13 @@ describe('Leva Control Components', () => {
 
     it('calls onChange with correct value', () => {
       const mockOnChange = vi.fn()
+      const mockSchema = { type: 'number', minimum: 0, maximum: 100 }
       render(
         <NumberInput
+          path="test.number"
           value={42}
           onChange={mockOnChange}
+          schema={mockSchema}
           min={0}
           max={100}
           step={1}
