@@ -1,6 +1,7 @@
 import React from 'react'
 import styled from 'styled-components'
 import { ValidationSummary } from '@/components/Validation/ValidationSummary'
+import { useAccessibility } from '@/components/UI/AccessibilityProvider'
 
 const RightPanelContainer = styled.div`
   display: flex;
@@ -81,59 +82,86 @@ const ActionButton = styled.button`
 `
 
 export const RightPanel: React.FC = () => {
+  const { announceToScreenReader } = useAccessibility()
+
+  const handleButtonClick = (action: string) => {
+    announceToScreenReader(`Activated ${action}`, 'polite')
+  }
+
   return (
-    <RightPanelContainer>
+    <RightPanelContainer role="complementary" aria-label="Configuration comparison and validation panel">
       <PanelHeader>
         <PanelTitle>Configuration Comparison</PanelTitle>
       </PanelHeader>
 
-      <ContentArea>
-        <SectionTitle>Current Configuration</SectionTitle>
+      <ContentArea id="comparison-content" tabIndex={-1}>
+        <section aria-labelledby="current-config-title">
+          <SectionTitle id="current-config-title">Current Configuration</SectionTitle>
 
-        <ContentSection>
-          <ConfigItem>
-            <ConfigLabel>Environment Settings:</ConfigLabel>
-            <ConfigValue>Grid: 100x100, Floor discretization</ConfigValue>
-          </ConfigItem>
-          <ConfigItem>
-            <ConfigLabel>Agent Counts:</ConfigLabel>
-            <ConfigValue>System: 20, Independent: 20, Control: 10</ConfigValue>
-          </ConfigItem>
-          <ConfigItem>
-            <ConfigLabel>Learning Rate:</ConfigLabel>
-            <ConfigValue>0.001 (Adaptive)</ConfigValue>
-          </ConfigItem>
-          <ConfigItem>
-            <ConfigLabel>Visualization:</ConfigLabel>
-            <ConfigValue>Canvas: 800x600, Metrics: Enabled</ConfigValue>
-          </ConfigItem>
-        </ContentSection>
+          <ContentSection role="list" aria-label="Current configuration parameters">
+            <ConfigItem role="listitem">
+              <ConfigLabel>Environment Settings:</ConfigLabel>
+              <ConfigValue>Grid: 100x100, Floor discretization</ConfigValue>
+            </ConfigItem>
+            <ConfigItem role="listitem">
+              <ConfigLabel>Agent Counts:</ConfigLabel>
+              <ConfigValue>System: 20, Independent: 20, Control: 10</ConfigValue>
+            </ConfigItem>
+            <ConfigItem role="listitem">
+              <ConfigLabel>Learning Rate:</ConfigLabel>
+              <ConfigValue>0.001 (Adaptive)</ConfigValue>
+            </ConfigItem>
+            <ConfigItem role="listitem">
+              <ConfigLabel>Visualization:</ConfigLabel>
+              <ConfigValue>Canvas: 800x600, Metrics: Enabled</ConfigValue>
+            </ConfigItem>
+          </ContentSection>
+        </section>
 
-        <SectionTitle>Comparison Tools</SectionTitle>
+        <section aria-labelledby="comparison-tools-title">
+          <SectionTitle id="comparison-tools-title">Comparison Tools</SectionTitle>
 
-        <ContentSection>
-          <div style={{ marginBottom: '16px' }}>
-            <ActionButton>Load Base Config</ActionButton>
-            <ActionButton>Load Compare Config</ActionButton>
-            <ActionButton>Generate Diff Report</ActionButton>
-          </div>
+          <ContentSection role="group" aria-label="Configuration comparison actions">
+            <div style={{ marginBottom: '16px' }}>
+              <ActionButton
+                onClick={() => handleButtonClick('Load Base Config')}
+                aria-describedby="base-config-desc"
+              >
+                Load Base Config
+              </ActionButton>
+              <ActionButton
+                onClick={() => handleButtonClick('Load Compare Config')}
+                aria-describedby="compare-config-desc"
+              >
+                Load Compare Config
+              </ActionButton>
+              <ActionButton
+                onClick={() => handleButtonClick('Generate Diff Report')}
+                aria-describedby="diff-report-desc"
+              >
+                Generate Diff Report
+              </ActionButton>
+            </div>
 
-          <div style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>
-            <p>Compare different configuration versions to identify changes and optimize settings.</p>
-            <ul style={{ marginTop: '8px', paddingLeft: '16px' }}>
-              <li>Highlight parameter differences</li>
-              <li>Track configuration evolution</li>
-              <li>Validate configuration integrity</li>
-              <li>Export comparison results</li>
-            </ul>
-          </div>
-        </ContentSection>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>
+              <p>Compare different configuration versions to identify changes and optimize settings.</p>
+              <ul style={{ marginTop: '8px', paddingLeft: '16px' }} role="list">
+                <li role="listitem">Highlight parameter differences</li>
+                <li role="listitem">Track configuration evolution</li>
+                <li role="listitem">Validate configuration integrity</li>
+                <li role="listitem">Export comparison results</li>
+              </ul>
+            </div>
+          </ContentSection>
+        </section>
 
-        <SectionTitle>Validation Status</SectionTitle>
+        <section aria-labelledby="validation-status-title">
+          <SectionTitle id="validation-status-title">Validation Status</SectionTitle>
 
-        <ContentSection>
-          <ValidationSummary />
-        </ContentSection>
+          <ContentSection id="validation-content" tabIndex={-1}>
+            <ValidationSummary />
+          </ContentSection>
+        </section>
       </ContentArea>
     </RightPanelContainer>
   )

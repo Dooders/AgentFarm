@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { DualPanelLayout } from '@/components/Layout/DualPanelLayout'
+import { SkipNavigation } from '@/components/UI/SkipNavigation'
 import { ipcService } from '@/services/ipcService'
 import { IPCConnectionStatus } from '@/types/ipc'
 
@@ -90,13 +91,26 @@ export const ConfigExplorer: React.FC = () => {
   }
 
   return (
-    <div className="config-explorer">
+    <div className="config-explorer" role="application" aria-label="Configuration Explorer Application">
+      <SkipNavigation
+        mainContentId="main-content"
+        validationContentId="validation-content"
+        comparisonContentId="comparison-content"
+      />
+
       {connectionStatus === 'disconnected' && (
-        <div className="connection-status disconnected">
+        <div
+          className="connection-status disconnected"
+          role="alert"
+          aria-live="polite"
+        >
           <span>⚠️ Running in browser mode - some features may be limited</span>
         </div>
       )}
-      <DualPanelLayout />
+
+      <main id="main-content" role="main">
+        <DualPanelLayout />
+      </main>
     </div>
   )
 }

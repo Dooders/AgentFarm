@@ -2,6 +2,7 @@ import React, { useMemo } from 'react'
 import styled from 'styled-components'
 import { useValidationStore } from '@/stores/validationStore'
 import { ValidationError } from '@/types/validation'
+import { useAccessibility } from '@/components/UI/AccessibilityProvider'
 
 interface ValidationDisplayProps {
   paths?: string[]
@@ -66,18 +67,34 @@ export const ValidationDisplay: React.FC<ValidationDisplayProps> = ({
   title
 }) => {
   const { errors, warnings } = useValidationStore()
+  const { announceToScreenReader } = useAccessibility()
 
   const visibleErrors = useMemo(() => filterIssues(errors, paths, prefixPaths), [errors, paths, prefixPaths])
   const visibleWarnings = useMemo(() => filterIssues(warnings, paths, prefixPaths), [warnings, paths, prefixPaths])
 
+  // Announce validation issues to screen readers
+  React.useEffect(() => {
+    if (visibleErrors.length > 0) {
+      announceToScreenReader(`${visibleErrors.length} validation error${visibleErrors.length > 1 ? 's' : ''} found`, 'assertive')
+    }
+    if (visibleWarnings.length > 0) {
+      announceToScreenReader(`${visibleWarnings.length} validation warning${visibleWarnings.length > 1 ? 's' : ''} found`, 'polite')
+    }
+  }, [visibleErrors.length, visibleWarnings.length, announceToScreenReader])
+
   if (visibleErrors.length === 0 && visibleWarnings.length === 0) return null
 
   return (
-    <Container className={className}>
+    <Container className={className} role="region" aria-label="Validation issues">
       {title && <Title>{title}</Title>}
       {visibleErrors.map((err, idx) => (
-        <ErrorItem key={`err-${idx}`}>
-          {showIcons && <span aria-hidden>✖</span>}
+        <ErrorItem
+          key={`err-${idx}`}
+          role="alert"
+          aria-live="polite"
+          aria-label={`Validation error: ${err.message}`}
+        >
+          {showIcons && <span aria-hidden="true">✖</span>}
           <div>
             {!compact && <Path>{err.path}</Path>}
             <Message>{err.message}</Message>
@@ -85,8 +102,13 @@ export const ValidationDisplay: React.FC<ValidationDisplayProps> = ({
         </ErrorItem>
       ))}
       {visibleWarnings.map((warn, idx) => (
-        <WarningItem key={`warn-${idx}`}>
-          {showIcons && <span aria-hidden>⚠</span>}
+        <WarningItem
+          key={`warn-${idx}`}
+          role="status"
+          aria-live="polite"
+          aria-label={`Validation warning: ${warn.message}`}
+        >
+          {showIcons && <span aria-hidden="true">⚠</span>}
           <div>
             {!compact && <Path>{warn.path}</Path>}
             <Message>{warn.message}</Message>
