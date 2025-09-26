@@ -3,6 +3,7 @@ import { SimulationConfigType, ConfigStore } from '@/types/config'
 import { persistState, retrieveState } from './persistence'
 import { useValidationStore } from './validationStore'
 import { validationService } from '@/services/validationService'
+import { ipcService } from '@/services/ipcService'
 
 // Default configuration for initial state
 const defaultConfig: SimulationConfigType = {
@@ -191,21 +192,22 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 
   loadConfig: async (filePath: string) => {
     try {
-      // This would be implemented with IPC service in a real app
       console.log('Loading config from:', filePath)
 
-      // For now, just reset to default - in a real implementation, this would be:
-      // const config = await ipcRenderer.invoke('config:load', filePath)
-      await new Promise(resolve => setTimeout(resolve, 100)) // Simulate async operation
+      // Load configuration using IPC service
+      const result = await ipcService.loadConfig({ filePath })
 
       set({
-        config: defaultConfig,
-        originalConfig: defaultConfig,
+        config: result.config,
+        originalConfig: result.config,
         isDirty: false,
         validationErrors: [],
-        history: [defaultConfig],
+        history: [result.config],
         historyIndex: 0
       })
+
+      // Trigger validation
+      get().validateConfig()
     } catch (error) {
       console.error('Failed to load config:', error)
       throw error
@@ -214,12 +216,15 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 
   saveConfig: async (filePath?: string) => {
     try {
-      // This would be implemented with IPC service in a real app
       console.log('Saving config to:', filePath || 'default location')
 
-      // In a real implementation, this would be:
-      // await ipcRenderer.invoke('config:save', get().config, filePath)
-      await new Promise(resolve => setTimeout(resolve, 100)) // Simulate async operation
+      // Save configuration using IPC service
+      const result = await ipcService.saveConfig({
+        config: get().config,
+        filePath,
+        format: 'json',
+        backup: true
+      })
 
       set({
         originalConfig: get().config,
@@ -227,6 +232,8 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
         history: [get().config],
         historyIndex: 0
       })
+
+      return result
     } catch (error) {
       console.error('Failed to save config:', error)
       throw error
@@ -247,12 +254,24 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     set({ expandedFolders })
   },
 
-  validateConfig: () => {
-    const config = get().config
-    const result = validationService.validateConfig(config)
+  validateConfig: async () => {
+    try {
+      const config = get().config
+      const result = await ipcService.validateConfig({
+        config,
+        partial: false,
+        rules: ['population_positive', 'world_size_valid']
+      })
 
-    // Update validation store with results
-    useValidationStore.getState().setValidationResult(result)
+      // Update validation store with results
+      useValidationStore.getState().setValidationResult(result)
+    } catch (error) {
+      console.error('Failed to validate config:', error)
+      // Fallback to local validation
+      const config = get().config
+      const result = validationService.validateConfig(config)
+      useValidationStore.getState().setValidationResult(result)
+    }
   },
 
   // Persistence methods for UI preferences
@@ -427,23 +446,35 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   },
 
   // Export configuration as JSON
-  exportConfig: () => {
-    const { config } = get()
-    return JSON.stringify(config, null, 2)
+  exportConfig: async (format: 'json' | 'yaml' | 'xml' = 'json', filePath?: string) => {
+    try {
+      const { config } = get()
+      const result = await ipcService.exportConfig({
+        config,
+        format,
+        filePath,
+        includeMetadata: true
+      })
+
+      return result
+    } catch (error) {
+      console.error('Failed to export config:', error)
+      throw error
+    }
   },
 
   // Import configuration from JSON
-  importConfig: (configJson: string) => {
+  importConfig: async (configJson: string, format: 'json' | 'yaml' | 'xml' = 'json') => {
     try {
-      const importedConfig = JSON.parse(configJson)
-
-      // Basic validation
-      if (typeof importedConfig !== 'object' || importedConfig === null) {
-        throw new Error('Invalid configuration format')
-      }
+      const result = await ipcService.importConfig({
+        content: configJson,
+        format,
+        validate: true,
+        merge: false
+      })
 
       set({
-        config: { ...defaultConfig, ...importedConfig },
+        config: result.config,
         isDirty: true
       })
 
@@ -452,6 +483,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 
       return { success: true }
     } catch (error) {
+      console.error('Failed to import config:', error)
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Import failed'
