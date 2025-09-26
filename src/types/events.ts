@@ -1,4 +1,4 @@
-import { ConfigPath, ConfigUpdate, BatchConfigUpdate, ConfigFieldChangeEvent, ConfigSection, ConfigImportResult, ConfigExport } from './config'
+import { ConfigPath, BatchConfigUpdate, ConfigSection, ConfigImportResult, ConfigExport } from './config'
 import { ValidationError } from './validation'
 import { ValidationResult } from './validation'
 

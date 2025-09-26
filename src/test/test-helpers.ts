@@ -1,4 +1,5 @@
 import { screen, waitFor, fireEvent } from '@testing-library/react'
+import { expect } from 'vitest'
 import userEvent from '@testing-library/user-event'
 
 // User event setup
@@ -34,14 +35,14 @@ export const resizePanel = async (panel: HTMLElement, newSize: number, direction
 }
 
 // Configuration control utilities
-export const setNumberInput = async (label: string, value: number) => {
+export const setNumberInput = async (label: string | RegExp, value: number) => {
   const input = screen.getByLabelText(label)
   await user.clear(input)
   await user.type(input, value.toString())
 }
 
 export const setBooleanControl = async (label: string, checked: boolean) => {
-  const control = screen.getByLabelText(label)
+  const control = screen.getByLabelText(label) as HTMLInputElement
   if (control) {
     if (checked !== control.checked) {
       await user.click(control)

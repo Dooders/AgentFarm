@@ -1,9 +1,9 @@
 declare module 'msw' {
-  export const rest: any
-  export type RestRequest = any
+  export const http: any
+  export type HttpRequest = any
   export type ResponseComposition<T = any> = any
   export type DefaultBodyType = any
-  export type RestContext = any
+  export type HttpContext = any
   export function setupWorker(...handlers: any[]): any
 }
 
