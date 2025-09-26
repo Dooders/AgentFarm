@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { SimulationConfig } from '@/types/config'
+import { SimulationConfigType } from '@/types/config'
 import { persistState, retrieveState } from './persistence'
 
 export interface LevaStore {
@@ -44,7 +44,7 @@ export interface LevaStore {
   setCustomTheme: (theme: Record<string, any>) => void
 
   // Leva integration
-  syncWithConfig: (config: SimulationConfig) => void
+  syncWithConfig: (config: SimulationConfigType) => void
   updateFromLeva: (path: string, value: any) => void
 
   // Utilities
@@ -242,7 +242,7 @@ export const useLevaStore = create<LevaStore>((set, get) => ({
   },
 
   // Leva integration
-  syncWithConfig: (config: SimulationConfig) => {
+  syncWithConfig: (config: SimulationConfigType) => {
     // Sync Leva controls with the current configuration
     const configPaths = extractConfigPaths(config)
     set({ activeControls: configPaths })
@@ -319,12 +319,12 @@ export const useLevaStore = create<LevaStore>((set, get) => ({
   },
 
   // Get configuration value for a specific path
-  getConfigValue: (path: string, config: SimulationConfig) => {
+  getConfigValue: (path: string, config: SimulationConfigType) => {
     return getNestedValue(config, path)
   },
 
   // Set configuration value for a specific path
-  setConfigValue: (path: string, value: any, config: SimulationConfig) => {
+  setConfigValue: (path: string, value: any, config: SimulationConfigType) => {
     return setNestedValue(config, path, value)
   },
 
@@ -510,7 +510,7 @@ export const useLevaStore = create<LevaStore>((set, get) => ({
 }))
 
 // Helper functions for Leva integration
-function extractConfigPaths(config: SimulationConfig): string[] {
+function extractConfigPaths(config: SimulationConfigType): string[] {
   const paths: string[] = []
 
   function extractPaths(obj: any, prefix = ''): void {

@@ -12,7 +12,7 @@ export const ResizablePanels: React.FC<ResizablePanelsProps> = ({
   rightPanel,
   defaultSplit = 0.5
 }) => {
-  const { leftPanelWidth, rightPanelWidth, setPanelWidths, restoreUIState } = useConfigStore()
+  const { leftPanelWidth, setPanelWidths } = useConfigStore()
   const [splitPosition, setSplitPosition] = useState(leftPanelWidth || defaultSplit)
   const [isMobile, setIsMobile] = useState(false)
   const [isTablet, setIsTablet] = useState(false)
@@ -24,40 +24,62 @@ export const ResizablePanels: React.FC<ResizablePanelsProps> = ({
     setSplitPosition(leftPanelWidth)
   }, [leftPanelWidth])
 
-  // Handle responsive layout changes
+  // Handle responsive layout changes with debouncing and breakpoint transition detection
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout
+    let currentBreakpoint: string
+
+    const getBreakpoint = (width: number): string => {
+      if (width <= 768) return 'mobile'
+      if (width <= 1024) return 'tablet'
+      return 'desktop'
+    }
+
     const handleResize = () => {
       const width = window.innerWidth
+      const newBreakpoint = getBreakpoint(width)
 
-      // Check if mobile (stack panels vertically)
-      if (width <= 768) {
-        setIsMobile(true)
-        setIsTablet(false)
-        // On mobile, reset to equal split if not already set
-        if (leftPanelWidth !== 0.5) {
-          setPanelWidths(0.5, 0.5)
+      // Only update if we've transitioned between breakpoints
+      if (newBreakpoint !== currentBreakpoint) {
+        currentBreakpoint = newBreakpoint
+
+        // Check if mobile (stack panels vertically)
+        if (width <= 768) {
+          setIsMobile(true)
+          setIsTablet(false)
+          // On mobile, reset to equal split only when transitioning TO mobile
+          if (leftPanelWidth !== 0.5) {
+            setPanelWidths(0.5, 0.5)
+          }
+        } else if (width <= 1024) {
+          setIsMobile(false)
+          setIsTablet(true)
+          // On tablet, use a more balanced split only when transitioning TO tablet
+          if (leftPanelWidth < 0.4 || leftPanelWidth > 0.6) {
+            setPanelWidths(0.5, 0.5)
+          }
+        } else {
+          setIsMobile(false)
+          setIsTablet(false)
         }
-      } else if (width <= 1024) {
-        setIsMobile(false)
-        setIsTablet(true)
-        // On tablet, use a more balanced split
-        if (leftPanelWidth < 0.4 || leftPanelWidth > 0.6) {
-          setPanelWidths(0.5, 0.5)
-        }
-      } else {
-        setIsMobile(false)
-        setIsTablet(false)
       }
     }
 
-    // Set initial state
+    // Set initial state and breakpoint
+    currentBreakpoint = getBreakpoint(window.innerWidth)
     handleResize()
 
-    // Add resize listener
-    window.addEventListener('resize', handleResize)
+    // Debounced resize listener to prevent excessive updates
+    const debouncedResize = () => {
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(handleResize, 150) // 150ms debounce
+    }
+
+    window.addEventListener('resize', debouncedResize)
 
     return () => {
-      window.removeEventListener('resize', handleResize)
+      clearTimeout(timeoutId)
+      window.removeEventListener('resize', debouncedResize)
     }
   }, [leftPanelWidth, setPanelWidths])
 

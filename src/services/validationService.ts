@@ -1,5 +1,5 @@
 import { ValidationError, ValidationResult } from '@/types/validation'
-import { SimulationConfig } from '@/types/config'
+import { SimulationConfigType } from '@/types/config'
 import { validateSimulationConfig, validateField as zodValidateField } from '@/utils/validationUtils'
 
 /**
@@ -8,13 +8,13 @@ import { validateSimulationConfig, validateField as zodValidateField } from '@/u
  */
 
 export interface ValidationService {
-  validateConfig: (config: SimulationConfig) => ValidationResult
+  validateConfig: (config: SimulationConfigType) => ValidationResult
   validateField: (path: string, value: any) => ValidationResult
   validateSingleField: (path: string, value: any) => ValidationError[]
 }
 
 export class ZodValidationService implements ValidationService {
-  validateConfig(config: SimulationConfig): ValidationResult {
+  validateConfig(config: SimulationConfigType): ValidationResult {
     // Use the Zod-based validation utility
     const zodResult = validateSimulationConfig(config)
 
@@ -45,7 +45,7 @@ export class ZodValidationService implements ValidationService {
   /**
    * Additional business rule validation that complements Zod schema validation
    */
-  private validateBusinessRules(config: SimulationConfig): ValidationError[] {
+  private validateBusinessRules(config: SimulationConfigType): ValidationError[] {
     const errors: ValidationError[] = []
 
     // Performance warnings

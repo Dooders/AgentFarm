@@ -1,8 +1,4 @@
-import { SimulationConfigType, AgentParameterType, VisualizationConfigType, AgentTypeRatiosType, ModuleParameterType, ValidationError } from './validation'
-import { SimulationConfig } from './validation'
-
-// Use Zod-inferred types for type safety
-export type SimulationConfigType = SimulationConfigType
+import { SimulationConfigType, AgentParameterType, ModuleParameterType, VisualizationConfigType, ValidationError } from './validation'
 
 // Use Zod-inferred types for type safety
 export type AgentParameters = AgentParameterType
@@ -21,15 +17,15 @@ export type {
 // ConfigStore interface definition
 export interface ConfigStore {
   // Configuration state
-  config: SimulationConfig
-  originalConfig: SimulationConfig
+  config: SimulationConfigType
+  originalConfig: SimulationConfigType
   isDirty: boolean
-  compareConfig: SimulationConfig | null
+  compareConfig: SimulationConfigType | null
   showComparison: boolean
   selectedSection: string
   expandedFolders: Set<string>
   validationErrors: ValidationError[]
-  history: SimulationConfig[]
+  history: SimulationConfigType[]
   historyIndex: number
 
   // Layout state
@@ -40,7 +36,7 @@ export interface ConfigStore {
   updateConfig: (path: string, value: any) => void
   loadConfig: (filePath: string) => Promise<void>
   saveConfig: (filePath?: string) => Promise<void>
-  setComparison: (config: SimulationConfig | null) => void
+  setComparison: (config: SimulationConfigType | null) => void
   toggleSection: (section: string) => void
   validateConfig: () => void
 

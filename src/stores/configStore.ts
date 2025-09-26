@@ -1,11 +1,11 @@
 import { create } from 'zustand'
-import { SimulationConfig, ConfigStore } from '@/types/config'
+import { SimulationConfigType, ConfigStore } from '@/types/config'
 import { persistState, retrieveState } from './persistence'
 import { useValidationStore } from './validationStore'
 import { validationService } from '@/services/validationService'
 
 // Default configuration for initial state
-const defaultConfig: SimulationConfig = {
+const defaultConfig: SimulationConfigType = {
   width: 100,
   height: 100,
   position_discretization_method: 'floor',
@@ -233,7 +233,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     }
   },
 
-  setComparison: (config: SimulationConfig | null) => {
+  setComparison: (config: SimulationConfigType | null) => {
     set({ compareConfig: config })
   },
 
