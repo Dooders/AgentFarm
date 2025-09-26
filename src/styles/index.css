@@ -1,3 +1,6 @@
+/* Import Leva theme configuration */
+@import './leva-theme.css';
+
 /* Reset and base styles */
 * {
   box-sizing: border-box;

@@ -22,6 +22,9 @@ export interface LevaStore {
   theme: 'dark' | 'light' | 'custom'
   customTheme: Record<string, any>
 
+  // Pending updates for config synchronization
+  pendingUpdates: Array<{ path: string; value: any }>
+
   // Actions
   setPanelVisible: (visible: boolean) => void
   setPanelCollapsed: (collapsed: boolean) => void
@@ -64,6 +67,9 @@ export interface LevaStore {
   persistSettings: () => void
   restoreSettings: () => void
   clearPersistedSettings: () => void
+
+  // Update processing
+  processPendingUpdates: () => void
 }
 
 const defaultState = {
@@ -237,15 +243,89 @@ export const useLevaStore = create<LevaStore>((set, get) => ({
 
   // Leva integration
   syncWithConfig: (config: SimulationConfig) => {
-    // This would sync the Leva controls with the current configuration
-    // Implementation would depend on specific Leva integration requirements
-    set({ activeControls: Object.keys(config) })
+    // Sync Leva controls with the current configuration
+    const configPaths = extractConfigPaths(config)
+    set({ activeControls: configPaths })
+
+    // Update expanded folders based on config structure
+    const configSections = ['environment', 'agents', 'learning', 'visualization', 'modules']
+    const newExpandedFolders = new Set([
+      ...get().expandedFolders,
+      ...configSections
+    ])
+
+    set({ expandedFolders: newExpandedFolders })
   },
 
   updateFromLeva: (path: string, value: any) => {
     // This would be called when Leva controls are updated
     // and would need to update the config store
     console.log('Leva update:', path, value)
+
+    // Note: This method is deprecated in favor of the callback approach
+    // The actual integration is now handled in the LevaControls component
+    // through the onChange callback
+
+    // For backward compatibility, we can still call the config store
+    // but this should be avoided in favor of the callback approach
+    try {
+      // We'll store the update to be processed later to avoid circular dependencies
+      set(state => ({
+        pendingUpdates: [...state.pendingUpdates, { path, value }]
+      }))
+    } catch (error) {
+      console.error('Failed to queue Leva update:', error)
+    }
+  },
+
+  // Add method to process pending updates
+  processPendingUpdates: () => {
+    set(state => {
+      if (state.pendingUpdates.length === 0) return state
+
+      // Import config store dynamically only when needed
+      import('./configStore').then(({ useConfigStore }) => {
+        const configStore = useConfigStore.getState()
+        state.pendingUpdates.forEach(({ path, value }) => {
+          try {
+            configStore.updateConfig(path, value)
+          } catch (error) {
+            console.error(`Failed to process update for ${path}:`, error)
+          }
+        })
+        // Clear pending updates after processing is complete
+        set({ pendingUpdates: [] })
+      }).catch(error => {
+        console.error('Failed to import config store:', error)
+      })
+
+      return state
+    })
+  },
+
+
+  // Enhanced integration methods
+  bindConfigValue: (path: string, value: any) => {
+    const currentControls = get().activeControls
+    if (!currentControls.includes(path)) {
+      set({ activeControls: [...currentControls, path] })
+    }
+  },
+
+  unbindConfigValue: (path: string) => {
+    const currentControls = get().activeControls
+    const newControls = currentControls.filter(control => control !== path)
+    set({ activeControls: newControls })
+  },
+
+  // Get configuration value for a specific path
+  getConfigValue: (path: string, config: SimulationConfig) => {
+    return getNestedValue(config, path)
+  },
+
+  // Set configuration value for a specific path
+  setConfigValue: (path: string, value: any, config: SimulationConfig) => {
+    return setNestedValue(config, path, value)
   },
 
   // Utilities
@@ -373,7 +453,8 @@ export const useLevaStore = create<LevaStore>((set, get) => ({
       collapsedFolders: Array.from(state.collapsedFolders),
       activeControls: state.activeControls,
       disabledControls: Array.from(state.disabledControls),
-      hiddenControls: Array.from(state.hiddenControls)
+      hiddenControls: Array.from(state.hiddenControls),
+      pendingUpdates: state.pendingUpdates // Include pending updates in persistence
     }
 
     persistState(settings, {
@@ -403,8 +484,13 @@ export const useLevaStore = create<LevaStore>((set, get) => ({
         collapsedFolders: new Set((settings.collapsedFolders as string[]) ?? []),
         activeControls: (settings.activeControls as string[]) ?? defaultState.activeControls,
         disabledControls: new Set((settings.disabledControls as string[]) ?? []),
-        hiddenControls: new Set((settings.hiddenControls as string[]) ?? [])
+        hiddenControls: new Set((settings.hiddenControls as string[]) ?? []),
+        pendingUpdates: (settings.pendingUpdates as Array<{ path: string; value: any }>) ?? []
       })
+
+      // Process any pending updates after restoring
+      const { processPendingUpdates } = get()
+      processPendingUpdates()
     }
   },
 
@@ -422,3 +508,55 @@ export const useLevaStore = create<LevaStore>((set, get) => ({
     }
   }
 }))
+
+// Helper functions for Leva integration
+function extractConfigPaths(config: SimulationConfig): string[] {
+  const paths: string[] = []
+
+  function extractPaths(obj: any, prefix = ''): void {
+    for (const [key, value] of Object.entries(obj)) {
+      const path = prefix ? `${prefix}.${key}` : key
+
+      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        extractPaths(value, path)
+      } else {
+        paths.push(path)
+      }
+    }
+  }
+
+  extractPaths(config)
+  return paths
+}
+
+function getNestedValue(obj: any, path: string): any {
+  const keys = path.split('.')
+  let current = obj
+
+  for (const key of keys) {
+    if (current === null || current === undefined || typeof current !== 'object') {
+      return undefined
+    }
+    current = current[key]
+  }
+
+  return current
+}
+
+function setNestedValue(obj: any, path: string, value: any): any {
+  const keys = path.split('.')
+  const result = { ...obj }
+
+  let current = result
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (!current[keys[i]] || typeof current[keys[i]] !== 'object' || Array.isArray(current[keys[i]])) {
+      current[keys[i]] = {}
+    } else {
+      current[keys[i]] = { ...current[keys[i]] }
+    }
+    current = current[keys[i]]
+  }
+
+  current[keys[keys.length - 1]] = value
+  return result
+}
