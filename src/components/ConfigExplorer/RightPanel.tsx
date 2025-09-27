@@ -6,6 +6,7 @@ import { useConfigStore } from '@/stores/configStore'
 import { configSelectors } from '@/stores/selectors'
 import { ComparisonPanel } from './ComparisonPanel'
 import { validationService } from '@/services/validationService'
+import { PresetManager } from './PresetManager'
 
 const RightPanelContainer = styled.div`
   display: flex;
@@ -162,7 +163,7 @@ export const RightPanel: React.FC = () => {
   return (
     <RightPanelContainer role="complementary" aria-label="Configuration comparison and validation panel">
       <PanelHeader>
-        <PanelTitle>Configuration Comparison</PanelTitle>
+        <PanelTitle>Configuration Tools</PanelTitle>
       </PanelHeader>
 
       <ContentArea id="comparison-content" tabIndex={-1}>
@@ -189,7 +190,7 @@ export const RightPanel: React.FC = () => {
           </ContentSection>
         </section>
 
-        <section aria-labelledby="comparison-tools-title">
+        <section aria-labelledby="comparison-tools-title" id="comparison-tools">
           <SectionTitle id="comparison-tools-title">Comparison Tools</SectionTitle>
 
           <ContentSection role="group" aria-label="Configuration comparison actions">
@@ -229,6 +230,13 @@ export const RightPanel: React.FC = () => {
                 </div>
               </div>
             )}
+          </ContentSection>
+        </section>
+
+        <section aria-labelledby="preset-manager-title" id="presets-section">
+          <SectionTitle id="preset-manager-title">Presets</SectionTitle>
+          <ContentSection role="region" aria-label="Preset manager">
+            <PresetManager />
           </ContentSection>
         </section>
 

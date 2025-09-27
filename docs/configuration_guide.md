@@ -564,6 +564,21 @@ farm config create --template resource_study --output my_study.yaml
 farm config validate my_simulation.yaml
 ```
 
+#### Preset System (Electron Config Explorer)
+
+- Presets can be created from the current configuration, listed, searched, applied, and deleted in the GUI.
+- Access the Preset Manager in the right panel under “Presets” or via the toolbar “Presets” button.
+- Apply supports two modes:
+  - Full Apply: merges the full template into the current configuration using a deep merge strategy (arrays are replaced, objects merge recursively).
+  - Partial Apply: select sections (environment, agents, learning, modules, visualization) to merge only those areas.
+- Preset metadata supported: name, description, category. User presets are saved locally via electron-store. System presets are read-only.
+- Overwrite behavior: when saving a preset with an existing name, the system prevents accidental overwrite unless explicitly requested by passing overwrite=true (CLI or API). In the GUI, creating a preset uses non-overwrite by default.
+- Undo/redo: Applying presets records in history, enabling undo/redo.
+
+Keyboard/UX tips:
+- Use the toolbar “Presets” button to scroll to the manager quickly.
+- Search in the Preset Manager to filter by name, description, or category.
+
 ## Best Practices
 
 ### Organization
