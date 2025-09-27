@@ -113,9 +113,10 @@ export const searchService = {
     const filters = query.filters
     const regex = filters.regex && query.text ? new RegExp(query.text, filters.caseSensitive ? '' : 'i') : null
 
-    const entries = baseItems
-      ? baseItems.map((bi) => ({ path: bi.path, key: bi.key, value: bi.valuePreview, parameterType: bi.parameterType, section: bi.section }))
-      : flattenConfig(config)
+    const entriesAll = flattenConfig(config)
+    const entries = baseItems && baseItems.length > 0
+      ? entriesAll.filter(e => baseItems.some(b => b.path === e.path))
+      : entriesAll
 
     const text = (query.text || '').trim()
 

@@ -17,6 +17,7 @@ export interface SearchFilters {
   regex?: boolean
   caseSensitive?: boolean
   fuzzy?: boolean
+  searchWithin?: boolean
 }
 
 export interface SearchQuery {

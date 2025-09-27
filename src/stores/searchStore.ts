@@ -33,7 +33,8 @@ const defaultFilters: SearchFilters = {
   sections: null,
   regex: false,
   caseSensitive: false,
-  fuzzy: true
+  fuzzy: true,
+  searchWithin: false
 }
 
 const creator: StateCreator<SearchState> = (set, get) => ({
@@ -81,7 +82,8 @@ const creator: StateCreator<SearchState> = (set, get) => ({
     }
 
     set({ isSearching: true })
-    const sr = searchService.search(config, { text: query, filters }, context)
+    const base = filters.searchWithin && get().results ? get().results!.items : undefined
+    const sr = searchService.search(config, { text: query, filters }, context, base)
     set({ results: sr, isSearching: false })
 
     // update history

@@ -53,6 +53,7 @@ export const SearchBar: React.FC<{ autoFocusId?: string }> = ({ autoFocusId = 't
   const setFilters = useSearchStore((s) => s.setFilters)
   const runSearch = useSearchStore((s) => s.runSearch)
   const isSearching = useSearchStore((s) => s.isSearching)
+  const searchWithin = useSearchStore((s) => s.filters.searchWithin)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -89,6 +90,7 @@ export const SearchBar: React.FC<{ autoFocusId?: string }> = ({ autoFocusId = 't
       <Toggle active={!!filters.fuzzy} onClick={() => setFilters({ fuzzy: !filters.fuzzy })} aria-pressed={!!filters.fuzzy}>Fuzzy</Toggle>
       <Toggle active={!!filters.regex} onClick={() => setFilters({ regex: !filters.regex })} aria-pressed={!!filters.regex}>Regex</Toggle>
       <Toggle active={!!filters.caseSensitive} onClick={() => setFilters({ caseSensitive: !filters.caseSensitive })} aria-pressed={!!filters.caseSensitive}>Aa</Toggle>
+      <Toggle active={!!searchWithin} onClick={() => setFilters({ searchWithin: !searchWithin })} aria-pressed={!!searchWithin}>In Results</Toggle>
       <Button onClick={() => runSearch()} disabled={isSearching}>Search</Button>
     </Container>
   )

@@ -10,6 +10,7 @@ import { PresetManager } from './PresetManager'
 import { SearchResults } from '@/components/Search/SearchResults'
 import { FilterControls } from '@/components/Search/FilterControls'
 import { SearchBar } from '@/components/Search/SearchBar'
+import { SavedSearches } from '@/components/Search/SavedSearches'
 import { useSearchStore } from '@/stores/searchStore'
 
 const RightPanelContainer = styled.div`
@@ -183,6 +184,10 @@ export const RightPanel: React.FC = () => {
             <FilterControls />
             <div style={{ marginTop: 12 }}>
               <SearchResults />
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <SectionTitle>Saved Searches</SectionTitle>
+              <SavedSearches />
             </div>
           </ContentSection>
         </section>
