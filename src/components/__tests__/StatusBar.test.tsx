@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import { StatusBar } from '@/components/Layout/StatusBar'
 import { useConfigStore } from '@/stores/configStore'
@@ -66,17 +66,19 @@ describe('StatusBar', () => {
     expect(spyFocus).toHaveBeenCalled()
   })
 
-  it('updates error and warning counts when store changes', () => {
+  it('updates error and warning counts when store changes', async () => {
     render(<StatusBar />)
-    expect(screen.getByText(/Errors: 0/)).toBeInTheDocument()
-    expect(screen.getByText(/Warnings: 0/)).toBeInTheDocument()
+    const statusEl = screen.getByRole('status', { name: /application status bar/i })
+    expect(statusEl.textContent || '').toMatch(/Errors:\s*0/)
+    expect(statusEl.textContent || '').toMatch(/Warnings:\s*0/)
     useValidationStore.setState({
       errors: [{ path: 'width', message: 'too small', code: 'min' }],
       warnings: [{ path: 'memory', message: 'high usage', code: 'warn' }]
     }, true)
-    // Re-render to reflect state change (testing-library auto re-renders reactive components)
-    expect(screen.getByText(/Errors: 1/)).toBeInTheDocument()
-    expect(screen.getByText(/Warnings: 1/)).toBeInTheDocument()
+    await waitFor(() => {
+      expect(statusEl.textContent || '').toMatch(/Errors:\s*1/)
+      expect(statusEl.textContent || '').toMatch(/Warnings:\s*1/)
+    })
   })
 })
 

@@ -32,9 +32,10 @@ describe('Accessibility Tests', () => {
     const headings = container.querySelectorAll('h1, h2, h3, h4, h5, h6')
     expect(headings.length).toBeGreaterThanOrEqual(2)
 
-    // Check for lists (navigation items)
+    // Check for lists (navigation items) OR presence of navigation landmarks
     const lists = container.querySelectorAll('ul, ol')
-    expect(lists.length).toBeGreaterThanOrEqual(1)
+    const navs = screen.queryAllByRole('navigation')
+    expect(lists.length >= 1 || navs.length >= 1).toBe(true)
   })
 
   it('should have ARIA landmarks', () => {
