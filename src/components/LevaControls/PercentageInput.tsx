@@ -191,6 +191,7 @@ const PercentageSlider: React.FC<{
   backgroundColor?: string
   asPercentage: boolean
   debounceMs?: number
+  precision?: number
 }> = ({
   value,
   min,
@@ -201,7 +202,8 @@ const PercentageSlider: React.FC<{
   progressColor = 'var(--leva-colors-accent1, #666666)',
   backgroundColor = 'var(--leva-colors-elevation1, #1a1a1a)',
   asPercentage,
-  debounceMs = 16
+  debounceMs = 16,
+  precision
 }) => {
   const [isDragging, setIsDragging] = useState(false)
   const rafIdRef = useRef<number | null>(null)
@@ -265,7 +267,8 @@ const PercentageSlider: React.FC<{
   }, [isDragging, handleMouseMove, handleMouseUp])
 
   const formatValue = (val: number) => {
-    return asPercentage ? `${(val * 100).toFixed(0)}%` : val.toFixed(2)
+    const usedPrecision = typeof precision === 'number' ? precision : (asPercentage ? 0 : 2)
+    return asPercentage ? `${(val * 100).toFixed(usedPrecision)}%` : val.toFixed(usedPrecision)
   }
 
   return (
@@ -331,30 +334,39 @@ const PercentageNumberInput: React.FC<{
   placeholder,
   disabled = false
 }) => {
+  const [raw, setRaw] = useState<string>('')
+  const [localError, setLocalError] = useState<string | null>(null)
+
+  // Keep raw input in sync when external value changes
+  React.useEffect(() => {
+    const formatted = asPercentage ? `${(value * 100).toFixed(precision)}%` : value.toFixed(precision)
+    setRaw(formatted)
+  }, [value, precision, asPercentage])
+
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const inputValue = e.target.value
+    setRaw(inputValue)
+    setLocalError(null)
 
-    // Handle empty input - allow clearing by setting to 0
-    if (inputValue === '') {
-      onChange(0)
+    // Allow partial states such as '-', '1.', '50%'
+    const cleaned = inputValue.trim()
+    if (cleaned === '' || cleaned === '-' || cleaned.endsWith('.') || cleaned === '%') {
       return
     }
 
-    // Parse the number
-    let numValue = parseFloat(inputValue)
-
-    // Convert from percentage if needed
-    if (asPercentage && inputValue.includes('%')) {
+    // Parse the number component
+    const numericPart = cleaned.replace('%', '')
+    let numValue = parseFloat(numericPart)
+    if (isNaN(numValue)) {
+      setLocalError('Enter a valid number')
+      return
+    }
+    if (asPercentage) {
       numValue = numValue / 100
     }
 
-    // Check if it's a valid number
-    if (isNaN(numValue)) {
-      return
-    }
-
-    // Check min/max constraints
     if (numValue < min || numValue > max) {
+      setLocalError(`Value must be between ${min} and ${max}`)
       return
     }
 
@@ -366,14 +378,21 @@ const PercentageNumberInput: React.FC<{
     : value.toFixed(precision)
 
   return (
-    <input
-      type="text"
-      className="percentage-input"
-      value={displayValue}
-      onChange={handleChange}
-      disabled={disabled}
-      placeholder={placeholder}
-    />
+    <>
+      <input
+        type="text"
+        className="percentage-input"
+        value={raw}
+        onChange={handleChange}
+        disabled={disabled}
+        placeholder={placeholder}
+        aria-invalid={!!localError}
+        aria-describedby={localError ? 'percentage-input-error' : undefined}
+      />
+      {localError && (
+        <div id="percentage-input-error" className="percentage-error">{localError}</div>
+      )}
+    </>
   )
 }
 
@@ -511,6 +530,7 @@ export const PercentageInput: React.FC<PercentageProps> = ({
               backgroundColor={backgroundColor}
               asPercentage={asPercentage}
               debounceMs={16}
+            precision={precision}
             />
           )}
         </div>

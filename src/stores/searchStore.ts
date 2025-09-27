@@ -13,6 +13,7 @@ export interface SearchState {
   history: string[]
   saved: SavedSearch[]
   suggestionIndex: number
+  focusSearchInput?: () => void
 
   setQuery: (q: string) => void
   setFilters: (f: Partial<SearchFilters>) => void
@@ -23,6 +24,7 @@ export interface SearchState {
   saveCurrentSearch: (name: string) => void
   deleteSavedSearch: (id: string) => void
   applySavedSearch: (id: string) => void
+  registerSearchFocus: (fn: (() => void) | undefined) => void
 }
 
 const defaultFilters: SearchFilters = {
@@ -45,6 +47,7 @@ const creator: StateCreator<SearchState> = (set, get) => ({
   history: [],
   saved: [],
   suggestionIndex: -1,
+  focusSearchInput: undefined,
 
   setQuery: (q: string) => set({ query: q }),
 
@@ -129,6 +132,10 @@ const creator: StateCreator<SearchState> = (set, get) => ({
     if (!found) return
     set({ query: found.query.text, filters: found.query.filters })
     get().runSearch()
+  },
+
+  registerSearchFocus: (fn: (() => void) | undefined) => {
+    set({ focusSearchInput: fn })
   }
 })
 

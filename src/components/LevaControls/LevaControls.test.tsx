@@ -698,11 +698,9 @@ describe('Leva Control Components', () => {
 
 // Mock the Leva components and hooks
 vi.mock('leva', () => {
-  const getRegistry = () => {
-    const g: any = globalThis as any
-    if (!g.__levaRegisteredConfigs) g.__levaRegisteredConfigs = []
-    return g.__levaRegisteredConfigs as Array<{ name: string; config: Record<string, any> }>
-  }
+  // Use a module-scoped registry instead of mutating globalThis
+  const registry: Array<{ name: string; config: Record<string, any> }> = []
+  const getRegistry = () => registry
 
   const Leva = ({ collapsed, hidden, theme }: any) => (
     <div data-testid="leva-panel" data-collapsed={collapsed} data-hidden={hidden} data-theme={theme}>
@@ -790,11 +788,14 @@ vi.mock('leva', () => {
 
   const folder = vi.fn((v: any) => v)
 
-  return { Leva, useControls, folder }
+  return { Leva, useControls, folder, __getRegistry: getRegistry }
 })
 
-beforeEach(() => {
-  ;(globalThis as any).__levaRegisteredConfigs = []
+beforeEach(async () => {
+  // Clear module-scoped registry via the exposed getter
+  const leva = await import('leva') as any
+  const reg = leva.__getRegistry?.()
+  if (reg && Array.isArray(reg)) reg.splice(0, reg.length)
 })
 
 // Mock the stores

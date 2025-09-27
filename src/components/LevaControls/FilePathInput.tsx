@@ -174,13 +174,13 @@ const FileBrowserButton: React.FC<{
 
     try {
       // Use Electron API or browser file API
-      if (window.electron) {
+      if (window?.electron?.openFileDialog) {
         const result = await window.electron.openFileDialog({
           mode,
           filters: filters?.map(ext => ({ name: ext.toUpperCase(), extensions: [ext] }))
         })
 
-        if (result && result.filePaths && result.filePaths.length > 0) {
+        if (result && Array.isArray(result.filePaths) && result.filePaths.length > 0) {
           onSelect(result.filePaths[0])
         }
       } else {
@@ -196,7 +196,8 @@ const FileBrowserButton: React.FC<{
         input.onchange = (e) => {
           const file = (e.target as HTMLInputElement).files?.[0]
           if (file) {
-            onSelect(file.name) // Browser returns relative path
+            // In browsers, we cannot access full path; use name as best-effort
+            onSelect(file.name)
           }
         }
 
@@ -245,7 +246,7 @@ const FileStatus: React.FC<{
 
       try {
         // Use Electron API or fs API to check file existence
-        if (window.electron) {
+        if (window?.electron?.fileExists) {
           const exists = await window.electron.fileExists(path, mode === 'directory')
           setStatus(exists ? 'valid' : 'invalid')
         } else {
@@ -492,9 +493,9 @@ export const createFilePathInput = (
 ) => {
   return (props: FilePathProps) => (
     <FilePathInput
-      label={label}
       {...config}
       {...props}
+      label={props.label ?? (config as any)?.label ?? label}
     />
   )
 }

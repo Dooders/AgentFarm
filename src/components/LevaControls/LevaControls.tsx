@@ -251,7 +251,13 @@ export const LevaControls: React.FC = () => {
           const paramName = pathParts[moduleIndex + 2]
 
           // Use the proper module name mapping instead of toLowerCase()
-          const modulePrefix = MODULE_NAME_MAPPING[moduleName] || `${moduleName.toLowerCase()}_parameters`
+          let modulePrefix = MODULE_NAME_MAPPING[moduleName]
+          if (!modulePrefix) {
+            modulePrefix = `${moduleName.toLowerCase()}_parameters`
+            console.warn(
+              `[LevaControls] MODULE_NAME_MAPPING is missing an entry for module "${moduleName}". Falling back to "${modulePrefix}". This may cause inconsistent naming.`
+            )
+          }
           return `${modulePrefix}.${paramName}`
         }
       }
