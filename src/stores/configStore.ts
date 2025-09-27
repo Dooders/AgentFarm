@@ -149,6 +149,9 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   config: defaultConfig,
   originalConfig: defaultConfig,
   isDirty: false,
+  currentFilePath: undefined,
+  lastSaveTime: undefined,
+  lastLoadTime: undefined,
   compareConfig: null,
   showComparison: false,
   comparisonFilePath: undefined,
@@ -216,6 +219,8 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
         config: result.config,
         originalConfig: result.config,
         isDirty: false,
+        currentFilePath: result.filePath || filePath,
+        lastLoadTime: Date.now(),
         validationErrors: [],
         history: [{
           id: 'loaded',
@@ -240,7 +245,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       console.log('Saving config to:', filePath || 'default location')
 
       // Save configuration using IPC service
-      await ipcService.saveConfig({
+      const result = await ipcService.saveConfig({
         config: get().config,
         filePath,
         format: 'json',
@@ -250,6 +255,8 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       set({
         originalConfig: get().config,
         isDirty: false,
+        currentFilePath: (result && result.filePath) || filePath || get().currentFilePath,
+        lastSaveTime: Date.now(),
         history: [{
           id: 'reset',
           config: get().config,
@@ -529,6 +536,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       config: defaultConfig,
       originalConfig: defaultConfig,
       isDirty: false,
+      currentFilePath: undefined,
       validationErrors: [],
       history: [{
         id: 'reset',
