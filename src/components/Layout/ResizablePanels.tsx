@@ -37,10 +37,12 @@ export const ResizablePanels: React.FC<ResizablePanelsProps> = (props: Resizable
 
   // Initialize sizes
   const persisted = persistKey ? getLayoutSizes(persistKey) : undefined
-  const initial = normalizePercentages(
-    (persisted && persisted.length === panelCount ? persisted : defaultSizes) ||
-      Array(panelCount).fill(100 / Math.max(panelCount, 1))
-  )
+  const initial = panelCount === 0
+    ? []
+    : normalizePercentages(
+        (persisted && persisted.length === panelCount ? persisted : defaultSizes) ||
+          Array(panelCount).fill(100 / panelCount)
+      )
   const [sizes, setSizes] = useState<number[]>(initial)
 
   useEffect(() => {
@@ -70,12 +72,19 @@ export const ResizablePanels: React.FC<ResizablePanelsProps> = (props: Resizable
 
   const clampSizes = useCallback(
     (next: number[]): number[] => {
-      if (!minSizes || minSizes.length !== panelCount) return next
       const result = [...next]
-      for (let i = 0; i < panelCount; i++) {
-        result[i] = Math.max(minSizes[i] as number, result[i])
+      // Apply minimums if provided
+      if (minSizes && minSizes.length === panelCount) {
+        for (let i = 0; i < panelCount; i++) {
+          result[i] = Math.max(minSizes[i] as number, result[i])
+        }
+      } else {
+        // Ensure non-negative by default
+        for (let i = 0; i < panelCount; i++) {
+          result[i] = Math.max(0, result[i])
+        }
       }
-      // Ensure still sums to ~100 by normalizing proportionally
+      // Ensure the sizes sum to exactly 100 by normalizing proportionally
       return normalizePercentages(result)
     },
     [minSizes, panelCount]
@@ -108,9 +117,7 @@ export const ResizablePanels: React.FC<ResizablePanelsProps> = (props: Resizable
     next[i + 1] = next[i + 1] - deltaPct
 
     // Enforce minimums
-    const clamped = clampSizes(next).map(v => Math.max(0, Math.min(100, v)))
-    // Prevent numeric drift
-    const normalized = normalizePercentages(clamped)
+    const normalized = clampSizes(next)
     setSizes(normalized)
   }, [clampSizes, direction])
 
@@ -170,15 +177,16 @@ export const ResizablePanels: React.FC<ResizablePanelsProps> = (props: Resizable
   }, [onMouseMove, onMouseUp, onTouchMove, onTouchEnd])
 
   // Ultra-wide sanity adjustment for main horizontal split (optional)
-  const { leftPanelWidth, setPanelWidths } = useConfigStore()
   useEffect(() => {
     if (direction === 'horizontal' && panelCount === 2) {
       const width = window.innerWidth
-      if (width > 1920 && (leftPanelWidth < 0.3 || leftPanelWidth > 0.7)) {
-        setPanelWidths(0.5, 0.5)
+      if (width > 1920 && (sizes[0] < 30 || sizes[0] > 70)) {
+        const balanced = [50, 50]
+        setSizes(balanced)
+        persistSizes(balanced)
       }
     }
-  }, [direction, panelCount, leftPanelWidth, setPanelWidths])
+  }, [direction, panelCount, sizes, persistSizes])
 
   // Render
   return (

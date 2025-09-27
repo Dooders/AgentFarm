@@ -245,7 +245,7 @@ textarea:focus,
   content: '';
   position: absolute;
   background-color: var(--border-medium);
-  opacity: 0.0;
+  opacity: 0;
   transition: opacity 0.15s ease;
   width: 2px;
   height: 32px;
