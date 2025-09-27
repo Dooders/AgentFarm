@@ -1,4 +1,5 @@
-// @ts-nocheck
+/// <reference types="react" />
+/// <reference types="react-dom" />
 import React, { useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 import { useConfigStore } from '@/stores/configStore'
@@ -213,9 +214,29 @@ export const YamlPreview: React.FC = () => {
     return `<div class="yaml-grid">${rows}</div>`
   }, [config, compare])
 
+  function getDiffText(): string {
+    if (!compare) return ''
+    const left = flatten(config)
+    const right = flatten(compare)
+    const keys = Array.from(new Set([...Object.keys(left), ...Object.keys(right)])).sort()
+    const render = (v: unknown) => {
+      if (v === undefined) return '—'
+      if (v === null) return 'null'
+      if (typeof v === 'object') return JSON.stringify(v)
+      return String(v)
+    }
+    const lines = keys.map(k => {
+      const lv = left[k]
+      const rv = right[k]
+      const same = JSON.stringify(lv) === JSON.stringify(rv)
+      return `${same ? ' ' : '*'} ${k} | ${render(lv)} | ${render(rv)}`
+    })
+    return ['Key | Left | Right', '--- | --- | ---', ...lines].join('\n')
+  }
+
   const copyToClipboard = async () => {
     try {
-      const text = mode === 'yaml' ? yamlText : yamlText
+      const text = mode === 'yaml' ? yamlText : getDiffText()
       await navigator.clipboard.writeText(text)
     } catch {
       // no-op

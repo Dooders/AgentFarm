@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useEffect } from 'react'
 import { ResizablePanels } from './ResizablePanels'
 import { LeftPanel } from '../ConfigExplorer/LeftPanel'
