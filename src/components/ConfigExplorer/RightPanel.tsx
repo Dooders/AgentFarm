@@ -1,7 +1,11 @@
-import React from 'react'
+import React, { useMemo, useRef, useEffect, useState } from 'react'
 import styled from 'styled-components'
 import { ValidationSummary } from '@/components/Validation/ValidationSummary'
 import { useAccessibility } from '@/components/UI/AccessibilityProvider'
+import { useConfigStore } from '@/stores/configStore'
+import { configSelectors } from '@/stores/selectors'
+import { ComparisonPanel } from './ComparisonPanel'
+import { validationService } from '@/services/validationService'
 
 const RightPanelContainer = styled.div`
   display: flex;
@@ -83,10 +87,60 @@ const ActionButton = styled.button`
 
 export const RightPanel: React.FC = () => {
   const { announceToScreenReader } = useAccessibility()
+  const showComparison = useConfigStore(configSelectors.getShowComparison)
+  const compareConfig = useConfigStore(configSelectors.getCompareConfig)
+  const comparisonFilePath = useConfigStore((s: any) => s.comparisonFilePath)
+  const clearComparison = useConfigStore((s: any) => s.clearComparison)
+  const toggleComparison = useConfigStore((s: any) => s.toggleComparison)
+  const setComparison = useConfigStore((s: any) => s.setComparison)
+  const setComparisonPath = useConfigStore((s: any) => s.setComparisonPath)
 
-  const handleButtonClick = (action: string) => {
-    announceToScreenReader(`Activated ${action}`, 'polite')
+  // File input handling for loading comparison config (JSON for now)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const onChooseFile = () => fileInputRef.current?.click()
+  const [comparisonError, setComparisonError] = useState<string | undefined>(undefined)
+  const onFileSelected: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+      // Validate parsed comparison config
+      const result = await validationService.validateConfig(parsed)
+      if (!result.success) {
+        setComparison(null)
+        setComparisonPath(undefined)
+        setComparisonError('Invalid comparison file: schema validation failed')
+        announceToScreenReader('Invalid comparison file', 'assertive')
+      } else {
+        setComparison(parsed)
+        setComparisonPath(file.name)
+        setComparisonError(undefined)
+        announceToScreenReader('Comparison configuration loaded', 'polite')
+      }
+    } catch (err) {
+      setComparisonError('Invalid comparison file: unable to parse JSON')
+      announceToScreenReader('Invalid comparison file', 'assertive')
+    } finally {
+      // reset input to allow re-select same file
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
   }
+
+  // Synchronized scrolling: mirror left panel scroll into comparison area
+  useEffect(() => {
+    const left = document.getElementById('left-scroll-area')
+    const right = document.getElementById('comparison-scroll-area')
+    if (!left || !right) return
+
+    const onLeftScroll = () => {
+      right.scrollTop = left.scrollTop
+    }
+    left.addEventListener('scroll', onLeftScroll)
+    return () => {
+      left.removeEventListener('scroll', onLeftScroll)
+    }
+  }, [showComparison])
 
   return (
     <RightPanelContainer role="complementary" aria-label="Configuration comparison and validation panel">
@@ -123,35 +177,26 @@ export const RightPanel: React.FC = () => {
 
           <ContentSection role="group" aria-label="Configuration comparison actions">
             <div style={{ marginBottom: '16px' }}>
-              <ActionButton
-                onClick={() => handleButtonClick('Load Base Config')}
-                aria-describedby="base-config-desc"
-              >
-                Load Base Config
+              <ActionButton onClick={() => { toggleComparison(); announceToScreenReader(`Comparison panel ${!showComparison ? 'shown' : 'hidden'}`, 'polite') }}>
+                {showComparison ? 'Hide Comparison Panel' : 'Show Comparison Panel'}
               </ActionButton>
-              <ActionButton
-                onClick={() => handleButtonClick('Load Compare Config')}
-                aria-describedby="compare-config-desc"
-              >
-                Load Compare Config
+              <ActionButton onClick={onChooseFile} aria-describedby="compare-config-desc">
+                Load Comparison Config
               </ActionButton>
-              <ActionButton
-                onClick={() => handleButtonClick('Generate Diff Report')}
-                aria-describedby="diff-report-desc"
-              >
-                Generate Diff Report
+              <ActionButton onClick={() => { clearComparison(); announceToScreenReader('Comparison cleared', 'polite') }} disabled={!compareConfig}>
+                Clear Comparison
               </ActionButton>
+              <input ref={fileInputRef} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={onFileSelected} />
             </div>
 
-            <div style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>
-              <p>Compare different configuration versions to identify changes and optimize settings.</p>
-              <ul style={{ marginTop: '8px', paddingLeft: '16px' }} role="list">
-                <li role="listitem">Highlight parameter differences</li>
-                <li role="listitem">Track configuration evolution</li>
-                <li role="listitem">Validate configuration integrity</li>
-                <li role="listitem">Export comparison results</li>
-              </ul>
-            </div>
+            {showComparison && (
+              <div>
+                <SectionTitle style={{ marginTop: '8px' }}>Comparison Panel {comparisonFilePath ? `(${comparisonFilePath})` : ''}</SectionTitle>
+                <div id="comparison-scroll-area" style={{ maxHeight: '40vh', overflowY: 'auto' }}>
+                  <ComparisonPanel compareConfig={compareConfig} comparisonFilePath={comparisonFilePath} errorMessage={comparisonError} />
+                </div>
+              </div>
+            )}
           </ContentSection>
         </section>
 

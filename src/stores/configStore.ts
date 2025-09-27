@@ -151,6 +151,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   isDirty: false,
   compareConfig: null,
   showComparison: false,
+  comparisonFilePath: undefined,
   selectedSection: 'environment',
   expandedFolders: new Set(['environment', 'agents', 'learning', 'visualization']),
   validationErrors: [],
@@ -268,6 +269,22 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     set({ compareConfig: config })
   },
 
+  toggleComparison: () => {
+    const current = get().showComparison
+    set({ showComparison: !current })
+    get().persistUIState()
+  },
+
+  clearComparison: () => {
+    set({ compareConfig: null, comparisonFilePath: undefined })
+    get().persistUIState()
+  },
+
+  setComparisonPath: (path?: string) => {
+    set({ comparisonFilePath: path })
+    get().persistUIState()
+  },
+
   toggleSection: (section: ConfigSection) => {
     const expandedFolders = new Set(get().expandedFolders)
     if (expandedFolders.has(section)) {
@@ -305,6 +322,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       selectedSection: state.selectedSection,
       expandedFolders: Array.from(state.expandedFolders),
       showComparison: state.showComparison,
+      comparisonFilePath: state.comparisonFilePath,
       leftPanelWidth: state.leftPanelWidth,
       rightPanelWidth: state.rightPanelWidth
     }
@@ -347,6 +365,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
         selectedSection: selectedSectionValid,
         expandedFolders: expandedFoldersValid,
         showComparison: (state.showComparison as boolean) || false,
+        comparisonFilePath: (state.comparisonFilePath as string | undefined) || undefined,
         leftPanelWidth: (state.leftPanelWidth as number) || 0.5,
         rightPanelWidth: (state.rightPanelWidth as number) || 0.5
       })

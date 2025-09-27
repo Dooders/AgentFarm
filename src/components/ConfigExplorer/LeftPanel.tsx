@@ -35,6 +35,9 @@ const ControlsSection = styled.div`
   overflow-y: auto;
 `
 
+// Expose an id for scroll sync
+const ScrollableArea = styled(ControlsSection).attrs({ id: 'left-scroll-area' })``
+
 const SectionTitle = styled.h3`
   margin: 0 0 12px 0;
   font-size: 14px;
@@ -87,7 +90,7 @@ export const LeftPanel: React.FC = () => {
 
   return (
     <LeftPanelContainer
-      ref={ref}
+      ref={ref as unknown as React.RefObject<HTMLDivElement>}
       role="navigation"
       aria-label="Configuration sections navigation"
       tabIndex={-1}
@@ -97,14 +100,14 @@ export const LeftPanel: React.FC = () => {
         <PanelTitle>Configuration Explorer</PanelTitle>
       </PanelHeader>
 
-      <ControlsSection>
+      <ScrollableArea>
         <SectionTitle>Leva Controls</SectionTitle>
 
         <ConfigFolder
           label="Environment Settings"
           collapsed={levaStore.isFolderCollapsed('environment')}
           onToggle={() => handleFolderToggle('environment', levaStore.isFolderCollapsed('environment'))}
-          folderId="environment"
+          id="environment"
         >
           <ControlGroup>
             <LevaControls />
@@ -120,7 +123,7 @@ export const LeftPanel: React.FC = () => {
           label="Agent Parameters"
           collapsed={levaStore.isFolderCollapsed('agents')}
           onToggle={() => handleFolderToggle('agents', levaStore.isFolderCollapsed('agents'))}
-          folderId="agents"
+          id="agents"
         >
           <ControlGroup>
             <div style={{ padding: '8px', color: 'var(--text-secondary)' }}>
@@ -138,7 +141,7 @@ export const LeftPanel: React.FC = () => {
           label="Learning Configuration"
           collapsed={levaStore.isFolderCollapsed('learning')}
           onToggle={() => handleFolderToggle('learning', levaStore.isFolderCollapsed('learning'))}
-          folderId="learning"
+          id="learning"
         >
           <ControlGroup>
             <div style={{ padding: '8px', color: 'var(--text-secondary)' }}>
@@ -156,7 +159,7 @@ export const LeftPanel: React.FC = () => {
           label="Visualization Settings"
           collapsed={levaStore.isFolderCollapsed('visualization')}
           onToggle={() => handleFolderToggle('visualization', levaStore.isFolderCollapsed('visualization'))}
-          folderId="visualization"
+          id="visualization"
         >
           <ControlGroup>
             <div style={{ padding: '8px', color: 'var(--text-secondary)' }}>
@@ -213,7 +216,7 @@ export const LeftPanel: React.FC = () => {
             {levaStore.isCollapsed ? 'Expand Panel' : 'Collapse Panel'}
           </button>
         </ControlGroup>
-      </ControlsSection>
+      </ScrollableArea>
     </LeftPanelContainer>
   )
 }
