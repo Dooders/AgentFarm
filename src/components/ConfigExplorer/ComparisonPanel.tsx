@@ -129,8 +129,9 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = ({ compareConfig,
     ]
   }, [compareConfig])
 
+  // Display helper: consistently stringify values for diff display
   const stringify = (v: unknown) => {
-    try { return typeof v === 'string' ? v : JSON.stringify(v) } catch { return String(v) }
+    try { return JSON.stringify(v) } catch { return String(v) }
   }
 
   const addedCount = diff ? Object.keys(diff.added).length : 0

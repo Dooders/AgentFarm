@@ -559,7 +559,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     }
   },
 
-  // Get configuration diff
+  // Get configuration diff (against original)
   getConfigDiff: () => {
     const { config, originalConfig } = get()
     const diff: Record<string, { original: any; current: any; changed: boolean }> = {}
@@ -573,7 +573,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     allKeys.forEach(key => {
       const originalValue = getNestedValue(originalConfig as unknown as Record<string, unknown>, key)
       const currentValue = getNestedValue(config as unknown as Record<string, unknown>, key)
-      const changed = JSON.stringify(originalValue) !== JSON.stringify(currentValue)
+      const changed = !deepEqual(originalValue, currentValue)
 
       if (changed) {
         diff[key] = { original: originalValue, current: currentValue, changed: true }
@@ -584,6 +584,10 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   },
 
   // Get diff between current config and comparison config (added/removed/changed/unchanged)
+  // Semantics:
+  // - added: key exists in comparison but not in current (would be added to current)
+  // - removed: key exists in current but not in comparison (would be removed from current)
+  // - changed: key exists in both but values differ (current -> comparison)
   getComparisonDiff: () => {
     const { config, compareConfig } = get()
     const result = {
@@ -612,7 +616,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       } else if (!hasInCompare && hasInCurrent) {
         ;(result.removed as Record<string, unknown>)[key] = currentValue
       } else if (hasInCompare && hasInCurrent) {
-        const equal = JSON.stringify(compareValue) === JSON.stringify(currentValue)
+        const equal = deepEqual(compareValue, currentValue)
         if (!equal) {
           ;(result.changed as Record<string, { from: unknown; to: unknown }>)[key] = { from: currentValue, to: compareValue }
         } else {
@@ -650,8 +654,18 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   removeConfigPath: (path: string) => {
     const currentConfig = get().config
     const { history, historyIndex } = get()
+    const before = getNestedValue(currentConfig as unknown as Record<string, unknown>, path)
+    if (before === undefined) {
+      return
+    }
     const newConfig = deepClone(currentConfig)
     deleteNestedPath(newConfig as unknown as Record<string, unknown>, path)
+
+    // If nothing changed, bail
+    const after = getNestedValue(newConfig as unknown as Record<string, unknown>, path)
+    if (after !== undefined) {
+      return
+    }
 
     const newHistory = history.slice(0, historyIndex + 1)
     newHistory.push({
@@ -672,16 +686,47 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 
   // Apply all differences from comparison into current config
   applyAllDifferencesFromComparison: () => {
+    const { config, compareConfig, history, historyIndex } = get()
+    if (!compareConfig) return
     const diff = get().getComparisonDiff()
-    const addAndChangePaths = [
+
+    let newConfig = deepClone(config)
+
+    // Apply additions and changes
+    const toSet = [
       ...Object.keys(diff.added),
       ...Object.keys(diff.changed)
     ]
-    if (addAndChangePaths.length > 0) {
-      get().batchCopyFromComparison(addAndChangePaths)
+    toSet.forEach(path => {
+      const value = getNestedValue(compareConfig as unknown as Record<string, unknown>, path)
+      setNestedValue(newConfig as unknown as Record<string, unknown>, path, deepClone(value))
+    })
+
+    // Apply removals
+    Object.keys(diff.removed).forEach(path => {
+      deleteNestedPath(newConfig as unknown as Record<string, unknown>, path)
+    })
+
+    // If no actual change, bail
+    if (deepEqual(config, newConfig)) {
+      return
     }
-    const removedPaths = Object.keys(diff.removed)
-    removedPaths.forEach(path => get().removeConfigPath(path))
+
+    const newHistory = history.slice(0, historyIndex + 1)
+    newHistory.push({
+      id: 'update',
+      config: newConfig,
+      timestamp: Date.now(),
+      action: 'update',
+      description: 'Applied all differences from comparison'
+    })
+
+    set({
+      config: newConfig,
+      isDirty: true,
+      history: newHistory,
+      historyIndex: historyIndex + 1
+    })
   },
 
   // Enhanced validation with field-specific feedback
@@ -730,6 +775,20 @@ function getAllKeys(obj: Record<string, unknown>, prefix = ''): string[] {
   return keys
 }
 
+function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown): void {
+  const parts = path.split('.')
+  let current: Record<string, unknown> = obj
+  for (let i = 0; i < parts.length - 1; i++) {
+    const key = parts[i]
+    const next = current[key]
+    if (typeof next !== 'object' || next === null) {
+      current[key] = {}
+    }
+    current = current[key] as Record<string, unknown>
+  }
+  current[parts[parts.length - 1]] = value as unknown as never
+}
+
 function deleteNestedPath(obj: Record<string, unknown>, path: string): void {
   const parts = path.split('.')
   let current: Record<string, unknown> | undefined = obj
@@ -749,6 +808,41 @@ function deepClone<T>(value: T): T {
   try {
     return JSON.parse(JSON.stringify(value)) as T
   } catch {
+    // Fall back to a shallow clone for plain objects/arrays; otherwise throw
+    if (Array.isArray(value)) {
+      return (value.slice() as unknown) as T
+    }
+    if (value && typeof value === 'object') {
+      return ({ ...(value as unknown as Record<string, unknown>) } as unknown) as T
+    }
     return value
   }
+}
+
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (typeof a !== typeof b) return false
+  if (a === null || b === null) return a === b
+  if (typeof a !== 'object' || typeof b !== 'object') return a === b
+
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false
+    for (let i = 0; i < a.length; i++) {
+      if (!deepEqual(a[i], b[i])) return false
+    }
+    return true
+  }
+
+  if (Array.isArray(a) || Array.isArray(b)) return false
+
+  const aObj = a as Record<string, unknown>
+  const bObj = b as Record<string, unknown>
+  const aKeys = Object.keys(aObj)
+  const bKeys = Object.keys(bObj)
+  if (aKeys.length !== bKeys.length) return false
+  for (const key of aKeys) {
+    if (!Object.prototype.hasOwnProperty.call(bObj, key)) return false
+    if (!deepEqual(aObj[key], bObj[key])) return false
+  }
+  return true
 }
