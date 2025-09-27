@@ -639,7 +639,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       }))
       set({ templates: mapped })
     } catch (error) {
-      console.error('Failed to list templates:', error)
+      console.warn('Failed to list templates:', error)
       // keep existing templates on failure
     }
   },
@@ -830,42 +830,11 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   // - changed: key exists in both but values differ (current -> comparison)
   getComparisonDiff: () => {
     const { config, compareConfig } = get()
-    const result = {
-      added: {} as Record<string, unknown>,
-      removed: {} as Record<string, unknown>,
-      changed: {} as Record<string, { from: unknown; to: unknown }>,
-      unchanged: {} as Record<string, unknown>
-    }
-
-    if (!compareConfig) return result
-
-    const allKeys = new Set([
-      ...getAllKeys(compareConfig as unknown as Record<string, unknown>),
-      ...getAllKeys(config as unknown as Record<string, unknown>)
-    ])
-
-    allKeys.forEach(key => {
-      const compareValue = getNestedValue(compareConfig as unknown as Record<string, unknown>, key)
-      const currentValue = getNestedValue(config as unknown as Record<string, unknown>, key)
-
-      const hasInCompare = compareValue !== undefined
-      const hasInCurrent = currentValue !== undefined
-
-      if (hasInCompare && !hasInCurrent) {
-        ;(result.added as Record<string, unknown>)[key] = compareValue
-      } else if (!hasInCompare && hasInCurrent) {
-        ;(result.removed as Record<string, unknown>)[key] = currentValue
-      } else if (hasInCompare && hasInCurrent) {
-        const equal = deepEqual(compareValue, currentValue)
-        if (!equal) {
-          ;(result.changed as Record<string, { from: unknown; to: unknown }>)[key] = { from: currentValue, to: compareValue }
-        } else {
-          ;(result.unchanged as Record<string, unknown>)[key] = currentValue
-        }
-      }
-    })
-
-    return result
+    if (!compareConfig) return { added: {}, removed: {}, changed: {}, unchanged: {} }
+    return getComparisonDiffCached(
+      config as unknown as Record<string, unknown>,
+      compareConfig as unknown as Record<string, unknown>
+    )
   },
 
   // Copy a field value from comparison into current config
@@ -985,6 +954,53 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 }) as unknown as ConfigStore)
 
 // Helper functions for advanced features
+const diffCache = new WeakMap<object, WeakMap<object, { added: Record<string, unknown>; removed: Record<string, unknown>; changed: Record<string, { from: unknown; to: unknown }>; unchanged: Record<string, unknown> }>>()
+
+function getComparisonDiffCached(current: Record<string, unknown>, compareTo: Record<string, unknown>) {
+  let inner = diffCache.get(current)
+  if (!inner) {
+    inner = new WeakMap<object, { added: Record<string, unknown>; removed: Record<string, unknown>; changed: Record<string, { from: unknown; to: unknown }>; unchanged: Record<string, unknown> }>()
+    diffCache.set(current, inner)
+  }
+  const hit = inner.get(compareTo)
+  if (hit) return hit
+
+  const result = {
+    added: {} as Record<string, unknown>,
+    removed: {} as Record<string, unknown>,
+    changed: {} as Record<string, { from: unknown; to: unknown }>,
+    unchanged: {} as Record<string, unknown>
+  }
+
+  const allKeys = new Set([
+    ...getAllKeys(compareTo),
+    ...getAllKeys(current)
+  ])
+
+  allKeys.forEach(key => {
+    const compareValue = getNestedValue(compareTo, key)
+    const currentValue = getNestedValue(current, key)
+
+    const hasInCompare = compareValue !== undefined
+    const hasInCurrent = currentValue !== undefined
+
+    if (hasInCompare && !hasInCurrent) {
+      ;(result.added as Record<string, unknown>)[key] = compareValue
+    } else if (!hasInCompare && hasInCurrent) {
+      ;(result.removed as Record<string, unknown>)[key] = currentValue
+    } else if (hasInCompare && hasInCurrent) {
+      const equal = deepEqual(compareValue, currentValue)
+      if (!equal) {
+        ;(result.changed as Record<string, { from: unknown; to: unknown }>)[key] = { from: currentValue, to: compareValue }
+      } else {
+        ;(result.unchanged as Record<string, unknown>)[key] = currentValue
+      }
+    }
+  })
+
+  inner.set(compareTo, result)
+  return result
+}
 function getNestedValue<T extends Record<string, unknown>>(obj: T, path: string): unknown {
   const keys = path.split('.')
   let current: unknown = obj

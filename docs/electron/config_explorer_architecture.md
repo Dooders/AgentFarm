@@ -322,6 +322,14 @@ The IPC service seamlessly integrates with existing Zustand stores:
 - `validationStore`: Receives real-time validation results from server
 - State persistence through electron-store for UI preferences
 
+### Performance & Caching (Issue #25)
+
+- Search caching: flattened config cache per config object and query-level LRU per config reference.
+- Diff caching: WeakMap pair cache for current vs comparison configs to avoid recomputing unchanged diffs.
+- Validation caching: config-level result cache and field-level cache in validation service.
+- UI memoization: `LeftPanel`, `RightPanel`, and `ComparisonPanel` wrapped with React.memo to minimize re-renders.
+- Perf logging: `PERF_LOG=1` enables lightweight timing logs via `src/utils/perf.ts`.
+
 ## Notes on Current Implementation
 
 The current implementation provides a solid foundation for all IPC communication needs, with excellent error handling, performance monitoring, and seamless integration with the existing codebase architecture. The service layer is production-ready and includes comprehensive testing coverage.
