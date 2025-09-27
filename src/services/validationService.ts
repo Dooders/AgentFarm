@@ -10,19 +10,19 @@ import { validateSimulationConfig, validateField as zodValidateField } from '@/u
 
 export interface ValidationService {
   validateConfig: (config: SimulationConfigType) => ValidationResult
-  validateField: (path: string, value: any) => ValidationResult
-  validateSingleField: (path: string, value: any) => ValidationError[]
+  validateField: (path: string, value: unknown) => ValidationResult
+  validateSingleField: (path: string, value: unknown) => ValidationError[]
 }
 
 export class ZodValidationService implements ValidationService {
   private configCache = new WeakMap<SimulationConfigType, ValidationResult>()
   private fieldCache = new Map<string, ValidationError[]>()
 
-  async validateConfig(config: SimulationConfigType): Promise<ValidationResult> {
+  validateConfig(config: SimulationConfigType): ValidationResult {
     const cached = this.configCache.get(config)
     if (cached) return cached
     // Use the Zod-based validation utility
-    const zodResult = await validateSimulationConfig(config)
+    const zodResult = validateSimulationConfig(config)
 
     // Add any additional business logic validation if needed
     const { errors: additionalErrors, warnings: additionalWarnings } = this.validateBusinessRules(config)
@@ -36,7 +36,7 @@ export class ZodValidationService implements ValidationService {
     return result
   }
 
-  validateField(path: string, value: any): ValidationResult {
+  validateField(path: string, value: unknown): ValidationResult {
     const key = `${path}|${safeStringify(value)}`
     const cached = this.fieldCache.get(key)
     const errors = cached ?? zodValidateField(path, value)
@@ -49,7 +49,7 @@ export class ZodValidationService implements ValidationService {
     }
   }
 
-  validateSingleField(path: string, value: any): ValidationError[] {
+  validateSingleField(path: string, value: unknown): ValidationError[] {
     return zodValidateField(path, value)
   }
 
@@ -95,9 +95,8 @@ export class ZodValidationService implements ValidationService {
           agentCount = config.control_agents
           break
       }
-      const memorySizeCandidate = (params as any)?.memory_size
-      const memorySize = typeof memorySizeCandidate === 'number' && isFinite(memorySizeCandidate)
-        ? memorySizeCandidate
+      const memorySize = typeof params.memory_size === 'number' && isFinite(params.memory_size)
+        ? params.memory_size
         : 0
       return total + memorySize * agentCount
     }, 0)

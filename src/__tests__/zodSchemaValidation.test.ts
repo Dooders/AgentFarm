@@ -170,7 +170,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
 
   describe('✅ All simulation config fields have Zod validation', () => {
     it('should validate all root-level configuration fields', async () => {
-      const result = await validateSimulationConfig(validConfig);
+      const result = validateSimulationConfig(validConfig);
 
       expect(result.success).toBe(true);
       expect(result.errors).toHaveLength(0);
@@ -185,7 +185,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
         learning_rate: 2.0, // Too large
       };
 
-      const result = await validateSimulationConfig(invalidConfig);
+      const result = validateSimulationConfig(invalidConfig);
 
       expect(result.success).toBe(false);
       expect(result.errors.length).toBeGreaterThan(0);
@@ -201,7 +201,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
         position_discretization_method: 'invalid' as unknown,
       } as typeof validConfig;
 
-      const result = await validateSimulationConfig(invalidConfig);
+      const result = validateSimulationConfig(invalidConfig);
 
       expect(result.success).toBe(false);
       expect(
@@ -212,7 +212,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
 
   describe('✅ Nested object validation works correctly', () => {
     it('should validate nested agent parameters', async () => {
-      const result = await validateSimulationConfig(validConfig);
+      const result = validateSimulationConfig(validConfig);
 
       expect(result.success).toBe(true);
 
@@ -228,7 +228,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
         },
       };
 
-      const nestedResult = await validateSimulationConfig(invalidConfig);
+      const nestedResult = validateSimulationConfig(invalidConfig);
 
       expect(nestedResult.success).toBe(false);
       expect(
@@ -248,7 +248,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
         },
       };
 
-      const result = await validateSimulationConfig(invalidConfig);
+      const result = validateSimulationConfig(invalidConfig);
 
       expect(result.success).toBe(false);
       expect(
@@ -270,7 +270,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
         },
       };
 
-      const result = await validateSimulationConfig(invalidConfig);
+      const result = validateSimulationConfig(invalidConfig);
 
       expect(result.success).toBe(false);
       expect(
@@ -292,7 +292,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
         },
       };
 
-      const result = await validateSimulationConfig(invalidConfig);
+      const result = validateSimulationConfig(invalidConfig);
 
       expect(result.success).toBe(false);
       expect(
@@ -307,7 +307,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
         epsilon_start: 0.3, // epsilon_min > epsilon_start, should fail
       };
 
-      const result = await validateSimulationConfig(invalidConfig);
+      const result = validateSimulationConfig(invalidConfig);
 
       expect(result.success).toBe(false);
       expect(
@@ -329,7 +329,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
         control_agents: 10000,
       };
 
-      const result = await validateSimulationConfig(largeConfig);
+      const result = validateSimulationConfig(largeConfig);
 
       expect(result.success).toBe(false);
       expect(
@@ -349,7 +349,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
         width: 'invalid' as unknown,
       } as typeof validConfig;
 
-      const result = await validateSimulationConfig(invalidConfig);
+      const result = validateSimulationConfig(invalidConfig);
 
       expect(result.success).toBe(false);
       expect(
@@ -369,7 +369,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
         width: 5, // Too small
       };
 
-      const result = await validateSimulationConfig(invalidConfig);
+      const result = validateSimulationConfig(invalidConfig);
 
       expect(result.success).toBe(false);
       expect(result.errors.some((e) => e.message.includes('at least 10'))).toBe(
@@ -386,7 +386,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
         },
       };
 
-      const result = await validateSimulationConfig(invalidConfig);
+      const result = validateSimulationConfig(invalidConfig);
 
       expect(result.success).toBe(false);
       expect(
@@ -400,7 +400,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
         width: 5,
       };
 
-      const result = await validateSimulationConfig(invalidConfig);
+      const result = validateSimulationConfig(invalidConfig);
 
       expect(result.success).toBe(false);
       expect(result.errors.every((e) => e.code && e.code.length > 0)).toBe(
@@ -416,7 +416,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
 
       for (let i = 0; i < iterations; i++) {
         const iterationStart = performance.now();
-        await validateSimulationConfig(validConfig);
+        validateSimulationConfig(validConfig);
         const iterationEnd = performance.now();
         times.push(iterationEnd - iterationStart);
       }
@@ -459,7 +459,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
       };
 
       const start = performance.now();
-      const result = await validateSimulationConfig(largeConfig);
+      const result = validateSimulationConfig(largeConfig);
       const end = performance.now();
 
       expect(end - start).toBeLessThan(15);
@@ -514,7 +514,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
       config.agent_type_ratios.IndependentAgent = 0.4;
       config.agent_type_ratios.ControlAgent = 0.2;
 
-      const result = await validateSimulationConfig(config);
+      const result = validateSimulationConfig(config);
       expect(result.success).toBe(true);
     });
   });
@@ -550,7 +550,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
   describe('Default configuration', () => {
     it('should provide valid default configuration', async () => {
       const defaultConfig = getDefaultConfig();
-      const result = await validateSimulationConfig(defaultConfig);
+      const result = validateSimulationConfig(defaultConfig);
 
       expect(result.success).toBe(true);
       expect(result.errors).toHaveLength(0);
@@ -578,7 +578,7 @@ describe('Performance Benchmarks', () => {
     const start = performance.now();
 
     for (const config of configs) {
-      await validateSimulationConfig(config);
+      validateSimulationConfig(config);
     }
 
     const end = performance.now();

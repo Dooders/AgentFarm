@@ -146,7 +146,7 @@ export async function testValidConfig() {
     }
   }
 
-  const result = await validateSimulationConfig(validConfig)
+  const result = validateSimulationConfig(validConfig)
 
   if (result.success) {
     console.log('✅ Valid configuration passed validation')
@@ -198,7 +198,7 @@ export async function testInvalidConfigs() {
     const baseConfig = getDefaultConfig()
     const testConfig = { ...baseConfig, ...testCase.config }
 
-    const result = await validateSimulationConfig(testConfig)
+    const result = validateSimulationConfig(testConfig)
 
     if (!result.success && result.errors.length > 0) {
       console.log(`✅ ${testCase.name} correctly failed validation`)

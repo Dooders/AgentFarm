@@ -110,7 +110,7 @@ export async function validateAcceptanceCriteria(): Promise<ValidationReport> {
  */
 async function validateAllFieldsHaveValidation(): Promise<AcceptanceCriteriaResult> {
   const validConfig = getDefaultConfig()
-  const result = await validateSimulationConfig(validConfig)
+  const result = validateSimulationConfig(validConfig)
 
   const passed = result.success && result.errors.length === 0
   const details = passed
@@ -168,7 +168,7 @@ async function validateNestedObjectValidation(): Promise<AcceptanceCriteriaResul
   let passedTests = 0
 
   for (const test of tests) {
-    const result = await validateSimulationConfig(test.config)
+    const result = validateSimulationConfig(test.config)
     const passed = test.shouldFail ? !result.success : result.success
 
     if (passed) passedTests++
@@ -229,7 +229,7 @@ async function validateCustomValidationRules(): Promise<AcceptanceCriteriaResult
   let passedTests = 0
 
   for (const test of tests) {
-    const result = await validateSimulationConfig(test.config)
+    const result = validateSimulationConfig(test.config)
     const hasExpectedError = result.errors.some(e => e.message.includes(test.expectedError))
     const passed = test.shouldFail ? (!result.success && hasExpectedError) : result.success
 
@@ -265,7 +265,7 @@ async function validateErrorMessageFormatting(): Promise<AcceptanceCriteriaResul
     }
   }
 
-  const result = await validateSimulationConfig(testConfig)
+  const result = validateSimulationConfig(testConfig)
   const hasUserFriendlyMessages = result.errors.some(e =>
     e.message.includes('Expected a number') ||
     e.message.includes('must be at least') ||
@@ -299,7 +299,7 @@ async function validatePerformance(): Promise<AcceptanceCriteriaResult> {
 
   for (let i = 0; i < iterations; i++) {
     const start = performance.now()
-    const result = await validateSimulationConfig(configs[i])
+    const result = validateSimulationConfig(configs[i])
     const end = performance.now()
 
     times.push(end - start)

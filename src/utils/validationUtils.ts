@@ -94,10 +94,9 @@ function getCustomErrorMessage(error: z.ZodIssue): string {
 }
 
 // Validate configuration using Zod schemas
-export async function validateSimulationConfig(config: unknown): Promise<ValidationResult> {
+export function validateSimulationConfig(config: unknown): ValidationResult {
   try {
-    // Import and validate using Zod schema
-    const { SimulationConfigSchema } = await import('@/types/zodSchemas')
+    // Validate using Zod schema
     const result = SimulationConfigSchema.safeParse(config)
     if (!result.success) {
       return {
