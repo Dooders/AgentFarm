@@ -291,6 +291,12 @@ Implement a comprehensive status bar that provides real-time feedback about vali
 - ✅ Status bar doesn't impact performance
 - ✅ All indicators are visually clear
 
+Implementation Notes (Sept 2025):
+- Added `StatusBar.tsx` and integrated at the bottom of `DualPanelLayout`.
+- Shows validation counts (errors/warnings), validating state, and last validation time.
+- Provides manual Validate, auto-validate toggle (persisted), and "View Issues" shortcut to validation section.
+- Displays save status (unsaved/saved), file path, last save/load, and IPC connection status.
+
 **Dependencies:** Phase 2 completion (validation system)
 **Estimated Time:** 1-2 days
 

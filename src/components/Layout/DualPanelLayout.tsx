@@ -5,6 +5,7 @@ import { RightPanel } from '../ConfigExplorer/RightPanel'
 import { useConfigStore } from '@/stores/configStore'
 import { YamlPreview } from '@/components/Preview/YamlPreview'
 import { Toolbar } from './Toolbar'
+import { StatusBar } from './StatusBar'
 
 export const DualPanelLayout: React.FC = () => {
   const { leftPanelWidth, restoreUIState } = useConfigStore()
@@ -15,11 +16,12 @@ export const DualPanelLayout: React.FC = () => {
   }, [restoreUIState])
 
   return (
-    <div className="dual-panel-layout" data-testid="dual-panel-layout" style={{ height: '100vh', width: '100vw' }}>
+    <div className="dual-panel-layout" data-testid="dual-panel-layout" style={{ height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column' }}>
       <div style={{ flex: '0 0 auto' }}>
         <Toolbar />
       </div>
-      <ResizablePanels
+      <div style={{ flex: '1 1 auto', minHeight: 0 }}>
+        <ResizablePanels
         direction="horizontal"
         defaultSizes={[leftPanelWidth * 100, (1 - leftPanelWidth) * 100]}
         minSizes={[20, 20]}
@@ -44,7 +46,11 @@ export const DualPanelLayout: React.FC = () => {
             </div>
           </ResizablePanels>
         </div>
-      </ResizablePanels>
+        </ResizablePanels>
+      </div>
+      <div style={{ flex: '0 0 auto' }}>
+        <StatusBar />
+      </div>
     </div>
   )
 }
