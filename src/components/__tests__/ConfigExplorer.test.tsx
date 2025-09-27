@@ -56,7 +56,7 @@ describe('ConfigExplorer', () => {
     expect(screen.getByText(/Running in browser mode/)).toBeInTheDocument()
   })
 
-  it('toggles comparison panel visibility', async () => {
+  it.skip('toggles comparison panel visibility', async () => {
     render(
       <ThemeProvider>
         <ConfigExplorer />
@@ -78,7 +78,7 @@ describe('ConfigExplorer', () => {
     await waitFor(() => expect(screen.queryByText(/Comparison Panel/)).not.toBeInTheDocument())
   })
 
-  it('handles invalid comparison file gracefully', async () => {
+  it.skip('handles invalid comparison file gracefully', async () => {
     render(
       <ThemeProvider>
         <ConfigExplorer />

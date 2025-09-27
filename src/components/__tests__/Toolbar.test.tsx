@@ -19,17 +19,19 @@ describe('Toolbar', () => {
   it('renders file, comparison and app controls', () => {
     render(<Toolbar />)
     expect(screen.getByRole('toolbar', { name: /application toolbar/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Open/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Save/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Open configuration/ })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /Save \(Ctrl\/Cmd\+S\)/ }).length).toBeGreaterThanOrEqual(1)
     expect(screen.getByRole('button', { name: /Save As/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Export JSON/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Export JSON' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Export YAML/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Show Compare|Hide Compare/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Load Compare/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Clear Compare/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Apply All/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Grayscale/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Reset/ })).toBeInTheDocument()
+    // Show or Hide Compare button depending on initial state
+    const compareToggle = screen.getByRole('button', { name: /Show Compare|Hide Compare/ })
+    expect(compareToggle).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Load Compare…' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Clear Compare' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Apply All' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /grayscale/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reset' })).toBeInTheDocument()
   })
 
   it('toggles grayscale and persists', () => {
@@ -42,13 +44,14 @@ describe('Toolbar', () => {
   })
 
   it('disables Save when not dirty and enables after change', () => {
-    render(<Toolbar />)
-    const saveBtn = screen.getByRole('button', { name: /Save \(Ctrl\/Cmd\+S\)/ })
+    const { rerender } = render(<Toolbar />)
+    const saveBtns = screen.getAllByRole('button', { name: /Save \(Ctrl\/Cmd\+S\)/ })
+    const saveBtn = saveBtns[0]
     expect(saveBtn).toBeDisabled()
     useConfigStore.getState().updateConfig('width', 101)
     // Rerender to reflect store change
-    render(<Toolbar />)
-    expect(screen.getByRole('button', { name: /Save \(Ctrl\/Cmd\+S\)/ })).not.toBeDisabled()
+    rerender(<Toolbar />)
+    expect(screen.getAllByRole('button', { name: /Save \(Ctrl\/Cmd\+S\)/ })[0]).not.toBeDisabled()
   })
 })
 

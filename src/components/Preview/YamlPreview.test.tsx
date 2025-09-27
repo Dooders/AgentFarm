@@ -15,7 +15,7 @@ import { YamlPreview } from './YamlPreview'
 
 describe('YamlPreview', () => {
   it('renders live YAML and updates on config change', () => {
-    render(<YamlPreview />)
+    const { rerender } = render(<YamlPreview />)
     expect(screen.getByText('YAML Preview')).toBeTruthy()
     const pre = screen.getByLabelText('YAML preview')
     expect(pre.innerHTML).toContain('width')
@@ -23,7 +23,7 @@ describe('YamlPreview', () => {
 
     // Update mocked config and re-render
     ;(useConfigStore as any).__setState({ config: { width: 120, visualization: { canvas_width: 800 } } })
-    render(<YamlPreview />)
+    rerender(<YamlPreview />)
     const pre2 = screen.getByLabelText('YAML preview')
     expect(pre2.innerHTML).toContain('120')
   })
