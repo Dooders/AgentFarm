@@ -1,162 +1,245 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react'
+import React, { useState, useRef, useCallback, useEffect, Children } from 'react'
 import { useConfigStore } from '@/stores/configStore'
 
+type Direction = 'horizontal' | 'vertical'
+
 interface ResizablePanelsProps {
-  leftPanel: React.ReactNode
-  rightPanel: React.ReactNode
-  defaultSplit: number
+  direction?: Direction
+  defaultSizes?: number[] // percentages that sum to ~100
+  minSizes?: number[] // min percentages per panel
+  gutterSize?: number // px
+  persistKey?: string // key to persist/restore sizes
+  onSizesChange?: (sizes: number[]) => void
+  children: React.ReactNode
 }
 
-/**
- * ResizablePanels - Desktop-focused dual panel layout component
- *
- * Optimized for desktop use with:
- * - Horizontal side-by-side panel layout
- * - Drag-to-resize functionality
- * - Persistent panel sizing via localStorage
- * - Minimal responsive behavior for ultra-wide monitors only
- */
-export const ResizablePanels: React.FC<ResizablePanelsProps> = ({
-  leftPanel,
-  rightPanel,
-  defaultSplit = 0.5
-}) => {
-  const { leftPanelWidth, setPanelWidths } = useConfigStore()
-  const [splitPosition, setSplitPosition] = useState(leftPanelWidth || defaultSplit)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const isDragging = useRef(false)
+// Utility to normalize sizes to sum to 100
+function normalizePercentages(values: number[]): number[] {
+  const total = values.reduce((a, b) => a + b, 0)
+  if (total === 0) return values
+  return values.map((v: number) => (v / total) * 100)
+}
 
-  // Sync with store state when it changes
+export const ResizablePanels: React.FC<ResizablePanelsProps> = (props: ResizablePanelsProps) => {
+  const {
+    direction = 'horizontal',
+    defaultSizes,
+    minSizes,
+    gutterSize = 8,
+    persistKey,
+    onSizesChange,
+    children
+  } = props
+  const childArray = Children.toArray(children)
+  const panelCount = childArray.length
+
+  const { getLayoutSizes, setLayoutSizes } = useConfigStore()
+
+  // Initialize sizes
+  const persisted = persistKey ? getLayoutSizes(persistKey) : undefined
+  const initial = normalizePercentages(
+    (persisted && persisted.length === panelCount ? persisted : defaultSizes) ||
+      Array(panelCount).fill(100 / Math.max(panelCount, 1))
+  )
+  const [sizes, setSizes] = useState<number[]>(initial)
+
   useEffect(() => {
-    setSplitPosition(leftPanelWidth)
-  }, [leftPanelWidth])
-
-  // Handle desktop-focused layout changes - simplified for desktop use
-  useEffect(() => {
-    // Desktop-focused: No responsive state management needed
-
-    // Optional: Add minimal responsive behavior for very large desktop screens
-    const handleResize = () => {
-      const width = window.innerWidth
-
-      // Only apply constraints for very wide screens (ultra-wide monitors)
-      if (width > 1920) {
-        // For ultra-wide screens, ensure panels don't get too extreme
-        if (leftPanelWidth < 0.3 || leftPanelWidth > 0.7) {
-          setPanelWidths(0.5, 0.5) // Reset to balanced 50/50 split
-        }
+    // If persistKey changes or store updates externally, sync sizes
+    if (persistKey) {
+      const latest = getLayoutSizes(persistKey)
+      if (latest && latest.length === panelCount) {
+        setSizes(normalizePercentages(latest))
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [persistKey, panelCount])
 
-    // Set initial layout
-    handleResize()
+  const containerRef = useRef<HTMLDivElement>(null)
+  const dragInfo = useRef<{ active: boolean; gutterIndex: number; startPos: number; startSizes: number[] } | null>(null)
 
-    // Minimal resize listener - only for ultra-wide screens
-    window.addEventListener('resize', handleResize)
+  // Persist helper
+  const persistSizes = useCallback(
+    (next: number[]) => {
+      if (persistKey) {
+        setLayoutSizes(persistKey, next)
+      }
+      onSizesChange?.(next)
+    },
+    [persistKey, setLayoutSizes, onSizesChange]
+  )
 
-    return () => {
-      window.removeEventListener('resize', handleResize)
+  const clampSizes = useCallback(
+    (next: number[]): number[] => {
+      if (!minSizes || minSizes.length !== panelCount) return next
+      const result = [...next]
+      for (let i = 0; i < panelCount; i++) {
+        result[i] = Math.max(minSizes[i] as number, result[i])
+      }
+      // Ensure still sums to ~100 by normalizing proportionally
+      return normalizePercentages(result)
+    },
+    [minSizes, panelCount]
+  )
+
+  const onPointerDown = useCallback((index: number, clientX: number, clientY: number) => {
+    if (!containerRef.current) return
+    dragInfo.current = {
+      active: true,
+      gutterIndex: index,
+      startPos: direction === 'horizontal' ? clientX : clientY,
+      startSizes: [...sizes]
     }
-  }, [leftPanelWidth, setPanelWidths])
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    isDragging.current = true
-    document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
-  }, [])
+    document.body.style.cursor = direction === 'horizontal' ? 'col-resize' : 'row-resize'
+  }, [direction, sizes])
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging.current || !containerRef.current) return
+  const onPointerMove = useCallback((clientX: number, clientY: number) => {
+    if (!dragInfo.current || !dragInfo.current.active || !containerRef.current) return
+    const rect = containerRef.current.getBoundingClientRect()
+    const totalPx = direction === 'horizontal' ? rect.width : rect.height
+    const currentPos = direction === 'horizontal' ? clientX : clientY
+    const deltaPx = currentPos - dragInfo.current.startPos
+    const deltaPct = (deltaPx / Math.max(totalPx, 1)) * 100
 
-    const containerRect = containerRef.current.getBoundingClientRect()
-    const newPosition = (e.clientX - containerRect.left) / containerRect.width
-    const clampedPosition = Math.max(0.2, Math.min(0.8, newPosition))
-    setSplitPosition(clampedPosition)
+    const i = dragInfo.current.gutterIndex
+    const next = [...dragInfo.current.startSizes]
+    // Adjust two adjacent panels
+    next[i] = next[i] + deltaPct
+    next[i + 1] = next[i + 1] - deltaPct
 
-    // Update store with new panel sizes
-    const leftWidth = clampedPosition
-    const rightWidth = 1 - clampedPosition
-    setPanelWidths(leftWidth, rightWidth)
-  }, [setPanelWidths])
+    // Enforce minimums
+    const clamped = clampSizes(next).map(v => Math.max(0, Math.min(100, v)))
+    // Prevent numeric drift
+    const normalized = normalizePercentages(clamped)
+    setSizes(normalized)
+  }, [clampSizes, direction])
 
-  const handleMouseUp = useCallback(() => {
-    isDragging.current = false
-    document.body.style.cursor = ''
+  const onPointerUp = useCallback(() => {
+    if (!dragInfo.current) return
+    dragInfo.current.active = false
     document.body.style.userSelect = ''
-  }, [])
+    document.body.style.cursor = ''
+    // Persist
+    persistSizes(sizes)
+  }, [persistSizes, sizes])
 
-  React.useEffect(() => {
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
+  // Mouse handlers
+  const onMouseDown = useCallback((index: number) => (e: React.MouseEvent) => {
+    e.preventDefault()
+    onPointerDown(index, e.clientX, e.clientY)
+  }, [onPointerDown])
 
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
+  const onMouseMove = useCallback((e: MouseEvent) => {
+    onPointerMove(e.clientX, e.clientY)
+  }, [onPointerMove])
+
+  const onMouseUp = useCallback(() => {
+    onPointerUp()
+  }, [onPointerUp])
+
+  // Touch handlers
+  const onTouchStart = useCallback((index: number) => (e: React.TouchEvent) => {
+    if (e.touches.length > 0) {
+      const t = e.touches[0]
+      onPointerDown(index, t.clientX, t.clientY)
     }
-  }, [handleMouseMove, handleMouseUp])
+  }, [onPointerDown])
 
-  // Desktop-focused layout rendering
+  const onTouchMove = useCallback((e: TouchEvent) => {
+    if (e.touches.length > 0) {
+      const t = e.touches[0]
+      onPointerMove(t.clientX, t.clientY)
+    }
+  }, [onPointerMove])
 
+  const onTouchEnd = useCallback(() => {
+    onPointerUp()
+  }, [onPointerUp])
+
+  useEffect(() => {
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+    document.addEventListener('touchmove', onTouchMove, { passive: false })
+    document.addEventListener('touchend', onTouchEnd)
+    return () => {
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+      document.removeEventListener('touchmove', onTouchMove)
+      document.removeEventListener('touchend', onTouchEnd)
+    }
+  }, [onMouseMove, onMouseUp, onTouchMove, onTouchEnd])
+
+  // Ultra-wide sanity adjustment for main horizontal split (optional)
+  const { leftPanelWidth, setPanelWidths } = useConfigStore()
+  useEffect(() => {
+    if (direction === 'horizontal' && panelCount === 2) {
+      const width = window.innerWidth
+      if (width > 1920 && (leftPanelWidth < 0.3 || leftPanelWidth > 0.7)) {
+        setPanelWidths(0.5, 0.5)
+      }
+    }
+  }, [direction, panelCount, leftPanelWidth, setPanelWidths])
+
+  // Render
   return (
     <div
       ref={containerRef}
-      className="resizable-panels"
+      className={`resizable-panels ${direction}`}
       style={{
         display: 'flex',
+        flexDirection: direction === 'horizontal' ? 'row' : 'column',
         height: '100%',
         width: '100%',
         position: 'relative'
       }}
     >
-      <div
-        className="left-panel"
-        style={{
-          width: `${splitPosition * 100}%`,
-          overflow: 'hidden',
-          minWidth: '200px',
-          maxWidth: '80%'
-        }}
-      >
-        {leftPanel}
-      </div>
-
-      <div
-        className="split-handle"
-        style={{
-          width: '8px',
-          cursor: 'col-resize',
-          backgroundColor: 'var(--border-subtle)',
-          borderLeft: '1px solid var(--border-medium)',
-          borderRight: '1px solid var(--border-medium)',
-          position: 'relative'
-        }}
-        onMouseDown={handleMouseDown}
-      >
-        <div
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: '2px',
-            height: '32px',
-            backgroundColor: 'var(--border-medium)'
-          }}
-        />
-      </div>
-
-      <div
-        className="right-panel"
-        style={{
-          width: `${(1 - splitPosition) * 100}%`,
-          overflow: 'hidden',
-          minWidth: '200px',
-          maxWidth: '80%'
-        }}
-      >
-        {rightPanel}
-      </div>
+      {childArray.map((child: React.ReactNode, i: number) => (
+        <React.Fragment key={`panel-${i}`}>
+          <div
+            className={`panel panel-${i}${panelCount === 2 && i === 0 ? ' left-panel' : ''}${panelCount === 2 && i === 1 ? ' right-panel' : ''}`}
+            data-testid={`panel-${i}`}
+            style={{
+              [direction === 'horizontal' ? 'width' : 'height']: `${sizes[i]}%`,
+              [direction === 'horizontal' ? 'height' : 'width']: '100%',
+              overflow: 'hidden',
+              transition: 'width 0.15s ease, height 0.15s ease'
+            } as React.CSSProperties}
+          >
+            {child}
+          </div>
+          {i < panelCount - 1 && (
+            <div
+              className="split-handle resize-handle"
+              data-testid="panel-resizer"
+              onMouseDown={onMouseDown(i)}
+              onTouchStart={onTouchStart(i)}
+              style={{
+                [direction === 'horizontal' ? 'width' : 'height']: `${gutterSize}px`,
+                [direction === 'horizontal' ? 'height' : 'width']: '100%',
+                cursor: direction === 'horizontal' ? 'col-resize' : 'row-resize',
+                backgroundColor: 'var(--border-subtle)',
+                borderLeft: direction === 'horizontal' ? '1px solid var(--border-medium)' : undefined,
+                borderRight: direction === 'horizontal' ? '1px solid var(--border-medium)' : undefined,
+                borderTop: direction === 'vertical' ? '1px solid var(--border-medium)' : undefined,
+                borderBottom: direction === 'vertical' ? '1px solid var(--border-medium)' : undefined,
+                position: 'relative'
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  width: direction === 'horizontal' ? '2px' : '32px',
+                  height: direction === 'horizontal' ? '32px' : '2px',
+                  backgroundColor: 'var(--border-medium)'
+                }}
+              />
+            </div>
+          )}
+        </React.Fragment>
+      ))}
     </div>
   )
 }

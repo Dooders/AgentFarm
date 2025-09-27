@@ -127,6 +127,8 @@ export interface ConfigState {
   // Layout state
   leftPanelWidth: number
   rightPanelWidth: number
+  // Arbitrary persisted layout sizes by key (percentages per panel)
+  layoutSizes: Record<string, number[]>
 
   // UI state
   isLoading: boolean
@@ -179,6 +181,11 @@ export interface ConfigActions {
   // Layout actions
   setPanelWidths: (leftWidth: number, rightWidth: number) => void
   resetPanelWidths: () => void
+
+  // Generic layout sizes persistence helpers
+  setLayoutSizes: (key: string, sizes: number[]) => void
+  getLayoutSizes: (key: string) => number[] | undefined
+  resetLayoutSizes: (key?: string) => void
 
   // Persistence actions
   persistUIState: () => void
