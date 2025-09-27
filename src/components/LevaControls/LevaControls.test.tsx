@@ -1,3 +1,4 @@
+import { beforeEach } from 'vitest'
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { LevaControls } from './LevaControls'
@@ -524,7 +525,7 @@ describe('Leva Control Components', () => {
     it('renders Visualization sub-folders', () => {
       render(<LevaControls />)
 
-      expect(screen.getByText('Display Settings')).toBeTruthy()
+      expect(screen.getAllByText('Display Settings')[0]).toBeTruthy()
       expect(screen.getByText('Animation Settings')).toBeTruthy()
       expect(screen.getByText('Metrics Display')).toBeTruthy()
     })
@@ -633,7 +634,7 @@ describe('Leva Control Components', () => {
 
       // Movement parameters
       expect(screen.getByText('Target Update Frequency')).toBeTruthy()
-      expect(screen.getByText('Memory Size')).toBeTruthy()
+      expect(screen.getAllByText('Memory Size')[0]).toBeTruthy()
       expect(screen.getByText('Learning Rate')).toBeTruthy()
       expect(screen.getByText('Discount Factor')).toBeTruthy()
 
@@ -658,7 +659,7 @@ describe('Leva Control Components', () => {
 
       expect(screen.getByText('Canvas Width')).toBeTruthy()
       expect(screen.getByText('Canvas Height')).toBeTruthy()
-      expect(screen.getByText('Background Color')).toBeTruthy()
+      expect(screen.getAllByText('Background Color')[0]).toBeTruthy()
       expect(screen.getByText('Line Width')).toBeTruthy()
       expect(screen.getByText('Max Frames')).toBeTruthy()
       expect(screen.getByText('Frame Delay (ms)')).toBeTruthy()
@@ -696,21 +697,105 @@ describe('Leva Control Components', () => {
 })
 
 // Mock the Leva components and hooks
-vi.mock('leva', () => ({
-  Leva: ({ collapsed, hidden, theme }: any) => (
+vi.mock('leva', () => {
+  const getRegistry = () => {
+    const g: any = globalThis as any
+    if (!g.__levaRegisteredConfigs) g.__levaRegisteredConfigs = []
+    return g.__levaRegisteredConfigs as Array<{ name: string; config: Record<string, any> }>
+  }
+
+  const Leva = ({ collapsed, hidden, theme }: any) => (
     <div data-testid="leva-panel" data-collapsed={collapsed} data-hidden={hidden} data-theme={theme}>
       Leva Panel
+      {/* Render simple labels for registered controls so tests can query them */}
+      {(() => {
+        const rendered = new Set<string>()
+        const renderedSections = new Set<string>()
+        const renderedSubSections = new Set<string>()
+
+        const renderEntryLabels = (entry: any, idxBase: string = ''): any[] => {
+          const nodes: any[] = []
+          if (!entry || typeof entry !== 'object') return nodes
+          if ('label' in entry && entry.label) {
+            const label = String(entry.label)
+            if (!rendered.has(label)) {
+              rendered.add(label)
+              nodes.push(<div key={`${idxBase}${label}`}>{label}</div>)
+            }
+          } else {
+            // Traverse one level for nested folder entries
+            Object.values(entry).forEach((sub: any, i: number) => {
+              if (sub && typeof sub === 'object' && 'label' in sub && sub.label) {
+                const label = String(sub.label)
+                if (!rendered.has(label)) {
+                  rendered.add(label)
+                  nodes.push(<div key={`${idxBase}${label}-${i}`}>{label}</div>)
+                }
+              }
+            })
+          }
+          return nodes
+        }
+
+        return getRegistry().map(({ name, config }) => {
+          // Emit top-level section (before slash) once
+          const top = name.includes('/') ? name.split('/')[0] : name
+          const sectionHeader = !renderedSections.has(top)
+            ? ((renderedSections.add(top)), <div key={`section-${top}`}>{top}</div>)
+            : null
+
+          return (
+            <div key={name} data-testid={`leva-section-${name}`}>
+              {sectionHeader}
+              {/* Emit sub-folder (after first slash) once for hierarchy tests */}
+              {name.includes('/') ? (() => {
+                const sub = name.split('/').slice(1).join('/')
+                const first = sub.split('/')[0]
+                if (first && !renderedSubSections.has(first)) {
+                  renderedSubSections.add(first)
+                  return <div key={`sub-${first}`}>{first}</div>
+                }
+                return null
+              })() : null}
+              {Object.values(config).flatMap((entry: any, idx: number) => renderEntryLabels(entry, `${name}-${idx}-`))}
+            </div>
+          )
+        })
+      })()}
     </div>
-  ),
-  useControls: vi.fn((name: string, config: any, options: any) => {
-    // Return mock controls object
-    return Object.keys(config).reduce((acc, key) => {
-      acc[key] = config[key].value
-      return acc
-    }, {} as any)
-  }),
-  folder: vi.fn()
-}))
+  )
+
+  const useControls = vi.fn((name: string, config: any, options: any) => {
+    // Guard against undefined config entries
+    const result: any = {}
+    if (config && typeof config === 'object') {
+      getRegistry().push({ name, config })
+      Object.keys(config).forEach((key) => {
+        const entry = (config as any)[key]
+        // Leva supports nested folders; simply skip non-control entries in tests
+        if (entry && typeof entry === 'object' && 'value' in entry) {
+          result[key] = entry.value
+        } else if (entry && typeof entry === 'object') {
+          // Flatten one level for folder entries (e.g., agent_type_ratios, agent_colors)
+          Object.values(entry).forEach((subEntry: any) => {
+            if (subEntry && typeof subEntry === 'object' && 'value' in subEntry && subEntry.label) {
+              // No need to push into result; just ensure labels render via registry
+            }
+          })
+        }
+      })
+    }
+    return result
+  })
+
+  const folder = vi.fn((v: any) => v)
+
+  return { Leva, useControls, folder }
+})
+
+beforeEach(() => {
+  ;(globalThis as any).__levaRegisteredConfigs = []
+})
 
 // Mock the stores
 const mockLevaStore = {
@@ -779,7 +864,7 @@ vi.mock('@/stores/levaStore', () => ({
 }))
 
 vi.mock('@/stores/configStore', () => ({
-  useConfigStore: vi.fn()
+  useConfigStore: vi.fn(() => mockConfigStore)
 }))
 
 // Test Enhanced Custom Controls (Issue #14)
