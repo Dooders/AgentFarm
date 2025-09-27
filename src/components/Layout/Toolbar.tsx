@@ -108,7 +108,12 @@ export const Toolbar: React.FC = () => {
     if (!file) return
     try {
       if (window?.electronAPI) {
-        await loadConfig((file as any).path || file.name)
+        type FileWithPath = File & { path?: string }
+        const fileWithPath = file as FileWithPath
+        const chosenPath = typeof fileWithPath.path === 'string' && fileWithPath.path.length > 0
+          ? fileWithPath.path
+          : file.name
+        await loadConfig(chosenPath)
       } else {
         const text = await file.text()
         await openConfigFromContent(text, 'json')

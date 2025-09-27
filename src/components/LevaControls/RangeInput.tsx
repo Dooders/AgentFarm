@@ -90,9 +90,15 @@ export const RangeInput: React.FC<RangeInputProps> = ({
   const safeMax = typeof max === 'number' ? max : 100
 
   const [start, end] = useMemo<RangeTuple>(() => {
-    if (Array.isArray(value) && value.length === 2) return [value[0], value[1]] as RangeTuple
-    if (value && typeof value === 'object' && 'min' in value && 'max' in value) return [value.min as number, value.max as number] as RangeTuple
-    return [safeMin, safeMax] as RangeTuple
+    const isNumber = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n)
+    const isTuple = (v: unknown): v is [number, number] => Array.isArray(v) && v.length === 2 && isNumber(v[0]) && isNumber(v[1])
+    const isMinMax = (v: unknown): v is { min: number; max: number } =>
+      !!v && typeof v === 'object' && 'min' in (v as any) && 'max' in (v as any) &&
+      isNumber((v as any).min) && isNumber((v as any).max)
+
+    if (isTuple(value)) return [value[0], value[1]]
+    if (isMinMax(value)) return [(value as { min: number }).min, (value as { max: number }).max]
+    return [safeMin, safeMax]
   }, [value, safeMin, safeMax])
 
   const clamp = (n: number) => Math.min(Math.max(n, safeMin), safeMax)
