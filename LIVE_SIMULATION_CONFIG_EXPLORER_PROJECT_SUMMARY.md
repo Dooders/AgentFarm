@@ -37,6 +37,7 @@ Create a cinematic, professional configuration tool that feels like editing a Jo
 ### 🔧 Dual Side Editing Interface
 - **Primary Panel** - Live Leva controls with real-time validation
 - **Comparison Panel** - Read-only comparison view with diff highlighting
+  - Implemented base comparison panel: toggle, file load with validation, clear, synchronized scroll, and file path display. Read-only rendering of key fields in `ComparisonPanel`.
 - **Resizable Layouts** - Smooth, animated panel resizing with persistence
 - **Live YAML Preview** - Real-time YAML generation with syntax highlighting
 - **Diff Highlighting** - Visual differences with one-click field copying
