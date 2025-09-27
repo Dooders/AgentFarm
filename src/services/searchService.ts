@@ -260,9 +260,15 @@ export const searchService = {
     }
 
     // Attempt query-level caching only when not scoped to baseItems (searchWithin)
-    const cacheKey = baseItems && baseItems.length > 0 ? null : buildQueryKey(query)
+    // and when no dynamic context is provided (validation/modified status may change)
+    const allowCache = !(baseItems && baseItems.length > 0) && !context
+    const cacheKey = allowCache ? buildQueryKey(query) : null
     const cached = cacheKey ? getQueryCache(config).get(cacheKey) : null
     if (cached) {
+      // refresh recency: delete & re-set to mark as most recently used
+      const qc = getQueryCache(config)
+      qc.delete(cacheKey!)
+      qc.set(cacheKey!, cached)
       return cached
     }
 
@@ -356,6 +362,8 @@ function buildQueryKey(q: SearchQuery): string {
   ].join('|')
 }
 
+// Note: This is a simple MRU map with O(1) insert and O(1) delete by reusing Map's ordering.
+// Deletion selects the oldest via keys().next(); for larger caches consider a dedicated LRU list.
 function setLimited<K, V>(m: Map<K, V>, k: K, v: V, maxSize: number): void {
   if (m.size >= maxSize) {
     const first = m.keys().next()

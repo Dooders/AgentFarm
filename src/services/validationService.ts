@@ -1,4 +1,5 @@
 import { ValidationError, ValidationResult } from '@/types/validation'
+import { safeStringify } from '@/utils/stringify'
 import { SimulationConfigType } from '@/types/config'
 import { validateSimulationConfig, validateField as zodValidateField } from '@/utils/validationUtils'
 
@@ -36,7 +37,7 @@ export class ZodValidationService implements ValidationService {
   }
 
   validateField(path: string, value: any): ValidationResult {
-    const key = `${path}|${tryStringify(value)}`
+    const key = `${path}|${safeStringify(value)}`
     const cached = this.fieldCache.get(key)
     const errors = cached ?? zodValidateField(path, value)
     if (!cached) this.fieldCache.set(key, errors)
@@ -115,7 +116,3 @@ export class ZodValidationService implements ValidationService {
 
 // Create singleton instance
 export const validationService = new ZodValidationService()
-
-function tryStringify(v: unknown): string {
-  try { return JSON.stringify(v) } catch { return String(v) }
-}
