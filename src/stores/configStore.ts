@@ -167,6 +167,8 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   // Layout state - default to 50/50 split for balanced desktop experience
   leftPanelWidth: 0.5,
   rightPanelWidth: 0.5,
+  // Arbitrary layout sizes persistence map (percentages per layout key)
+  layoutSizes: {},
 
   updateConfig: (path: string, value: any) => {
     const currentConfig = get().config
@@ -327,7 +329,8 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       showComparison: state.showComparison,
       comparisonFilePath: state.comparisonFilePath,
       leftPanelWidth: state.leftPanelWidth,
-      rightPanelWidth: state.rightPanelWidth
+      rightPanelWidth: state.rightPanelWidth,
+      layoutSizes: state.layoutSizes
     }
 
     persistState(uiPreferences, {
@@ -370,7 +373,8 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
         showComparison: (state.showComparison as boolean) || false,
         comparisonFilePath: (state.comparisonFilePath as string | undefined) || undefined,
         leftPanelWidth: (state.leftPanelWidth as number) || 0.5,
-        rightPanelWidth: (state.rightPanelWidth as number) || 0.5
+        rightPanelWidth: (state.rightPanelWidth as number) || 0.5,
+        layoutSizes: (state.layoutSizes as Record<string, number[]>) || {}
       })
     }
   },
@@ -414,6 +418,28 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     } catch (error) {
       console.warn('Failed to clear persisted state:', error)
     }
+  },
+
+  // Generic layout persistence helpers
+  setLayoutSizes: (key: string, sizes: number[]) => {
+    const current = get().layoutSizes
+    const next = { ...current, [key]: sizes }
+    set({ layoutSizes: next })
+    get().persistUIState()
+  },
+  getLayoutSizes: (key: string) => {
+    const current = get().layoutSizes
+    return current ? current[key] : undefined
+  },
+  resetLayoutSizes: (key?: string) => {
+    if (!key) {
+      set({ layoutSizes: {} })
+    } else {
+      const current = { ...get().layoutSizes }
+      delete current[key]
+      set({ layoutSizes: current })
+    }
+    get().persistUIState()
   },
 
   // Advanced features

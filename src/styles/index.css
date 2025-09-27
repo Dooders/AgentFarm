@@ -229,6 +229,7 @@ textarea:focus,
   align-items: center;
   justify-content: center;
   user-select: none;
+  transition: background-color 0.15s ease;
 }
 
 .split-handle:hover {
@@ -237,6 +238,21 @@ textarea:focus,
 
 .split-handle:active {
   background-color: var(--accent-primary);
+}
+
+/* Ghost preview line (optional visual aid during drag) */
+.resize-handle::after {
+  content: '';
+  position: absolute;
+  background-color: var(--border-medium);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  width: 2px;
+  height: 32px;
+}
+
+.resize-handle:hover::after {
+  opacity: 0.3;
 }
 
 /* Panel Styling */
