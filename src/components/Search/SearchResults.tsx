@@ -68,12 +68,19 @@ export const SearchResults: React.FC = () => {
               <Tag tone='muted'>{item.parameterType}</Tag>
               <Tag tone='muted'>{item.section}</Tag>
               <Button onClick={async () => {
-                try { await navigator.clipboard.writeText(item.path) } catch {}
+                try { await navigator.clipboard.writeText(item.path) } catch (err) { console.warn('Failed to copy path to clipboard:', err) }
               }}>Copy Path</Button>
               <Button onClick={() => {
-                // Attempt to scroll left panel area into view as a basic navigation
-                const el = document.getElementById('left-scroll-area')
-                if (el) el.scrollTo({ top: 0, behavior: 'smooth' })
+                // Attempt to scroll to the specific configuration item in the left panel
+                const safePath = item.path.replace(/[^a-zA-Z0-9_\-:.]/g, '_')
+                const targetId = `config-item-${safePath}`
+                const configItemEl = document.getElementById(targetId)
+                if (configItemEl) {
+                  configItemEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                } else {
+                  const el = document.getElementById('left-scroll-area')
+                  if (el) el.scrollTo({ top: 0, behavior: 'smooth' })
+                }
               }}>Jump</Button>
             </div>
           </Row>

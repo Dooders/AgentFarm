@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 import { useSearchStore } from '@/stores/searchStore'
+import type { SearchScope } from '@/types/search'
 
 const Container = styled.div`
   display: flex;
@@ -81,7 +82,7 @@ export const SearchBar: React.FC<{ autoFocusId?: string }> = ({ autoFocusId = 't
       <Select
         value={filters.scope}
         aria-label="Search scope"
-        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFilters({ scope: e.target.value as any })}
+        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFilters({ scope: e.target.value as SearchScope })}
       >
         <option value="both">Both</option>
         <option value="keys">Keys</option>

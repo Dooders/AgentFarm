@@ -1,6 +1,7 @@
 import React from 'react'
 import styled from 'styled-components'
 import { useSearchStore } from '@/stores/searchStore'
+import type { ParameterType, SearchSection } from '@/types/search'
 
 const Container = styled.div`
   display: grid;
@@ -41,15 +42,15 @@ export const FilterControls: React.FC = () => {
   const filters = useSearchStore((s) => s.filters)
   const setFilters = useSearchStore((s) => s.setFilters)
 
-  const toggleType = (t: string) => {
-    const set = new Set(filters.parameterTypes || []) as Set<any>
+  const toggleType = (t: ParameterType) => {
+    const set = new Set<ParameterType>(filters.parameterTypes || [])
     if (set.has(t)) set.delete(t)
     else set.add(t)
     setFilters({ parameterTypes: set.size > 0 ? set : null })
   }
 
-  const toggleSection = (sec: string) => {
-    const set = new Set(filters.sections || []) as Set<any>
+  const toggleSection = (sec: SearchSection) => {
+    const set = new Set<SearchSection>(filters.sections || [])
     if (set.has(sec)) set.delete(sec)
     else set.add(sec)
     setFilters({ sections: set.size > 0 ? set : null })
@@ -60,8 +61,8 @@ export const FilterControls: React.FC = () => {
       <Group>
         <Label>Parameter Types</Label>
         <Row>
-          {['number','string','boolean','object','array'].map(t => (
-            <Checkbox key={t}><input type="checkbox" checked={!!filters.parameterTypes?.has(t as any)} onChange={() => toggleType(t)} /> {t}</Checkbox>
+          {(['number','string','boolean','object','array'] as ParameterType[]).map(t => (
+            <Checkbox key={t}><input type="checkbox" checked={!!filters.parameterTypes?.has(t)} onChange={() => toggleType(t)} /> {t}</Checkbox>
           ))}
         </Row>
       </Group>
@@ -84,8 +85,8 @@ export const FilterControls: React.FC = () => {
       <Group>
         <Label>Sections</Label>
         <Row>
-          {['environment','agents','learning','agent_parameters','modules','visualization','other'].map(sec => (
-            <Checkbox key={sec}><input type="checkbox" checked={!!filters.sections?.has(sec as any)} onChange={() => toggleSection(sec)} /> {sec}</Checkbox>
+          {(['environment','agents','learning','agent_parameters','modules','visualization','other'] as SearchSection[]).map(sec => (
+            <Checkbox key={sec}><input type="checkbox" checked={!!filters.sections?.has(sec)} onChange={() => toggleSection(sec)} /> {sec}</Checkbox>
           ))}
         </Row>
       </Group>

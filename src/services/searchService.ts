@@ -128,18 +128,21 @@ export const searchService = {
       if (!q) return null
       const tokens = q.split(/\s+/).filter(Boolean)
       const terms: (Expr | 'AND' | 'OR' | 'NOT')[] = []
+      const opRangeRegex = /^([^:]+):(>=|<=|>|<|=)([-+]?[0-9]*\.?[0-9]+)$/
+      const intervalRangeRegex = /^([^:]+):\[\s*([-+]?[0-9]*\.?[0-9]+)\.\.([-+]?[0-9]*\.?[0-9]+)\s*\]$/
       for (const tok of tokens) {
         const upper = tok.toUpperCase()
         if (upper === 'AND' || upper === 'OR' || upper === 'NOT') { terms.push(upper as any); continue }
-        // range: field:>=1, field:<=10, field:[1..10]
-        const rangeMatch = tok.match(/^([^:]+):(?:(>=|<=|>|<|=)([-+]?[0-9]*\.?[0-9]+)|\[\s*([-+]?[0-9]*\.?[0-9]+)\.\.([-+]?[0-9]*\.?[0-9]+)\s*\])$/)
+        let rangeMatch = tok.match(opRangeRegex)
         if (rangeMatch) {
-          const [, k, op, val, minS, maxS] = rangeMatch
-          if (op) {
-            terms.push({ kind: 'TERM', term: { type: 'range', value: tok, key: k, op, min: Number(val) } })
-          } else if (minS && maxS) {
-            terms.push({ kind: 'TERM', term: { type: 'range', value: tok, key: k, min: Number(minS), max: Number(maxS) } })
-          }
+          const [, k, op, val] = rangeMatch
+          terms.push({ kind: 'TERM', term: { type: 'range', value: tok, key: k, op, min: Number(val) } })
+          continue
+        }
+        rangeMatch = tok.match(intervalRangeRegex)
+        if (rangeMatch) {
+          const [, k, minS, maxS] = rangeMatch
+          terms.push({ kind: 'TERM', term: { type: 'range', value: tok, key: k, min: Number(minS), max: Number(maxS) } })
           continue
         }
         // keyed term: field:value
@@ -157,9 +160,11 @@ export const searchService = {
         for (let i = 0; i < list.length; i++) {
           const t = list[i]
           if (t === 'NOT') {
-            const next = list[i + 1] as Expr
-            out.push({ kind: 'NOT', left: next })
-            i++
+            const next = list[i + 1]
+            if (next && next !== 'AND' && next !== 'OR' && next !== 'NOT') {
+              out.push({ kind: 'NOT', left: next as Expr })
+              i++
+            }
           } else out.push(t as any)
         }
         return out
@@ -186,10 +191,13 @@ export const searchService = {
         return out
       }
       function reduceOr(list: (Expr | 'OR')[]): Expr {
+        if (list.length === 0) return { kind: 'TERM', term: { type: 'term', value: '' } }
         let buffer = list[0] as Expr
         for (let i = 1; i < list.length; i += 2) {
-          const right = list[i + 1] as Expr
-          buffer = { kind: 'OR', left: buffer, right }
+          const right = list[i + 1]
+          if (right && right !== 'OR') {
+            buffer = { kind: 'OR', left: buffer, right: right as Expr }
+          }
         }
         return buffer
       }
@@ -244,8 +252,8 @@ export const searchService = {
       switch (ex.kind) {
         case 'TERM': return ex.term ? evalClause(e, ex.term) : 0
         case 'NOT': return ex.left ? (evalExpr(e, ex.left) > 0 ? 0 : 100) : 0
-        case 'AND': return Math.min(evalExpr(e, ex.left!), evalExpr(e, ex.right!))
-        case 'OR': return Math.max(evalExpr(e, ex.left!), evalExpr(e, ex.right!))
+        case 'AND': return (ex.left && ex.right) ? Math.min(evalExpr(e, ex.left), evalExpr(e, ex.right)) : 0
+        case 'OR': return (ex.left && ex.right) ? Math.max(evalExpr(e, ex.left), evalExpr(e, ex.right)) : 0
       }
       return 0
     }

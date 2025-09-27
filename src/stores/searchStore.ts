@@ -73,7 +73,12 @@ const creator: StateCreator<SearchState> = (set, get) => ({
       },
       isPathModified: (path: string) => {
         const getNested = (obj: Record<string, unknown>, p: string): unknown => {
-          return p.split('.').reduce((acc: any, k: string) => (acc && acc[k] !== undefined ? acc[k] : undefined), obj as any)
+          return p.split('.').reduce<unknown>((acc, k) => {
+            if (acc && typeof acc === 'object' && k in (acc as Record<string, unknown>)) {
+              return (acc as Record<string, unknown>)[k]
+            }
+            return undefined
+          }, obj)
         }
         const a = getNested(config as unknown as Record<string, unknown>, path)
         const b = getNested(original as unknown as Record<string, unknown>, path)
