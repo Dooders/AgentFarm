@@ -96,6 +96,13 @@ Implement visual diff highlighting between primary and comparison configurations
 - ✅ Users can easily identify and copy differences
 - ✅ Diff filtering and navigation works smoothly
 
+Implementation Notes (Sept 2025):
+- Store: Added `getComparisonDiff`, `copyFromComparison`, `batchCopyFromComparison`, `removeConfigPath`, and `applyAllDifferencesFromComparison` in `src/stores/configStore.ts`.
+- Selectors: Added `getComparisonDiff`, `getComparisonStats`, and `getFilteredComparisonDiff` in `src/stores/selectors.ts`.
+- UI: `ComparisonPanel` now renders Added/Removed/Changed with per-field Copy/Remove, filters, jump-to sections, and Apply All. `RightPanel` shows diff stats and Apply All.
+- Accessibility: Toolbar controls are labeled; diff items use monospace value boxes; actions have ARIA labels.
+- Tests: Extended `ConfigExplorer.test.tsx` to assert diff stats presence and Apply All availability.
+
 **Dependencies:** Phase 2 completion, Issue #15
 **Estimated Time:** 2-3 days
 

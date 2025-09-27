@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useRef, useState } from 'react'
 import styled from 'styled-components'
 import { SimulationConfigType } from '@/types/config'
 import { useConfigStore } from '@/stores/configStore'
@@ -115,6 +115,10 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = ({ compareConfig,
   const [showRemoved, setShowRemoved] = useState(true)
   const [showChanged, setShowChanged] = useState(true)
 
+  const addedAnchorRef = useRef<HTMLDivElement | null>(null)
+  const removedAnchorRef = useRef<HTMLDivElement | null>(null)
+  const changedAnchorRef = useRef<HTMLDivElement | null>(null)
+
   const comparisonSummary = useMemo(() => {
     if (!compareConfig) return null
     return [
@@ -129,7 +133,10 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = ({ compareConfig,
     try { return typeof v === 'string' ? v : JSON.stringify(v) } catch { return String(v) }
   }
 
-  const hasAnyDiff = diff && (Object.keys(diff.added).length + Object.keys(diff.removed).length + Object.keys(diff.changed).length) > 0
+  const addedCount = diff ? Object.keys(diff.added).length : 0
+  const removedCount = diff ? Object.keys(diff.removed).length : 0
+  const changedCount = diff ? Object.keys(diff.changed).length : 0
+  const hasAnyDiff = (addedCount + removedCount + changedCount) > 0
 
   return (
     <div>
@@ -164,6 +171,9 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = ({ compareConfig,
             <SmallButton onClick={() => setShowRemoved(v => !v)} aria-pressed={showRemoved}>{showRemoved ? 'Hide' : 'Show'} Removed</SmallButton>
             <SmallButton onClick={() => setShowChanged(v => !v)} aria-pressed={showChanged}>{showChanged ? 'Hide' : 'Show'} Changed</SmallButton>
             <SmallButton onClick={() => applyAll()} disabled={!hasAnyDiff}>Apply All Differences</SmallButton>
+            <SmallButton onClick={() => addedAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} disabled={addedCount === 0}>Jump to Added</SmallButton>
+            <SmallButton onClick={() => removedAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} disabled={removedCount === 0}>Jump to Removed</SmallButton>
+            <SmallButton onClick={() => changedAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} disabled={changedCount === 0}>Jump to Changed</SmallButton>
           </Toolbar>
 
           {!hasAnyDiff && (
@@ -172,6 +182,7 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = ({ compareConfig,
 
           {hasAnyDiff && (
             <DiffList aria-label="Differences list">
+              {showAdded && addedCount > 0 && <div ref={addedAnchorRef} />}
               {showAdded && Object.entries(diff.added).map(([path, to]) => (
                 <DiffItem key={`added-${path}`} variant="added">
                   <PathText>{path}</PathText>
@@ -186,6 +197,7 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = ({ compareConfig,
                 </DiffItem>
               ))}
 
+              {showRemoved && removedCount > 0 && <div ref={removedAnchorRef} />}
               {showRemoved && Object.entries(diff.removed).map(([path, from]) => (
                 <DiffItem key={`removed-${path}`} variant="removed">
                   <PathText>{path}</PathText>
@@ -200,6 +212,7 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = ({ compareConfig,
                 </DiffItem>
               ))}
 
+              {showChanged && changedCount > 0 && <div ref={changedAnchorRef} />}
               {showChanged && Object.entries(diff.changed).map(([path, pair]) => (
                 <DiffItem key={`changed-${path}`} variant="changed">
                   <PathText>{path}</PathText>
