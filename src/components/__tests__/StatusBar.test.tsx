@@ -1,6 +1,6 @@
-// @ts-nocheck
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import '@testing-library/jest-dom'
 import { StatusBar } from '@/components/Layout/StatusBar'
 import { useConfigStore } from '@/stores/configStore'
 import { useValidationStore } from '@/stores/validationStore'

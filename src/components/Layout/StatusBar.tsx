@@ -1,10 +1,11 @@
-// @ts-nocheck
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import styled from 'styled-components'
 import { useConfigStore } from '@/stores/configStore'
 import { useValidationStore } from '@/stores/validationStore'
 import { configSelectors, validationSelectors } from '@/stores/selectors'
 import { ipcService } from '@/services/ipcService'
+import type { ConfigStore } from '@/types/config'
+import type { ValidationState } from '@/types/validation'
 
 const Bar = styled.div`
   display: flex;
@@ -56,16 +57,27 @@ const FilePath = styled.span`
 `
 
 export const StatusBar: React.FC = () => {
-  const isDirty = useConfigStore((s) => configSelectors.getIsDirty(s))
-  const currentFilePath = useConfigStore((s) => configSelectors.getCurrentFilePath(s) as string | undefined)
-  const lastSaveTime = useConfigStore((s) => configSelectors.getLastSaveTime(s) as number | undefined)
-  const lastLoadTime = useConfigStore((s) => configSelectors.getLastLoadTime(s) as number | undefined)
-  const validateConfig = useConfigStore((s) => s.validateConfig)
+  const selectIsDirty = useCallback((s: ConfigStore) => configSelectors.getIsDirty(s), [])
+  const selectFilePath = useCallback((s: ConfigStore) => configSelectors.getCurrentFilePath(s) as string | undefined, [])
+  const selectLastSave = useCallback((s: ConfigStore) => configSelectors.getLastSaveTime(s) as number | undefined, [])
+  const selectLastLoad = useCallback((s: ConfigStore) => configSelectors.getLastLoadTime(s) as number | undefined, [])
+  const selectValidate = useCallback((s: ConfigStore) => s.validateConfig, [])
 
-  const errorCount = useValidationStore((s) => validationSelectors.getErrorCount(s))
-  const warningCount = useValidationStore((s) => validationSelectors.getWarningCount(s))
-  const isValidating = useValidationStore((s) => validationSelectors.getIsValidating(s))
-  const lastValidationTime = useValidationStore((s) => validationSelectors.getLastValidationTime(s))
+  const selectErrCount = useCallback((s: ValidationState) => validationSelectors.getErrorCount(s), [])
+  const selectWarnCount = useCallback((s: ValidationState) => validationSelectors.getWarningCount(s), [])
+  const selectIsValidating = useCallback((s: ValidationState) => validationSelectors.getIsValidating(s), [])
+  const selectLastValidation = useCallback((s: ValidationState) => validationSelectors.getLastValidationTime(s), [])
+
+  const isDirty = useConfigStore(selectIsDirty)
+  const currentFilePath = useConfigStore(selectFilePath)
+  const lastSaveTime = useConfigStore(selectLastSave)
+  const lastLoadTime = useConfigStore(selectLastLoad)
+  const validateConfig = useConfigStore(selectValidate)
+
+  const errorCount = useValidationStore(selectErrCount)
+  const warningCount = useValidationStore(selectWarnCount)
+  const isValidating = useValidationStore(selectIsValidating)
+  const lastValidationTime = useValidationStore(selectLastValidation)
 
   const [autoValidate, setAutoValidate] = useState<boolean>(false)
   const [connectionStatus, setConnectionStatus] = useState<string>('disconnected')
@@ -76,7 +88,9 @@ export const StatusBar: React.FC = () => {
       const pref = localStorage.getItem('ui:auto-validate')
       const enabled = pref === '1' || pref === 'true'
       setAutoValidate(enabled)
-    } catch {}
+    } catch (err) {
+      console.error('Failed to read auto-validate preference from localStorage:', err)
+    }
 
     setConnectionStatus(ipcService.getConnectionStatus())
     const interval = setInterval(() => {
@@ -93,7 +107,9 @@ export const StatusBar: React.FC = () => {
       if (cancelled) return
       try {
         await validateConfig()
-      } catch {}
+      } catch (err) {
+        console.error('Auto validation failed:', err)
+      }
     }, 3000)
     return () => {
       cancelled = true
@@ -112,7 +128,9 @@ export const StatusBar: React.FC = () => {
   const toggleAuto = useCallback(() => {
     setAutoValidate((prev) => {
       const next = !prev
-      try { localStorage.setItem('ui:auto-validate', next ? '1' : '0') } catch {}
+      try { localStorage.setItem('ui:auto-validate', next ? '1' : '0') } catch (err) {
+        console.error('Failed to write auto-validate preference:', err)
+      }
       return next
     })
   }, [])
