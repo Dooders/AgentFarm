@@ -199,6 +199,7 @@ export interface ConfigActions {
   saveTemplate: (template: ConfigTemplate, overwrite?: boolean) => Promise<void>
   deleteTemplate: (templateName: string) => Promise<void>
   listTemplates: (options?: { includeSystem?: boolean; includeUser?: boolean }) => Promise<void>
+  applyTemplatePartial: (templateName: string, sections: Array<'environment'|'agents'|'learning'|'visualization'|'modules'>) => Promise<void>
 }
 
 // Computed properties interface

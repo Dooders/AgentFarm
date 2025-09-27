@@ -93,6 +93,7 @@ export const PresetManager: React.FC = () => {
   const templates = useConfigStore((s) => s.templates)
   const listTemplates = useConfigStore((s) => (s as any).listTemplates)
   const loadTemplate = useConfigStore((s) => s.loadTemplate)
+  const applyTemplatePartial = useConfigStore((s) => (s as any).applyTemplatePartial)
   const saveTemplate = useConfigStore((s) => s.saveTemplate)
   const deleteTemplate = useConfigStore((s) => s.deleteTemplate)
 
@@ -100,6 +101,7 @@ export const PresetManager: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false)
   const [newName, setNewName] = useState('')
   const [newDescription, setNewDescription] = useState('')
+  const [partial, setPartial] = useState<{ environment: boolean; agents: boolean; learning: boolean; modules: boolean; visualization: boolean }>({ environment: false, agents: false, learning: false, modules: false, visualization: false })
 
   useEffect(() => {
     void listTemplates({ includeSystem: true, includeUser: true })
@@ -183,6 +185,19 @@ export const PresetManager: React.FC = () => {
             {t.description && <div style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{t.description}</div>}
             <Actions>
               <Button onClick={() => void loadTemplate(t.name)}>Apply</Button>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Partial:</span>
+                {(['environment','agents','learning','modules','visualization'] as const).map((k) => (
+                  <label key={k} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-secondary)' }}>
+                    <input type="checkbox" checked={(partial as any)[k]} onChange={(e) => setPartial(p => ({ ...p, [k]: e.target.checked }))} />
+                    {k}
+                  </label>
+                ))}
+                <Button onClick={() => {
+                  const sections = (Object.entries(partial).filter(([,v]) => v).map(([k]) => k) as Array<'environment'|'agents'|'learning'|'visualization'|'modules'>)
+                  if (sections.length > 0) void applyTemplatePartial(t.name, sections)
+                }}>Apply Selected</Button>
+              </div>
               {t.category !== 'system' && (
                 <Button onClick={() => void deleteTemplate(t.name)}>Delete</Button>
               )}

@@ -644,6 +644,68 @@ export const useConfigStore = create<ConfigStore>((set: any, get: any) => ({
     }
   },
 
+  // Apply only selected sections from a template
+  applyTemplatePartial: async (templateName: string, sections: Array<'environment'|'agents'|'learning'|'visualization'|'modules'>) => {
+    try {
+      const response = await ipcService.loadTemplate({ templateName })
+      const templateConfig = response?.config as SimulationConfigType
+      const current = get().config
+      const partial: Partial<SimulationConfigType> = {}
+
+      for (const section of sections) {
+        switch (section) {
+          case 'environment':
+            ;(partial as any).width = templateConfig.width
+            ;(partial as any).height = templateConfig.height
+            ;(partial as any).position_discretization_method = templateConfig.position_discretization_method
+            ;(partial as any).use_bilinear_interpolation = templateConfig.use_bilinear_interpolation
+            ;(partial as any).visualization = templateConfig.visualization
+            break
+          case 'agents':
+            ;(partial as any).system_agents = templateConfig.system_agents
+            ;(partial as any).independent_agents = templateConfig.independent_agents
+            ;(partial as any).control_agents = templateConfig.control_agents
+            ;(partial as any).agent_type_ratios = templateConfig.agent_type_ratios
+            ;(partial as any).agent_parameters = templateConfig.agent_parameters
+            break
+          case 'learning':
+            ;(partial as any).learning_rate = templateConfig.learning_rate
+            ;(partial as any).epsilon_start = templateConfig.epsilon_start
+            ;(partial as any).epsilon_min = templateConfig.epsilon_min
+            ;(partial as any).epsilon_decay = templateConfig.epsilon_decay
+            break
+          case 'modules':
+            ;(partial as any).gather_parameters = templateConfig.gather_parameters
+            ;(partial as any).share_parameters = templateConfig.share_parameters
+            ;(partial as any).move_parameters = templateConfig.move_parameters
+            ;(partial as any).attack_parameters = templateConfig.attack_parameters
+            break
+          case 'visualization':
+            ;(partial as any).visualization = templateConfig.visualization
+            break
+        }
+      }
+
+      const merged = deepMerge(current, partial)
+
+      const { history, historyIndex } = get()
+      const newHistory = history.slice(0, historyIndex + 1)
+      newHistory.push({
+        id: 'update',
+        config: merged,
+        timestamp: Date.now(),
+        action: 'update',
+        description: `Applied partial template: ${templateName}`
+      })
+
+      set({ config: merged, isDirty: true, history: newHistory, historyIndex: historyIndex + 1 })
+      await get().validateConfig()
+    } catch (error) {
+      console.error('Failed to apply partial template:', error)
+      throw error
+    }
+  },
+
   // Undo/redo functionality
   undo: async () => {
     const { history, historyIndex } = get()
