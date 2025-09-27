@@ -63,6 +63,13 @@ const Content = styled.div<{ wrap: boolean; fontSize: number }>`
   code {
     color: var(--text-primary);
   }
+  /* Greyscale syntax highlighting */
+  .tok-key { color: var(--text-secondary); font-weight: 600; }
+  .tok-str { color: #8aa0a8; }
+  .tok-num { color: #a88a8a; }
+  .tok-bool { color: #9aa88a; font-weight: 600; }
+  .tok-null { color: #a0a0a0; font-style: italic; }
+  .tok-dash { color: #b0b0b0; }
   .yaml-grid {
     display: grid;
     grid-template-columns: 2fr 1fr 1fr;
@@ -141,9 +148,50 @@ export const YamlPreview: React.FC = () => {
   const [mode, setMode] = useState<PreviewMode>('yaml')
   const [wrap, setWrap] = useState<boolean>(true)
   const [fontSize, setFontSize] = useState<number>(12)
+  const [compact, setCompact] = useState<boolean>(false)
   const preRef = useRef<HTMLPreElement>(null)
 
   const yamlText = useMemo(() => toYaml(config), [config])
+
+  function classifyScalar(value: string): string {
+    if (value === 'null' || value === '~') return `<span class=\"tok-null\">${value}</span>`
+    if (value === 'true' || value === 'false') return `<span class=\"tok-bool\">${value}</span>`
+    if (/^[-+]?[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$/.test(value)) return `<span class=\"tok-num\">${value}</span>`
+    if (/^".*"$/.test(value) || /^'.*'$/.test(value)) return `<span class=\"tok-str\">${value}</span>`
+    return value
+  }
+
+  function highlightYaml(yaml: string): string {
+    const lines = yaml.split('\n')
+    const out: string[] = []
+    for (const line of lines) {
+      let m = line.match(/^(\s*)-\s*(.*)$/)
+      if (m) {
+        const [, indent, rest] = m
+        if (rest.includes(':')) {
+          const km = rest.match(/^([^:]+):(.*)$/)
+          if (km) {
+            const key = km[1].trimEnd()
+            const val = km[2].trimStart()
+            const valCls = val ? classifyScalar(val) : ''
+            out.push(`${indent}<span class=\"tok-dash\">-</span> <span class=\"tok-key\">${key}</span>: ${valCls}`)
+            continue
+          }
+        }
+        out.push(`${indent}<span class=\"tok-dash\">-</span> ${classifyScalar(rest)}`)
+        continue
+      }
+      m = line.match(/^(\s*)([^:]+):(\s*)(.*)$/)
+      if (m) {
+        const [, indent, key, sp, rest] = m
+        const valCls = rest ? classifyScalar(rest) : ''
+        out.push(`${indent}<span class=\"tok-key\">${key}</span>:${sp}${valCls}`)
+        continue
+      }
+      out.push(line)
+    }
+    return out.join('\n')
+  }
 
   const diffGridHtml = useMemo(() => {
     if (!compare) return ''
@@ -199,6 +247,7 @@ export const YamlPreview: React.FC = () => {
           <Button onClick={() => setMode((m: PreviewMode) => (m === 'yaml' ? 'diff' : 'yaml'))} disabled={!compare && mode === 'diff'}>
             {mode === 'yaml' ? 'Show Diff' : 'Show YAML'}
           </Button>
+          <Button onClick={() => setCompact((c: boolean) => !c)}>{compact ? 'Normal' : 'Compact'}</Button>
           <Button onClick={() => setWrap((w: boolean) => !w)}>{wrap ? 'No Wrap' : 'Wrap'}</Button>
           <Button onClick={() => setFontSize((s: number) => Math.max(10, s - 1))}>A-</Button>
           <Button onClick={() => setFontSize((s: number) => Math.min(20, s + 1))}>A+</Button>
@@ -206,9 +255,9 @@ export const YamlPreview: React.FC = () => {
           <Button onClick={exportYaml}>Export</Button>
         </Toolbar>
       </Header>
-      <Content wrap={wrap} fontSize={fontSize}>
+      <Content wrap={compact ? false : wrap} fontSize={compact ? 11 : fontSize}>
         {mode === 'yaml' && (
-          <pre ref={preRef} aria-label="YAML preview"><code>{yamlText}</code></pre>
+          <pre ref={preRef} aria-label="YAML preview"><code dangerouslySetInnerHTML={{ __html: highlightYaml(yamlText) }} /></pre>
         )}
         {mode === 'diff' && compare && (
           <div dangerouslySetInnerHTML={{ __html: diffGridHtml }} />
