@@ -258,6 +258,10 @@ export const Toolbar: React.FC = () => {
       </Section>
 
       <Section aria-label="Application controls">
+        <Button onClick={() => {
+          const el = document.getElementById('presets-section')
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }}>Presets</Button>
         <Button onClick={toggleGrayscale} aria-pressed={isGrayscale} aria-label="Toggle grayscale (Ctrl/Cmd+G)">{isGrayscale ? 'Grayscale On' : 'Grayscale Off'}</Button>
         <Button onClick={() => resetToDefaults()}>Reset</Button>
       </Section>

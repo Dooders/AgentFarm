@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { SimulationConfigType, ConfigStore, ConfigSection, BatchConfigUpdate } from '@/types/config'
+import { SimulationConfigType, ConfigStore, ConfigSection, BatchConfigUpdate, ConfigTemplate } from '@/types/config'
 import { persistState, retrieveState } from './persistence'
 import { useValidationStore } from './validationStore'
 import { validationService } from '@/services/validationService'
@@ -145,7 +145,7 @@ const defaultConfig: SimulationConfigType = {
   }
 }
 
-export const useConfigStore = create<ConfigStore>((set, get) => ({
+export const useConfigStore = create<ConfigStore>((set: any, get: any) => ({
   config: defaultConfig,
   originalConfig: defaultConfig,
   isDirty: false,
@@ -158,6 +158,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   selectedSection: 'environment',
   expandedFolders: new Set(['environment', 'agents', 'learning', 'visualization']),
   validationErrors: [],
+  templates: [],
   history: [{
     id: 'initial',
     config: defaultConfig,
@@ -532,6 +533,115 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
         useValidationStore.getState().addErrors(result.errors)
       }
     })
+  },
+
+  // =====================================================
+  // Template actions (presets)
+  // =====================================================
+
+  // Apply a template by deep-merging into current config
+  loadTemplate: async (templateName: string) => {
+    try {
+      const response = await ipcService.loadTemplate({ templateName })
+      const templateConfig = response?.config as SimulationConfigType
+      const current = get().config
+      const merged = deepMerge(current, templateConfig)
+
+      const { history, historyIndex } = get()
+      const newHistory = history.slice(0, historyIndex + 1)
+      newHistory.push({
+        id: 'update',
+        config: merged,
+        timestamp: Date.now(),
+        action: 'update',
+        description: `Applied template: ${templateName}`
+      })
+
+      set({
+        config: merged,
+        isDirty: true,
+        history: newHistory,
+        historyIndex: historyIndex + 1
+      })
+
+      await get().validateConfig()
+
+      // Refresh template list in background (non-blocking)
+      void (async () => {
+        try {
+          const list = await ipcService.listTemplates({ includeSystem: true, includeUser: true })
+          const mapped: ConfigTemplate[] = (list?.templates || []).map((t: any) => ({
+            name: t.name,
+            description: t.description || '',
+            category: t.category || 'user',
+            baseConfig: {},
+            tags: []
+          }))
+          set({ templates: mapped })
+        } catch {}
+      })()
+    } catch (error) {
+      console.error('Failed to apply template:', error)
+      throw error
+    }
+  },
+
+  // Save current config as a template
+  saveTemplate: async (template: ConfigTemplate, overwrite?: boolean) => {
+    try {
+      const config = get().config
+      await ipcService.saveTemplate({ template, config, overwrite: !!overwrite })
+
+      const list = await ipcService.listTemplates({ includeSystem: true, includeUser: true })
+      const mapped: ConfigTemplate[] = (list?.templates || []).map((t: any) => ({
+        name: t.name,
+        description: t.description || '',
+        category: t.category || 'user',
+        baseConfig: {},
+        tags: []
+      }))
+      set({ templates: mapped })
+    } catch (error) {
+      console.error('Failed to save template:', error)
+      throw error
+    }
+  },
+
+  // Delete a user template
+  deleteTemplate: async (templateName: string) => {
+    try {
+      await ipcService.deleteTemplate({ templateName, category: 'user' })
+      const list = await ipcService.listTemplates({ includeSystem: true, includeUser: true })
+      const mapped: ConfigTemplate[] = (list?.templates || []).map((t: any) => ({
+        name: t.name,
+        description: t.description || '',
+        category: t.category || 'user',
+        baseConfig: {},
+        tags: []
+      }))
+      set({ templates: mapped })
+    } catch (error) {
+      console.error('Failed to delete template:', error)
+      throw error
+    }
+  },
+
+  // List templates and populate store
+  listTemplates: async (options?: { includeSystem?: boolean; includeUser?: boolean }) => {
+    try {
+      const list = await ipcService.listTemplates({ includeSystem: options?.includeSystem ?? true, includeUser: options?.includeUser ?? true })
+      const mapped: ConfigTemplate[] = (list?.templates || []).map((t: any) => ({
+        name: t.name,
+        description: t.description || '',
+        category: t.category || 'user',
+        baseConfig: {},
+        tags: []
+      }))
+      set({ templates: mapped })
+    } catch (error) {
+      console.error('Failed to list templates:', error)
+      // keep existing templates on failure
+    }
   },
 
   // Undo/redo functionality
@@ -929,4 +1039,23 @@ function deepEqual(a: unknown, b: unknown, visited?: WeakMap<object, WeakMap<obj
     if (!deepEqual(aObj[key], bObj[key], seen)) return false
   }
   return true
+}
+
+// Deep merge utility tailored for SimulationConfigType
+function deepMerge<T extends Record<string, any>>(target: T, source: Partial<T>): T {
+  if (!source) return deepClone(target)
+  const output: any = Array.isArray(target) ? target.slice() : { ...target }
+  const keys = Object.keys(source as Record<string, any>)
+  for (const key of keys) {
+    const srcVal: any = (source as any)[key]
+    const tgtVal: any = (output as any)[key]
+    if (Array.isArray(srcVal)) {
+      output[key] = deepClone(srcVal)
+    } else if (srcVal && typeof srcVal === 'object') {
+      output[key] = deepMerge(tgtVal && typeof tgtVal === 'object' ? tgtVal : {}, srcVal)
+    } else {
+      output[key] = srcVal
+    }
+  }
+  return output as T
 }
