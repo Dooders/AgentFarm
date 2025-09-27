@@ -1,5 +1,49 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
+const allowedInvokeChannels = new Set([
+  'config:load',
+  'config:save',
+  'config:export',
+  'config:import',
+  'config:validate',
+  'config:template:load',
+  'config:template:save',
+  'config:template:delete',
+  'config:template:list',
+  'config:history:save',
+  'config:history:load',
+  'config:history:clear',
+  'fs:file:exists',
+  'fs:file:read',
+  'fs:file:write',
+  'fs:file:delete',
+  'fs:directory:read',
+  'fs:directory:create',
+  'fs:directory:delete',
+  'dialog:open',
+  'dialog:save',
+  'app:settings:get',
+  'app:settings:set',
+  'app:version:get',
+  'app:path:get',
+  'system:info:get',
+  'app:ping'
+])
+
+const allowedEventChannels = new Set([
+  'config:loaded',
+  'config:saved',
+  'validation:error',
+  'app:version',
+  'config:validation:complete',
+  'config:template:created',
+  'config:template:deleted',
+  'config:history:updated',
+  'fs:operation:complete'
+])
+
+const onceValidChannels = new Set(['app:ready', 'app:ping'])
+
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -71,37 +115,34 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // IPC event listeners
   on: (channel, callback) => {
-    // Whitelist of allowed channels
-    const validChannels = [
-      'config:loaded',
-      'config:saved',
-      'validation:error',
-      'app:version',
-      'config:validation:complete',
-      'config:template:created',
-      'config:template:deleted',
-      'config:history:updated',
-      'fs:operation:complete'
-    ]
-
-    if (validChannels.includes(channel)) {
-      ipcRenderer.on(channel, callback)
-      return () => ipcRenderer.removeListener(channel, callback)
+    if (!allowedEventChannels.has(channel)) {
+      return () => {}
     }
+    const wrapped = (_event, payload) => callback(payload)
+    ipcRenderer.on(channel, wrapped)
+    return () => ipcRenderer.removeListener(channel, wrapped)
   },
 
   // IPC one-time listeners
   once: (channel, callback) => {
-    const validChannels = ['app:ready', 'app:ping']
-
-    if (validChannels.includes(channel)) {
-      ipcRenderer.once(channel, callback)
-    }
+    if (!onceValidChannels.has(channel)) return
+    const wrapped = (_event, payload) => callback(payload)
+    ipcRenderer.once(channel, wrapped)
   },
 
-  // Generic IPC methods
-  invoke: (channel, payload) => ipcRenderer.invoke(channel, payload),
-  send: (channel, payload) => ipcRenderer.send(channel, payload),
+  // Generic IPC methods (guarded)
+  invoke: (channel, payload) => {
+    if (!allowedInvokeChannels.has(channel)) {
+      throw new Error('Access denied')
+    }
+    return ipcRenderer.invoke(channel, payload)
+  },
+  send: (channel, payload) => {
+    if (!allowedInvokeChannels.has(channel)) {
+      throw new Error('Access denied')
+    }
+    return ipcRenderer.send(channel, payload)
+  },
   removeListener: (channel, listener) => ipcRenderer.removeListener(channel, listener),
   removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel)
 })

@@ -54,6 +54,7 @@ const DiffList = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
+  contain: content;
 `
 
 const DiffItem = styled.div<{ variant: 'added' | 'removed' | 'changed' }>`

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { rumMark } from '@/utils/perf'
 import styled from 'styled-components'
 import { useConfigStore } from '@/stores/configStore'
 
@@ -52,6 +53,7 @@ const List = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
+  contain: content;
 `
 
 const Item = styled.div`
@@ -150,7 +152,7 @@ export const PresetManager: React.FC = () => {
           aria-label="Search presets"
           placeholder="Search presets..."
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => { rumMark('preset_filter_change'); setQuery(e.target.value) }}
           style={{ flex: 1 }}
         />
         <Button onClick={() => void listTemplates({ includeSystem: true, includeUser: true })}>Refresh</Button>

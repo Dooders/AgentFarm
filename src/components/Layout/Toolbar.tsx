@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
+import { rumMark } from '@/utils/perf'
 import { useConfigStore } from '@/stores/configStore'
 import type { ConfigStore } from '@/types/config'
 import { configSelectors, useValidationStore, validationSelectors } from '@/stores/selectors'
@@ -243,9 +244,9 @@ export const Toolbar: React.FC = () => {
   return (
     <Bar role="toolbar" aria-label="Application toolbar">
       <Section aria-label="File operations">
-        <Button onClick={doOpen} aria-label="Open configuration (Ctrl/Cmd+O)">Open…</Button>
+        <Button onClick={() => { rumMark('toolbar_open_click'); doOpen() }} aria-label="Open configuration (Ctrl/Cmd+O)">Open…</Button>
         <input ref={filePickerRef} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={onFileChosen} />
-        <Button onClick={doSave} disabled={!isDirty} aria-label="Save (Ctrl/Cmd+S)">Save</Button>
+        <Button onClick={() => { rumMark('toolbar_save_click'); doSave() }} disabled={!isDirty} aria-label="Save (Ctrl/Cmd+S)">Save</Button>
         <Button onClick={doSaveAs} aria-label="Save As (Ctrl/Cmd+Shift+S)">Save As…</Button>
         <Sep />
         <Button onClick={doExportJson}>Export JSON</Button>

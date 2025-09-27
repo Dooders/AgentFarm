@@ -21,13 +21,6 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
     css: true,
-    exclude: [
-      '**/node_modules/**',
-      '**/dist/**',
-      '**/farm/**', // Exclude old farm project tests
-      'e2e/**', // Exclude Playwright e2e tests from Vitest
-      '**/*.d.ts'
-    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
@@ -38,8 +31,21 @@ export default defineConfig({
         '**/*.config.*',
         'electron/',
         'dist/',
-        'farm/**' // Exclude old farm project
-      ]
-    }
+        'farm/**'
+      ],
+      thresholds: {
+        statements: 0.8,
+        branches: 0.8,
+        functions: 0.8,
+        lines: 0.8
+      }
+    },
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/farm/**', // Exclude old farm project tests
+      'e2e/**', // Exclude Playwright e2e tests from Vitest
+      '**/*.d.ts'
+    ],
   }
 })
