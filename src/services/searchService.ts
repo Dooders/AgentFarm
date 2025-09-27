@@ -107,47 +107,164 @@ export type SearchContext = {
 }
 
 export const searchService = {
-  search(config: SimulationConfigType, query: SearchQuery, context?: SearchContext): SearchResult {
+  search(config: SimulationConfigType, query: SearchQuery, context?: SearchContext, baseItems?: SearchResultItem[]): SearchResult {
     const start = performance.now ? performance.now() : Date.now()
     const items: SearchResultItem[] = []
     const filters = query.filters
     const regex = filters.regex && query.text ? new RegExp(query.text, filters.caseSensitive ? '' : 'i') : null
 
-    const entries = flattenConfig(config)
-    const text = query.text || ''
+    const entries = baseItems
+      ? baseItems.map((bi) => ({ path: bi.path, key: bi.key, value: bi.valuePreview, parameterType: bi.parameterType, section: bi.section }))
+      : flattenConfig(config)
+
+    const text = (query.text || '').trim()
+
+    // Basic boolean logic parsing (no parentheses): NOT, AND, OR keywords, space = AND
+    type Clause = { type: 'term' | 'regex' | 'range' | 'keyed'; value: string; key?: string; op?: string; min?: number; max?: number }
+    type Expr = { kind: 'NOT' | 'AND' | 'OR' | 'TERM'; term?: Clause; left?: Expr; right?: Expr }
+
+    function parseQuery(q: string): Expr | null {
+      if (!q) return null
+      const tokens = q.split(/\s+/).filter(Boolean)
+      const terms: (Expr | 'AND' | 'OR' | 'NOT')[] = []
+      for (const tok of tokens) {
+        const upper = tok.toUpperCase()
+        if (upper === 'AND' || upper === 'OR' || upper === 'NOT') { terms.push(upper as any); continue }
+        // range: field:>=1, field:<=10, field:[1..10]
+        const rangeMatch = tok.match(/^([^:]+):(?:(>=|<=|>|<|=)([-+]?[0-9]*\.?[0-9]+)|\[\s*([-+]?[0-9]*\.?[0-9]+)\.\.([-+]?[0-9]*\.?[0-9]+)\s*\])$/)
+        if (rangeMatch) {
+          const [, k, op, val, minS, maxS] = rangeMatch
+          if (op) {
+            terms.push({ kind: 'TERM', term: { type: 'range', value: tok, key: k, op, min: Number(val) } })
+          } else if (minS && maxS) {
+            terms.push({ kind: 'TERM', term: { type: 'range', value: tok, key: k, min: Number(minS), max: Number(maxS) } })
+          }
+          continue
+        }
+        // keyed term: field:value
+        const keyed = tok.match(/^([^:]+):(.+)$/)
+        if (keyed) {
+          terms.push({ kind: 'TERM', term: { type: regex ? 'regex' : 'keyed', key: keyed[1], value: keyed[2] } })
+          continue
+        }
+        terms.push({ kind: 'TERM', term: { type: regex ? 'regex' : 'term', value: tok } })
+      }
+
+      // Build expression with NOT having highest precedence, then AND, then OR
+      function reduceNot(list: (Expr | 'AND' | 'OR' | 'NOT')[]): (Expr | 'AND' | 'OR')[] {
+        const out: (Expr | 'AND' | 'OR')[] = []
+        for (let i = 0; i < list.length; i++) {
+          const t = list[i]
+          if (t === 'NOT') {
+            const next = list[i + 1] as Expr
+            out.push({ kind: 'NOT', left: next })
+            i++
+          } else out.push(t as any)
+        }
+        return out
+      }
+      function reduceAnd(list: (Expr | 'AND' | 'OR')[]): (Expr | 'OR')[] {
+        const out: (Expr | 'OR')[] = []
+        let buffer: Expr | null = null
+        let expectingAnd = false
+        for (const t of list) {
+          if (t === 'AND') { expectingAnd = true; continue }
+          if (t === 'OR') { if (buffer) out.push(buffer); out.push('OR'); buffer = null; expectingAnd = false; continue }
+          const expr = t as Expr
+          if (buffer && expectingAnd) {
+            buffer = { kind: 'AND', left: buffer, right: expr }
+            expectingAnd = false
+          } else if (!buffer) {
+            buffer = expr
+          } else {
+            // implicit AND for space-separated terms
+            buffer = { kind: 'AND', left: buffer, right: expr }
+          }
+        }
+        if (buffer) out.push(buffer)
+        return out
+      }
+      function reduceOr(list: (Expr | 'OR')[]): Expr {
+        let buffer = list[0] as Expr
+        for (let i = 1; i < list.length; i += 2) {
+          const right = list[i + 1] as Expr
+          buffer = { kind: 'OR', left: buffer, right }
+        }
+        return buffer
+      }
+
+      const step1 = reduceNot(terms)
+      const step2 = reduceAnd(step1)
+      return reduceOr(step2)
+    }
+
+    const expr = parseQuery(text)
+
+    function evalClause(e: FlatEntry, c: Clause): number {
+      const keyStr = e.key
+      const valStr = valueToString(e.value)
+      if (c.type === 'range' && c.key) {
+        if (!e.path.startsWith(c.key) && e.key !== c.key) return 0
+        const valNum = Number(e.value)
+        if (Number.isNaN(valNum)) return 0
+        if (typeof c.min === 'number' && typeof c.max === 'number') {
+          return valNum >= c.min && valNum <= c.max ? 120 : 0
+        }
+        if (c.op && typeof c.min === 'number') {
+          switch (c.op) {
+            case '>': return valNum > c.min ? 120 : 0
+            case '>=': return valNum >= c.min ? 120 : 0
+            case '<': return valNum < c.min ? 120 : 0
+            case '<=': return valNum <= c.min ? 120 : 0
+            case '=': return valNum === c.min ? 140 : 0
+          }
+        }
+        return 0
+      }
+      if (c.type === 'keyed' && c.key) {
+        if (!e.path.startsWith(c.key) && e.key !== c.key) return 0
+        return scoreMatch(valStr, c.value, !!filters.fuzzy, !!filters.caseSensitive)
+      }
+      if (c.type === 'regex') {
+        const r = new RegExp(c.value, filters.caseSensitive ? '' : 'i')
+        if (filters.scope !== 'values' && r.test(keyStr)) return 120
+        if (filters.scope !== 'keys' && r.test(valStr)) return 110
+        return 0
+      }
+      // plain term
+      let s = 0
+      if (!filters.regex && filters.scope !== 'values') s = Math.max(s, scoreMatch(keyStr, c.value, !!filters.fuzzy, !!filters.caseSensitive))
+      if (!filters.regex && filters.scope !== 'keys') s = Math.max(s, scoreMatch(valStr, c.value, !!filters.fuzzy, !!filters.caseSensitive) - 10)
+      return s
+    }
+
+    function evalExpr(e: FlatEntry, ex: Expr | null): number {
+      if (!ex) return 1
+      switch (ex.kind) {
+        case 'TERM': return ex.term ? evalClause(e, ex.term) : 0
+        case 'NOT': return ex.left ? (evalExpr(e, ex.left) > 0 ? 0 : 100) : 0
+        case 'AND': return Math.min(evalExpr(e, ex.left!), evalExpr(e, ex.right!))
+        case 'OR': return Math.max(evalExpr(e, ex.left!), evalExpr(e, ex.right!))
+      }
+      return 0
+    }
+
     for (const e of entries) {
       // Filter by section
       if (filters.sections && filters.sections.size > 0 && !filters.sections.has(e.section)) continue
       // Filter by type
       if (filters.parameterTypes && filters.parameterTypes.size > 0 && !filters.parameterTypes.has(e.parameterType)) continue
-
-      const keyStr = e.key
-      const valStr = valueToString(e.value)
-      let match = false
       let score = 0
-
-      if (!text) {
-        match = true
-        score = 1
-      } else if (regex) {
-        if (filters.scope !== 'values') {
-          if (regex.test(keyStr)) { match = true; score = Math.max(score, 120) }
-        }
-        if (filters.scope !== 'keys') {
-          if (regex.test(valStr)) { match = true; score = Math.max(score, 110) }
-        }
+      if (!text) score = 1
+      else if (regex) {
+        const keyStr = e.key
+        const valStr = valueToString(e.value)
+        if (filters.scope !== 'values' && regex.test(keyStr)) score = Math.max(score, 120)
+        if (filters.scope !== 'keys' && regex.test(valStr)) score = Math.max(score, 110)
       } else {
-        if (filters.scope !== 'values') {
-          const s = scoreMatch(keyStr, text, !!filters.fuzzy, !!filters.caseSensitive)
-          if (s > 0) { match = true; score = Math.max(score, s) }
-        }
-        if (filters.scope !== 'keys') {
-          const s = scoreMatch(valStr, text, !!filters.fuzzy, !!filters.caseSensitive)
-          if (s > 0) { match = true; score = Math.max(score, s - 10) }
-        }
+        score = evalExpr(e, expr)
       }
-
-      if (!match) continue
+      if (score <= 0) continue
 
       // Validation filter
       const validation = context?.getValidationForPath ? context.getValidationForPath(e.path) : 'valid'
