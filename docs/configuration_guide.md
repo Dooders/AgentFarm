@@ -2,6 +2,27 @@
 
 This guide explains how to configure AgentFarm simulations using the YAML-based configuration system. Proper configuration is essential for controlling simulation behavior, agent properties, learning parameters, and analysis settings.
 
+## Configuration Explorer Layout (Advanced Resizable Panels)
+
+The Configuration Explorer UI now supports an advanced, persistent resizable panel layout:
+
+- Horizontal split between navigation (left) and content (right)
+- Nested vertical split inside the right panel (top content, bottom preview)
+- Smooth drag-to-resize with mouse or touch
+- Minimum size constraints and responsive behavior
+- Layout size persistence per area between sessions
+
+Development details:
+
+- Core component: `src/components/Layout/ResizablePanels.tsx`
+- Main layout: `src/components/Layout/DualPanelLayout.tsx`
+- Sizes persist via the store (`layoutSizes`) and keys like `layout:main-horizontal` and `layout:right-vertical`
+
+Tips:
+
+- If panel sizing becomes extreme on ultra-wide monitors, the layout auto-balances to 50/50 for the main split.
+- You can reset persisted layout by clearing the UI preferences (see `clearPersistedState()` in `src/stores/configStore.ts`).
+
 ## Electron Config Explorer (GUI)
 
 The Electron-based Config Explorer provides an interactive way to view and edit configuration files.
@@ -9,10 +30,14 @@ The Electron-based Config Explorer provides an interactive way to view and edit 
 - Open the Explorer from the sidebar button in the Electron app.
 - Use "Open…" to load a configuration, "Save"/"Save As…" to persist changes.
 
-### Grayscale Mode
+### Grayscale Mode and Theme
 
-- Toggle grayscale UI from either the Sidebar or the Config Explorer toolbar.
-- The mode is persisted and will be restored on next launch.
+- The Explorer uses a professional greyscale theme by default via CSS variables in `src/styles/index.css` and Leva overrides in `src/styles/leva-theme.css`.
+- `ThemeProvider` sets `data-theme="custom"` on the root element to activate the Leva greyscale.
+- Toggle additional full-UI grayscale filter with:
+  - In console: `localStorage.setItem('ui:grayscale', 'true'); location.reload()`
+  - Remove: `localStorage.removeItem('ui:grayscale'); location.reload()`
+- Controls are compact: 28px height, subtle borders, high-contrast monochrome focus rings.
 
 ### Keyboard Navigation & Accessibility
 
@@ -538,6 +563,32 @@ farm config create --template resource_study --output my_study.yaml
 # Validate configuration
 farm config validate my_simulation.yaml
 ```
+
+#### Preset System (Electron Config Explorer)
+
+- Presets can be created from the current configuration, listed, searched, applied, and deleted in the GUI.
+- Access the Preset Manager in the right panel under “Presets” or via the toolbar “Presets” button.
+- Apply supports two modes:
+  - Full Apply: merges the full template into the current configuration using a deep merge strategy (arrays are replaced, objects merge recursively).
+  - Partial Apply: select sections (environment, agents, learning, modules, visualization) to merge only those areas.
+- Preset metadata supported: name, description, category. User presets are saved locally via electron-store. System presets are read-only.
+- Overwrite behavior: when saving a preset with an existing name, the system prevents accidental overwrite unless explicitly requested by passing overwrite=true (CLI or API). In the GUI, creating a preset uses non-overwrite by default.
+- Undo/redo: Applying presets records in history, enabling undo/redo.
+
+Keyboard/UX tips:
+- Use the toolbar “Presets” button to scroll to the manager quickly.
+- Search in the Preset Manager to filter by name, description, or category.
+
+#### Search and Filtering (Electron Config Explorer)
+
+- Real-time search across all parameters with fuzzy ranking
+- Scope: keys, values, or both
+- Regex and case sensitivity toggles
+- Filter by parameter type, section, validation status, and modification status
+- Boolean logic in queries: AND, OR, NOT (no parentheses)
+  - Examples: `width AND NOT height:200`, `learning_rate >=0.001`, `width:[50..200]`
+- Search within results toggle to refine an existing result set
+- Saved searches: save, apply, and delete named searches
 
 ## Best Practices
 
