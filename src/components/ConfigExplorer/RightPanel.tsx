@@ -89,23 +89,20 @@ export const RightPanel: React.FC = () => {
   const { announceToScreenReader } = useAccessibility()
   const showComparison = useConfigStore(configSelectors.getShowComparison)
   const compareConfig = useConfigStore(configSelectors.getCompareConfig)
-  const comparisonFilePath = useConfigStore((s: any) => s.comparisonFilePath)
-  const clearComparison = useConfigStore((s: any) => s.clearComparison)
-  const toggleComparison = useConfigStore((s: any) => s.toggleComparison)
-  const setComparison = useConfigStore((s: any) => s.setComparison)
-  const setComparisonPath = useConfigStore((s: any) => s.setComparisonPath)
+  const comparisonFilePath = useConfigStore((s) => s.comparisonFilePath)
+  const clearComparison = useConfigStore((s) => s.clearComparison)
+  const toggleComparison = useConfigStore((s) => s.toggleComparison)
+  const setComparison = useConfigStore((s) => s.setComparison)
+  const setComparisonPath = useConfigStore((s) => s.setComparisonPath)
 
   // File input handling for loading comparison config (JSON for now)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const onChooseFile = () => fileInputRef.current?.click()
   const [comparisonError, setComparisonError] = useState<string | undefined>(undefined)
-  const onFileSelected: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const handleComparisonSelection = async (file: File) => {
     try {
       const text = await file.text()
       const parsed = JSON.parse(text)
-      // Validate parsed comparison config
       const result = await validationService.validateConfig(parsed)
       if (!result.success) {
         setComparison(null)
@@ -118,9 +115,17 @@ export const RightPanel: React.FC = () => {
         setComparisonError(undefined)
         announceToScreenReader('Comparison configuration loaded', 'polite')
       }
-    } catch (err) {
+    } catch {
       setComparisonError('Invalid comparison file: unable to parse JSON')
       announceToScreenReader('Invalid comparison file', 'assertive')
+    }
+  }
+
+  const onFileSelected: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      await handleComparisonSelection(file)
     } finally {
       // reset input to allow re-select same file
       if (fileInputRef.current) fileInputRef.current.value = ''

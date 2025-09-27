@@ -88,9 +88,19 @@ export const LeftPanel: React.FC = () => {
     )
   }
 
+  const containerRef = React.useRef<HTMLDivElement>(null)
+
   return (
     <LeftPanelContainer
-      ref={ref as unknown as React.RefObject<HTMLDivElement>}
+      ref={(node) => {
+        containerRef.current = node as HTMLDivElement | null
+        // Attach to keyboard nav ref if compatible
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const anyRef = ref as any
+        if (anyRef && typeof anyRef === 'object') {
+          anyRef.current = node
+        }
+      }}
       role="navigation"
       aria-label="Configuration sections navigation"
       tabIndex={-1}

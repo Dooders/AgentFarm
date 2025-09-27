@@ -272,17 +272,20 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   toggleComparison: () => {
     const current = get().showComparison
     set({ showComparison: !current })
-    get().persistUIState()
+    const persistUI = get().persistUIState
+    persistUI()
   },
 
   clearComparison: () => {
     set({ compareConfig: null, comparisonFilePath: undefined })
-    get().persistUIState()
+    const persistUI = get().persistUIState
+    persistUI()
   },
 
   setComparisonPath: (path?: string) => {
     set({ comparisonFilePath: path })
-    get().persistUIState()
+    const persistUI = get().persistUIState
+    persistUI()
   },
 
   toggleSection: (section: ConfigSection) => {
