@@ -220,6 +220,11 @@ textarea:focus,
   transition: all 0.2s ease;
 }
 
+/* Disable transitions while dragging */
+.resizable-panels.dragging .panel {
+  transition: none !important;
+}
+
 /* Desktop-focused layout - simplified for desktop use */
 .resizable-panels {
   display: flex;
@@ -247,6 +252,19 @@ textarea:focus,
   justify-content: center;
   user-select: none;
   transition: background-color 0.15s ease;
+}
+
+/* Extend hit area without changing visible size */
+.split-handle::before {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  left: -4px; right: -4px;
+}
+
+.split-handle:focus {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .split-handle:hover {
