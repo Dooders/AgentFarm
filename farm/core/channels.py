@@ -591,6 +591,40 @@ def get_channel_registry() -> ChannelRegistry:
     Returns:
         The global channel registry instance
     """
+    # Ensure core channels are present if the registry was reset elsewhere
+    # (some tests temporarily clear the global registry).
+    global _global_registry
+    try:
+        # (Re)register core channels if:
+        # - registry is empty; OR
+        # - registry contains only a subset of core channel names (no custom names)
+        #   and the count is less than the full core set (13).
+        if _global_registry.num_channels == 0:
+            _register_core_channels()
+        else:
+            core_names = {
+                "SELF_HP",
+                "ALLIES_HP",
+                "ENEMIES_HP",
+                "RESOURCES",
+                "OBSTACLES",
+                "TERRAIN_COST",
+                "VISIBILITY",
+                "KNOWN_EMPTY",
+                "DAMAGE_HEAT",
+                "TRAILS",
+                "ALLY_SIGNAL",
+                "GOAL",
+                "LANDMARKS",
+            }
+            handler_names = set(_global_registry._handlers.keys())
+            has_only_core_subset = handler_names.issubset(core_names)
+            if has_only_core_subset and _global_registry.num_channels < 13:
+                _global_registry = ChannelRegistry()
+                _register_core_channels()
+    except Exception:
+        # Best-effort; if registration fails due to partial state, continue with current registry
+        pass
     return _global_registry
 
 

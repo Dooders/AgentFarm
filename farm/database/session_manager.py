@@ -56,6 +56,13 @@ class SessionManager:
             pool_recycle=1800,
             echo=False,
         )
+        # Ensure schema exists for core models when using SQLite
+        try:
+            from farm.database.models import Base  # type: ignore
+            Base.metadata.create_all(self.engine)
+        except Exception:
+            # Best-effort; repositories or higher-level DB classes may create schema
+            pass
         self.Session = scoped_session(
             sessionmaker(
                 bind=self.engine,

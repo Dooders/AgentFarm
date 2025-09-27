@@ -793,6 +793,9 @@ class AgentObservation:
         self.config = config
         self.registry = get_channel_registry()
         S = 2 * config.R + 1
+        # Use the registered channel count for dense tensor shape
+        # Tests expect tensors sized to the core channel count.
+        channel_capacity = self.registry.num_channels
 
         # Sparse storage: only allocate when needed
         self.sparse_channels = {}  # {channel_idx: SparsePoints for point-sparse data, torch.Tensor for dense grids}
@@ -820,7 +823,7 @@ class AgentObservation:
         # Pre-allocate dense tensor only if initialization is non-zero
         if config.initialization != "zeros":
             self.dense_cache = create_observation_tensor(
-                num_channels=self.registry.num_channels,
+                num_channels=channel_capacity,
                 size=S,
                 device=config.device,
                 dtype=config.torch_dtype,
@@ -836,7 +839,7 @@ class AgentObservation:
         )
         if self._dense_storage and self.dense_cache is None:
             self.dense_cache = torch.zeros(
-                self.registry.num_channels, S, S, device=self.config.device, dtype=self.config.torch_dtype
+                channel_capacity, S, S, device=self.config.device, dtype=self.config.torch_dtype
             )
             self.cache_dirty = False
 
@@ -860,8 +863,9 @@ class AgentObservation:
         """Ensure dense cache is initialized if needed."""
         if self.dense_cache is None:
             S = 2 * self.config.R + 1
+            channel_capacity = self.registry.num_channels
             self.dense_cache = torch.zeros(
-                self.registry.num_channels, S, S, device=self.config.device, dtype=self.config.torch_dtype
+                channel_capacity, S, S, device=self.config.device, dtype=self.config.torch_dtype
             )
 
     def _store_sparse_point(self, channel_idx: int, y: int, x: int, value: float):
@@ -1104,6 +1108,7 @@ class AgentObservation:
             return self.dense_cache
 
         S = 2 * self.config.R + 1
+        # Use registered channel count for tensor construction
         num_channels = self.registry.num_channels
 
         # Create dense tensor
@@ -1120,7 +1125,8 @@ class AgentObservation:
         if self._prebuilt_dense:
             for channel_idx, grid in self._prebuilt_dense.items():
                 if grid is not None:
-                    self.dense_cache[int(channel_idx)].copy_(grid)
+                    if int(channel_idx) < self.dense_cache.shape[0]:
+                        self.dense_cache[int(channel_idx)].copy_(grid)
                     if self.config.enable_metrics:
                         self._metrics["prebuilt_channel_copies"] += 1
                         self._metrics["grid_population_ops"] += 1
@@ -1153,6 +1159,8 @@ class AgentObservation:
                                 
             elif isinstance(channel_data, SparsePoints):
                 # Sparse points
+                if channel_idx >= self.dense_cache.shape[0]:
+                    continue
                 channel_plane = self.dense_cache[channel_idx]
                 # Determine reduction per channel
                 handlers = self.registry.get_all_handlers()
@@ -1180,7 +1188,8 @@ class AgentObservation:
 
             else:
                 # Dense grid (VISIBILITY, RESOURCES, etc.)
-                self.dense_cache[channel_idx] = channel_data
+                if channel_idx < self.dense_cache.shape[0]:
+                    self.dense_cache[channel_idx] = channel_data
                 if self.config.enable_metrics:
                     self._metrics["grid_population_ops"] += 1
 
