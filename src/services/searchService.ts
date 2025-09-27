@@ -1,5 +1,6 @@
 import { SimulationConfigType } from '@/types/config'
 import { SearchQuery, SearchResult, SearchResultItem, ParameterType, SearchSection } from '@/types/search'
+import { time } from '@/utils/perf'
 
 type FlatEntry = {
   path: string
@@ -113,7 +114,7 @@ export const searchService = {
     const filters = query.filters
     const regex = filters.regex && query.text ? new RegExp(query.text, filters.caseSensitive ? '' : 'i') : null
 
-    const entriesAll = flattenConfig(config)
+    const entriesAll = getFlattened(config)
     const entries = baseItems && baseItems.length > 0
       ? entriesAll.filter(e => baseItems.some(b => b.path === e.path))
       : entriesAll
@@ -258,6 +259,13 @@ export const searchService = {
       return 0
     }
 
+    // Attempt query-level caching only when not scoped to baseItems (searchWithin)
+    const cacheKey = baseItems && baseItems.length > 0 ? null : buildQueryKey(query)
+    const cached = cacheKey ? getQueryCache(config).get(cacheKey) : null
+    if (cached) {
+      return cached
+    }
+
     for (const e of entries) {
       // Filter by section
       if (filters.sections && filters.sections.size > 0 && !filters.sections.has(e.section)) continue
@@ -300,7 +308,59 @@ export const searchService = {
 
     items.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
     const end = performance.now ? performance.now() : Date.now()
-    return { query, items, total: items.length, tookMs: Math.round((end as number) - (start as number)) }
+    const result: SearchResult = { query, items, total: items.length, tookMs: Math.round((end as number) - (start as number)) }
+    if (cacheKey) {
+      const qc = getQueryCache(config)
+      setLimited(qc, cacheKey, result, 50)
+    }
+    return result
   }
+}
+// ---------------------------------------------
+// Caching & Utilities
+// ---------------------------------------------
+
+const flattenCache = new WeakMap<SimulationConfigType, FlatEntry[]>()
+const queryCache = new WeakMap<SimulationConfigType, Map<string, SearchResult>>()
+
+function getFlattened(config: SimulationConfigType): FlatEntry[] {
+  const hit = flattenCache.get(config)
+  if (hit) return hit
+  const computed = time('search.flatten', () => flattenConfig(config))
+  flattenCache.set(config, computed)
+  // Invalidate any stale query cache for this config reference
+  if (!queryCache.has(config)) queryCache.set(config, new Map())
+  return computed
+}
+
+function getQueryCache(config: SimulationConfigType): Map<string, SearchResult> {
+  let m = queryCache.get(config)
+  if (!m) { m = new Map(); queryCache.set(config, m) }
+  return m
+}
+
+function buildQueryKey(q: SearchQuery): string {
+  const f = q.filters
+  const types = f.parameterTypes ? Array.from(f.parameterTypes).sort().join(',') : 'null'
+  const sections = f.sections ? Array.from(f.sections).sort().join(',') : 'null'
+  return [
+    q.text || '',
+    f.scope,
+    types,
+    sections,
+    f.validationStatus,
+    f.modificationStatus,
+    f.regex ? 'r1' : 'r0',
+    f.caseSensitive ? 'c1' : 'c0',
+    f.fuzzy ? 'f1' : 'f0'
+  ].join('|')
+}
+
+function setLimited<K, V>(m: Map<K, V>, k: K, v: V, maxSize: number): void {
+  if (m.size >= maxSize) {
+    const first = m.keys().next()
+    if (!first.done) m.delete(first.value)
+  }
+  m.set(k, v)
 }
 
