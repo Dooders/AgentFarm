@@ -591,18 +591,17 @@ def get_channel_registry() -> ChannelRegistry:
     Returns:
         The global channel registry instance
     """
-    # Ensure core channels are present if the registry was reset elsewhere
-    # (some tests temporarily clear the global registry).
+    # Ensure core channels are present if the registry was reset (empty).
+    # Some tests temporarily clear the global registry; we only restore when empty
+    # to avoid clobbering explicit indices or custom handlers.
     global _global_registry
     try:
-        # (Re)register core channels if:
-        # - registry is empty; OR
-        # - registry contains only a subset of core channel names (no custom names)
-        #   and the count is less than the full core set (13).
         if _global_registry.num_channels == 0:
             _register_core_channels()
         else:
-            core_names = {
+            # If registry has only a subset of core channels (no custom names),
+            # fill in any missing core channels at their canonical indices.
+            core_order = [
                 "SELF_HP",
                 "ALLIES_HP",
                 "ENEMIES_HP",
@@ -616,14 +615,47 @@ def get_channel_registry() -> ChannelRegistry:
                 "ALLY_SIGNAL",
                 "GOAL",
                 "LANDMARKS",
-            }
+            ]
+            core_names = set(core_order)
             handler_names = set(_global_registry._handlers.keys())
             has_only_core_subset = handler_names.issubset(core_names)
-            if has_only_core_subset and _global_registry.num_channels < 13:
-                _global_registry = ChannelRegistry()
-                _register_core_channels()
+            if has_only_core_subset and _global_registry.num_channels < len(core_order):
+                # Register only missing cores with fixed indices to avoid disturbing existing ones
+                for idx, name in enumerate(core_order):
+                    if name in handler_names:
+                        continue
+                    try:
+                        if name == "SELF_HP":
+                            register_channel(SelfHPHandler(), index=idx)
+                        elif name == "ALLIES_HP":
+                            register_channel(AlliesHPHandler(), index=idx)
+                        elif name == "ENEMIES_HP":
+                            register_channel(EnemiesHPHandler(), index=idx)
+                        elif name == "RESOURCES":
+                            register_channel(WorldLayerHandler("RESOURCES", "RESOURCES"), index=idx)
+                        elif name == "OBSTACLES":
+                            register_channel(WorldLayerHandler("OBSTACLES", "OBSTACLES"), index=idx)
+                        elif name == "TERRAIN_COST":
+                            register_channel(WorldLayerHandler("TERRAIN_COST", "TERRAIN_COST"), index=idx)
+                        elif name == "VISIBILITY":
+                            register_channel(VisibilityHandler(), index=idx)
+                        elif name == "KNOWN_EMPTY":
+                            register_channel(KnownEmptyHandler(), index=idx)
+                        elif name == "DAMAGE_HEAT":
+                            register_channel(TransientEventHandler("DAMAGE_HEAT", "recent_damage_world", "gamma_dmg"), index=idx)
+                        elif name == "TRAILS":
+                            register_channel(TransientEventHandler("TRAILS", "trails_world_points", "gamma_trail"), index=idx)
+                        elif name == "ALLY_SIGNAL":
+                            register_channel(TransientEventHandler("ALLY_SIGNAL", "ally_signals_world", "gamma_sig"), index=idx)
+                        elif name == "GOAL":
+                            register_channel(GoalHandler(), index=idx)
+                        elif name == "LANDMARKS":
+                            register_channel(LandmarkHandler(), index=idx)
+                    except ValueError:
+                        # If already registered or index conflict, skip
+                        continue
     except Exception:
-        # Best-effort; if registration fails due to partial state, continue with current registry
+        # Best-effort; if restoration fails due to partial state, continue with current registry
         pass
     return _global_registry
 
