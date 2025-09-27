@@ -11,8 +11,8 @@ const Bar = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 6px 12px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   border-top: 1px solid var(--border-subtle);
   background: var(--background-secondary);
   font-size: 12px;
@@ -22,17 +22,17 @@ const Bar = styled.div`
 const Section = styled.div`
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-3);
   flex-wrap: wrap;
 `
 
 const Button = styled.button`
-  padding: 4px 8px;
+  padding: var(--space-1) var(--space-2);
   font-size: 12px;
   background: var(--background-tertiary);
   color: var(--text-primary);
   border: 1px solid var(--border-subtle);
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   &:disabled {
     opacity: 0.5;
@@ -126,7 +126,7 @@ export const StatusBar: React.FC = () => {
   }, [validateConfig])
 
   const toggleAuto = useCallback(() => {
-    setAutoValidate((prev) => {
+    setAutoValidate((prev: boolean) => {
       const next = !prev
       try { localStorage.setItem('ui:auto-validate', next ? '1' : '0') } catch (err) {
         console.error('Failed to write auto-validate preference:', err)
