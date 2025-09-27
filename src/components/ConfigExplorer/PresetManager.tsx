@@ -93,7 +93,7 @@ export const PresetManager: React.FC = () => {
   const templates = useConfigStore((s) => s.templates)
   const listTemplates = useConfigStore((s) => (s as any).listTemplates)
   const loadTemplate = useConfigStore((s) => s.loadTemplate)
-  const applyTemplatePartial = useConfigStore((s) => (s as any).applyTemplatePartial)
+  const applyTemplatePartial = useConfigStore((s) => s.applyTemplatePartial)
   const saveTemplate = useConfigStore((s) => s.saveTemplate)
   const deleteTemplate = useConfigStore((s) => s.deleteTemplate)
 
@@ -101,7 +101,7 @@ export const PresetManager: React.FC = () => {
   const [isCreating, setIsCreating] = useState(false)
   const [newName, setNewName] = useState('')
   const [newDescription, setNewDescription] = useState('')
-  const [partial, setPartial] = useState<{ environment: boolean; agents: boolean; learning: boolean; modules: boolean; visualization: boolean }>({ environment: false, agents: false, learning: false, modules: false, visualization: false })
+  const [partial, setPartial] = useState<Record<'environment'|'agents'|'learning'|'modules'|'visualization', boolean>>({ environment: false, agents: false, learning: false, modules: false, visualization: false })
 
   useEffect(() => {
     void listTemplates({ includeSystem: true, includeUser: true })
@@ -189,7 +189,7 @@ export const PresetManager: React.FC = () => {
                 <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Partial:</span>
                 {(['environment','agents','learning','modules','visualization'] as const).map((k) => (
                   <label key={k} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-secondary)' }}>
-                    <input type="checkbox" checked={(partial as any)[k]} onChange={(e) => setPartial(p => ({ ...p, [k]: e.target.checked }))} />
+                    <input type="checkbox" checked={partial[k]} onChange={(e) => setPartial(p => ({ ...p, [k]: e.target.checked }))} />
                     {k}
                   </label>
                 ))}

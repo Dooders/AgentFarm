@@ -145,7 +145,7 @@ const defaultConfig: SimulationConfigType = {
   }
 }
 
-export const useConfigStore = create<ConfigStore>((set: any, get: any) => ({
+export const useConfigStore = create<ConfigStore>((set, get) => ({
   config: defaultConfig,
   originalConfig: defaultConfig,
   isDirty: false,
@@ -655,33 +655,32 @@ export const useConfigStore = create<ConfigStore>((set: any, get: any) => ({
       for (const section of sections) {
         switch (section) {
           case 'environment':
-            ;(partial as any).width = templateConfig.width
-            ;(partial as any).height = templateConfig.height
-            ;(partial as any).position_discretization_method = templateConfig.position_discretization_method
-            ;(partial as any).use_bilinear_interpolation = templateConfig.use_bilinear_interpolation
-            ;(partial as any).visualization = templateConfig.visualization
+            partial.width = templateConfig.width
+            partial.height = templateConfig.height
+            partial.position_discretization_method = templateConfig.position_discretization_method
+            partial.use_bilinear_interpolation = templateConfig.use_bilinear_interpolation
             break
           case 'agents':
-            ;(partial as any).system_agents = templateConfig.system_agents
-            ;(partial as any).independent_agents = templateConfig.independent_agents
-            ;(partial as any).control_agents = templateConfig.control_agents
-            ;(partial as any).agent_type_ratios = templateConfig.agent_type_ratios
-            ;(partial as any).agent_parameters = templateConfig.agent_parameters
+            partial.system_agents = templateConfig.system_agents
+            partial.independent_agents = templateConfig.independent_agents
+            partial.control_agents = templateConfig.control_agents
+            partial.agent_type_ratios = templateConfig.agent_type_ratios
+            partial.agent_parameters = templateConfig.agent_parameters
             break
           case 'learning':
-            ;(partial as any).learning_rate = templateConfig.learning_rate
-            ;(partial as any).epsilon_start = templateConfig.epsilon_start
-            ;(partial as any).epsilon_min = templateConfig.epsilon_min
-            ;(partial as any).epsilon_decay = templateConfig.epsilon_decay
+            partial.learning_rate = templateConfig.learning_rate
+            partial.epsilon_start = templateConfig.epsilon_start
+            partial.epsilon_min = templateConfig.epsilon_min
+            partial.epsilon_decay = templateConfig.epsilon_decay
             break
           case 'modules':
-            ;(partial as any).gather_parameters = templateConfig.gather_parameters
-            ;(partial as any).share_parameters = templateConfig.share_parameters
-            ;(partial as any).move_parameters = templateConfig.move_parameters
-            ;(partial as any).attack_parameters = templateConfig.attack_parameters
+            partial.gather_parameters = templateConfig.gather_parameters
+            partial.share_parameters = templateConfig.share_parameters
+            partial.move_parameters = templateConfig.move_parameters
+            partial.attack_parameters = templateConfig.attack_parameters
             break
           case 'visualization':
-            ;(partial as any).visualization = templateConfig.visualization
+            partial.visualization = templateConfig.visualization
             break
         }
       }
