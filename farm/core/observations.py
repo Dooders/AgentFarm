@@ -1125,8 +1125,8 @@ class AgentObservation:
         if self._prebuilt_dense:
             for channel_idx, grid in self._prebuilt_dense.items():
                 if grid is not None:
-                    if int(channel_idx) < self.dense_cache.shape[0]:
-                        self.dense_cache[int(channel_idx)].copy_(grid)
+                    if channel_idx < self.dense_cache.shape[0]:
+                        self.dense_cache[channel_idx].copy_(grid)
                     if self.config.enable_metrics:
                         self._metrics["prebuilt_channel_copies"] += 1
                         self._metrics["grid_population_ops"] += 1
@@ -1149,7 +1149,7 @@ class AgentObservation:
                         vals_t = torch.as_tensor(vals, device=self.config.device, dtype=self.config.torch_dtype)
                         # Clamp valid indices
                         mask = (ys_t >= 0) & (ys_t < S) & (xs_t >= 0) & (xs_t < S)
-                        if mask.any().item():
+                        if mask.any().item() and channel_idx < self.dense_cache.shape[0]:
                             ys_t = ys_t[mask]
                             xs_t = xs_t[mask]
                             vals_t = vals_t[mask]
