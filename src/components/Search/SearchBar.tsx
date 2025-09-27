@@ -55,11 +55,17 @@ export const SearchBar: React.FC<{ autoFocusId?: string }> = ({ autoFocusId = 't
   const runSearch = useSearchStore((s) => s.runSearch)
   const isSearching = useSearchStore((s) => s.isSearching)
   const searchWithin = useSearchStore((s) => s.filters.searchWithin)
+  const registerSearchFocus = useSearchStore((s) => s.registerSearchFocus)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (autoFocusId) inputRef.current?.setAttribute('id', autoFocusId)
   }, [autoFocusId])
+
+  useEffect(() => {
+    registerSearchFocus(() => inputRef.current?.focus())
+    return () => registerSearchFocus(undefined)
+  }, [registerSearchFocus])
 
   // Debounce typing
   const [local, setLocal] = useState(query)

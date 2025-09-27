@@ -6,6 +6,7 @@ import type { ConfigStore } from '@/types/config'
 import { configSelectors, useValidationStore, validationSelectors } from '@/stores/selectors'
 import { ipcService } from '@/services/ipcService'
 import { toYaml } from '@/utils/yaml'
+import { useSearchStore } from '@/stores/searchStore'
 // Search UI is integrated in Right Panel; toolbar provides jump + shortcut
 
 const Bar = styled.div`
@@ -212,13 +213,17 @@ export const Toolbar: React.FC = () => {
 
   // Keyboard shortcuts
   useEffect(() => {
+    const focusSearch = () => {
+      const fn = useSearchStore.getState().focusSearchInput
+      if (fn) fn()
+    }
     const shortcutMap: Record<string, (e: KeyboardEvent) => void> = {
       'mod+o': (e) => { e.preventDefault(); doOpen() },
       'mod+s': (e) => { e.preventDefault(); doSave() },
       'mod+shift+s': (e) => { e.preventDefault(); doSaveAs() },
       'mod+g': (e) => { e.preventDefault(); toggleGrayscale() },
       'mod+y': (e) => { e.preventDefault(); doExportYaml() },
-      'mod+f': (e) => { e.preventDefault(); const el = document.getElementById('toolbar-search'); if (el) (el as HTMLInputElement).focus() }
+      'mod+f': (e) => { e.preventDefault(); focusSearch() }
     }
     const onKey = (e: KeyboardEvent) => {
       const isMod = e.ctrlKey || e.metaKey
