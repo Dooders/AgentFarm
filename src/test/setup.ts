@@ -240,7 +240,7 @@ const mockIpcService = {
 
 // Partially mock ipcService to preserve class exports
 vi.mock('@/services/ipcService', async (importOriginal) => {
-  const actual = await importOriginal<any>()
+  const actual = await importOriginal<typeof import('@/services/ipcService')>()
   return {
     ...actual,
     ipcService: mockIpcService,
