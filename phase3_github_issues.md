@@ -46,6 +46,13 @@ Build the comparison panel system that allows users to load and compare two diff
 - ✅ Performance remains good with large configurations
 - ✅ Error handling works for invalid files
 
+Implementation Notes (Sept 2025):
+- Added comparison state/actions in `src/stores/configStore.ts` and types in `src/types/config.ts` (`showComparison`, `comparisonFilePath`, `toggleComparison`, `clearComparison`, `setComparisonPath`, `setComparison`).
+- Created read-only `ComparisonPanel` in `src/components/ConfigExplorer/ComparisonPanel.tsx`.
+- Integrated comparison controls into `RightPanel` with toggle, file load (JSON), Zod validation, error messaging, and file path display.
+- Added synchronized scrolling between left control area (`left-scroll-area`) and `comparison-scroll-area`.
+- Resizing persists via `ResizablePanels` and store; no changes required.
+
 **Dependencies:** Phase 2 completion
 **Estimated Time:** 3-4 days
 

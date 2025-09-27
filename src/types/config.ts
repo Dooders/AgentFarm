@@ -116,6 +116,7 @@ export interface ConfigState {
   isDirty: boolean
   compareConfig: SimulationConfigType | null
   showComparison: boolean
+  comparisonFilePath?: string
   selectedSection: ConfigSection
   expandedFolders: Set<ConfigSection>
   validationErrors: ValidationError[]
@@ -149,6 +150,7 @@ export interface ConfigActions {
   setComparison: (config: SimulationConfigType | null) => void
   toggleComparison: () => void
   clearComparison: () => void
+  setComparisonPath: (path?: string) => void
 
   // Navigation actions
   setSelectedSection: (section: ConfigSection) => void
