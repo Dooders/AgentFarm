@@ -131,9 +131,16 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ com
     ]
   }, [compareConfig])
 
-  // Display helper: consistently stringify values for diff display
+  // Display helper: pretty-print objects; single-line for primitives
   const stringify = (v: unknown) => {
-    try { return JSON.stringify(v, null, 2) } catch { return String(v) }
+    try {
+      if (v !== null && typeof v === 'object') {
+        return JSON.stringify(v, null, 2)
+      }
+      return JSON.stringify(v)
+    } catch {
+      return String(v)
+    }
   }
 
   const addedCount = diff ? Object.keys(diff.added).length : 0
