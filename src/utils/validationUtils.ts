@@ -9,7 +9,6 @@ import {
   type AgentParameterType,
   type ModuleParameterType,
   type VisualizationConfigType,
-  type AgentTypeRatiosType
 } from '@/types/zodSchemas'
 import { ValidationError, ValidationResult } from '@/types/validation'
 
@@ -42,13 +41,14 @@ function getCustomErrorMessage(error: z.ZodIssue): string {
       }
       return `Invalid type. Expected ${error.expected}, received ${error.received}.`
 
-    case 'invalid_enum_value':
+    case 'invalid_enum_value': {
       // Use custom message if provided, otherwise use generic message
       if (message && message !== 'Invalid enum value') {
         return message
       }
       const allowedValues = error.options?.join(', ') || 'unknown'
       return `Invalid value. Allowed values are: ${allowedValues}`
+    }
 
     case 'too_small':
       if (error.type === 'number') {
