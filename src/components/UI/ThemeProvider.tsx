@@ -12,7 +12,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     // Optional global grayscale toggle based on persisted preference
     try {
       const grayscalePref = localStorage.getItem('ui:grayscale')
-      if (grayscalePref === 'true') {
+      if (grayscalePref === 'true' || grayscalePref === '1') {
         document.body.classList.add('grayscale')
       } else {
         document.body.classList.remove('grayscale')

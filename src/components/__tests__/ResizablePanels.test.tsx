@@ -8,11 +8,10 @@ const MockRightPanel = () => <div>Right Panel Content</div>
 describe('ResizablePanels', () => {
   it('renders both panels', () => {
     render(
-      <ResizablePanels
-        leftPanel={<MockLeftPanel />}
-        rightPanel={<MockRightPanel />}
-        defaultSplit={0.5}
-      />
+      <ResizablePanels direction="horizontal" defaultSizes={[50, 50]}>
+        <MockLeftPanel />
+        <MockRightPanel />
+      </ResizablePanels>
     )
 
     expect(screen.getByText('Left Panel Content')).toBeInTheDocument()
@@ -21,11 +20,10 @@ describe('ResizablePanels', () => {
 
   it('sets initial split position correctly', () => {
     const { container } = render(
-      <ResizablePanels
-        leftPanel={<MockLeftPanel />}
-        rightPanel={<MockRightPanel />}
-        defaultSplit={0.5}
-      />
+      <ResizablePanels direction="horizontal" defaultSizes={[50, 50]}>
+        <MockLeftPanel />
+        <MockRightPanel />
+      </ResizablePanels>
     )
 
     const leftPanel = container.querySelector('.left-panel')
@@ -34,11 +32,10 @@ describe('ResizablePanels', () => {
 
   it('has draggable split handle', () => {
     const { container } = render(
-      <ResizablePanels
-        leftPanel={<MockLeftPanel />}
-        rightPanel={<MockRightPanel />}
-        defaultSplit={0.5}
-      />
+      <ResizablePanels direction="horizontal" defaultSizes={[50, 50]}>
+        <MockLeftPanel />
+        <MockRightPanel />
+      </ResizablePanels>
     )
 
     const handle = container.querySelector('.split-handle')
@@ -48,11 +45,10 @@ describe('ResizablePanels', () => {
 
   it('handles mouse events for resizing', () => {
     const { container } = render(
-      <ResizablePanels
-        leftPanel={<MockLeftPanel />}
-        rightPanel={<MockRightPanel />}
-        defaultSplit={0.5}
-      />
+      <ResizablePanels direction="horizontal" defaultSizes={[50, 50]}>
+        <MockLeftPanel />
+        <MockRightPanel />
+      </ResizablePanels>
     )
 
     const handle = container.querySelector('.split-handle')
@@ -74,7 +70,7 @@ describe('ResizablePanels', () => {
     expect(document.body.style.cursor).toBe('')
   })
 
-  it('clamps split position between 0.2 and 0.8', () => {
+  it('clamps split position between minimum sizes', () => {
     // This test would verify the clamping logic in handleMouseMove
     // In a real scenario, we would test edge cases
     expect(true).toBe(true) // Placeholder for actual clamping test

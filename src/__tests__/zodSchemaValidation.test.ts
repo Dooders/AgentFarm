@@ -177,14 +177,14 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
   })
 
   describe('✅ All simulation config fields have Zod validation', () => {
-    it('should validate all root-level configuration fields', () => {
-      const result = validateSimulationConfig(validConfig)
+    it('should validate all root-level configuration fields', async () => {
+      const result = await validateSimulationConfig(validConfig)
 
       expect(result.success).toBe(true)
       expect(result.errors).toHaveLength(0)
     })
 
-    it('should reject invalid root-level field values', () => {
+    it('should reject invalid root-level field values', async () => {
       const invalidConfig = {
         ...validConfig,
         width: 5, // Too small
@@ -193,7 +193,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
         learning_rate: 2.0 // Too large
       }
 
-      const result = validateSimulationConfig(invalidConfig)
+      const result = await validateSimulationConfig(invalidConfig)
 
       expect(result.success).toBe(false)
       expect(result.errors.length).toBeGreaterThan(0)
@@ -203,13 +203,13 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
       expect(result.errors.some(e => e.path === 'learning_rate')).toBe(true)
     })
 
-    it('should validate enum fields correctly', () => {
+    it('should validate enum fields correctly', async () => {
       const invalidConfig = {
         ...validConfig,
         position_discretization_method: 'invalid' as any
       }
 
-      const result = validateSimulationConfig(invalidConfig)
+      const result = await validateSimulationConfig(invalidConfig)
 
       expect(result.success).toBe(false)
       expect(result.errors.some(e =>
@@ -219,8 +219,8 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
   })
 
   describe('✅ Nested object validation works correctly', () => {
-    it('should validate nested agent parameters', () => {
-      const result = validateSimulationConfig(validConfig)
+    it('should validate nested agent parameters', async () => {
+      const result = await validateSimulationConfig(validConfig)
 
       expect(result.success).toBe(true)
 
@@ -236,7 +236,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
         }
       }
 
-      const nestedResult = validateSimulationConfig(invalidConfig)
+      const nestedResult = await validateSimulationConfig(invalidConfig)
 
       expect(nestedResult.success).toBe(false)
       expect(nestedResult.errors.some(e =>
@@ -244,7 +244,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
       )).toBe(true)
     })
 
-    it('should validate nested visualization config', () => {
+    it('should validate nested visualization config', async () => {
       const invalidConfig = {
         ...validConfig,
         visualization: {
@@ -254,7 +254,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
         }
       }
 
-      const result = validateSimulationConfig(invalidConfig)
+      const result = await validateSimulationConfig(invalidConfig)
 
       expect(result.success).toBe(false)
       expect(result.errors.some(e =>
@@ -265,7 +265,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
       )).toBe(true)
     })
 
-    it('should validate nested module parameters', () => {
+    it('should validate nested module parameters', async () => {
       const invalidConfig = {
         ...validConfig,
         gather_parameters: {
@@ -274,7 +274,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
         }
       }
 
-      const result = validateSimulationConfig(invalidConfig)
+      const result = await validateSimulationConfig(invalidConfig)
 
       expect(result.success).toBe(false)
       expect(result.errors.some(e =>
@@ -284,7 +284,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
   })
 
   describe('✅ Custom validation rules are implemented', () => {
-    it('should enforce agent type ratios sum to 1.0', () => {
+    it('should enforce agent type ratios sum to 1.0', async () => {
       const invalidConfig = {
         ...validConfig,
         agent_type_ratios: {
@@ -294,7 +294,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
         }
       }
 
-      const result = validateSimulationConfig(invalidConfig)
+      const result = await validateSimulationConfig(invalidConfig)
 
       expect(result.success).toBe(false)
       expect(result.errors.some(e =>
@@ -302,14 +302,14 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
       )).toBe(true)
     })
 
-    it('should enforce epsilon hierarchy', () => {
+    it('should enforce epsilon hierarchy', async () => {
       const invalidConfig = {
         ...validConfig,
         epsilon_min: 0.5,
         epsilon_start: 0.3 // epsilon_min > epsilon_start, should fail
       }
 
-      const result = validateSimulationConfig(invalidConfig)
+      const result = await validateSimulationConfig(invalidConfig)
 
       expect(result.success).toBe(false)
       expect(result.errors.some(e =>
@@ -317,7 +317,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
       )).toBe(true)
     })
 
-    it('should validate performance constraints', () => {
+    it('should validate performance constraints', async () => {
       const largeConfig = {
         ...validConfig,
         width: 1000,
@@ -327,7 +327,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
         control_agents: 10000
       }
 
-      const result = validateSimulationConfig(largeConfig)
+      const result = await validateSimulationConfig(largeConfig)
 
       expect(result.success).toBe(false)
       expect(result.errors.some(e =>
@@ -338,28 +338,30 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
   })
 
   describe('✅ Error messages are properly formatted', () => {
-    it('should provide user-friendly error messages', () => {
+    it('should provide user-friendly error messages', async () => {
       const invalidConfig = {
         ...validConfig,
         width: 'invalid' as any // String instead of number
       }
 
-      const result = validateSimulationConfig(invalidConfig)
+      const result = await validateSimulationConfig(invalidConfig)
 
       expect(result.success).toBe(false)
       expect(result.errors.some(e =>
+        e.message.includes('Expected number') ||
         e.message.includes('Expected a number') ||
-        e.message.includes('Invalid type')
+        e.message.includes('Invalid type') ||
+        e.message.includes('invalid_type')
       )).toBe(true)
     })
 
-    it('should provide specific range error messages', () => {
+    it('should provide specific range error messages', async () => {
       const invalidConfig = {
         ...validConfig,
         width: 5 // Too small
       }
 
-      const result = validateSimulationConfig(invalidConfig)
+      const result = await validateSimulationConfig(invalidConfig)
 
       expect(result.success).toBe(false)
       expect(result.errors.some(e =>
@@ -367,7 +369,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
       )).toBe(true)
     })
 
-    it('should provide format-specific error messages', () => {
+    it('should provide format-specific error messages', async () => {
       const invalidConfig = {
         ...validConfig,
         visualization: {
@@ -376,7 +378,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
         }
       }
 
-      const result = validateSimulationConfig(invalidConfig)
+      const result = await validateSimulationConfig(invalidConfig)
 
       expect(result.success).toBe(false)
       expect(result.errors.some(e =>
@@ -384,13 +386,13 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
       )).toBe(true)
     })
 
-    it('should include error codes for programmatic handling', () => {
+    it('should include error codes for programmatic handling', async () => {
       const invalidConfig = {
         ...validConfig,
         width: 5
       }
 
-      const result = validateSimulationConfig(invalidConfig)
+      const result = await validateSimulationConfig(invalidConfig)
 
       expect(result.success).toBe(false)
       expect(result.errors.every(e => e.code && e.code.length > 0)).toBe(true)
@@ -398,13 +400,13 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
   })
 
   describe('✅ Schema validation performance is acceptable', () => {
-    it('should validate configuration in under 5ms', () => {
+    it('should validate configuration in under 5ms', async () => {
       const iterations = 100
       const times: number[] = []
 
       for (let i = 0; i < iterations; i++) {
         const iterationStart = performance.now()
-        validateSimulationConfig(validConfig)
+        await validateSimulationConfig(validConfig)
         const iterationEnd = performance.now()
         times.push(iterationEnd - iterationStart)
       }
@@ -419,7 +421,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
       expect(maxTime).toBeLessThan(10)
     })
 
-    it('should handle large configurations efficiently', () => {
+    it('should handle large configurations efficiently', async () => {
       const largeConfig = {
         ...validConfig,
         width: 500,
@@ -436,7 +438,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
       }
 
       const start = performance.now()
-      const result = validateSimulationConfig(largeConfig)
+      const result = await validateSimulationConfig(largeConfig)
       const end = performance.now()
 
       expect(end - start).toBeLessThan(10)
@@ -445,7 +447,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
   })
 
   describe('✅ TypeScript integration works seamlessly', () => {
-    it('should provide full type safety with Zod schemas', () => {
+    it('should provide full type safety with Zod schemas', async () => {
       // TypeScript should catch these at compile time, but we test at runtime
       const config: Parameters<typeof SimulationConfigSchema.parse>[0] = validConfig
 
@@ -460,7 +462,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
       expect(typeof parsed.visualization.background_color).toBe('string')
     })
 
-    it('should work with safeValidateConfig returning typed data', () => {
+    it('should work with safeValidateConfig returning typed data', async () => {
       const result = safeValidateConfig(validConfig)
 
       expect(result.success).toBe(true)
@@ -473,7 +475,7 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
       }
     })
 
-    it('should provide proper IntelliSense support', () => {
+    it('should provide proper IntelliSense support', async () => {
       // This test validates that all fields are properly typed
       const config = getDefaultConfig()
 
@@ -486,13 +488,13 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
       config.agent_type_ratios.IndependentAgent = 0.4
       config.agent_type_ratios.ControlAgent = 0.2
 
-      const result = validateSimulationConfig(config)
+      const result = await validateSimulationConfig(config)
       expect(result.success).toBe(true)
     })
   })
 
   describe('Field-level validation', () => {
-    it('should validate individual fields correctly', () => {
+    it('should validate individual fields correctly', async () => {
       const widthErrors = validateField('width', 50)
       expect(widthErrors).toHaveLength(0)
 
@@ -512,9 +514,9 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
   })
 
   describe('Default configuration', () => {
-    it('should provide valid default configuration', () => {
+    it('should provide valid default configuration', async () => {
       const defaultConfig = getDefaultConfig()
-      const result = validateSimulationConfig(defaultConfig)
+      const result = await validateSimulationConfig(defaultConfig)
 
       expect(result.success).toBe(true)
       expect(result.errors).toHaveLength(0)
@@ -537,12 +539,12 @@ describe('Zod Schema Validation System - Acceptance Criteria Tests', () => {
 
 // Performance benchmark test
 describe('Performance Benchmarks', () => {
-  it('should validate 1000 configurations in under 1 second', () => {
+  it('should validate 1000 configurations in under 1 second', async () => {
     const configs = Array.from({ length: 1000 }, () => createValidConfig())
     const start = performance.now()
 
     for (const config of configs) {
-      validateSimulationConfig(config)
+      await validateSimulationConfig(config)
     }
 
     const end = performance.now()

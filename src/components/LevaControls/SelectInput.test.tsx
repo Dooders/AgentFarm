@@ -39,7 +39,7 @@ describe('SelectInput', () => {
       />
     )
 
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'b' } })
+    fireEvent.change(screen.getByRole('combobox'), { target: { value: '1' } })
     expect(onChange).toHaveBeenCalledWith('b')
   })
 })

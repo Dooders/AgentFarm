@@ -5,10 +5,13 @@ import { useValidationStore } from '../validationStore'
 
 describe('ConfigStore', () => {
   beforeEach(() => {
-    // Reset the store before each test
+    // Reset the stores before each test
     useConfigStore.getState().config = useConfigStore.getState().originalConfig
     useConfigStore.getState().isDirty = false
     useConfigStore.getState().validationErrors = []
+    // Reset validation store
+    useValidationStore.getState().clearErrors()
+    useValidationStore.getState().clearWarnings()
   })
 
   it('initializes with default config', () => {
@@ -66,19 +69,23 @@ describe('ConfigStore', () => {
     expect(result.current.expandedFolders.has('agent_parameters')).toBe(true)
   })
 
-  it('validates configuration and sets errors', () => {
+  it('validates configuration and sets errors', async () => {
     const { result } = renderHook(() => useConfigStore())
-    const validationStore = renderHook(() => useValidationStore())
 
     // Set invalid width
     act(() => {
       result.current.updateConfig('width', 2000) // Too large
-      result.current.validateConfig()
+    })
+
+    // Validate config
+    await act(async () => {
+      await result.current.validateConfig()
     })
 
     // Check that validation errors are in the validation store
-    expect(validationStore.result.current.errors.length).toBeGreaterThan(0)
-    expect(validationStore.result.current.errors[0].path).toBe('width')
+    const validationState = useValidationStore.getState()
+    expect(validationState.errors.length).toBeGreaterThan(0)
+    expect(validationState.errors[0].path).toBe('width')
   })
 
   it('loads config and resets state', async () => {

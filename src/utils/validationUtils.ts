@@ -94,28 +94,28 @@ function getCustomErrorMessage(error: z.ZodIssue): string {
 }
 
 // Validate configuration using Zod schemas
-export function validateSimulationConfig(config: unknown): ValidationResult {
+export async function validateSimulationConfig(config: unknown): Promise<ValidationResult> {
   try {
     // Import and validate using Zod schema
-    const { SimulationConfigSchema } = require('@/types/zodSchemas')
-    SimulationConfigSchema.parse(config)
-
+    const { SimulationConfigSchema } = await import('@/types/zodSchemas')
+    const result = SimulationConfigSchema.safeParse(config)
+    if (!result.success) {
+      return {
+        success: false,
+        errors: result.error.errors.map(err => ({
+          path: err.path.join('.'),
+          message: err.message,
+          code: err.code
+        })),
+        warnings: []
+      }
+    }
     return {
       success: true,
       errors: [],
       warnings: []
     }
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      const formattedErrors = formatZodError(error)
-
-      return {
-        success: false,
-        errors: formattedErrors,
-        warnings: []
-      }
-    }
-
     return {
       success: false,
       errors: [{

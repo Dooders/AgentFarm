@@ -149,8 +149,12 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   config: defaultConfig,
   originalConfig: defaultConfig,
   isDirty: false,
+  currentFilePath: undefined,
+  lastSaveTime: undefined,
+  lastLoadTime: undefined,
   compareConfig: null,
   showComparison: false,
+  comparisonFilePath: undefined,
   selectedSection: 'environment',
   expandedFolders: new Set(['environment', 'agents', 'learning', 'visualization']),
   validationErrors: [],
@@ -166,6 +170,8 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
   // Layout state - default to 50/50 split for balanced desktop experience
   leftPanelWidth: 0.5,
   rightPanelWidth: 0.5,
+  // Arbitrary layout sizes persistence map (percentages per layout key)
+  layoutSizes: {},
 
   updateConfig: (path: string, value: any) => {
     const currentConfig = get().config
@@ -213,6 +219,8 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
         config: result.config,
         originalConfig: result.config,
         isDirty: false,
+        currentFilePath: result.filePath || filePath,
+        lastLoadTime: Date.now(),
         validationErrors: [],
         history: [{
           id: 'loaded',
@@ -232,12 +240,47 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     }
   },
 
+  // Browser-friendly open from raw content
+  openConfigFromContent: async (content: string, format: 'json' | 'yaml' = 'json') => {
+    try {
+      let parsed: SimulationConfigType
+      if (format === 'json') {
+        parsed = JSON.parse(content) as SimulationConfigType
+      } else {
+        // Minimal YAML support not implemented; expect pre-parsed in future
+        throw new Error('YAML open not supported in browser mode')
+      }
+
+      set({
+        config: parsed,
+        originalConfig: parsed,
+        isDirty: false,
+        currentFilePath: undefined,
+        lastLoadTime: Date.now(),
+        validationErrors: [],
+        history: [{
+          id: 'loaded',
+          config: parsed,
+          timestamp: Date.now(),
+          action: 'load',
+          description: 'Configuration loaded from content'
+        }],
+        historyIndex: 0
+      })
+
+      await get().validateConfig()
+    } catch (error) {
+      console.error('Failed to open config from content:', error)
+      throw error
+    }
+  },
+
   saveConfig: async (filePath?: string) => {
     try {
       console.log('Saving config to:', filePath || 'default location')
 
       // Save configuration using IPC service
-      await ipcService.saveConfig({
+      const result = await ipcService.saveConfig({
         config: get().config,
         filePath,
         format: 'json',
@@ -247,6 +290,8 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       set({
         originalConfig: get().config,
         isDirty: false,
+        currentFilePath: (result && (result as any).filePath) || filePath || get().currentFilePath,
+        lastSaveTime: Date.now(),
         history: [{
           id: 'reset',
           config: get().config,
@@ -266,6 +311,25 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
 
   setComparison: (config: SimulationConfigType | null) => {
     set({ compareConfig: config })
+  },
+
+  toggleComparison: () => {
+    const current = get().showComparison
+    set({ showComparison: !current })
+    const persistUI = get().persistUIState
+    persistUI()
+  },
+
+  clearComparison: () => {
+    set({ compareConfig: null, comparisonFilePath: undefined })
+    const persistUI = get().persistUIState
+    persistUI()
+  },
+
+  setComparisonPath: (path?: string) => {
+    set({ comparisonFilePath: path })
+    const persistUI = get().persistUIState
+    persistUI()
   },
 
   toggleSection: (section: ConfigSection) => {
@@ -293,7 +357,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       console.error('Failed to validate config:', error)
       // Fallback to local validation
       const config = get().config
-      const result = validationService.validateConfig(config)
+      const result = await validationService.validateConfig(config)
       useValidationStore.getState().setValidationResult(result)
     }
   },
@@ -305,8 +369,10 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       selectedSection: state.selectedSection,
       expandedFolders: Array.from(state.expandedFolders),
       showComparison: state.showComparison,
+      comparisonFilePath: state.comparisonFilePath,
       leftPanelWidth: state.leftPanelWidth,
-      rightPanelWidth: state.rightPanelWidth
+      rightPanelWidth: state.rightPanelWidth,
+      layoutSizes: state.layoutSizes
     }
 
     persistState(uiPreferences, {
@@ -347,8 +413,10 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
         selectedSection: selectedSectionValid,
         expandedFolders: expandedFoldersValid,
         showComparison: (state.showComparison as boolean) || false,
+        comparisonFilePath: (state.comparisonFilePath as string | undefined) || undefined,
         leftPanelWidth: (state.leftPanelWidth as number) || 0.5,
-        rightPanelWidth: (state.rightPanelWidth as number) || 0.5
+        rightPanelWidth: (state.rightPanelWidth as number) || 0.5,
+        layoutSizes: (state.layoutSizes as Record<string, number[]>) || {}
       })
     }
   },
@@ -392,6 +460,28 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     } catch (error) {
       console.warn('Failed to clear persisted state:', error)
     }
+  },
+
+  // Generic layout persistence helpers
+  setLayoutSizes: (key: string, sizes: number[]) => {
+    const current = get().layoutSizes
+    const next = { ...current, [key]: sizes }
+    set({ layoutSizes: next })
+    get().persistUIState()
+  },
+  getLayoutSizes: (key: string) => {
+    const current = get().layoutSizes
+    return current ? current[key] : undefined
+  },
+  resetLayoutSizes: (key?: string) => {
+    if (!key) {
+      set({ layoutSizes: {} })
+    } else {
+      const current = { ...get().layoutSizes }
+      delete current[key]
+      set({ layoutSizes: current })
+    }
+    get().persistUIState()
   },
 
   // Advanced features
@@ -481,6 +571,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       config: defaultConfig,
       originalConfig: defaultConfig,
       isDirty: false,
+      currentFilePath: undefined,
       validationErrors: [],
       history: [{
         id: 'reset',
@@ -537,7 +628,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     }
   },
 
-  // Get configuration diff
+  // Get configuration diff (against original)
   getConfigDiff: () => {
     const { config, originalConfig } = get()
     const diff: Record<string, { original: any; current: any; changed: boolean }> = {}
@@ -551,7 +642,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     allKeys.forEach(key => {
       const originalValue = getNestedValue(originalConfig as unknown as Record<string, unknown>, key)
       const currentValue = getNestedValue(config as unknown as Record<string, unknown>, key)
-      const changed = JSON.stringify(originalValue) !== JSON.stringify(currentValue)
+      const changed = !deepEqual(originalValue, currentValue)
 
       if (changed) {
         diff[key] = { original: originalValue, current: currentValue, changed: true }
@@ -559,6 +650,152 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     })
 
     return diff
+  },
+
+  // Get diff between current config and comparison config (added/removed/changed/unchanged)
+  // Semantics:
+  // - added: key exists in comparison but not in current (would be added to current)
+  // - removed: key exists in current but not in comparison (would be removed from current)
+  // - changed: key exists in both but values differ (current -> comparison)
+  getComparisonDiff: () => {
+    const { config, compareConfig } = get()
+    const result = {
+      added: {} as Record<string, unknown>,
+      removed: {} as Record<string, unknown>,
+      changed: {} as Record<string, { from: unknown; to: unknown }>,
+      unchanged: {} as Record<string, unknown>
+    }
+
+    if (!compareConfig) return result
+
+    const allKeys = new Set([
+      ...getAllKeys(compareConfig as unknown as Record<string, unknown>),
+      ...getAllKeys(config as unknown as Record<string, unknown>)
+    ])
+
+    allKeys.forEach(key => {
+      const compareValue = getNestedValue(compareConfig as unknown as Record<string, unknown>, key)
+      const currentValue = getNestedValue(config as unknown as Record<string, unknown>, key)
+
+      const hasInCompare = compareValue !== undefined
+      const hasInCurrent = currentValue !== undefined
+
+      if (hasInCompare && !hasInCurrent) {
+        ;(result.added as Record<string, unknown>)[key] = compareValue
+      } else if (!hasInCompare && hasInCurrent) {
+        ;(result.removed as Record<string, unknown>)[key] = currentValue
+      } else if (hasInCompare && hasInCurrent) {
+        const equal = deepEqual(compareValue, currentValue)
+        if (!equal) {
+          ;(result.changed as Record<string, { from: unknown; to: unknown }>)[key] = { from: currentValue, to: compareValue }
+        } else {
+          ;(result.unchanged as Record<string, unknown>)[key] = currentValue
+        }
+      }
+    })
+
+    return result
+  },
+
+  // Copy a field value from comparison into current config
+  copyFromComparison: (path: string) => {
+    const { compareConfig } = get()
+    if (!compareConfig) return false
+    const value = getNestedValue(compareConfig as unknown as Record<string, unknown>, path)
+    if (value === undefined) return false
+    get().updateConfig(path, value)
+    return true
+  },
+
+  // Batch copy multiple paths from comparison
+  batchCopyFromComparison: (paths: string[]) => {
+    const { compareConfig } = get()
+    if (!compareConfig || paths.length === 0) return false
+    const updates = paths
+      .map(path => ({ path, value: getNestedValue(compareConfig as unknown as Record<string, unknown>, path) }))
+      .filter(update => update.value !== undefined)
+    if (updates.length === 0) return false
+    get().batchUpdateConfig({ updates })
+    return true
+  },
+
+  // Remove a config path from current config (used for aligning deletions)
+  removeConfigPath: (path: string) => {
+    const currentConfig = get().config
+    const { history, historyIndex } = get()
+    const before = getNestedValue(currentConfig as unknown as Record<string, unknown>, path)
+    if (before === undefined) {
+      return
+    }
+    const newConfig = deepClone(currentConfig)
+    deleteNestedPath(newConfig as unknown as Record<string, unknown>, path)
+
+    // If nothing changed, bail
+    const after = getNestedValue(newConfig as unknown as Record<string, unknown>, path)
+    if (after !== undefined) {
+      return
+    }
+
+    const newHistory = history.slice(0, historyIndex + 1)
+    newHistory.push({
+      id: 'update',
+      config: newConfig,
+      timestamp: Date.now(),
+      action: 'update',
+      description: `Removed ${path}`
+    })
+
+    set({
+      config: newConfig,
+      isDirty: true,
+      history: newHistory,
+      historyIndex: historyIndex + 1
+    })
+  },
+
+  // Apply all differences from comparison into current config
+  applyAllDifferencesFromComparison: () => {
+    const { config, compareConfig, history, historyIndex } = get()
+    if (!compareConfig) return
+    const diff = get().getComparisonDiff()
+
+    let newConfig = deepClone(config)
+
+    // Apply additions and changes
+    const toSet = [
+      ...Object.keys(diff.added),
+      ...Object.keys(diff.changed)
+    ]
+    toSet.forEach(path => {
+      const value = getNestedValue(compareConfig as unknown as Record<string, unknown>, path)
+      setNestedValue(newConfig as unknown as Record<string, unknown>, path, deepClone(value))
+    })
+
+    // Apply removals
+    Object.keys(diff.removed).forEach(path => {
+      deleteNestedPath(newConfig as unknown as Record<string, unknown>, path)
+    })
+
+    // If no actual change, bail
+    if (deepEqual(config, newConfig)) {
+      return
+    }
+
+    const newHistory = history.slice(0, historyIndex + 1)
+    newHistory.push({
+      id: 'update',
+      config: newConfig,
+      timestamp: Date.now(),
+      action: 'update',
+      description: 'Applied all differences from comparison'
+    })
+
+    set({
+      config: newConfig,
+      isDirty: true,
+      history: newHistory,
+      historyIndex: historyIndex + 1
+    })
   },
 
   // Enhanced validation with field-specific feedback
@@ -605,4 +842,91 @@ function getAllKeys(obj: Record<string, unknown>, prefix = ''): string[] {
   }
 
   return keys
+}
+
+function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown): void {
+  const parts = path.split('.')
+  let current: Record<string, unknown> = obj
+  for (let i = 0; i < parts.length - 1; i++) {
+    const key = parts[i]
+    const next = current[key]
+    if (typeof next !== 'object' || next === null) {
+      current[key] = {}
+    }
+    current = current[key] as Record<string, unknown>
+  }
+  current[parts[parts.length - 1]] = value as unknown as never
+}
+
+function deleteNestedPath(obj: Record<string, unknown>, path: string): void {
+  const parts = path.split('.')
+  let current: Record<string, unknown> | undefined = obj
+  for (let i = 0; i < parts.length - 1; i++) {
+    const key = parts[i]
+    const next = current[key]
+    if (typeof next !== 'object' || next === null) return
+    current = next as Record<string, unknown>
+  }
+  const lastKey = parts[parts.length - 1]
+  if (current && Object.prototype.hasOwnProperty.call(current, lastKey)) {
+    delete current[lastKey]
+  }
+}
+
+function deepClone<T>(value: T): T {
+  try {
+    return JSON.parse(JSON.stringify(value)) as T
+  } catch {
+    // Fall back to a shallow clone for plain objects/arrays; otherwise throw
+    if (Array.isArray(value)) {
+      return (value.slice() as unknown) as T
+    }
+    if (value && typeof value === 'object') {
+      return ({ ...(value as unknown as Record<string, unknown>) } as unknown) as T
+    }
+    return value
+  }
+}
+
+function deepEqual(a: unknown, b: unknown, visited?: WeakMap<object, WeakMap<object, boolean>>): boolean {
+  if (a === b) return true
+  if (typeof a !== typeof b) return false
+  if (a === null || b === null) return a === b
+  if (typeof a !== 'object' || typeof b !== 'object') return a === b
+
+  // Handle Date and RegExp
+  if (a instanceof Date && b instanceof Date) return a.getTime() === b.getTime()
+  if (a instanceof RegExp && b instanceof RegExp) return a.source === b.source && a.flags === b.flags
+
+  // Arrays
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b)) return false
+    if (a.length !== b.length) return false
+    for (let i = 0; i < a.length; i++) {
+      if (!deepEqual(a[i], b[i], visited)) return false
+    }
+    return true
+  }
+
+  const aObj = a as Record<string, unknown>
+  const bObj = b as Record<string, unknown>
+
+  // Cycle detection using pair-wise WeakMap
+  const seen = visited || new WeakMap<object, WeakMap<object, boolean>>()
+  let inner = seen.get(aObj)
+  if (inner && inner.get(bObj)) return true
+  if (!inner) {
+    inner = new WeakMap<object, boolean>()
+    seen.set(aObj, inner)
+  }
+  inner.set(bObj, true)
+
+  const aKeys = Object.keys(aObj)
+  const bKeys = Object.keys(bObj)
+  if (aKeys.length !== bKeys.length) return false
+  for (const key of aKeys) {
+    if (!Object.prototype.hasOwnProperty.call(bObj, key)) return false
+    if (!deepEqual(aObj[key], bObj[key], seen)) return false
+  }
+  return true
 }

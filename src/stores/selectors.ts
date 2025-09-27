@@ -24,6 +24,9 @@ export const configSelectors = {
   getSelectedSection: (state: ConfigStore) => state.selectedSection,
   getExpandedFolders: (state: ConfigStore) => state.expandedFolders,
   getValidationErrors: (state: ConfigStore) => state.validationErrors,
+  getCurrentFilePath: (state: ConfigStore) => state.currentFilePath,
+  getLastSaveTime: (state: ConfigStore) => state.lastSaveTime,
+  getLastLoadTime: (state: ConfigStore) => state.lastLoadTime,
 
   // Derived state selectors
   getEnvironmentConfig: (state: ConfigStore) => ({
@@ -102,7 +105,41 @@ export const configSelectors = {
       independent_agents: { current: current.independent_agents, comparison: comparison.independent_agents },
       control_agents: { current: current.control_agents, comparison: comparison.control_agents }
     }
-  }
+  },
+
+  // Full diff between current and comparison
+  getComparisonDiff: (state: ConfigStore) => state.getComparisonDiff(),
+
+  // Diff statistics
+  getComparisonStats: (state: ConfigStore) => {
+    const diff = state.getComparisonDiff()
+    const added = Object.keys(diff.added).length
+    const removed = Object.keys(diff.removed).length
+    const changed = Object.keys(diff.changed).length
+    const unchanged = Object.keys(diff.unchanged).length
+    const total = added + removed + changed + unchanged
+    const percentChanged = total > 0 ? Math.round(((added + removed + changed) / total) * 100) : 0
+    return { added, removed, changed, unchanged, total, percentChanged }
+  },
+
+  // Filtered diff by section or predicate
+  getFilteredComparisonDiff:
+    (filter?: { section?: string; predicate?: (path: string) => boolean }) =>
+    (state: ConfigStore) => {
+      const diff = state.getComparisonDiff()
+      const match = (path: string) => {
+        if (filter?.predicate && !filter.predicate(path)) return false
+        if (filter?.section && !path.startsWith(filter.section)) return false
+        return true
+      }
+
+      return {
+        added: Object.fromEntries(Object.entries(diff.added).filter(([k]) => match(k))),
+        removed: Object.fromEntries(Object.entries(diff.removed).filter(([k]) => match(k))),
+        changed: Object.fromEntries(Object.entries(diff.changed).filter(([k]) => match(k))),
+        unchanged: Object.fromEntries(Object.entries(diff.unchanged).filter(([k]) => match(k)))
+      }
+    }
 }
 
 // Validation Store Selectors

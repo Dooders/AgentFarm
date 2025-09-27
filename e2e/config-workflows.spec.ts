@@ -69,4 +69,56 @@ test.describe('Configuration Workflows', () => {
     // Verify layout still works
     await expect(page.locator('body')).toBeVisible()
   })
+
+  test('nested vertical split should resize within right panel', async ({ page }) => {
+    // Find the second resizer which should correspond to the nested vertical split
+    const resizers = page.locator('[data-testid="panel-resizer"], .resize-handle')
+    const count = await resizers.count()
+    if (count < 2) test.skip(true, 'Nested resizer not present')
+
+    // Approximate: last resizer is likely the nested vertical one
+    const nestedResizer = resizers.nth(count - 1)
+
+    // Measure initial right panel bounding box
+    const rightPanel = page.locator('[data-testid="right-panel"]')
+    await expect(rightPanel).toBeVisible()
+
+    // Move mouse to the nested resizer and drag vertically
+    await nestedResizer.hover()
+    const center = await nestedResizer.boundingBox()
+    if (!center) test.skip(true, 'No bounding box for nested resizer')
+
+    await page.mouse.move(center.x + center.width / 2, center.y + center.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(center.x + center.width / 2, center.y + center.height / 2 + 80)
+    await page.mouse.up()
+
+    // No exact selector for nested panes; assert app remains interactive
+    await expect(page.locator('[data-testid="dual-panel-layout"]')).toBeVisible()
+  })
+
+  test('layout sizes persist across reload', async ({ page, context }) => {
+    // Drag the main horizontal resizer to change left panel width
+    const mainResizer = page.locator('[data-testid="panel-resizer"], .resize-handle').first()
+    const leftPanel = page.locator('[data-testid="left-panel"]')
+
+    const before = await leftPanel.boundingBox()
+    await mainResizer.hover()
+    const box = await mainResizer.boundingBox()
+    if (!box || !before) test.skip(true, 'No bounding boxes available for resize test')
+
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width / 2 + 120, box.y + box.height / 2)
+    await page.mouse.up()
+
+    const after = await leftPanel.boundingBox()
+    expect(after?.width).not.toEqual(before.width)
+
+    // Reload the page and verify the width is similar (persisted)
+    await page.reload()
+    const persisted = await leftPanel.boundingBox()
+    // Allow small delta due to reflow
+    expect(Math.abs((persisted?.width || 0) - (after?.width || 0)) < 10).toBeTruthy()
+  })
 })

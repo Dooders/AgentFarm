@@ -114,8 +114,12 @@ export interface ConfigState {
   config: SimulationConfigType
   originalConfig: SimulationConfigType
   isDirty: boolean
+  currentFilePath?: string
+  lastSaveTime?: number
+  lastLoadTime?: number
   compareConfig: SimulationConfigType | null
   showComparison: boolean
+  comparisonFilePath?: string
   selectedSection: ConfigSection
   expandedFolders: Set<ConfigSection>
   validationErrors: ValidationError[]
@@ -126,12 +130,12 @@ export interface ConfigState {
   // Layout state
   leftPanelWidth: number
   rightPanelWidth: number
+  // Arbitrary persisted layout sizes by key (percentages per panel)
+  layoutSizes: Record<string, number[]>
 
   // UI state
   isLoading: boolean
   isSaving: boolean
-  lastSaveTime?: number
-  lastLoadTime?: number
 }
 
 // Store action interfaces
@@ -141,6 +145,7 @@ export interface ConfigActions {
   batchUpdateConfig: (updates: BatchConfigUpdate) => void
   loadConfig: (filePath: string) => Promise<void>
   saveConfig: (filePath?: string) => Promise<void>
+  openConfigFromContent: (content: string, format?: 'json' | 'yaml') => Promise<void>
   importConfig: (configJson: string) => Promise<ConfigImportResult>
   exportConfig: (format?: 'json' | 'yaml' | 'xml') => ConfigExport
   resetToDefaults: () => void
@@ -149,6 +154,14 @@ export interface ConfigActions {
   setComparison: (config: SimulationConfigType | null) => void
   toggleComparison: () => void
   clearComparison: () => void
+  setComparisonPath: (path?: string) => void
+
+  // Diff and copy actions
+  getComparisonDiff: () => ConfigComparison
+  copyFromComparison: (path: ConfigPath) => boolean
+  batchCopyFromComparison: (paths: ConfigPath[]) => boolean
+  removeConfigPath: (path: ConfigPath) => void
+  applyAllDifferencesFromComparison: () => void
 
   // Navigation actions
   setSelectedSection: (section: ConfigSection) => void
@@ -170,6 +183,11 @@ export interface ConfigActions {
   // Layout actions
   setPanelWidths: (leftWidth: number, rightWidth: number) => void
   resetPanelWidths: () => void
+
+  // Generic layout sizes persistence helpers
+  setLayoutSizes: (key: string, sizes: number[]) => void
+  getLayoutSizes: (key: string) => number[] | undefined
+  resetLayoutSizes: (key?: string) => void
 
   // Persistence actions
   persistUIState: () => void

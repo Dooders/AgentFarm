@@ -462,14 +462,9 @@ describe('IPCServiceImpl', () => {
 
     it('registers one-time listeners', async () => {
       const callback = vi.fn()
-      let resolveOnce: (value: any) => void
-
-      mockElectronAPI.once.mockImplementation((channel, cb) => {
-        // Simulate immediate callback
-        setTimeout(() => {
-          cb({ data: 'test' })
-        }, 0)
-        return Promise.resolve({ success: true, payload: { data: 'test' } })
+      mockElectronAPI.on.mockImplementation((channel, cb) => {
+        // Simulate immediate event emission
+        setTimeout(() => cb({ data: 'test' }), 0)
       })
 
       const result = await ipcService.once('test-event', callback)

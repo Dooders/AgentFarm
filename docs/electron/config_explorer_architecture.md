@@ -202,7 +202,8 @@ Phase 1: Architecture & Skeleton
 - Add `ipcRoutes`, `configStore`, `fileSystemService` in main; `ipcClient` in renderer
 - Implement read-only features: `config:listRoots`, `config:listTree`, `config:get`
 - Introduce `ConfigExplorer` panel behind a feature flag while keeping existing sidebar
- - Add native file dialogs for open/save and basic toolbar controls (Open, Save, Save As)
+- Add native file dialogs for open/save and basic toolbar controls (Open, Save, Save As)
+  - Web build uses hidden file inputs and download fallbacks; Electron build should route Open/Save via IPC to main-process dialogs.
 
 Phase 2: Editing & Validation
 - Implement `config:update`, `config:validate`, `config:save`
@@ -241,6 +242,10 @@ Rollback Strategy
   - Form-based: field-level diff highlighting and one-click "Copy from compare"
   - YAML-based: side-by-side grid listing key paths and values (current vs compare)
 - Preset bundles supported: apply preset (deep merge) and undo last applied preset
+
+Status (Sept 2025):
+- Implemented form-based diff highlighting with Added/Removed/Changed categories, per-field Copy/Remove, and Apply-All merge in `ComparisonPanel`/`RightPanel`.
+- Exposed store/selector APIs to compute diffs and statistics for renderer use.
 - Validation and unsaved state clearly indicated in UI during edits/merges
 
 ---

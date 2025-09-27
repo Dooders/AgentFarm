@@ -46,6 +46,13 @@ Build the comparison panel system that allows users to load and compare two diff
 - ✅ Performance remains good with large configurations
 - ✅ Error handling works for invalid files
 
+Implementation Notes (Sept 2025):
+- Added comparison state/actions in `src/stores/configStore.ts` and types in `src/types/config.ts` (`showComparison`, `comparisonFilePath`, `toggleComparison`, `clearComparison`, `setComparisonPath`, `setComparison`).
+- Created read-only `ComparisonPanel` in `src/components/ConfigExplorer/ComparisonPanel.tsx`.
+- Integrated comparison controls into `RightPanel` with toggle, file load (JSON), Zod validation, error messaging, and file path display.
+- Added synchronized scrolling between left control area (`left-scroll-area`) and `comparison-scroll-area`.
+- Resizing persists via `ResizablePanels` and store; no changes required.
+
 **Dependencies:** Phase 2 completion
 **Estimated Time:** 3-4 days
 
@@ -88,6 +95,13 @@ Implement visual diff highlighting between primary and comparison configurations
 - ✅ Performance is acceptable for large configurations
 - ✅ Users can easily identify and copy differences
 - ✅ Diff filtering and navigation works smoothly
+
+Implementation Notes (Sept 2025):
+- Store: Added `getComparisonDiff`, `copyFromComparison`, `batchCopyFromComparison`, `removeConfigPath`, and `applyAllDifferencesFromComparison` in `src/stores/configStore.ts`.
+- Selectors: Added `getComparisonDiff`, `getComparisonStats`, and `getFilteredComparisonDiff` in `src/stores/selectors.ts`.
+- UI: `ComparisonPanel` now renders Added/Removed/Changed with per-field Copy/Remove, filters, jump-to sections, and Apply All. `RightPanel` shows diff stats and Apply All.
+- Accessibility: Toolbar controls are labeled; diff items use monospace value boxes; actions have ARIA labels.
+- Tests: Extended `ConfigExplorer.test.tsx` to assert diff stats presence and Apply All availability.
 
 **Dependencies:** Phase 2 completion, Issue #15
 **Estimated Time:** 2-3 days
@@ -227,6 +241,16 @@ Build a comprehensive toolbar system with all necessary controls for configurati
 **Dependencies:** Phase 2 completion
 **Estimated Time:** 2-3 days
 
+Implementation Notes (Sept 2025):
+- Added `Toolbar.tsx` in `src/components/Layout/Toolbar.tsx` with modular sections for File, Compare, App controls, and status indicators.
+- Integrated toolbar into `DualPanelLayout` above resizable panels.
+- Store: added `currentFilePath`, `lastSaveTime`, and `lastLoadTime`; updated `loadConfig`/`saveConfig` to populate them.
+- YAML export uses Electron IPC when available, with browser download fallback; JSON export supported.
+- Comparison controls mirror `RightPanel` capabilities: load/clear/toggle and Apply All.
+- Grayscale toggle persists in `localStorage` (`ui:grayscale`), synced at startup via `ThemeProvider`.
+- Shortcuts: Ctrl/Cmd+O (Open), Ctrl/Cmd+S (Save), Ctrl/Cmd+Shift+S (Save As), Ctrl/Cmd+Y (Export YAML), Ctrl/Cmd+G (Grayscale).
+- Tests: added `Toolbar.test.tsx` to validate presence of controls, grayscale toggle behavior, and Save enabling on changes.
+
 ---
 
 ### Issue #20: Add Status Bar with Validation Feedback
@@ -266,6 +290,12 @@ Implement a comprehensive status bar that provides real-time feedback about vali
 - ✅ System information is useful and accurate
 - ✅ Status bar doesn't impact performance
 - ✅ All indicators are visually clear
+
+Implementation Notes (Sept 2025):
+- Added `StatusBar.tsx` and integrated at the bottom of `DualPanelLayout`.
+- Shows validation counts (errors/warnings), validating state, and last validation time.
+- Provides manual Validate, auto-validate toggle (persisted), and "View Issues" shortcut to validation section.
+- Displays save status (unsaved/saved), file path, last save/load, and IPC connection status.
 
 **Dependencies:** Phase 2 completion (validation system)
 **Estimated Time:** 1-2 days
