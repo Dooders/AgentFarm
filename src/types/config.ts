@@ -114,6 +114,9 @@ export interface ConfigState {
   config: SimulationConfigType
   originalConfig: SimulationConfigType
   isDirty: boolean
+  currentFilePath?: string
+  lastSaveTime?: number
+  lastLoadTime?: number
   compareConfig: SimulationConfigType | null
   showComparison: boolean
   comparisonFilePath?: string
@@ -133,8 +136,6 @@ export interface ConfigState {
   // UI state
   isLoading: boolean
   isSaving: boolean
-  lastSaveTime?: number
-  lastLoadTime?: number
 }
 
 // Store action interfaces
@@ -144,6 +145,7 @@ export interface ConfigActions {
   batchUpdateConfig: (updates: BatchConfigUpdate) => void
   loadConfig: (filePath: string) => Promise<void>
   saveConfig: (filePath?: string) => Promise<void>
+  openConfigFromContent: (content: string, format?: 'json' | 'yaml') => Promise<void>
   importConfig: (configJson: string) => Promise<ConfigImportResult>
   exportConfig: (format?: 'json' | 'yaml' | 'xml') => ConfigExport
   resetToDefaults: () => void

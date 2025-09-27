@@ -202,7 +202,8 @@ Phase 1: Architecture & Skeleton
 - Add `ipcRoutes`, `configStore`, `fileSystemService` in main; `ipcClient` in renderer
 - Implement read-only features: `config:listRoots`, `config:listTree`, `config:get`
 - Introduce `ConfigExplorer` panel behind a feature flag while keeping existing sidebar
- - Add native file dialogs for open/save and basic toolbar controls (Open, Save, Save As)
+- Add native file dialogs for open/save and basic toolbar controls (Open, Save, Save As)
+  - Web build uses hidden file inputs and download fallbacks; Electron build should route Open/Save via IPC to main-process dialogs.
 
 Phase 2: Editing & Validation
 - Implement `config:update`, `config:validate`, `config:save`
