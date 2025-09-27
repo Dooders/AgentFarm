@@ -240,6 +240,41 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     }
   },
 
+  // Browser-friendly open from raw content
+  openConfigFromContent: async (content: string, format: 'json' | 'yaml' = 'json') => {
+    try {
+      let parsed: SimulationConfigType
+      if (format === 'json') {
+        parsed = JSON.parse(content) as SimulationConfigType
+      } else {
+        // Minimal YAML support not implemented; expect pre-parsed in future
+        throw new Error('YAML open not supported in browser mode')
+      }
+
+      set({
+        config: parsed,
+        originalConfig: parsed,
+        isDirty: false,
+        currentFilePath: undefined,
+        lastLoadTime: Date.now(),
+        validationErrors: [],
+        history: [{
+          id: 'loaded',
+          config: parsed,
+          timestamp: Date.now(),
+          action: 'load',
+          description: 'Configuration loaded from content'
+        }],
+        historyIndex: 0
+      })
+
+      await get().validateConfig()
+    } catch (error) {
+      console.error('Failed to open config from content:', error)
+      throw error
+    }
+  },
+
   saveConfig: async (filePath?: string) => {
     try {
       console.log('Saving config to:', filePath || 'default location')
@@ -255,7 +290,7 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
       set({
         originalConfig: get().config,
         isDirty: false,
-        currentFilePath: (result && result.filePath) || filePath || get().currentFilePath,
+        currentFilePath: (result && (result as any).filePath) || filePath || get().currentFilePath,
         lastSaveTime: Date.now(),
         history: [{
           id: 'reset',

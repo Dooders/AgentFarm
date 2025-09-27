@@ -145,6 +145,7 @@ export interface ConfigActions {
   batchUpdateConfig: (updates: BatchConfigUpdate) => void
   loadConfig: (filePath: string) => Promise<void>
   saveConfig: (filePath?: string) => Promise<void>
+  openConfigFromContent: (content: string, format?: 'json' | 'yaml') => Promise<void>
   importConfig: (configJson: string) => Promise<ConfigImportResult>
   exportConfig: (format?: 'json' | 'yaml' | 'xml') => ConfigExport
   resetToDefaults: () => void

@@ -24,9 +24,9 @@ export const configSelectors = {
   getSelectedSection: (state: ConfigStore) => state.selectedSection,
   getExpandedFolders: (state: ConfigStore) => state.expandedFolders,
   getValidationErrors: (state: ConfigStore) => state.validationErrors,
-  getCurrentFilePath: (state: ConfigStore) => (state as any).currentFilePath,
-  getLastSaveTime: (state: ConfigStore) => (state as any).lastSaveTime,
-  getLastLoadTime: (state: ConfigStore) => (state as any).lastLoadTime,
+  getCurrentFilePath: (state: ConfigStore) => state.currentFilePath,
+  getLastSaveTime: (state: ConfigStore) => state.lastSaveTime,
+  getLastLoadTime: (state: ConfigStore) => state.lastLoadTime,
 
   // Derived state selectors
   getEnvironmentConfig: (state: ConfigStore) => ({

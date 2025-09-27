@@ -60,6 +60,7 @@ export const Toolbar: React.FC = () => {
   const lastSaveTime = useConfigStore((s) => configSelectors.getLastSaveTime(s) as number | undefined)
   const lastLoadTime = useConfigStore((s) => configSelectors.getLastLoadTime(s) as number | undefined)
   const loadConfig = useConfigStore((s) => s.loadConfig)
+  const openConfigFromContent = useConfigStore((s) => s.openConfigFromContent)
   const saveConfig = useConfigStore((s) => s.saveConfig)
   const exportConfigMeta = useConfigStore((s) => s.exportConfig)
   const resetToDefaults = useConfigStore((s) => s.resetToDefaults)
@@ -102,7 +103,12 @@ export const Toolbar: React.FC = () => {
     const file = e.target.files?.[0]
     if (!file) return
     try {
-      await loadConfig(file.path || file.name)
+      if (window?.electronAPI) {
+        await loadConfig((file as any).path || file.name)
+      } else {
+        const text = await file.text()
+        await openConfigFromContent(text, 'json')
+      }
     } catch (err) {
       console.error('Open failed:', err)
     } finally {
@@ -190,20 +196,20 @@ export const Toolbar: React.FC = () => {
 
   // Keyboard shortcuts
   useEffect(() => {
+    const shortcutMap: Record<string, (e: KeyboardEvent) => void> = {
+      'mod+o': (e) => { e.preventDefault(); doOpen() },
+      'mod+s': (e) => { e.preventDefault(); doSave() },
+      'mod+shift+s': (e) => { e.preventDefault(); doSaveAs() },
+      'mod+g': (e) => { e.preventDefault(); toggleGrayscale() },
+      'mod+y': (e) => { e.preventDefault(); doExportYaml() }
+    }
     const onKey = (e: KeyboardEvent) => {
       const isMod = e.ctrlKey || e.metaKey
-      if (isMod && e.key.toLowerCase() === 'o') {
-        e.preventDefault(); doOpen(); return
-      }
-      if (isMod && e.key.toLowerCase() === 's') {
-        e.preventDefault(); if (e.shiftKey) { doSaveAs() } else { doSave() } return
-      }
-      if (isMod && e.key.toLowerCase() === 'g') {
-        e.preventDefault(); toggleGrayscale(); return
-      }
-      if (isMod && e.key.toLowerCase() === 'y') {
-        e.preventDefault(); doExportYaml(); return
-      }
+      if (!isMod) return
+      const key = e.key.toLowerCase()
+      const shortcut = `mod${e.shiftKey ? '+shift' : ''}+${key}`
+      const handler = shortcutMap[shortcut]
+      if (handler) handler(e)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
