@@ -11,13 +11,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return ipcRenderer.invoke('config:load', payload)
   },
   saveConfig: (requestOrConfig, maybeFilePath) => {
-    const payload = requestOrConfig && requestOrConfig.config !== undefined
+    const looksLikeRequest = requestOrConfig && typeof requestOrConfig === 'object' && !Array.isArray(requestOrConfig) && (
+      Object.prototype.hasOwnProperty.call(requestOrConfig, 'filePath') ||
+      Object.prototype.hasOwnProperty.call(requestOrConfig, 'format') ||
+      (requestOrConfig.config && typeof requestOrConfig.config === 'object')
+    )
+    const payload = looksLikeRequest
       ? requestOrConfig
       : { config: requestOrConfig, filePath: maybeFilePath }
     return ipcRenderer.invoke('config:save', payload)
   },
   exportConfig: (requestOrConfig, maybeFormat) => {
-    const payload = requestOrConfig && requestOrConfig.config !== undefined
+    const looksLikeRequest = requestOrConfig && typeof requestOrConfig === 'object' && !Array.isArray(requestOrConfig) && (
+      Object.prototype.hasOwnProperty.call(requestOrConfig, 'filePath') ||
+      Object.prototype.hasOwnProperty.call(requestOrConfig, 'format') ||
+      (requestOrConfig.config && typeof requestOrConfig.config === 'object')
+    )
+    const payload = looksLikeRequest
       ? requestOrConfig
       : { config: requestOrConfig, format: maybeFormat }
     return ipcRenderer.invoke('config:export', payload)

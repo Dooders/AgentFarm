@@ -114,10 +114,13 @@ ipcMain.handle('config:load', async (event, request) => {
     await addRecentFile(fullPath, { action: 'load' })
 
     return {
-      config,
-      metadata: { format, size: stats?.size, modified: stats?.mtimeMs },
-      filePath: fullPath,
-      timestamp: Date.now()
+      success: true,
+      payload: {
+        config,
+        metadata: { format, size: stats?.size, modified: stats?.mtimeMs },
+        filePath: fullPath,
+        timestamp: Date.now()
+      }
     }
   } catch (error) {
     console.error('Failed to load config:', error)
@@ -136,9 +139,11 @@ ipcMain.handle('config:save', async (event, request) => {
       const stats = await fs.stat(fullPath)
       if (typeof ifMatchMtime === 'number' && stats.mtimeMs !== ifMatchMtime) {
         return {
+          success: false,
+          error: 'Write conflict: file modified by another process',
           conflict: true,
-          filePath: fullPath,
-          currentMtime: stats.mtimeMs
+          currentMtime: stats.mtimeMs,
+          filePath: fullPath
         }
       }
     } catch {}
@@ -157,12 +162,15 @@ ipcMain.handle('config:save', async (event, request) => {
     await addRecentFile(fullPath, { action: 'save' })
 
     return {
-      filePath: fullPath,
-      size: statsAfter.size,
-      timestamp: Date.now(),
-      backupCreated: !!backup,
-      format: targetFormat,
-      mtime: statsAfter.mtimeMs
+      success: true,
+      payload: {
+        filePath: fullPath,
+        size: statsAfter.size,
+        timestamp: Date.now(),
+        backupCreated: !!backup,
+        format: targetFormat,
+        mtime: statsAfter.mtimeMs
+      }
     }
   } catch (error) {
     console.error('Failed to save config:', error)
@@ -175,21 +183,44 @@ ipcMain.handle('config:export', async (event, request) => {
     const { config, format = 'json', filePath, includeMetadata = false, subsetPath, paths } = request || {}
     let outputConfig = config || {}
     if (subsetPath) {
-      outputConfig = subsetPath.split('.').reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : {}), outputConfig)
+      const parts = subsetPath.split('.')
+      let cursor = outputConfig
+      for (const k of parts) {
+        if (cursor && Object.prototype.hasOwnProperty.call(cursor, k)) {
+          cursor = cursor[k]
+        } else {
+          cursor = undefined
+          break
+        }
+      }
+      outputConfig = cursor
     } else if (Array.isArray(paths) && paths.length > 0) {
       const pick = {}
       for (const p of paths) {
         const parts = p.split('.')
-        let src = outputConfig
+        // verify path exists in source
+        let verifySrc = outputConfig
+        let exists = true
+        for (const k of parts) {
+          if (verifySrc && Object.prototype.hasOwnProperty.call(verifySrc, k)) {
+            verifySrc = verifySrc[k]
+          } else {
+            exists = false
+            break
+          }
+        }
+        if (!exists) continue
+        // build in destination
         let dst = pick
+        let src = outputConfig
         for (let i = 0; i < parts.length; i++) {
           const k = parts[i]
           if (i === parts.length - 1) {
-            dst[k] = src ? src[k] : undefined
+            dst[k] = src[k]
           } else {
             dst[k] = dst[k] || {}
             dst = dst[k]
-            src = src ? src[k] : undefined
+            src = src[k]
           }
         }
       }
@@ -219,11 +250,14 @@ ipcMain.handle('config:export', async (event, request) => {
     const stats = await fs.stat(targetPath)
 
     return {
-      filePath: targetPath,
-      content,
-      size: stats.size,
-      format,
-      timestamp: Date.now()
+      success: true,
+      payload: {
+        filePath: targetPath,
+        content,
+        size: stats.size,
+        format,
+        timestamp: Date.now()
+      }
     }
   } catch (error) {
     console.error('Failed to export config:', error)
@@ -303,7 +337,7 @@ ipcMain.handle('config:import', async (event, request) => {
       source: request.filePath ? 'file' : 'content',
       timestamp: Date.now()
     }
-    return payload
+    return { success: true, payload }
   } catch (error) {
     console.error('Failed to import config:', error)
     return { success: false, error: `Failed to import configuration: ${error.message}` }
