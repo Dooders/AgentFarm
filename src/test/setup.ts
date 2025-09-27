@@ -65,7 +65,13 @@ globalThis.WebSocket = vi.fn().mockImplementation(() => ({
 
 // Mock AccessibilityProvider for testing
 vi.mock('@/components/UI/AccessibilityProvider', () => ({
-  AccessibilityProvider: ({ children }: { children: React.ReactNode }) => children,
+  AccessibilityProvider: ({ children }: { children: React.ReactNode }) => (
+    React.createElement('div', null,
+      React.createElement('div', { 'aria-live': 'polite' }),
+      React.createElement('div', { 'aria-live': 'assertive' }),
+      children
+    )
+  ),
   useAccessibility: () => ({
     announce: vi.fn(),
     announceToScreenReader: vi.fn(),
@@ -232,9 +238,14 @@ const mockIpcService = {
   validateConfig: vi.fn(() => Promise.reject(new Error('IPC validation not available in tests'))),
 }
 
-vi.mock('@/services/ipcService', () => ({
-  ipcService: mockIpcService,
-}))
+// Partially mock ipcService to preserve class exports
+vi.mock('@/services/ipcService', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/services/ipcService')>()
+  return {
+    ...actual,
+    ipcService: mockIpcService,
+  }
+})
 
 // Mock window.electronAPI for testing
 Object.defineProperty(window, 'electronAPI', {
@@ -254,43 +265,53 @@ vi.mock('leva', () => ({
   LevaPanel: ({ children }: { children: React.ReactNode }) => React.createElement('div', { 'data-testid': 'leva-panel' }, children)
 }))
 
-// Mock MetadataSystem for testing
-vi.mock('@/components/LevaControls/MetadataSystem', () => ({
-  MetadataProvider: ({ children }: { children: React.ReactNode }) => children,
-  useMetadata: () => ({
+// Mock MetadataSystem for testing with required exports
+vi.mock('@/components/LevaControls/MetadataSystem', () => {
+  const ValidationRules = {
+    range: (min: number, max: number) => ({
+      name: `range_${min}_${max}`,
+      description: `Valid range is ${min} to ${max}`,
+      validator: (val: any) => typeof val === 'number' && val >= min && val <= max,
+      errorMessage: `Value must be between ${min} and ${max}`,
+      severity: 'error'
+    })
+  }
+
+  const MetadataTemplates = {
+    percentage: () => ({ category: 'display', inputType: 'number', format: 'percentage', validationRules: [ValidationRules.range(0, 1)] }),
+    ratio: () => ({ category: 'parameters', inputType: 'number', format: 'number', validationRules: [ValidationRules.range(0, 1)] }),
+    coordinates: () => ({ category: 'position', inputType: 'vector2', format: 'number' }),
+    color: () => ({ category: 'visualization', inputType: 'color', format: 'hex' }),
+    filePath: () => ({ category: 'input', inputType: 'file' }),
+    number: (min?: number, max?: number) => ({ category: 'parameters', inputType: 'number', format: 'number', validationRules: min !== undefined ? [ValidationRules.range(min, max ?? Number.POSITIVE_INFINITY)] : [] })
+  }
+
+  const MetadataProvider = ({ children }: { children: React.ReactNode }) => children
+
+  const useMetadata = () => ({
     metadata: {},
-    isLoading: false,
-    error: null,
-    getFieldMetadata: vi.fn(() => ({})),
-    getValidationRules: vi.fn(() => []),
-    getFieldDescription: vi.fn(() => ''),
-    getFieldRange: vi.fn(() => ({ min: 0, max: 100 })),
-    getFieldType: vi.fn(() => 'number'),
-    hasMetadata: false,
-    validateControl: vi.fn(() => [])
-  })
-}))
-
-// Mock styled-components for testing
-const createStyledComponent = (tagName: string) => {
-  const Component = vi.fn((strings: TemplateStringsArray, ...args: any[]) => {
-    const StyledComponent = ({ children, ...props }: any) => React.createElement(tagName, props, children)
-    StyledComponent.attrs = vi.fn(() => StyledComponent)
-    StyledComponent.withConfig = vi.fn(() => StyledComponent)
-    return StyledComponent
-  })
-  Component.attrs = vi.fn(() => Component)
-  Component.withConfig = vi.fn(() => Component)
-  return Component
-}
-
-vi.mock('styled-components', () => ({
-  default: new Proxy(createStyledComponent('div'), {
-    get(target, prop) {
-      if (typeof prop === 'string') {
-        return createStyledComponent(prop)
+    groups: {},
+    categories: {},
+    registerControl: vi.fn(),
+    updateControl: vi.fn(),
+    getControlMetadata: vi.fn(() => ({} as any)),
+    getGroupControls: vi.fn(() => []),
+    getCategoryGroups: vi.fn(() => []),
+    validateControl: vi.fn((path: string, value: any) => {
+      // very basic example validation
+      if (path && value === 'invalid-value') {
+        return [{ message: 'Value must be valid', severity: 'error', rule: 'test-rule' }]
       }
-      return target
-    }
+      return []
+    })
   })
-}))
+
+  return {
+    MetadataProvider,
+    useMetadata,
+    ValidationRules,
+    MetadataTemplates
+  }
+})
+
+// Use real styled-components to avoid invalid element issues

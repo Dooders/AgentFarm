@@ -25,6 +25,7 @@ export default defineConfig({
       '**/node_modules/**',
       '**/dist/**',
       '**/farm/**', // Exclude old farm project tests
+      'e2e/**', // Exclude Playwright e2e tests from Vitest
       '**/*.d.ts'
     ],
     coverage: {

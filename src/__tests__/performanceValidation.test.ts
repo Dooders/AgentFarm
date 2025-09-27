@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'
-import { validateSimulationConfig, getDefaultConfig } from '@/utils/validationUtils'
+import { getDefaultConfig, validateSimulationConfig } from '@/utils/validationUtils'
 import { SimulationConfigSchema } from '@/types/zodSchemas'
 
 describe('Schema Validation Performance Requirements', () => {
@@ -70,9 +70,10 @@ describe('Schema Validation Performance Requirements', () => {
   })
 
   describe('Single Configuration Validation Performance', () => {
-    it('should validate a typical configuration in under 5ms', () => {
+    it('should validate a typical configuration in under 5ms', async () => {
       const start = performance.now()
-      const result = validateSimulationConfig(validConfig)
+      // validation is async; await it
+      const result = await validateSimulationConfig(validConfig)
       const end = performance.now()
 
       const duration = end - start
@@ -83,9 +84,9 @@ describe('Schema Validation Performance Requirements', () => {
       expect(duration).toBeLessThan(5)
     })
 
-    it('should validate a large configuration in under 10ms', () => {
+    it('should validate a large configuration in under 10ms', async () => {
       const start = performance.now()
-      const result = validateSimulationConfig(largeConfig)
+      const result = await validateSimulationConfig(largeConfig)
       const end = performance.now()
 
       const duration = end - start
@@ -97,13 +98,13 @@ describe('Schema Validation Performance Requirements', () => {
       expect(duration).toBeLessThan(10)
     })
 
-    it('should validate configurations with consistent performance', () => {
+    it('should validate configurations with consistent performance', async () => {
       const iterations = 50
       const times: number[] = []
 
       for (let i = 0; i < iterations; i++) {
         const start = performance.now()
-        validateSimulationConfig(validConfig)
+        await validateSimulationConfig(validConfig)
         const end = performance.now()
         times.push(end - start)
       }
@@ -129,12 +130,12 @@ describe('Schema Validation Performance Requirements', () => {
   })
 
   describe('Batch Validation Performance', () => {
-    it('should validate 100 configurations in under 200ms', () => {
+    it('should validate 100 configurations in under 200ms', async () => {
       const configs = Array.from({ length: 100 }, () => getDefaultConfig())
       const start = performance.now()
 
       for (const config of configs) {
-        validateSimulationConfig(config)
+        await validateSimulationConfig(config)
       }
 
       const end = performance.now()
@@ -145,12 +146,12 @@ describe('Schema Validation Performance Requirements', () => {
       expect(totalTime).toBeLessThan(200) // 2ms average
     })
 
-    it('should validate 1000 configurations in under 1 second', () => {
+    it('should validate 1000 configurations in under 1 second', async () => {
       const configs = Array.from({ length: 1000 }, () => getDefaultConfig())
       const start = performance.now()
 
       for (const config of configs) {
-        validateSimulationConfig(config)
+        await validateSimulationConfig(config)
       }
 
       const end = performance.now()
@@ -161,7 +162,7 @@ describe('Schema Validation Performance Requirements', () => {
       expect(totalTime).toBeLessThan(1000) // 1ms average
     })
 
-    it('should handle mixed valid/invalid configurations efficiently', () => {
+    it('should handle mixed valid/invalid configurations efficiently', async () => {
       const configs = []
 
       // Add 50 valid configs
@@ -181,7 +182,7 @@ describe('Schema Validation Performance Requirements', () => {
       const start = performance.now()
 
       for (const config of configs) {
-        validateSimulationConfig(config)
+        await validateSimulationConfig(config)
       }
 
       const end = performance.now()
@@ -194,7 +195,7 @@ describe('Schema Validation Performance Requirements', () => {
   })
 
   describe('Memory Efficiency', () => {
-    it('should not cause memory leaks during repeated validation', () => {
+    it('should not cause memory leaks during repeated validation', async () => {
       const initialMemory = performance.memory ? performance.memory.usedJSHeapSize : 0
 
       // Run many validations
@@ -220,7 +221,7 @@ describe('Schema Validation Performance Requirements', () => {
       }
     })
 
-    it('should efficiently handle schema creation and reuse', () => {
+    it('should efficiently handle schema creation and reuse', async () => {
       const start = performance.now()
 
       // Create multiple schemas (simulating component re-renders)
@@ -239,7 +240,7 @@ describe('Schema Validation Performance Requirements', () => {
   })
 
   describe('Scalability Tests', () => {
-    it('should handle increasingly complex configurations', () => {
+    it('should handle increasingly complex configurations', async () => {
       const complexities = [
         { agents: 10, memory: 1000, hidden: 32 },
         { agents: 100, memory: 10000, hidden: 64 },
@@ -247,7 +248,8 @@ describe('Schema Validation Performance Requirements', () => {
         { agents: 5000, memory: 100000, hidden: 256 }
       ]
 
-      const results = complexities.map(complexity => {
+      const results: Array<{ complexity: string; duration: number; valid: boolean }> = []
+      for (const complexity of complexities) {
         const config = {
           ...validConfig,
           system_agents: complexity.agents,
@@ -273,15 +275,15 @@ describe('Schema Validation Performance Requirements', () => {
         }
 
         const start = performance.now()
-        const result = validateSimulationConfig(config)
+        const result = await validateSimulationConfig(config)
         const end = performance.now()
 
-        return {
+        results.push({
           complexity: `agents: ${complexity.agents}, memory: ${complexity.memory}`,
           duration: end - start,
           valid: result.success
-        }
-      })
+        })
+      }
 
       results.forEach(result => {
         console.log(`Complexity ${result.complexity}: ${result.duration.toFixed(3)}ms, Valid: ${result.valid}`)
@@ -289,7 +291,7 @@ describe('Schema Validation Performance Requirements', () => {
       })
     })
 
-    it('should maintain performance under load', () => {
+    it('should maintain performance under load', async () => {
       const concurrentValidations = 10
       const promises: Promise<void>[] = []
 
@@ -320,7 +322,7 @@ describe('Schema Validation Performance Requirements', () => {
   })
 
   describe('Performance Benchmarks', () => {
-    it('should meet minimum performance requirements', () => {
+    it('should meet minimum performance requirements', async () => {
       const benchmarks = {
         singleValidation: { target: 5, description: 'Single config validation' },
         hundredValidations: { target: 200, description: '100 config batch' },
@@ -332,7 +334,7 @@ describe('Schema Validation Performance Requirements', () => {
 
       // Single validation
       const singleStart = performance.now()
-      validateSimulationConfig(validConfig)
+      await validateSimulationConfig(validConfig)
       const singleTime = performance.now() - singleStart
       results.push({
         name: 'singleValidation',
@@ -345,7 +347,7 @@ describe('Schema Validation Performance Requirements', () => {
       const hundredStart = performance.now()
       const hundredConfigs = Array.from({ length: 100 }, () => getDefaultConfig())
       for (const config of hundredConfigs) {
-        validateSimulationConfig(config)
+        await validateSimulationConfig(config)
       }
       const hundredTime = performance.now() - hundredStart
       results.push({
@@ -357,7 +359,7 @@ describe('Schema Validation Performance Requirements', () => {
 
       // Large config validation
       const largeStart = performance.now()
-      validateSimulationConfig(largeConfig)
+      await validateSimulationConfig(largeConfig)
       const largeTime = performance.now() - largeStart
       results.push({
         name: 'largeConfigValidation',
