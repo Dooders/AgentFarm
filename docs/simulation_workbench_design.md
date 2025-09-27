@@ -196,6 +196,40 @@ Browser mode uses these HTTP endpoints directly. Electron mode may alternatively
 - Persisted list of runs with search/filter by tag/date/status
 - Clicking a run opens a details drawer: config hash, parameters, quick charts, actions (analyze, export, open folder)
 
+## Components to Build
+
+### MVP components (build first)
+- Configure
+  - ConfigExplorerPage: wraps existing `ConfigExplorer` with file open/save and YAML/JSON preview
+  - PresetManagerModal: list/apply/undo presets
+  - SaveBar: dirty-state banner with Save/Discard
+- Run
+  - RunPage: layout shell for an active run
+  - RunToolbar: New, Start, Pause/Resume, Stop, step count, run name/tags
+  - ProgressMeter: percent, ETA, status chip
+  - TimelineScrubber: step slider with play/pause; requests `/step/:step`
+  - LiveMetricsPanel: small charts for agents/resources/reward (socket stream)
+  - LogPanel: recent messages/errors
+- Analyze
+  - AnalyzePage: module picker + results area
+  - AnalysisModulePicker: fetch list, configure params
+  - AnalysisCard: renders a module result (table/chart) with Export
+- Results
+  - ResultsGallery: grid/list of past runs (search, filter)
+  - RunCard: status, tags, quick metrics; open details
+  - RunDetailsDrawer: config summary and actions (Analyze, Export, Open folder)
+
+### Phase 2 (nice-to-haves)
+- ComparisonMatrix (runs × metrics)
+- MetricSelector and ChartLegend controls
+- ResourceUsagePanel (CPU/RAM, optional)
+- DiffInspector (current vs preset/file)
+- EmptyState, ErrorBoundary, Toast/Notifications, ConfirmDialog
+
+### Notes
+- Reuse existing components: `ConfigExplorer`, `LeftPanel`, `ComparisonPanel`, validation components, `ipcService`
+- Provide a single reusable `TimeSeriesChart` used by `LiveMetricsPanel` and `AnalysisCard`
+
 ---
 
 ## State Management (Zustand Stores)
