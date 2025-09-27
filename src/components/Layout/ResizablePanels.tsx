@@ -47,6 +47,7 @@ export const ResizablePanels: React.FC<ResizablePanelsProps> = (props: Resizable
           Array(panelCount).fill(100 / panelCount)
       )
   const [sizes, setSizes] = useState<number[]>(initial)
+  const [isDragging, setIsDragging] = useState<boolean>(false)
 
   useEffect(() => {
     // If persistKey changes or store updates externally, sync sizes
@@ -72,6 +73,17 @@ export const ResizablePanels: React.FC<ResizablePanelsProps> = (props: Resizable
     },
     [persistKey, setLayoutSizes, onSizesChange]
   )
+
+  // Debounced persistence for keyboard adjustments
+  const persistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const persistSizesDebounced = useCallback((next: number[]) => {
+    if (persistTimeoutRef.current) {
+      clearTimeout(persistTimeoutRef.current)
+    }
+    persistTimeoutRef.current = setTimeout(() => {
+      persistSizes(next)
+    }, 200)
+  }, [persistSizes])
 
   const clampSizes = useCallback(
     (next: number[]): number[] => {
@@ -101,6 +113,7 @@ export const ResizablePanels: React.FC<ResizablePanelsProps> = (props: Resizable
       startPos: direction === 'horizontal' ? clientX : clientY,
       startSizes: [...sizes]
     }
+    setIsDragging(true)
     document.body.style.userSelect = 'none'
     document.body.style.cursor = direction === 'horizontal' ? 'col-resize' : 'row-resize'
   }, [direction, sizes])
@@ -127,6 +140,7 @@ export const ResizablePanels: React.FC<ResizablePanelsProps> = (props: Resizable
   const onPointerUp = useCallback(() => {
     if (!dragInfo.current) return
     dragInfo.current.active = false
+    setIsDragging(false)
     document.body.style.userSelect = ''
     document.body.style.cursor = ''
     // Persist
@@ -191,11 +205,61 @@ export const ResizablePanels: React.FC<ResizablePanelsProps> = (props: Resizable
     }
   }, [direction, panelCount, sizes, persistSizes])
 
+  // Keyboard handler for handle at index
+  const onHandleKeyDown = useCallback((index: number) => (e: React.KeyboardEvent) => {
+    const key = e.key
+    const step = e.shiftKey ? 5 : 1
+    let handled = false
+    const next = [...sizes]
+    if (direction === 'horizontal') {
+      if (key === 'ArrowLeft') {
+        // Move divider left: decrease left panel, increase right panel
+        next[index] = next[index] - step
+        next[index + 1] = next[index + 1] + step
+        handled = true
+      } else if (key === 'ArrowRight') {
+        // Move divider right: increase left panel, decrease right panel
+        next[index] = next[index] + step
+        next[index + 1] = next[index + 1] - step
+        handled = true
+      }
+    } else {
+      if (key === 'ArrowUp') {
+        // Move divider up: decrease top panel, increase bottom panel
+        next[index] = next[index] - step
+        next[index + 1] = next[index + 1] + step
+        handled = true
+      } else if (key === 'ArrowDown') {
+        // Move divider down: increase top panel, decrease bottom panel
+        next[index] = next[index] + step
+        next[index + 1] = next[index + 1] - step
+        handled = true
+      }
+    }
+    if (handled) {
+      e.preventDefault()
+      const normalized = clampSizes(next)
+      setSizes(normalized)
+      persistSizesDebounced(normalized)
+    }
+  }, [sizes, direction, clampSizes, persistSizesDebounced])
+
+  const onHandleDoubleClick = useCallback(() => {
+    let reset: number[]
+    if (defaultSizes && defaultSizes.length === panelCount) {
+      reset = normalizePercentages(defaultSizes)
+    } else {
+      reset = Array(panelCount).fill(100 / Math.max(panelCount, 1))
+    }
+    setSizes(reset)
+    persistSizes(reset)
+  }, [defaultSizes, panelCount, persistSizes])
+
   // Render
   return (
     <div
       ref={containerRef}
-      className={`resizable-panels ${direction}`}
+      className={`resizable-panels ${direction}${isDragging ? ' dragging' : ''}`}
       style={{
         display: 'flex',
         flexDirection: direction === 'horizontal' ? 'row' : 'column',
@@ -213,7 +277,7 @@ export const ResizablePanels: React.FC<ResizablePanelsProps> = (props: Resizable
               [direction === 'horizontal' ? 'width' : 'height']: `${sizes[i]}%`,
               [direction === 'horizontal' ? 'height' : 'width']: '100%',
               overflow: 'hidden',
-              transition: 'width 0.15s ease, height 0.15s ease'
+              transition: isDragging ? 'none' : 'width 0.15s ease, height 0.15s ease'
             } as React.CSSProperties}
           >
             {child}
@@ -222,8 +286,13 @@ export const ResizablePanels: React.FC<ResizablePanelsProps> = (props: Resizable
             <div
               className="split-handle resize-handle"
               data-testid="panel-resizer"
+              role="separator"
+              aria-orientation={direction === 'horizontal' ? 'vertical' : 'horizontal'}
+              tabIndex={0}
+              onKeyDown={onHandleKeyDown(i)}
               onMouseDown={onMouseDown(i)}
               onTouchStart={onTouchStart(i)}
+              onDoubleClick={onHandleDoubleClick}
               style={{
                 [direction === 'horizontal' ? 'width' : 'height']: `${gutterSize}px`,
                 [direction === 'horizontal' ? 'height' : 'width']: '100%',

@@ -39,11 +39,11 @@ const Toolbar = styled.div`
 `
 
 const SmallButton = styled.button`
-  padding: 6px 10px;
+  padding: var(--space-1) var(--space-2);
   background: var(--background-tertiary);
   color: var(--text-primary);
   border: 1px solid var(--border-subtle);
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   font-size: 12px;
   &:hover { background: var(--accent-primary); color: white; }
@@ -90,9 +90,10 @@ const ValueBox = styled.div`
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: 12px;
   color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 96px;
+  overflow: auto;
 `
 
 const Divider = styled.span`
@@ -130,9 +131,16 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ com
     ]
   }, [compareConfig])
 
-  // Display helper: consistently stringify values for diff display
+  // Display helper: pretty-print objects; single-line for primitives
   const stringify = (v: unknown) => {
-    try { return JSON.stringify(v) } catch { return String(v) }
+    try {
+      if (v !== null && typeof v === 'object') {
+        return JSON.stringify(v, null, 2)
+      }
+      return JSON.stringify(v)
+    } catch {
+      return String(v)
+    }
   }
 
   const addedCount = diff ? Object.keys(diff.added).length : 0
@@ -142,7 +150,7 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ com
 
   return (
     <div>
-      <div style={{ margin: '4px 0', color: 'var(--text-secondary)', fontSize: '12px' }}>
+      <div style={{ margin: '4px 0', color: 'var(--text-secondary)' }}>
         {comparisonFilePath ? `Loaded from: ${comparisonFilePath}` : 'No file selected'}
       </div>
       {errorMessage && (

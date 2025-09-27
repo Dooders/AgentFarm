@@ -23,6 +23,13 @@ body.grayscale {
   filter: grayscale(1);
 }
 
+/* Variable-driven grayscale mode */
+body[data-mode="grayscale"] {
+  /* keep the same palette but ensure accents stay monochrome */
+  --accent-primary: var(--slate-700);
+  --accent-hover: var(--slate-800);
+}
+
 /* CSS Custom Properties for the greyscale theme */
 :root {
   /* Base Colors */
@@ -81,6 +88,23 @@ body.grayscale {
   --success-bg: var(--slate-100);
   --success-border: var(--slate-400);
   --success-text: var(--slate-600);
+
+  /* Spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+
+  /* Radius scale */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
 /* Typography */
@@ -203,6 +227,11 @@ textarea:focus,
   transition: all 0.2s ease;
 }
 
+/* Disable transitions while dragging */
+.resizable-panels.dragging .panel {
+  transition: none !important;
+}
+
 /* Desktop-focused layout - simplified for desktop use */
 .resizable-panels {
   display: flex;
@@ -230,6 +259,19 @@ textarea:focus,
   justify-content: center;
   user-select: none;
   transition: background-color 0.15s ease;
+}
+
+/* Extend hit area without changing visible size */
+.split-handle::before {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  left: -4px; right: -4px;
+}
+
+.split-handle:focus {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .split-handle:hover {

@@ -6,6 +6,7 @@ import type { ConfigStore } from '@/types/config'
 import { configSelectors, useValidationStore, validationSelectors } from '@/stores/selectors'
 import { ipcService } from '@/services/ipcService'
 import { toYaml } from '@/utils/yaml'
+import type { ValidationState } from '@/types/validation'
 import { useSearchStore } from '@/stores/searchStore'
 // Search UI is integrated in Right Panel; toolbar provides jump + shortcut
 
@@ -13,8 +14,8 @@ const Bar = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--border-subtle);
   background: var(--background-secondary);
 `
@@ -22,17 +23,17 @@ const Bar = styled.div`
 const Section = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   flex-wrap: wrap;
 `
 
 const Button = styled.button`
-  padding: 6px 10px;
+  padding: var(--space-1) var(--space-2);
   font-size: 12px;
   background: var(--background-tertiary);
   color: var(--text-primary);
   border: 1px solid var(--border-subtle);
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   &:disabled {
     opacity: 0.5;
@@ -50,7 +51,7 @@ const Sep = styled.span`
 const Status = styled.div`
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-3);
   font-size: 12px;
   color: var(--text-secondary);
 `
@@ -74,8 +75,10 @@ export const Toolbar: React.FC = () => {
   const setComparisonPath = useConfigStore((s: ConfigStore) => s.setComparisonPath)
   const applyAll = useConfigStore((s: ConfigStore) => s.applyAllDifferencesFromComparison)
 
-  const errorCount = useValidationStore((s) => validationSelectors.getErrorCount(s))
-  const warningCount = useValidationStore((s) => validationSelectors.getWarningCount(s))
+  const selectErrCount = useCallback((s: ValidationState) => validationSelectors.getErrorCount(s), [])
+  const selectWarnCount = useCallback((s: ValidationState) => validationSelectors.getWarningCount(s), [])
+  const errorCount = useValidationStore(selectErrCount)
+  const warningCount = useValidationStore(selectWarnCount)
 
   const [isGrayscale, setIsGrayscale] = useState<boolean>(false)
   const filePickerRef = useRef<HTMLInputElement>(null)
@@ -87,14 +90,14 @@ export const Toolbar: React.FC = () => {
       const pref = localStorage.getItem('ui:grayscale')
       const enabled = pref === '1' || pref === 'true'
       setIsGrayscale(enabled)
-      document.body.classList.toggle('grayscale', enabled)
+      document.body.setAttribute('data-mode', enabled ? 'grayscale' : 'default')
     } catch {}
   }, [])
 
   const toggleGrayscale = useCallback(() => {
-    setIsGrayscale((prev) => {
+    setIsGrayscale((prev: boolean) => {
       const next = !prev
-      document.body.classList.toggle('grayscale', next)
+      document.body.setAttribute('data-mode', next ? 'grayscale' : 'default')
       try { localStorage.setItem('ui:grayscale', next ? '1' : '0') } catch {}
       return next
     })
