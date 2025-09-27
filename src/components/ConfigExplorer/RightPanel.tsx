@@ -101,7 +101,7 @@ const Stats = styled.div`
   margin-top: 8px;
 `
 
-export const RightPanel: React.FC = () => {
+export const RightPanel: React.FC = React.memo(() => {
   const runSearch = useSearchStore((s) => s.runSearch)
   const isSearching = useSearchStore((s) => s.isSearching)
   const { announceToScreenReader } = useAccessibility()
@@ -170,7 +170,7 @@ export const RightPanel: React.FC = () => {
   return (
     <RightPanelContainer role="complementary" aria-label="Configuration comparison and validation panel">
       <PanelHeader>
-        <PanelTitle>Configuration Tools</PanelTitle>
+        <PanelTitle>Configuration Comparison</PanelTitle>
       </PanelHeader>
 
       <ContentArea id="comparison-content" tabIndex={-1}>
@@ -274,4 +274,4 @@ export const RightPanel: React.FC = () => {
       </ContentArea>
     </RightPanelContainer>
   )
-}
+})

@@ -55,7 +55,7 @@ const ControlGroup = styled.div`
   border: 1px solid var(--border-subtle);
 `
 
-export const LeftPanel: React.FC = () => {
+export const LeftPanel: React.FC = React.memo(() => {
   const levaStore = useLevaStore()
   const configStore = useConfigStore()
   const { announceToScreenReader } = useAccessibility()
@@ -229,4 +229,4 @@ export const LeftPanel: React.FC = () => {
       </ScrollableArea>
     </LeftPanelContainer>
   )
-}
+})
