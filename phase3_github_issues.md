@@ -241,6 +241,16 @@ Build a comprehensive toolbar system with all necessary controls for configurati
 **Dependencies:** Phase 2 completion
 **Estimated Time:** 2-3 days
 
+Implementation Notes (Sept 2025):
+- Added `Toolbar.tsx` in `src/components/Layout/Toolbar.tsx` with modular sections for File, Compare, App controls, and status indicators.
+- Integrated toolbar into `DualPanelLayout` above resizable panels.
+- Store: added `currentFilePath`, `lastSaveTime`, and `lastLoadTime`; updated `loadConfig`/`saveConfig` to populate them.
+- YAML export uses Electron IPC when available, with browser download fallback; JSON export supported.
+- Comparison controls mirror `RightPanel` capabilities: load/clear/toggle and Apply All.
+- Grayscale toggle persists in `localStorage` (`ui:grayscale`), synced at startup via `ThemeProvider`.
+- Shortcuts: Ctrl/Cmd+O (Open), Ctrl/Cmd+S (Save), Ctrl/Cmd+Shift+S (Save As), Ctrl/Cmd+Y (Export YAML), Ctrl/Cmd+G (Grayscale).
+- Tests: added `Toolbar.test.tsx` to validate presence of controls, grayscale toggle behavior, and Save enabling on changes.
+
 ---
 
 ### Issue #20: Add Status Bar with Validation Feedback

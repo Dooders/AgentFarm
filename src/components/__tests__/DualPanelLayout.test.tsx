@@ -9,6 +9,9 @@ describe('DualPanelLayout', () => {
     // Check that both panels are rendered
     expect(screen.getByText('Configuration Explorer')).toBeInTheDocument()
     expect(screen.getByText('Configuration Comparison')).toBeInTheDocument()
+
+    // Toolbar should be present
+    expect(screen.getByRole('toolbar', { name: /application toolbar/i })).toBeInTheDocument()
   })
 
   it('uses ResizablePanels as the layout container', () => {
