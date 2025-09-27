@@ -37,7 +37,7 @@ const ContentArea = styled.div`
   flex: 1;
   padding: 16px;
   overflow-y: auto;
-  background: var(--background-secondary);
+  background: var(--background-primary);
 `
 
 const SectionTitle = styled.h3`
@@ -52,16 +52,17 @@ const SectionTitle = styled.h3`
 const ContentSection = styled.div`
   margin-bottom: 24px;
   padding: 16px;
-  background: var(--background-primary);
-  border-radius: 8px;
+  background: var(--background-secondary);
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-sm);
 `
 
 const ConfigItem = styled.div`
   margin-bottom: 12px;
   padding: 8px;
-  background: var(--background-secondary);
-  border-radius: 4px;
+  background: var(--background-primary);
+  border-radius: var(--radius-sm);
   border-left: 3px solid var(--accent-primary);
 `
 
@@ -73,6 +74,8 @@ const ConfigLabel = styled.span`
 const ConfigValue = styled.span`
   color: var(--text-secondary);
   margin-left: 8px;
+  white-space: normal;
+  word-break: break-word;
 `
 
 const ActionButton = styled.button`
