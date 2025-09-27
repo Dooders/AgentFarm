@@ -52,7 +52,7 @@ globalThis.IntersectionObserver = vi.fn().mockImplementation(() => ({
 }))
 
 // Mock WebSocket for testing
-;(globalThis as any).WebSocket = vi.fn().mockImplementation(() => ({
+(globalThis as any).WebSocket = vi.fn().mockImplementation(() => ({
   addEventListener: vi.fn(),
   removeEventListener: vi.fn(),
   dispatchEvent: vi.fn(),

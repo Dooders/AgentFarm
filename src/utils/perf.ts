@@ -51,10 +51,10 @@ function enqueueRum(event: RumEvent) {
     return
   }
   if (rumFlushTimer !== undefined) return
-  rumFlushTimer = (setTimeout(() => {
+  rumFlushTimer = window.setTimeout(() => {
     rumFlushTimer = undefined
     flushRum()
-  }, 5000) as unknown) as number
+  }, 5000)
 }
 
 export function rumNav(name: string, value?: number, meta?: Record<string, unknown>) {

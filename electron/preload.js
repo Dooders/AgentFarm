@@ -42,6 +42,8 @@ const allowedEventChannels = new Set([
   'fs:operation:complete'
 ])
 
+const onceValidChannels = new Set(['app:ready', 'app:ping'])
+
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -113,32 +115,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // IPC event listeners
   on: (channel, callback) => {
-    if (allowedEventChannels.has(channel)) {
-      const wrapped = (_event, payload) => callback(payload)
-      ipcRenderer.on(channel, wrapped)
-      return () => ipcRenderer.removeListener(channel, wrapped)
+    if (!allowedEventChannels.has(channel)) {
+      return () => {}
     }
+    const wrapped = (_event, payload) => callback(payload)
+    ipcRenderer.on(channel, wrapped)
+    return () => ipcRenderer.removeListener(channel, wrapped)
   },
 
   // IPC one-time listeners
   once: (channel, callback) => {
-    const validChannels = new Set(['app:ready', 'app:ping'])
-    if (validChannels.has(channel)) {
-      const wrapped = (_event, payload) => callback(payload)
-      ipcRenderer.once(channel, wrapped)
-    }
+    if (!onceValidChannels.has(channel)) return
+    const wrapped = (_event, payload) => callback(payload)
+    ipcRenderer.once(channel, wrapped)
   },
 
   // Generic IPC methods (guarded)
   invoke: (channel, payload) => {
     if (!allowedInvokeChannels.has(channel)) {
-      throw new Error('Blocked IPC channel: ' + channel)
+      throw new Error('Access denied')
     }
     return ipcRenderer.invoke(channel, payload)
   },
   send: (channel, payload) => {
     if (!allowedInvokeChannels.has(channel)) {
-      throw new Error('Blocked IPC channel: ' + channel)
+      throw new Error('Access denied')
     }
     return ipcRenderer.send(channel, payload)
   },

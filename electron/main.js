@@ -39,9 +39,7 @@ function createWindow() {
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
   mainWindow.webContents.on('will-navigate', (event, url) => {
     const isDev = process.env.NODE_ENV === 'development'
-    const allowedOrigins = new Set([
-      isDev ? 'http://localhost:3000' : '',
-    ])
+    const allowedOrigins = isDev ? new Set(['http://localhost:3000']) : new Set()
     if (url.startsWith('file://')) return
     try {
       const { origin } = new URL(url)
