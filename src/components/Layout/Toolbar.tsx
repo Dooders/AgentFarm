@@ -143,7 +143,20 @@ export const Toolbar: React.FC = () => {
 
   const doSaveAs = useCallback(async (): Promise<void> => {
     try {
-      // In Electron, a dialog would be used via main. Here we fallback to download.
+      if (window?.electronAPI) {
+        const result: any = await ipcService.invoke('dialog:save', {
+          filters: [
+            { name: 'Configuration Files', extensions: ['json', 'yaml', 'yml', 'toml'] },
+            { name: 'All Files', extensions: ['*'] }
+          ]
+        })
+        if (result && !result.canceled && result.filePath) {
+          await saveConfig(result.filePath)
+          return
+        }
+      }
+
+      // Fallback for browser
       const json = JSON.stringify(config, null, 2)
       const blob = new Blob([json], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
@@ -157,7 +170,7 @@ export const Toolbar: React.FC = () => {
     } catch (err) {
       console.error('Save As failed:', err)
     }
-  }, [config])
+  }, [config, saveConfig])
 
   const doExportYaml = useCallback(async (): Promise<void> => {
     try {

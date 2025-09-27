@@ -100,7 +100,7 @@ export class IPCServiceImpl implements IPCService {
       }
 
       const startTime = Date.now()
-      const response: IPCResponse = await window.electronAPI.invoke(type, payload)
+      const response: any = await window.electronAPI.invoke(type, payload)
       const responseTime = Date.now() - startTime
 
       this.performanceMetrics.totalResponses++
@@ -111,11 +111,14 @@ export class IPCServiceImpl implements IPCService {
       this.performanceMetrics.peakResponseTime = Math.max(this.performanceMetrics.peakResponseTime, responseTime)
       this.performanceMetrics.lastResponseTime = Date.now()
 
-      if (!response.success) {
-        throw new Error(response.error || 'IPC operation failed')
+      // Accept both enveloped and bare responses from main
+      if (response && typeof response.success === 'boolean') {
+        if (!response.success) {
+          throw new Error(response.error || 'IPC operation failed')
+        }
+        return response.payload
       }
-
-      return response.payload
+      return response
     } catch (error) {
       this.performanceMetrics.errorRate = this.performanceMetrics.totalRequests > 0
         ? (this.performanceMetrics.totalRequests - this.performanceMetrics.totalResponses) / this.performanceMetrics.totalRequests
@@ -256,7 +259,7 @@ export class IPCServiceImpl implements IPCService {
     return result
   }
 
-  async writeFile(request: { filePath: string; content: string | Buffer; encoding?: string; options?: any }): Promise<any> {
+  async writeFile(request: { filePath: string; content: string; encoding?: string; options?: any }): Promise<any> {
     const result = await this.executeRequest('fs:file:write', request)
     return result
   }

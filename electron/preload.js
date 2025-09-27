@@ -4,9 +4,24 @@ const { contextBridge, ipcRenderer } = require('electron')
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electronAPI', {
   // Config file operations
-  loadConfig: (filePath) => ipcRenderer.invoke('config:load', filePath),
-  saveConfig: (config, filePath) => ipcRenderer.invoke('config:save', config, filePath),
-  exportConfig: (config, format) => ipcRenderer.invoke('config:export', config, format),
+  loadConfig: (requestOrPath) => {
+    const payload = typeof requestOrPath === 'string' || requestOrPath === undefined
+      ? { filePath: requestOrPath }
+      : requestOrPath
+    return ipcRenderer.invoke('config:load', payload)
+  },
+  saveConfig: (requestOrConfig, maybeFilePath) => {
+    const payload = requestOrConfig && requestOrConfig.config !== undefined
+      ? requestOrConfig
+      : { config: requestOrConfig, filePath: maybeFilePath }
+    return ipcRenderer.invoke('config:save', payload)
+  },
+  exportConfig: (requestOrConfig, maybeFormat) => {
+    const payload = requestOrConfig && requestOrConfig.config !== undefined
+      ? requestOrConfig
+      : { config: requestOrConfig, format: maybeFormat }
+    return ipcRenderer.invoke('config:export', payload)
+  },
   importConfig: (request) => ipcRenderer.invoke('config:import', request),
   validateConfig: (request) => ipcRenderer.invoke('config:validate', request),
 
