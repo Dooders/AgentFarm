@@ -2,6 +2,27 @@
 
 This guide explains how to configure AgentFarm simulations using the YAML-based configuration system. Proper configuration is essential for controlling simulation behavior, agent properties, learning parameters, and analysis settings.
 
+## Configuration Explorer Layout (Advanced Resizable Panels)
+
+The Configuration Explorer UI now supports an advanced, persistent resizable panel layout:
+
+- Horizontal split between navigation (left) and content (right)
+- Nested vertical split inside the right panel (top content, bottom preview)
+- Smooth drag-to-resize with mouse or touch
+- Minimum size constraints and responsive behavior
+- Layout size persistence per area between sessions
+
+Development details:
+
+- Core component: `src/components/Layout/ResizablePanels.tsx`
+- Main layout: `src/components/Layout/DualPanelLayout.tsx`
+- Sizes persist via the store (`layoutSizes`) and keys like `layout:main-horizontal` and `layout:right-vertical`
+
+Tips:
+
+- If panel sizing becomes extreme on ultra-wide monitors, the layout auto-balances to 50/50 for the main split.
+- You can reset persisted layout by clearing the UI preferences (see `clearPersistedState()` in `src/stores/configStore.ts`).
+
 ## Electron Config Explorer (GUI)
 
 The Electron-based Config Explorer provides an interactive way to view and edit configuration files.
