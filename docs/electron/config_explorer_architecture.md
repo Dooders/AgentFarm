@@ -241,6 +241,10 @@ Rollback Strategy
   - Form-based: field-level diff highlighting and one-click "Copy from compare"
   - YAML-based: side-by-side grid listing key paths and values (current vs compare)
 - Preset bundles supported: apply preset (deep merge) and undo last applied preset
+
+Status (Sept 2025):
+- Implemented form-based diff highlighting with Added/Removed/Changed categories, per-field Copy/Remove, and Apply-All merge in `ComparisonPanel`/`RightPanel`.
+- Exposed store/selector APIs to compute diffs and statistics for renderer use.
 - Validation and unsaved state clearly indicated in UI during edits/merges
 
 ---
