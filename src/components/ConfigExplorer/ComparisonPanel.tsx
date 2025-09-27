@@ -1,6 +1,8 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import styled from 'styled-components'
 import { SimulationConfigType } from '@/types/config'
+import { useConfigStore } from '@/stores/configStore'
+import { configSelectors } from '@/stores/selectors'
 
 const ContentSection = styled.div`
   margin-bottom: 24px;
@@ -28,6 +30,75 @@ const ConfigValue = styled.span`
   margin-left: 8px;
 `
 
+const Toolbar = styled.div`
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 12px;
+`
+
+const SmallButton = styled.button`
+  padding: 6px 10px;
+  background: var(--background-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  &:hover { background: var(--accent-primary); color: white; }
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+`
+
+const DiffList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`
+
+const DiffItem = styled.div<{ variant: 'added' | 'removed' | 'changed' }>`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 6px;
+  background: var(--background-secondary);
+  border: 1px solid var(--border-subtle);
+  border-left: 4px solid
+    ${p => p.variant === 'added' ? 'var(--success, #16a34a)' : p.variant === 'removed' ? 'var(--error-border, #dc2626)' : 'var(--accent-primary)'};
+`
+
+const PathText = styled.div`
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  color: var(--text-secondary);
+`
+
+const ValuesRow = styled.div`
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+`
+
+const ValueBox = styled.div`
+  padding: 6px 8px;
+  background: var(--background-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+const Divider = styled.span`
+  color: var(--text-secondary);
+  font-size: 12px;
+`
+
 type ComparisonPanelProps = {
   compareConfig: SimulationConfigType | null
   comparisonFilePath?: string
@@ -35,6 +106,15 @@ type ComparisonPanelProps = {
 }
 
 export const ComparisonPanel: React.FC<ComparisonPanelProps> = ({ compareConfig, comparisonFilePath, errorMessage }) => {
+  const diff = useConfigStore(configSelectors.getComparisonDiff)
+  const copyFromComparison = useConfigStore(s => s.copyFromComparison)
+  const removeConfigPath = useConfigStore(s => s.removeConfigPath)
+  const applyAll = useConfigStore(s => s.applyAllDifferencesFromComparison)
+
+  const [showAdded, setShowAdded] = useState(true)
+  const [showRemoved, setShowRemoved] = useState(true)
+  const [showChanged, setShowChanged] = useState(true)
+
   const comparisonSummary = useMemo(() => {
     if (!compareConfig) return null
     return [
@@ -44,6 +124,12 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = ({ compareConfig,
       { label: 'Visualization', value: `Canvas: ${compareConfig.visualization.canvas_width}x${compareConfig.visualization.canvas_height}, Metrics: ${compareConfig.visualization.show_metrics ? 'Enabled' : 'Disabled'}` }
     ]
   }, [compareConfig])
+
+  const stringify = (v: unknown) => {
+    try { return typeof v === 'string' ? v : JSON.stringify(v) } catch { return String(v) }
+  }
+
+  const hasAnyDiff = diff && (Object.keys(diff.added).length + Object.keys(diff.removed).length + Object.keys(diff.changed).length) > 0
 
   return (
     <div>
@@ -70,6 +156,67 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = ({ compareConfig,
           </div>
         )}
       </ContentSection>
+
+      {compareConfig && (
+        <ContentSection>
+          <Toolbar role="toolbar" aria-label="Diff filters and actions">
+            <SmallButton onClick={() => setShowAdded(v => !v)} aria-pressed={showAdded}>{showAdded ? 'Hide' : 'Show'} Added</SmallButton>
+            <SmallButton onClick={() => setShowRemoved(v => !v)} aria-pressed={showRemoved}>{showRemoved ? 'Hide' : 'Show'} Removed</SmallButton>
+            <SmallButton onClick={() => setShowChanged(v => !v)} aria-pressed={showChanged}>{showChanged ? 'Hide' : 'Show'} Changed</SmallButton>
+            <SmallButton onClick={() => applyAll()} disabled={!hasAnyDiff}>Apply All Differences</SmallButton>
+          </Toolbar>
+
+          {!hasAnyDiff && (
+            <div style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>No differences detected.</div>
+          )}
+
+          {hasAnyDiff && (
+            <DiffList aria-label="Differences list">
+              {showAdded && Object.entries(diff.added).map(([path, to]) => (
+                <DiffItem key={`added-${path}`} variant="added">
+                  <PathText>{path}</PathText>
+                  <ValuesRow>
+                    <ValueBox title="Current value">(missing)</ValueBox>
+                    <Divider>→</Divider>
+                    <ValueBox title="Comparison value">{stringify(to)}</ValueBox>
+                    <SmallButton onClick={() => copyFromComparison(path)} aria-label={`Copy ${path} from comparison`}>
+                      Copy
+                    </SmallButton>
+                  </ValuesRow>
+                </DiffItem>
+              ))}
+
+              {showRemoved && Object.entries(diff.removed).map(([path, from]) => (
+                <DiffItem key={`removed-${path}`} variant="removed">
+                  <PathText>{path}</PathText>
+                  <ValuesRow>
+                    <ValueBox title="Current value">{stringify(from)}</ValueBox>
+                    <Divider>→</Divider>
+                    <ValueBox title="Comparison value">(missing)</ValueBox>
+                    <SmallButton onClick={() => removeConfigPath(path)} aria-label={`Remove ${path} from current`}>
+                      Remove
+                    </SmallButton>
+                  </ValuesRow>
+                </DiffItem>
+              ))}
+
+              {showChanged && Object.entries(diff.changed).map(([path, pair]) => (
+                <DiffItem key={`changed-${path}`} variant="changed">
+                  <PathText>{path}</PathText>
+                  <ValuesRow>
+                    <ValueBox title="Current value">{stringify(pair.from)}</ValueBox>
+                    <Divider>→</Divider>
+                    <ValueBox title="Comparison value">{stringify(pair.to)}</ValueBox>
+                    <SmallButton onClick={() => copyFromComparison(path)} aria-label={`Copy ${path} from comparison`}>
+                      Copy
+                    </SmallButton>
+                  </ValuesRow>
+                </DiffItem>
+              ))}
+            </DiffList>
+          )}
+        </ContentSection>
+      )}
     </div>
   )
 }

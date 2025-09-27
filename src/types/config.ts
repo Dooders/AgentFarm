@@ -152,6 +152,13 @@ export interface ConfigActions {
   clearComparison: () => void
   setComparisonPath: (path?: string) => void
 
+  // Diff and copy actions
+  getComparisonDiff: () => ConfigComparison
+  copyFromComparison: (path: ConfigPath) => boolean
+  batchCopyFromComparison: (paths: ConfigPath[]) => boolean
+  removeConfigPath: (path: ConfigPath) => void
+  applyAllDifferencesFromComparison: () => void
+
   // Navigation actions
   setSelectedSection: (section: ConfigSection) => void
   toggleSection: (section: ConfigSection) => void

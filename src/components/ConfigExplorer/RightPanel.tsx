@@ -85,6 +85,16 @@ const ActionButton = styled.button`
   }
 `
 
+const Stats = styled.div`
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-top: 8px;
+`
+
 export const RightPanel: React.FC = () => {
   const { announceToScreenReader } = useAccessibility()
   const showComparison = useConfigStore(configSelectors.getShowComparison)
@@ -94,6 +104,8 @@ export const RightPanel: React.FC = () => {
   const toggleComparison = useConfigStore((s) => s.toggleComparison)
   const setComparison = useConfigStore((s) => s.setComparison)
   const setComparisonPath = useConfigStore((s) => s.setComparisonPath)
+  const diffStats = useConfigStore(configSelectors.getComparisonStats)
+  const applyAll = useConfigStore((s) => s.applyAllDifferencesFromComparison)
 
   // File input handling for loading comparison config (JSON for now)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -191,8 +203,23 @@ export const RightPanel: React.FC = () => {
               <ActionButton onClick={() => { clearComparison(); announceToScreenReader('Comparison cleared', 'polite') }} disabled={!compareConfig}>
                 Clear Comparison
               </ActionButton>
+              {compareConfig && (
+                <ActionButton onClick={() => { applyAll(); announceToScreenReader('Applied all differences from comparison', 'polite') }} disabled={!compareConfig || (diffStats.added + diffStats.removed + diffStats.changed) === 0}>
+                  Apply All Differences
+                </ActionButton>
+              )}
               <input ref={fileInputRef} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={onFileSelected} />
             </div>
+
+            {compareConfig && (
+              <Stats aria-label="Difference statistics">
+                <span>Added: {diffStats.added}</span>
+                <span>Removed: {diffStats.removed}</span>
+                <span>Changed: {diffStats.changed}</span>
+                <span>Unchanged: {diffStats.unchanged}</span>
+                <span>Changed %: {diffStats.percentChanged}%</span>
+              </Stats>
+            )}
 
             {showComparison && (
               <div>
