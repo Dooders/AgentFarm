@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 import { useConfigStore } from '@/stores/configStore'
+import type { ConfigStore } from '@/types/config'
 import { configSelectors, useValidationStore, validationSelectors } from '@/stores/selectors'
 import { ipcService } from '@/services/ipcService'
 import { toYaml } from '@/utils/yaml'
+// Search UI is integrated in Right Panel; toolbar provides jump + shortcut
 
 const Bar = styled.div`
   display: flex;
@@ -52,23 +54,23 @@ const Status = styled.div`
 `
 
 export const Toolbar: React.FC = () => {
-  const config = useConfigStore((s) => configSelectors.getConfig(s))
-  const compareConfig = useConfigStore((s) => configSelectors.getCompareConfig(s))
-  const showComparison = useConfigStore((s) => configSelectors.getShowComparison(s))
-  const isDirty = useConfigStore((s) => configSelectors.getIsDirty(s))
-  const currentFilePath = useConfigStore((s) => configSelectors.getCurrentFilePath(s) as string | undefined)
-  const lastSaveTime = useConfigStore((s) => configSelectors.getLastSaveTime(s) as number | undefined)
-  const lastLoadTime = useConfigStore((s) => configSelectors.getLastLoadTime(s) as number | undefined)
-  const loadConfig = useConfigStore((s) => s.loadConfig)
-  const openConfigFromContent = useConfigStore((s) => s.openConfigFromContent)
-  const saveConfig = useConfigStore((s) => s.saveConfig)
-  const exportConfigMeta = useConfigStore((s) => s.exportConfig)
-  const resetToDefaults = useConfigStore((s) => s.resetToDefaults)
-  const toggleComparison = useConfigStore((s) => s.toggleComparison)
-  const clearComparison = useConfigStore((s) => s.clearComparison)
-  const setComparison = useConfigStore((s) => s.setComparison)
-  const setComparisonPath = useConfigStore((s) => s.setComparisonPath)
-  const applyAll = useConfigStore((s) => s.applyAllDifferencesFromComparison)
+  const config = useConfigStore(configSelectors.getConfig)
+  const compareConfig = useConfigStore(configSelectors.getCompareConfig)
+  const showComparison = useConfigStore(configSelectors.getShowComparison)
+  const isDirty = useConfigStore(configSelectors.getIsDirty)
+  const currentFilePath = useConfigStore(configSelectors.getCurrentFilePath) as string | undefined
+  const lastSaveTime = useConfigStore(configSelectors.getLastSaveTime) as number | undefined
+  const lastLoadTime = useConfigStore(configSelectors.getLastLoadTime) as number | undefined
+  const loadConfig = useConfigStore((s: ConfigStore) => s.loadConfig)
+  const openConfigFromContent = useConfigStore((s: ConfigStore) => s.openConfigFromContent)
+  const saveConfig = useConfigStore((s: ConfigStore) => s.saveConfig)
+  const exportConfigMeta = useConfigStore((s: ConfigStore) => s.exportConfig)
+  const resetToDefaults = useConfigStore((s: ConfigStore) => s.resetToDefaults)
+  const toggleComparison = useConfigStore((s: ConfigStore) => s.toggleComparison)
+  const clearComparison = useConfigStore((s: ConfigStore) => s.clearComparison)
+  const setComparison = useConfigStore((s: ConfigStore) => s.setComparison)
+  const setComparisonPath = useConfigStore((s: ConfigStore) => s.setComparisonPath)
+  const applyAll = useConfigStore((s: ConfigStore) => s.applyAllDifferencesFromComparison)
 
   const errorCount = useValidationStore((s) => validationSelectors.getErrorCount(s))
   const warningCount = useValidationStore((s) => validationSelectors.getWarningCount(s))
@@ -214,7 +216,8 @@ export const Toolbar: React.FC = () => {
       'mod+s': (e) => { e.preventDefault(); doSave() },
       'mod+shift+s': (e) => { e.preventDefault(); doSaveAs() },
       'mod+g': (e) => { e.preventDefault(); toggleGrayscale() },
-      'mod+y': (e) => { e.preventDefault(); doExportYaml() }
+      'mod+y': (e) => { e.preventDefault(); doExportYaml() },
+      'mod+f': (e) => { e.preventDefault(); const el = document.getElementById('toolbar-search'); if (el) (el as HTMLInputElement).focus() }
     }
     const onKey = (e: KeyboardEvent) => {
       const isMod = e.ctrlKey || e.metaKey

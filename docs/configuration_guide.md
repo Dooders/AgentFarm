@@ -579,6 +579,17 @@ Keyboard/UX tips:
 - Use the toolbar “Presets” button to scroll to the manager quickly.
 - Search in the Preset Manager to filter by name, description, or category.
 
+#### Search and Filtering (Electron Config Explorer)
+
+- Real-time search across all parameters with fuzzy ranking
+- Scope: keys, values, or both
+- Regex and case sensitivity toggles
+- Filter by parameter type, section, validation status, and modification status
+- Boolean logic in queries: AND, OR, NOT (no parentheses)
+  - Examples: `width AND NOT height:200`, `learning_rate >=0.001`, `width:[50..200]`
+- Search within results toggle to refine an existing result set
+- Saved searches: save, apply, and delete named searches
+
 ## Best Practices
 
 ### Organization
