@@ -583,6 +583,107 @@ export const useConfigStore = create<ConfigStore>((set, get) => ({
     return diff
   },
 
+  // Get diff between current config and comparison config (added/removed/changed/unchanged)
+  getComparisonDiff: () => {
+    const { config, compareConfig } = get()
+    const result = {
+      added: {} as Record<string, unknown>,
+      removed: {} as Record<string, unknown>,
+      changed: {} as Record<string, { from: unknown; to: unknown }>,
+      unchanged: {} as Record<string, unknown>
+    }
+
+    if (!compareConfig) return result
+
+    const allKeys = new Set([
+      ...getAllKeys(compareConfig as unknown as Record<string, unknown>),
+      ...getAllKeys(config as unknown as Record<string, unknown>)
+    ])
+
+    allKeys.forEach(key => {
+      const compareValue = getNestedValue(compareConfig as unknown as Record<string, unknown>, key)
+      const currentValue = getNestedValue(config as unknown as Record<string, unknown>, key)
+
+      const hasInCompare = compareValue !== undefined
+      const hasInCurrent = currentValue !== undefined
+
+      if (hasInCompare && !hasInCurrent) {
+        ;(result.added as Record<string, unknown>)[key] = compareValue
+      } else if (!hasInCompare && hasInCurrent) {
+        ;(result.removed as Record<string, unknown>)[key] = currentValue
+      } else if (hasInCompare && hasInCurrent) {
+        const equal = JSON.stringify(compareValue) === JSON.stringify(currentValue)
+        if (!equal) {
+          ;(result.changed as Record<string, { from: unknown; to: unknown }>)[key] = { from: currentValue, to: compareValue }
+        } else {
+          ;(result.unchanged as Record<string, unknown>)[key] = currentValue
+        }
+      }
+    })
+
+    return result
+  },
+
+  // Copy a field value from comparison into current config
+  copyFromComparison: (path: string) => {
+    const { compareConfig } = get()
+    if (!compareConfig) return false
+    const value = getNestedValue(compareConfig as unknown as Record<string, unknown>, path)
+    if (value === undefined) return false
+    get().updateConfig(path, value)
+    return true
+  },
+
+  // Batch copy multiple paths from comparison
+  batchCopyFromComparison: (paths: string[]) => {
+    const { compareConfig } = get()
+    if (!compareConfig || paths.length === 0) return false
+    const updates = paths
+      .map(path => ({ path, value: getNestedValue(compareConfig as unknown as Record<string, unknown>, path) }))
+      .filter(update => update.value !== undefined)
+    if (updates.length === 0) return false
+    get().batchUpdateConfig({ updates })
+    return true
+  },
+
+  // Remove a config path from current config (used for aligning deletions)
+  removeConfigPath: (path: string) => {
+    const currentConfig = get().config
+    const { history, historyIndex } = get()
+    const newConfig = deepClone(currentConfig)
+    deleteNestedPath(newConfig as unknown as Record<string, unknown>, path)
+
+    const newHistory = history.slice(0, historyIndex + 1)
+    newHistory.push({
+      id: 'update',
+      config: newConfig,
+      timestamp: Date.now(),
+      action: 'update',
+      description: `Removed ${path}`
+    })
+
+    set({
+      config: newConfig,
+      isDirty: true,
+      history: newHistory,
+      historyIndex: historyIndex + 1
+    })
+  },
+
+  // Apply all differences from comparison into current config
+  applyAllDifferencesFromComparison: () => {
+    const diff = get().getComparisonDiff()
+    const addAndChangePaths = [
+      ...Object.keys(diff.added),
+      ...Object.keys(diff.changed)
+    ]
+    if (addAndChangePaths.length > 0) {
+      get().batchCopyFromComparison(addAndChangePaths)
+    }
+    const removedPaths = Object.keys(diff.removed)
+    removedPaths.forEach(path => get().removeConfigPath(path))
+  },
+
   // Enhanced validation with field-specific feedback
   validateField: async (path: string, value: any) => {
     const result = validationService.validateField(path, value)
@@ -627,4 +728,27 @@ function getAllKeys(obj: Record<string, unknown>, prefix = ''): string[] {
   }
 
   return keys
+}
+
+function deleteNestedPath(obj: Record<string, unknown>, path: string): void {
+  const parts = path.split('.')
+  let current: Record<string, unknown> | undefined = obj
+  for (let i = 0; i < parts.length - 1; i++) {
+    const key = parts[i]
+    const next = current[key]
+    if (typeof next !== 'object' || next === null) return
+    current = next as Record<string, unknown>
+  }
+  const lastKey = parts[parts.length - 1]
+  if (current && Object.prototype.hasOwnProperty.call(current, lastKey)) {
+    delete current[lastKey]
+  }
+}
+
+function deepClone<T>(value: T): T {
+  try {
+    return JSON.parse(JSON.stringify(value)) as T
+  } catch {
+    return value
+  }
 }
