@@ -88,17 +88,18 @@ const Content = styled.div<{ wrap: boolean; fontSize: number }>`
 
 type PreviewMode = 'yaml' | 'diff'
 
-function flatten(obj: any, prefix = ''): Record<string, unknown> {
+function flatten(obj: unknown, prefix = ''): Record<string, unknown> {
   const out: Record<string, unknown> = {}
-  const isObj = obj && typeof obj === 'object' && !Array.isArray(obj)
+  const isObj = obj !== null && typeof obj === 'object' && !Array.isArray(obj)
   if (!isObj) {
-    out[prefix || '(root)'] = obj
+    out[prefix || '(root)'] = obj as unknown
     return out
   }
-  Object.keys(obj).sort().forEach(k => {
-    const val = obj[k]
+  const src = obj as Record<string, unknown>
+  Object.keys(src).sort().forEach(k => {
+    const val = src[k]
     const keyPath = prefix ? `${prefix}.${k}` : k
-    if (val && typeof val === 'object' && !Array.isArray(val)) {
+    if (val !== null && typeof val === 'object' && !Array.isArray(val)) {
       Object.assign(out, flatten(val, keyPath))
     } else {
       out[keyPath] = val

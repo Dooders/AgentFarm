@@ -23,7 +23,7 @@ export const DualPanelLayout: React.FC = () => {
       <div style={{ flex: '1 1 auto', minHeight: 0 }}>
         <ResizablePanels
         direction="horizontal"
-        defaultSizes={[leftPanelWidth * 100, (1 - leftPanelWidth) * 100]}
+        defaultSizes={[Math.min(100, Math.max(0, leftPanelWidth * 100)), Math.max(0, Math.min(100, (1 - leftPanelWidth) * 100))]}
         minSizes={[20, 20]}
         persistKey="layout:main-horizontal"
       >

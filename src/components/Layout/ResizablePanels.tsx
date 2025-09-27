@@ -16,7 +16,10 @@ interface ResizablePanelsProps {
 // Utility to normalize sizes to sum to 100
 function normalizePercentages(values: number[]): number[] {
   const total = values.reduce((a, b) => a + b, 0)
-  if (total === 0) return values
+  if (total === 0) {
+    const n = values.length
+    return n === 0 ? [] : Array(n).fill(100 / n)
+  }
   return values.map((v: number) => (v / total) * 100)
 }
 

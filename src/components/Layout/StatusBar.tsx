@@ -95,7 +95,7 @@ export const StatusBar: React.FC = () => {
     setConnectionStatus(ipcService.getConnectionStatus())
     const interval = setInterval(() => {
       setConnectionStatus(ipcService.getConnectionStatus())
-    }, 1000)
+    }, 5000)
     return () => clearInterval(interval)
   }, [])
 

@@ -200,7 +200,11 @@ describe('Schema Validation Performance Requirements', () => {
 
       // Run many validations
       for (let i = 0; i < 1000; i++) {
+        // fire-and-forget is acceptable here; ensure we await at least once every few iterations to avoid microtask pile-up
+        // but maintain test's intent: repeated calls shouldn't leak
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
         validateSimulationConfig(validConfig)
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
         validateSimulationConfig(largeConfig)
       }
 

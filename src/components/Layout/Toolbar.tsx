@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 import { useConfigStore } from '@/stores/configStore'
 import { configSelectors, useValidationStore, validationSelectors } from '@/stores/selectors'
@@ -215,7 +215,14 @@ export const Toolbar: React.FC = () => {
     return () => window.removeEventListener('keydown', onKey)
   }, [doOpen, doSave, doSaveAs, doExportYaml, toggleGrayscale])
 
-  const connectionStatus = useMemo(() => ipcService.getConnectionStatus(), [])
+  const [connectionStatus, setConnectionStatus] = useState<string>(() => ipcService.getConnectionStatus())
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setConnectionStatus(ipcService.getConnectionStatus())
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [])
 
   return (
     <Bar role="toolbar" aria-label="Application toolbar">

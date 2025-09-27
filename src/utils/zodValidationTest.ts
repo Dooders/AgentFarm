@@ -6,7 +6,7 @@
 import { validateSimulationConfig, getDefaultConfig } from '@/utils/validationUtils'
 
 // Test valid configuration
-export function testValidConfig() {
+export async function testValidConfig() {
   const validConfig = {
     width: 100,
     height: 100,
@@ -146,7 +146,7 @@ export function testValidConfig() {
     }
   }
 
-  const result = validateSimulationConfig(validConfig)
+  const result = await validateSimulationConfig(validConfig)
 
   if (result.success) {
     console.log('✅ Valid configuration passed validation')
@@ -158,7 +158,7 @@ export function testValidConfig() {
 }
 
 // Test invalid configurations
-export function testInvalidConfigs() {
+export async function testInvalidConfigs() {
   const invalidConfigs = [
     // Invalid width (too small)
     {
@@ -198,7 +198,7 @@ export function testInvalidConfigs() {
     const baseConfig = getDefaultConfig()
     const testConfig = { ...baseConfig, ...testCase.config }
 
-    const result = validateSimulationConfig(testConfig)
+    const result = await validateSimulationConfig(testConfig)
 
     if (!result.success && result.errors.length > 0) {
       console.log(`✅ ${testCase.name} correctly failed validation`)
@@ -213,11 +213,11 @@ export function testInvalidConfigs() {
 }
 
 // Run all validation tests
-export function runValidationTests() {
+export async function runValidationTests() {
   console.log('Running Zod Schema Validation Tests...\n')
 
-  const validTestPassed = testValidConfig()
-  const invalidTestsPassed = testInvalidConfigs()
+  const validTestPassed = await testValidConfig()
+  const invalidTestsPassed = await testInvalidConfigs()
 
   if (validTestPassed && invalidTestsPassed) {
     console.log('\n🎉 All validation tests passed!')

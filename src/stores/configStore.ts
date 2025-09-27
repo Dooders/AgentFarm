@@ -888,30 +888,45 @@ function deepClone<T>(value: T): T {
   }
 }
 
-function deepEqual(a: unknown, b: unknown): boolean {
+function deepEqual(a: unknown, b: unknown, visited?: WeakMap<object, WeakMap<object, boolean>>): boolean {
   if (a === b) return true
   if (typeof a !== typeof b) return false
   if (a === null || b === null) return a === b
   if (typeof a !== 'object' || typeof b !== 'object') return a === b
 
-  if (Array.isArray(a) && Array.isArray(b)) {
+  // Handle Date and RegExp
+  if (a instanceof Date && b instanceof Date) return a.getTime() === b.getTime()
+  if (a instanceof RegExp && b instanceof RegExp) return a.source === b.source && a.flags === b.flags
+
+  // Arrays
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b)) return false
     if (a.length !== b.length) return false
     for (let i = 0; i < a.length; i++) {
-      if (!deepEqual(a[i], b[i])) return false
+      if (!deepEqual(a[i], b[i], visited)) return false
     }
     return true
   }
 
-  if (Array.isArray(a) || Array.isArray(b)) return false
-
   const aObj = a as Record<string, unknown>
   const bObj = b as Record<string, unknown>
+
+  // Cycle detection using pair-wise WeakMap
+  const seen = visited || new WeakMap<object, WeakMap<object, boolean>>()
+  let inner = seen.get(aObj)
+  if (inner && inner.get(bObj)) return true
+  if (!inner) {
+    inner = new WeakMap<object, boolean>()
+    seen.set(aObj, inner)
+  }
+  inner.set(bObj, true)
+
   const aKeys = Object.keys(aObj)
   const bKeys = Object.keys(bObj)
   if (aKeys.length !== bKeys.length) return false
   for (const key of aKeys) {
     if (!Object.prototype.hasOwnProperty.call(bObj, key)) return false
-    if (!deepEqual(aObj[key], bObj[key])) return false
+    if (!deepEqual(aObj[key], bObj[key], seen)) return false
   }
   return true
 }
