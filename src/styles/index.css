@@ -23,6 +23,13 @@ body.grayscale {
   filter: grayscale(1);
 }
 
+/* Variable-driven grayscale mode */
+body[data-mode="grayscale"] {
+  /* keep the same palette but ensure accents stay monochrome */
+  --accent-primary: var(--slate-700);
+  --accent-hover: var(--slate-800);
+}
+
 /* CSS Custom Properties for the greyscale theme */
 :root {
   /* Base Colors */

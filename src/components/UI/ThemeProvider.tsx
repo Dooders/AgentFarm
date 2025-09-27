@@ -9,14 +9,11 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     const root = document.documentElement
     root.setAttribute('data-theme', 'custom')
 
-    // Optional global grayscale toggle based on persisted preference
+    // Apply grayscale preference using data attribute
     try {
       const grayscalePref = localStorage.getItem('ui:grayscale')
-      if (grayscalePref === 'true' || grayscalePref === '1') {
-        document.body.classList.add('grayscale')
-      } else {
-        document.body.classList.remove('grayscale')
-      }
+      const enabled = grayscalePref === 'true' || grayscalePref === '1'
+      document.body.setAttribute('data-mode', enabled ? 'grayscale' : 'default')
     } catch (error) {
       console.warn('Failed to read grayscale preference:', error)
     }

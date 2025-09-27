@@ -89,14 +89,14 @@ export const Toolbar: React.FC = () => {
       const pref = localStorage.getItem('ui:grayscale')
       const enabled = pref === '1' || pref === 'true'
       setIsGrayscale(enabled)
-      document.body.classList.toggle('grayscale', enabled)
+      document.body.setAttribute('data-mode', enabled ? 'grayscale' : 'default')
     } catch {}
   }, [])
 
   const toggleGrayscale = useCallback(() => {
     setIsGrayscale((prev: boolean) => {
       const next = !prev
-      document.body.classList.toggle('grayscale', next)
+      document.body.setAttribute('data-mode', next ? 'grayscale' : 'default')
       try { localStorage.setItem('ui:grayscale', next ? '1' : '0') } catch {}
       return next
     })
