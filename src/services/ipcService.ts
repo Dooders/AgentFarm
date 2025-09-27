@@ -1,4 +1,4 @@
-import { IPCService, IPCEventType, IPCRequest, IPCResponse, IPCError, IPCConnectionStatus, IPCConnectionInfo, IPCPerformanceMetrics } from '../types/ipc'
+import { IPCService, IPCEventType, IPCError, IPCConnectionStatus, IPCConnectionInfo, IPCPerformanceMetrics } from '../types/ipc'
 import { SimulationConfigType } from '../types/config'
 import { ValidationResult } from '../types/validation'
 
@@ -29,7 +29,8 @@ export class IPCServiceImpl implements IPCService {
   }
 
   private listeners: Map<string, Array<(payload: any) => void>> = new Map()
-  private onceListeners: Map<string, Array<(payload: any) => Promise<any>>> = new Map()
+  // Reserved for future once-only listener support
+  // private onceListeners: Map<string, Array<(payload: any) => Promise<any>>> = new Map()
 
   constructor() {
     this.initializeConnection()
@@ -81,14 +82,7 @@ export class IPCServiceImpl implements IPCService {
     }
   }
 
-  private async executeRequest(type: IPCEventType, payload: any): Promise<any> {
-    const request: IPCRequest = {
-      id: this.generateRequestId(),
-      type,
-      payload,
-      timestamp: Date.now(),
-      timeout: this.connectionInfo.timeout
-    }
+  private async executeRequest<T = any>(type: IPCEventType, payload: any): Promise<T> {
 
     this.performanceMetrics.totalRequests++
     this.performanceMetrics.requestsByChannel[type] = (this.performanceMetrics.requestsByChannel[type] || 0) + 1
@@ -100,7 +94,8 @@ export class IPCServiceImpl implements IPCService {
       }
 
       const startTime = Date.now()
-      const response: IPCResponse = await window.electronAPI.invoke(type, payload)
+      type Enveloped<R> = { success: boolean; payload?: R; error?: string }
+      const response = (await window.electronAPI.invoke(type, payload)) as T | Enveloped<T>
       const responseTime = Date.now() - startTime
 
       this.performanceMetrics.totalResponses++
@@ -111,11 +106,15 @@ export class IPCServiceImpl implements IPCService {
       this.performanceMetrics.peakResponseTime = Math.max(this.performanceMetrics.peakResponseTime, responseTime)
       this.performanceMetrics.lastResponseTime = Date.now()
 
-      if (!response.success) {
-        throw new Error(response.error || 'IPC operation failed')
+      // Accept both enveloped and bare responses from main
+      const maybe = response as Enveloped<T>
+      if (maybe && typeof maybe === 'object' && 'success' in maybe) {
+        if (!maybe.success) {
+          throw new Error(maybe.error || 'IPC operation failed')
+        }
+        return (maybe.payload as T)
       }
-
-      return response.payload
+      return response as T
     } catch (error) {
       this.performanceMetrics.errorRate = this.performanceMetrics.totalRequests > 0
         ? (this.performanceMetrics.totalRequests - this.performanceMetrics.totalResponses) / this.performanceMetrics.totalRequests
@@ -125,6 +124,7 @@ export class IPCServiceImpl implements IPCService {
     }
   }
 
+  // Keeping ID generator for future tracing (not currently used)
   private generateRequestId(): string {
     return `req_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
   }
@@ -256,7 +256,7 @@ export class IPCServiceImpl implements IPCService {
     return result
   }
 
-  async writeFile(request: { filePath: string; content: string | Buffer; encoding?: string; options?: any }): Promise<any> {
+  async writeFile(request: { filePath: string; content: string | any; encoding?: string; options?: any }): Promise<any> {
     const result = await this.executeRequest('fs:file:write', request)
     return result
   }

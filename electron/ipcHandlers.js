@@ -3,6 +3,8 @@ const fs = require('fs').promises
 const path = require('path')
 const os = require('os')
 const Store = require('electron-store')
+const YAML = require('yaml')
+const TOML = require('@iarna/toml')
 
 // Initialize electron-store for configuration persistence
 const store = new Store({
@@ -39,55 +41,227 @@ const store = new Store({
   }
 })
 
-// Config file operations
-ipcMain.handle('config:load', async (event, filePath) => {
+// =====================================================
+// Helpers for format handling and recent files
+// =====================================================
+
+function getFormatFromPath(filePath) {
+  const ext = path.extname(filePath || '').toLowerCase()
+  if (ext === '.yml' || ext === '.yaml') return 'yaml'
+  if (ext === '.toml') return 'toml'
+  if (ext === '.xml') return 'xml'
+  return 'json'
+}
+
+function parseByFormat(format, content) {
+  switch ((format || 'json').toLowerCase()) {
+    case 'yaml':
+    case 'yml':
+      return YAML.parse(content)
+    case 'toml':
+      return TOML.parse(content)
+    case 'xml':
+      // XML not supported yet; placeholder
+      return JSON.parse(content)
+    default:
+      return JSON.parse(content)
+  }
+}
+
+function serializeByFormat(format, obj) {
+  switch ((format || 'json').toLowerCase()) {
+    case 'yaml':
+    case 'yml':
+      return YAML.stringify(obj)
+    case 'toml':
+      return TOML.stringify(obj)
+    case 'xml':
+      // XML not supported yet; placeholder JSON
+      return JSON.stringify(obj, null, 2)
+    default:
+      return JSON.stringify(obj, null, 2)
+  }
+}
+
+async function addRecentFile(filePath, metadata = {}) {
   try {
-    const fullPath = filePath || await getDefaultConfigPath()
-    const configData = await fs.readFile(fullPath, 'utf8')
-    return JSON.parse(configData)
+    const last = store.get('ui.lastOpenedFiles', [])
+    const without = last.filter(f => f.path !== filePath)
+    const stats = await fs.stat(filePath).catch(() => null)
+    const entry = {
+      path: filePath,
+      openedAt: Date.now(),
+      size: stats?.size,
+      modified: stats?.mtimeMs,
+      format: getFormatFromPath(filePath),
+      ...metadata
+    }
+    const next = [entry, ...without].slice(0, store.get('settings.maxHistoryEntries', 50))
+    store.set('ui.lastOpenedFiles', next)
+  } catch {}
+}
+
+// Config file operations
+ipcMain.handle('config:load', async (event, request) => {
+  try {
+    const incoming = typeof request === 'string' ? { filePath: request } : (request || {})
+    const fullPath = incoming.filePath || await getDefaultConfigPath()
+    const format = incoming.format || getFormatFromPath(fullPath)
+    const content = await fs.readFile(fullPath, 'utf8')
+    const config = parseByFormat(format, content)
+    const stats = await fs.stat(fullPath).catch(() => null)
+
+    await addRecentFile(fullPath, { action: 'load' })
+
+    return {
+      success: true,
+      payload: {
+        config,
+        metadata: { format, size: stats?.size, modified: stats?.mtimeMs },
+        filePath: fullPath,
+        timestamp: Date.now()
+      }
+    }
   } catch (error) {
     console.error('Failed to load config:', error)
-    throw new Error(`Failed to load configuration: ${error.message}`)
+    return { success: false, error: `Failed to load configuration: ${error.message}` }
   }
 })
 
-ipcMain.handle('config:save', async (event, config, filePath) => {
+ipcMain.handle('config:save', async (event, request) => {
   try {
+    const { config, filePath, format, backup, ifMatchMtime } = request || {}
     const fullPath = filePath || await getDefaultConfigPath()
-    await fs.writeFile(fullPath, JSON.stringify(config, null, 2))
-    return { success: true, path: fullPath }
-  } catch (error) {
-    console.error('Failed to save config:', error)
-    throw new Error(`Failed to save configuration: ${error.message}`)
-  }
-})
+    const targetFormat = format || getFormatFromPath(fullPath)
 
-ipcMain.handle('config:export', async (event, config, format) => {
-  try {
-    const { filePath } = await dialog.showSaveDialog({
-      title: 'Export Configuration',
-      defaultPath: `config.${format}`,
-      filters: [
-        { name: 'JSON', extensions: ['json'] },
-        { name: 'YAML', extensions: ['yaml', 'yml'] }
-      ]
-    })
+    // Conflict detection
+    try {
+      const stats = await fs.stat(fullPath)
+      if (typeof ifMatchMtime === 'number' && stats.mtimeMs !== ifMatchMtime) {
+        return {
+          success: false,
+          error: 'Write conflict: file modified by another process',
+          conflict: true,
+          currentMtime: stats.mtimeMs,
+          filePath: fullPath
+        }
+      }
+    } catch {}
 
-    if (!filePath) return { success: false, cancelled: true }
-
-    let content
-    if (format === 'yaml') {
-      // In a real implementation, you'd use a YAML library
-      content = JSON.stringify(config, null, 2)
-    } else {
-      content = JSON.stringify(config, null, 2)
+    // Backup
+    if (backup) {
+      try {
+        await fs.copyFile(fullPath, `${fullPath}.backup`)
+      } catch {}
     }
 
-    await fs.writeFile(filePath, content)
-    return { success: true, path: filePath }
+    const content = serializeByFormat(targetFormat, config)
+    await fs.writeFile(fullPath, content, 'utf8')
+    const statsAfter = await fs.stat(fullPath)
+
+    await addRecentFile(fullPath, { action: 'save' })
+
+    return {
+      success: true,
+      payload: {
+        filePath: fullPath,
+        size: statsAfter.size,
+        timestamp: Date.now(),
+        backupCreated: !!backup,
+        format: targetFormat,
+        mtime: statsAfter.mtimeMs
+      }
+    }
+  } catch (error) {
+    console.error('Failed to save config:', error)
+    return { success: false, error: `Failed to save configuration: ${error.message}` }
+  }
+})
+
+ipcMain.handle('config:export', async (event, request) => {
+  try {
+    const { config, format = 'json', filePath, includeMetadata = false, subsetPath, paths } = request || {}
+    let outputConfig = config || {}
+    if (subsetPath) {
+      const parts = subsetPath.split('.')
+      let cursor = outputConfig
+      for (const k of parts) {
+        if (cursor && Object.prototype.hasOwnProperty.call(cursor, k)) {
+          cursor = cursor[k]
+        } else {
+          cursor = undefined
+          break
+        }
+      }
+      outputConfig = cursor
+    } else if (Array.isArray(paths) && paths.length > 0) {
+      const pick = {}
+      for (const p of paths) {
+        const parts = p.split('.')
+        // verify path exists in source
+        let verifySrc = outputConfig
+        let exists = true
+        for (const k of parts) {
+          if (verifySrc && Object.prototype.hasOwnProperty.call(verifySrc, k)) {
+            verifySrc = verifySrc[k]
+          } else {
+            exists = false
+            break
+          }
+        }
+        if (!exists) continue
+        // build in destination
+        let dst = pick
+        let src = outputConfig
+        for (let i = 0; i < parts.length; i++) {
+          const k = parts[i]
+          if (i === parts.length - 1) {
+            dst[k] = src[k]
+          } else {
+            dst[k] = dst[k] || {}
+            dst = dst[k]
+            src = src[k]
+          }
+        }
+      }
+      outputConfig = pick
+    }
+
+    const content = serializeByFormat(format, includeMetadata ? { config: outputConfig, metadata: { exportedAt: Date.now() } } : outputConfig)
+
+    let targetPath = filePath
+    if (!targetPath) {
+      const dialogResult = await dialog.showSaveDialog({
+        title: 'Export Configuration',
+        defaultPath: `config.${format}`,
+        filters: [
+          { name: 'JSON', extensions: ['json'] },
+          { name: 'YAML', extensions: ['yaml', 'yml'] },
+          { name: 'TOML', extensions: ['toml'] }
+        ]
+      })
+      if (dialogResult.canceled) {
+        return { cancelled: true }
+      }
+      targetPath = dialogResult.filePath
+    }
+
+    await fs.writeFile(targetPath, content, 'utf8')
+    const stats = await fs.stat(targetPath)
+
+    return {
+      success: true,
+      payload: {
+        filePath: targetPath,
+        content,
+        size: stats.size,
+        format,
+        timestamp: Date.now()
+      }
+    }
   } catch (error) {
     console.error('Failed to export config:', error)
-    throw new Error(`Failed to export configuration: ${error.message}`)
+    return { success: false, error: `Failed to export configuration: ${error.message}` }
   }
 })
 
@@ -96,7 +270,7 @@ ipcMain.handle('dialog:open', async (event, options = {}) => {
   const result = await dialog.showOpenDialog({
     properties: ['openFile'],
     filters: [
-      { name: 'Configuration Files', extensions: ['json', 'yaml', 'yml'] },
+      { name: 'Configuration Files', extensions: ['json', 'yaml', 'yml', 'toml'] },
       { name: 'All Files', extensions: ['*'] }
     ],
     ...options
@@ -108,7 +282,7 @@ ipcMain.handle('dialog:open', async (event, options = {}) => {
 ipcMain.handle('dialog:save', async (event, options = {}) => {
   const result = await dialog.showSaveDialog({
     filters: [
-      { name: 'Configuration Files', extensions: ['json', 'yaml', 'yml'] },
+      { name: 'Configuration Files', extensions: ['json', 'yaml', 'yml', 'toml'] },
       { name: 'All Files', extensions: ['*'] }
     ],
     ...options
@@ -134,19 +308,8 @@ ipcMain.handle('config:import', async (event, request) => {
       throw new Error('Either content or filePath must be provided')
     }
 
-    let config
-    switch (request.format) {
-      case 'yaml':
-        // In a real implementation, you'd use a YAML library like js-yaml
-        config = JSON.parse(configData)
-        break
-      case 'xml':
-        // In a real implementation, you'd use an XML parser
-        config = JSON.parse(configData)
-        break
-      default:
-        config = JSON.parse(configData)
-    }
+    const format = request.format || getFormatFromPath(request.filePath || '')
+    let config = parseByFormat(format, configData)
 
     if (request.validate !== false) {
       // Basic validation - in a real implementation, use the Zod schema
@@ -156,7 +319,7 @@ ipcMain.handle('config:import', async (event, request) => {
     }
 
     if (request.merge) {
-      // Merge with existing configuration
+      // Shallow merge for now
       const existingConfig = store.get('currentConfig', {})
       config = { ...existingConfig, ...config }
     }
@@ -164,19 +327,20 @@ ipcMain.handle('config:import', async (event, request) => {
     // Store the imported configuration
     store.set('currentConfig', config)
 
-    return {
+    const payload = {
       config,
       metadata: {
         importSource: request.filePath || 'content',
-        importFormat: request.format,
+        importFormat: format,
         importedAt: new Date().toISOString()
       },
       source: request.filePath ? 'file' : 'content',
       timestamp: Date.now()
     }
+    return { success: true, payload }
   } catch (error) {
     console.error('Failed to import config:', error)
-    throw new Error(`Failed to import configuration: ${error.message}`)
+    return { success: false, error: `Failed to import configuration: ${error.message}` }
   }
 })
 
