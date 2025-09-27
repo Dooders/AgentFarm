@@ -635,7 +635,7 @@ describe('Leva Control Components', () => {
       // Movement parameters
       expect(screen.getByText('Target Update Frequency')).toBeTruthy()
       expect(screen.getAllByText('Memory Size')[0]).toBeTruthy()
-      expect(screen.getByText('Learning Rate')).toBeTruthy()
+      expect(screen.getAllByText('Learning Rate')[0]).toBeTruthy()
       expect(screen.getByText('Discount Factor')).toBeTruthy()
 
       // Gathering parameters
