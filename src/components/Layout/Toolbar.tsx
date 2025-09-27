@@ -1,9 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
+import { rumMark } from '@/utils/perf'
 import { useConfigStore } from '@/stores/configStore'
+import type { ConfigStore } from '@/types/config'
 import { configSelectors, useValidationStore, validationSelectors } from '@/stores/selectors'
 import { ipcService } from '@/services/ipcService'
 import { toYaml } from '@/utils/yaml'
+import { useSearchStore } from '@/stores/searchStore'
+// Search UI is integrated in Right Panel; toolbar provides jump + shortcut
 
 const Bar = styled.div`
   display: flex;
@@ -52,23 +56,23 @@ const Status = styled.div`
 `
 
 export const Toolbar: React.FC = () => {
-  const config = useConfigStore((s) => configSelectors.getConfig(s))
-  const compareConfig = useConfigStore((s) => configSelectors.getCompareConfig(s))
-  const showComparison = useConfigStore((s) => configSelectors.getShowComparison(s))
-  const isDirty = useConfigStore((s) => configSelectors.getIsDirty(s))
-  const currentFilePath = useConfigStore((s) => configSelectors.getCurrentFilePath(s) as string | undefined)
-  const lastSaveTime = useConfigStore((s) => configSelectors.getLastSaveTime(s) as number | undefined)
-  const lastLoadTime = useConfigStore((s) => configSelectors.getLastLoadTime(s) as number | undefined)
-  const loadConfig = useConfigStore((s) => s.loadConfig)
-  const openConfigFromContent = useConfigStore((s) => s.openConfigFromContent)
-  const saveConfig = useConfigStore((s) => s.saveConfig)
-  const exportConfigMeta = useConfigStore((s) => s.exportConfig)
-  const resetToDefaults = useConfigStore((s) => s.resetToDefaults)
-  const toggleComparison = useConfigStore((s) => s.toggleComparison)
-  const clearComparison = useConfigStore((s) => s.clearComparison)
-  const setComparison = useConfigStore((s) => s.setComparison)
-  const setComparisonPath = useConfigStore((s) => s.setComparisonPath)
-  const applyAll = useConfigStore((s) => s.applyAllDifferencesFromComparison)
+  const config = useConfigStore(configSelectors.getConfig)
+  const compareConfig = useConfigStore(configSelectors.getCompareConfig)
+  const showComparison = useConfigStore(configSelectors.getShowComparison)
+  const isDirty = useConfigStore(configSelectors.getIsDirty)
+  const currentFilePath = useConfigStore(configSelectors.getCurrentFilePath) as string | undefined
+  const lastSaveTime = useConfigStore(configSelectors.getLastSaveTime) as number | undefined
+  const lastLoadTime = useConfigStore(configSelectors.getLastLoadTime) as number | undefined
+  const loadConfig = useConfigStore((s: ConfigStore) => s.loadConfig)
+  const openConfigFromContent = useConfigStore((s: ConfigStore) => s.openConfigFromContent)
+  const saveConfig = useConfigStore((s: ConfigStore) => s.saveConfig)
+  const exportConfigMeta = useConfigStore((s: ConfigStore) => s.exportConfig)
+  const resetToDefaults = useConfigStore((s: ConfigStore) => s.resetToDefaults)
+  const toggleComparison = useConfigStore((s: ConfigStore) => s.toggleComparison)
+  const clearComparison = useConfigStore((s: ConfigStore) => s.clearComparison)
+  const setComparison = useConfigStore((s: ConfigStore) => s.setComparison)
+  const setComparisonPath = useConfigStore((s: ConfigStore) => s.setComparisonPath)
+  const applyAll = useConfigStore((s: ConfigStore) => s.applyAllDifferencesFromComparison)
 
   const errorCount = useValidationStore((s) => validationSelectors.getErrorCount(s))
   const warningCount = useValidationStore((s) => validationSelectors.getWarningCount(s))
@@ -143,7 +147,20 @@ export const Toolbar: React.FC = () => {
 
   const doSaveAs = useCallback(async (): Promise<void> => {
     try {
-      // In Electron, a dialog would be used via main. Here we fallback to download.
+      if (window?.electronAPI) {
+        const result: any = await ipcService.invoke('dialog:save', {
+          filters: [
+            { name: 'Configuration Files', extensions: ['json', 'yaml', 'yml', 'toml'] },
+            { name: 'All Files', extensions: ['*'] }
+          ]
+        })
+        if (result && !result.canceled && result.filePath) {
+          await saveConfig(result.filePath)
+          return
+        }
+      }
+
+      // Fallback for browser
       const json = JSON.stringify(config, null, 2)
       const blob = new Blob([json], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
@@ -157,7 +174,7 @@ export const Toolbar: React.FC = () => {
     } catch (err) {
       console.error('Save As failed:', err)
     }
-  }, [config])
+  }, [config, saveConfig])
 
   const doExportYaml = useCallback(async (): Promise<void> => {
     try {
@@ -196,12 +213,17 @@ export const Toolbar: React.FC = () => {
 
   // Keyboard shortcuts
   useEffect(() => {
+    const focusSearch = () => {
+      const fn = useSearchStore.getState().focusSearchInput
+      if (fn) fn()
+    }
     const shortcutMap: Record<string, (e: KeyboardEvent) => void> = {
       'mod+o': (e) => { e.preventDefault(); doOpen() },
       'mod+s': (e) => { e.preventDefault(); doSave() },
       'mod+shift+s': (e) => { e.preventDefault(); doSaveAs() },
       'mod+g': (e) => { e.preventDefault(); toggleGrayscale() },
-      'mod+y': (e) => { e.preventDefault(); doExportYaml() }
+      'mod+y': (e) => { e.preventDefault(); doExportYaml() },
+      'mod+f': (e) => { e.preventDefault(); focusSearch() }
     }
     const onKey = (e: KeyboardEvent) => {
       const isMod = e.ctrlKey || e.metaKey
@@ -227,9 +249,9 @@ export const Toolbar: React.FC = () => {
   return (
     <Bar role="toolbar" aria-label="Application toolbar">
       <Section aria-label="File operations">
-        <Button onClick={doOpen} aria-label="Open configuration (Ctrl/Cmd+O)">Open…</Button>
+        <Button onClick={() => { rumMark('toolbar_open_click'); doOpen() }} aria-label="Open configuration (Ctrl/Cmd+O)">Open…</Button>
         <input ref={filePickerRef} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={onFileChosen} />
-        <Button onClick={doSave} disabled={!isDirty} aria-label="Save (Ctrl/Cmd+S)">Save</Button>
+        <Button onClick={() => { rumMark('toolbar_save_click'); doSave() }} disabled={!isDirty} aria-label="Save (Ctrl/Cmd+S)">Save</Button>
         <Button onClick={doSaveAs} aria-label="Save As (Ctrl/Cmd+Shift+S)">Save As…</Button>
         <Sep />
         <Button onClick={doExportJson}>Export JSON</Button>
@@ -245,6 +267,10 @@ export const Toolbar: React.FC = () => {
       </Section>
 
       <Section aria-label="Application controls">
+        <Button onClick={() => {
+          const el = document.getElementById('presets-section')
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }}>Presets</Button>
         <Button onClick={toggleGrayscale} aria-pressed={isGrayscale} aria-label="Toggle grayscale (Ctrl/Cmd+G)">{isGrayscale ? 'Grayscale On' : 'Grayscale Off'}</Button>
         <Button onClick={() => resetToDefaults()}>Reset</Button>
       </Section>

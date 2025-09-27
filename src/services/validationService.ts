@@ -1,4 +1,5 @@
 import { ValidationError, ValidationResult } from '@/types/validation'
+import { safeStringify } from '@/utils/stringify'
 import { SimulationConfigType } from '@/types/config'
 import { validateSimulationConfig, validateField as zodValidateField } from '@/utils/validationUtils'
 
@@ -14,22 +15,32 @@ export interface ValidationService {
 }
 
 export class ZodValidationService implements ValidationService {
+  private configCache = new WeakMap<SimulationConfigType, ValidationResult>()
+  private fieldCache = new Map<string, ValidationError[]>()
+
   async validateConfig(config: SimulationConfigType): Promise<ValidationResult> {
+    const cached = this.configCache.get(config)
+    if (cached) return cached
     // Use the Zod-based validation utility
     const zodResult = await validateSimulationConfig(config)
 
     // Add any additional business logic validation if needed
     const { errors: additionalErrors, warnings: additionalWarnings } = this.validateBusinessRules(config)
 
-    return {
+    const result: ValidationResult = {
       success: zodResult.success && additionalErrors.length === 0,
       errors: [...zodResult.errors, ...additionalErrors],
       warnings: [...zodResult.warnings, ...additionalWarnings]
     }
+    this.configCache.set(config, result)
+    return result
   }
 
   validateField(path: string, value: any): ValidationResult {
-    const errors = zodValidateField(path, value)
+    const key = `${path}|${safeStringify(value)}`
+    const cached = this.fieldCache.get(key)
+    const errors = cached ?? zodValidateField(path, value)
+    if (!cached) this.fieldCache.set(key, errors)
 
     return {
       success: errors.length === 0,

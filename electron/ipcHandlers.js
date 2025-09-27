@@ -3,6 +3,8 @@ const fs = require('fs').promises
 const path = require('path')
 const os = require('os')
 const Store = require('electron-store')
+const YAML = require('yaml')
+const TOML = require('@iarna/toml')
 
 // Initialize electron-store for configuration persistence
 const store = new Store({
@@ -39,55 +41,270 @@ const store = new Store({
   }
 })
 
-// Config file operations
-ipcMain.handle('config:load', async (event, filePath) => {
+// =====================================================
+// Security: Allowed roots for file system access
+// =====================================================
+
+const allowedRoots = {
+  home: app.getPath('home'),
+  appData: app.getPath('appData'),
+  userData: app.getPath('userData'),
+  documents: app.getPath('documents'),
+  desktop: app.getPath('desktop'),
+  downloads: app.getPath('downloads')
+}
+
+function isPathWithin(root, target) {
   try {
-    const fullPath = filePath || await getDefaultConfigPath()
-    const configData = await fs.readFile(fullPath, 'utf8')
-    return JSON.parse(configData)
+    const resolvedRoot = path.resolve(root) + path.sep
+    const resolvedTarget = path.resolve(target)
+    return resolvedTarget.startsWith(resolvedRoot)
+  } catch {
+    return false
+  }
+}
+
+function isPathAllowed(targetPath) {
+  return Object.values(allowedRoots).some(root => isPathWithin(root, targetPath))
+}
+
+// =====================================================
+// Helpers for format handling and recent files
+// =====================================================
+
+function getFormatFromPath(filePath) {
+  const ext = path.extname(filePath || '').toLowerCase()
+  if (ext === '.yml' || ext === '.yaml') return 'yaml'
+  if (ext === '.toml') return 'toml'
+  if (ext === '.xml') return 'xml'
+  return 'json'
+}
+
+function parseByFormat(format, content) {
+  switch ((format || 'json').toLowerCase()) {
+    case 'yaml':
+    case 'yml':
+      return YAML.parse(content)
+    case 'toml':
+      return TOML.parse(content)
+    case 'xml':
+      // XML not supported yet; placeholder
+      return JSON.parse(content)
+    default:
+      return JSON.parse(content)
+  }
+}
+
+function serializeByFormat(format, obj) {
+  switch ((format || 'json').toLowerCase()) {
+    case 'yaml':
+    case 'yml':
+      return YAML.stringify(obj)
+    case 'toml':
+      return TOML.stringify(obj)
+    case 'xml':
+      // XML not supported yet; placeholder JSON
+      return JSON.stringify(obj, null, 2)
+    default:
+      return JSON.stringify(obj, null, 2)
+  }
+}
+
+async function addRecentFile(filePath, metadata = {}) {
+  try {
+    const last = store.get('ui.lastOpenedFiles', [])
+    const without = last.filter(f => f.path !== filePath)
+    const stats = await fs.stat(filePath).catch(() => null)
+    const entry = {
+      path: filePath,
+      openedAt: Date.now(),
+      size: stats?.size,
+      modified: stats?.mtimeMs,
+      format: getFormatFromPath(filePath),
+      ...metadata
+    }
+    const next = [entry, ...without].slice(0, store.get('settings.maxHistoryEntries', 50))
+    store.set('ui.lastOpenedFiles', next)
+  } catch {}
+}
+
+// Config file operations
+ipcMain.handle('config:load', async (event, request) => {
+  try {
+    const incoming = typeof request === 'string' ? { filePath: request } : (request || {})
+    const fullPath = incoming.filePath || await getDefaultConfigPath()
+    if (!isPathAllowed(fullPath)) {
+      return { success: false, error: 'Access denied: path not allowed' }
+    }
+    const format = incoming.format || getFormatFromPath(fullPath)
+    const content = await fs.readFile(fullPath, 'utf8')
+    const config = parseByFormat(format, content)
+    const stats = await fs.stat(fullPath).catch(() => null)
+
+    await addRecentFile(fullPath, { action: 'load' })
+
+    const result = {
+      success: true,
+      payload: {
+        config,
+        metadata: { format, size: stats?.size, modified: stats?.mtimeMs },
+        filePath: fullPath,
+        timestamp: Date.now()
+      }
+    }
+    try { event.sender.send('config:loaded', { filePath: fullPath, metadata: { format }, timestamp: Date.now() }) } catch {}
+    return result
   } catch (error) {
     console.error('Failed to load config:', error)
-    throw new Error(`Failed to load configuration: ${error.message}`)
+    return { success: false, error: `Failed to load configuration: ${error.message}` }
   }
 })
 
-ipcMain.handle('config:save', async (event, config, filePath) => {
+ipcMain.handle('config:save', async (event, request) => {
   try {
+    const { config, filePath, format, backup, ifMatchMtime } = request || {}
     const fullPath = filePath || await getDefaultConfigPath()
-    await fs.writeFile(fullPath, JSON.stringify(config, null, 2))
-    return { success: true, path: fullPath }
-  } catch (error) {
-    console.error('Failed to save config:', error)
-    throw new Error(`Failed to save configuration: ${error.message}`)
-  }
-})
+    if (!isPathAllowed(fullPath)) {
+      return { success: false, error: 'Access denied: path not allowed' }
+    }
+    const targetFormat = format || getFormatFromPath(fullPath)
 
-ipcMain.handle('config:export', async (event, config, format) => {
-  try {
-    const { filePath } = await dialog.showSaveDialog({
-      title: 'Export Configuration',
-      defaultPath: `config.${format}`,
-      filters: [
-        { name: 'JSON', extensions: ['json'] },
-        { name: 'YAML', extensions: ['yaml', 'yml'] }
-      ]
-    })
+    // Conflict detection
+    try {
+      const stats = await fs.stat(fullPath)
+      if (typeof ifMatchMtime === 'number' && stats.mtimeMs !== ifMatchMtime) {
+        return {
+          success: false,
+          error: 'Write conflict: file modified by another process',
+          conflict: true,
+          currentMtime: stats.mtimeMs,
+          filePath: fullPath
+        }
+      }
+    } catch {}
 
-    if (!filePath) return { success: false, cancelled: true }
-
-    let content
-    if (format === 'yaml') {
-      // In a real implementation, you'd use a YAML library
-      content = JSON.stringify(config, null, 2)
-    } else {
-      content = JSON.stringify(config, null, 2)
+    // Backup
+    if (backup) {
+      try {
+        await fs.copyFile(fullPath, `${fullPath}.backup`)
+      } catch {}
     }
 
-    await fs.writeFile(filePath, content)
-    return { success: true, path: filePath }
+    const content = serializeByFormat(targetFormat, config)
+    await fs.writeFile(fullPath, content, 'utf8')
+    const statsAfter = await fs.stat(fullPath)
+
+    await addRecentFile(fullPath, { action: 'save' })
+
+    const result = {
+      success: true,
+      payload: {
+        filePath: fullPath,
+        size: statsAfter.size,
+        timestamp: Date.now(),
+        backupCreated: !!backup,
+        format: targetFormat,
+        mtime: statsAfter.mtimeMs
+      }
+    }
+    try { event.sender.send('config:saved', { filePath: fullPath, size: statsAfter.size, timestamp: Date.now() }) } catch {}
+    return result
+  } catch (error) {
+    console.error('Failed to save config:', error)
+    return { success: false, error: `Failed to save configuration: ${error.message}` }
+  }
+})
+
+ipcMain.handle('config:export', async (event, request) => {
+  try {
+    const { config, format = 'json', filePath, includeMetadata = false, subsetPath, paths } = request || {}
+    let outputConfig = config || {}
+    if (subsetPath) {
+      const parts = subsetPath.split('.')
+      let cursor = outputConfig
+      for (const k of parts) {
+        if (cursor && Object.prototype.hasOwnProperty.call(cursor, k)) {
+          cursor = cursor[k]
+        } else {
+          cursor = undefined
+          break
+        }
+      }
+      outputConfig = cursor
+    } else if (Array.isArray(paths) && paths.length > 0) {
+      const pick = {}
+      for (const p of paths) {
+        const parts = p.split('.')
+        // verify path exists in source
+        let verifySrc = outputConfig
+        let exists = true
+        for (const k of parts) {
+          if (verifySrc && Object.prototype.hasOwnProperty.call(verifySrc, k)) {
+            verifySrc = verifySrc[k]
+          } else {
+            exists = false
+            break
+          }
+        }
+        if (!exists) continue
+        // build in destination
+        let dst = pick
+        let src = outputConfig
+        for (let i = 0; i < parts.length; i++) {
+          const k = parts[i]
+          if (i === parts.length - 1) {
+            dst[k] = src[k]
+          } else {
+            dst[k] = dst[k] || {}
+            dst = dst[k]
+            src = src[k]
+          }
+        }
+      }
+      outputConfig = pick
+    }
+
+    const content = serializeByFormat(format, includeMetadata ? { config: outputConfig, metadata: { exportedAt: Date.now() } } : outputConfig)
+
+    let targetPath = filePath
+    if (!targetPath) {
+      const dialogResult = await dialog.showSaveDialog({
+        title: 'Export Configuration',
+        defaultPath: `config.${format}`,
+        filters: [
+          { name: 'JSON', extensions: ['json'] },
+          { name: 'YAML', extensions: ['yaml', 'yml'] },
+          { name: 'TOML', extensions: ['toml'] }
+        ]
+      })
+      if (dialogResult.canceled) {
+        return { cancelled: true }
+      }
+      targetPath = dialogResult.filePath
+    }
+
+    if (!isPathAllowed(targetPath)) {
+      return { success: false, error: 'Access denied: path not allowed' }
+    }
+
+    await fs.writeFile(targetPath, content, 'utf8')
+    const stats = await fs.stat(targetPath)
+
+    const result = {
+      success: true,
+      payload: {
+        filePath: targetPath,
+        content,
+        size: stats.size,
+        format,
+        timestamp: Date.now()
+      }
+    }
+    try { event.sender.send('fs:operation:complete', { op: 'write', path: targetPath, size: stats.size, timestamp: Date.now() }) } catch {}
+    return result
   } catch (error) {
     console.error('Failed to export config:', error)
-    throw new Error(`Failed to export configuration: ${error.message}`)
+    return { success: false, error: `Failed to export configuration: ${error.message}` }
   }
 })
 
@@ -96,7 +313,7 @@ ipcMain.handle('dialog:open', async (event, options = {}) => {
   const result = await dialog.showOpenDialog({
     properties: ['openFile'],
     filters: [
-      { name: 'Configuration Files', extensions: ['json', 'yaml', 'yml'] },
+      { name: 'Configuration Files', extensions: ['json', 'yaml', 'yml', 'toml'] },
       { name: 'All Files', extensions: ['*'] }
     ],
     ...options
@@ -108,7 +325,7 @@ ipcMain.handle('dialog:open', async (event, options = {}) => {
 ipcMain.handle('dialog:save', async (event, options = {}) => {
   const result = await dialog.showSaveDialog({
     filters: [
-      { name: 'Configuration Files', extensions: ['json', 'yaml', 'yml'] },
+      { name: 'Configuration Files', extensions: ['json', 'yaml', 'yml', 'toml'] },
       { name: 'All Files', extensions: ['*'] }
     ],
     ...options
@@ -134,19 +351,8 @@ ipcMain.handle('config:import', async (event, request) => {
       throw new Error('Either content or filePath must be provided')
     }
 
-    let config
-    switch (request.format) {
-      case 'yaml':
-        // In a real implementation, you'd use a YAML library like js-yaml
-        config = JSON.parse(configData)
-        break
-      case 'xml':
-        // In a real implementation, you'd use an XML parser
-        config = JSON.parse(configData)
-        break
-      default:
-        config = JSON.parse(configData)
-    }
+    const format = request.format || getFormatFromPath(request.filePath || '')
+    let config = parseByFormat(format, configData)
 
     if (request.validate !== false) {
       // Basic validation - in a real implementation, use the Zod schema
@@ -156,7 +362,7 @@ ipcMain.handle('config:import', async (event, request) => {
     }
 
     if (request.merge) {
-      // Merge with existing configuration
+      // Shallow merge for now
       const existingConfig = store.get('currentConfig', {})
       config = { ...existingConfig, ...config }
     }
@@ -164,19 +370,22 @@ ipcMain.handle('config:import', async (event, request) => {
     // Store the imported configuration
     store.set('currentConfig', config)
 
-    return {
+    const payload = {
       config,
       metadata: {
         importSource: request.filePath || 'content',
-        importFormat: request.format,
+        importFormat: format,
         importedAt: new Date().toISOString()
       },
       source: request.filePath ? 'file' : 'content',
       timestamp: Date.now()
     }
+    const result = { success: true, payload }
+    try { event.sender.send('config:loaded', { source: payload.source, timestamp: Date.now() }) } catch {}
+    return result
   } catch (error) {
     console.error('Failed to import config:', error)
-    throw new Error(`Failed to import configuration: ${error.message}`)
+    return { success: false, error: `Failed to import configuration: ${error.message}` }
   }
 })
 
@@ -224,7 +433,7 @@ ipcMain.handle('config:validate', async (event, request) => {
     const validationTime = Date.now() - startTime
     const isValid = errors.length === 0
 
-    return {
+    const result = {
       isValid,
       errors,
       warnings,
@@ -232,6 +441,9 @@ ipcMain.handle('config:validate', async (event, request) => {
       validationTime,
       timestamp: Date.now()
     }
+    try { event.sender.send('config:validation:complete', result) } catch {}
+    if (!result.isValid) { try { event.sender.send('validation:error', { errors: result.errors, timestamp: Date.now() }) } catch {} }
+    return result
   } catch (error) {
     console.error('Failed to validate config:', error)
     throw new Error(`Failed to validate configuration: ${error.message}`)
@@ -292,7 +504,7 @@ ipcMain.handle('config:template:save', async (event, request) => {
 
     store.set(`templates.${category}`, templates)
 
-    return {
+    const result = {
       templateName: template.name,
       category,
       size: JSON.stringify(templates[template.name]).length,
@@ -300,6 +512,8 @@ ipcMain.handle('config:template:save', async (event, request) => {
       created: !templates[template.name].created || overwrite,
       overwritten: overwrite
     }
+    try { event.sender.send('config:template:created', { name: template.name, category, overwritten: overwrite, timestamp: Date.now() }) } catch {}
+    return result
   } catch (error) {
     console.error('Failed to save template:', error)
     throw new Error(`Failed to save template: ${error.message}`)
@@ -319,12 +533,14 @@ ipcMain.handle('config:template:delete', async (event, request) => {
     delete templates[templateName]
     store.set(`templates.${category}`, templates)
 
-    return {
+    const result = {
       templateName,
       category,
       timestamp: Date.now(),
       deleted: true
     }
+    try { event.sender.send('config:template:deleted', { name: templateName, category, timestamp: Date.now() }) } catch {}
+    return result
   } catch (error) {
     console.error('Failed to delete template:', error)
     throw new Error(`Failed to delete template: ${error.message}`)
@@ -400,11 +616,13 @@ ipcMain.handle('config:history:save', async (event, request) => {
     store.set('history.entries', limitedHistory)
     store.set('history.currentIndex', Math.min(currentIndex, limitedHistory.length - 1))
 
-    return {
+    const result = {
       entriesSaved: limitedHistory.length,
       currentIndex: Math.min(currentIndex, limitedHistory.length - 1),
       timestamp: Date.now()
     }
+    try { event.sender.send('config:history:updated', { totalEntries: limitedHistory.length, timestamp: Date.now() }) } catch {}
+    return result
   } catch (error) {
     console.error('Failed to save history:', error)
     throw new Error(`Failed to save history: ${error.message}`)
@@ -442,12 +660,14 @@ ipcMain.handle('config:history:load', async (event, request) => {
       }
     }
 
-    return {
+    const result = {
       history,
       currentIndex,
       totalEntries: history.length,
       timestamp: Date.now()
     }
+    try { event.sender.send('config:history:updated', { totalEntries: history.length, timestamp: Date.now() }) } catch {}
+    return result
   } catch (error) {
     console.error('Failed to load history:', error)
     throw new Error(`Failed to load history: ${error.message}`)
@@ -460,10 +680,12 @@ ipcMain.handle('config:history:clear', async (event) => {
     store.set('history.entries', [])
     store.set('history.currentIndex', -1)
 
-    return {
+    const result = {
       success: true,
       timestamp: Date.now()
     }
+    try { event.sender.send('config:history:updated', { totalEntries: 0, timestamp: Date.now() }) } catch {}
+    return result
   } catch (error) {
     console.error('Failed to clear history:', error)
     throw new Error(`Failed to clear history: ${error.message}`)
@@ -478,6 +700,13 @@ ipcMain.handle('config:history:clear', async (event) => {
 ipcMain.handle('fs:file:exists', async (event, request) => {
   try {
     const { filePath } = request
+    if (!isPathAllowed(filePath)) {
+      return {
+        exists: false,
+        isFile: false,
+        isDirectory: false
+      }
+    }
     const stats = await fs.stat(filePath)
 
     return {
@@ -503,17 +732,22 @@ ipcMain.handle('fs:file:exists', async (event, request) => {
 ipcMain.handle('fs:file:read', async (event, request) => {
   try {
     const { filePath, encoding = 'utf8', options = {} } = request
+    if (!isPathAllowed(filePath)) {
+      throw new Error('Access denied: path not allowed')
+    }
     const content = await fs.readFile(filePath, { encoding, ...options })
 
     const stats = await fs.stat(filePath)
 
-    return {
+    const result = {
       content,
       encoding,
       size: stats.size,
       modified: stats.mtimeMs,
       mimeType: getMimeType(filePath)
     }
+    try { event.sender.send('fs:operation:complete', { op: 'read', path: filePath, size: stats.size, timestamp: Date.now() }) } catch {}
+    return result
   } catch (error) {
     console.error('Failed to read file:', error)
     throw new Error(`Failed to read file: ${error.message}`)
@@ -524,6 +758,9 @@ ipcMain.handle('fs:file:read', async (event, request) => {
 ipcMain.handle('fs:file:write', async (event, request) => {
   try {
     const { filePath, content, encoding = 'utf8', options = {} } = request
+    if (!isPathAllowed(filePath)) {
+      throw new Error('Access denied: path not allowed')
+    }
 
     // Create backup if requested
     if (options.backup) {
@@ -540,7 +777,7 @@ ipcMain.handle('fs:file:write', async (event, request) => {
 
     const stats = await fs.stat(filePath)
 
-    return {
+    const result = {
       filePath,
       written: content.length,
       size: stats.size,
@@ -548,6 +785,8 @@ ipcMain.handle('fs:file:write', async (event, request) => {
       backupCreated: !!options.backup,
       backupPath: options.backupPath
     }
+    try { event.sender.send('fs:operation:complete', { op: 'write', path: filePath, size: stats.size, timestamp: Date.now() }) } catch {}
+    return result
   } catch (error) {
     console.error('Failed to write file:', error)
     throw new Error(`Failed to write file: ${error.message}`)
@@ -558,6 +797,9 @@ ipcMain.handle('fs:file:write', async (event, request) => {
 ipcMain.handle('fs:file:delete', async (event, request) => {
   try {
     const { filePath, backup = false } = request
+    if (!isPathAllowed(filePath)) {
+      throw new Error('Access denied: path not allowed')
+    }
 
     if (backup) {
       const backupPath = `${filePath}.backup`
@@ -567,12 +809,14 @@ ipcMain.handle('fs:file:delete', async (event, request) => {
 
     await fs.unlink(filePath)
 
-    return {
+    const result = {
       filePath,
       deleted: true,
       backupCreated: backup,
       backupPath: request.backupPath
     }
+    try { event.sender.send('fs:operation:complete', { op: 'delete', path: filePath, timestamp: Date.now() }) } catch {}
+    return result
   } catch (error) {
     console.error('Failed to delete file:', error)
     throw new Error(`Failed to delete file: ${error.message}`)
@@ -583,6 +827,9 @@ ipcMain.handle('fs:file:delete', async (event, request) => {
 ipcMain.handle('fs:directory:read', async (event, request) => {
   try {
     const { dirPath, recursive = false, filter = {} } = request
+    if (!isPathAllowed(dirPath)) {
+      throw new Error('Access denied: path not allowed')
+    }
     const entries = []
 
     const readDirectory = async (currentPath, relativePath = '') => {
@@ -631,12 +878,14 @@ ipcMain.handle('fs:directory:read', async (event, request) => {
     const fileCount = entries.filter(e => e.type === 'file').length
     const directoryCount = entries.filter(e => e.type === 'directory').length
 
-    return {
+    const result = {
       entries,
       totalCount: entries.length,
       fileCount,
       directoryCount
     }
+    try { event.sender.send('fs:operation:complete', { op: 'readDir', path: dirPath, totalCount: entries.length, timestamp: Date.now() }) } catch {}
+    return result
   } catch (error) {
     console.error('Failed to read directory:', error)
     throw new Error(`Failed to read directory: ${error.message}`)
@@ -647,16 +896,21 @@ ipcMain.handle('fs:directory:read', async (event, request) => {
 ipcMain.handle('fs:directory:create', async (event, request) => {
   try {
     const { dirPath, recursive = true, mode = 0o755 } = request
+    if (!isPathAllowed(dirPath)) {
+      throw new Error('Access denied: path not allowed')
+    }
 
     const exists = await fs.access(dirPath).then(() => true).catch(() => false)
 
     await fs.mkdir(dirPath, { recursive, mode })
 
-    return {
+    const result = {
       dirPath,
       created: !exists,
       existing: exists
     }
+    try { event.sender.send('fs:operation:complete', { op: 'mkdir', path: dirPath, created: !exists, timestamp: Date.now() }) } catch {}
+    return result
   } catch (error) {
     console.error('Failed to create directory:', error)
     throw new Error(`Failed to create directory: ${error.message}`)
@@ -667,6 +921,9 @@ ipcMain.handle('fs:directory:create', async (event, request) => {
 ipcMain.handle('fs:directory:delete', async (event, request) => {
   try {
     const { dirPath, recursive = false, backup = false } = request
+    if (!isPathAllowed(dirPath)) {
+      throw new Error('Access denied: path not allowed')
+    }
 
     if (backup) {
       const backupPath = `${dirPath}.backup`
@@ -676,12 +933,14 @@ ipcMain.handle('fs:directory:delete', async (event, request) => {
 
     await fs.rm(dirPath, { recursive })
 
-    return {
+    const result = {
       dirPath,
       deleted: true,
       backupCreated: backup,
       backupPath: request.backupPath
     }
+    try { event.sender.send('fs:operation:complete', { op: 'rmdir', path: dirPath, recursive, timestamp: Date.now() }) } catch {}
+    return result
   } catch (error) {
     console.error('Failed to delete directory:', error)
     throw new Error(`Failed to delete directory: ${error.message}`)

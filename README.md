@@ -231,16 +231,13 @@ npm run docs
 ## Documentation
 
 For detailed documentation and advanced usage:
-- [Simulation Guide](docs/SimulationQuickStart.md)
-- [Experiment Guide](docs/ExperimentQuickStart.md)
-- [Core Architecture](docs/core_architecture.md)
+- [User Guide](docs/user-guide.md)
+- [Developer Guide](docs/developer-guide.md)
+- [IPC API Reference](docs/ipc-api.md)
+- [Deployment](docs/deployment.md)
+- [Monitoring & Performance](docs/monitoring.md)
 - [Electron Config Explorer Architecture](docs/electron/config_explorer_architecture.md)
-- [Decision Module](farm/core/decision/README.md)
-- [Configuration Guide](docs/configuration_guide.md)
-- [Data System Architecture](docs/data/data_api.md)
-- [API Reference](docs/api_reference.md)
-- [Module Overview](docs/module_overview.md)
-- [Research Documentation](docs/research.md)
+- [Core Architecture](docs/core_architecture.md)
 - [Full Documentation Index](docs/README.md)
 
 ## Contributing

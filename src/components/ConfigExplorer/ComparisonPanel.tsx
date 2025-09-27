@@ -54,6 +54,7 @@ const DiffList = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
+  contain: content;
 `
 
 const DiffItem = styled.div<{ variant: 'added' | 'removed' | 'changed' }>`
@@ -105,7 +106,7 @@ type ComparisonPanelProps = {
   errorMessage?: string
 }
 
-export const ComparisonPanel: React.FC<ComparisonPanelProps> = ({ compareConfig, comparisonFilePath, errorMessage }) => {
+export const ComparisonPanel: React.FC<ComparisonPanelProps> = React.memo(({ compareConfig, comparisonFilePath, errorMessage }) => {
   const diff = useConfigStore(configSelectors.getComparisonDiff)
   const copyFromComparison = useConfigStore(s => s.copyFromComparison)
   const removeConfigPath = useConfigStore(s => s.removeConfigPath)
@@ -233,5 +234,5 @@ export const ComparisonPanel: React.FC<ComparisonPanelProps> = ({ compareConfig,
       )}
     </div>
   )
-}
+})
 

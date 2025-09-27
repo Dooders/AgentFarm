@@ -1,3 +1,14 @@
+## Documentation
+
+Welcome to the Live Simulation Config Explorer documentation.
+
+- User Guide: `docs/user-guide.md`
+- Developer Guide: `docs/developer-guide.md`
+- IPC API Reference: `docs/ipc-api.md`
+- Deployment Guide: `docs/deployment.md`
+- Monitoring & Performance: `docs/monitoring.md`
+
+If you are new, start with the User Guide, then see the Developer Guide for setup and contribution.
 # AgentFarm Documentation
 
 Welcome to the comprehensive AgentFarm documentation. This guide will help you navigate the available resources to get the most out of this powerful multi-agent reinforcement learning simulation platform.

@@ -6,6 +6,12 @@ import { useConfigStore } from '@/stores/configStore'
 import { configSelectors } from '@/stores/selectors'
 import { ComparisonPanel } from './ComparisonPanel'
 import { validationService } from '@/services/validationService'
+import { PresetManager } from './PresetManager'
+import { SearchResults } from '@/components/Search/SearchResults'
+import { FilterControls } from '@/components/Search/FilterControls'
+import { SearchBar } from '@/components/Search/SearchBar'
+import { SavedSearches } from '@/components/Search/SavedSearches'
+import { useSearchStore } from '@/stores/searchStore'
 
 const RightPanelContainer = styled.div`
   display: flex;
@@ -95,7 +101,9 @@ const Stats = styled.div`
   margin-top: 8px;
 `
 
-export const RightPanel: React.FC = () => {
+export const RightPanel: React.FC = React.memo(() => {
+  const runSearch = useSearchStore((s) => s.runSearch)
+  const isSearching = useSearchStore((s) => s.isSearching)
   const { announceToScreenReader } = useAccessibility()
   const showComparison = useConfigStore(configSelectors.getShowComparison)
   const compareConfig = useConfigStore(configSelectors.getCompareConfig)
@@ -166,6 +174,23 @@ export const RightPanel: React.FC = () => {
       </PanelHeader>
 
       <ContentArea id="comparison-content" tabIndex={-1}>
+        <section aria-labelledby="search-panel-title" id="search-panel">
+          <SectionTitle id="search-panel-title">Search</SectionTitle>
+          <ContentSection>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+              <SearchBar />
+              <ActionButton onClick={() => runSearch()} disabled={isSearching}>{isSearching ? 'Searching…' : 'Run'}</ActionButton>
+            </div>
+            <FilterControls />
+            <div style={{ marginTop: 12 }}>
+              <SearchResults />
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <SectionTitle>Saved Searches</SectionTitle>
+              <SavedSearches />
+            </div>
+          </ContentSection>
+        </section>
         <section aria-labelledby="current-config-title">
           <SectionTitle id="current-config-title">Current Configuration</SectionTitle>
 
@@ -189,7 +214,7 @@ export const RightPanel: React.FC = () => {
           </ContentSection>
         </section>
 
-        <section aria-labelledby="comparison-tools-title">
+        <section aria-labelledby="comparison-tools-title" id="comparison-tools">
           <SectionTitle id="comparison-tools-title">Comparison Tools</SectionTitle>
 
           <ContentSection role="group" aria-label="Configuration comparison actions">
@@ -232,6 +257,13 @@ export const RightPanel: React.FC = () => {
           </ContentSection>
         </section>
 
+        <section aria-labelledby="preset-manager-title" id="presets-section">
+          <SectionTitle id="preset-manager-title">Presets</SectionTitle>
+          <ContentSection role="region" aria-label="Preset manager">
+            <PresetManager />
+          </ContentSection>
+        </section>
+
         <section aria-labelledby="validation-status-title">
           <SectionTitle id="validation-status-title">Validation Status</SectionTitle>
 
@@ -242,4 +274,4 @@ export const RightPanel: React.FC = () => {
       </ContentArea>
     </RightPanelContainer>
   )
-}
+})

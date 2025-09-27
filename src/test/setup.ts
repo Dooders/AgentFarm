@@ -27,20 +27,22 @@ globalThis.ResizeObserver = vi.fn().mockImplementation(() => ({
   disconnect: vi.fn(),
 }))
 
-// Mock matchMedia which is not available in test environment
-Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  value: vi.fn().mockImplementation((query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: vi.fn(), // deprecated
-    removeListener: vi.fn(), // deprecated
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
-})
+// Mock matchMedia which is not available in test environment (guard for node env)
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(), // deprecated
+      removeListener: vi.fn(), // deprecated
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  })
+}
 
 // Mock IntersectionObserver
 globalThis.IntersectionObserver = vi.fn().mockImplementation(() => ({
@@ -50,7 +52,7 @@ globalThis.IntersectionObserver = vi.fn().mockImplementation(() => ({
 }))
 
 // Mock WebSocket for testing
-globalThis.WebSocket = vi.fn().mockImplementation(() => ({
+(globalThis as any).WebSocket = vi.fn().mockImplementation(() => ({
   addEventListener: vi.fn(),
   removeEventListener: vi.fn(),
   dispatchEvent: vi.fn(),
@@ -247,13 +249,15 @@ vi.mock('@/services/ipcService', async (importOriginal) => {
   }
 })
 
-// Mock window.electronAPI for testing
-Object.defineProperty(window, 'electronAPI', {
-  value: {
-    invoke: vi.fn(() => Promise.resolve({ success: true }))
-  },
-  writable: true
-})
+// Mock window.electronAPI for testing (guard for node env)
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'electronAPI', {
+    value: {
+      invoke: vi.fn(() => Promise.resolve({ success: true }))
+    },
+    writable: true
+  })
+}
 
 // Mock Leva hooks and components for testing
 vi.mock('leva', () => ({
