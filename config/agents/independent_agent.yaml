@@ -1,0 +1,31 @@
+# Independent Agent Specific Configuration
+# Overrides for IndependentAgent behavior
+
+# Independent agents are more self-interested and aggressive
+agent_parameters:
+  IndependentAgent:
+    gather_efficiency_multiplier: 0.8  # Very efficient gathering
+    gather_cost_multiplier: 0.15       # Very low cost
+    min_resource_threshold: 0.02       # Very low threshold
+    share_weight: 0.01                 # Minimal sharing
+    attack_weight: 0.35                # High aggression
+
+# Learning parameters optimized for individual survival
+learning_rate: 0.0015  # Higher learning rate for adaptation
+gamma: 0.92            # Lower discount factor for short-term thinking
+epsilon_start: 1.0     # Full initial exploration
+epsilon_min: 0.02      # Higher minimum exploration
+
+# Movement and gathering parameters
+max_movement: 10       # More aggressive movement
+gathering_range: 25    # Smaller gathering range (more focused)
+max_gather_amount: 2   # Gather less per action but more efficiently
+
+# Combat parameters
+base_attack_strength: 3.0  # Higher attack strength
+base_defense_strength: 1.5 # Lower defense strength
+
+# Reproduction parameters
+min_reproduction_resources: 6   # Lower threshold for reproduction
+offspring_cost: 2               # Lower cost for reproduction
+offspring_initial_resources: 3  # Fewer resources for offspring

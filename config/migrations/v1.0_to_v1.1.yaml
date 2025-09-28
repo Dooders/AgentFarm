@@ -1,0 +1,37 @@
+# Migration from Configuration Version 1.0 to 1.1
+# This migration adds agent-specific parameters to the configuration
+
+from_version: "1.0"
+to_version: "1.1"
+description: "Add agent-specific parameters for different agent types"
+author: "Configuration Migration System"
+date: "2024-01-15"
+
+transformations:
+  - operation: "add"
+    target_path: "agent_parameters"
+    value:
+      SystemAgent:
+        gather_efficiency_multiplier: 0.4
+        gather_cost_multiplier: 0.4
+        min_resource_threshold: 0.2
+        share_weight: 0.3
+        attack_weight: 0.05
+      IndependentAgent:
+        gather_efficiency_multiplier: 0.7
+        gather_cost_multiplier: 0.2
+        min_resource_threshold: 0.05
+        share_weight: 0.05
+        attack_weight: 0.25
+      ControlAgent:
+        gather_efficiency_multiplier: 0.55
+        gather_cost_multiplier: 0.3
+        min_resource_threshold: 0.125
+        share_weight: 0.15
+        attack_weight: 0.15
+    description: "Add agent-specific parameters for all agent types"
+
+  - operation: "add"
+    target_path: "config_version"
+    value: "1.1"
+    description: "Add configuration version field"
