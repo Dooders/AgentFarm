@@ -140,7 +140,7 @@ def main():
             print(s.getvalue())
 
             # Save to file
-            with open(profile_path, "w") as f:
+            with open(profile_path, "w", encoding="utf-8") as f:
                 stats = pstats.Stats(profiler, stream=f).sort_stats("cumulative")
                 stats.print_stats(50)  # Save top 50 functions to file
 
