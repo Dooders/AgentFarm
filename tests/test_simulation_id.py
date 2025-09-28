@@ -11,7 +11,7 @@ import tempfile
 import unittest
 from typing import Dict, List, Optional
 
-from farm.core.config import SimulationConfig
+from farm.core.config_hydra_bridge import HydraSimulationConfig
 from farm.core.simulation import run_simulation
 from farm.utils.identity import Identity
 
@@ -27,7 +27,7 @@ class TestSimulationID(unittest.TestCase):
         self.test_dir = tempfile.mkdtemp()
 
         # Create a minimalist configuration
-        self.config = SimulationConfig(
+        self.config = HydraSimulationConfig(
             width=100,
             height=100,
             initial_resources=100,

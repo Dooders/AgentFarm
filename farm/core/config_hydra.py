@@ -65,7 +65,7 @@ class HydraConfigManager:
         
         # Current configuration
         self._config: Optional[DictConfig] = None
-        self._simulation_config: Optional[SimulationConfig] = None
+        self._simulation_config: Optional[HydraSimulationConfig] = None
         
         # Initialize Hydra
         self._initialize_hydra()
@@ -134,7 +134,7 @@ class HydraConfigManager:
                 
         except Exception as e:
             logger.error(f"Failed to initialize Hydra: {e}")
-            raise RuntimeError(f"Failed to initialize Hydra: {e}")
+            raise RuntimeError(f"Failed to initialize Hydra: {e}") from e
     
     def get_config(self) -> DictConfig:
         """Get the current Hydra configuration.
@@ -146,7 +146,7 @@ class HydraConfigManager:
             self._initialize_hydra()
         return self._config
     
-    def get_simulation_config(self) -> SimulationConfig:
+    def get_simulation_config(self) -> HydraSimulationConfig:
         """Get the configuration as a SimulationConfig object.
         
         Returns:
@@ -154,7 +154,7 @@ class HydraConfigManager:
         """
         if self._simulation_config is None:
             config_dict = OmegaConf.to_container(self.get_config(), resolve=True)
-            self._simulation_config = SimulationConfig.from_dict(config_dict)
+            self._simulation_config = HydraSimulationConfig.from_dict(config_dict)
         return self._simulation_config
     
     def get(self, key: str, default: Any = None) -> Any:

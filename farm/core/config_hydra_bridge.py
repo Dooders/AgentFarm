@@ -21,7 +21,7 @@ spec.loader.exec_module(config_module)
 SimulationConfig = config_module.SimulationConfig
 VisualizationConfig = config_module.VisualizationConfig
 RedisMemoryConfig = config_module.RedisMemoryConfig
-from .config_hydra_simple import SimpleHydraConfigManager
+from .config_hydra_simple import SimpleHydraConfigManager, create_simple_hydra_config_manager
 
 logger = logging.getLogger(__name__)
 
@@ -218,7 +218,7 @@ class HydraSimulationConfig(SimulationConfig):
         Returns:
             HydraSimulationConfig instance
         """
-        from .config_hydra_simple import create_simple_hydra_config_manager
+        # create_simple_hydra_config_manager is already imported above
         
         hydra_manager = create_simple_hydra_config_manager(
             config_dir=config_dir,

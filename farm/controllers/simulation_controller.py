@@ -14,7 +14,7 @@ import time
 from datetime import datetime
 from typing import Callable, Dict, Optional
 
-from farm.core.config import SimulationConfig
+from farm.core.config_hydra_bridge import HydraSimulationConfig
 from farm.core.environment import Environment
 from farm.database.database import SimulationDatabase
 from farm.database.models import Simulation
@@ -34,7 +34,8 @@ class SimulationController:
     Example usage:
         ```python
         # Initialize configuration and controller
-        config = SimulationConfig.from_yaml("config.yaml")
+        # For now, create a basic config - this should be updated to use hydra config loading
+        config = HydraSimulationConfig()
         controller = SimulationController(config, "simulations/sim.db")
 
         # Register callbacks for monitoring
@@ -73,7 +74,7 @@ class SimulationController:
     simulation progress and status changes.
     """
 
-    def __init__(self, config: SimulationConfig, db_path: str):
+    def __init__(self, config: HydraSimulationConfig, db_path: str):
         """Initialize simulation controller.
 
         Args:

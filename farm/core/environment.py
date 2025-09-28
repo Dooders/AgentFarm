@@ -24,7 +24,7 @@ Core Integrations
 
 Determinism
 -----------
-A seed (explicit or from `SimulationConfig`) controls deterministic aspects
+A seed (explicit or from `HydraSimulationConfig`) controls deterministic aspects
 (e.g., identities, resources, and torch RNG when available).
 
 Notes
@@ -48,7 +48,7 @@ from pettingzoo import AECEnv
 # Use action registry for cleaner action management
 from farm.core.action import ActionType, action_registry
 from farm.core.channels import NUM_CHANNELS
-from farm.core.config import SimulationConfig
+from farm.core.config_hydra_bridge import HydraSimulationConfig
 from farm.core.metrics_tracker import MetricsTracker
 from farm.core.observations import AgentObservation, ObservationConfig
 from farm.core.resource_manager import ResourceManager
@@ -1215,7 +1215,7 @@ class Environment(AECEnv):
         if new_enabled_actions is not None:
             if self.config is None:
                 # Create a basic config object if none exists
-                self.config = SimulationConfig()
+                self.config = HydraSimulationConfig()
             # Use setattr for dynamic attribute assignment (same pattern as original code)
             setattr(self.config, "enabled_actions", new_enabled_actions)
         else:

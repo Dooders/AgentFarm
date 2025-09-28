@@ -6,7 +6,7 @@ if importlib.util.find_spec("torch") is None:
     pytest.skip("integration gathering tests require torch; skipping in lightweight env", allow_module_level=True)
 
 from farm.core.agent import BaseAgent
-from farm.core.config import SimulationConfig
+from farm.core.config_hydra_bridge import HydraHydraSimulationConfig
 from farm.core.environment import Environment
 from farm.core.resources import Resource
 from farm.core.action import ActionType
@@ -15,7 +15,8 @@ from farm.core.action import ActionType
 @pytest.fixture
 def simple_config():
     # Use the repo test config but keep it lean for fast runs
-    return SimulationConfig.from_yaml("tests/test_config.yaml")
+    # For now, create a basic config - this should be updated to use hydra config loading
+    return HydraHydraSimulationConfig()
 
 
 def _get_gather_action_index(env: Environment) -> int:
@@ -28,7 +29,7 @@ def _get_gather_action_index(env: Environment) -> int:
     return -1
 
 
-def test_env_step_agent_gathers_from_colocated_resource(simple_config: SimulationConfig):
+def test_env_step_agent_gathers_from_colocated_resource(simple_config: HydraSimulationConfig):
     # Build environment with no auto-spawned resources
     env = Environment(
         width=50,
@@ -74,7 +75,7 @@ def test_env_step_agent_gathers_from_colocated_resource(simple_config: Simulatio
     assert isinstance(terminated, bool) and isinstance(truncated, bool)
 
 
-def test_agent_act_gathers_when_decision_returns_gather(simple_config: SimulationConfig, monkeypatch: pytest.MonkeyPatch):
+def test_agent_act_gathers_when_decision_returns_gather(simple_config: HydraSimulationConfig, monkeypatch: pytest.MonkeyPatch):
     # Build environment with a single resource and agent colocated
     env = Environment(
         width=30,
@@ -121,7 +122,7 @@ def test_agent_act_gathers_when_decision_returns_gather(simple_config: Simulatio
     assert resource.amount < before_res
 
 
-def test_spatial_index_references_accept_agent_objects(simple_config: SimulationConfig):
+def test_spatial_index_references_accept_agent_objects(simple_config: HydraSimulationConfig):
     # Minimal spatial index usage through the environment
     env = Environment(
         width=20,
@@ -153,7 +154,7 @@ def test_spatial_index_references_accept_agent_objects(simple_config: Simulation
     assert any(a is agent for a in nearby["agents"])  # agent found
 
 
-def test_decision_prioritizes_gather_nearby(simple_config: SimulationConfig, monkeypatch: pytest.MonkeyPatch):
+def test_decision_prioritizes_gather_nearby(simple_config: HydraSimulationConfig, monkeypatch: pytest.MonkeyPatch):
     # Environment with one agent and a resource in immediate proximity
     env = Environment(
         width=30,

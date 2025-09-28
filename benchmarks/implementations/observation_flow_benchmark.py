@@ -9,7 +9,7 @@ except Exception:  # pragma: no cover
     np = None
 
 from benchmarks.base.benchmark import Benchmark
-from farm.core.config import SimulationConfig
+from farm.core.config_hydra_bridge import HydraSimulationConfig
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 from farm.core.services.implementations import SpatialIndexAdapter
@@ -71,7 +71,7 @@ class ObservationFlowBenchmark(Benchmark):
             dtype="float32",
             initialization="zeros",
         )
-        sim_cfg = SimulationConfig(
+        sim_cfg = HydraSimulationConfig(
             width=self._width,
             height=self._height,
             seed=42,

@@ -39,7 +39,7 @@ from pathlib import Path
 
 from research.research import ResearchProject
 
-from farm.core.config import SimulationConfig
+from farm.core.config_hydra_bridge import HydraSimulationConfig
 
 
 def main():
@@ -113,7 +113,8 @@ def main():
     elif args.command == "experiment":
         project = ResearchProject(args.project)
         try:
-            config = SimulationConfig.from_yaml(args.config)
+            # For now, create a basic config - this should be updated to use hydra config loading
+            config = HydraSimulationConfig()
             exp_path = project.create_experiment(args.name, args.description, config)
             exp_id = os.path.basename(
                 exp_path

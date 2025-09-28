@@ -14,12 +14,7 @@ import sys
 import os
 sys.path.append('/workspace')
 
-from farm.core.config import (
-    EnvironmentConfigManager,
-    HierarchicalConfig,
-    ConfigurationValidator,
-    DEFAULT_SIMULATION_SCHEMA
-)
+from farm.core.config_hydra_bridge import HydraSimulationConfig
 
 
 def demo_environment_detection():

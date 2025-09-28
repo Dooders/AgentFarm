@@ -18,7 +18,7 @@ import psutil
 from joblib import Parallel, delayed
 from tqdm.auto import tqdm
 
-from farm.core.config import SimulationConfig
+from farm.core.config_hydra_bridge import HydraHydraSimulationConfig
 from farm.core.simulation import run_simulation
 from farm.database.database import SimulationDatabase
 
@@ -32,7 +32,7 @@ class ParallelExperimentRunner:
 
     Attributes
     ----------
-    base_config : SimulationConfig
+    base_config : HydraSimulationConfig
         Base configuration for experiments
     experiment_name : str
         Name of the experiment
@@ -46,7 +46,7 @@ class ParallelExperimentRunner:
 
     def __init__(
         self,
-        base_config: SimulationConfig,
+        base_config: HydraSimulationConfig,
         experiment_name: str,
         n_jobs: int = -1,  # -1 means use all available cores
         db_path: Optional[Path] = None,
@@ -57,7 +57,7 @@ class ParallelExperimentRunner:
 
         Parameters
         ----------
-        base_config : SimulationConfig
+        base_config : HydraSimulationConfig
             Base configuration for experiments
         experiment_name : str
             Name of the experiment
@@ -89,7 +89,7 @@ class ParallelExperimentRunner:
 
     def run_single_simulation(
         self,
-        config: SimulationConfig,
+        config: HydraSimulationConfig,
         num_steps: int,
         output_path: Path,
         seed: Optional[int] = None,
@@ -98,7 +98,7 @@ class ParallelExperimentRunner:
 
         Parameters
         ----------
-        config : SimulationConfig
+        config : HydraSimulationConfig
             Configuration for this simulation
         num_steps : int
             Number of steps to run
@@ -156,7 +156,7 @@ class ParallelExperimentRunner:
 
         Parameters
         ----------
-        config : SimulationConfig
+        config : HydraSimulationConfig
             Configuration for this simulation
         num_steps : int
             Number of steps to run

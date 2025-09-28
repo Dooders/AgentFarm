@@ -9,7 +9,7 @@ import time
 from typing import Any, Dict, Optional
 
 from benchmarks.base.benchmark import Benchmark
-from farm.core.config import SimulationConfig
+from farm.core.config_hydra_bridge import HydraSimulationConfig
 from farm.core.simulation import run_simulation
 
 
@@ -59,7 +59,7 @@ class MemoryDBBenchmark(Benchmark):
 
         # Initialize benchmark-specific attributes
         self.temp_dir: Optional[str] = None
-        self.config: Optional[SimulationConfig] = None
+        self.config: Optional[HydraSimulationConfig] = None
 
     def setup(self) -> None:
         """
@@ -69,7 +69,7 @@ class MemoryDBBenchmark(Benchmark):
         self.temp_dir = tempfile.mkdtemp()
 
         # Create base configuration
-        self.config = SimulationConfig()
+        self.config = HydraSimulationConfig()
 
         # Set simulation parameters
         self.config.width = 100

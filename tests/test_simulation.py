@@ -5,7 +5,7 @@ import unittest
 import numpy as np
 
 from farm.core.agent import BaseAgent
-from farm.core.config import SimulationConfig
+from farm.core.config_hydra_bridge import HydraSimulationConfig
 from farm.core.environment import Environment
 from farm.core.resources import Resource
 from farm.database.database import SimulationDatabase
@@ -18,7 +18,7 @@ class TestSimulation(unittest.TestCase):
         self.test_dir = "test_data"
         if not os.path.exists(self.test_dir):
             os.makedirs(self.test_dir)
-        self.config = SimulationConfig.from_yaml(
+        self.config = HydraSimulationConfig(
             os.path.join("tests", "test_config.yaml")
         )
         self.db_path = os.path.join(self.test_dir, "test_simulation.db")
@@ -159,7 +159,7 @@ class TestSimulation(unittest.TestCase):
         )
 
         # Create a test-specific config object to avoid mutating shared state
-        test_config = SimulationConfig(
+        test_config = HydraSimulationConfig(
             width=self.config.width,
             height=self.config.height,
             initial_resources=self.config.initial_resources,

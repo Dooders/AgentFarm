@@ -18,7 +18,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from farm.charts.chart_analyzer import ChartAnalyzer
-from farm.core.config import SimulationConfig
+from farm.core.config_hydra_bridge import HydraHydraSimulationConfig
 from farm.core.simulation import run_simulation
 from farm.database.database import SimulationDatabase
 from scripts.significant_events import SignificantEventAnalyzer
@@ -31,7 +31,7 @@ class ExperimentRunner:
 
     def __init__(
         self,
-        base_config: SimulationConfig,
+        base_config: HydraSimulationConfig,
         experiment_name: str,
         db_path: Optional[Path] = None,
     ):
@@ -40,7 +40,7 @@ class ExperimentRunner:
 
         Parameters
         ----------
-        base_config : SimulationConfig
+        base_config : HydraSimulationConfig
             Base configuration for simulations
         experiment_name : str
             Name of the experiment for organizing results
@@ -206,7 +206,7 @@ class ExperimentRunner:
 
     def _create_iteration_config(
         self, iteration: int, variations: Optional[List[Dict]] = None
-    ) -> SimulationConfig:
+    ) -> HydraSimulationConfig:
         """Create configuration for specific iteration."""
         config = self.base_config.copy()
 

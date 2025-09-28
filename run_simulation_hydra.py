@@ -28,8 +28,8 @@ def run_profiled_simulation(num_steps, config_dict, output_dir):
     Run the simulation with profiling and return the environment.
     """
     # Convert config dict to SimulationConfig if needed
-    from farm.core.config import SimulationConfig
-    config = SimulationConfig.from_dict(config_dict)
+    from farm.core.config_hydra_bridge import HydraSimulationConfig
+    config = HydraSimulationConfig.from_dict(config_dict)
     
     return run_simulation(
         num_steps=num_steps, config=config, path=output_dir, save_config=True

@@ -4,12 +4,12 @@ Configuration helper utilities for benchmarks.
 
 from typing import Any, Dict, Optional
 
-from farm.core.config import SimulationConfig
+from farm.core.config_hydra_bridge import HydraHydraSimulationConfig
 
 
 def configure_for_performance_with_persistence(
-    config: Optional[SimulationConfig] = None,
-) -> SimulationConfig:
+    config: Optional[HydraHydraSimulationConfig] = None,
+) -> HydraHydraSimulationConfig:
     """
     Configure a simulation for optimal performance while maintaining data persistence.
 
@@ -19,16 +19,16 @@ def configure_for_performance_with_persistence(
 
     Parameters
     ----------
-    config : SimulationConfig, optional
+    config : HydraSimulationConfig, optional
         Existing configuration to modify. If None, a new configuration is created.
 
     Returns
     -------
-    SimulationConfig
+    HydraSimulationConfig
         Configuration with in-memory database and persistence enabled
     """
     if config is None:
-        config = SimulationConfig()
+        config = HydraSimulationConfig()
 
     # Enable in-memory database with persistence
     config.use_in_memory_db = True
@@ -41,7 +41,7 @@ def get_recommended_config(
     num_agents: int = 30,
     num_steps: int = 100,
     additional_params: Optional[Dict[str, Any]] = None,
-) -> SimulationConfig:
+) -> HydraSimulationConfig:
     """
     Get a recommended configuration for simulations that need post-simulation analysis.
 
@@ -56,10 +56,10 @@ def get_recommended_config(
 
     Returns
     -------
-    SimulationConfig
+    HydraSimulationConfig
         Recommended configuration for simulations
     """
-    config = SimulationConfig()
+    config = HydraSimulationConfig()
 
     # Set basic simulation parameters
     config.width = 100

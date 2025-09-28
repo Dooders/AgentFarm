@@ -17,7 +17,7 @@ from typing import Dict, List, Optional
 from farm.analysis.comparative_analysis import compare_simulations
 from farm.charts.chart_analyzer import ChartAnalyzer
 from farm.controllers.simulation_controller import SimulationController
-from farm.core.config import SimulationConfig
+from farm.core.config_hydra_bridge import HydraSimulationConfig
 from farm.database.database import SimulationDatabase
 from farm.research.research import ResearchProject
 
@@ -35,7 +35,8 @@ class ExperimentController:
     Example usage:
         ```python
         # Initialize controller with experiment config
-        config = SimulationConfig.from_yaml("config.yaml")
+        # For now, create a basic config - this should be updated to use hydra config loading
+        config = HydraSimulationConfig()
         controller = ExperimentController(
             name="agent_comparison",
             description="Compare different agent types",
@@ -68,7 +69,7 @@ class ExperimentController:
         self,
         name: str,
         description: str,
-        base_config: SimulationConfig,
+        base_config: HydraSimulationConfig,
         project: Optional[ResearchProject] = None,
         output_dir: Optional[Path] = None
     ):
@@ -169,7 +170,7 @@ class ExperimentController:
         self, 
         iteration: int,
         variations: Optional[List[Dict]]
-    ) -> SimulationConfig:
+    ) -> HydraSimulationConfig:
         """Create configuration for specific iteration."""
         config = self.base_config.copy()
         
@@ -182,7 +183,7 @@ class ExperimentController:
 
     def _run_iteration(
         self,
-        config: SimulationConfig,
+        config: HydraSimulationConfig,
         output_dir: Path,
         num_steps: int
     ) -> None:

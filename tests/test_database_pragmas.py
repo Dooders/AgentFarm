@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from farm.core.config import SimulationConfig
+from farm.core.config_hydra_bridge import HydraSimulationConfig
 from farm.database import (
     SimulationDatabase,
     InMemorySimulationDatabase,
@@ -21,7 +21,7 @@ class TestDatabasePragmas(unittest.TestCase):
         """Set up test environment."""
         self.temp_dir = tempfile.TemporaryDirectory()
         self.db_path = Path(self.temp_dir.name) / "test_db.sqlite"
-        self.config = SimulationConfig()
+        self.config = HydraSimulationConfig()
         self.db = None
 
     def tearDown(self):

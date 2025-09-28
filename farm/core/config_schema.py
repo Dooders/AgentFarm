@@ -6,8 +6,8 @@ from typing import Any, Dict, List, Optional, Tuple, get_args, get_origin
 
 from pydantic import BaseModel, ValidationError
 
-from farm.core.config import (
-    SimulationConfig,
+from farm.core.config_hydra_bridge import (
+    HydraSimulationConfig,
     VisualizationConfig,
     RedisMemoryConfig,
 )
@@ -173,7 +173,7 @@ def generate_combined_config_schema() -> Dict[str, Any]:
         "device_preference": ["auto", "cpu", "cuda"],
     }
 
-    sim_props = _dataclass_to_properties(SimulationConfig, known_enums=simulation_known_enums)
+    sim_props = _dataclass_to_properties(HydraSimulationConfig, known_enums=simulation_known_enums)
     # Remove nested sections from simulation section
     for nested in ("visualization", "redis", "observation"):
         sim_props.pop(nested, None)

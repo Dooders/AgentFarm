@@ -13,7 +13,7 @@ import time
 from typing import Any, Dict, Optional
 
 from benchmarks.base.benchmark import Benchmark
-from farm.core.config import SimulationConfig
+from farm.core.config_hydra_bridge import HydraHydraSimulationConfig
 from farm.core.simulation import run_simulation
 from farm.database import InMemorySimulationDatabase, SimulationDatabase
 from farm.database.pragma_docs import PRAGMA_PROFILES, get_pragma_profile
@@ -179,7 +179,7 @@ class PragmaProfileBenchmark(Benchmark):
         )
 
         # Create a config with the specified profile
-        config = SimulationConfig()
+        config = HydraSimulationConfig()
         config.db_pragma_profile = profile
 
         # Create the database
@@ -259,7 +259,7 @@ class PragmaProfileBenchmark(Benchmark):
         db_path = os.path.join(self.temp_dir, f"{profile}_read_test_{unique_suffix}.db")
 
         # Create a config with the specified profile
-        config = SimulationConfig()
+        config = HydraSimulationConfig()
         config.db_pragma_profile = profile
 
         # Create and populate the database
@@ -339,7 +339,7 @@ class PragmaProfileBenchmark(Benchmark):
             Name of the table to create
         """
         # Create a config with the specified profile
-        config = SimulationConfig()
+        config = HydraSimulationConfig()
         config.db_pragma_profile = profile
 
         # Create the database
@@ -434,7 +434,7 @@ class PragmaProfileBenchmark(Benchmark):
         )
 
         # Create a config with the specified profile
-        config = SimulationConfig()
+        config = HydraSimulationConfig()
         config.db_pragma_profile = profile
 
         # Create the database

@@ -11,15 +11,15 @@ from stable_baselines3.common.env_util import make_vec_env
 
 from farm.core.action import ActionType
 from farm.core.agent import BaseAgent
-from farm.core.config import SimulationConfig
+from farm.core.config_hydra_bridge import HydraHydraSimulationConfig
 from farm.core.environment import Environment
 from farm.core.resources import Resource
 
 
 class TestEnvironment(unittest.TestCase):
     def setUp(self):
-        # Create a minimal SimulationConfig for testing
-        self.config = SimulationConfig(
+        # Create a minimal HydraSimulationConfig for testing
+        self.config = HydraSimulationConfig(
             width=100,
             height=100,
             system_agents=1,
@@ -354,7 +354,7 @@ class TestEnvironment(unittest.TestCase):
     def test_seed_consistency(self):
         """Test that seeding produces consistent results"""
         # Create a simplified config for this test
-        simple_config = SimulationConfig(
+        simple_config = HydraSimulationConfig(
             width=50,
             height=50,
             system_agents=0,
@@ -723,7 +723,7 @@ class TestEnvironment(unittest.TestCase):
     def test_boundary_conditions(self):
         """Test boundary conditions and limits"""
         # Test with minimal environment
-        minimal_config = SimulationConfig(
+        minimal_config = HydraSimulationConfig(
             width=1,
             height=1,
             system_agents=0,
@@ -822,7 +822,7 @@ class TestEnvironment(unittest.TestCase):
             self.fail(f"Environment creation with None config failed: {e}")
 
         # Test with minimal config attributes
-        partial_config = SimulationConfig(
+        partial_config = HydraSimulationConfig(
             width=10,
             height=10,
             system_agents=1,

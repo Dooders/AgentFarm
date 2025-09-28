@@ -17,13 +17,7 @@ import shutil
 from pathlib import Path
 sys.path.append('/workspace')
 
-from farm.core.config import (
-    ConfigurationMigrator,
-    ConfigurationMigration,
-    MigrationTransformation,
-    ConfigurationVersionDetector,
-    MigrationTool,
-    EnvironmentConfigManager
+from farm.core.config_hydra_bridge import HydraSimulationConfig
 )
 
 

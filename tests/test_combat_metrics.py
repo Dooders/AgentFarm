@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from farm.core.environment import Environment
-from farm.core.config import SimulationConfig
+from farm.core.config_hydra_bridge import HydraSimulationConfig
 from farm.core.observations import ObservationConfig
 
 
@@ -34,7 +34,7 @@ class TestCombatMetrics(unittest.TestCase):
         )
 
         # Create a real simulation config
-        simulation_config = SimulationConfig(
+        simulation_config = HydraSimulationConfig(
             width=10,
             height=10,
             max_resource_amount=10,

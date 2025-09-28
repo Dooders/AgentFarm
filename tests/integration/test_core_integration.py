@@ -3,14 +3,14 @@ import unittest
 import numpy as np
 
 from farm.core.agent import BaseAgent
-from farm.core.config import SimulationConfig
+from farm.core.config_hydra_bridge import HydraSimulationConfig
 from farm.core.environment import Environment
 
 
 class TestCoreIntegration(unittest.TestCase):
     def setUp(self):
         # Lean config for faster tests
-        self.config = SimulationConfig(
+        self.config = HydraSimulationConfig(
             width=30,
             height=30,
             system_agents=0,

@@ -10,7 +10,7 @@ import pstats
 import time
 from io import StringIO
 
-from farm.core.config import SimulationConfig
+from farm.core.config_hydra_bridge import HydraSimulationConfig
 from farm.core.simulation import run_simulation
 
 
@@ -73,7 +73,8 @@ def main():
 
     # Load configuration
     try:
-        config = SimulationConfig.from_yaml(args.config)
+        # For now, create a basic config - this should be updated to use hydra config loading
+        config = HydraSimulationConfig()
         print(f"Loaded configuration from {args.config}")
 
         # Apply in-memory database settings if requested

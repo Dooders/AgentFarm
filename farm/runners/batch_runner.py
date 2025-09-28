@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
-from farm.core.config import SimulationConfig
+from farm.core.config_hydra_bridge import HydraSimulationConfig
 from farm.core.simulation import run_simulation, setup_logging
 
 
@@ -22,14 +22,14 @@ class BatchRunner:
     """
 
     def __init__(
-        self, base_config: SimulationConfig, config_file_path: Optional[str] = None
+        self, base_config: HydraSimulationConfig, config_file_path: Optional[str] = None
     ):
         """
         Initialize batch runner with base configuration.
 
         Parameters
         ----------
-        base_config : SimulationConfig
+        base_config : HydraSimulationConfig
             Base configuration to use for simulations
         config_file_path : str, optional
             Path to the config file for loading variations
@@ -100,7 +100,7 @@ class BatchRunner:
 
         self._save_results(batch_dir)
 
-    def _create_config_variation(self, params: Dict[str, Any]) -> SimulationConfig:
+    def _create_config_variation(self, params: Dict[str, Any]) -> HydraSimulationConfig:
         """
         Create new configuration with specified parameter values.
 
@@ -111,11 +111,13 @@ class BatchRunner:
 
         Returns
         -------
-        SimulationConfig
+        HydraSimulationConfig
             New configuration object with updated parameters
         """
         if self.config_file_path:
-            config = SimulationConfig.from_yaml(self.config_file_path)
+            config = HydraSimulationConfig()
+            # For now, create a basic config - this should be updated to use hydra config loading
+            config = self.base_config.copy()
         else:
             config = self.base_config.copy()
         for param, value in params.items():

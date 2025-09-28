@@ -6,7 +6,7 @@ import time as _time
 import numpy as np
 
 from benchmarks.base.benchmark import Benchmark
-from farm.core.config import SimulationConfig
+from farm.core.config_hydra_bridge import HydraSimulationConfig
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 from farm.core.agent import BaseAgent
@@ -70,7 +70,7 @@ class PerceptionMetricsBenchmark(Benchmark):
             storage_mode=storage_mode,
             enable_metrics=True,
         )
-        sim_cfg = SimulationConfig(
+        sim_cfg = HydraSimulationConfig(
             width=width,
             height=height,
             observation=obs_cfg,

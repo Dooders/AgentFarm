@@ -39,7 +39,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
-from farm.core.config import SimulationConfig
+from farm.core.config_hydra_bridge import HydraHydraSimulationConfig
 from farm.runners.experiment_runner import ExperimentRunner
 
 
@@ -252,7 +252,7 @@ class ResearchProject:
         self,
         name: str,
         description: str,
-        config: SimulationConfig,
+        config: HydraSimulationConfig,
         path: Optional[Path] = None,
     ) -> str:
         """
@@ -267,7 +267,7 @@ class ResearchProject:
             Name of the experiment
         description : str
             Description of experiment purpose
-        config : SimulationConfig
+        config : HydraSimulationConfig
             Base configuration for the experiment
 
         Returns
@@ -277,7 +277,7 @@ class ResearchProject:
 
         Examples
         --------
-        >>> config = SimulationConfig.from_yaml("configs/base.yaml")
+        >>> config = HydraSimulationConfig.from_yaml("configs/base.yaml")
         >>> project.create_experiment("baseline", "Baseline behavior", config)
         'results/project_name/experiments/simulations/baseline_20230615_120000'
         """
@@ -333,7 +333,7 @@ class ResearchProject:
         config_path = exp_path / "experiment-config.json"
         with open(config_path) as f:
             config_dict = json.load(f)
-        config = SimulationConfig.from_dict(config_dict)
+        config = HydraSimulationConfig.from_dict(config_dict)
 
         # Create experiment runner
         runner = ExperimentRunner(config, experiment_id)

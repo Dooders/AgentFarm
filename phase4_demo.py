@@ -20,20 +20,7 @@ import threading
 from pathlib import Path
 sys.path.append('/workspace')
 
-from farm.core.config import (
-    ConfigurationHotReloader,
-    ReloadConfig,
-    ReloadStrategy,
-    ReloadEvent,
-    ReloadNotification,
-    ConfigurationNotificationManager,
-    NotificationConfig,
-    NotificationChannel,
-    NotificationPriority,
-    EnvironmentConfigManager,
-    ConfigurationMigrator,
-    ConfigurationVersionDetector
-)
+from farm.core.config_hydra_bridge import HydraSimulationConfig
 
 
 class DemoNotificationSubscriber:

@@ -47,7 +47,7 @@ import torch
 from tqdm import tqdm
 
 from farm.core.agent import BaseAgent
-from farm.core.config import SimulationConfig
+from farm.core.config_hydra_bridge import HydraSimulationConfig
 from farm.core.environment import Environment
 from farm.utils.identity import Identity
 
@@ -212,7 +212,7 @@ def init_random_seeds(seed=None):
 
 def run_simulation(
     num_steps: int,
-    config: SimulationConfig,
+    config: HydraSimulationConfig,
     path: Optional[str] = None,
     save_config: bool = True,
     seed: Optional[int] = None,
