@@ -64,6 +64,10 @@ class VisualizationConfig:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "VisualizationConfig":
         """Create visualization config from a dictionary."""
+        # Convert canvas_size from list back to tuple if needed
+        if "canvas_size" in data and isinstance(data["canvas_size"], list):
+            data = data.copy()  # Don't modify the original
+            data["canvas_size"] = tuple(data["canvas_size"])
         return cls(**data)
 
 
@@ -404,16 +408,25 @@ class SimulationConfig:
         """Create configuration from a dictionary."""
         # Handle visualization config specially
         vis_data = data.pop("visualization", {})
-        data["visualization"] = VisualizationConfig(**vis_data)
+        if isinstance(vis_data, VisualizationConfig):
+            data["visualization"] = vis_data
+        else:
+            data["visualization"] = VisualizationConfig(**vis_data)
 
         # Handle redis config specially
         redis_data = data.pop("redis", {})
-        data["redis"] = RedisMemoryConfig(**redis_data)
+        if isinstance(redis_data, RedisMemoryConfig):
+            data["redis"] = redis_data
+        else:
+            data["redis"] = RedisMemoryConfig(**redis_data)
 
         # Handle observation config specially
         obs_data = data.pop("observation", None)
         if obs_data:
-            data["observation"] = ObservationConfig(**obs_data)
+            if isinstance(obs_data, dict):
+                data["observation"] = ObservationConfig(**obs_data)
+            else:
+                data["observation"] = obs_data
 
         return cls(**data)
 

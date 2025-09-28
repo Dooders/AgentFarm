@@ -224,15 +224,17 @@ class OptimizedConfigLoader:
         cache_key = self._create_cache_key(environment, profile, config_dir)
 
         # Try to get from cache
-        config = self.cache.get(cache_key)
+        base_config_path = os.path.join(config_dir, "default.yaml")
+        config = self.cache.get(cache_key, base_config_path)
         if config is not None:
             return config
 
         # Load from files
         config = self._load_from_files(environment, profile, config_dir)
 
-        # Cache the result
-        self.cache.put(cache_key, config)
+        # Cache the result with base config file path for modification tracking
+        base_config_path = os.path.join(config_dir, "default.yaml")
+        self.cache.put(cache_key, config, base_config_path)
         return config
 
     def _load_from_files(
