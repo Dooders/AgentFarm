@@ -142,7 +142,7 @@ Actions are implemented as functions with configurable parameters and use the ac
 AgentFarm uses a comprehensive YAML-based configuration system:
 
 ```yaml
-# config.yaml
+# config/default.yaml
 # Environment settings
 width: 50
 height: 50
@@ -381,7 +381,7 @@ Simulation data is stored in SQLite with tables for:
 ### Benchmarking
 AgentFarm includes benchmarking tools to measure performance:
 ```bash
-python benchmarks/run_benchmarks.py --config benchmark_config.yaml
+python benchmarks/run_benchmarks.py --environment production --profile benchmark
 ```
 
 ## Integration with Reinforcement Learning

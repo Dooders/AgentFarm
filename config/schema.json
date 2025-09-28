@@ -1,0 +1,877 @@
+{
+  "version": 1,
+  "generated_at": "2025-09-28T05:18:12.893481Z",
+  "sections": {
+    "simulation": {
+      "title": "Simulation",
+      "properties": {
+        "width": {
+          "type": "integer",
+          "default": 100
+        },
+        "height": {
+          "type": "integer",
+          "default": 100
+        },
+        "position_discretization_method": {
+          "type": "string",
+          "default": "floor",
+          "enum": [
+            "floor",
+            "round",
+            "ceil"
+          ]
+        },
+        "use_bilinear_interpolation": {
+          "type": "boolean",
+          "default": true
+        },
+        "system_agents": {
+          "type": "integer",
+          "default": 10
+        },
+        "independent_agents": {
+          "type": "integer",
+          "default": 10
+        },
+        "control_agents": {
+          "type": "integer",
+          "default": 10
+        },
+        "initial_resource_level": {
+          "type": "integer",
+          "default": 0
+        },
+        "max_population": {
+          "type": "integer",
+          "default": 3000
+        },
+        "starvation_threshold": {
+          "type": "integer",
+          "default": 100
+        },
+        "offspring_cost": {
+          "type": "integer",
+          "default": 3
+        },
+        "min_reproduction_resources": {
+          "type": "integer",
+          "default": 8
+        },
+        "offspring_initial_resources": {
+          "type": "integer",
+          "default": 5
+        },
+        "perception_radius": {
+          "type": "integer",
+          "default": 2
+        },
+        "base_attack_strength": {
+          "type": "integer",
+          "default": 2
+        },
+        "base_defense_strength": {
+          "type": "integer",
+          "default": 2
+        },
+        "agent_type_ratios": {
+          "type": "object",
+          "default": {
+            "SystemAgent": 0.33,
+            "IndependentAgent": 0.33,
+            "ControlAgent": 0.34
+          }
+        },
+        "seed": {
+          "type": "integer",
+          "default": 1234567890
+        },
+        "initial_resources": {
+          "type": "integer",
+          "default": 20
+        },
+        "resource_regen_rate": {
+          "type": "number",
+          "default": 0.1
+        },
+        "resource_regen_amount": {
+          "type": "integer",
+          "default": 2
+        },
+        "max_resource_amount": {
+          "type": "integer",
+          "default": 30
+        },
+        "base_consumption_rate": {
+          "type": "number",
+          "default": 0.15
+        },
+        "max_movement": {
+          "type": "integer",
+          "default": 8
+        },
+        "gathering_range": {
+          "type": "integer",
+          "default": 30
+        },
+        "max_gather_amount": {
+          "type": "integer",
+          "default": 3
+        },
+        "territory_range": {
+          "type": "integer",
+          "default": 30
+        },
+        "learning_rate": {
+          "type": "number",
+          "default": 0.001
+        },
+        "gamma": {
+          "type": "number",
+          "default": 0.95
+        },
+        "epsilon_start": {
+          "type": "number",
+          "default": 1.0
+        },
+        "epsilon_min": {
+          "type": "number",
+          "default": 0.01
+        },
+        "epsilon_decay": {
+          "type": "number",
+          "default": 0.995
+        },
+        "memory_size": {
+          "type": "integer",
+          "default": 2000
+        },
+        "batch_size": {
+          "type": "integer",
+          "default": 32
+        },
+        "training_frequency": {
+          "type": "integer",
+          "default": 4
+        },
+        "dqn_hidden_size": {
+          "type": "integer",
+          "default": 24
+        },
+        "tau": {
+          "type": "number",
+          "default": 0.005
+        },
+        "starting_health": {
+          "type": "number",
+          "default": 100.0
+        },
+        "attack_range": {
+          "type": "number",
+          "default": 20.0
+        },
+        "attack_base_damage": {
+          "type": "number",
+          "default": 10.0
+        },
+        "attack_kill_reward": {
+          "type": "number",
+          "default": 5.0
+        },
+        "agent_parameters": {
+          "type": "object",
+          "default": {
+            "SystemAgent": {
+              "gather_efficiency_multiplier": 0.4,
+              "gather_cost_multiplier": 0.4,
+              "min_resource_threshold": 0.2,
+              "share_weight": 0.3,
+              "attack_weight": 0.05
+            },
+            "IndependentAgent": {
+              "gather_efficiency_multiplier": 0.7,
+              "gather_cost_multiplier": 0.2,
+              "min_resource_threshold": 0.05,
+              "share_weight": 0.05,
+              "attack_weight": 0.25
+            },
+            "ControlAgent": {
+              "gather_efficiency_multiplier": 0.55,
+              "gather_cost_multiplier": 0.3,
+              "min_resource_threshold": 0.125,
+              "share_weight": 0.15,
+              "attack_weight": 0.15
+            }
+          }
+        },
+        "social_range": {
+          "type": "integer",
+          "default": 30
+        },
+        "move_mult_no_resources": {
+          "type": "number",
+          "default": 1.5
+        },
+        "gather_mult_low_resources": {
+          "type": "number",
+          "default": 1.5
+        },
+        "share_mult_wealthy": {
+          "type": "number",
+          "default": 1.3
+        },
+        "share_mult_poor": {
+          "type": "number",
+          "default": 0.5
+        },
+        "attack_starvation_threshold": {
+          "type": "number",
+          "default": 0.5
+        },
+        "attack_mult_desperate": {
+          "type": "number",
+          "default": 1.4
+        },
+        "attack_mult_stable": {
+          "type": "number",
+          "default": 0.6
+        },
+        "max_wait_steps": {
+          "type": "integer",
+          "default": 10
+        },
+        "use_in_memory_db": {
+          "type": "boolean",
+          "default": false
+        },
+        "persist_db_on_completion": {
+          "type": "boolean",
+          "default": true
+        },
+        "in_memory_db_memory_limit_mb": {
+          "type": "integer",
+          "default": null
+        },
+        "in_memory_tables_to_persist": {
+          "type": "object",
+          "default": null
+        },
+        "db_pragma_profile": {
+          "type": "string",
+          "default": "balanced",
+          "enum": [
+            "balanced",
+            "performance",
+            "safety",
+            "memory"
+          ]
+        },
+        "db_cache_size_mb": {
+          "type": "integer",
+          "default": 200
+        },
+        "db_synchronous_mode": {
+          "type": "string",
+          "default": "NORMAL",
+          "enum": [
+            "OFF",
+            "NORMAL",
+            "FULL"
+          ]
+        },
+        "db_journal_mode": {
+          "type": "string",
+          "default": "WAL",
+          "enum": [
+            "DELETE",
+            "TRUNCATE",
+            "PERSIST",
+            "MEMORY",
+            "WAL",
+            "OFF"
+          ]
+        },
+        "db_custom_pragmas": {
+          "type": "object",
+          "default": {}
+        },
+        "gather_target_update_freq": {
+          "type": "integer",
+          "default": 100
+        },
+        "gather_memory_size": {
+          "type": "integer",
+          "default": 10000
+        },
+        "gather_learning_rate": {
+          "type": "number",
+          "default": 0.001
+        },
+        "gather_gamma": {
+          "type": "number",
+          "default": 0.99
+        },
+        "gather_epsilon_start": {
+          "type": "number",
+          "default": 1.0
+        },
+        "gather_epsilon_min": {
+          "type": "number",
+          "default": 0.01
+        },
+        "gather_epsilon_decay": {
+          "type": "number",
+          "default": 0.995
+        },
+        "gather_dqn_hidden_size": {
+          "type": "integer",
+          "default": 64
+        },
+        "gather_batch_size": {
+          "type": "integer",
+          "default": 32
+        },
+        "gather_tau": {
+          "type": "number",
+          "default": 0.005
+        },
+        "gather_success_reward": {
+          "type": "number",
+          "default": 0.5
+        },
+        "gather_failure_penalty": {
+          "type": "number",
+          "default": -0.1
+        },
+        "gather_base_cost": {
+          "type": "number",
+          "default": -0.05
+        },
+        "gather_distance_penalty_factor": {
+          "type": "number",
+          "default": 0.1
+        },
+        "gather_resource_threshold": {
+          "type": "number",
+          "default": 0.2
+        },
+        "gather_competition_penalty": {
+          "type": "number",
+          "default": -0.2
+        },
+        "gather_efficiency_bonus": {
+          "type": "number",
+          "default": 0.3
+        },
+        "share_range": {
+          "type": "number",
+          "default": 30.0
+        },
+        "share_target_update_freq": {
+          "type": "integer",
+          "default": 100
+        },
+        "share_memory_size": {
+          "type": "integer",
+          "default": 10000
+        },
+        "share_learning_rate": {
+          "type": "number",
+          "default": 0.001
+        },
+        "share_gamma": {
+          "type": "number",
+          "default": 0.99
+        },
+        "share_epsilon_start": {
+          "type": "number",
+          "default": 1.0
+        },
+        "share_epsilon_min": {
+          "type": "number",
+          "default": 0.01
+        },
+        "share_epsilon_decay": {
+          "type": "number",
+          "default": 0.995
+        },
+        "share_dqn_hidden_size": {
+          "type": "integer",
+          "default": 64
+        },
+        "share_batch_size": {
+          "type": "integer",
+          "default": 32
+        },
+        "share_tau": {
+          "type": "number",
+          "default": 0.005
+        },
+        "share_success_reward": {
+          "type": "number",
+          "default": 0.5
+        },
+        "share_failure_penalty": {
+          "type": "number",
+          "default": -0.1
+        },
+        "share_base_cost": {
+          "type": "number",
+          "default": -0.05
+        },
+        "min_share_amount": {
+          "type": "integer",
+          "default": 1
+        },
+        "max_share_amount": {
+          "type": "integer",
+          "default": 5
+        },
+        "share_threshold": {
+          "type": "number",
+          "default": 0.3
+        },
+        "share_cooperation_bonus": {
+          "type": "number",
+          "default": 0.2
+        },
+        "share_altruism_factor": {
+          "type": "number",
+          "default": 1.2
+        },
+        "cooperation_memory": {
+          "type": "integer",
+          "default": 100
+        },
+        "cooperation_score_threshold": {
+          "type": "number",
+          "default": 0.5
+        },
+        "move_target_update_freq": {
+          "type": "integer",
+          "default": 100
+        },
+        "move_memory_size": {
+          "type": "integer",
+          "default": 10000
+        },
+        "move_learning_rate": {
+          "type": "number",
+          "default": 0.001
+        },
+        "move_gamma": {
+          "type": "number",
+          "default": 0.99
+        },
+        "move_epsilon_start": {
+          "type": "number",
+          "default": 1.0
+        },
+        "move_epsilon_min": {
+          "type": "number",
+          "default": 0.01
+        },
+        "move_epsilon_decay": {
+          "type": "number",
+          "default": 0.995
+        },
+        "move_dqn_hidden_size": {
+          "type": "integer",
+          "default": 64
+        },
+        "move_batch_size": {
+          "type": "integer",
+          "default": 32
+        },
+        "move_reward_history_size": {
+          "type": "integer",
+          "default": 100
+        },
+        "move_epsilon_adapt_threshold": {
+          "type": "number",
+          "default": 0.1
+        },
+        "move_epsilon_adapt_factor": {
+          "type": "number",
+          "default": 1.5
+        },
+        "move_min_reward_samples": {
+          "type": "integer",
+          "default": 10
+        },
+        "move_tau": {
+          "type": "number",
+          "default": 0.005
+        },
+        "move_base_cost": {
+          "type": "number",
+          "default": -0.1
+        },
+        "move_resource_approach_reward": {
+          "type": "number",
+          "default": 0.3
+        },
+        "move_resource_retreat_penalty": {
+          "type": "number",
+          "default": -0.2
+        },
+        "attack_target_update_freq": {
+          "type": "integer",
+          "default": 100
+        },
+        "attack_memory_size": {
+          "type": "integer",
+          "default": 10000
+        },
+        "attack_learning_rate": {
+          "type": "number",
+          "default": 0.001
+        },
+        "attack_gamma": {
+          "type": "number",
+          "default": 0.99
+        },
+        "attack_epsilon_start": {
+          "type": "number",
+          "default": 1.0
+        },
+        "attack_epsilon_min": {
+          "type": "number",
+          "default": 0.01
+        },
+        "attack_epsilon_decay": {
+          "type": "number",
+          "default": 0.995
+        },
+        "attack_dqn_hidden_size": {
+          "type": "integer",
+          "default": 64
+        },
+        "attack_batch_size": {
+          "type": "integer",
+          "default": 32
+        },
+        "attack_tau": {
+          "type": "number",
+          "default": 0.005
+        },
+        "attack_base_cost": {
+          "type": "number",
+          "default": -0.2
+        },
+        "attack_success_reward": {
+          "type": "number",
+          "default": 1.0
+        },
+        "attack_failure_penalty": {
+          "type": "number",
+          "default": -0.3
+        },
+        "attack_defense_threshold": {
+          "type": "number",
+          "default": 0.3
+        },
+        "attack_defense_boost": {
+          "type": "number",
+          "default": 2.0
+        },
+        "simulation_steps": {
+          "type": "integer",
+          "default": 100
+        },
+        "max_steps": {
+          "type": "integer",
+          "default": 1000
+        },
+        "device_preference": {
+          "type": "string",
+          "default": "auto",
+          "enum": [
+            "auto",
+            "cpu",
+            "cuda"
+          ]
+        },
+        "device_fallback": {
+          "type": "boolean",
+          "default": true
+        },
+        "device_memory_fraction": {
+          "type": "number",
+          "default": null
+        },
+        "device_validate_compatibility": {
+          "type": "boolean",
+          "default": true
+        },
+        "curriculum_phases": {
+          "type": "array",
+          "default": [
+            {
+              "steps": 100,
+              "enabled_actions": [
+                "move",
+                "gather"
+              ]
+            },
+            {
+              "steps": 200,
+              "enabled_actions": [
+                "move",
+                "gather",
+                "share",
+                "attack"
+              ]
+            },
+            {
+              "steps": -1,
+              "enabled_actions": [
+                "move",
+                "gather",
+                "share",
+                "attack",
+                "reproduce"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "visualization": {
+      "title": "Visualization",
+      "properties": {
+        "canvas_size": {
+          "type": "array",
+          "default": [
+            400,
+            400
+          ]
+        },
+        "padding": {
+          "type": "integer",
+          "default": 20
+        },
+        "background_color": {
+          "type": "string",
+          "default": "black"
+        },
+        "max_animation_frames": {
+          "type": "integer",
+          "default": 5
+        },
+        "animation_min_delay": {
+          "type": "integer",
+          "default": 50
+        },
+        "max_resource_amount": {
+          "type": "integer",
+          "default": 30
+        },
+        "resource_colors": {
+          "type": "object",
+          "default": {
+            "glow_red": 150,
+            "glow_green": 255,
+            "glow_blue": 50
+          }
+        },
+        "resource_size": {
+          "type": "integer",
+          "default": 2
+        },
+        "agent_radius_scale": {
+          "type": "integer",
+          "default": 2
+        },
+        "birth_radius_scale": {
+          "type": "integer",
+          "default": 4
+        },
+        "death_mark_scale": {
+          "type": "number",
+          "default": 1.5
+        },
+        "agent_colors": {
+          "type": "object",
+          "default": {
+            "SystemAgent": "blue",
+            "IndependentAgent": "red"
+          }
+        },
+        "min_font_size": {
+          "type": "integer",
+          "default": 10
+        },
+        "font_scale_factor": {
+          "type": "integer",
+          "default": 40
+        },
+        "font_family": {
+          "type": "string",
+          "default": "arial"
+        },
+        "death_mark_color": {
+          "type": "array",
+          "default": [
+            255,
+            0,
+            0
+          ]
+        },
+        "birth_mark_color": {
+          "type": "array",
+          "default": [
+            255,
+            255,
+            255
+          ]
+        },
+        "metric_colors": {
+          "type": "object",
+          "default": {
+            "total_agents": "#4a90e2",
+            "system_agents": "#50c878",
+            "independent_agents": "#e74c3c",
+            "total_resources": "#f39c12",
+            "average_agent_resources": "#9b59b6"
+          }
+        }
+      }
+    },
+    "redis": {
+      "title": "Redis",
+      "properties": {
+        "host": {
+          "type": "string",
+          "default": "localhost"
+        },
+        "port": {
+          "type": "integer",
+          "default": 6379
+        },
+        "db": {
+          "type": "integer",
+          "default": 0
+        },
+        "password": {
+          "type": "string",
+          "default": null
+        },
+        "decode_responses": {
+          "type": "boolean",
+          "default": true
+        },
+        "environment": {
+          "type": "string",
+          "default": "default"
+        }
+      }
+    },
+    "observation": {
+      "title": "Observation",
+      "properties": {
+        "R": {
+          "type": "integer",
+          "default": 6,
+          "description": "Radius -> window size = 2R+1",
+          "exclusiveMinimum": 0
+        },
+        "gamma_trail": {
+          "type": "number",
+          "default": 0.9,
+          "description": "Decay rate for trails",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "high_frequency_channels": {
+          "type": "array",
+          "default": [],
+          "description": "Channel names to prebuild densely for frequent access"
+        },
+        "gamma_dmg": {
+          "type": "number",
+          "default": 0.85,
+          "description": "Decay rate for damage heat",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "gamma_sig": {
+          "type": "number",
+          "default": 0.92,
+          "description": "Decay rate for ally signals",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "gamma_known": {
+          "type": "number",
+          "default": 0.98,
+          "description": "Decay rate for known empty cells",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "device": {
+          "type": "string",
+          "default": "cpu",
+          "description": "Device for tensor operations"
+        },
+        "dtype": {
+          "type": "string",
+          "default": "float32",
+          "description": "PyTorch dtype as string"
+        },
+        "fov_radius": {
+          "type": "integer",
+          "default": 6,
+          "description": "Field of view radius (simple disk)",
+          "exclusiveMinimum": 0
+        },
+        "initialization": {
+          "type": "string",
+          "default": "zeros",
+          "description": "Observation tensor initialization method ('zeros' or 'random')"
+        },
+        "storage_mode": {
+          "type": "object",
+          "default": "hybrid",
+          "description": "Storage mode: HYBRID (sparse + lazy dense) or DENSE baseline"
+        },
+        "enable_metrics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Collect cache/memory metrics for benchmarking"
+        },
+        "random_min": {
+          "type": "number",
+          "default": 0.0,
+          "description": "Minimum value for random initialization"
+        },
+        "random_max": {
+          "type": "number",
+          "default": 1.0,
+          "description": "Maximum value for random initialization"
+        },
+        "sparse_backend": {
+          "type": "string",
+          "default": "scatter",
+          "description": "Sparse apply backend: 'scatter' or 'coo'"
+        },
+        "default_point_reduction": {
+          "type": "string",
+          "default": "max",
+          "description": "Default reduction for point-sparse channels: 'max' | 'sum' | 'overwrite'"
+        },
+        "channel_reduction_overrides": {
+          "type": "object",
+          "default": {},
+          "description": "Optional per-channel reduction overrides by channel name"
+        }
+      },
+      "enums": {
+        "storage_mode": [
+          "hybrid",
+          "dense"
+        ]
+      }
+    }
+  }
+}

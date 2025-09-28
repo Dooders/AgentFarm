@@ -167,7 +167,7 @@ def run_determinism_test(config_path, num_steps, seed=42, use_snapshot_steps=Non
     torch.backends.cudnn.benchmark = False
     
     # Load configuration
-    config = SimulationConfig.from_yaml(config_path)
+    config = SimulationConfig.from_centralized_config(environment=args.environment)
     
     # Override any config parameters that might affect determinism
     config.seed = seed
@@ -254,10 +254,11 @@ def main():
     """Main entry point for the determinism test script."""
     parser = argparse.ArgumentParser(description="Test simulation determinism")
     parser.add_argument(
-        "--config", 
-        type=str, 
-        default="config.yaml", 
-        help="Path to configuration file"
+        "--environment",
+        type=str,
+        default="testing",
+        choices=["development", "production", "testing"],
+        help="Configuration environment"
     )
     parser.add_argument(
         "--steps", 

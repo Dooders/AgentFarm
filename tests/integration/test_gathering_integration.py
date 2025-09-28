@@ -14,8 +14,8 @@ from farm.core.action import ActionType
 
 @pytest.fixture
 def simple_config():
-    # Use the repo test config but keep it lean for fast runs
-    return SimulationConfig.from_yaml("tests/test_config.yaml")
+    # Use the testing environment config for fast integration tests
+    return SimulationConfig.from_centralized_config(environment="testing")
 
 
 def _get_gather_action_index(env: Environment) -> int:

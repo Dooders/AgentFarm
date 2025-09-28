@@ -47,7 +47,7 @@ When running simulations, always:
 
 ```python
 # Setting seed in the configuration
-config = SimulationConfig.from_yaml("config.yaml")
+config = SimulationConfig.from_centralized_config()
 config.seed = 42
 
 # Or passing it directly to run_simulation
@@ -82,7 +82,7 @@ np.random.seed(42)
 Use the `deterministic_test.py` script to verify that your simulations are deterministic:
 
 ```bash
-python deterministic_test.py --config config.yaml --steps 100 --seed 42
+python deterministic_test.py --environment testing --steps 100 --seed 42
 ```
 
 This script runs two identical simulations with the same seed and compares their final states to verify determinism.

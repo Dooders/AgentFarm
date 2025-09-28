@@ -18,9 +18,7 @@ class TestSimulation(unittest.TestCase):
         self.test_dir = "test_data"
         if not os.path.exists(self.test_dir):
             os.makedirs(self.test_dir)
-        self.config = SimulationConfig.from_yaml(
-            os.path.join("tests", "test_config.yaml")
-        )
+        self.config = SimulationConfig.from_centralized_config(environment="testing")
         self.db_path = os.path.join(self.test_dir, "test_simulation.db")
 
     def tearDown(self):

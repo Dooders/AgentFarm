@@ -57,7 +57,8 @@ def main():
     exp_parser.add_argument("project")
     exp_parser.add_argument("name")
     exp_parser.add_argument("--description", default="")
-    exp_parser.add_argument("--config", required=True)
+    exp_parser.add_argument("--environment", default="development", choices=["development", "production", "testing"], help="Environment to use")
+    exp_parser.add_argument("--profile", choices=["benchmark", "simulation", "research"], help="Profile to use")
 
     # Run experiment
     run_parser = subparsers.add_parser("run")
@@ -113,7 +114,11 @@ def main():
     elif args.command == "experiment":
         project = ResearchProject(args.project)
         try:
-            config = SimulationConfig.from_yaml(args.config)
+            config = SimulationConfig.from_centralized_config(
+                environment=args.environment,
+                profile=args.profile
+            )
+            print(f"Using config (environment: {args.environment}, profile: {args.profile or 'none'})")
             exp_path = project.create_experiment(args.name, args.description, config)
             exp_id = os.path.basename(
                 exp_path

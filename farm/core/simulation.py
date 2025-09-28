@@ -469,7 +469,7 @@ def main():
     Main entry point for running a simulation directly.
     """
     # Load configuration
-    config = SimulationConfig.from_yaml("config.yaml")
+    config = SimulationConfig.from_centralized_config()
 
     # Run simulation
     run_simulation(num_steps=1000, config=config, save_config=True, path="simulations")

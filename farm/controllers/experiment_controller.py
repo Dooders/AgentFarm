@@ -35,7 +35,7 @@ class ExperimentController:
     Example usage:
         ```python
         # Initialize controller with experiment config
-        config = SimulationConfig.from_yaml("config.yaml")
+        config = SimulationConfig.from_centralized_config()
         controller = ExperimentController(
             name="agent_comparison",
             description="Compare different agent types",

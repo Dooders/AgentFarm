@@ -34,7 +34,7 @@ class SimulationController:
     Example usage:
         ```python
         # Initialize configuration and controller
-        config = SimulationConfig.from_yaml("config.yaml")
+        config = SimulationConfig.from_centralized_config()
         controller = SimulationController(config, "simulations/sim.db")
 
         # Register callbacks for monitoring

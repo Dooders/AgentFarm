@@ -1,0 +1,40 @@
+# Production environment overrides
+# These settings are optimized for performance and reliability
+
+# Larger simulation size for comprehensive testing
+width: 200
+height: 200
+
+# More agents for realistic scenarios
+system_agents: 25
+independent_agents: 25
+control_agents: 25
+max_population: 1000
+
+# Disable debugging for performance
+debug: false
+verbose_logging: false
+
+# Use persistent database with safety settings
+use_in_memory_db: false
+persist_db_on_completion: true
+
+# Safe database settings for production
+db_pragma_profile: "safety"
+db_cache_size_mb: 500
+db_synchronous_mode: "FULL"
+
+# Longer simulation runs
+simulation_steps: 1000
+max_steps: 10000
+
+# Redis production settings
+redis:
+  db: 2
+  environment: production
+
+# Optimized visualization for production monitoring
+visualization:
+  canvas_size: [800, 600]
+  max_animation_frames: 2
+  animation_min_delay: 25

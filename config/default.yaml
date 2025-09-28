@@ -1,6 +1,13 @@
+# Default configuration for Agent Farm Simulation Framework
+# This file contains all base configuration settings with sensible defaults
+
 # Environment settings
 width: 100
 height: 100
+
+# Position discretization settings
+position_discretization_method: "floor"  # Options: "floor", "round", "ceil"
+use_bilinear_interpolation: true  # Whether to use bilinear interpolation for resources
 
 # Agent settings
 system_agents: 10
@@ -9,13 +16,19 @@ control_agents: 10
 initial_resource_level: 5
 max_population: 300
 starvation_threshold: 100
-offspring_cost: 3 # down form 6
-min_reproduction_resources: 8 # down from 10
+offspring_cost: 3
+min_reproduction_resources: 8
 offspring_initial_resources: 5
 perception_radius: 2
 base_attack_strength: 2
 base_defense_strength: 2
 seed: 1234567890
+
+# Agent type ratios (must sum to 1.0)
+agent_type_ratios:
+  SystemAgent: 0.33
+  IndependentAgent: 0.33
+  ControlAgent: 0.34
 
 # Resource settings
 initial_resources: 20
@@ -26,15 +39,9 @@ max_resource_amount: 30
 # Agent behavior settings
 base_consumption_rate: 0.15
 max_movement: 8
-gathering_range: 30 # up from 20
+gathering_range: 30
 max_gather_amount: 3
 territory_range: 30
-
-# Agent type ratios (must sum to 1.0)
-agent_type_ratios:
-  SystemAgent: 1.0
-  IndependentAgent: 0.0
-  ControlAgent: 0.0
 
 # General Learning parameters
 learning_rate: 0.001
@@ -83,12 +90,12 @@ attack_success_reward: 1.0
 attack_failure_penalty: -0.3
 attack_defense_threshold: 0.3
 attack_defense_boost: 2.0
+attack_kill_reward: 5.0
 
 # Combat Parameters
 starting_health: 100.0
 attack_range: 20.0
 attack_base_damage: 10.0
-attack_kill_reward: 5.0
 
 # Action Multipliers
 attack_mult_desperate: 1.4
@@ -113,6 +120,119 @@ gather_distance_penalty_factor: 0.1
 gather_resource_threshold: 0.2
 gather_competition_penalty: -0.2
 gather_efficiency_bonus: 0.3
+
+# Sharing Parameters
+share_range: 30.0
+share_target_update_freq: 100
+share_memory_size: 10000
+share_learning_rate: 0.001
+share_gamma: 0.99
+share_epsilon_start: 1.0
+share_epsilon_min: 0.01
+share_epsilon_decay: 0.995
+share_dqn_hidden_size: 64
+share_batch_size: 32
+share_tau: 0.005
+share_success_reward: 0.5
+share_failure_penalty: -0.1
+share_base_cost: -0.05
+min_share_amount: 1
+max_share_amount: 5
+share_threshold: 0.3
+share_cooperation_bonus: 0.2
+share_altruism_factor: 1.2
+cooperation_memory: 100
+cooperation_score_threshold: 0.5
+
+# Agent-specific parameters
+agent_parameters:
+  SystemAgent:
+    gather_efficiency_multiplier: 0.4
+    gather_cost_multiplier: 0.4
+    min_resource_threshold: 0.2
+    share_weight: 0.3
+    attack_weight: 0.05
+    cooperation_threshold: 0.5
+    learning_rate: 0.01
+    exploration_rate: 0.1
+  IndependentAgent:
+    gather_efficiency_multiplier: 0.7
+    gather_cost_multiplier: 0.2
+    min_resource_threshold: 0.05
+    share_weight: 0.05
+    attack_weight: 0.25
+    cooperation_threshold: 0.5
+    learning_rate: 0.01
+    exploration_rate: 0.1
+  ControlAgent:
+    gather_efficiency_multiplier: 0.55
+    gather_cost_multiplier: 0.3
+    min_resource_threshold: 0.125
+    share_weight: 0.15
+    attack_weight: 0.15
+    cooperation_threshold: 0.5
+    learning_rate: 0.01
+    exploration_rate: 0.1
+
+# Action probability adjustment parameters
+social_range: 30
+
+# Movement multipliers
+move_mult_no_resources: 1.5
+
+# Gathering multipliers
+gather_mult_low_resources: 1.5
+
+# Sharing multipliers
+share_mult_wealthy: 1.3
+share_mult_poor: 0.5
+
+# Attack multipliers
+attack_starvation_threshold: 0.5
+attack_mult_desperate: 1.4
+attack_mult_stable: 0.6
+
+# Simulation control
+max_wait_steps: 10
+simulation_steps: 100
+max_steps: 1000
+
+# Database configuration
+use_in_memory_db: false
+persist_db_on_completion: true
+in_memory_db_memory_limit_mb: null
+in_memory_tables_to_persist: null
+
+# Database pragma settings
+db_pragma_profile: "balanced"
+db_cache_size_mb: 200
+db_synchronous_mode: "NORMAL"
+db_journal_mode: "WAL"
+db_custom_pragmas: {}
+
+# Curriculum learning phases
+curriculum_phases:
+  - steps: 100
+    enabled_actions: ["move", "gather"]
+  - steps: 200
+    enabled_actions: ["move", "gather", "share", "attack"]
+  - steps: -1
+    enabled_actions: ["move", "gather", "share", "attack", "reproduce"]
+
+# Device configuration for neural network computations
+device_preference: "auto"
+device_fallback: true
+device_memory_fraction: null
+device_validate_compatibility: true
+
+# Redis configuration
+redis:
+  host: localhost
+  port: 6379
+  db: 0
+  password: null
+  decode_responses: true
+  environment: default
 
 # Visualization settings
 visualization:
@@ -146,62 +266,3 @@ visualization:
     control_agents: "#DAA520"
     total_resources: "#f39c12"
     average_agent_resources: "#9b59b6"
-
-# Sharing Parameters
-share_range: 30.0
-share_target_update_freq: 100
-share_memory_size: 10000
-share_learning_rate: 0.001
-share_gamma: 0.99
-share_epsilon_start: 1.0
-share_epsilon_min: 0.01
-share_epsilon_decay: 0.995
-share_dqn_hidden_size: 64
-share_batch_size: 32
-share_tau: 0.005
-share_success_reward: 0.5
-share_failure_penalty: -0.1
-share_base_cost: -0.05
-min_share_amount: 1
-max_share_amount: 5
-share_threshold: 0.3
-share_cooperation_bonus: 0.2
-share_altruism_factor: 1.2
-cooperation_memory: 100 # Number of past interactions to remember
-cooperation_score_threshold: 0.5 # Threshold for considering an agent cooperative
-
-# Agent-specific parameters
-agent_parameters:
-  SystemAgent:
-    gather_efficiency_multiplier: 0.4
-    gather_cost_multiplier: 0.4
-    min_resource_threshold: 0.2
-    share_weight: 0.3
-    attack_weight: 0.05
-  IndependentAgent:
-    gather_efficiency_multiplier: 0.7
-    gather_cost_multiplier: 0.2
-    min_resource_threshold: 0.05
-    share_weight: 0.05
-    attack_weight: 0.25
-  ControlAgent:
-    gather_efficiency_multiplier: 0.55
-    gather_cost_multiplier: 0.3
-    min_resource_threshold: 0.125
-    share_weight: 0.15
-    attack_weight: 0.15
-
-# Device configuration for neural network computations
-device_preference: "auto" # Options: "auto", "cpu", "cuda", "cuda:X" (specific GPU)
-device_fallback: true # Whether to fallback to CPU if preferred device unavailable
-device_memory_fraction: null # GPU memory fraction to use (0.0-1.0), null = no limit
-device_validate_compatibility: true # Whether to validate tensor compatibility when moving devices
-
-# Redis configuration
-redis:
-  host: localhost
-  port: 6379
-  db: 0
-  password: null
-  decode_responses: true
-  environment: default

@@ -42,7 +42,7 @@ def create_simulation():
         db_path = f"results/simulation_{sim_id}.db"
 
         # Load and update config
-        base_config = SimulationConfig.from_yaml("config.yaml")
+        base_config = SimulationConfig.from_centralized_config()
         config = replace(base_config, **config_data)
 
         # Create database
