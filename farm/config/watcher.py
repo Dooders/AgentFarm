@@ -108,20 +108,26 @@ class ConfigWatcher:
         """Check all watched files for changes."""
         with self.lock:
             files_to_check = list(self.watched_files.keys())
+            # Get current state for all files to check
+            current_state = {
+                filepath: self.watched_files.get(filepath, "")
+                for filepath in files_to_check
+            }
 
         for filepath in files_to_check:
             try:
                 current_hash = self._get_file_hash(filepath)
-                previous_hash = self.watched_files.get(filepath, "")
+                previous_hash = current_state[filepath]
 
                 if current_hash != previous_hash:
                     # File changed, reload and notify callbacks
                     self._handle_file_change(filepath, current_hash)
 
             except FileNotFoundError:
-                # File was deleted
-                if filepath in self.watched_files:
-                    self.watched_files[filepath] = ""
+                # File was deleted - update state atomically
+                with self.lock:
+                    if filepath in self.watched_files:
+                        self.watched_files[filepath] = ""
             except Exception as e:
                 print(f"Error checking file {filepath}: {e}")
 

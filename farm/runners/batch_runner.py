@@ -119,8 +119,8 @@ class BatchRunner:
             if self.config_file_path.startswith("centralized:"):
                 # Format: "centralized:environment:profile" or "centralized:environment"
                 parts = self.config_file_path.split(":")
-                environment = parts[1] if len(parts) > 1 else "development"
-                profile = parts[2] if len(parts) > 2 else None
+                environment = parts[1] if len(parts) > 1 and parts[1] else "development"
+                profile = parts[2] if len(parts) > 2 and parts[2] else None
                 config = SimulationConfig.from_centralized_config(
                     environment=environment,
                     profile=profile
@@ -179,8 +179,8 @@ def run_simulation_wrapper(args):
             if config_file_path.startswith("centralized:"):
                 # Format: "centralized:environment:profile" or "centralized:environment"
                 parts = config_file_path.split(":")
-                environment = parts[1] if len(parts) > 1 else "development"
-                profile = parts[2] if len(parts) > 2 else None
+                environment = parts[1] if len(parts) > 1 and parts[1] else "development"
+                profile = parts[2] if len(parts) > 2 and parts[2] else None
                 config_copy = SimulationConfig.from_centralized_config(
                     environment=environment,
                     profile=profile
