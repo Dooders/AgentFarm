@@ -212,22 +212,36 @@ class BaseAgent:
         """Initialize agent state variables and configuration."""
         self.previous_state: AgentState | None = None
         self.previous_action = None
-        self.max_movement = (
-            getattr(self.config, "max_movement", 8) if self.config else 8
-        )  # Default value
+        # Movement distance from nested agent behavior when available
+        if self.config and getattr(self.config, "agent_behavior", None) is not None:
+            self.max_movement = getattr(self.config.agent_behavior, "max_movement", 8)
+        else:
+            self.max_movement = (
+                getattr(self.config, "max_movement", 8) if self.config else 8
+            )  # Legacy fallback
         self.total_reward = 0.0
         self.episode_rewards = []
         self.losses = []
         self.starvation_counter = 0  # Counter for consecutive steps with zero resources
-        self.starvation_threshold = (
-            getattr(self.config, "starvation_threshold", 100) if self.config else 100
-        )  # Max steps agent can survive without resources
+        # Max steps agent can survive without resources
+        if self.config and getattr(self.config, "agent_behavior", None) is not None:
+            self.starvation_threshold = getattr(
+                self.config.agent_behavior, "starvation_threshold", 100
+            )
+        else:
+            self.starvation_threshold = (
+                getattr(self.config, "starvation_threshold", 100) if self.config else 100
+            )
         self.birth_time = self.time_service.current_time() if self.time_service else 0
 
         # Initialize health tracking first
-        self.starting_health = (
-            getattr(self.config, "starting_health", 100) if self.config else 100
-        )
+        # Starting health from combat configuration when available
+        if self.config and getattr(self.config, "combat", None) is not None:
+            self.starting_health = getattr(self.config.combat, "starting_health", 100)
+        else:
+            self.starting_health = (
+                getattr(self.config, "starting_health", 100) if self.config else 100
+            )
         self.current_health = self.starting_health
         self.is_defending = False
         self.defense_timer = 0
@@ -369,7 +383,11 @@ class BaseAgent:
         """
         # Get perception radius from config
         try:
-            radius = getattr(self.config, "perception_radius", 5) if self.config else 5
+            # Perception radius from nested agent behavior when available
+            if self.config and getattr(self.config, "agent_behavior", None) is not None:
+                radius = getattr(self.config.agent_behavior, "perception_radius", 5)
+            else:
+                radius = getattr(self.config, "perception_radius", 5) if self.config else 5
             # Create perception grid centered on agent
             size = 2 * radius + 1
         except TypeError:
@@ -403,11 +421,17 @@ class BaseAgent:
         def world_to_grid(wx: float, wy: float) -> tuple[int, int]:
             # Convert world position to grid position relative to agent
             # Use configurable discretization method for consistency
-            discretization_method = (
-                getattr(self.config, "position_discretization_method", "floor")
-                if self.config
-                else "floor"
-            )
+            # Discretization method from nested environment config when available
+            if self.config and getattr(self.config, "environment", None) is not None:
+                discretization_method = getattr(
+                    self.config.environment, "position_discretization_method", "floor"
+                )
+            else:
+                discretization_method = (
+                    getattr(self.config, "position_discretization_method", "floor")
+                    if self.config
+                    else "floor"
+                )
 
             if discretization_method == "round":
                 gx = int(round(wx - self.position[0] + radius))
@@ -537,11 +561,14 @@ class BaseAgent:
                 from farm.core.channels import NUM_CHANNELS
 
                 try:
-                    radius = (
-                        getattr(self.config, "perception_radius", 5)
-                        if self.config
-                        else 5
-                    )
+                    if self.config and getattr(self.config, "agent_behavior", None) is not None:
+                        radius = getattr(self.config.agent_behavior, "perception_radius", 5)
+                    else:
+                        radius = (
+                            getattr(self.config, "perception_radius", 5)
+                            if self.config
+                            else 5
+                        )
                     size = 2 * radius + 1
                 except TypeError:
                     # Handle cases where config attributes return non-numeric values
@@ -553,9 +580,12 @@ class BaseAgent:
             from farm.core.channels import NUM_CHANNELS
 
             try:
-                radius = (
-                    getattr(self.config, "perception_radius", 5) if self.config else 5
-                )
+                if self.config and getattr(self.config, "agent_behavior", None) is not None:
+                    radius = getattr(self.config.agent_behavior, "perception_radius", 5)
+                else:
+                    radius = (
+                        getattr(self.config, "perception_radius", 5) if self.config else 5
+                    )
                 size = 2 * radius + 1
             except TypeError:
                 # Handle cases where config attributes return non-numeric values
@@ -938,9 +968,11 @@ class BaseAgent:
             return
 
         # Resource consumption
-        self.resource_level -= (
-            getattr(self.config, "base_consumption_rate", 1) if self.config else 1
-        )
+        if self.config and getattr(self.config, "agent_behavior", None) is not None:
+            consumption = getattr(self.config.agent_behavior, "base_consumption_rate", 1)
+        else:
+            consumption = getattr(self.config, "base_consumption_rate", 1) if self.config else 1
+        self.resource_level -= consumption
 
         # Check starvation state - exit early if agent dies
         if self.check_starvation():
@@ -1254,9 +1286,9 @@ class BaseAgent:
                 agent_id=new_id,
                 position=self.position,
                 resource_level=(
-                    getattr(self.config, "offspring_initial_resources", 10)
-                    if self.config
-                    else 10
+                    getattr(self.config.agent_behavior, "offspring_initial_resources", 10)
+                    if (self.config and getattr(self.config, "agent_behavior", None) is not None)
+                    else (getattr(self.config, "offspring_initial_resources", 10) if self.config else 10)
                 ),
                 spatial_service=self.spatial_service,
                 metrics_service=self.metrics_service,
@@ -1283,9 +1315,12 @@ class BaseAgent:
 
         # Subtract offspring cost from parent's resources
         try:
-            offspring_cost = (
-                getattr(self.config, "offspring_cost", 5) if self.config else 5
-            )
+            if self.config and getattr(self.config, "agent_behavior", None) is not None:
+                offspring_cost = getattr(self.config.agent_behavior, "offspring_cost", 5)
+            else:
+                offspring_cost = (
+                    getattr(self.config, "offspring_cost", 5) if self.config else 5
+                )
             self.resource_level -= offspring_cost
         except Exception as e:
             logger.error(
@@ -1440,18 +1475,28 @@ class BaseAgent:
     @property
     def attack_strength(self) -> float:
         """Calculate the agent's current attack strength."""
-        return (
-            getattr(self.config, "base_attack_strength", 10) if self.config else 10
-        ) * (self.current_health / self.starting_health)
+        base_attack = None
+        if self.config and getattr(self.config, "agent_behavior", None) is not None:
+            base_attack = getattr(self.config.agent_behavior, "base_attack_strength", None)
+        if base_attack is None and self.config is not None:
+            base_attack = getattr(self.config, "base_attack_strength", None)
+        if base_attack is None:
+            base_attack = 10
+        return base_attack * (self.current_health / self.starting_health)
 
     @property
     def defense_strength(self) -> float:
         """Calculate the agent's current defense strength."""
-        return (
-            (getattr(self.config, "base_defense_strength", 5) if self.config else 5)
-            if self.is_defending
-            else 0.0
-        )
+        if not self.is_defending:
+            return 0.0
+        base_defense = None
+        if self.config and getattr(self.config, "agent_behavior", None) is not None:
+            base_defense = getattr(self.config.agent_behavior, "base_defense_strength", None)
+        if base_defense is None and self.config is not None:
+            base_defense = getattr(self.config, "base_defense_strength", None)
+        if base_defense is None:
+            base_defense = 5
+        return base_defense
 
     def get_action_weights(self) -> dict:
         """Get a dictionary of action weights.

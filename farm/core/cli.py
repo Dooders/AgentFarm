@@ -120,13 +120,23 @@ def main():
         profile=getattr(args, 'profile', None)
     )
 
-        # Override config with command line arguments if provided
+        # Override config with command line arguments if provided (nested fields)
+        # Defensively ensure nested objects exist
         if args.system_agents:
-            config.system_agents = args.system_agents
+            if getattr(config, "population", None) is None:
+                from farm.config import PopulationConfig
+                config.population = PopulationConfig()
+            config.population.system_agents = args.system_agents
         if args.independent_agents:
-            config.independent_agents = args.independent_agents
+            if getattr(config, "population", None) is None:
+                from farm.config import PopulationConfig
+                config.population = PopulationConfig()
+            config.population.independent_agents = args.independent_agents
         if args.resources:
-            config.initial_resources = args.resources
+            if getattr(config, "resources", None) is None:
+                from farm.config import ResourceConfig
+                config.resources = ResourceConfig()
+            config.resources.initial_resources = args.resources
 
         # Save configuration if requested
         if args.save_config:
