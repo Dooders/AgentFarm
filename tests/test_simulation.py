@@ -5,7 +5,8 @@ import unittest
 import numpy as np
 
 from farm.core.agent import BaseAgent
-from farm.core.config_hydra_bridge import HydraSimulationConfig
+from farm.core.config_hydra_simple import create_simple_hydra_config_manager
+from farm.core.config_hydra_models import HydraSimulationConfig
 from farm.core.environment import Environment
 from farm.core.resources import Resource
 from farm.database.database import SimulationDatabase
@@ -18,9 +19,12 @@ class TestSimulation(unittest.TestCase):
         self.test_dir = "test_data"
         if not os.path.exists(self.test_dir):
             os.makedirs(self.test_dir)
-        self.config = HydraSimulationConfig(
-            os.path.join("tests", "test_config.yaml")
+        self.config_manager = create_simple_hydra_config_manager(
+            config_dir="config_hydra/conf",
+            environment="development",
+            agent="system_agent"
         )
+        self.config = self.config_manager.get_simulation_config()
         self.db_path = os.path.join(self.test_dir, "test_simulation.db")
 
     def tearDown(self):

@@ -7,7 +7,7 @@ from datetime import datetime
 
 from farm.core.analysis import SimulationAnalyzer
 from farm.core.cli import run_simulation
-from farm.core.config_hydra_bridge import HydraSimulationConfig
+from farm.core.config_hydra_models import HydraSimulationConfig
 from farm.core.visualization import SimulationVisualizer
 from farm.runners.experiment_runner import ExperimentRunner
 
@@ -29,7 +29,7 @@ def setup_logging(log_dir="logs"):
 
 def run_experiment(args):
     """Run experiment with specified parameters."""
-    config = SimulationConfig.from_yaml(args.config)
+    config = HydraSimulationConfig.model_validate_json(args.config)
     experiment = ExperimentRunner(config, args.experiment_name)
 
     if args.variations:
@@ -102,7 +102,8 @@ def main():
 
     if args.mode == "simulate":
         # Load configuration
-        config = SimulationConfig.from_yaml(args.config)
+        config = HydraSimulationConfig.from_yaml(args.config)
+        config = HydraSimulationConfig.model_validate_json(args.config)
 
         # Override config with command line arguments if provided
         if args.system_agents:
@@ -114,7 +115,7 @@ def main():
 
         # Save configuration if requested
         if args.save_config:
-            config.to_yaml(args.save_config)
+            config.model_dump_json(args.save_config)
 
         # Run simulation with configuration
         # run_simulation(num_steps=args.steps, config=config, db_path=args.db_path)

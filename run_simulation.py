@@ -10,16 +10,16 @@ import pstats
 import time
 from io import StringIO
 
-from farm.core.config_hydra_bridge import HydraSimulationConfig
+from farm.core.config_hydra_simple import create_simple_hydra_config_manager
 from farm.core.simulation import run_simulation
 
 
-def run_profiled_simulation(num_steps, config, output_dir):
+def run_profiled_simulation(num_steps, config_manager, output_dir):
     """
     Run the simulation with profiling and return the environment.
     """
     return run_simulation(
-        num_steps=num_steps, config=config, path=output_dir, save_config=True
+        num_steps=num_steps, config_manager=config_manager, path=output_dir, save_config=True
     )
 
 
@@ -73,17 +73,23 @@ def main():
 
     # Load configuration
     try:
-        # For now, create a basic config - this should be updated to use hydra config loading
-        config = HydraSimulationConfig()
+        # Create Hydra configuration manager
+        config_manager = create_simple_hydra_config_manager(
+            config_dir="config_hydra/conf",
+            environment="development",
+            agent="system_agent"
+        )
         print(f"Loaded configuration from {args.config}")
 
         # Apply in-memory database settings if requested
         if args.in_memory:
-            config.use_in_memory_db = True
-            config.in_memory_db_memory_limit_mb = (
+            # Get current config and update it
+            config_dict = config_manager.get_config()
+            config_dict['use_in_memory_db'] = True
+            config_dict['in_memory_db_memory_limit_mb'] = (
                 args.memory_limit if args.memory_limit else 1000
             )
-            config.persist_db_on_completion = not args.no_persist
+            config_dict['persist_db_on_completion'] = not args.no_persist
             print("Using in-memory database for improved performance")
             if args.memory_limit:
                 print(f"Memory limit: {args.memory_limit} MB")

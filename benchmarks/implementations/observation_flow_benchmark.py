@@ -9,7 +9,7 @@ except Exception:  # pragma: no cover
     np = None
 
 from benchmarks.base.benchmark import Benchmark
-from farm.core.config_hydra_bridge import HydraSimulationConfig
+from farm.core.config_hydra_models import HydraSimulationConfig
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 from farm.core.services.implementations import SpatialIndexAdapter

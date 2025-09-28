@@ -10,7 +10,8 @@ from flask_socketio import SocketIO, emit
 from farm.core.analysis import analyze_simulation
 from farm.analysis.service import AnalysisRequest, AnalysisService
 from farm.core.services import EnvConfigService
-from farm.core.config_hydra_bridge import HydraSimulationConfig
+from farm.core.config_hydra_simple import create_simple_hydra_config_manager
+from farm.core.config_hydra_models import HydraSimulationConfig
 from farm.core.simulation import run_simulation
 from farm.database.database import SimulationDatabase
 
@@ -41,10 +42,20 @@ def create_simulation():
         sim_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         db_path = f"results/simulation_{sim_id}.db"
 
-        # Load and update config
-        # For now, create a basic config - this should be updated to use hydra config loading
-        base_config = HydraSimulationConfig()
-        config = replace(base_config, **config_data)
+        # Create Hydra configuration manager
+        config_manager = create_simple_hydra_config_manager(
+            config_dir="config_hydra/conf",
+            environment="development",
+            agent="system_agent"
+        )
+
+        # Update config with request data
+        config_dict = config_manager.get_config()
+        config_dict.update(config_data)
+        config_manager._config_manager._config = config_dict  # Update the underlying config
+
+        # Get the updated config
+        config = config_manager.get_simulation_config()
 
         # Create database
         os.makedirs(os.path.dirname(db_path), exist_ok=True)

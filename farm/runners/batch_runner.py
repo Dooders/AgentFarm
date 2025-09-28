@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
-from farm.core.config_hydra_bridge import HydraSimulationConfig
+from farm.core.config_hydra_models import HydraSimulationConfig
 from farm.core.simulation import run_simulation, setup_logging
 
 

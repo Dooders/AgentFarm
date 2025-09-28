@@ -48,7 +48,7 @@ from pettingzoo import AECEnv
 # Use action registry for cleaner action management
 from farm.core.action import ActionType, action_registry
 from farm.core.channels import NUM_CHANNELS
-from farm.core.config_hydra_bridge import HydraSimulationConfig
+from farm.core.config_hydra_models import HydraSimulationConfig
 from farm.core.metrics_tracker import MetricsTracker
 from farm.core.observations import AgentObservation, ObservationConfig
 from farm.core.resource_manager import ResourceManager
@@ -266,7 +266,7 @@ class Environment(AECEnv):
         self.simulation_id = simulation_id or self.identity.simulation_id()
 
         # Setup database and get initialized database instance
-        db_result = setup_db(db_path, self.simulation_id, config.to_dict() if config else None)
+        db_result = setup_db(db_path, self.simulation_id, config.model_dump() if config else None)
         if isinstance(db_result, tuple):
             self.db = db_result[0]  # Extract database object from tuple
         else:

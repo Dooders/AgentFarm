@@ -13,7 +13,7 @@ import time
 from typing import Any, Dict, Optional
 
 from benchmarks.base.benchmark import Benchmark
-from farm.core.config_hydra_bridge import HydraHydraSimulationConfig
+from farm.core.config_hydra_models import HydraSimulationConfig
 from farm.core.simulation import run_simulation
 from farm.database import InMemorySimulationDatabase, SimulationDatabase
 from farm.database.pragma_docs import PRAGMA_PROFILES, get_pragma_profile

@@ -39,7 +39,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
-from farm.core.config_hydra_bridge import HydraHydraSimulationConfig
+from farm.core.config_hydra_models import HydraSimulationConfig
 from farm.runners.experiment_runner import ExperimentRunner
 
 
@@ -290,7 +290,7 @@ class ResearchProject:
         # Save experiment configuration
         config_path = exp_path / "experiment-config.json"
         with open(config_path, "w") as f:
-            json.dump(config.to_dict(), f, indent=2)
+            json.dump(config.model_dump(), f, indent=2)
 
         # Create experiment design document
         # design_path = exp_path / "experiment-design.md"

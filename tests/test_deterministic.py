@@ -13,7 +13,8 @@ import random
 import torch
 from datetime import datetime
 
-from farm.core.config_hydra_bridge import HydraSimulationConfig
+from farm.core.config_hydra_simple import create_simple_hydra_config_manager
+from farm.core.config_hydra_models import HydraSimulationConfig
 from farm.core.simulation import run_simulation
 
 
@@ -167,9 +168,13 @@ def run_determinism_test(config_path, num_steps, seed=42, use_snapshot_steps=Non
     torch.backends.cudnn.benchmark = False
     
     # Load configuration
-    # For now, create a basic config - this should be updated to use hydra config loading
-    config = HydraSimulationConfig()
-    
+    config_manager = create_simple_hydra_config_manager(
+        config_dir="config_hydra/conf",
+        environment="development",
+        agent="system_agent"
+    )
+    config = config_manager.get_simulation_config()
+
     # Override any config parameters that might affect determinism
     config.seed = seed
     

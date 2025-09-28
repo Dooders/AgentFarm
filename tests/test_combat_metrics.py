@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from farm.core.environment import Environment
-from farm.core.config_hydra_bridge import HydraSimulationConfig
+from farm.core.config_hydra_models import HydraSimulationConfig
 from farm.core.observations import ObservationConfig
 
 

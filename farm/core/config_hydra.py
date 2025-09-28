@@ -112,15 +112,14 @@ class HydraConfigManager:
             ):
                 # Build overrides list
                 overrides = []
-                
+
                 # Add environment override
                 if self.environment:
                     overrides.append(f"environment={self.environment}")
-                
-                # Add agent override
-                if self.agent:
-                    overrides.append(f"agent={self.agent}")
-                
+
+                # Note: Agent is handled via defaults in config.yaml, not as an override
+                # The agent parameter is stored for reference but not used as an override
+
                 # Add custom overrides
                 overrides.extend(self.overrides)
                 
@@ -147,14 +146,14 @@ class HydraConfigManager:
         return self._config
     
     def get_simulation_config(self) -> HydraSimulationConfig:
-        """Get the configuration as a SimulationConfig object.
-        
+        """Get the configuration as a HydraSimulationConfig object.
+
         Returns:
-            SimulationConfig object with the current configuration
+            HydraSimulationConfig object with the current configuration
         """
         if self._simulation_config is None:
             config_dict = OmegaConf.to_container(self.get_config(), resolve=True)
-            self._simulation_config = HydraSimulationConfig.from_dict(config_dict)
+            self._simulation_config = HydraSimulationConfig(**config_dict)
         return self._simulation_config
     
     def get(self, key: str, default: Any = None) -> Any:

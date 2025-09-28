@@ -4,12 +4,12 @@ Configuration helper utilities for benchmarks.
 
 from typing import Any, Dict, Optional
 
-from farm.core.config_hydra_bridge import HydraHydraSimulationConfig
+from farm.core.config_hydra_models import HydraSimulationConfig
 
 
 def configure_for_performance_with_persistence(
-    config: Optional[HydraHydraSimulationConfig] = None,
-) -> HydraHydraSimulationConfig:
+    config: Optional[HydraSimulationConfig] = None,
+) -> HydraSimulationConfig:
     """
     Configure a simulation for optimal performance while maintaining data persistence.
 

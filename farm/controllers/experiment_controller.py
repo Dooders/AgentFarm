@@ -17,7 +17,8 @@ from typing import Dict, List, Optional
 from farm.analysis.comparative_analysis import compare_simulations
 from farm.charts.chart_analyzer import ChartAnalyzer
 from farm.controllers.simulation_controller import SimulationController
-from farm.core.config_hydra_bridge import HydraSimulationConfig
+from farm.core.config_hydra_simple import create_simple_hydra_config_manager
+from farm.core.config_hydra_models import HydraSimulationConfig
 from farm.database.database import SimulationDatabase
 from farm.research.research import ResearchProject
 
@@ -69,22 +70,42 @@ class ExperimentController:
         self,
         name: str,
         description: str,
-        base_config: HydraSimulationConfig,
+        base_config: Optional[HydraSimulationConfig] = None,
+        config_manager: Optional[Any] = None,
         project: Optional[ResearchProject] = None,
         output_dir: Optional[Path] = None
     ):
         """Initialize experiment controller.
-        
+
         Args:
             name: Name of the experiment
             description: Description of experiment purpose
-            base_config: Base simulation configuration
+            base_config: Base simulation configuration. If None, config_manager must be provided.
+            config_manager: Hydra configuration manager. If None, base_config must be provided.
             project: Optional research project this experiment belongs to
             output_dir: Optional custom output directory
         """
+        # Validate parameters
+        if base_config is None and config_manager is None:
+            raise ValueError("Either base_config or config_manager must be provided")
+
+        if base_config is not None and config_manager is not None:
+            raise ValueError("Only one of base_config or config_manager should be provided")
+
+        # Extract configuration
+        if config_manager is not None:
+            if hasattr(config_manager, 'get_simulation_config'):
+                self.base_config = config_manager.get_simulation_config()
+            elif hasattr(config_manager, 'get_config'):
+                config_dict = config_manager.get_config()
+                self.base_config = HydraSimulationConfig(**config_dict)
+            else:
+                raise ValueError("config_manager must have get_simulation_config() or get_config() method")
+        else:
+            self.base_config = base_config
+
         self.name = name
         self.description = description
-        self.base_config = base_config
         self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
         # Setup research project

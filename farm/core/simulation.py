@@ -40,14 +40,15 @@ import os
 import random
 import time
 from datetime import datetime
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import torch
 from tqdm import tqdm
 
 from farm.core.agent import BaseAgent
-from farm.core.config_hydra_bridge import HydraSimulationConfig
+from farm.core.config_hydra_models import HydraSimulationConfig
+from farm.core.config_hydra_simple import create_simple_hydra_config_manager
 from farm.core.environment import Environment
 from farm.utils.identity import Identity
 
@@ -212,7 +213,8 @@ def init_random_seeds(seed=None):
 
 def run_simulation(
     num_steps: int,
-    config: HydraSimulationConfig,
+    config: Optional[HydraSimulationConfig] = None,
+    config_manager: Optional[Any] = None,
     path: Optional[str] = None,
     save_config: bool = True,
     seed: Optional[int] = None,
@@ -226,8 +228,10 @@ def run_simulation(
     ----------
     num_steps : int
         Number of simulation steps to run
-    config : SimulationConfig
-        Configuration for the simulation
+    config : HydraSimulationConfig, optional
+        Configuration for the simulation. If None, config_manager must be provided.
+    config_manager : Any, optional
+        Hydra configuration manager. If None, config must be provided.
     path : Optional[str], optional
         Path where to save simulation data, by default None
     save_config : bool, optional
@@ -244,6 +248,29 @@ def run_simulation(
     Environment
         The simulation environment after completion
     """
+    # Validate parameters
+    if config is None and config_manager is None:
+        raise ValueError("Either config or config_manager must be provided")
+
+    if config is not None and config_manager is not None:
+        raise ValueError("Only one of config or config_manager should be provided")
+
+    # Extract configuration
+    if config_manager is not None:
+        # Get config from manager
+        if hasattr(config_manager, "get_simulation_config"):
+            config = config_manager.get_simulation_config()
+        elif hasattr(config_manager, "get_config"):
+            # Fallback to dictionary config
+            config_dict = config_manager.get_config()
+            config = HydraSimulationConfig(**config_dict)
+        else:
+            raise ValueError(
+                "config_manager must have get_simulation_config() or get_config() method"
+            )
+    elif config is None:
+        raise ValueError("Configuration must be provided")
+
     # Generate simulation_id if not provided
     if simulation_id is None:
         identity_service = identity if identity is not None else _shared_identity
@@ -347,14 +374,14 @@ def run_simulation(
         if save_config and path is not None:
             config_path = f"{path}/config.json"
             with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(config.to_dict(), f, indent=4)
+                json.dump(config.model_dump(), f, indent=4)
             logging.info(f"Saved configuration to {config_path}")
 
         # Ensure simulation record exists before saving configuration
         if environment.db is not None:
             # Check if simulation record exists, create if not
             try:
-                environment.db.save_configuration(config.to_dict())
+                environment.db.save_configuration(config.model_dump())
             except Exception as e:
                 # If save_configuration fails due to missing simulation record,
                 # create the record first and try again
@@ -363,9 +390,9 @@ def run_simulation(
                         simulation_id=simulation_id,
                         start_time=datetime.now(),
                         status="running",
-                        parameters=config.to_dict(),
+                        parameters=config.model_dump(),
                     )
-                    environment.db.save_configuration(config.to_dict())
+                    environment.db.save_configuration(config.model_dump())
                 else:
                     raise
 
@@ -469,7 +496,7 @@ def main():
     Main entry point for running a simulation directly.
     """
     # Load configuration
-    config = SimulationConfig.from_yaml("config.yaml")
+    config = HydraSimulationConfig.model_validate_json("config.yaml")
 
     # Run simulation
     run_simulation(num_steps=1000, config=config, save_config=True, path="simulations")

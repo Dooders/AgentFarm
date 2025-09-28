@@ -18,7 +18,7 @@ import psutil
 from joblib import Parallel, delayed
 from tqdm.auto import tqdm
 
-from farm.core.config_hydra_bridge import HydraHydraSimulationConfig
+from farm.core.config_hydra_models import HydraSimulationConfig
 from farm.core.simulation import run_simulation
 from farm.database.database import SimulationDatabase
 
@@ -140,7 +140,7 @@ class ParallelExperimentRunner:
             results = {
                 "final_agent_count": len(environment.agents),
                 "config": (
-                    config.to_dict() if hasattr(config, "to_dict") else str(config)
+                    config.model_dump() if hasattr(config, "model_dump") else str(config)
                 ),
                 "output_path": str(output_path),
                 "success": True,
@@ -198,7 +198,7 @@ class ParallelExperimentRunner:
             results = {
                 "final_agent_count": len(environment.agents),
                 "config": (
-                    config.to_dict() if hasattr(config, "to_dict") else str(config)
+                    config.model_dump() if hasattr(config, "model_dump") else str(config)
                 ),
                 "output_path": str(output_path),
                 "success": True,

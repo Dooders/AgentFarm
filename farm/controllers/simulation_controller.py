@@ -12,9 +12,10 @@ import os
 import threading
 import time
 from datetime import datetime
-from typing import Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
-from farm.core.config_hydra_bridge import HydraSimulationConfig
+from farm.core.config_hydra_simple import create_simple_hydra_config_manager
+from farm.core.config_hydra_models import HydraSimulationConfig
 from farm.core.environment import Environment
 from farm.database.database import SimulationDatabase
 from farm.database.models import Simulation
@@ -74,14 +75,33 @@ class SimulationController:
     simulation progress and status changes.
     """
 
-    def __init__(self, config: HydraSimulationConfig, db_path: str):
+    def __init__(self, config: Optional[HydraSimulationConfig] = None, config_manager: Optional[Any] = None, db_path: str = "simulations/sim.db"):
         """Initialize simulation controller.
 
         Args:
-            config: Simulation configuration
+            config: Simulation configuration. If None, config_manager must be provided.
+            config_manager: Hydra configuration manager. If None, config must be provided.
             db_path: Path to simulation database
         """
-        self.config = config
+        # Validate parameters
+        if config is None and config_manager is None:
+            raise ValueError("Either config or config_manager must be provided")
+
+        if config is not None and config_manager is not None:
+            raise ValueError("Only one of config or config_manager should be provided")
+
+        # Extract configuration
+        if config_manager is not None:
+            if hasattr(config_manager, 'get_simulation_config'):
+                self.config = config_manager.get_simulation_config()
+            elif hasattr(config_manager, 'get_config'):
+                config_dict = config_manager.get_config()
+                self.config = HydraSimulationConfig(**config_dict)
+            else:
+                raise ValueError("config_manager must have get_simulation_config() or get_config() method")
+        else:
+            self.config = config
+
         self.db_path = db_path
         self.db = SimulationDatabase(db_path)
 
@@ -124,7 +144,7 @@ class SimulationController:
                 simulation_id=simulation_id,
                 start_time=datetime.now(),
                 status="initialized",
-                parameters=self.config.to_dict(),
+                parameters=self.config.model_dump(),
             )
 
             # Initialize environment

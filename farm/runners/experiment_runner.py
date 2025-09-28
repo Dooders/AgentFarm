@@ -12,13 +12,14 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 from tqdm import tqdm
 
 from farm.charts.chart_analyzer import ChartAnalyzer
-from farm.core.config_hydra_bridge import HydraHydraSimulationConfig
+from farm.core.config_hydra_simple import create_simple_hydra_config_manager
+from farm.core.config_hydra_models import HydraSimulationConfig
 from farm.core.simulation import run_simulation
 from farm.database.database import SimulationDatabase
 from scripts.significant_events import SignificantEventAnalyzer
@@ -31,8 +32,9 @@ class ExperimentRunner:
 
     def __init__(
         self,
-        base_config: HydraSimulationConfig,
-        experiment_name: str,
+        base_config: Optional[HydraSimulationConfig] = None,
+        config_manager: Optional[Any] = None,
+        experiment_name: str = "experiment",
         db_path: Optional[Path] = None,
     ):
         """
@@ -40,14 +42,33 @@ class ExperimentRunner:
 
         Parameters
         ----------
-        base_config : HydraSimulationConfig
-            Base configuration for simulations
+        base_config : HydraSimulationConfig, optional
+            Base configuration for simulations. If None, config_manager must be provided.
+        config_manager : Any, optional
+            Hydra configuration manager. If None, base_config must be provided.
         experiment_name : str
             Name of the experiment for organizing results
         db_path : Optional[Path]
             Explicit path for the simulation database. If None, uses default location.
         """
-        self.base_config = base_config
+        # Validate parameters
+        if base_config is None and config_manager is None:
+            raise ValueError("Either base_config or config_manager must be provided")
+
+        if base_config is not None and config_manager is not None:
+            raise ValueError("Only one of base_config or config_manager should be provided")
+
+        # Extract configuration
+        if config_manager is not None:
+            if hasattr(config_manager, 'get_simulation_config'):
+                self.base_config = config_manager.get_simulation_config()
+            elif hasattr(config_manager, 'get_config'):
+                config_dict = config_manager.get_config()
+                self.base_config = HydraSimulationConfig(**config_dict)
+            else:
+                raise ValueError("config_manager must have get_simulation_config() or get_config() method")
+        else:
+            self.base_config = base_config
         self.experiment_name = experiment_name
         self.results: List[Dict] = []
 

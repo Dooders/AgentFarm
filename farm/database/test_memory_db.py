@@ -18,7 +18,7 @@ import pandas as pd
 import psutil
 from sqlalchemy import text
 
-from farm.core.config_hydra_bridge import HydraSimulationConfig
+from farm.core.config_hydra_models import HydraSimulationConfig
 from farm.database.database import InMemorySimulationDatabase, SimulationDatabase
 
 
@@ -542,8 +542,8 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
         self.assertTrue(config.persist_db_on_completion)
 
         # Convert to dict and back to ensure serialization works
-        config_dict = config.to_dict()
-        new_config = HydraSimulationConfig.from_dict(config_dict)
+        config_dict = config.model_dump()
+        new_config = HydraSimulationConfig(**config_dict)
 
         # Verify settings are preserved
         self.assertTrue(new_config.use_in_memory_db)
