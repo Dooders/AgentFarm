@@ -13,6 +13,14 @@ from typing import Any, Dict, List, Optional, Union
 from hydra import compose, initialize_config_dir
 from hydra.core.global_hydra import GlobalHydra
 from omegaconf import DictConfig, OmegaConf
+from pydantic import ValidationError
+
+from .config_hydra_models import (
+    validate_config_dict,
+    validate_environment_config,
+    validate_agent_config,
+    HydraSimulationConfig
+)
 
 logger = logging.getLogger(__name__)
 
@@ -246,41 +254,120 @@ class SimpleHydraConfigManager:
         return sorted(agents)
     
     def validate_configuration(self) -> Dict[str, List[str]]:
-        """Validate the current configuration.
+        """
+        Validate the current configuration using Pydantic models.
         
         Returns:
-            Dictionary mapping validation areas to lists of errors
+            Dictionary of validation errors by category
         """
         errors = {}
         
         try:
-            config = self.get_config()
+            config_dict = self.to_dict()
             
-            # Basic validation
-            max_steps = self.get('max_steps')
-            if max_steps is None or max_steps <= 0:
-                errors.setdefault('simulation', []).append("max_steps must be positive")
+            # Use Pydantic validation
+            validated_config = validate_config_dict(config_dict)
+            logger.debug("Configuration validation passed")
             
-            max_population = self.get('max_population')
-            if max_population is None or max_population <= 0:
-                errors.setdefault('simulation', []).append("max_population must be positive")
-            
-            width = self.get('width')
-            height = self.get('height')
-            if width is None or height is None or width <= 0 or height <= 0:
-                errors.setdefault('simulation', []).append("width and height must be positive")
-            
-            # Validate agent type ratios sum to 1.0
-            agent_ratios = self.get('agent_type_ratios')
-            if agent_ratios:
-                ratio_sum = sum(agent_ratios.values())
-                if abs(ratio_sum - 1.0) > 1e-6:
-                    errors.setdefault('simulation', []).append(f"agent_type_ratios must sum to 1.0, got {ratio_sum}")
-            
+        except ValidationError as e:
+            logger.error(f"Configuration validation failed: {e}")
+            errors['pydantic'] = []
+            for error in e.errors():
+                field = '.'.join(str(x) for x in error['loc'])
+                message = error['msg']
+                errors['pydantic'].append(f'{field}: {message}')
+        
         except Exception as e:
-            errors.setdefault('general', []).append(f"Configuration validation failed: {e}")
+            logger.error(f"Unexpected validation error: {e}")
+            errors['general'] = [f'Validation error: {str(e)}']
         
         return errors
+    
+    def validate_environment_config(self) -> Dict[str, List[str]]:
+        """
+        Validate environment-specific configuration.
+        
+        Returns:
+            Dictionary of validation errors by category
+        """
+        errors = {}
+        
+        try:
+            config_dict = self.to_dict()
+            
+            # Extract environment-specific fields
+            env_fields = [
+                'debug', 'verbose_logging', 'max_steps', 'max_population',
+                'use_in_memory_db', 'persist_db_on_completion', 'learning_rate',
+                'epsilon_start', 'epsilon_min', 'db_pragma_profile', 'db_cache_size_mb'
+            ]
+            env_config = {k: v for k, v in config_dict.items() if k in env_fields}
+            
+            # Use Pydantic validation
+            validated_config = validate_environment_config(env_config)
+            logger.debug("Environment configuration validation passed")
+            
+        except ValidationError as e:
+            logger.error(f"Environment configuration validation failed: {e}")
+            errors['environment'] = []
+            for error in e.errors():
+                field = '.'.join(str(x) for x in error['loc'])
+                message = error['msg']
+                errors['environment'].append(f'{field}: {message}')
+        
+        except Exception as e:
+            logger.error(f"Unexpected environment validation error: {e}")
+            errors['general'] = [f'Environment validation error: {str(e)}']
+        
+        return errors
+    
+    def validate_agent_config(self) -> Dict[str, List[str]]:
+        """
+        Validate agent-specific configuration.
+        
+        Returns:
+            Dictionary of validation errors by category
+        """
+        errors = {}
+        
+        try:
+            config_dict = self.to_dict()
+            
+            # Extract agent-specific fields
+            agent_config = {
+                'agent_parameters': config_dict.get('agent_parameters', {})
+            }
+            
+            # Use Pydantic validation
+            validated_config = validate_agent_config(agent_config)
+            logger.debug("Agent configuration validation passed")
+            
+        except ValidationError as e:
+            logger.error(f"Agent configuration validation failed: {e}")
+            errors['agent'] = []
+            for error in e.errors():
+                field = '.'.join(str(x) for x in error['loc'])
+                message = error['msg']
+                errors['agent'].append(f'{field}: {message}')
+        
+        except Exception as e:
+            logger.error(f"Unexpected agent validation error: {e}")
+            errors['general'] = [f'Agent validation error: {str(e)}']
+        
+        return errors
+    
+    def get_validated_config(self) -> HydraSimulationConfig:
+        """
+        Get the current configuration as a validated Pydantic model.
+        
+        Returns:
+            Validated HydraSimulationConfig instance
+            
+        Raises:
+            ValidationError: If configuration validation fails
+        """
+        config_dict = self.to_dict()
+        return validate_config_dict(config_dict)
     
     def get_configuration_summary(self) -> Dict[str, Any]:
         """Get a summary of the current configuration.

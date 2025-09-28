@@ -384,10 +384,12 @@ hot_reloader.add_notification_callback(on_config_reload)
 
 ## Validation
 
+The Hydra configuration system includes comprehensive Pydantic validation for strong type safety and data integrity.
+
 ### Configuration Validation
 
 ```python
-# Validate current configuration
+# Validate current configuration using Pydantic models
 errors = config_manager.validate_configuration()
 
 if errors:
@@ -398,7 +400,37 @@ if errors:
             print(f"    - {error}")
 else:
     print("Configuration validation passed!")
+
+# Get validated configuration as Pydantic model
+validated_config = config_manager.get_validated_config()
+print(f"Environment: {validated_config.width}x{validated_config.height}")
+print(f"Max steps: {validated_config.max_steps}")
 ```
+
+### Validation Features
+
+- **Type Safety**: Automatic type checking and conversion
+- **Range Validation**: Numeric field bounds checking (e.g., width must be 10-10000)
+- **Pattern Validation**: String format validation with regex patterns
+- **Custom Rules**: Complex validation logic for business rules
+- **Nested Validation**: Automatic validation of nested configuration objects
+- **Clear Error Messages**: Detailed, actionable validation errors
+
+### Environment and Agent Validation
+
+```python
+# Validate environment-specific configuration
+env_errors = config_manager.validate_environment_config()
+if env_errors:
+    print("Environment validation errors:", env_errors)
+
+# Validate agent-specific configuration
+agent_errors = config_manager.validate_agent_config()
+if agent_errors:
+    print("Agent validation errors:", agent_errors)
+```
+
+For detailed information about Pydantic validation, see the [Pydantic Validation Guide](pydantic_validation_guide.md).
 
 ### Configuration Summary
 
