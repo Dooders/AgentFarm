@@ -2,8 +2,8 @@
 Bridge between Hydra configuration system and existing SimulationConfig.
 
 This module provides a bridge that allows the existing SimulationConfig class
-to work with the new Hydra-based configuration system, enabling immediate
-integration without breaking existing code.
+to work with the Hydra-based configuration system, enabling seamless
+integration with comprehensive Pydantic validation.
 """
 
 import logging

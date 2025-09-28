@@ -1,9 +1,9 @@
 """
 Hydra-based configuration management system.
 
-This module provides a Hydra-based replacement for the custom hierarchical
-configuration system, offering better maintainability, interpolation,
-command-line overrides, and multi-run sweeps.
+This module provides a modern configuration management system leveraging Hydra's
+hierarchical configuration capabilities for environment and agent-specific overrides,
+with comprehensive Pydantic validation and hot-reloading support.
 """
 
 import logging
@@ -17,15 +17,16 @@ from hydra.core.config_store import ConfigStore
 from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, OmegaConf
 
-# Import from the main config.py file directly
-import importlib.util
-spec = importlib.util.spec_from_file_location("config", Path(__file__).parent / "config.py")
-config_module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(config_module)
-SimulationConfig = config_module.SimulationConfig
-VisualizationConfig = config_module.VisualizationConfig
-RedisMemoryConfig = config_module.RedisMemoryConfig
-from .observations import ObservationConfig
+# Import Pydantic models for configuration validation
+from .config_hydra_models import (
+    HydraSimulationConfig,
+    HydraEnvironmentConfig,
+    HydraAgentConfig,
+    VisualizationConfig,
+    RedisMemoryConfig,
+    AgentParameters,
+    AgentTypeRatios
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +34,8 @@ logger = logging.getLogger(__name__)
 class HydraConfigManager:
     """Hydra-based configuration manager.
     
-    This class provides a Hydra-based replacement for the custom hierarchical
-    configuration system, offering better maintainability and features.
+    This class provides a modern configuration management system leveraging Hydra's
+    hierarchical configuration capabilities with comprehensive Pydantic validation.
     """
     
     def __init__(
@@ -57,6 +58,8 @@ class HydraConfigManager:
         self.config_dir = Path(config_dir)
         self.config_name = config_name
         self.environment = environment or self._detect_environment()
+        # Agent parameter enables agent-specific configuration overrides
+        # (e.g., different learning parameters for system_agent vs independent_agent)
         self.agent = agent or "system_agent"
         self.overrides = overrides or []
         
