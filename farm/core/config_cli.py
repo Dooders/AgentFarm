@@ -195,11 +195,12 @@ def cmd_diff(args):
         if change['self'] is not None:
             print(f"  First config:  {change['self']}")
         else:
-            print("  First config:  (missing)"
+            print("  First config:  (missing)")
         if change['other'] is not None:
             print(f"  Second config: {change['other']}")
         else:
-            print("  Second config: (missing)"        print()
+            print("  Second config: (missing)")
+        print()
 
 
 def cmd_watch(args):

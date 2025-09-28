@@ -139,7 +139,6 @@ print(f"Created: {versioned_config.config_created_at}")
 # Save versioned configuration
 filepath = versioned_config.save_versioned_config(
     directory="config/experiments",
-    description="Learning algorithm experiment"
 )
 
 # List all versions

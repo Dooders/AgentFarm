@@ -261,7 +261,7 @@ class TestConfigIntegration(unittest.TestCase):
                 config.seed = 42 + worker_id
 
                 # Save version (this will version it automatically)
-                config.save_versioned_config(self.versions_dir, f"Worker {worker_id} config")
+                config.version_config(f"Worker {worker_id} config").save_versioned_config(self.versions_dir)
 
                 results.append(f"Worker {worker_id}: SUCCESS")
             except Exception as e:

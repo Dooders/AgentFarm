@@ -358,7 +358,6 @@ class SimulationConfig:
     config_created_at: Optional[str] = None
     config_description: Optional[str] = None
 
-
     def to_yaml(self, file_path: str) -> None:
         """Save configuration to a YAML file."""
         # Convert to dictionary, handling visualization and redis configs specially
