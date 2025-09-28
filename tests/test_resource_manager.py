@@ -29,7 +29,9 @@ class TestResourceManager(unittest.TestCase):
         self.width = 100.0
         self.height = 100.0
         self.config = Mock()
-        self.config.max_resource_amount = 20
+        # Mock the nested resources config structure
+        self.config.resources = Mock()
+        self.config.resources.max_resource_amount = 20
         self.config.resource_regen_rate = 0.1
         self.config.resource_regen_amount = 2
 
@@ -148,7 +150,7 @@ class TestResourceManager(unittest.TestCase):
 
         self.assertIsInstance(resource, Resource)
         self.assertEqual(resource.position, position)
-        self.assertEqual(resource.max_amount, self.config.max_resource_amount)
+        self.assertEqual(resource.max_amount, self.config.resources.max_resource_amount)
         self.assertEqual(resource.regeneration_rate, self.config.resource_regen_rate)
 
         # With seed=42, pos_sum=100, so amount should be 3 + (100 % 6) = 3 + 4 = 7

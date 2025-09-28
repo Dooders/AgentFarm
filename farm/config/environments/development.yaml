@@ -1,0 +1,40 @@
+# Development environment overrides
+# These settings are optimized for development and debugging
+
+# Smaller simulation size for faster iteration
+width: 50
+height: 50
+
+# Fewer agents for quicker testing
+system_agents: 5
+independent_agents: 5
+control_agents: 5
+max_population: 50
+
+# Enable debugging features
+debug: true
+verbose_logging: true
+
+# Use in-memory database for development
+use_in_memory_db: true
+persist_db_on_completion: false
+in_memory_db_memory_limit_mb: 500
+
+# Faster database settings for development
+db_pragma_profile: "performance"
+db_cache_size_mb: 50
+
+# Shorter simulation steps for testing
+simulation_steps: 50
+max_steps: 200
+
+# Redis development settings
+redis:
+  db: 1
+  environment: development
+
+# Simplified visualization for development
+visualization:
+  canvas_size: [300, 300]
+  max_animation_frames: 10
+  animation_min_delay: 100

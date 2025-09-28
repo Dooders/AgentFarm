@@ -1,0 +1,63 @@
+_metadata:
+  name: learning_parameter_study
+  description: "Template for studying different reinforcement learning parameters"
+  required_variables:
+    - learning_rate
+    - gamma
+    - epsilon_decay
+    - hidden_size
+
+template:
+  # Environment settings
+  width: 100
+  height: 100
+
+  # Agent settings
+  system_agents: 10
+  independent_agents: 10
+  control_agents: 10
+
+  # Agent type ratios
+  agent_type_ratios:
+    SystemAgent: 0.33
+    IndependentAgent: 0.33
+    ControlAgent: 0.34
+
+  # Resource settings
+  initial_resources: 20
+  resource_regen_rate: 0.1
+  max_resource_amount: 30
+
+  # Variable learning parameters
+  learning_rate: "{{learning_rate}}"
+  gamma: "{{gamma}}"
+  epsilon_start: 1.0
+  epsilon_min: 0.01
+  epsilon_decay: "{{epsilon_decay}}"
+  memory_size: 2000
+  batch_size: 32
+  training_frequency: 4
+  dqn_hidden_size: "{{hidden_size}}"
+  tau: 0.005
+
+  # Agent behavior settings
+  base_consumption_rate: 0.15
+  max_movement: 8
+  gathering_range: 30
+
+  # Combat and social parameters
+  starting_health: 100.0
+  attack_range: 20.0
+  attack_base_damage: 10.0
+
+  # Simulation control
+  simulation_steps: 2000
+  max_steps: 5000
+
+  # Database settings
+  use_in_memory_db: true
+  persist_db_on_completion: true
+
+  visualization:
+    canvas_size: [400, 400]
+    max_animation_frames: 5

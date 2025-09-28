@@ -10,7 +10,7 @@ import pstats
 import time
 from io import StringIO
 
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
 
 
@@ -30,16 +30,23 @@ def main():
     # Set up command line arguments
     parser = argparse.ArgumentParser(description="Run a single farm simulation")
     parser.add_argument(
-        "--config",
+        "--environment",
         type=str,
-        default="config.yaml",
-        help="Path to configuration YAML file",
+        default="development",
+        choices=["development", "production", "testing"],
+        help="Environment to use (development/production/testing)",
+    )
+    parser.add_argument(
+        "--profile",
+        type=str,
+        choices=["benchmark", "simulation", "research"],
+        help="Profile to use (benchmark/simulation/research)",
     )
     parser.add_argument(
         "--steps", type=int, default=1000, help="Number of simulation steps to run"
     )
     parser.add_argument(
-        "--profile",
+        "--perf-profile",
         action="store_true",
         help="Enable performance profiling with cProfile and SnakeViz visualization",
     )
@@ -73,8 +80,11 @@ def main():
 
     # Load configuration
     try:
-        config = SimulationConfig.from_yaml(args.config)
-        print(f"Loaded configuration from {args.config}")
+        config = SimulationConfig.from_centralized_config(
+            environment=args.environment,
+            profile=args.profile
+        )
+        print(f"Loaded configuration (environment: {args.environment}, profile: {args.profile or 'none'})")
 
         # Apply in-memory database settings if requested
         if args.in_memory:
@@ -96,13 +106,13 @@ def main():
     print(f"Starting simulation with {args.steps} steps")
     print(f"Output will be saved to {output_dir}")
     print(
-        f"Agent configuration - System: {config.system_agents}, Independent: {config.independent_agents}, Control: {config.control_agents}"
+        f"Agent configuration - System: {config.population.system_agents}, Independent: {config.population.independent_agents}, Control: {config.population.control_agents}"
     )
 
     try:
         start_time = time.time()
 
-        if args.profile:
+        if args.perf_profile:
             print("Profiling enabled - collecting performance data...")
             # Run with profiling
             profiler = cProfile.Profile()
@@ -130,7 +140,7 @@ def main():
             print(s.getvalue())
 
             # Save to file
-            with open(profile_path, "w") as f:
+            with open(profile_path, "w", encoding="utf-8") as f:
                 stats = pstats.Stats(profiler, stream=f).sort_stats("cumulative")
                 stats.print_stats(50)  # Save top 50 functions to file
 

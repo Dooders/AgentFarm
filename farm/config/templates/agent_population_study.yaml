@@ -1,0 +1,54 @@
+_metadata:
+  name: agent_population_study
+  description: "Template for studying different agent population sizes and ratios"
+  required_variables:
+    - total_agents
+    - environment_size
+    - agent_ratio_system
+    - agent_ratio_independent
+    - agent_ratio_control
+
+template:
+  # Environment settings
+  width: "{{environment_size}}"
+  height: "{{environment_size}}"
+
+  # Agent settings - calculated from total_agents and ratios
+  system_agents: "{{total_agents}}"
+  independent_agents: "{{total_agents}}"
+  control_agents: "{{total_agents}}"
+
+  # Agent type ratios (must sum to 1.0)
+  agent_type_ratios:
+    SystemAgent: "{{agent_ratio_system}}"
+    IndependentAgent: "{{agent_ratio_independent}}"
+    ControlAgent: "{{agent_ratio_control}}"
+
+  # Fixed settings for population studies
+  initial_resource_level: 5
+  max_population: "{{total_agents}}"
+  starvation_threshold: 100
+
+  # Resource settings
+  initial_resources: 50
+  resource_regen_rate: 0.1
+  max_resource_amount: 30
+
+  # Learning parameters
+  learning_rate: 0.001
+  gamma: 0.95
+  epsilon_start: 1.0
+  epsilon_min: 0.01
+  epsilon_decay: 0.995
+
+  # Simulation control
+  simulation_steps: 1000
+  max_steps: 2000
+
+  # Database and visualization settings
+  use_in_memory_db: true
+  persist_db_on_completion: true
+
+  visualization:
+    canvas_size: [400, 400]
+    max_animation_frames: 5

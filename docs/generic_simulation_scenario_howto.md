@@ -7,7 +7,7 @@ This guide provides a systematic approach to creating any type of agent-based si
 ## Prerequisites
 
 - Understanding of the existing codebase structure
-- Familiarity with the configuration system (`config.yaml`)
+- Familiarity with the configuration system (`config/default.yaml`)
 - Basic knowledge of the agent framework and action systems
 
 ## Step-by-Step Implementation Process
@@ -105,7 +105,7 @@ The action system is located in `farm/core/action.py` and includes:
 - ActionType enum with predefined action types
 - Action execution functions for each behavior type
 ```yaml
-# config.yaml additions for any scenario
+# config/default.yaml additions for any scenario
 # Add to existing agent_type_ratios section
 agent_type_ratios:
   SystemAgent: 0.4
@@ -325,7 +325,7 @@ farm/core/action.py                     # Add new action types if needed
 
 **Files to Modify:**
 ```
-config.yaml - Add scenario parameters to existing sections
+config/default.yaml - Add scenario parameters to existing sections
 farm/core/config.py - Extend SimulationConfig class
 farm/core/action.py - Add new action types if needed
 farm/core/environment.py - Extend Environment class if needed
@@ -377,7 +377,7 @@ from farm.memory.redis_memory import AgentMemoryManager
 ### Agent Design Patterns
 - **Inheritance**: Extend `BaseAgent` from `farm.core.agent` for specialized behavior
 - **Composition**: Use existing action modules from `farm.core.action` when possible
-- **Configuration**: Make behavior configurable via YAML in `config.yaml`
+- **Configuration**: Make behavior configurable via YAML in `config/default.yaml`
 - **Learning**: Implement adaptive behavior mechanisms using existing decision modules
 
 ### Environment Design Patterns

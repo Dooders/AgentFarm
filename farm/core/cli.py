@@ -7,7 +7,7 @@ from datetime import datetime
 
 from farm.core.analysis import SimulationAnalyzer
 from farm.core.cli import run_simulation
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 from farm.core.visualization import SimulationVisualizer
 from farm.runners.experiment_runner import ExperimentRunner
 
@@ -29,7 +29,10 @@ def setup_logging(log_dir="logs"):
 
 def run_experiment(args):
     """Run experiment with specified parameters."""
-    config = SimulationConfig.from_yaml(args.config)
+    config = SimulationConfig.from_centralized_config(
+        environment=args.environment,
+        profile=getattr(args, 'profile', None)
+    )
     experiment = ExperimentRunner(config, args.experiment_name)
 
     if args.variations:
@@ -81,7 +84,17 @@ def main():
     )
 
     parser.add_argument(
-        "--config", type=str, default="config.yaml", help="Path to configuration file"
+        "--environment",
+        type=str,
+        default="development",
+        choices=["development", "production", "testing"],
+        help="Configuration environment"
+    )
+    parser.add_argument(
+        "--profile",
+        type=str,
+        choices=["benchmark", "simulation", "research"],
+        help="Configuration profile"
     )
     parser.add_argument(
         "--save-config", type=str, help="Save current configuration to file"
@@ -102,7 +115,10 @@ def main():
 
     if args.mode == "simulate":
         # Load configuration
-        config = SimulationConfig.from_yaml(args.config)
+        config = SimulationConfig.from_centralized_config(
+        environment=args.environment,
+        profile=getattr(args, 'profile', None)
+    )
 
         # Override config with command line arguments if provided
         if args.system_agents:

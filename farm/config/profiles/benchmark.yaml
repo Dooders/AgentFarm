@@ -1,0 +1,53 @@
+# Benchmark profile
+# Optimized for performance benchmarking and metrics collection
+
+# Medium simulation size for balanced benchmarking
+width: 75
+height: 75
+
+# Balanced agent distribution for comprehensive testing
+system_agents: 15
+independent_agents: 15
+control_agents: 15
+max_population: 150
+
+# Minimal logging for performance
+debug: false
+verbose_logging: false
+
+# Use in-memory database for speed
+use_in_memory_db: true
+persist_db_on_completion: true
+in_memory_db_memory_limit_mb: 1000
+
+# Performance-optimized database settings
+db_pragma_profile: "performance"
+db_cache_size_mb: 100
+
+# Longer runs for meaningful benchmark data
+simulation_steps: 500
+max_steps: 2000
+
+# Consistent seed for reproducible benchmarks
+seed: 1234567890
+
+# Redis benchmark settings
+redis:
+  db: 4
+  environment: benchmark
+
+# Minimal visualization for benchmarks
+visualization:
+  canvas_size: [400, 400]
+  max_animation_frames: 1
+  animation_min_delay: 0
+
+# Reduced learning parameters for faster convergence testing
+learning_rate: 0.01
+epsilon_start: 0.5
+epsilon_decay: 0.99
+
+# Optimized DQN parameters for benchmarks
+dqn_hidden_size: 32
+batch_size: 64
+training_frequency: 2

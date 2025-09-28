@@ -217,7 +217,7 @@ obs_config.gamma_trail = 0.95    # Custom trail decay rate
 ### YAML Configuration
 
 ```yaml
-# config.yaml - Observation settings
+# config/default.yaml - Observation settings
 observation:
   R: 6                           # Observation radius
   fov_radius: 6                  # Field-of-view radius
@@ -233,7 +233,7 @@ observation:
 
 # Load from YAML
 from farm.core.config import SimulationConfig
-config = SimulationConfig.from_yaml("config.yaml")
+config = SimulationConfig.from_centralized_config()
 ```
 
 ---

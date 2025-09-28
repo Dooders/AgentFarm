@@ -111,16 +111,16 @@ AgentFarm provides multiple ways to run simulations:
 
 **Command Line (Simple)**
 ```bash
-python run_simulation.py --config config.yaml --steps 1000
+python run_simulation.py --environment development --steps 1000
 ```
 
 **Command Line Interface (Advanced)**
 ```bash
 # Run simulation with various options
-python farm/core/cli.py --mode simulate --config config.yaml --steps 1000
+python farm/core/cli.py --mode simulate --environment development --steps 1000
 
 # Run experiments with parameter variations
-python farm/core/cli.py --mode experiment --config config.yaml --experiment-name test --iterations 3
+python farm/core/cli.py --mode experiment --environment production --experiment-name test --iterations 3
 
 # Visualize existing simulation results
 python farm/core/cli.py --mode visualize --db-path simulations/simulation.db

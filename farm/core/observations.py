@@ -857,12 +857,25 @@ class AgentObservation:
             self._metrics["prebuilt_channels_active"] = len(self._high_freq_indices)
 
     def _ensure_dense_cache(self) -> None:
-        """Ensure dense cache is initialized if needed."""
+        """Ensure dense cache is initialized and has correct size."""
+        S = 2 * self.config.R + 1
+        num_channels = self.registry.num_channels
+        expected_shape = (int(num_channels), int(S), int(S))
         if self.dense_cache is None:
-            S = 2 * self.config.R + 1
+            # Initialize without toggling cache_dirty; callers control rebuild semantics
             self.dense_cache = torch.zeros(
-                self.registry.num_channels, S, S, device=self.config.device, dtype=self.config.torch_dtype
+                expected_shape[0], expected_shape[1], expected_shape[2],
+                device=self.config.device, dtype=self.config.torch_dtype
             )
+            return
+        current_shape = tuple(int(d) for d in self.dense_cache.shape)
+        if current_shape != expected_shape:
+            self.dense_cache = torch.zeros(
+                expected_shape[0], expected_shape[1], expected_shape[2],
+                device=self.config.device, dtype=self.config.torch_dtype
+            )
+            # Only mark dirty when we actually changed size
+            self.cache_dirty = True
 
     def _store_sparse_point(self, channel_idx: int, y: int, x: int, value: float):
         """Store a single point value in sparse format."""

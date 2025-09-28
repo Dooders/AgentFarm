@@ -18,7 +18,7 @@ import pandas as pd
 import psutil
 from sqlalchemy import text
 
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 from farm.database.database import InMemorySimulationDatabase, SimulationDatabase
 
 
