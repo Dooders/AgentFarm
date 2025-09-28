@@ -484,7 +484,9 @@ class SafeConfigLoader:
 
         try:
             # Attempt to load configuration
-            config = SimulationConfig.from_centralized_config(
+            from farm.core.config_cache import OptimizedConfigLoader
+            loader = OptimizedConfigLoader()
+            config = loader.load_centralized_config(
                 environment=environment,
                 profile=profile,
                 config_dir=config_dir,

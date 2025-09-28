@@ -269,6 +269,10 @@ class OptimizedConfigLoader:
             with open(env_path, "r", encoding="utf-8") as f:
                 env_config = yaml.safe_load(f)
             base_config = SimulationConfig._deep_merge(base_config, env_config)
+        else:
+            # If environment is not "default" and file doesn't exist, raise error
+            if environment != "default":
+                raise FileNotFoundError(f"Environment configuration not found: {env_path}")
 
         # Merge profile overrides (highest precedence)
         if profile:
@@ -277,6 +281,8 @@ class OptimizedConfigLoader:
                 with open(profile_path, "r", encoding="utf-8") as f:
                     profile_config = yaml.safe_load(f)
                 base_config = SimulationConfig._deep_merge(base_config, profile_config)
+            else:
+                raise FileNotFoundError(f"Profile configuration not found: {profile_path}")
 
         # Handle nested configs
         vis_config = base_config.pop("visualization", {})

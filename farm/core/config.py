@@ -1,6 +1,7 @@
 import copy
 import hashlib
 import json
+import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
@@ -417,6 +418,21 @@ class SimulationConfig:
         return cls(**data)
 
     @classmethod
+    def from_yaml(cls, file_path: str) -> "SimulationConfig":
+        """
+        Load configuration from a YAML file.
+
+        Args:
+            file_path: Path to the YAML file
+
+        Returns:
+            SimulationConfig: Loaded configuration
+        """
+        with open(file_path, 'r', encoding='utf-8') as f:
+            config_dict = yaml.safe_load(f)
+        return cls.from_dict(config_dict)
+
+    @classmethod
     def from_centralized_config(
         cls,
         environment: str = "development",
@@ -443,15 +459,28 @@ class SimulationConfig:
         Raises:
             ConfigurationError: If validation fails and auto_repair is disabled
         """
-        from farm.core.config_validation import SafeConfigLoader
-        loader = SafeConfigLoader()
-        config, status_info = loader.load_config_safely(
+        from farm.core.config_cache import OptimizedConfigLoader
+
+        # Use cache loader for basic loading
+        loader = OptimizedConfigLoader()
+        config = loader.load_centralized_config(
             environment=environment,
             profile=profile,
             config_dir=config_dir,
-            strict_validation=strict_validation,
-            auto_repair=auto_repair
+            use_cache=use_cache
         )
+
+        # Apply validation and repair if requested
+        if strict_validation or auto_repair:
+            from farm.core.config_validation import SafeConfigLoader
+            loader = SafeConfigLoader()
+            config, status_info = loader.load_config_safely(
+                environment=environment,
+                profile=profile,
+                config_dir=config_dir,
+                strict_validation=strict_validation,
+                auto_repair=auto_repair
+            )
 
         return config
 
@@ -551,7 +580,6 @@ class SimulationConfig:
         Raises:
             FileNotFoundError: If version doesn't exist
         """
-        import os
         filepath = os.path.join(directory, f"config_{version}.yaml")
         if not os.path.exists(filepath):
             raise FileNotFoundError(f"Configuration version {version} not found in {directory}")

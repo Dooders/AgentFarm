@@ -128,7 +128,7 @@ class ConfigTemplate:
         # Create SimulationConfig from the instantiated dict
         return SimulationConfig.from_dict(instance_dict)
 
-    def _replace_string_placeholders(self, text: str, variables: Dict[str, Any]) -> str:
+    def _replace_string_placeholders(self, text: str, variables: Dict[str, Any]) -> Any:
         """
         Replace placeholders in a string with variable values.
 
@@ -137,7 +137,7 @@ class ConfigTemplate:
             variables: Variable values
 
         Returns:
-            str: String with placeholders replaced
+            Any: String with placeholders replaced, or original value if entire string is a placeholder
         """
         def _replace_match(match):
             var_name = match.group(1)
@@ -145,7 +145,16 @@ class ConfigTemplate:
                 raise ValueError(f"Missing required variable: {var_name}")
             return str(variables[var_name])
 
-        return re.sub(r'\{\{(\w+)\}\}', _replace_match, text)
+        result = re.sub(r'\{\{(\w+)\}\}', _replace_match, text)
+
+        # If the entire text was just a placeholder like "{{var}}", return the actual value
+        # not the string representation
+        if re.match(r'^\{\{(\w+)\}\}$', text):
+            var_name = re.match(r'^\{\{(\w+)\}\}$', text).group(1)
+            if var_name in variables:
+                return variables[var_name]
+
+        return result
 
     def get_required_variables(self) -> List[str]:
         """

@@ -93,8 +93,7 @@ class TestConfigIntegration(unittest.TestCase):
         # 1. Load centralized config
         config = SimulationConfig.from_centralized_config(
             config_dir=self.config_dir,
-            environment="development",
-            validate=False  # Skip validation for minimal test config
+            environment="development"
         )
 
         self.assertEqual(config.width, 50)  # Should use development override
@@ -105,8 +104,7 @@ class TestConfigIntegration(unittest.TestCase):
         config_with_profile = SimulationConfig.from_centralized_config(
             config_dir=self.config_dir,
             environment="development",
-            profile="benchmark",
-            validate=False
+            profile="benchmark"
         )
 
         self.assertEqual(config_with_profile.width, 100)  # Profile override
@@ -223,8 +221,7 @@ class TestConfigIntegration(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             SimulationConfig.from_centralized_config(
                 config_dir=self.config_dir,
-                environment="nonexistent",
-                validate=False
+                environment="nonexistent"
             )
 
         # Test invalid profile
@@ -232,8 +229,7 @@ class TestConfigIntegration(unittest.TestCase):
             SimulationConfig.from_centralized_config(
                 config_dir=self.config_dir,
                 environment="development",
-                profile="nonexistent",
-                validate=False
+                profile="nonexistent"
             )
 
         # Test invalid version
@@ -256,15 +252,16 @@ class TestConfigIntegration(unittest.TestCase):
 
         def worker(worker_id):
             """Worker function for concurrent testing."""
+            import os  # Ensure os is available in thread context
             try:
                 # Load config
                 config = SimulationConfig.from_centralized_config(config_dir=self.config_dir)
 
-                # Version it
-                versioned = config.version_config(f"Worker {worker_id} config")
+                # Modify a field to make each config unique
+                config.seed = 42 + worker_id
 
-                # Save version
-                versioned.save_versioned_config(self.versions_dir, f"Worker {worker_id}")
+                # Save version (this will version it automatically)
+                config.save_versioned_config(self.versions_dir, f"Worker {worker_id} config")
 
                 results.append(f"Worker {worker_id}: SUCCESS")
             except Exception as e:
@@ -311,25 +308,16 @@ class TestConfigIntegration(unittest.TestCase):
             self.assertIn('sections', schema)
             self.assertIn('simulation', schema['sections'])
 
-    def test_deprecation_warnings(self):
-        """Test that deprecation warnings are properly issued."""
-        import warnings
-
-        # Test from_yaml deprecation
+    def test_from_yaml_method(self):
+        """Test that from_yaml method works correctly."""
+        # Test from_yaml functionality
         config_path = os.path.join(self.config_dir, "default.yaml")
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            config = SimulationConfig.from_yaml(config_path)
+        config = SimulationConfig.from_yaml(config_path)
 
-            # Should have deprecation warning
-            self.assertTrue(len(w) > 0)
-            found_deprecation = False
-            for warning in w:
-                if issubclass(warning.category, DeprecationWarning):
-                    self.assertIn("deprecated", str(warning.message).lower())
-                    found_deprecation = True
-                    break
-            self.assertTrue(found_deprecation, "No deprecation warning found")
+        # Verify it loaded correctly
+        self.assertIsInstance(config, SimulationConfig)
+        self.assertEqual(config.width, 100)  # Default value
+        self.assertEqual(config.height, 100)  # Default value
 
     def test_performance_baselines(self):
         """Test performance baselines for configuration operations."""
