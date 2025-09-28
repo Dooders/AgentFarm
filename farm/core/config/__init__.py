@@ -12,6 +12,13 @@ This module provides a comprehensive configuration management system with:
 from .hierarchical import HierarchicalConfig
 from .validation import ConfigurationValidator, ValidationResult, DEFAULT_SIMULATION_SCHEMA
 from .environment import EnvironmentConfigManager
+from .migration import (
+    ConfigurationMigrator,
+    ConfigurationMigration,
+    MigrationTransformation,
+    ConfigurationVersionDetector,
+)
+from .migration_tool import MigrationTool
 from .exceptions import (
     ConfigurationError,
     ValidationException,
@@ -26,6 +33,11 @@ __all__ = [
     "ValidationResult",
     "DEFAULT_SIMULATION_SCHEMA",
     "EnvironmentConfigManager",
+    "ConfigurationMigrator",
+    "ConfigurationMigration",
+    "MigrationTransformation",
+    "ConfigurationVersionDetector",
+    "MigrationTool",
     "ConfigurationError",
     "ValidationException",
     "ConfigurationMigrationError",
