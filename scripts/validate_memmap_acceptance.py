@@ -1,9 +1,9 @@
-import os
-import sys
-import time
 import math
-import tempfile
+import os
 import random
+import sys
+import tempfile
+import time
 from typing import Tuple
 
 import numpy as np
@@ -29,7 +29,9 @@ def get_rss_mb() -> float:
     return -1.0
 
 
-def baseline_spatial_window(env, ay: int, ax: int, R: int, max_amount: float) -> np.ndarray:
+def baseline_spatial_window(
+    env, ay: int, ax: int, R: int, max_amount: float
+) -> np.ndarray:
     """Build local resource window using spatial queries (no memmap)."""
     S = 2 * R + 1
     out = np.zeros((S, S), dtype=np.float32)
@@ -56,8 +58,10 @@ def baseline_spatial_window(env, ay: int, ax: int, R: int, max_amount: float) ->
     return out
 
 
-def run_trial(width: int = 1500, height: int = 1500, R: int = 6, n_windows: int = 1500) -> int:
-    from farm.core.config import SimulationConfig
+def run_trial(
+    width: int = 1500, height: int = 1500, R: int = 6, n_windows: int = 1500
+) -> int:
+    from farm.config.config import EnvironmentConfig, ResourceConfig, SimulationConfig
     from farm.core.environment import Environment
 
     tmpdir = os.getenv("TMPDIR", tempfile.gettempdir())
@@ -66,31 +70,39 @@ def run_trial(width: int = 1500, height: int = 1500, R: int = 6, n_windows: int 
 
     # Baseline env (no memmap)
     cfg_base = SimulationConfig(
-        width=width,
-        height=height,
-        initial_resources=initial_resources,
-        max_resource_amount=max_amount,
+        environment=EnvironmentConfig(width=width, height=height),
+        resources=ResourceConfig(
+            initial_resources=initial_resources, max_resource_amount=max_amount
+        ),
         seed=12345,
-        use_memmap_resources=False,
     )
+    cfg_base.use_memmap_resources = False
+
     # Memmap env
     cfg_mm = SimulationConfig(
-        width=width,
-        height=height,
-        initial_resources=initial_resources,
-        max_resource_amount=max_amount,
+        environment=EnvironmentConfig(width=width, height=height),
+        resources=ResourceConfig(
+            initial_resources=initial_resources, max_resource_amount=max_amount
+        ),
         seed=12345,
-        use_memmap_resources=True,
-        memmap_dir=tmpdir,
-        memmap_dtype="float32",
-        memmap_mode="w+",
     )
+    cfg_mm.use_memmap_resources = True
+    cfg_mm.memmap_dir = tmpdir
+    cfg_mm.memmap_dtype = "float32"
+    cfg_mm.memmap_mode = "w+"
 
-    print(f"Grid: {width}x{height}, resources: {initial_resources}, windows: {n_windows}, R={R}")
+    print(
+        f"Grid: {width}x{height}, resources: {initial_resources}, windows: {n_windows}, R={R}"
+    )
 
     # Build memmap env
     rss_before_mm = get_rss_mb()
-    env_mm = Environment(width=cfg_mm.width, height=cfg_mm.height, resource_distribution={}, config=cfg_mm)
+    env_mm = Environment(
+        width=cfg_mm.environment.width,
+        height=cfg_mm.environment.height,
+        resource_distribution={},
+        config=cfg_mm,
+    )
     rss_after_mm = get_rss_mb()
     rm = env_mm.resource_manager
     mm_path = getattr(rm, "_memmap_path", None)
@@ -98,7 +110,9 @@ def run_trial(width: int = 1500, height: int = 1500, R: int = 6, n_windows: int 
     mm_size_mb = os.path.getsize(mm_path) / (1024.0 * 1024.0) if mm_exists else 0.0
     print(f"memmap path: {mm_path}")
     print(f"memmap exists: {mm_exists}, size_mb: {mm_size_mb:.2f}")
-    print(f"RSS before memmap env: {rss_before_mm:.1f} MB, after init: {rss_after_mm:.1f} MB")
+    print(
+        f"RSS before memmap env: {rss_before_mm:.1f} MB, after init: {rss_after_mm:.1f} MB"
+    )
 
     # Time memmap window access
     random.seed(0)
@@ -117,7 +131,9 @@ def run_trial(width: int = 1500, height: int = 1500, R: int = 6, n_windows: int 
     comp_ok = True
     try:
         if torch is not None:
-            sample = rm.get_resource_window(H // 2 - R, H // 2 + R + 1, W // 2 - R, W // 2 + R + 1)
+            sample = rm.get_resource_window(
+                H // 2 - R, H // 2 + R + 1, W // 2 - R, W // 2 + R + 1
+            )
             ten = torch.from_numpy(sample).to(dtype=torch.float32)
             val = float(ten.sum().item())
             print(f"torch sum(sample) = {val:.6f}")
@@ -131,9 +147,16 @@ def run_trial(width: int = 1500, height: int = 1500, R: int = 6, n_windows: int 
 
     # Baseline env (KD-tree + nearest fill)
     rss_before_base = get_rss_mb()
-    env_base = Environment(width=cfg_base.width, height=cfg_base.height, resource_distribution={}, config=cfg_base)
+    env_base = Environment(
+        width=cfg_base.environment.width,
+        height=cfg_base.environment.height,
+        resource_distribution={},
+        config=cfg_base,
+    )
     rss_after_base = get_rss_mb()
-    print(f"RSS before baseline env: {rss_before_base:.1f} MB, after init: {rss_after_base:.1f} MB")
+    print(
+        f"RSS before baseline env: {rss_before_base:.1f} MB, after init: {rss_after_base:.1f} MB"
+    )
 
     random.seed(0)
     t0 = time.perf_counter()
@@ -151,20 +174,25 @@ def run_trial(width: int = 1500, height: int = 1500, R: int = 6, n_windows: int 
     print("\nAcceptance Criteria:")
     # 1) States load/stream without full RAM usage -> memmap exists; RSS didn't jump close to memmap size
     memory_ok = mm_exists and (rss_after_mm - rss_before_mm) < (mm_size_mb * 0.5)
-    print(f"- Streaming without full RAM usage: {'PASS' if memory_ok else 'WARN'} (RSS change={rss_after_mm - rss_before_mm:.1f} MB vs file {mm_size_mb:.1f} MB)")
+    print(
+        f"- Streaming without full RAM usage: {'PASS' if memory_ok else 'WARN'} (RSS change={rss_after_mm - rss_before_mm:.1f} MB vs file {mm_size_mb:.1f} MB)"
+    )
 
     # 2) Performance no significant slowdown -> memmap <= 1.25x baseline
     perf_ok = memmap_avg_ms <= baseline_avg_ms * 1.25
-    print(f"- Performance: memmap {memmap_avg_ms:.3f} ms vs baseline {baseline_avg_ms:.3f} ms -> {'PASS' if perf_ok else 'FAIL'}")
+    print(
+        f"- Performance: memmap {memmap_avg_ms:.3f} ms vs baseline {baseline_avg_ms:.3f} ms -> {'PASS' if perf_ok else 'FAIL'}"
+    )
 
     # 3) Compatible with tensor ops
     print(f"- Tensor compatibility: {'PASS' if comp_ok else 'FAIL'}")
 
     overall = memory_ok and perf_ok and comp_ok
-    print(f"\nOverall: {'PASS' if overall else 'INCONCLUSIVE' if memory_ok and comp_ok else 'FAIL'}")
+    print(
+        f"\nOverall: {'PASS' if overall else 'INCONCLUSIVE' if memory_ok and comp_ok else 'FAIL'}"
+    )
     return 0 if overall else 1
 
 
 if __name__ == "__main__":
     sys.exit(run_trial())
-
