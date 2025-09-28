@@ -541,9 +541,8 @@ class SimulationConfig:
 
         # Convert to JSON string with sorted keys for consistent hashing
         config_json = json.dumps(config_dict, sort_keys=True, default=str)
-        return hashlib.sha256(config_json.encode("utf-8")).hexdigest()[
-            :16
-        ]  # Short hash
+        # Use a 32-character prefix to reduce collision risk while keeping filenames manageable
+        return hashlib.sha256(config_json.encode("utf-8")).hexdigest()[:32]
 
     def version_config(self, description: Optional[str] = None) -> "SimulationConfig":
         """

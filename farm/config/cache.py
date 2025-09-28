@@ -362,7 +362,8 @@ class OptimizedConfigLoader:
             # If we can't get mtimes, just use the basic key
             pass
 
-        return hashlib.md5(key_string.encode()).hexdigest()
+        # Use SHA256 for consistency and reduced collision risk
+        return hashlib.sha256(key_string.encode()).hexdigest()
 
 
 class LazyConfigLoader:
