@@ -347,7 +347,7 @@ class ConfigTemplateManager:
                 description=f"Generated from template '{template_name}' with variables: {variables}"
             )
 
-            filename = f"experiment_{template_name}_{i:03d}_{versioned_config.config_version}.yaml"
+            filename = f"experiment_{template_name}_{i:03d}_{versioned_config.versioning.config_version}.yaml"
             filepath = os.path.join(output_dir, filename)
             versioned_config.to_yaml(filepath)
             config_paths.append(filepath)

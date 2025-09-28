@@ -85,47 +85,49 @@ class ConfigurationValidator:
     def _validate_basic_properties(self, config: SimulationConfig) -> None:
         """Validate basic configuration properties."""
         # Environment dimensions
-        if config.width <= 0 or config.height <= 0:
+        if config.environment.width <= 0 or config.environment.height <= 0:
             self.errors.append(
                 {
                     "field": "width/height",
                     "error": "Environment dimensions must be positive",
-                    "value": f"{config.width}x{config.height}",
+                    "value": f"{config.environment.width}x{config.environment.height}",
                 }
             )
 
-        if config.width > 10000 or config.height > 10000:
+        if config.environment.width > 10000 or config.environment.height > 10000:
             self.warnings.append(
                 {
                     "field": "width/height",
                     "warning": "Very large environment dimensions may impact performance",
-                    "value": f"{config.width}x{config.height}",
+                    "value": f"{config.environment.width}x{config.environment.height}",
                 }
             )
 
         # Population limits
-        if config.max_population <= 0:
+        if config.population.max_population <= 0:
             self.errors.append(
                 {
                     "field": "max_population",
                     "error": "Maximum population must be positive",
-                    "value": config.max_population,
+                    "value": config.population.max_population,
                 }
             )
 
-        if config.max_population > 100000:
+        if config.population.max_population > 100000:
             self.warnings.append(
                 {
                     "field": "max_population",
                     "warning": "Very large population may impact performance",
-                    "value": config.max_population,
+                    "value": config.population.max_population,
                 }
             )
 
     def _validate_agent_settings(self, config: SimulationConfig) -> None:
         """Validate agent-related settings."""
         total_agents = (
-            config.system_agents + config.independent_agents + config.control_agents
+            config.population.system_agents
+            + config.population.independent_agents
+            + config.population.control_agents
         )
 
         if total_agents == 0:
@@ -133,21 +135,21 @@ class ConfigurationValidator:
                 {
                     "field": "agent_counts",
                     "error": "At least one agent type must be configured",
-                    "value": f"system={config.system_agents}, independent={config.independent_agents}, control={config.control_agents}",
+                    "value": f"system={config.population.system_agents}, independent={config.population.independent_agents}, control={config.population.control_agents}",
                 }
             )
 
-        if total_agents > config.max_population:
+        if total_agents > config.population.max_population:
             self.warnings.append(
                 {
                     "field": "agent_counts",
                     "warning": "Total initial agents exceeds max population limit",
-                    "value": f"total={total_agents}, max={config.max_population}",
+                    "value": f"total={total_agents}, max={config.population.max_population}",
                 }
             )
 
         # Agent type ratios
-        total_ratio = sum(config.agent_type_ratios.values())
+        total_ratio = sum(config.population.agent_type_ratios.values())
         if abs(total_ratio - 1.0) > 0.001:  # Allow small floating point errors
             self.errors.append(
                 {
@@ -158,7 +160,7 @@ class ConfigurationValidator:
             )
 
         # Individual ratios
-        for agent_type, ratio in config.agent_type_ratios.items():
+        for agent_type, ratio in config.population.agent_type_ratios.items():
             if ratio < 0.0 or ratio > 1.0:
                 self.errors.append(
                     {
@@ -170,67 +172,70 @@ class ConfigurationValidator:
 
     def _validate_resource_settings(self, config: SimulationConfig) -> None:
         """Validate resource-related settings."""
-        if config.initial_resources < 0:
+        if config.resources.initial_resources < 0:
             self.errors.append(
                 {
                     "field": "initial_resources",
                     "error": "Initial resources cannot be negative",
-                    "value": config.initial_resources,
+                    "value": config.resources.initial_resources,
                 }
             )
 
-        if config.max_resource_amount <= 0:
+        if config.resources.max_resource_amount <= 0:
             self.errors.append(
                 {
                     "field": "max_resource_amount",
                     "error": "Maximum resource amount must be positive",
-                    "value": config.max_resource_amount,
+                    "value": config.resources.max_resource_amount,
                 }
             )
 
-        if config.resource_regen_rate < 0.0 or config.resource_regen_rate > 1.0:
+        if (
+            config.resources.resource_regen_rate < 0.0
+            or config.resources.resource_regen_rate > 1.0
+        ):
             self.errors.append(
                 {
                     "field": "resource_regen_rate",
                     "error": "Resource regeneration rate must be between 0.0 and 1.0",
-                    "value": config.resource_regen_rate,
+                    "value": config.resources.resource_regen_rate,
                 }
             )
 
-        if config.resource_regen_amount < 0:
+        if config.resources.resource_regen_amount < 0:
             self.errors.append(
                 {
                     "field": "resource_regen_amount",
                     "error": "Resource regeneration amount cannot be negative",
-                    "value": config.resource_regen_amount,
+                    "value": config.resources.resource_regen_amount,
                 }
             )
 
     def _validate_learning_parameters(self, config: SimulationConfig) -> None:
         """Validate reinforcement learning parameters."""
         # Learning rate
-        if config.learning_rate <= 0.0 or config.learning_rate > 1.0:
+        if config.learning.learning_rate <= 0.0 or config.learning.learning_rate > 1.0:
             self.errors.append(
                 {
                     "field": "learning_rate",
                     "error": "Learning rate must be between 0.0 and 1.0",
-                    "value": config.learning_rate,
+                    "value": config.learning.learning_rate,
                 }
             )
 
         # Discount factor
-        if config.gamma < 0.0 or config.gamma > 1.0:
+        if config.learning.gamma < 0.0 or config.learning.gamma > 1.0:
             self.errors.append(
                 {
                     "field": "gamma",
                     "error": "Discount factor (gamma) must be between 0.0 and 1.0",
-                    "value": config.gamma,
+                    "value": config.learning.gamma,
                 }
             )
 
         # Epsilon parameters
         for param_name in ["epsilon_start", "epsilon_min", "epsilon_decay"]:
-            param_value = getattr(config, param_name)
+            param_value = getattr(config.learning, param_name)
             if param_value < 0.0 or param_value > 1.0:
                 self.errors.append(
                     {
@@ -240,71 +245,71 @@ class ConfigurationValidator:
                     }
                 )
 
-        if config.epsilon_start < config.epsilon_min:
+        if config.learning.epsilon_start < config.learning.epsilon_min:
             self.warnings.append(
                 {
                     "field": "epsilon_start/epsilon_min",
                     "warning": "Epsilon start should typically be >= epsilon min",
-                    "value": f"start={config.epsilon_start}, min={config.epsilon_min}",
+                    "value": f"start={config.learning.epsilon_start}, min={config.learning.epsilon_min}",
                 }
             )
 
         # Memory size
-        if config.memory_size <= 0:
+        if config.learning.memory_size <= 0:
             self.errors.append(
                 {
                     "field": "memory_size",
                     "error": "Memory size must be positive",
-                    "value": config.memory_size,
+                    "value": config.learning.memory_size,
                 }
             )
 
         # Batch size
-        if config.batch_size <= 0:
+        if config.learning.batch_size <= 0:
             self.errors.append(
                 {
                     "field": "batch_size",
                     "error": "Batch size must be positive",
-                    "value": config.batch_size,
+                    "value": config.learning.batch_size,
                 }
             )
 
-        if config.batch_size > config.memory_size:
+        if config.learning.batch_size > config.learning.memory_size:
             self.warnings.append(
                 {
                     "field": "batch_size/memory_size",
                     "warning": "Batch size should not exceed memory size",
-                    "value": f"batch={config.batch_size}, memory={config.memory_size}",
+                    "value": f"batch={config.learning.batch_size}, memory={config.learning.memory_size}",
                 }
             )
 
     def _validate_environment_settings(self, config: SimulationConfig) -> None:
         """Validate environment and physics settings."""
         # Perception radius
-        if config.perception_radius <= 0:
+        if config.agent_behavior.perception_radius <= 0:
             self.errors.append(
                 {
                     "field": "perception_radius",
                     "error": "Perception radius must be positive",
-                    "value": config.perception_radius,
+                    "value": config.agent_behavior.perception_radius,
                 }
             )
 
         if (
-            config.perception_radius > config.width
-            or config.perception_radius > config.height
+            config.agent_behavior.perception_radius > config.environment.width
+            or config.agent_behavior.perception_radius > config.environment.height
         ):
             self.warnings.append(
                 {
                     "field": "perception_radius",
                     "warning": "Perception radius larger than environment may impact performance",
-                    "value": f"radius={config.perception_radius}, env={config.width}x{config.height}",
+                    "value": f"radius={config.agent_behavior.perception_radius}, env={config.environment.width}x{config.environment.height}",
                 }
             )
 
         # Movement and gathering ranges
         for param_name in ["max_movement", "gathering_range", "territory_range"]:
-            param_value = getattr(config, param_name)
+            param_value = getattr(config.agent_behavior, param_name)
             if param_value <= 0:
                 self.errors.append(
                     {
@@ -315,84 +320,93 @@ class ConfigurationValidator:
                 )
 
         # Consumption rate
-        if config.base_consumption_rate <= 0.0 or config.base_consumption_rate > 1.0:
+        if (
+            config.agent_behavior.base_consumption_rate <= 0.0
+            or config.agent_behavior.base_consumption_rate > 1.0
+        ):
             self.errors.append(
                 {
                     "field": "base_consumption_rate",
                     "error": "Base consumption rate must be between 0.0 and 1.0",
-                    "value": config.base_consumption_rate,
+                    "value": config.agent_behavior.base_consumption_rate,
                 }
             )
 
     def _validate_performance_settings(self, config: SimulationConfig) -> None:
         """Validate performance and database settings."""
         # Database settings
-        if config.db_cache_size_mb <= 0:
+        if config.database.db_cache_size_mb <= 0:
             self.errors.append(
                 {
                     "field": "db_cache_size_mb",
                     "error": "Database cache size must be positive",
-                    "value": config.db_cache_size_mb,
+                    "value": config.database.db_cache_size_mb,
                 }
             )
 
-        if config.db_cache_size_mb > 10000:  # 10GB limit
+        if config.database.db_cache_size_mb > 10000:  # 10GB limit
             self.warnings.append(
                 {
                     "field": "db_cache_size_mb",
                     "warning": "Very large database cache size may impact system performance",
-                    "value": config.db_cache_size_mb,
+                    "value": config.database.db_cache_size_mb,
                 }
             )
 
         # In-memory database settings
-        if config.use_in_memory_db and config.in_memory_db_memory_limit_mb is not None:
-            if config.in_memory_db_memory_limit_mb <= 0:
+        if (
+            config.database.use_in_memory_db
+            and config.database.in_memory_db_memory_limit_mb is not None
+        ):
+            if config.database.in_memory_db_memory_limit_mb <= 0:
                 self.errors.append(
                     {
                         "field": "in_memory_db_memory_limit_mb",
                         "error": "In-memory database memory limit must be positive",
-                        "value": config.in_memory_db_memory_limit_mb,
+                        "value": config.database.in_memory_db_memory_limit_mb,
                     }
                 )
 
     def _validate_business_rules(self, config: SimulationConfig) -> None:
         """Validate business rules and consistency checks."""
         # Reproduction settings
-        if config.min_reproduction_resources <= 0:
+        if config.agent_behavior.min_reproduction_resources <= 0:
             self.errors.append(
                 {
                     "field": "min_reproduction_resources",
                     "error": "Minimum reproduction resources must be positive",
-                    "value": config.min_reproduction_resources,
+                    "value": config.agent_behavior.min_reproduction_resources,
                 }
             )
 
-        if config.offspring_cost <= 0:
+        if config.agent_behavior.offspring_cost <= 0:
             self.errors.append(
                 {
                     "field": "offspring_cost",
                     "error": "Offspring cost must be positive",
-                    "value": config.offspring_cost,
+                    "value": config.agent_behavior.offspring_cost,
                 }
             )
 
-        if config.min_reproduction_resources < config.offspring_cost:
+        if (
+            config.agent_behavior.min_reproduction_resources
+            < config.agent_behavior.offspring_cost
+        ):
             self.warnings.append(
                 {
                     "field": "min_reproduction_resources/offspring_cost",
                     "warning": "Minimum reproduction resources should typically exceed offspring cost",
-                    "value": f"min={config.min_reproduction_resources}, cost={config.offspring_cost}",
+                    "value": f"min={config.agent_behavior.min_reproduction_resources}, cost={config.agent_behavior.offspring_cost}",
                 }
             )
 
         # Starvation threshold
-        if config.starvation_threshold <= 0:
+        if config.agent_behavior.starvation_threshold <= 0:
             self.errors.append(
                 {
                     "field": "starvation_threshold",
                     "error": "Starvation threshold must be positive",
-                    "value": config.starvation_threshold,
+                    "value": config.agent_behavior.starvation_threshold,
                 }
             )
 
@@ -531,7 +545,7 @@ class SafeConfigLoader:
         profile: Optional[str] = None,
         config_dir: str = "config",
         strict_validation: bool = False,
-        auto_repair: bool = True,
+        auto_repair: bool = False,
     ) -> Tuple[SimulationConfig, Dict[str, Any]]:
         """
         Load configuration with comprehensive error handling and recovery.

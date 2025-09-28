@@ -91,8 +91,8 @@ class TestOptimizedConfigLoader(unittest.TestCase):
         )
 
         self.assertIsInstance(config, SimulationConfig)
-        self.assertEqual(config.width, 50)  # Development override
-        self.assertEqual(config.debug, True)  # Development override
+        self.assertEqual(config.environment.width, 50)  # Development override
+        self.assertEqual(config.logging.debug, True)  # Development override
         self.assertEqual(config.seed, 42)  # Default value
 
     def test_load_centralized_config_with_cache(self):
@@ -114,8 +114,8 @@ class TestOptimizedConfigLoader(unittest.TestCase):
             use_cache=True
         )
 
-        self.assertEqual(config1.width, config2.width)
-        self.assertEqual(config1.debug, config2.debug)
+        self.assertEqual(config1.environment.width, config2.environment.width)
+        self.assertEqual(config1.logging.debug, config2.logging.debug)
 
         # Check that cache contains the entry
         cache_key = loader._create_cache_key("development", None, self.config_dir)
@@ -134,10 +134,10 @@ class TestOptimizedConfigLoader(unittest.TestCase):
             use_cache=False
         )
 
-        self.assertEqual(config.width, 100)  # Profile overrides environment
-        self.assertEqual(config.debug, True)  # Environment setting preserved
-        self.assertEqual(config.learning_rate, 0.01)  # Profile setting
-        self.assertEqual(config.batch_size, 64)  # Profile setting
+        self.assertEqual(config.environment.width, 100)  # Profile overrides environment
+        self.assertEqual(config.logging.debug, True)  # Environment setting preserved
+        self.assertEqual(config.learning.learning_rate, 0.01)  # Profile setting
+        self.assertEqual(config.learning.batch_size, 64)  # Profile setting
 
     def test_missing_base_config_error(self):
         """Test error when base config file is missing."""
@@ -244,8 +244,8 @@ class TestOptimizedConfigLoader(unittest.TestCase):
         )
 
         # Should have different width due to file change
-        self.assertNotEqual(config1.width, config2.width)
-        self.assertEqual(config2.width, 999)
+        self.assertNotEqual(config1.environment.width, config2.environment.width)
+        self.assertEqual(config2.environment.width, 999)
 
 
 if __name__ == '__main__':

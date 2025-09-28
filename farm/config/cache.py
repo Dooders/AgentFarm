@@ -11,7 +11,7 @@ import pickle
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import yaml
 
@@ -45,47 +45,70 @@ class ConfigCache:
         self.memory_usage = 0.0
         self.lock = threading.RLock()
 
+        # Metrics tracking
+        self.hits = 0
+        self.misses = 0
+        self.invalidations = 0
+
     def get(
-        self, cache_key: str, filepath: Optional[str] = None
+        self, cache_key: str, filepaths: Optional[Union[str, List[str]]] = None
     ) -> Optional[SimulationConfig]:
         """
         Retrieve a configuration from cache.
 
         Args:
             cache_key: Unique cache key
-            filepath: File path to check for modifications
+            filepaths: File path(s) to check for modifications
 
         Returns:
             Cached configuration or None if not found or invalid
         """
         with self.lock:
             if cache_key not in self.cache:
+                self.misses += 1
                 return None
 
-            # Check if file has been modified
-            if filepath and os.path.exists(filepath):
-                current_mtime = os.path.getmtime(filepath)
-                cached_mtime = self.file_mtimes.get(cache_key, 0)
+            # Check if any of the associated files have been modified
+            cached_entry = self.cache[cache_key]
+            cached_mtimes = cached_entry.get("file_mtimes", {})
 
-                if current_mtime > cached_mtime:
-                    # File modified, invalidate cache
-                    self._remove_entry(cache_key)
-                    return None
+            # Normalize filepaths to list
+            if isinstance(filepaths, str):
+                filepaths = [filepaths]
+            elif filepaths is None:
+                filepaths = []
 
-            # Update access time
+            if filepaths:
+                for filepath in filepaths:
+                    if os.path.exists(filepath):
+                        current_mtime = os.path.getmtime(filepath)
+                        cached_mtime = cached_mtimes.get(filepath, 0)
+
+                        if current_mtime > cached_mtime:
+                            # File modified, invalidate cache
+                            self.invalidations += 1
+                            self._remove_entry(cache_key)
+                            self.misses += 1
+                            return None
+
+            # Update access time and track hit
             self.access_times[cache_key] = time.time()
+            self.hits += 1
 
             # Return cached config
-            cached_data = self.cache[cache_key]
             try:
-                return SimulationConfig.from_dict(cached_data["config"])
+                return SimulationConfig.from_dict(cached_entry["config"])
             except Exception:
                 # Invalid cached data, remove it
                 self._remove_entry(cache_key)
+                self.misses += 1
                 return None
 
     def put(
-        self, cache_key: str, config: SimulationConfig, filepath: Optional[str] = None
+        self,
+        cache_key: str,
+        config: SimulationConfig,
+        filepaths: Optional[Union[str, List[str]]] = None,
     ) -> None:
         """
         Store a configuration in cache.
@@ -93,7 +116,7 @@ class ConfigCache:
         Args:
             cache_key: Unique cache key
             config: Configuration to cache
-            filepath: Associated file path for modification tracking
+            filepaths: List of associated file paths for modification tracking
         """
         with self.lock:
             # Estimate memory usage
@@ -108,18 +131,27 @@ class ConfigCache:
             if len(self.cache) >= self.max_size:
                 self._evict_lru()
 
+            # Normalize filepaths to list
+            if isinstance(filepaths, str):
+                filepaths = [filepaths]
+            elif filepaths is None:
+                filepaths = []
+
+            # Collect file modification times
+            file_mtimes = {}
+            for filepath in filepaths:
+                if os.path.exists(filepath):
+                    file_mtimes[filepath] = os.path.getmtime(filepath)
+
             # Store in cache
             self.cache[cache_key] = {
                 "config": config_dict,
                 "size": config_size,
                 "created": time.time(),
+                "file_mtimes": file_mtimes,
             }
             self.access_times[cache_key] = time.time()
             self.memory_usage += config_size
-
-            # Track file modification time
-            if filepath and os.path.exists(filepath):
-                self.file_mtimes[cache_key] = os.path.getmtime(filepath)
 
     def invalidate(self, cache_key: str) -> None:
         """
@@ -138,6 +170,9 @@ class ConfigCache:
             self.access_times.clear()
             self.file_mtimes.clear()
             self.memory_usage = 0.0
+            self.hits = 0
+            self.misses = 0
+            self.invalidations = 0
 
     def get_stats(self) -> Dict[str, Any]:
         """
@@ -147,12 +182,19 @@ class ConfigCache:
             Dictionary with cache statistics
         """
         with self.lock:
+            total_requests = self.hits + self.misses
+            hit_rate = self.hits / total_requests if total_requests > 0 else 0.0
+
             return {
                 "entries": len(self.cache),
                 "memory_usage_mb": self.memory_usage,
                 "max_size": self.max_size,
                 "max_memory_mb": self.max_memory_mb,
-                "hit_rate": 0.0,  # Could be implemented with additional tracking
+                "hits": self.hits,
+                "misses": self.misses,
+                "invalidations": self.invalidations,
+                "total_requests": total_requests,
+                "hit_rate": hit_rate,
             }
 
     def _remove_entry(self, cache_key: str) -> None:
@@ -227,18 +269,19 @@ class OptimizedConfigLoader:
         # Create cache key
         cache_key = self._create_cache_key(environment, profile, config_dir)
 
+        # Collect all relevant file paths for cache validation
+        filepaths = self._get_config_filepaths(environment, profile, config_dir)
+
         # Try to get from cache
-        base_config_path = os.path.join(config_dir, "default.yaml")
-        config = self.cache.get(cache_key, base_config_path)
+        config = self.cache.get(cache_key, filepaths)
         if config is not None:
             return config
 
         # Load from files
         config = self._load_from_files(environment, profile, config_dir)
 
-        # Cache the result with base config file path for modification tracking
-        base_config_path = os.path.join(config_dir, "default.yaml")
-        self.cache.put(cache_key, config, base_config_path)
+        # Cache the result with all relevant file paths for modification tracking
+        self.cache.put(cache_key, config, filepaths)
         return config
 
     def _load_from_files(
@@ -301,11 +344,16 @@ class OptimizedConfigLoader:
 
         obs_config = base_config.pop("observation", None)
         if obs_config:
-            from farm.core.observations import ObservationConfig
+            # Lazy load ObservationConfig to avoid heavy dependencies in lightweight contexts
+            try:
+                from farm.core.observations import ObservationConfig
 
-            base_config["observation"] = ObservationConfig(**obs_config)
+                base_config["observation"] = ObservationConfig(**obs_config)
+            except ImportError:
+                # If import fails, store as raw dict and let caller handle it
+                base_config["observation"] = obs_config
 
-        return SimulationConfig(**base_config)
+        return SimulationConfig(**SimulationConfig._convert_flat_to_nested(base_config))
 
     def preload_common_configs(self, config_dir: str = "farm/config") -> None:
         """
@@ -334,6 +382,27 @@ class OptimizedConfigLoader:
                 # Skip configs that can't be loaded
                 continue
 
+    def _get_config_filepaths(
+        self, environment: str, profile: Optional[str], config_dir: str
+    ) -> List[str]:
+        """Get all relevant configuration file paths for cache validation."""
+        filepaths = []
+
+        # Base configuration file
+        base_file = os.path.join(config_dir, "default.yaml")
+        filepaths.append(base_file)
+
+        # Environment configuration file
+        env_file = os.path.join(config_dir, "environments", f"{environment}.yaml")
+        filepaths.append(env_file)
+
+        # Profile configuration file (if specified)
+        if profile:
+            profile_file = os.path.join(config_dir, "profiles", f"{profile}.yaml")
+            filepaths.append(profile_file)
+
+        return filepaths
+
     def _create_cache_key(
         self, environment: str, profile: Optional[str], config_dir: str
     ) -> str:
@@ -344,18 +413,11 @@ class OptimizedConfigLoader:
         # Include file modification times in key for automatic invalidation
         try:
             mtimes = []
-            base_file = os.path.join(config_dir, "default.yaml")
-            if os.path.exists(base_file):
-                mtimes.append(str(os.path.getmtime(base_file)))
-
-            env_file = os.path.join(config_dir, "environments", f"{environment}.yaml")
-            if os.path.exists(env_file):
-                mtimes.append(str(os.path.getmtime(env_file)))
-
-            if profile:
-                profile_file = os.path.join(config_dir, "profiles", f"{profile}.yaml")
-                if os.path.exists(profile_file):
-                    mtimes.append(str(os.path.getmtime(profile_file)))
+            for filepath in self._get_config_filepaths(
+                environment, profile, config_dir
+            ):
+                if os.path.exists(filepath):
+                    mtimes.append(str(os.path.getmtime(filepath)))
 
             key_string += "|" + "|".join(mtimes)
         except Exception:

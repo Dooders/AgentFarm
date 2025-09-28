@@ -12,113 +12,25 @@ from farm.core.observations import ObservationConfig
 
 
 @dataclass
-class VisualizationConfig:
-    canvas_size: Tuple[int, int] = (400, 400)
-    padding: int = 20
-    background_color: str = "black"
-    max_animation_frames: int = 5
-    animation_min_delay: int = 50
-    max_resource_amount: int = 30
-    resource_colors: Dict[str, int] = field(
-        default_factory=lambda: {"glow_red": 150, "glow_green": 255, "glow_blue": 50}
-    )
-    resource_size: int = 2
-    agent_radius_scale: int = 2
-    birth_radius_scale: int = 4
-    death_mark_scale: float = 1.5
-    agent_colors: Dict[str, str] = field(
-        default_factory=lambda: {"SystemAgent": "blue", "IndependentAgent": "red"}
-    )
-    min_font_size: int = 10
-    font_scale_factor: int = 40
-    font_family: str = "arial"
-    death_mark_color: List[int] = field(default_factory=lambda: [255, 0, 0])
-    birth_mark_color: List[int] = field(default_factory=lambda: [255, 255, 255])
-    metric_colors: Dict[str, str] = field(
-        default_factory=lambda: {
-            "total_agents": "#4a90e2",
-            "system_agents": "#50c878",
-            "independent_agents": "#e74c3c",
-            "total_resources": "#f39c12",
-            "average_agent_resources": "#9b59b6",
-        }
-    )
+class EnvironmentConfig:
+    """Configuration for simulation environment settings."""
 
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert visualization config to a JSON-serializable dictionary."""
-
-        def _jsonify(val):
-            if isinstance(val, tuple):
-                return list(val)
-            if isinstance(val, dict):
-                return {k: _jsonify(v) for k, v in val.items()}
-            if isinstance(val, list):
-                return [_jsonify(v) for v in val]
-            return val
-
-        return {
-            key: _jsonify(value)
-            for key, value in self.__dict__.items()
-            if not key.startswith("_")
-        }
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "VisualizationConfig":
-        """Create visualization config from a dictionary."""
-        # Convert canvas_size from list back to tuple if needed
-        if "canvas_size" in data and isinstance(data["canvas_size"], list):
-            data = data.copy()  # Don't modify the original
-            data["canvas_size"] = tuple(data["canvas_size"])
-        return cls(**data)
-
-
-@dataclass
-class RedisMemoryConfig:
-    host: str = "localhost"
-    port: int = 6379
-    db: int = 0
-    password: Optional[str] = None
-    decode_responses: bool = True
-    environment: str = "default"
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert RedisMemoryConfig to a JSON-serializable dictionary."""
-        return {
-            "host": self.host,
-            "port": self.port,
-            "db": self.db,
-            "password": self.password,
-            "decode_responses": self.decode_responses,
-            "environment": self.environment,
-        }
-
-
-@dataclass
-class SimulationConfig:
-    # Environment settings
     width: int = 100
     height: int = 100
-
-    # Position discretization settings
     position_discretization_method: str = "floor"  # Options: "floor", "round", "ceil"
     use_bilinear_interpolation: bool = (
         True  # Whether to use bilinear interpolation for resources
     )
 
-    # Agent settings
+
+@dataclass
+class PopulationConfig:
+    """Configuration for agent population settings."""
+
     system_agents: int = 10
     independent_agents: int = 10
     control_agents: int = 10
-    initial_resource_level: int = 0
     max_population: int = 3000
-    starvation_threshold: int = 100
-    offspring_cost: int = 3
-    min_reproduction_resources: int = 8
-    offspring_initial_resources: int = 5
-    perception_radius: int = 2
-    base_attack_strength: int = 2
-    base_defense_strength: int = 2
-    # Agent type ratios
     agent_type_ratios: Dict[str, float] = field(
         default_factory=lambda: {
             "SystemAgent": 0.33,
@@ -126,22 +38,22 @@ class SimulationConfig:
             "ControlAgent": 0.34,
         }
     )
-    seed: Optional[int] = 1234567890
 
-    # Resource settings
+
+@dataclass
+class ResourceConfig:
+    """Configuration for resource system settings."""
+
     initial_resources: int = 20
     resource_regen_rate: float = 0.1
     resource_regen_amount: int = 2
     max_resource_amount: int = 30
 
-    # Agent behavior settings
-    base_consumption_rate: float = 0.15
-    max_movement: int = 8
-    gathering_range: int = 30
-    max_gather_amount: int = 3
-    territory_range: int = 30
 
-    # Learning parameters
+@dataclass
+class LearningConfig:
+    """Configuration for reinforcement learning parameters."""
+
     learning_rate: float = 0.001
     gamma: float = 0.95
     epsilon_start: float = 1.0
@@ -153,69 +65,51 @@ class SimulationConfig:
     dqn_hidden_size: int = 24
     tau: float = 0.005
 
-    # Combat Parameters
+
+@dataclass
+class CombatConfig:
+    """Configuration for combat system settings."""
+
     starting_health: float = 100.0
     attack_range: float = 20.0
     attack_base_damage: float = 10.0
     attack_kill_reward: float = 5.0
 
-    # Agent-specific parameters
-    agent_parameters: Dict[str, Dict[str, float]] = field(
-        default_factory=lambda: {
-            "SystemAgent": {
-                "gather_efficiency_multiplier": 0.4,
-                "gather_cost_multiplier": 0.4,
-                "min_resource_threshold": 0.2,
-                "share_weight": 0.3,
-                "attack_weight": 0.05,
-            },
-            "IndependentAgent": {
-                "gather_efficiency_multiplier": 0.7,
-                "gather_cost_multiplier": 0.2,
-                "min_resource_threshold": 0.05,
-                "share_weight": 0.05,
-                "attack_weight": 0.25,
-            },
-            "ControlAgent": {
-                "gather_efficiency_multiplier": 0.55,
-                "gather_cost_multiplier": 0.3,
-                "min_resource_threshold": 0.125,
-                "share_weight": 0.15,
-                "attack_weight": 0.15,
-            },
-        }
-    )
 
-    # Visualization settings (separate config)
-    visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
+@dataclass
+class AgentBehaviorConfig:
+    """Configuration for agent behavior parameters."""
 
-    # Observation settings
-    observation: Optional[ObservationConfig] = None
-
-    # Action probability adjustment parameters
+    base_consumption_rate: float = 0.15
+    max_movement: int = 8
+    gathering_range: int = 30
+    max_gather_amount: int = 3
+    territory_range: int = 30
+    perception_radius: int = 2
+    base_attack_strength: int = 2
+    base_defense_strength: int = 2
+    initial_resource_level: int = 0
+    starvation_threshold: float = 100
+    offspring_cost: int = 3
+    min_reproduction_resources: int = 8
+    offspring_initial_resources: int = 5
     social_range: int = 30  # Range for social interactions (share/attack)
-
-    # Movement multipliers
     move_mult_no_resources: float = 1.5  # Multiplier when no resources nearby
-
-    # Gathering multipliers
     gather_mult_low_resources: float = 1.5  # Multiplier when resources needed
-
-    # Sharing multipliers
     share_mult_wealthy: float = 1.3  # Multiplier when agent has excess resources
     share_mult_poor: float = 0.5  # Multiplier when agent needs resources
-
-    # Attack multipliers
     attack_starvation_threshold: float = (
         0.5  # Starvation risk threshold for desperate behavior
     )
     attack_mult_desperate: float = 1.4  # Multiplier when desperate for resources
     attack_mult_stable: float = 0.6  # Multiplier when resource stable
-
-    # Add to the main configuration section, before visualization settings
     max_wait_steps: int = 10  # Maximum steps to wait between gathering attempts
 
-    # Database configuration
+
+@dataclass
+class DatabaseConfig:
+    """Configuration for database settings."""
+
     use_in_memory_db: bool = False  # Whether to use in-memory database
     persist_db_on_completion: bool = (
         True  # Whether to persist in-memory DB to disk after simulation
@@ -226,8 +120,6 @@ class SimulationConfig:
     in_memory_tables_to_persist: Optional[List[str]] = (
         None  # Tables to persist (None = all tables)
     )
-
-    # Database pragma settings
     db_pragma_profile: str = (
         "balanced"  # Options: "balanced", "performance", "safety", "memory"
     )
@@ -240,8 +132,61 @@ class SimulationConfig:
         default_factory=dict
     )  # Custom pragma overrides
 
-    # Redis configuration
-    redis: RedisMemoryConfig = field(default_factory=RedisMemoryConfig)
+
+@dataclass
+class DeviceConfig:
+    """Configuration for neural network device settings."""
+
+    device_preference: str = (
+        "auto"  # Options: "auto", "cpu", "cuda", "cuda:X" (specific GPU)
+    )
+    device_fallback: bool = (
+        True  # Whether to fallback to CPU if preferred device unavailable
+    )
+    device_memory_fraction: Optional[float] = (
+        None  # GPU memory fraction to use (0.0-1.0)
+    )
+    device_validate_compatibility: bool = (
+        True  # Whether to validate tensor compatibility when moving devices
+    )
+
+
+@dataclass
+class CurriculumConfig:
+    """Configuration for curriculum learning phases."""
+
+    curriculum_phases: List[Dict[str, Any]] = field(
+        default_factory=lambda: [
+            {"steps": 100, "enabled_actions": ["move", "gather"]},
+            {"steps": 200, "enabled_actions": ["move", "gather", "share", "attack"]},
+            {
+                "steps": -1,
+                "enabled_actions": ["move", "gather", "share", "attack", "reproduce"],
+            },
+        ]
+    )  # -1 for remaining steps
+
+
+@dataclass
+class LoggingConfig:
+    """Configuration for logging and debugging."""
+
+    debug: bool = False
+    verbose_logging: bool = False
+
+
+@dataclass
+class VersioningConfig:
+    """Configuration for versioning metadata."""
+
+    config_version: Optional[str] = None
+    config_created_at: Optional[str] = None
+    config_description: Optional[str] = None
+
+
+@dataclass
+class ModuleConfig:
+    """Configuration for specialized learning modules."""
 
     # Gathering Module Parameters
     gather_target_update_freq: int = 100
@@ -326,42 +271,143 @@ class SimulationConfig:
     attack_range: float = 20.0
     attack_base_damage: float = 10.0
 
+
+@dataclass
+class VisualizationConfig:
+    canvas_size: Tuple[int, int] = (400, 400)
+    padding: int = 20
+    background_color: str = "black"
+    max_animation_frames: int = 5
+    animation_min_delay: int = 50
+    max_resource_amount: int = 30
+    resource_colors: Dict[str, int] = field(
+        default_factory=lambda: {"glow_red": 150, "glow_green": 255, "glow_blue": 50}
+    )
+    resource_size: int = 2
+    agent_radius_scale: int = 2
+    birth_radius_scale: int = 4
+    death_mark_scale: float = 1.5
+    agent_colors: Dict[str, str] = field(
+        default_factory=lambda: {"SystemAgent": "blue", "IndependentAgent": "red"}
+    )
+    min_font_size: int = 10
+    font_scale_factor: int = 40
+    font_family: str = "arial"
+    death_mark_color: List[int] = field(default_factory=lambda: [255, 0, 0])
+    birth_mark_color: List[int] = field(default_factory=lambda: [255, 255, 255])
+    metric_colors: Dict[str, str] = field(
+        default_factory=lambda: {
+            "total_agents": "#4a90e2",
+            "system_agents": "#50c878",
+            "independent_agents": "#e74c3c",
+            "total_resources": "#f39c12",
+            "average_agent_resources": "#9b59b6",
+        }
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert visualization config to a JSON-serializable dictionary."""
+
+        def _jsonify(val):
+            if isinstance(val, tuple):
+                return list(val)
+            if isinstance(val, dict):
+                return {k: _jsonify(v) for k, v in val.items()}
+            if isinstance(val, list):
+                return [_jsonify(v) for v in val]
+            return val
+
+        return {
+            key: _jsonify(value)
+            for key, value in self.__dict__.items()
+            if not key.startswith("_")
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "VisualizationConfig":
+        """Create visualization config from a dictionary."""
+        # Convert canvas_size from list back to tuple if needed
+        if "canvas_size" in data and isinstance(data["canvas_size"], list):
+            data = data.copy()  # Don't modify the original
+            data["canvas_size"] = tuple(data["canvas_size"])
+        return cls(**data)
+
+
+@dataclass
+class RedisMemoryConfig:
+    host: str = "localhost"
+    port: int = 6379
+    db: int = 0
+    password: Optional[str] = None
+    decode_responses: bool = True
+    environment: str = "default"
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert RedisMemoryConfig to a JSON-serializable dictionary."""
+        return {
+            "host": self.host,
+            "port": self.port,
+            "db": self.db,
+            "password": self.password,
+            "decode_responses": self.decode_responses,
+            "environment": self.environment,
+        }
+
+
+@dataclass
+class SimulationConfig:
+    """Main simulation configuration using composition of focused sub-configs."""
+
+    # Core simulation settings
     simulation_steps: int = 100  # Default value
     max_steps: int = 1000  # Maximum steps for environment termination
+    seed: Optional[int] = 1234567890
 
-    # Device configuration for neural network computations
-    device_preference: str = (
-        "auto"  # Options: "auto", "cpu", "cuda", "cuda:X" (specific GPU)
-    )
-    device_fallback: bool = (
-        True  # Whether to fallback to CPU if preferred device unavailable
-    )
-    device_memory_fraction: Optional[float] = (
-        None  # GPU memory fraction to use (0.0-1.0)
-    )
-    device_validate_compatibility: bool = (
-        True  # Whether to validate tensor compatibility when moving devices
-    )
-
-    curriculum_phases: List[Dict[str, Any]] = field(
-        default_factory=lambda: [
-            {"steps": 100, "enabled_actions": ["move", "gather"]},
-            {"steps": 200, "enabled_actions": ["move", "gather", "share", "attack"]},
-            {
-                "steps": -1,
-                "enabled_actions": ["move", "gather", "share", "attack", "reproduce"],
+    # Agent-specific parameters (kept at top level for backward compatibility)
+    agent_parameters: Dict[str, Dict[str, float]] = field(
+        default_factory=lambda: {
+            "SystemAgent": {
+                "gather_efficiency_multiplier": 0.4,
+                "gather_cost_multiplier": 0.4,
+                "min_resource_threshold": 0.2,
+                "share_weight": 0.3,
+                "attack_weight": 0.05,
             },
-        ]
-    )  # -1 for remaining steps
+            "IndependentAgent": {
+                "gather_efficiency_multiplier": 0.7,
+                "gather_cost_multiplier": 0.2,
+                "min_resource_threshold": 0.05,
+                "share_weight": 0.05,
+                "attack_weight": 0.25,
+            },
+            "ControlAgent": {
+                "gather_efficiency_multiplier": 0.55,
+                "gather_cost_multiplier": 0.3,
+                "min_resource_threshold": 0.125,
+                "share_weight": 0.15,
+                "attack_weight": 0.15,
+            },
+        }
+    )
 
-    # Logging and debugging
-    debug: bool = False
-    verbose_logging: bool = False
+    # Nested configuration objects
+    environment: EnvironmentConfig = field(default_factory=EnvironmentConfig)
+    population: PopulationConfig = field(default_factory=PopulationConfig)
+    resources: ResourceConfig = field(default_factory=ResourceConfig)
+    learning: LearningConfig = field(default_factory=LearningConfig)
+    combat: CombatConfig = field(default_factory=CombatConfig)
+    agent_behavior: AgentBehaviorConfig = field(default_factory=AgentBehaviorConfig)
+    database: DatabaseConfig = field(default_factory=DatabaseConfig)
+    device: DeviceConfig = field(default_factory=DeviceConfig)
+    curriculum: CurriculumConfig = field(default_factory=CurriculumConfig)
+    logging: LoggingConfig = field(default_factory=LoggingConfig)
+    versioning: VersioningConfig = field(default_factory=VersioningConfig)
+    modules: ModuleConfig = field(default_factory=ModuleConfig)
 
-    # Configuration versioning
-    config_version: Optional[str] = None
-    config_created_at: Optional[str] = None
-    config_description: Optional[str] = None
+    # Existing nested configs (kept for backward compatibility)
+    visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
+    observation: Optional[ObservationConfig] = None
+    redis: RedisMemoryConfig = field(default_factory=RedisMemoryConfig)
 
     def to_yaml(self, file_path: str) -> None:
         """Save configuration to a YAML file."""
@@ -374,10 +420,12 @@ class SimulationConfig:
     def to_dict(self) -> Dict[str, Any]:
         """Convert configuration to a JSON-serializable dictionary."""
         config_dict = {}
+
+        # Handle top-level fields
         for key, value in self.__dict__.items():
             if key.startswith("_"):
                 continue
-            if key == "visualization":
+            elif key == "visualization":
                 config_dict[key] = self.visualization.to_dict()
             elif key == "redis":
                 config_dict[key] = self.redis.to_dict()
@@ -397,6 +445,28 @@ class SimulationConfig:
                     config_dict[key] = obs_dict
                 else:
                     config_dict[key] = None
+            elif key in [
+                "environment",
+                "population",
+                "resources",
+                "learning",
+                "combat",
+                "agent_behavior",
+                "database",
+                "device",
+                "curriculum",
+                "logging",
+                "versioning",
+                "modules",
+            ]:
+                # Convert nested config objects to dicts
+                config_dict.update(
+                    {
+                        f"{key}.{k}": v
+                        for k, v in value.__dict__.items()
+                        if not k.startswith("_")
+                    }
+                )
             else:
                 config_dict[key] = value
         return config_dict
@@ -408,29 +478,288 @@ class SimulationConfig:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "SimulationConfig":
         """Create configuration from a dictionary."""
+        # Handle backward compatibility: convert flat structure to nested
+        nested_data = cls._convert_flat_to_nested(data)
+
         # Handle visualization config specially
-        vis_data = data.pop("visualization", {})
+        vis_data = nested_data.pop("visualization", {})
         if isinstance(vis_data, VisualizationConfig):
-            data["visualization"] = vis_data
+            nested_data["visualization"] = vis_data
         else:
-            data["visualization"] = VisualizationConfig(**vis_data)
+            nested_data["visualization"] = VisualizationConfig(**vis_data)
 
         # Handle redis config specially
-        redis_data = data.pop("redis", {})
+        redis_data = nested_data.pop("redis", {})
         if isinstance(redis_data, RedisMemoryConfig):
-            data["redis"] = redis_data
+            nested_data["redis"] = redis_data
         else:
-            data["redis"] = RedisMemoryConfig(**redis_data)
+            nested_data["redis"] = RedisMemoryConfig(**redis_data)
 
         # Handle observation config specially
-        obs_data = data.pop("observation", None)
+        obs_data = nested_data.pop("observation", None)
         if obs_data:
             if isinstance(obs_data, dict):
-                data["observation"] = ObservationConfig(**obs_data)
+                nested_data["observation"] = ObservationConfig(**obs_data)
             else:
-                data["observation"] = obs_data
+                nested_data["observation"] = obs_data
 
-        return cls(**data)
+        return cls(**nested_data)
+
+    @classmethod
+    def _convert_flat_to_nested(cls, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert flat configuration structure to nested structure for backward compatibility."""
+        nested_data = data.copy()
+
+        # Handle dotted notation keys (e.g., "environment.width" -> nested structure)
+        dotted_keys = {}
+        for key, value in list(nested_data.items()):
+            if "." in key:
+                parts = key.split(".")
+                if len(parts) == 2:
+                    parent, child = parts
+                    if parent not in dotted_keys:
+                        dotted_keys[parent] = {}
+                    dotted_keys[parent][child] = value
+                    nested_data.pop(key)
+
+        # Convert dotted keys to config objects
+        for parent, config_dict in dotted_keys.items():
+            if parent == "environment":
+                nested_data[parent] = EnvironmentConfig(**config_dict)
+            elif parent == "population":
+                nested_data[parent] = PopulationConfig(**config_dict)
+            elif parent == "resources":
+                nested_data[parent] = ResourceConfig(**config_dict)
+            elif parent == "learning":
+                nested_data[parent] = LearningConfig(**config_dict)
+            elif parent == "combat":
+                nested_data[parent] = CombatConfig(**config_dict)
+            elif parent == "agent_behavior":
+                nested_data[parent] = AgentBehaviorConfig(**config_dict)
+            elif parent == "database":
+                nested_data[parent] = DatabaseConfig(**config_dict)
+            elif parent == "device":
+                nested_data[parent] = DeviceConfig(**config_dict)
+            elif parent == "curriculum":
+                nested_data[parent] = CurriculumConfig(**config_dict)
+            elif parent == "logging":
+                nested_data[parent] = LoggingConfig(**config_dict)
+            elif parent == "versioning":
+                nested_data[parent] = VersioningConfig(**config_dict)
+            elif parent == "modules":
+                nested_data[parent] = ModuleConfig(**config_dict)
+
+        # First, extract all module-related fields to avoid conflicts
+        # Only extract fields that are specifically for the specialized learning modules
+        # Exclude fields that belong to other configs like agent_behavior
+        module_fields = {}
+        module_specific_fields = {
+            # Gathering module
+            "gather_target_update_freq",
+            "gather_memory_size",
+            "gather_learning_rate",
+            "gather_gamma",
+            "gather_epsilon_start",
+            "gather_epsilon_min",
+            "gather_epsilon_decay",
+            "gather_dqn_hidden_size",
+            "gather_batch_size",
+            "gather_tau",
+            "gather_success_reward",
+            "gather_failure_penalty",
+            "gather_base_cost",
+            "gather_distance_penalty_factor",
+            "gather_resource_threshold",
+            "gather_competition_penalty",
+            "gather_efficiency_bonus",
+            # Sharing module
+            "share_range",
+            "share_target_update_freq",
+            "share_memory_size",
+            "share_learning_rate",
+            "share_gamma",
+            "share_epsilon_start",
+            "share_epsilon_min",
+            "share_epsilon_decay",
+            "share_dqn_hidden_size",
+            "share_batch_size",
+            "share_tau",
+            "share_success_reward",
+            "share_failure_penalty",
+            "share_base_cost",
+            "min_share_amount",
+            "max_share_amount",
+            "share_threshold",
+            "share_cooperation_bonus",
+            "share_altruism_factor",
+            "cooperation_memory",
+            "cooperation_score_threshold",
+            # Movement module
+            "move_target_update_freq",
+            "move_memory_size",
+            "move_learning_rate",
+            "move_gamma",
+            "move_epsilon_start",
+            "move_epsilon_min",
+            "move_epsilon_decay",
+            "move_dqn_hidden_size",
+            "move_batch_size",
+            "move_reward_history_size",
+            "move_epsilon_adapt_threshold",
+            "move_epsilon_adapt_factor",
+            "move_min_reward_samples",
+            "move_tau",
+            "move_base_cost",
+            "move_resource_approach_reward",
+            "move_resource_retreat_penalty",
+            # Attack module
+            "attack_target_update_freq",
+            "attack_memory_size",
+            "attack_learning_rate",
+            "attack_gamma",
+            "attack_epsilon_start",
+            "attack_epsilon_min",
+            "attack_epsilon_decay",
+            "attack_dqn_hidden_size",
+            "attack_batch_size",
+            "attack_tau",
+            "attack_base_cost",
+            "attack_success_reward",
+            "attack_failure_penalty",
+            "attack_defense_threshold",
+            "attack_defense_boost",
+            "attack_kill_reward",
+        }
+
+        for field in module_specific_fields:
+            if field in nested_data:
+                module_fields[field] = nested_data.pop(field)
+
+        if module_fields:
+            nested_data["modules"] = ModuleConfig(**module_fields)
+
+        # Mapping of flat keys to nested config classes
+        config_mappings = {
+            "environment": (
+                EnvironmentConfig,
+                [
+                    "width",
+                    "height",
+                    "position_discretization_method",
+                    "use_bilinear_interpolation",
+                ],
+            ),
+            "population": (
+                PopulationConfig,
+                [
+                    "system_agents",
+                    "independent_agents",
+                    "control_agents",
+                    "max_population",
+                    "agent_type_ratios",
+                ],
+            ),
+            "resources": (
+                ResourceConfig,
+                [
+                    "initial_resources",
+                    "resource_regen_rate",
+                    "resource_regen_amount",
+                    "max_resource_amount",
+                ],
+            ),
+            "learning": (
+                LearningConfig,
+                [
+                    "learning_rate",
+                    "gamma",
+                    "epsilon_start",
+                    "epsilon_min",
+                    "epsilon_decay",
+                    "memory_size",
+                    "batch_size",
+                    "training_frequency",
+                    "dqn_hidden_size",
+                    "tau",
+                ],
+            ),
+            "combat": (
+                CombatConfig,
+                [
+                    "starting_health",
+                    "attack_range",
+                    "attack_base_damage",
+                    "attack_kill_reward",
+                ],
+            ),
+            "agent_behavior": (
+                AgentBehaviorConfig,
+                [
+                    "base_consumption_rate",
+                    "max_movement",
+                    "gathering_range",
+                    "max_gather_amount",
+                    "territory_range",
+                    "perception_radius",
+                    "base_attack_strength",
+                    "base_defense_strength",
+                    "initial_resource_level",
+                    "starvation_threshold",
+                    "offspring_cost",
+                    "min_reproduction_resources",
+                    "offspring_initial_resources",
+                    "social_range",
+                    "move_mult_no_resources",
+                    "gather_mult_low_resources",
+                    "share_mult_wealthy",
+                    "share_mult_poor",
+                    "attack_starvation_threshold",
+                    "attack_mult_desperate",
+                    "attack_mult_stable",
+                    "max_wait_steps",
+                ],
+            ),
+            "database": (
+                DatabaseConfig,
+                [
+                    "use_in_memory_db",
+                    "persist_db_on_completion",
+                    "in_memory_db_memory_limit_mb",
+                    "in_memory_tables_to_persist",
+                    "db_pragma_profile",
+                    "db_cache_size_mb",
+                    "db_synchronous_mode",
+                    "db_journal_mode",
+                    "db_custom_pragmas",
+                ],
+            ),
+            "device": (
+                DeviceConfig,
+                [
+                    "device_preference",
+                    "device_fallback",
+                    "device_memory_fraction",
+                    "device_validate_compatibility",
+                ],
+            ),
+            "curriculum": (CurriculumConfig, ["curriculum_phases"]),
+            "logging": (LoggingConfig, ["debug", "verbose_logging"]),
+            "versioning": (
+                VersioningConfig,
+                ["config_version", "config_created_at", "config_description"],
+            ),
+        }
+
+        for config_name, (config_class, fields) in config_mappings.items():
+            config_dict = {}
+            for field in fields:
+                if field in nested_data:
+                    config_dict[field] = nested_data.pop(field)
+
+            if config_dict:
+                nested_data[config_name] = config_class(**config_dict)
+
+        return nested_data
 
     @classmethod
     def from_yaml(cls, file_path: str) -> "SimulationConfig":
@@ -455,7 +784,7 @@ class SimulationConfig:
         config_dir: str = "farm/config",
         use_cache: bool = True,
         strict_validation: bool = False,
-        auto_repair: bool = True,
+        auto_repair: bool = False,
     ) -> "SimulationConfig":
         """
         Load configuration from the centralized config structure.
@@ -535,9 +864,17 @@ class SimulationConfig:
         """
         # Convert config to dict and remove versioning fields for consistent hashing
         config_dict = self.to_dict()
-        config_dict.pop("config_version", None)
-        config_dict.pop("config_created_at", None)
-        config_dict.pop("config_description", None)
+        # Remove versioning fields (they may be in dotted format or flat format)
+        versioning_keys = [
+            "versioning.config_version",
+            "versioning.config_created_at",
+            "versioning.config_description",
+            "config_version",
+            "config_created_at",
+            "config_description",
+        ]
+        for key in versioning_keys:
+            config_dict.pop(key, None)
 
         # Convert to JSON string with sorted keys for consistent hashing
         config_json = json.dumps(config_dict, sort_keys=True, default=str)
@@ -555,9 +892,9 @@ class SimulationConfig:
             SimulationConfig: Versioned configuration
         """
         versioned_config = copy.deepcopy(self)
-        versioned_config.config_version = self.generate_version_hash()
-        versioned_config.config_created_at = datetime.now().isoformat()
-        versioned_config.config_description = description
+        versioned_config.versioning.config_version = self.generate_version_hash()
+        versioned_config.versioning.config_created_at = datetime.now().isoformat()
+        versioned_config.versioning.config_description = description
         return versioned_config
 
     def save_versioned_config(
@@ -576,12 +913,12 @@ class SimulationConfig:
         os.makedirs(directory, exist_ok=True)
 
         # Version the config if not already versioned
-        if not self.config_version:
+        if not self.versioning.config_version:
             versioned_config = self.version_config(description)
         else:
             versioned_config = self
 
-        filename = f"config_{versioned_config.config_version}.yaml"
+        filename = f"config_{versioned_config.versioning.config_version}.yaml"
         filepath = os.path.join(directory, filename)
 
         versioned_config.to_yaml(filepath)
@@ -621,11 +958,16 @@ class SimulationConfig:
 
         obs_config = config_dict.pop("observation", None)
         if obs_config:
-            from farm.core.observations import ObservationConfig
+            # Lazy load ObservationConfig to avoid heavy dependencies in lightweight contexts
+            try:
+                from farm.core.observations import ObservationConfig
 
-            config_dict["observation"] = ObservationConfig(**obs_config)
+                config_dict["observation"] = ObservationConfig(**obs_config)
+            except ImportError:
+                # If import fails, store as raw dict and let caller handle it
+                config_dict["observation"] = obs_config
 
-        return cls(**config_dict)
+        return cls(**cls._convert_flat_to_nested(config_dict))
 
     @classmethod
     def list_config_versions(cls, directory: str) -> List[Dict[str, Any]]:
@@ -652,8 +994,8 @@ class SimulationConfig:
                     versions.append(
                         {
                             "version": version_hash,
-                            "created_at": config.config_created_at,
-                            "description": config.config_description,
+                            "created_at": config.versioning.config_created_at,
+                            "description": config.versioning.config_description,
                             "filepath": filepath,
                         }
                     )
@@ -711,9 +1053,16 @@ class SimulationConfig:
         other_dict = other.to_dict()
 
         # Remove versioning fields from comparison
+        versioning_keys = [
+            "versioning.config_version",
+            "versioning.config_created_at",
+            "versioning.config_description",
+            "config_version",
+            "config_created_at",
+            "config_description",
+        ]
         for d in [self_dict, other_dict]:
-            d.pop("config_version", None)
-            d.pop("config_created_at", None)
-            d.pop("config_description", None)
+            for key in versioning_keys:
+                d.pop(key, None)
 
         return _dict_diff(self_dict, other_dict)

@@ -1338,7 +1338,7 @@ class Environment(AECEnv):
             device=self.observation_config.device,
         )
         max_amount = self.max_resource or (
-            self.config.max_resource_amount if self.config else 10
+            self.config.resources.max_resource_amount if self.config else 10
         )
 
         # Query nearby resources within a radius covering the local window

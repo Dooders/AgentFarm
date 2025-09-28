@@ -14,7 +14,7 @@ import tempfile
 import threading
 import time
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from farm.config import SimulationConfig
 from farm.config.cache import ConfigCache, get_global_cache
@@ -50,7 +50,9 @@ class TestConfigCache(unittest.TestCase):
         # Should be able to retrieve it
         retrieved = self.cache.get(cache_key)
         self.assertIsNotNone(retrieved)
-        self.assertEqual(retrieved.width, self.test_config.width)
+        self.assertEqual(
+            retrieved.environment.width, self.test_config.environment.width
+        )
 
         # Access time should be updated
         self.assertIn(cache_key, self.cache.access_times)
@@ -94,13 +96,19 @@ class TestConfigCache(unittest.TestCase):
         """Test cache statistics retrieval."""
         stats = self.cache.get_stats()
 
-        expected_keys = ['entries', 'memory_usage_mb', 'max_size', 'max_memory_mb', 'hit_rate']
+        expected_keys = [
+            "entries",
+            "memory_usage_mb",
+            "max_size",
+            "max_memory_mb",
+            "hit_rate",
+        ]
         for key in expected_keys:
             self.assertIn(key, stats)
 
-        self.assertEqual(stats['entries'], 0)
-        self.assertEqual(stats['max_size'], 3)
-        self.assertEqual(stats['max_memory_mb'], 1.0)
+        self.assertEqual(stats["entries"], 0)
+        self.assertEqual(stats["max_size"], 3)
+        self.assertEqual(stats["max_memory_mb"], 1.0)
 
     def test_lru_eviction_by_size(self):
         """Test LRU eviction when cache reaches max size."""
@@ -143,7 +151,7 @@ class TestConfigCache(unittest.TestCase):
 
     def test_file_modification_tracking(self):
         """Test cache invalidation based on file modification times."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("test: data\n")
             temp_file = f.name
 
@@ -156,8 +164,9 @@ class TestConfigCache(unittest.TestCase):
 
             # Modify file
             import os
+
             os.utime(temp_file, None)  # Ensure mtime changes
-            with open(temp_file, 'w') as f:
+            with open(temp_file, "w", encoding="utf-8") as f:
                 f.write("modified: data\n")
 
             # Cache should be invalidated
@@ -224,9 +233,9 @@ class TestConfigCache(unittest.TestCase):
 
         # Manually put corrupted data
         self.cache.cache[cache_key] = {
-            'config': {'invalid': 'data'},
-            'size': 0.1,
-            'created': time.time()
+            "config": {"invalid": "data"},
+            "size": 0.1,
+            "created": time.time(),
         }
         self.cache.access_times[cache_key] = time.time()
 
@@ -236,5 +245,5 @@ class TestConfigCache(unittest.TestCase):
         self.assertNotIn(cache_key, self.cache.cache)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

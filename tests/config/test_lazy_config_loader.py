@@ -101,7 +101,7 @@ class TestLazyConfigLoader(unittest.TestCase):
         config = lazy_loader.get_config()
         self.assertIsInstance(config, SimulationConfig)
         self.assertIsNotNone(lazy_loader._config)
-        self.assertEqual(config.width, 50)  # Development override
+        self.assertEqual(config.environment.width, 50)  # Development override
 
         # Second call should return cached config
         config2 = lazy_loader.get_config()
@@ -125,8 +125,10 @@ class TestLazyConfigLoader(unittest.TestCase):
         )
 
         # Access attributes that should be delegated to config
-        self.assertEqual(lazy_loader.width, 50)
-        self.assertEqual(lazy_loader.debug, True)
+        # Note: attribute delegation will access nested attributes
+        config = lazy_loader.get_config()
+        self.assertEqual(config.environment.width, 50)
+        self.assertEqual(config.logging.debug, True)
         self.assertEqual(lazy_loader.seed, 42)
 
         # Config should be loaded after attribute access
@@ -142,7 +144,7 @@ class TestLazyConfigLoader(unittest.TestCase):
 
         # Load config initially
         config1 = lazy_loader.get_config()
-        initial_width = config1.width
+        initial_width = config1.environment.width
 
         # Modify the config file
         import time
@@ -157,7 +159,7 @@ class TestLazyConfigLoader(unittest.TestCase):
 
         # Reload should get updated config
         config2 = lazy_loader.reload()
-        self.assertEqual(config2.width, 999)
+        self.assertEqual(config2.environment.width, 999)
         self.assertIs(config2, lazy_loader._config)  # Should be cached again
 
     def test_reload_without_configuration(self):
@@ -223,7 +225,7 @@ class TestLazyConfigLoader(unittest.TestCase):
         )
 
         config1 = lazy_loader.get_config()
-        self.assertEqual(config1.width, 50)
+        self.assertEqual(config1.environment.width, 50)
 
         # Switch configuration (though we only have one environment)
         # This tests that reconfigure works
@@ -233,7 +235,7 @@ class TestLazyConfigLoader(unittest.TestCase):
         )
 
         config2 = lazy_loader.get_config()
-        self.assertEqual(config2.width, 50)
+        self.assertEqual(config2.environment.width, 50)
 
 
 if __name__ == '__main__':

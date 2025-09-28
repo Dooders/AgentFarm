@@ -290,7 +290,7 @@ class EnvironmentState(BaseState):
 
         # Calculate resource availability
         max_possible = env.max_resource or (
-            env.config.max_resource_amount if env.config else 30
+            env.config.resources.max_resource_amount if env.config else 30
         )
         avg_resource = (
             sum(r.amount for r in env.resources) / (len(env.resources) * max_possible)
@@ -636,7 +636,7 @@ class SimulationState(BaseState):
         # Calculate resource efficiency
         total_resources = sum(resource.amount for resource in environment.resources)
         max_resource_amount = (
-            environment.config.max_resource_amount if environment.config else 30
+            environment.config.resources.max_resource_amount if environment.config else 30
         )
         max_resources = max_resource_amount * len(environment.resources)
         resource_efficiency = (

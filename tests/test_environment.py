@@ -9,9 +9,10 @@ from pettingzoo.test import api_test
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
 
+from farm.config import SimulationConfig
+from farm.config.config import EnvironmentConfig, PopulationConfig, ResourceConfig
 from farm.core.action import ActionType
 from farm.core.agent import BaseAgent
-from farm.config import SimulationConfig
 from farm.core.environment import Environment
 from farm.core.resources import Resource
 
@@ -20,13 +21,12 @@ class TestEnvironment(unittest.TestCase):
     def setUp(self):
         # Create a minimal SimulationConfig for testing
         self.config = SimulationConfig(
-            width=100,
-            height=100,
-            system_agents=1,
-            independent_agents=1,
-            control_agents=1,
+            environment=EnvironmentConfig(width=100, height=100),
+            population=PopulationConfig(
+                system_agents=1, independent_agents=1, control_agents=1
+            ),
             max_steps=100,
-            seed=42
+            seed=42,
         )
 
         # Store resource distribution for test access
@@ -35,7 +35,9 @@ class TestEnvironment(unittest.TestCase):
         # Keep track of mock objects for later use in tests but don't attach them to config
         # to avoid JSON serialization issues
         self.mock_action_space = Mock()
-        self.mock_action_space.n = len(ActionType)  # Number of actions from ActionType enum
+        self.mock_action_space.n = len(
+            ActionType
+        )  # Number of actions from ActionType enum
 
         self.mock_observation_space = Mock()
         self.mock_observation_space.shape = (10, 21, 21)  # Typical observation shape
@@ -97,10 +99,12 @@ class TestEnvironment(unittest.TestCase):
         # Check that observation shape matches the configured observation space
         expected_shape = (
             self.env.observation_config.R * 2 + 1,  # Width: 2*R + 1
-            self.env.observation_config.R * 2 + 1   # Height: 2*R + 1
+            self.env.observation_config.R * 2 + 1,  # Height: 2*R + 1
         )
         # Note: Full shape includes NUM_CHANNELS as first dimension
-        self.assertEqual(obs_space.shape[1:], expected_shape)  # Check spatial dimensions
+        self.assertEqual(
+            obs_space.shape[1:], expected_shape
+        )  # Check spatial dimensions
         self.assertEqual(obs_space.dtype, np.float32)
 
         act_space = self.env.action_space(agent)
@@ -111,7 +115,9 @@ class TestEnvironment(unittest.TestCase):
     def test_reset_step_cycle(self):
         obs, info = self.env.reset()
         self.assertIsInstance(obs, np.ndarray)
-        self.assertEqual(obs.shape, self.env.observation_space(self.env.agent_selection).shape)
+        self.assertEqual(
+            obs.shape, self.env.observation_space(self.env.agent_selection).shape
+        )
 
         done = False
         steps = 0
@@ -150,7 +156,9 @@ class TestEnvironment(unittest.TestCase):
     def test_resource_initialization(self):
         """Test that resources are properly initialized"""
         # Resource count should match the amount specified in resource_distribution
-        expected_count = self.resource_distribution.get("amount", 20)  # Default from ResourceManager
+        expected_count = self.resource_distribution.get(
+            "amount", 20
+        )  # Default from ResourceManager
         self.assertEqual(len(self.env.resources), expected_count)
 
         for resource in self.env.resources:
@@ -205,10 +213,10 @@ class TestEnvironment(unittest.TestCase):
 
         # Test defend action (skip if agent has mock attributes that cause comparison issues)
         try:
-            initial_defending = getattr(agent, 'is_defending', False)
+            initial_defending = getattr(agent, "is_defending", False)
             self.env._process_action(agent_id, ActionType.DEFEND)
             # Only check is_defending if the action succeeded and attribute exists
-            if hasattr(agent, 'is_defending'):
+            if hasattr(agent, "is_defending"):
                 # The defend action may not change state if agent is already defending
                 # Just verify the action doesn't crash
                 current_defending = agent.is_defending
@@ -274,7 +282,9 @@ class TestEnvironment(unittest.TestCase):
         obs = self.env._get_observation("non_existent_agent")
         self.assertIsInstance(obs, np.ndarray)
         # For non-existent agent, we get the default observation space shape
-        obs_space = self.env.observation_space(self.env.agents[0] if self.env.agents else None)
+        obs_space = self.env.observation_space(
+            self.env.agents[0] if self.env.agents else None
+        )
         self.assertEqual(obs.shape, obs_space.shape)
 
     def test_termination_conditions(self):
@@ -295,13 +305,22 @@ class TestEnvironment(unittest.TestCase):
 
             # Should truncate when time reaches max_steps after a complete cycle
             if self.env.time >= self.env.max_steps:
-                self.assertTrue(truncated, f"Should truncate at step {steps_taken}, time={self.env.time}, max_steps={self.env.max_steps}")
+                self.assertTrue(
+                    truncated,
+                    f"Should truncate at step {steps_taken}, time={self.env.time}, max_steps={self.env.max_steps}",
+                )
                 break
             else:
-                self.assertFalse(truncated, f"Should not truncate yet at step {steps_taken}, time={self.env.time}, max_steps={self.env.max_steps}")
+                self.assertFalse(
+                    truncated,
+                    f"Should not truncate yet at step {steps_taken}, time={self.env.time}, max_steps={self.env.max_steps}",
+                )
 
         # Verify we actually reached truncation
-        self.assertTrue(self.env.time >= self.env.max_steps, f"Time should have reached max_steps. Time: {self.env.time}, Max steps: {self.env.max_steps}")
+        self.assertTrue(
+            self.env.time >= self.env.max_steps,
+            f"Time should have reached max_steps. Time: {self.env.time}, Max steps: {self.env.max_steps}",
+        )
 
     def test_agent_removal(self):
         """Test that agents are properly removed when they die"""
@@ -355,18 +374,19 @@ class TestEnvironment(unittest.TestCase):
         """Test that seeding produces consistent results"""
         # Create a simplified config for this test
         simple_config = SimulationConfig(
-            width=50,
-            height=50,
-            system_agents=0,
-            independent_agents=0,
-            control_agents=0,
+            environment=EnvironmentConfig(width=50, height=50),
+            population=PopulationConfig(
+                system_agents=0, independent_agents=0, control_agents=0
+            ),
+            resources=ResourceConfig(
+                max_resource_amount=10,
+                resource_regen_rate=0.1,
+                resource_regen_amount=1,
+                initial_resources=5,
+            ),
             max_steps=100,
-            max_resource_amount=10,
-            resource_regen_rate=0.1,
-            resource_regen_amount=1,
             seed=42,
-            initial_resources=5,
-            observation=None
+            observation=None,
         )
 
         env1 = Environment(
@@ -587,7 +607,9 @@ class TestEnvironment(unittest.TestCase):
             agent.alive = False
             obs = self.env._get_observation(agent.agent_id)
             self.assertIsInstance(obs, np.ndarray)
-            self.assertEqual(obs.shape, self.env.observation_space(agent.agent_id).shape)
+            self.assertEqual(
+                obs.shape, self.env.observation_space(agent.agent_id).shape
+            )
 
         # Test reward calculation for non-existent agent
         reward = self.env._calculate_reward("non_existent")
@@ -724,15 +746,14 @@ class TestEnvironment(unittest.TestCase):
         """Test boundary conditions and limits"""
         # Test with minimal environment
         minimal_config = SimulationConfig(
-            width=1,
-            height=1,
-            system_agents=0,
-            independent_agents=0,
-            control_agents=0,
+            environment=EnvironmentConfig(width=1, height=1),
+            population=PopulationConfig(
+                system_agents=0, independent_agents=0, control_agents=0
+            ),
+            resources=ResourceConfig(initial_resources=0),
             max_steps=1,
             seed=123,
-            initial_resources=0,
-            observation=None
+            observation=None,
         )
 
         minimal_env = Environment(
@@ -788,7 +809,15 @@ class TestEnvironment(unittest.TestCase):
     def test_action_enum_completeness(self):
         """Test that Action enum is properly defined"""
         # Test all actions are defined
-        expected_actions = ["DEFEND", "ATTACK", "GATHER", "SHARE", "MOVE", "REPRODUCE", "PASS"]
+        expected_actions = [
+            "DEFEND",
+            "ATTACK",
+            "GATHER",
+            "SHARE",
+            "MOVE",
+            "REPRODUCE",
+            "PASS",
+        ]
 
         for action_name in expected_actions:
             self.assertTrue(hasattr(ActionType, action_name))
@@ -823,10 +852,9 @@ class TestEnvironment(unittest.TestCase):
 
         # Test with minimal config attributes
         partial_config = SimulationConfig(
-            width=10,
-            height=10,
-            system_agents=1,
-            seed=456
+            environment=EnvironmentConfig(width=10, height=10),
+            population=PopulationConfig(system_agents=1),
+            seed=456,
         )
 
         # Missing other attributes should use defaults

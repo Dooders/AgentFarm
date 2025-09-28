@@ -138,14 +138,10 @@ class ResourceManager:
                 resource_id=i,
                 position=(x, y),
                 amount=(
-                    getattr(self.config, "max_resource_amount", 10)
-                    if self.config
-                    else 10
+                    self.config.resources.max_resource_amount if self.config else 10
                 ),
                 max_amount=(
-                    getattr(self.config, "max_resource_amount", 10)
-                    if self.config
-                    else 10
+                    self.config.resources.max_resource_amount if self.config else 10
                 ),
                 regeneration_rate=(
                     getattr(self.config, "resource_regen_rate", 0.1)
@@ -271,9 +267,7 @@ class ResourceManager:
             amount = random.randint(min_amount, max_amount)
 
         # Get configuration parameters
-        max_amount = (
-            getattr(self.config, "max_resource_amount", 10) if self.config else 10
-        )
+        max_amount = self.config.resources.max_resource_amount if self.config else 10
         regeneration_rate = (
             getattr(self.config, "resource_regen_rate", 0.1) if self.config else 0.1
         )
@@ -339,9 +333,7 @@ class ResourceManager:
                     else 0.1
                 )
                 max_resource = (
-                    getattr(self.config, "max_resource_amount", None)
-                    if self.config
-                    else None
+                    self.config.resources.max_resource_amount if self.config else None
                 )
 
                 if resource_rng.random() < regen_rate and (
@@ -367,9 +359,7 @@ class ResourceManager:
                 getattr(self.config, "resource_regen_rate", 0.1) if self.config else 0.1
             )
             max_resource = (
-                getattr(self.config, "max_resource_amount", None)
-                if self.config
-                else None
+                self.config.resources.max_resource_amount if self.config else None
             )
 
             regen_mask = np.random.random(len(self.resources)) < regen_rate
@@ -574,7 +564,7 @@ class ResourceManager:
             resource_id=self.next_resource_id,
             position=position,
             amount=amount,
-            max_amount=self.config.max_resource_amount if self.config else 10,
+            max_amount=self.config.resources.max_resource_amount if self.config else 10,
             regeneration_rate=self.config.resource_regen_rate if self.config else 0.1,
         )
 
