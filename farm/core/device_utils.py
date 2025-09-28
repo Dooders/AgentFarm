@@ -379,9 +379,43 @@ def create_device_from_config(config) -> torch.device:
     Returns:
         torch.device: Configured device
     """
+    # Support nested SimulationConfig.device as well as flat configs
+    device_cfg = getattr(config, "device", None)
+    preference = (
+        getattr(device_cfg, "device_preference", None)
+        if device_cfg is not None
+        else None
+    ) or getattr(config, "device_preference", "auto")
+
+    fallback = (
+        getattr(device_cfg, "device_fallback", None)
+        if device_cfg is not None
+        else None
+    )
+    if fallback is None:
+        fallback = getattr(config, "device_fallback", True)
+
+    memory_fraction = (
+        getattr(device_cfg, "device_memory_fraction", None)
+        if device_cfg is not None
+        else None
+    )
+    if memory_fraction is None:
+        memory_fraction = getattr(config, "device_memory_fraction", None)
+
+    validate_compatibility = (
+        getattr(device_cfg, "device_validate_compatibility", None)
+        if device_cfg is not None
+        else None
+    )
+    if validate_compatibility is None:
+        validate_compatibility = getattr(
+            config, "device_validate_compatibility", True
+        )
+
     return get_device(
-        preference=getattr(config, "device_preference", "auto"),
-        fallback=getattr(config, "device_fallback", True),
-        memory_fraction=getattr(config, "device_memory_fraction", None),
-        validate_compatibility=getattr(config, "device_validate_compatibility", True),
+        preference=preference,
+        fallback=fallback,
+        memory_fraction=memory_fraction,
+        validate_compatibility=validate_compatibility,
     )

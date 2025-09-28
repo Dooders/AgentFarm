@@ -1309,16 +1309,25 @@ class Environment(AECEnv):
         height, width = int(self.height), int(self.width)
 
         # Get discretization method from config
-        discretization_method = (
-            getattr(self.config, "position_discretization_method", "floor")
-            if self.config
-            else "floor"
-        )
-        use_bilinear = (
-            getattr(self.config, "use_bilinear_interpolation", True)
-            if self.config
-            else True
-        )
+        # Resolve discretization/interpolation from nested environment config when available
+        if self.config and getattr(self.config, "environment", None) is not None:
+            discretization_method = getattr(
+                self.config.environment, "position_discretization_method", "floor"
+            )
+            use_bilinear = getattr(
+                self.config.environment, "use_bilinear_interpolation", True
+            )
+        else:
+            discretization_method = (
+                getattr(self.config, "position_discretization_method", "floor")
+                if self.config
+                else "floor"
+            )
+            use_bilinear = (
+                getattr(self.config, "use_bilinear_interpolation", True)
+                if self.config
+                else True
+            )
 
         # Agent position as (y, x) using configured discretization method
         grid_size = (width, height)
@@ -1337,9 +1346,13 @@ class Environment(AECEnv):
             dtype=self.observation_config.torch_dtype,
             device=self.observation_config.device,
         )
-        max_amount = self.max_resource or (
-            self.config.resources.max_resource_amount if self.config else 10
-        )
+        # Max amount resolution prefers nested resources config when available
+        if self.config and getattr(self.config, "resources", None) is not None:
+            max_amount = self.max_resource or self.config.resources.max_resource_amount
+        else:
+            max_amount = self.max_resource or (
+                getattr(self.config, "max_resource_amount", 10) if self.config else 10
+            )
 
         # Query nearby resources within a radius covering the local window
         # Use slightly larger than R to capture bilinear spread near the boundary
