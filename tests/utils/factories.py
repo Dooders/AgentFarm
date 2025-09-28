@@ -1,11 +1,7 @@
 from __future__ import annotations
 
-import itertools
 from dataclasses import dataclass
 from typing import Tuple
-
-
-_agent_id_counter = itertools.count(1)
 
 
 def make_agent(environment, position: Tuple[float, float] = (0.0, 0.0), resource_level: float = 1.0):

@@ -56,8 +56,8 @@ def disable_network(monkeypatch):
 
 @pytest.fixture()
 def tmp_db_path(tmp_path):
-	"""Provide a unique temporary SQLite DB file path and cleanup after."""
-	path = tmp_path / f"test_{int(time.time() * 1000)}.db"
+	"""Provide a temporary SQLite DB file path within pytest's unique temp dir."""
+	path = tmp_path / "test.db"
 	yield str(path)
 	try:
 		if os.path.exists(path):
