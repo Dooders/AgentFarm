@@ -11,7 +11,15 @@ This package provides comprehensive configuration management including:
 """
 
 from .cache import ConfigCache, LazyConfigLoader, OptimizedConfigLoader
-from .config import RedisMemoryConfig, SimulationConfig, VisualizationConfig
+from .config import (
+    AgentBehaviorConfig,
+    EnvironmentConfig,
+    PopulationConfig,
+    RedisMemoryConfig,
+    ResourceConfig,
+    SimulationConfig,
+    VisualizationConfig,
+)
 from .monitor import (
     ConfigMetrics,
     ConfigMonitor,
@@ -33,6 +41,11 @@ __all__ = [
     "SimulationConfig",
     "VisualizationConfig",
     "RedisMemoryConfig",
+    # Sub-configuration classes
+    "AgentBehaviorConfig",
+    "EnvironmentConfig",
+    "PopulationConfig",
+    "ResourceConfig",
     # Caching
     "ConfigCache",
     "LazyConfigLoader",

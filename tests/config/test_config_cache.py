@@ -162,9 +162,12 @@ class TestConfigCache(unittest.TestCase):
             # Should be cached
             self.assertIsNotNone(self.cache.get(cache_key, temp_file))
 
-            # Modify file
+            # Modify file - ensure mtime changes by adding a small delay
             import os
+            import time
 
+            # Add a small delay to ensure mtime will be different
+            time.sleep(0.01)
             os.utime(temp_file, None)  # Ensure mtime changes
             with open(temp_file, "w", encoding="utf-8") as f:
                 f.write("modified: data\n")

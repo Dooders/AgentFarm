@@ -565,7 +565,7 @@ class ResourceManager:
             position=position,
             amount=amount,
             max_amount=self.config.resources.max_resource_amount if self.config else 10,
-            regeneration_rate=self.config.resource_regen_rate if self.config else 0.1,
+            regeneration_rate=self.config.resources.resource_regen_rate if self.config else 0.1,
         )
 
         self.next_resource_id += 1

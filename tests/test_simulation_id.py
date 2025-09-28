@@ -12,6 +12,12 @@ import unittest
 from typing import Dict, List, Optional
 
 from farm.config import SimulationConfig
+from farm.config.config import (
+    EnvironmentConfig,
+    PopulationConfig,
+    ResourceConfig,
+    DatabaseConfig,
+)
 from farm.core.simulation import run_simulation
 from farm.utils.identity import Identity
 
@@ -28,13 +34,14 @@ class TestSimulationID(unittest.TestCase):
 
         # Create a minimalist configuration
         self.config = SimulationConfig(
-            width=100,
-            height=100,
-            initial_resources=100,
-            system_agents=2,
-            independent_agents=2,
-            control_agents=0,
-            use_in_memory_db=False,
+            environment=EnvironmentConfig(width=100, height=100),
+            resources=ResourceConfig(initial_resources=100),
+            population=PopulationConfig(
+                system_agents=2,
+                independent_agents=2,
+                control_agents=0,
+            ),
+            database=DatabaseConfig(use_in_memory_db=False),
         )
 
         # Path for simulation database
