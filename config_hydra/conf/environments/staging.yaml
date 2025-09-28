@@ -1,0 +1,31 @@
+# @package _global_
+# Staging Environment Configuration
+# Overrides for staging environment
+
+# Moderate debug settings
+debug: false
+verbose_logging: true
+
+# Moderate simulation complexity
+max_steps: 500
+max_population: 150
+
+# Use persistent database for staging
+use_in_memory_db: false
+persist_db_on_completion: true
+
+# Staging-specific learning parameters
+learning_rate: 0.005
+epsilon_start: 0.8
+epsilon_min: 0.05
+
+# Staging database settings
+db_pragma_profile: "balanced"
+db_cache_size_mb: 100
+
+# Staging Redis settings
+redis:
+  host: localhost
+  port: 6379
+  db: 2  # Use different database for staging
+  environment: staging

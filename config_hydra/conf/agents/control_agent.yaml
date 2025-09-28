@@ -1,0 +1,32 @@
+# @package _global_
+# Control Agent Specific Configuration
+# Overrides for ControlAgent behavior
+
+# Control agents are balanced between cooperation and independence
+agent_parameters:
+  ControlAgent:
+    gather_efficiency_multiplier: 0.65  # Balanced efficiency
+    gather_cost_multiplier: 0.25        # Balanced cost
+    min_resource_threshold: 0.1         # Balanced threshold
+    share_weight: 0.2                   # Moderate sharing
+    attack_weight: 0.2                  # Moderate aggression
+
+# Learning parameters optimized for balance
+learning_rate: 0.0015  # Moderate learning rate
+gamma: 0.95            # Balanced discount factor
+epsilon_start: 0.95    # Moderate initial exploration
+epsilon_min: 0.01      # Standard minimum exploration
+
+# Movement and gathering parameters
+max_movement: 8        # Standard movement
+gathering_range: 30    # Standard gathering range
+max_gather_amount: 3   # Standard gather amount
+
+# Combat parameters
+base_attack_strength: 2.0  # Standard attack strength
+base_defense_strength: 2.0 # Standard defense strength
+
+# Reproduction parameters
+min_reproduction_resources: 8   # Standard threshold for reproduction
+offspring_cost: 3               # Standard cost for reproduction
+offspring_initial_resources: 5  # Standard resources for offspring

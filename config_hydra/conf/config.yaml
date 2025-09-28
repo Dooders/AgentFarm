@@ -1,0 +1,12 @@
+# @package _global_
+# Main configuration file for Hydra-based configuration system
+# This replaces the old hierarchical config system
+
+defaults:
+  - base/base
+  - environments/development
+  - agents/system_agent
+  - _self_
+
+# Global configuration overrides can be added here
+# These will override any defaults from the base config

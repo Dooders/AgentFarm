@@ -1,0 +1,31 @@
+# @package _global_
+# Production Environment Configuration
+# Overrides for production environment
+
+# Disable debug mode for production
+debug: false
+verbose_logging: false
+
+# Full simulation complexity
+max_steps: 1000
+max_population: 300
+
+# Use persistent database for production
+use_in_memory_db: false
+persist_db_on_completion: true
+
+# Production-specific learning parameters
+learning_rate: 0.001
+epsilon_start: 1.0
+epsilon_min: 0.01
+
+# Production database settings
+db_pragma_profile: "safety"  # Optimize for data safety
+db_cache_size_mb: 200
+
+# Production Redis settings
+redis:
+  host: localhost
+  port: 6379
+  db: 0  # Use default database for production
+  environment: production

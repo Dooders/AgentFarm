@@ -1,0 +1,32 @@
+# @package _global_
+# System Agent Specific Configuration
+# Overrides for SystemAgent behavior
+
+# System agents are more cooperative and efficient
+agent_parameters:
+  SystemAgent:
+    gather_efficiency_multiplier: 0.6  # More efficient gathering
+    gather_cost_multiplier: 0.3        # Lower cost
+    min_resource_threshold: 0.15       # Lower threshold for cooperation
+    share_weight: 0.4                  # Higher sharing tendency
+    attack_weight: 0.02                # Lower aggression
+
+# Learning parameters optimized for cooperation
+learning_rate: 0.0008  # Slightly lower for stability
+gamma: 0.98            # Higher discount factor for long-term thinking
+epsilon_start: 0.9     # Lower initial exploration
+epsilon_min: 0.005     # Lower minimum exploration
+
+# Movement and gathering parameters
+max_movement: 6        # More conservative movement
+gathering_range: 35    # Slightly larger gathering range
+max_gather_amount: 4   # Can gather more resources
+
+# Combat parameters
+base_attack_strength: 1.5  # Lower attack strength
+base_defense_strength: 2.5 # Higher defense strength
+
+# Reproduction parameters
+min_reproduction_resources: 10  # Higher threshold for reproduction
+offspring_cost: 4               # Higher cost for reproduction
+offspring_initial_resources: 6  # More resources for offspring
