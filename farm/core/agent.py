@@ -1286,7 +1286,6 @@ class BaseAgent:
                 agent_id=new_id,
                 position=self.position,
                 resource_level=(
-                    # Prefer nested agent behavior for offspring initial resources
                     getattr(self.config.agent_behavior, "offspring_initial_resources", 10)
                     if (self.config and getattr(self.config, "agent_behavior", None) is not None)
                     else (getattr(self.config, "offspring_initial_resources", 10) if self.config else 10)
