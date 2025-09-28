@@ -14,7 +14,7 @@ import time
 from datetime import datetime
 from typing import Callable, Dict, Optional
 
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 from farm.core.environment import Environment
 from farm.database.database import SimulationDatabase
 from farm.database.models import Simulation
@@ -34,7 +34,7 @@ class SimulationController:
     Example usage:
         ```python
         # Initialize configuration and controller
-        config = SimulationConfig.from_yaml("config.yaml")
+        config = SimulationConfig.from_centralized_config()
         controller = SimulationController(config, "simulations/sim.db")
 
         # Register callbacks for monitoring

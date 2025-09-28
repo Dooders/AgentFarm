@@ -18,7 +18,7 @@ import psutil
 from joblib import Parallel, delayed
 from tqdm.auto import tqdm
 
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
 from farm.database.database import SimulationDatabase
 

@@ -17,7 +17,7 @@ from typing import Dict, List, Optional
 from farm.analysis.comparative_analysis import compare_simulations
 from farm.charts.chart_analyzer import ChartAnalyzer
 from farm.controllers.simulation_controller import SimulationController
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 from farm.database.database import SimulationDatabase
 from farm.research.research import ResearchProject
 
@@ -35,7 +35,7 @@ class ExperimentController:
     Example usage:
         ```python
         # Initialize controller with experiment config
-        config = SimulationConfig.from_yaml("config.yaml")
+        config = SimulationConfig.from_centralized_config()
         controller = ExperimentController(
             name="agent_comparison",
             description="Compare different agent types",

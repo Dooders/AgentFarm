@@ -1,13 +1,14 @@
-## Electron Configuration Explorer: Backend Support (Issue #356)
+# Configuration Schema Generation: Backend Support
 
-### Summary
-- **Added schema generator**: `farm/core/config_schema.py` produces a combined, JSON-serializable schema for configuration sections.
-- **New API endpoint**: `GET /config/schema` via `server/backend/app/routers/config.py` exposes the schema to the Electron app.
-- **App wiring**: Router included in `server/backend/app/main.py`.
-- **Basic test**: `tests/test_config_schema_endpoint.py` validates endpoint structure.
+## Summary
 
-### What’s Included
-- **Schema generator** (`farm/core/config_schema.py`):
+- **Schema generator**: `farm/config/schema.py` produces a combined, JSON-serializable schema for configuration sections.
+- **Schema function**: `generate_combined_config_schema()` creates structured schema data for client applications.
+- **No API endpoint**: Currently, schema generation exists as a utility function but is not exposed via REST API.
+
+## What’s Included
+
+- **Schema generator** (`farm/config/schema.py`):
   - Introspects these sources:
     - `SimulationConfig` (dataclass)
     - `VisualizationConfig` (dataclass)
@@ -20,8 +21,8 @@
     - Range constraints for Pydantic fields when available (minimum/maximum)
   - Output is organized into four sections: `simulation`, `visualization`, `redis`, `observation`.
 
-- **API** (`server/backend/app/routers/config.py`):
-  - `GET /config/schema` returns a payload like:
+- **Schema Generation Function**:
+  - `generate_combined_config_schema()` returns a payload like:
 
 ```json
 {
@@ -40,28 +41,50 @@
 }
 ```
 
-### How the Electron App Can Use This
-- **Fetch schema**: Call `GET /config/schema` on app load or when refreshing settings.
+## How Client Applications Can Use This
+
+- **Generate schema**: Import and call `generate_combined_config_schema()` from `farm.config.schema` on app load or when refreshing settings.
 - **Build UI**: For each section, iterate `properties` and render appropriate controls based on `type`, `default`, and `enum`.
 - **Hints/validation**:
   - Use `enum` to render select inputs.
   - Use `minimum`/`maximum` when present to set numeric control ranges.
   - Defaults can seed initial field values.
 
-### Design Notes and Limitations
+## Usage Example
+
+```python
+from farm.config.schema import generate_combined_config_schema
+
+# Get schema for building configuration UI
+schema = generate_combined_config_schema()
+
+# Access different sections
+simulation_props = schema["sections"]["simulation"]["properties"]
+visualization_props = schema["sections"]["visualization"]["properties"]
+redis_props = schema["sections"]["redis"]["properties"]
+observation_props = schema["sections"]["observation"]["properties"]
+```
+
+## Design Notes and Limitations
+
 - Dataclass-based fields do not carry numeric range metadata; only defaults and known enums are emitted.
 - Known string enums for `SimulationConfig` (e.g., `position_discretization_method`, `db_*` pragmas, `device_preference`) are provided via a curated list.
 - `ObservationConfig` includes descriptions and constraints from Pydantic `Field` definitions.
 - The generator emphasizes stability and JSON compatibility; complex Python types are surfaced as `object` with sensible defaults.
 
-### Files Changed/Added
-- Added: `farm/core/config_schema.py`
-- Added: `server/backend/app/routers/config.py`
-- Updated: `server/backend/app/main.py` (included config router)
-- Added: `tests/test_config_schema_endpoint.py`
+## Files Changed/Added
 
-### Testing
-- Run tests (example):
-  - Create a virtualenv and install dependencies, then `pytest -q`.
-  - The test `tests/test_config_schema_endpoint.py` checks structure and a few representative fields.
+- Added: `farm/config/schema.py`
 
+## Testing
+
+- **Direct function testing**: The schema generation can be tested by importing and calling the function:
+
+  ```python
+  from farm.config.schema import generate_combined_config_schema
+  schema = generate_combined_config_schema()
+  assert "sections" in schema
+  assert "simulation" in schema["sections"]
+  ```
+
+- **No API endpoint tests**: Since there's currently no REST API endpoint, there are no endpoint-specific tests.

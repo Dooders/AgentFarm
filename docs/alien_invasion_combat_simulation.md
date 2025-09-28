@@ -81,7 +81,7 @@ group_defense_bonus: 1.3  # Defense bonus for grouped humans
 - `farm/agents/human_agent.py` (or extend existing)
 
 **Existing Files to Modify:**
-- `config.yaml` - Add alien invasion parameters
+- `config/default.yaml` - Add alien invasion parameters
 - `farm/core/action.py` - Attack action uses spatial index for combat
 - `farm/core/config.py` - Add new configuration options
 

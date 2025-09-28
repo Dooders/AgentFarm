@@ -18,7 +18,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from farm.charts.chart_analyzer import ChartAnalyzer
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
 from farm.database.database import SimulationDatabase
 from scripts.significant_events import SignificantEventAnalyzer

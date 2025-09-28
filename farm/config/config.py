@@ -1,5 +1,9 @@
 import copy
+import hashlib
+import json
+import os
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
@@ -42,6 +46,7 @@ class VisualizationConfig:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert visualization config to a JSON-serializable dictionary."""
+
         def _jsonify(val):
             if isinstance(val, tuple):
                 return list(val)
@@ -60,6 +65,10 @@ class VisualizationConfig:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "VisualizationConfig":
         """Create visualization config from a dictionary."""
+        # Convert canvas_size from list back to tuple if needed
+        if "canvas_size" in data and isinstance(data["canvas_size"], list):
+            data = data.copy()  # Don't modify the original
+            data["canvas_size"] = tuple(data["canvas_size"])
         return cls(**data)
 
 
@@ -345,21 +354,14 @@ class SimulationConfig:
         ]
     )  # -1 for remaining steps
 
-    @classmethod
-    def from_yaml(cls, file_path: str) -> "SimulationConfig":
-        """Load configuration from a YAML file."""
-        with open(file_path, "r", encoding="utf-8") as f:
-            config_dict = yaml.safe_load(f)
+    # Logging and debugging
+    debug: bool = False
+    verbose_logging: bool = False
 
-        # Handle visualization config separately
-        vis_config = config_dict.pop("visualization", {})
-        config_dict["visualization"] = VisualizationConfig(**vis_config)
-
-        # Handle redis config separately
-        redis_config = config_dict.pop("redis", {})
-        config_dict["redis"] = RedisMemoryConfig(**redis_config)
-
-        return cls(**config_dict)
+    # Configuration versioning
+    config_version: Optional[str] = None
+    config_created_at: Optional[str] = None
+    config_description: Optional[str] = None
 
     def to_yaml(self, file_path: str) -> None:
         """Save configuration to a YAML file."""
@@ -383,13 +385,15 @@ class SimulationConfig:
                 if self.observation:
                     obs_dict = self.observation.model_dump()
                     # Convert torch dtype to string for JSON serialization
-                    if 'dtype' in obs_dict and hasattr(obs_dict['dtype'], '__name__'):
-                        obs_dict['dtype'] = obs_dict['dtype'].__name__
-                    elif 'dtype' in obs_dict:
-                        obs_dict['dtype'] = str(obs_dict['dtype'])
+                    if "dtype" in obs_dict and hasattr(obs_dict["dtype"], "__name__"):
+                        obs_dict["dtype"] = obs_dict["dtype"].__name__
+                    elif "dtype" in obs_dict:
+                        obs_dict["dtype"] = str(obs_dict["dtype"])
                     # Convert StorageMode enum to string for JSON serialization
-                    if 'storage_mode' in obs_dict and hasattr(obs_dict['storage_mode'], 'value'):
-                        obs_dict['storage_mode'] = obs_dict['storage_mode'].value
+                    if "storage_mode" in obs_dict and hasattr(
+                        obs_dict["storage_mode"], "value"
+                    ):
+                        obs_dict["storage_mode"] = obs_dict["storage_mode"].value
                     config_dict[key] = obs_dict
                 else:
                     config_dict[key] = None
@@ -406,15 +410,310 @@ class SimulationConfig:
         """Create configuration from a dictionary."""
         # Handle visualization config specially
         vis_data = data.pop("visualization", {})
-        data["visualization"] = VisualizationConfig(**vis_data)
+        if isinstance(vis_data, VisualizationConfig):
+            data["visualization"] = vis_data
+        else:
+            data["visualization"] = VisualizationConfig(**vis_data)
 
         # Handle redis config specially
         redis_data = data.pop("redis", {})
-        data["redis"] = RedisMemoryConfig(**redis_data)
+        if isinstance(redis_data, RedisMemoryConfig):
+            data["redis"] = redis_data
+        else:
+            data["redis"] = RedisMemoryConfig(**redis_data)
 
         # Handle observation config specially
         obs_data = data.pop("observation", None)
         if obs_data:
-            data["observation"] = ObservationConfig(**obs_data)
+            if isinstance(obs_data, dict):
+                data["observation"] = ObservationConfig(**obs_data)
+            else:
+                data["observation"] = obs_data
 
         return cls(**data)
+
+    @classmethod
+    def from_yaml(cls, file_path: str) -> "SimulationConfig":
+        """
+        Load configuration from a YAML file.
+
+        Args:
+            file_path: Path to the YAML file
+
+        Returns:
+            SimulationConfig: Loaded configuration
+        """
+        with open(file_path, "r", encoding="utf-8") as f:
+            config_dict = yaml.safe_load(f)
+        return cls.from_dict(config_dict)
+
+    @classmethod
+    def from_centralized_config(
+        cls,
+        environment: str = "development",
+        profile: Optional[str] = None,
+        config_dir: str = "farm/config",
+        use_cache: bool = True,
+        strict_validation: bool = False,
+        auto_repair: bool = True,
+    ) -> "SimulationConfig":
+        """
+        Load configuration from the centralized config structure.
+
+        Args:
+            environment: Environment name (development, production, testing)
+            profile: Optional profile name (benchmark, simulation, research)
+            config_dir: Base configuration directory
+            use_cache: Whether to use caching for performance
+            strict_validation: Whether to treat warnings as errors
+            auto_repair: Whether to attempt automatic repair of validation errors
+
+        Returns:
+            SimulationConfig: Loaded and merged configuration
+
+        Raises:
+            ConfigurationError: If validation fails and auto_repair is disabled
+        """
+        from .cache import OptimizedConfigLoader
+
+        # Use cache loader for basic loading
+        loader = OptimizedConfigLoader()
+        config = loader.load_centralized_config(
+            environment=environment,
+            profile=profile,
+            config_dir=config_dir,
+            use_cache=use_cache,
+        )
+
+        # Apply validation and repair if requested
+        if strict_validation or auto_repair:
+            from .validation import SafeConfigLoader
+
+            loader = SafeConfigLoader()
+            config, status_info = loader.load_config_safely(
+                environment=environment,
+                profile=profile,
+                config_dir=config_dir,
+                strict_validation=strict_validation,
+                auto_repair=auto_repair,
+            )
+
+        return config
+
+    @staticmethod
+    def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Deep merge override dictionary into base dictionary.
+
+        Args:
+            base: Base dictionary
+            override: Override dictionary
+
+        Returns:
+            Dict: Merged dictionary
+        """
+        result = copy.deepcopy(base)
+
+        for key, value in override.items():
+            if (
+                key in result
+                and isinstance(result[key], dict)
+                and isinstance(value, dict)
+            ):
+                result[key] = SimulationConfig._deep_merge(result[key], value)
+            else:
+                result[key] = value
+
+        return result
+
+    def generate_version_hash(self) -> str:
+        """
+        Generate a unique hash for this configuration.
+
+        Returns:
+            str: SHA256 hash of the configuration content
+        """
+        # Convert config to dict and remove versioning fields for consistent hashing
+        config_dict = self.to_dict()
+        config_dict.pop("config_version", None)
+        config_dict.pop("config_created_at", None)
+        config_dict.pop("config_description", None)
+
+        # Convert to JSON string with sorted keys for consistent hashing
+        config_json = json.dumps(config_dict, sort_keys=True, default=str)
+        # Use a 32-character prefix to reduce collision risk while keeping filenames manageable
+        return hashlib.sha256(config_json.encode("utf-8")).hexdigest()[:32]
+
+    def version_config(self, description: Optional[str] = None) -> "SimulationConfig":
+        """
+        Create a versioned copy of this configuration.
+
+        Args:
+            description: Optional description of this configuration version
+
+        Returns:
+            SimulationConfig: Versioned configuration
+        """
+        versioned_config = copy.deepcopy(self)
+        versioned_config.config_version = self.generate_version_hash()
+        versioned_config.config_created_at = datetime.now().isoformat()
+        versioned_config.config_description = description
+        return versioned_config
+
+    def save_versioned_config(
+        self, directory: str, description: Optional[str] = None
+    ) -> str:
+        """
+        Save this configuration as a versioned file.
+
+        Args:
+            directory: Directory to save the configuration
+            description: Optional description of this configuration
+
+        Returns:
+            str: Path to the saved configuration file
+        """
+        os.makedirs(directory, exist_ok=True)
+
+        # Version the config if not already versioned
+        if not self.config_version:
+            versioned_config = self.version_config(description)
+        else:
+            versioned_config = self
+
+        filename = f"config_{versioned_config.config_version}.yaml"
+        filepath = os.path.join(directory, filename)
+
+        versioned_config.to_yaml(filepath)
+        return filepath
+
+    @classmethod
+    def load_versioned_config(cls, directory: str, version: str) -> "SimulationConfig":
+        """
+        Load a specific versioned configuration.
+
+        Args:
+            directory: Directory containing versioned configs
+            version: Version hash to load
+
+        Returns:
+            SimulationConfig: Loaded configuration
+
+        Raises:
+            FileNotFoundError: If version doesn't exist
+        """
+        filepath = os.path.join(directory, f"config_{version}.yaml")
+        if not os.path.exists(filepath):
+            raise FileNotFoundError(
+                f"Configuration version {version} not found in {directory}"
+            )
+
+        # Load directly from YAML file
+        with open(filepath, "r", encoding="utf-8") as f:
+            config_dict = yaml.safe_load(f)
+
+        # Handle nested configs
+        vis_config = config_dict.pop("visualization", {})
+        config_dict["visualization"] = VisualizationConfig(**vis_config)
+
+        redis_config = config_dict.pop("redis", {})
+        config_dict["redis"] = RedisMemoryConfig(**redis_config)
+
+        obs_config = config_dict.pop("observation", None)
+        if obs_config:
+            from farm.core.observations import ObservationConfig
+
+            config_dict["observation"] = ObservationConfig(**obs_config)
+
+        return cls(**config_dict)
+
+    @classmethod
+    def list_config_versions(cls, directory: str) -> List[Dict[str, Any]]:
+        """
+        List all available configuration versions in a directory.
+
+        Args:
+            directory: Directory to scan for versioned configs
+
+        Returns:
+            List[Dict]: List of version information
+        """
+        if not os.path.exists(directory):
+            return []
+
+        versions = []
+        for filename in os.listdir(directory):
+            if filename.startswith("config_") and filename.endswith(".yaml"):
+                version_hash = filename.replace("config_", "").replace(".yaml", "")
+                filepath = os.path.join(directory, filename)
+
+                try:
+                    config = cls.from_yaml(filepath)
+                    versions.append(
+                        {
+                            "version": version_hash,
+                            "created_at": config.config_created_at,
+                            "description": config.config_description,
+                            "filepath": filepath,
+                        }
+                    )
+                except Exception:
+                    # Skip invalid config files
+                    continue
+
+        return sorted(versions, key=lambda x: x.get("created_at", ""), reverse=True)
+
+    def diff_config(self, other: "SimulationConfig") -> Dict[str, Any]:
+        """
+        Compare this configuration with another and return differences.
+
+        Args:
+            other: Configuration to compare against
+
+        Returns:
+            Dict: Dictionary containing differences
+        """
+
+        def _dict_diff(d1: Dict, d2: Dict, path: str = "") -> Dict[str, Any]:
+            """Recursively find differences between two dictionaries."""
+            diff = {}
+
+            # Keys in d1 but not in d2
+            for key in d1.keys() - d2.keys():
+                diff[f"{path}.{key}" if path else key] = {
+                    "self": d1[key],
+                    "other": None,
+                }
+
+            # Keys in d2 but not in d1
+            for key in d2.keys() - d1.keys():
+                diff[f"{path}.{key}" if path else key] = {
+                    "self": None,
+                    "other": d2[key],
+                }
+
+            # Keys in both
+            for key in d1.keys() & d2.keys():
+                if isinstance(d1[key], dict) and isinstance(d2[key], dict):
+                    nested_diff = _dict_diff(
+                        d1[key], d2[key], f"{path}.{key}" if path else key
+                    )
+                    diff.update(nested_diff)
+                elif d1[key] != d2[key]:
+                    diff[f"{path}.{key}" if path else key] = {
+                        "self": d1[key],
+                        "other": d2[key],
+                    }
+
+            return diff
+
+        self_dict = self.to_dict()
+        other_dict = other.to_dict()
+
+        # Remove versioning fields from comparison
+        for d in [self_dict, other_dict]:
+            d.pop("config_version", None)
+            d.pop("config_created_at", None)
+            d.pop("config_description", None)
+
+        return _dict_diff(self_dict, other_dict)

@@ -9,7 +9,7 @@ import time
 from typing import Any, Dict, Optional
 
 from benchmarks.base.benchmark import Benchmark
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
 
 
