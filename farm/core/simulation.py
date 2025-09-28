@@ -46,8 +46,8 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
+from farm.config import SimulationConfig
 from farm.core.agent import BaseAgent
-from farm.core.config import SimulationConfig
 from farm.core.environment import Environment
 from farm.utils.identity import Identity
 
@@ -276,17 +276,17 @@ def run_simulation(
             os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
         # Handle in-memory database configuration
-        if config.use_in_memory_db:
+        if config.database.use_in_memory_db:
             logging.info("Using in-memory database for improved performance")
             from farm.database.database import InMemorySimulationDatabase
 
             # Create environment with in-memory database
             environment = Environment(
-                width=config.width,
-                height=config.height,
+                width=config.environment.width,
+                height=config.environment.height,
                 resource_distribution={
                     "type": "random",
-                    "amount": config.initial_resources,
+                    "amount": config.resources.initial_resources,
                 },
                 db_path="",  # Will be ignored for in-memory DB
                 config=config,
@@ -300,7 +300,7 @@ def run_simulation(
 
             # Initialize in-memory database with optional memory limit
             environment.db = InMemorySimulationDatabase(
-                memory_limit_mb=config.in_memory_db_memory_limit_mb,
+                memory_limit_mb=config.database.in_memory_db_memory_limit_mb,
                 simulation_id=simulation_id,
             )
 
@@ -317,12 +317,6 @@ def run_simulation(
                     db_path = f"{base}_{int(time.time())}{ext}"
                     logging.warning(f"Using alternative database path: {db_path}")
 
-            # Initialize the database schema before creating the Environment
-            from sqlalchemy import create_engine
-            from sqlalchemy.orm import sessionmaker
-
-            from farm.database.models import Base, Simulation
-
             # Create parent directory if it doesn't exist
             if db_path is not None:
                 os.makedirs(os.path.dirname(db_path), exist_ok=True)
@@ -331,11 +325,11 @@ def run_simulation(
 
             # Create environment with disk-based database
             environment = Environment(
-                width=config.width,
-                height=config.height,
+                width=config.environment.width,
+                height=config.environment.height,
                 resource_distribution={
                     "type": "random",
-                    "amount": config.initial_resources,
+                    "amount": config.resources.initial_resources,
                 },
                 db_path=db_path if db_path is not None else "simulation.db",
                 config=config,
@@ -372,9 +366,9 @@ def run_simulation(
         # Create initial agents
         create_initial_agents(
             environment,
-            config.system_agents,
-            config.independent_agents,
-            config.control_agents,
+            config.population.system_agents,
+            config.population.independent_agents,
+            config.population.control_agents,
         )
 
         # Main simulation loop
@@ -412,7 +406,7 @@ def run_simulation(
             environment.db.logger.flush_all_buffers()
 
             # Persist in-memory database to disk if configured and db_path is provided
-            if config.persist_db_on_completion and db_path is not None:
+            if config.database.persist_db_on_completion and db_path is not None:
                 try:
                     # Create directory if it doesn't exist
                     os.makedirs(
@@ -426,7 +420,7 @@ def run_simulation(
                     if isinstance(environment.db, InMemorySimulationDatabase):
                         stats = environment.db.persist_to_disk(
                             db_path=db_path,
-                            tables=config.in_memory_tables_to_persist,
+                            tables=config.database.in_memory_tables_to_persist,
                             show_progress=True,
                         )
                         logging.info(
@@ -469,7 +463,7 @@ def main():
     Main entry point for running a simulation directly.
     """
     # Load configuration
-    config = SimulationConfig.from_yaml("config.yaml")
+    config = SimulationConfig.from_centralized_config()
 
     # Run simulation
     run_simulation(num_steps=1000, config=config, save_config=True, path="simulations")

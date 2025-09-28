@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 import torch
 
+from farm.core.resources import Resource
 from farm.core.state import (
     AgentState,
     BaseState,
@@ -12,7 +13,6 @@ from farm.core.state import (
     ModelState,
     SimulationState,
 )
-from farm.core.resources import Resource
 
 
 def test_agent_state_to_dict_and_tensor():
@@ -63,8 +63,10 @@ def test_environment_state_from_environment_and_tensor():
 
     # Minimal config for population and max resource
     cfg = Mock()
-    cfg.max_population = 300
-    cfg.max_resource_amount = 10
+    cfg.population = Mock()
+    cfg.population.max_population = 300
+    cfg.resources = Mock()
+    cfg.resources.max_resource_amount = 10
     env.config = cfg
 
     st = EnvironmentState.from_environment(env)
@@ -101,7 +103,8 @@ def test_simulation_state_from_environment():
         env.resources.append(r)
 
     cfg = Mock()
-    cfg.max_resource_amount = 10
+    cfg.resources = Mock()
+    cfg.resources.max_resource_amount = 10
     env.config = cfg
 
     st = SimulationState.from_environment(env, num_steps=1000)
@@ -172,4 +175,3 @@ def test_model_state_from_move_module_and_str():
 def test_base_state_to_tensor_not_implemented():
     with pytest.raises(NotImplementedError):
         BaseState().to_tensor(torch.device("cpu"))
-

@@ -371,13 +371,11 @@ class TestGlobalFunctions(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        # Reset the global registry for each test
-        from farm.core.channels import _global_registry
-
-        _global_registry._handlers.clear()
-        _global_registry._name_to_index.clear()
-        _global_registry._index_to_name.clear()
-        _global_registry._next_index = 0
+        # Save the current registry state using public API and reset
+        from farm.core.channels import get_channel_registry
+        registry = get_channel_registry()
+        self._snapshot = registry.snapshot_state()
+        registry.reset()
 
         class TestHandler(ChannelHandler):
             def __init__(self, name):
@@ -390,6 +388,11 @@ class TestGlobalFunctions(unittest.TestCase):
                 pass
 
         self.TestHandler = TestHandler
+
+    def tearDown(self):
+        """Restore original registry state after test."""
+        from farm.core.channels import get_channel_registry
+        get_channel_registry().restore(self._snapshot)
 
     def test_register_channel(self):
         """Test register_channel global function."""
@@ -1036,13 +1039,16 @@ class TestIntegration(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        # Reset the global registry
-        from farm.core.channels import _global_registry
+        # Save the current registry state using public API and reset
+        from farm.core.channels import get_channel_registry
+        registry = get_channel_registry()
+        self._snapshot = registry.snapshot_state()
+        registry.reset()
 
-        _global_registry._handlers.clear()
-        _global_registry._name_to_index.clear()
-        _global_registry._index_to_name.clear()
-        _global_registry._next_index = 0
+    def tearDown(self):
+        """Restore original registry state after test."""
+        from farm.core.channels import get_channel_registry
+        get_channel_registry().restore(self._snapshot)
 
     def test_full_channel_system_workflow(self):
         """Test a complete workflow of the channel system."""

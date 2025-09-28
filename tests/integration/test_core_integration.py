@@ -2,29 +2,34 @@ import unittest
 
 import numpy as np
 
+from farm.config import SimulationConfig
 from farm.core.agent import BaseAgent
-from farm.core.config import SimulationConfig
 from farm.core.environment import Environment
 
 
 class TestCoreIntegration(unittest.TestCase):
     def setUp(self):
         # Lean config for faster tests
+        from farm.config.config import (
+            EnvironmentConfig,
+            PopulationConfig,
+            ResourceConfig,
+        )
+
         self.config = SimulationConfig(
-            width=30,
-            height=30,
-            system_agents=0,
-            independent_agents=0,
-            control_agents=0,
-            initial_resources=5,
+            environment=EnvironmentConfig(width=30, height=30),
+            population=PopulationConfig(
+                system_agents=0, independent_agents=0, control_agents=0
+            ),
+            resources=ResourceConfig(initial_resources=5),
             max_steps=50,
             seed=1234,
         )
 
         # Start environment with no initial agents; we'll add them explicitly
         self.env = Environment(
-            width=self.config.width,
-            height=self.config.height,
+            width=self.config.environment.width,
+            height=self.config.environment.height,
             resource_distribution={"amount": 5},
             config=self.config,
             db_path=":memory:",
@@ -128,4 +133,3 @@ class TestCoreIntegration(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

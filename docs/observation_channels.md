@@ -409,7 +409,7 @@ config = ObservationConfig(
 ### YAML Configuration
 
 ```yaml
-# config.yaml - Observation settings
+# config/default.yaml - Observation settings
 observation:
   R: 6                      # Observation radius
   fov_radius: 6             # Field-of-view radius

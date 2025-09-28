@@ -1,4 +1,53 @@
-# Python
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Production builds
+/dist
+/dist-electron
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+logs
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+
+# Electron build files
+electron-builder-effective-config.yaml
+
+# Python specific
 __pycache__/
 *.py[cod]
 *$py.class
@@ -16,68 +65,76 @@ parts/
 sdist/
 var/
 wheels/
+pip-wheel-metadata/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
-# Virtual Environment
-venv/
-ENV/
-env/
-.env/
-.venv/
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-.project
-.pydevproject
-.settings/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-*.ipynb
-
-# Distribution / packaging
+# PyInstaller
 *.manifest
 *.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
 
 # Unit test / coverage reports
 htmlcov/
 .tox/
+.nox/
 .coverage
 .coverage.*
 .cache
 nosetests.xml
 coverage.xml
 *.cover
+*.py,cover
 .hypothesis/
+.pytest_cache/
 
-# Logs
-logs/
-*.log
-log/
+# Jupyter Notebook
+.ipynb_checkpoints
 
-# Local development settings
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
 .env
-.env.local
-.env.*.local
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
-# System Files
-.DS_Store
-Thumbs.db
+# Spyder project settings
+.spyderproject
+.spyproject
 
-# PyInstaller
-*.manifest
-*.spec
+# Rope project settings
+.ropeproject
 
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-target/
+# mkdocs documentation
+/site
 
 # mypy
 .mypy_cache/
@@ -87,49 +144,25 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Database files
-*.db
-*.sqlite
-*.sqlite3
+# Project specific
+# Benchmark results and charts
+benchmarks/redis/benchmark_results/
+benchmarks/redis/charts/
+benchmarks/redis/performance_history.png
+benchmarks/redis/redis_benchmark_results.json
+benchmarks/redis/redis_performance_history.json
+benchmarks/redis/results/
+benchmarks/results/
 
-# Generated reports and data
-simulation_report.html
-simulation_data.csv
-efficiency_plot.png
-# Allow PNGs in docs directory, but ignore them elsewhere
-*.png
-!docs/**/*.png
-*.gif
+# Experiment data
+docs/experiments/one_of_a_kind/data/
 
-# Python cache
-__pycache__/
-*.py[cod]
-*$py.class
+# Dashboard files
+farm/dashboard/
 
-# Environment
-.env
-.venv
-env/
-venv/
+# Jupyter notebooks
+notebooks/
+playground.ipynb
 
-# Test data
-test_data/
-.pytest_cache/
-simulation.db-journal
-*.csv
-config_*.yaml
-node_modules/
-simulations/last_config.json
-last_config.json
-
-*.json
-*.pdf
-
-results/
-# Allow benchmark results to be committed
-!benchmarks/redis/results/**
-
-# Allow MP4s in docs directory, but ignore them elsewhere
-*.mp4
-!docs/**/*.mp4
-!docs/**/*.gif
+# Simulation data
+simulations/

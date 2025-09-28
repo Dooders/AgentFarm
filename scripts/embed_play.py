@@ -91,9 +91,12 @@ def create_config_variation(base_config, variation_name, **changes):
     return config
 
 
-# Load base config
-with open("simulations/config.json", "r") as f:
-    base_config = json.load(f)
+# Load base config using centralized system
+from farm.config import SimulationConfig
+base_config = SimulationConfig.from_centralized_config(
+    environment="development",
+    validate=False
+).to_dict()
 
 # Create meaningful variations of the config with more distinct behavioral differences
 simulation_settings = [

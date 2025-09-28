@@ -8,8 +8,9 @@ from unittest.mock import MagicMock, patch
 # Add the project root to the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from farm.config import SimulationConfig
+from farm.config.config import EnvironmentConfig, ResourceConfig
 from farm.core.environment import Environment
-from farm.core.config import SimulationConfig
 from farm.core.observations import ObservationConfig
 
 
@@ -33,13 +34,21 @@ class TestCombatMetrics(unittest.TestCase):
             random_max=1.0,
         )
 
-        # Create a real simulation config
-        simulation_config = SimulationConfig(
+        # Create nested configs
+        environment_config = EnvironmentConfig(
             width=10,
             height=10,
+        )
+        resource_config = ResourceConfig(
             max_resource_amount=10,
             resource_regen_rate=0.1,
             resource_regen_amount=1,
+        )
+
+        # Create a real simulation config
+        simulation_config = SimulationConfig(
+            environment=environment_config,
+            resources=resource_config,
             seed=42,
             observation=observation_config,
         )

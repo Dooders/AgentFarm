@@ -13,7 +13,7 @@ import random
 import torch
 from datetime import datetime
 
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
 
 
@@ -136,14 +136,14 @@ def compare_states(state1, state2):
         print(f"... and {resource_diffs - 3} more resource differences")
 
 
-def run_determinism_test(config_path, num_steps, seed=42, use_snapshot_steps=None):
+def run_determinism_test(environment, num_steps, seed=42, use_snapshot_steps=None):
     """
     Run two identical simulations with the same seed and compare their results.
     
     Parameters
     ----------
-    config_path : str
-        Path to the simulation configuration file
+    environment : str
+        Configuration environment name to load
     num_steps : int
         Number of simulation steps to run
     seed : int
@@ -167,7 +167,7 @@ def run_determinism_test(config_path, num_steps, seed=42, use_snapshot_steps=Non
     torch.backends.cudnn.benchmark = False
     
     # Load configuration
-    config = SimulationConfig.from_yaml(config_path)
+    config = SimulationConfig.from_centralized_config(environment=environment)
     
     # Override any config parameters that might affect determinism
     config.seed = seed
@@ -254,10 +254,11 @@ def main():
     """Main entry point for the determinism test script."""
     parser = argparse.ArgumentParser(description="Test simulation determinism")
     parser.add_argument(
-        "--config", 
-        type=str, 
-        default="config.yaml", 
-        help="Path to configuration file"
+        "--environment",
+        type=str,
+        default="testing",
+        choices=["development", "production", "testing"],
+        help="Configuration environment"
     )
     parser.add_argument(
         "--steps", 
@@ -275,7 +276,7 @@ def main():
     
     # Run determinism test
     is_deterministic = run_determinism_test(
-        config_path=args.config,
+        environment=args.environment,
         num_steps=args.steps,
         seed=args.seed
     )

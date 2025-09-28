@@ -48,7 +48,7 @@ from pettingzoo import AECEnv
 # Use action registry for cleaner action management
 from farm.core.action import ActionType, action_registry
 from farm.core.channels import NUM_CHANNELS
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 from farm.core.metrics_tracker import MetricsTracker
 from farm.core.observations import AgentObservation, ObservationConfig
 from farm.core.resource_manager import ResourceManager
@@ -1345,7 +1345,7 @@ class Environment(AECEnv):
             device=self.observation_config.device,
         )
         max_amount = self.max_resource or (
-            self.config.max_resource_amount if self.config else 10
+            self.config.resources.max_resource_amount if self.config else 10
         )
 
         # Query nearby resources within a radius covering the local window

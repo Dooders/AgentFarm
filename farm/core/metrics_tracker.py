@@ -342,7 +342,7 @@ class MetricsTracker:
             )
             resource_efficiency = (
                 total_resources
-                / (len(resources) * (config.max_resource_amount if config else 30))
+                / (len(resources) * (config.resources.max_resource_amount if config else 30))
                 if resources
                 else 0
             )

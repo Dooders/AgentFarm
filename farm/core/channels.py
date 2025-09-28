@@ -409,6 +409,40 @@ class ChannelRegistry:
         self._index_to_name: Dict[int, str] = {}
         self._next_index = 0
 
+    # --- Test support utilities (public on purpose) ---
+    def snapshot_state(self) -> Dict[str, Any]:
+        """
+        Take a snapshot of the internal registry state for test save/restore.
+
+        Returns:
+            Dictionary containing shallow copies of internal mappings and next index.
+        """
+        return {
+            "handlers": self._handlers.copy(),
+            "name_to_index": self._name_to_index.copy(),
+            "index_to_name": self._index_to_name.copy(),
+            "next_index": self._next_index,
+        }
+
+    def reset(self) -> None:
+        """Reset the registry to an empty state. Intended for tests."""
+        self._handlers.clear()
+        self._name_to_index.clear()
+        self._index_to_name.clear()
+        self._next_index = 0
+
+    def restore(self, snapshot: Dict[str, Any]) -> None:
+        """
+        Restore the registry from a snapshot captured by snapshot_state().
+
+        Args:
+            snapshot: Snapshot dictionary returned by snapshot_state().
+        """
+        self._handlers = snapshot["handlers"].copy()
+        self._name_to_index = snapshot["name_to_index"].copy()
+        self._index_to_name = snapshot["index_to_name"].copy()
+        self._next_index = snapshot["next_index"]
+
     def register(self, handler: ChannelHandler, index: Optional[int] = None) -> int:
         """
         Register a channel handler.

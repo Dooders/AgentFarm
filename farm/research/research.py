@@ -39,7 +39,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 from farm.runners.experiment_runner import ExperimentRunner
 
 

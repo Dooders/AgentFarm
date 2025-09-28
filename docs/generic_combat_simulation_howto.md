@@ -7,7 +7,7 @@ This guide provides a systematic approach to creating any type of grid-based com
 ## Prerequisites
 
 - Understanding of the existing codebase structure
-- Familiarity with the configuration system (`config.yaml`)
+- Familiarity with the configuration system (`config/default.yaml`)
 - Basic knowledge of the agent framework and combat systems
 
 ## Step-by-Step Implementation Process
@@ -99,7 +99,7 @@ def create_team_b_agent(agent_id, position, spatial_service, environment):
 
 **Leverage Existing Combat System:**
 ```yaml
-# config.yaml additions
+# config/default.yaml additions
 # Combat Parameters (already exist in current config)
 starting_health: 100.0
 attack_range: 20.0
@@ -264,7 +264,7 @@ farm/core/your_scenario_runner.py       # Custom simulation runner
 
 **Files to Modify:**
 ```
-config.yaml - Add scenario parameters
+config/default.yaml - Add scenario parameters
 farm/core/config.py - Add new configuration fields to SimulationConfig
 farm/core/action.py - Attack action already uses spatial index for efficient combat
 ```

@@ -5,9 +5,11 @@ class Sidebar {
     }
 
     init() {
-        this.element.innerHTML = `
+		this.element.innerHTML = `
             <div class="sidebar-header">
-                <h2>Simulation Controls</h2>
+				<h2>Simulation Controls</h2>
+				<button id="open-explorer" class="open-explorer">Config Explorer</button>
+				<button id="toggle-grayscale-sidebar" class="open-explorer" title="Toggle grayscale UI">Grayscale</button>
             </div>
             <div class="sidebar-content">
                 <button id="new-sim">New Simulation</button>
@@ -31,10 +33,31 @@ class Sidebar {
             </div>
         `;
 
-        this.attachEventListeners();
+		this.attachEventListeners();
+		// Initialize grayscale button state from persisted preference
+		try {
+			const enabled = localStorage.getItem('ui:grayscale') === '1';
+			if (enabled) document.body.classList.add('grayscale');
+			const grayBtn = document.getElementById('toggle-grayscale-sidebar');
+			if (grayBtn) grayBtn.classList.toggle('toggled', enabled);
+		} catch (e) {}
     }
 
     attachEventListeners() {
+		document.getElementById('open-explorer').addEventListener('click', () => {
+			if (window.showConfigExplorer) window.showConfigExplorer();
+		});
+		const grayBtn = document.getElementById('toggle-grayscale-sidebar');
+		if (grayBtn) {
+			grayBtn.addEventListener('click', () => {
+				const enabled = document.body.classList.toggle('grayscale');
+				try { localStorage.setItem('ui:grayscale', enabled ? '1' : '0'); } catch (e) {}
+				grayBtn.classList.toggle('toggled', enabled);
+				if (typeof window !== 'undefined' && typeof window.__setExplorerGrayscale === 'function') {
+					window.__setExplorerGrayscale(enabled);
+				}
+			});
+		}
         document.getElementById('new-sim').addEventListener('click', () => {
             this.createNewSimulation();
         });
