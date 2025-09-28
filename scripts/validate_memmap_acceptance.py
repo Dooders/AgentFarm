@@ -151,7 +151,7 @@ def run_trial(width: int = 1500, height: int = 1500, R: int = 6, n_windows: int 
     print("\nAcceptance Criteria:")
     # 1) States load/stream without full RAM usage -> memmap exists; RSS didn't jump close to memmap size
     memory_ok = mm_exists and (rss_after_mm - rss_before_mm) < (mm_size_mb * 0.5)
-    print(f"- Streaming without full RAM usage: {'PASS' if memory_ok else 'WARN'} (RSS Δ={rss_after_mm - rss_before_mm:.1f} MB vs file {mm_size_mb:.1f} MB)")
+    print(f"- Streaming without full RAM usage: {'PASS' if memory_ok else 'WARN'} (RSS change={rss_after_mm - rss_before_mm:.1f} MB vs file {mm_size_mb:.1f} MB)")
 
     # 2) Performance no significant slowdown -> memmap <= 1.25x baseline
     perf_ok = memmap_avg_ms <= baseline_avg_ms * 1.25
