@@ -106,7 +106,7 @@ def main():
     print(f"Starting simulation with {args.steps} steps")
     print(f"Output will be saved to {output_dir}")
     print(
-        f"Agent configuration - System: {config.system_agents}, Independent: {config.independent_agents}, Control: {config.control_agents}"
+        f"Agent configuration - System: {config.population.system_agents}, Independent: {config.population.independent_agents}, Control: {config.population.control_agents}"
     )
 
     try:

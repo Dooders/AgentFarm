@@ -298,11 +298,11 @@ def run_simulation(
             if hasattr(environment, "db") and environment.db is not None:
                 environment.db.close()
 
-                # Initialize in-memory database with optional memory limit
-                environment.db = InMemorySimulationDatabase(
-                    memory_limit_mb=config.database.in_memory_db_memory_limit_mb,
-                    simulation_id=simulation_id,
-                )
+            # Initialize in-memory database with optional memory limit
+            environment.db = InMemorySimulationDatabase(
+                memory_limit_mb=config.database.in_memory_db_memory_limit_mb,
+                simulation_id=simulation_id,
+            )
 
             # Note: Simulation record is already created in setup_db for in-memory databases
 
@@ -321,21 +321,21 @@ def run_simulation(
             if db_path is not None:
                 os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
-                # Note: Database tables and simulation record are already created in setup_db
+            # Note: Database tables and simulation record are already created in setup_db
 
-                # Create environment with disk-based database
-                environment = Environment(
-                    width=config.environment.width,
-                    height=config.environment.height,
-                    resource_distribution={
-                        "type": "random",
-                        "amount": config.resources.initial_resources,
-                    },
-                    db_path=db_path if db_path is not None else "simulation.db",
-                    config=config,
-                    simulation_id=simulation_id,
-                    seed=seed,  # Pass seed to Environment
-                )
+            # Create environment with disk-based database
+            environment = Environment(
+                width=config.environment.width,
+                height=config.environment.height,
+                resource_distribution={
+                    "type": "random",
+                    "amount": config.resources.initial_resources,
+                },
+                db_path=db_path if db_path is not None else "simulation.db",
+                config=config,
+                simulation_id=simulation_id,
+                seed=seed,  # Pass seed to Environment
+            )
 
         # Save configuration if requested and path is provided
         if save_config and path is not None:
@@ -363,13 +363,13 @@ def run_simulation(
                 else:
                     raise
 
-            # Create initial agents
-            create_initial_agents(
-                environment,
-                config.population.system_agents,
-                config.population.independent_agents,
-                config.population.control_agents,
-            )
+        # Create initial agents
+        create_initial_agents(
+            environment,
+            config.population.system_agents,
+            config.population.independent_agents,
+            config.population.control_agents,
+        )
 
         # Main simulation loop
         for step in tqdm(range(num_steps), desc="Simulation progress", unit="step"):
