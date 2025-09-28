@@ -28,12 +28,13 @@ def cmd_version(args):
     if args.subcommand == "create":
         # Load configuration and create version
         config = SimulationConfig.from_centralized_config(
-            environment=args.environment,
-            profile=args.profile
+            environment=args.environment, profile=args.profile
         )
 
         versioned_config = config.version_config(args.description)
-        filepath = versioned_config.save_versioned_config(args.output_dir, args.description)
+        filepath = versioned_config.save_versioned_config(
+            args.output_dir, args.description
+        )
 
         print(f"Created versioned configuration: {versioned_config.config_version}")
         print(f"Saved to: {filepath}")
@@ -78,8 +79,7 @@ def cmd_template(args):
     if args.subcommand == "create":
         # Create template from config
         config = SimulationConfig.from_centralized_config(
-            environment=args.environment,
-            profile=args.profile
+            environment=args.environment, profile=args.profile
         )
         template = ConfigTemplate.from_config(config)
         filepath = manager.save_template(args.name, template, args.description)
@@ -109,7 +109,7 @@ def cmd_template(args):
         variables = {}
         if args.variables:
             for var_str in args.variables:
-                key, value = var_str.split('=', 1)
+                key, value = var_str.split("=", 1)
                 # Try to parse as JSON, fall back to string
                 try:
                     variables[key] = json.loads(value)
@@ -136,14 +136,14 @@ def cmd_template(args):
 
         # Read variable sets from file or command line
         if args.variable_file:
-            with open(args.variable_file, 'r') as f:
+            with open(args.variable_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                variable_sets = data.get('variable_sets', [])
+                variable_sets = data.get("variable_sets", [])
         elif args.variables:
             # Single variable set from command line
             variables = {}
             for var_str in args.variables:
-                key, value = var_str.split('=', 1)
+                key, value = var_str.split("=", 1)
                 try:
                     variables[key] = json.loads(value)
                 except json.JSONDecodeError:
@@ -155,9 +155,7 @@ def cmd_template(args):
             return
 
         config_paths = manager.create_experiment_configs(
-            args.name,
-            variable_sets,
-            args.output_dir
+            args.name, variable_sets, args.output_dir
         )
 
         print(f"Created {len(config_paths)} configurations:")
@@ -168,13 +166,13 @@ def cmd_template(args):
 def cmd_diff(args):
     """Handle configuration diff commands."""
     # Load configurations
-    if args.config1.endswith('.yaml'):
+    if args.config1.endswith(".yaml"):
         config1 = SimulationConfig.from_yaml(args.config1)
     else:
         # Assume it's a version hash in current directory
         config1 = SimulationConfig.load_versioned_config(args.version_dir, args.config1)
 
-    if args.config2.endswith('.yaml'):
+    if args.config2.endswith(".yaml"):
         config2 = SimulationConfig.from_yaml(args.config2)
     else:
         # Assume it's a version hash
@@ -192,11 +190,11 @@ def cmd_diff(args):
 
     for key, change in diff.items():
         print(f"{key}:")
-        if change['self'] is not None:
+        if change["self"] is not None:
             print(f"  First config:  {change['self']}")
         else:
             print("  First config:  (missing)")
-        if change['other'] is not None:
+        if change["other"] is not None:
             print(f"  Second config: {change['other']}")
         else:
             print("  Second config: (missing)")
@@ -208,11 +206,12 @@ def cmd_watch(args):
     watcher = get_global_watcher()
 
     if args.subcommand == "start":
+
         def on_change(config):
             print(f"\nConfiguration changed at {os.path.basename(args.filepath)}")
             if args.verbose:
                 print(f"New config version: {config.generate_version_hash()}")
-                if hasattr(config, 'config_version') and config.config_version:
+                if hasattr(config, "config_version") and config.config_version:
                     print(f"Config version: {config.config_version}")
 
         watcher.watch_file(args.filepath, on_change)
@@ -224,6 +223,7 @@ def cmd_watch(args):
         try:
             while True:
                 import time
+
                 time.sleep(1)
         except KeyboardInterrupt:
             print("\nStopping watcher...")
@@ -249,65 +249,111 @@ def main():
     version_subparsers = version_parser.add_subparsers(dest="subcommand")
 
     # version create
-    version_create = version_subparsers.add_parser("create", help="Create a versioned configuration")
-    version_create.add_argument("--environment", default="development", help="Environment")
+    version_create = version_subparsers.add_parser(
+        "create", help="Create a versioned configuration"
+    )
+    version_create.add_argument(
+        "--environment", default="development", help="Environment"
+    )
     version_create.add_argument("--profile", help="Profile")
     version_create.add_argument("--description", help="Version description")
-    version_create.add_argument("--output-dir", default="farm/config/versions", help="Output directory")
+    version_create.add_argument(
+        "--output-dir", default="farm/config/versions", help="Output directory"
+    )
 
     # version list
-    version_list = version_subparsers.add_parser("list", help="List versioned configurations")
-    version_list.add_argument("--directory", default="farm/config/versions", help="Directory to scan")
+    version_list = version_subparsers.add_parser(
+        "list", help="List versioned configurations"
+    )
+    version_list.add_argument(
+        "--directory", default="farm/config/versions", help="Directory to scan"
+    )
 
     # version load
     version_load = version_subparsers.add_parser("load", help="Load a specific version")
     version_load.add_argument("version", help="Version hash to load")
-    version_load.add_argument("--directory", default="farm/config/versions", help="Version directory")
-    version_load.add_argument("--output", help="Output file (prints to stdout if not specified)")
+    version_load.add_argument(
+        "--directory", default="farm/config/versions", help="Version directory"
+    )
+    version_load.add_argument(
+        "--output", help="Output file (prints to stdout if not specified)"
+    )
 
     # Template command
     template_parser = subparsers.add_parser("template", help="Configuration templating")
     template_subparsers = template_parser.add_subparsers(dest="subcommand")
 
     # template create
-    template_create = template_subparsers.add_parser("create", help="Create a template from config")
+    template_create = template_subparsers.add_parser(
+        "create", help="Create a template from config"
+    )
     template_create.add_argument("name", help="Template name")
-    template_create.add_argument("--environment", default="development", help="Environment")
+    template_create.add_argument(
+        "--environment", default="development", help="Environment"
+    )
     template_create.add_argument("--profile", help="Profile")
     template_create.add_argument("--description", help="Template description")
-    template_create.add_argument("--template-dir", default="farm/config/templates", help="Template directory")
+    template_create.add_argument(
+        "--template-dir", default="farm/config/templates", help="Template directory"
+    )
 
     # template list
-    template_list = template_subparsers.add_parser("list", help="List available templates")
-    template_list.add_argument("--template-dir", default="farm/config/templates", help="Template directory")
+    template_list = template_subparsers.add_parser(
+        "list", help="List available templates"
+    )
+    template_list.add_argument(
+        "--template-dir", default="farm/config/templates", help="Template directory"
+    )
 
     # template instantiate
-    template_inst = template_subparsers.add_parser("instantiate", help="Instantiate a template")
+    template_inst = template_subparsers.add_parser(
+        "instantiate", help="Instantiate a template"
+    )
     template_inst.add_argument("name", help="Template name")
     template_inst.add_argument("output", help="Output configuration file")
-    template_inst.add_argument("--variables", nargs="+", help="Variable assignments (key=value)")
-    template_inst.add_argument("--template-dir", default="farm/config/templates", help="Template directory")
+    template_inst.add_argument(
+        "--variables", nargs="+", help="Variable assignments (key=value)"
+    )
+    template_inst.add_argument(
+        "--template-dir", default="farm/config/templates", help="Template directory"
+    )
 
     # template batch
-    template_batch = template_subparsers.add_parser("batch", help="Create batch of configs from template")
+    template_batch = template_subparsers.add_parser(
+        "batch", help="Create batch of configs from template"
+    )
     template_batch.add_argument("name", help="Template name")
-    template_batch.add_argument("--variables", nargs="+", help="Variable assignments for single config")
+    template_batch.add_argument(
+        "--variables", nargs="+", help="Variable assignments for single config"
+    )
     template_batch.add_argument("--variable-file", help="JSON file with variable sets")
-    template_batch.add_argument("--output-dir", default="farm/config/experiments", help="Output directory")
-    template_batch.add_argument("--template-dir", default="farm/config/templates", help="Template directory")
+    template_batch.add_argument(
+        "--output-dir", default="farm/config/experiments", help="Output directory"
+    )
+    template_batch.add_argument(
+        "--template-dir", default="farm/config/templates", help="Template directory"
+    )
 
     # Diff command
     diff_parser = subparsers.add_parser("diff", help="Compare configurations")
     diff_parser.add_argument("config1", help="First config (file path or version hash)")
-    diff_parser.add_argument("config2", help="Second config (file path or version hash)")
-    diff_parser.add_argument("--version-dir", default="farm/config/versions", help="Directory for versioned configs")
+    diff_parser.add_argument(
+        "config2", help="Second config (file path or version hash)"
+    )
+    diff_parser.add_argument(
+        "--version-dir",
+        default="farm/config/versions",
+        help="Directory for versioned configs",
+    )
 
     # Watch command
     watch_parser = subparsers.add_parser("watch", help="Watch configuration files")
     watch_subparsers = watch_parser.add_subparsers(dest="subcommand")
 
     # watch start
-    watch_start = watch_subparsers.add_parser("start", help="Start watching a config file")
+    watch_start = watch_subparsers.add_parser(
+        "start", help="Start watching a config file"
+    )
     watch_start.add_argument("filepath", help="File to watch")
     watch_start.add_argument("--verbose", action="store_true", help="Verbose output")
 

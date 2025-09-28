@@ -62,7 +62,7 @@ class ConfigMonitor:
         success: bool = True,
         cache_hit: bool = False,
         error: Optional[Exception] = None,
-        **kwargs
+        **kwargs,
     ) -> None:
         """
         Log a configuration operation.
@@ -87,7 +87,7 @@ class ConfigMonitor:
             config_size=len(config.to_dict()) if config else 0,
             error_type=type(error).__name__ if error else None,
             environment=environment,
-            profile=profile
+            profile=profile,
         )
 
         # Store metrics
@@ -114,7 +114,9 @@ class ConfigMonitor:
                 f"duration={duration:.3f}s"
             )
             if error:
-                self.logger.debug(f"Config {operation} error details: {error}", exc_info=True)
+                self.logger.debug(
+                    f"Config {operation} error details: {error}", exc_info=True
+                )
 
     @contextmanager
     def measure_operation(
@@ -123,7 +125,7 @@ class ConfigMonitor:
         config: Optional[SimulationConfig] = None,
         environment: Optional[str] = None,
         profile: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ):
         """
         Context manager to measure and log configuration operations.
@@ -156,7 +158,7 @@ class ConfigMonitor:
                 profile=profile,
                 duration=duration,
                 **result,
-                **kwargs
+                **kwargs,
             )
 
     def get_metrics_summary(self) -> Dict[str, Any]:
@@ -188,7 +190,7 @@ class ConfigMonitor:
             operation_stats[op_name] = {
                 "count": len(op_metrics),
                 "success_rate": op_success / len(op_metrics),
-                "avg_duration": op_avg_duration
+                "avg_duration": op_avg_duration,
             }
 
         return {
@@ -196,7 +198,7 @@ class ConfigMonitor:
             "success_rate": successful_ops / total_ops,
             "cache_hit_rate": cache_hits / total_ops if total_ops > 0 else 0,
             "avg_duration": avg_duration,
-            "operation_stats": operation_stats
+            "operation_stats": operation_stats,
         }
 
     def get_recent_errors(self, limit: int = 10) -> List[ConfigMetrics]:
@@ -223,7 +225,8 @@ class ConfigMonitor:
             Dictionary with performance trend data
         """
         relevant_metrics = [
-            m for m in self.metrics
+            m
+            for m in self.metrics
             if (operation is None or m.operation == operation) and m.success
         ]
 
@@ -239,7 +242,7 @@ class ConfigMonitor:
 
         moving_avg = []
         for i in range(window_size, len(durations) + 1):
-            window = durations[i-window_size:i]
+            window = durations[i - window_size : i]
             moving_avg.append(sum(window) / len(window))
 
         return {
@@ -249,7 +252,9 @@ class ConfigMonitor:
             "min_duration": min(durations),
             "max_duration": max(durations),
             "moving_avg_window": window_size,
-            "moving_avg_trend": moving_avg[-10:] if len(moving_avg) > 10 else moving_avg
+            "moving_avg_trend": (
+                moving_avg[-10:] if len(moving_avg) > 10 else moving_avg
+            ),
         }
 
     def export_metrics(self, filepath: str) -> None:
@@ -262,15 +267,18 @@ class ConfigMonitor:
         import json
 
         metrics_data = [vars(m) for m in self.metrics]
-        with open(filepath, 'w') as f:
-            json.dump({
-                "exported_at": time.time(),
-                "metrics": metrics_data
-            }, f, indent=2, default=str)
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(
+                {"exported_at": time.time(), "metrics": metrics_data},
+                f,
+                indent=2,
+                default=str,
+            )
 
 
 # Global monitor instance
 _global_monitor = ConfigMonitor()
+
 
 def get_global_monitor() -> ConfigMonitor:
     """Get the global configuration monitor instance."""
@@ -285,6 +293,7 @@ def monitor_config_operation(operation: str, **kwargs):
         operation: Operation name
         **kwargs: Additional metadata to log
     """
+
     def decorator(func):
         def wrapper(*args, **func_kwargs):
             monitor = get_global_monitor()
@@ -295,19 +304,19 @@ def monitor_config_operation(operation: str, **kwargs):
             profile = None
 
             # Try to extract config-related arguments
-            if 'config' in func_kwargs:
-                config = func_kwargs['config']
-            if 'environment' in func_kwargs:
-                environment = func_kwargs['environment']
-            if 'profile' in func_kwargs:
-                profile = func_kwargs['profile']
+            if "config" in func_kwargs:
+                config = func_kwargs["config"]
+            if "environment" in func_kwargs:
+                environment = func_kwargs["environment"]
+            if "profile" in func_kwargs:
+                profile = func_kwargs["profile"]
 
             with monitor.measure_operation(
                 operation=operation,
                 config=config,
                 environment=environment,
                 profile=profile,
-                **kwargs
+                **kwargs,
             ) as result:
                 try:
                     return func(*args, **func_kwargs)
@@ -316,6 +325,7 @@ def monitor_config_operation(operation: str, **kwargs):
                     raise
 
         return wrapper
+
     return decorator
 
 
@@ -336,6 +346,7 @@ def monitored_version_config(*args, **kwargs):
 def monitored_template_instantiate(*args, **kwargs):
     """Monitored version of template instantiation."""
     from .template import ConfigTemplate
+
     return ConfigTemplate.instantiate(*args, **kwargs)
 
 
@@ -352,7 +363,7 @@ def get_config_system_health() -> Dict[str, Any]:
 
     # Determine health status
     success_rate = metrics.get("success_rate", 0)
-    avg_duration = metrics.get("avg_duration", float('inf'))
+    avg_duration = metrics.get("avg_duration", float("inf"))
 
     if success_rate >= 0.99 and avg_duration < 1.0:
         status = "healthy"
@@ -367,7 +378,7 @@ def get_config_system_health() -> Dict[str, Any]:
         "avg_operation_time": avg_duration,
         "total_operations": metrics.get("total_operations", 0),
         "cache_hit_rate": metrics.get("cache_hit_rate", 0),
-        "recent_errors": len(monitor.get_recent_errors(5))
+        "recent_errors": len(monitor.get_recent_errors(5)),
     }
 
 

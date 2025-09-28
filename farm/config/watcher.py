@@ -35,7 +35,9 @@ class ConfigWatcher:
         self.thread: Optional[threading.Thread] = None
         self.lock = threading.RLock()
 
-    def watch_file(self, filepath: str, callback: Callable[[SimulationConfig], None]) -> None:
+    def watch_file(
+        self, filepath: str, callback: Callable[[SimulationConfig], None]
+    ) -> None:
         """
         Start watching a configuration file for changes.
 
@@ -160,7 +162,7 @@ class ConfigWatcher:
         if not os.path.exists(filepath):
             raise FileNotFoundError(f"File not found: {filepath}")
 
-        with open(filepath, 'rb') as f:
+        with open(filepath, "rb") as f:
             return hashlib.sha256(f.read()).hexdigest()
 
     def get_watched_files(self) -> Dict[str, str]:
@@ -179,7 +181,9 @@ class ReloadableConfig:
     A configuration wrapper that supports runtime reloading.
     """
 
-    def __init__(self, config: SimulationConfig, watcher: Optional[ConfigWatcher] = None):
+    def __init__(
+        self, config: SimulationConfig, watcher: Optional[ConfigWatcher] = None
+    ):
         """
         Initialize a reloadable configuration.
 
@@ -199,6 +203,7 @@ class ReloadableConfig:
         Args:
             filepath: Path to watch
         """
+
         def on_config_change(new_config: SimulationConfig):
             self._config = new_config
             self._notify_callbacks(new_config)
@@ -218,7 +223,9 @@ class ReloadableConfig:
         """
         self._callbacks.add(callback)
 
-    def remove_change_callback(self, callback: Callable[[SimulationConfig], None]) -> None:
+    def remove_change_callback(
+        self, callback: Callable[[SimulationConfig], None]
+    ) -> None:
         """
         Remove a change callback.
 
@@ -268,12 +275,15 @@ class ReloadableConfig:
 # Global watcher instance for shared use
 _global_watcher = ConfigWatcher()
 
+
 def get_global_watcher() -> ConfigWatcher:
     """Get the global configuration watcher instance."""
     return _global_watcher
 
 
-def watch_config_file(filepath: str, callback: Callable[[SimulationConfig], None]) -> None:
+def watch_config_file(
+    filepath: str, callback: Callable[[SimulationConfig], None]
+) -> None:
     """
     Convenience function to watch a config file with the global watcher.
 
@@ -287,8 +297,7 @@ def watch_config_file(filepath: str, callback: Callable[[SimulationConfig], None
 
 
 def create_reloadable_config(
-    config_or_path: Union[SimulationConfig, str],
-    watch_path: Optional[str] = None
+    config_or_path: Union[SimulationConfig, str], watch_path: Optional[str] = None
 ) -> ReloadableConfig:
     """
     Create a reloadable configuration.

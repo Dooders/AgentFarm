@@ -45,7 +45,9 @@ class ConfigCache:
         self.memory_usage = 0.0
         self.lock = threading.RLock()
 
-    def get(self, cache_key: str, filepath: Optional[str] = None) -> Optional[SimulationConfig]:
+    def get(
+        self, cache_key: str, filepath: Optional[str] = None
+    ) -> Optional[SimulationConfig]:
         """
         Retrieve a configuration from cache.
 
@@ -76,13 +78,15 @@ class ConfigCache:
             # Return cached config
             cached_data = self.cache[cache_key]
             try:
-                return SimulationConfig.from_dict(cached_data['config'])
+                return SimulationConfig.from_dict(cached_data["config"])
             except Exception:
                 # Invalid cached data, remove it
                 self._remove_entry(cache_key)
                 return None
 
-    def put(self, cache_key: str, config: SimulationConfig, filepath: Optional[str] = None) -> None:
+    def put(
+        self, cache_key: str, config: SimulationConfig, filepath: Optional[str] = None
+    ) -> None:
         """
         Store a configuration in cache.
 
@@ -106,9 +110,9 @@ class ConfigCache:
 
             # Store in cache
             self.cache[cache_key] = {
-                'config': config_dict,
-                'size': config_size,
-                'created': time.time()
+                "config": config_dict,
+                "size": config_size,
+                "created": time.time(),
             }
             self.access_times[cache_key] = time.time()
             self.memory_usage += config_size
@@ -144,17 +148,17 @@ class ConfigCache:
         """
         with self.lock:
             return {
-                'entries': len(self.cache),
-                'memory_usage_mb': self.memory_usage,
-                'max_size': self.max_size,
-                'max_memory_mb': self.max_memory_mb,
-                'hit_rate': 0.0  # Could be implemented with additional tracking
+                "entries": len(self.cache),
+                "memory_usage_mb": self.memory_usage,
+                "max_size": self.max_size,
+                "max_memory_mb": self.max_memory_mb,
+                "hit_rate": 0.0,  # Could be implemented with additional tracking
             }
 
     def _remove_entry(self, cache_key: str) -> None:
         """Remove a cache entry and update memory usage."""
         if cache_key in self.cache:
-            self.memory_usage -= self.cache[cache_key]['size']
+            self.memory_usage -= self.cache[cache_key]["size"]
             del self.cache[cache_key]
 
         self.access_times.pop(cache_key, None)
@@ -203,7 +207,7 @@ class OptimizedConfigLoader:
         environment: str = "development",
         profile: Optional[str] = None,
         config_dir: str = "farm/config",
-        use_cache: bool = True
+        use_cache: bool = True,
     ) -> SimulationConfig:
         """
         Load centralized configuration with caching.
@@ -238,10 +242,7 @@ class OptimizedConfigLoader:
         return config
 
     def _load_from_files(
-        self,
-        environment: str,
-        profile: Optional[str],
-        config_dir: str
+        self, environment: str, profile: Optional[str], config_dir: str
     ) -> SimulationConfig:
         """
         Load configuration from files without caching.
@@ -255,7 +256,8 @@ class OptimizedConfigLoader:
             Loaded configuration
         """
         import os
-        from .config import VisualizationConfig, RedisMemoryConfig
+
+        from .config import RedisMemoryConfig, VisualizationConfig
 
         # Load base configuration
         base_path = os.path.join(config_dir, "default.yaml")
@@ -274,7 +276,9 @@ class OptimizedConfigLoader:
         else:
             # If environment is not "default" and file doesn't exist, raise error
             if environment != "default":
-                raise FileNotFoundError(f"Environment configuration not found: {env_path}")
+                raise FileNotFoundError(
+                    f"Environment configuration not found: {env_path}"
+                )
 
         # Merge profile overrides (highest precedence)
         if profile:
@@ -284,7 +288,9 @@ class OptimizedConfigLoader:
                     profile_config = yaml.safe_load(f)
                 base_config = SimulationConfig._deep_merge(base_config, profile_config)
             else:
-                raise FileNotFoundError(f"Profile configuration not found: {profile_path}")
+                raise FileNotFoundError(
+                    f"Profile configuration not found: {profile_path}"
+                )
 
         # Handle nested configs
         vis_config = base_config.pop("visualization", {})
@@ -296,6 +302,7 @@ class OptimizedConfigLoader:
         obs_config = base_config.pop("observation", None)
         if obs_config:
             from farm.core.observations import ObservationConfig
+
             base_config["observation"] = ObservationConfig(**obs_config)
 
         return SimulationConfig(**base_config)
@@ -321,13 +328,15 @@ class OptimizedConfigLoader:
                     environment=environment,
                     profile=profile,
                     config_dir=config_dir,
-                    use_cache=True
+                    use_cache=True,
                 )
             except Exception:
                 # Skip configs that can't be loaded
                 continue
 
-    def _create_cache_key(self, environment: str, profile: Optional[str], config_dir: str) -> str:
+    def _create_cache_key(
+        self, environment: str, profile: Optional[str], config_dir: str
+    ) -> str:
         """Create a unique cache key for the configuration."""
         key_parts = [config_dir, environment, profile or ""]
         key_string = "|".join(key_parts)
@@ -376,8 +385,8 @@ class LazyConfigLoader:
         self,
         environment: str = "development",
         profile: Optional[str] = None,
-        config_dir: str = "farm/config"
-    ) -> 'LazyConfigLoader':
+        config_dir: str = "farm/config",
+    ) -> "LazyConfigLoader":
         """
         Configure the loader parameters.
 
@@ -390,9 +399,9 @@ class LazyConfigLoader:
             Self for method chaining
         """
         self._load_params = {
-            'environment': environment,
-            'profile': profile,
-            'config_dir': config_dir
+            "environment": environment,
+            "profile": profile,
+            "config_dir": config_dir,
         }
         self._config = None  # Invalidate cached config
         return self

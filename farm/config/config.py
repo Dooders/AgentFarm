@@ -46,6 +46,7 @@ class VisualizationConfig:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert visualization config to a JSON-serializable dictionary."""
+
         def _jsonify(val):
             if isinstance(val, tuple):
                 return list(val)
@@ -362,7 +363,6 @@ class SimulationConfig:
     config_created_at: Optional[str] = None
     config_description: Optional[str] = None
 
-
     def to_yaml(self, file_path: str) -> None:
         """Save configuration to a YAML file."""
         # Convert to dictionary, handling visualization and redis configs specially
@@ -385,13 +385,15 @@ class SimulationConfig:
                 if self.observation:
                     obs_dict = self.observation.model_dump()
                     # Convert torch dtype to string for JSON serialization
-                    if 'dtype' in obs_dict and hasattr(obs_dict['dtype'], '__name__'):
-                        obs_dict['dtype'] = obs_dict['dtype'].__name__
-                    elif 'dtype' in obs_dict:
-                        obs_dict['dtype'] = str(obs_dict['dtype'])
+                    if "dtype" in obs_dict and hasattr(obs_dict["dtype"], "__name__"):
+                        obs_dict["dtype"] = obs_dict["dtype"].__name__
+                    elif "dtype" in obs_dict:
+                        obs_dict["dtype"] = str(obs_dict["dtype"])
                     # Convert StorageMode enum to string for JSON serialization
-                    if 'storage_mode' in obs_dict and hasattr(obs_dict['storage_mode'], 'value'):
-                        obs_dict['storage_mode'] = obs_dict['storage_mode'].value
+                    if "storage_mode" in obs_dict and hasattr(
+                        obs_dict["storage_mode"], "value"
+                    ):
+                        obs_dict["storage_mode"] = obs_dict["storage_mode"].value
                     config_dict[key] = obs_dict
                 else:
                     config_dict[key] = None
@@ -441,7 +443,7 @@ class SimulationConfig:
         Returns:
             SimulationConfig: Loaded configuration
         """
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             config_dict = yaml.safe_load(f)
         return cls.from_dict(config_dict)
 
@@ -453,7 +455,7 @@ class SimulationConfig:
         config_dir: str = "farm/config",
         use_cache: bool = True,
         strict_validation: bool = False,
-        auto_repair: bool = True
+        auto_repair: bool = True,
     ) -> "SimulationConfig":
         """
         Load configuration from the centralized config structure.
@@ -480,19 +482,20 @@ class SimulationConfig:
             environment=environment,
             profile=profile,
             config_dir=config_dir,
-            use_cache=use_cache
+            use_cache=use_cache,
         )
 
         # Apply validation and repair if requested
         if strict_validation or auto_repair:
             from .validation import SafeConfigLoader
+
             loader = SafeConfigLoader()
             config, status_info = loader.load_config_safely(
                 environment=environment,
                 profile=profile,
                 config_dir=config_dir,
                 strict_validation=strict_validation,
-                auto_repair=auto_repair
+                auto_repair=auto_repair,
             )
 
         return config
@@ -512,13 +515,16 @@ class SimulationConfig:
         result = copy.deepcopy(base)
 
         for key, value in override.items():
-            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            if (
+                key in result
+                and isinstance(result[key], dict)
+                and isinstance(value, dict)
+            ):
                 result[key] = SimulationConfig._deep_merge(result[key], value)
             else:
                 result[key] = value
 
         return result
-
 
     def generate_version_hash(self) -> str:
         """
@@ -529,15 +535,17 @@ class SimulationConfig:
         """
         # Convert config to dict and remove versioning fields for consistent hashing
         config_dict = self.to_dict()
-        config_dict.pop('config_version', None)
-        config_dict.pop('config_created_at', None)
-        config_dict.pop('config_description', None)
+        config_dict.pop("config_version", None)
+        config_dict.pop("config_created_at", None)
+        config_dict.pop("config_description", None)
 
         # Convert to JSON string with sorted keys for consistent hashing
         config_json = json.dumps(config_dict, sort_keys=True, default=str)
-        return hashlib.sha256(config_json.encode('utf-8')).hexdigest()[:16]  # Short hash
+        return hashlib.sha256(config_json.encode("utf-8")).hexdigest()[
+            :16
+        ]  # Short hash
 
-    def version_config(self, description: Optional[str] = None) -> 'SimulationConfig':
+    def version_config(self, description: Optional[str] = None) -> "SimulationConfig":
         """
         Create a versioned copy of this configuration.
 
@@ -553,7 +561,9 @@ class SimulationConfig:
         versioned_config.config_description = description
         return versioned_config
 
-    def save_versioned_config(self, directory: str, description: Optional[str] = None) -> str:
+    def save_versioned_config(
+        self, directory: str, description: Optional[str] = None
+    ) -> str:
         """
         Save this configuration as a versioned file.
 
@@ -579,7 +589,7 @@ class SimulationConfig:
         return filepath
 
     @classmethod
-    def load_versioned_config(cls, directory: str, version: str) -> 'SimulationConfig':
+    def load_versioned_config(cls, directory: str, version: str) -> "SimulationConfig":
         """
         Load a specific versioned configuration.
 
@@ -595,7 +605,9 @@ class SimulationConfig:
         """
         filepath = os.path.join(directory, f"config_{version}.yaml")
         if not os.path.exists(filepath):
-            raise FileNotFoundError(f"Configuration version {version} not found in {directory}")
+            raise FileNotFoundError(
+                f"Configuration version {version} not found in {directory}"
+            )
 
         # Load directly from YAML file
         with open(filepath, "r", encoding="utf-8") as f:
@@ -611,6 +623,7 @@ class SimulationConfig:
         obs_config = config_dict.pop("observation", None)
         if obs_config:
             from farm.core.observations import ObservationConfig
+
             config_dict["observation"] = ObservationConfig(**obs_config)
 
         return cls(**config_dict)
@@ -631,25 +644,27 @@ class SimulationConfig:
 
         versions = []
         for filename in os.listdir(directory):
-            if filename.startswith('config_') and filename.endswith('.yaml'):
-                version_hash = filename.replace('config_', '').replace('.yaml', '')
+            if filename.startswith("config_") and filename.endswith(".yaml"):
+                version_hash = filename.replace("config_", "").replace(".yaml", "")
                 filepath = os.path.join(directory, filename)
 
                 try:
                     config = cls.from_yaml(filepath)
-                    versions.append({
-                        'version': version_hash,
-                        'created_at': config.config_created_at,
-                        'description': config.config_description,
-                        'filepath': filepath
-                    })
+                    versions.append(
+                        {
+                            "version": version_hash,
+                            "created_at": config.config_created_at,
+                            "description": config.config_description,
+                            "filepath": filepath,
+                        }
+                    )
                 except Exception:
                     # Skip invalid config files
                     continue
 
-        return sorted(versions, key=lambda x: x.get('created_at', ''), reverse=True)
+        return sorted(versions, key=lambda x: x.get("created_at", ""), reverse=True)
 
-    def diff_config(self, other: 'SimulationConfig') -> Dict[str, Any]:
+    def diff_config(self, other: "SimulationConfig") -> Dict[str, Any]:
         """
         Compare this configuration with another and return differences.
 
@@ -659,25 +674,37 @@ class SimulationConfig:
         Returns:
             Dict: Dictionary containing differences
         """
-        def _dict_diff(d1: Dict, d2: Dict, path: str = '') -> Dict[str, Any]:
+
+        def _dict_diff(d1: Dict, d2: Dict, path: str = "") -> Dict[str, Any]:
             """Recursively find differences between two dictionaries."""
             diff = {}
 
             # Keys in d1 but not in d2
             for key in d1.keys() - d2.keys():
-                diff[f"{path}.{key}" if path else key] = {'self': d1[key], 'other': None}
+                diff[f"{path}.{key}" if path else key] = {
+                    "self": d1[key],
+                    "other": None,
+                }
 
             # Keys in d2 but not in d1
             for key in d2.keys() - d1.keys():
-                diff[f"{path}.{key}" if path else key] = {'self': None, 'other': d2[key]}
+                diff[f"{path}.{key}" if path else key] = {
+                    "self": None,
+                    "other": d2[key],
+                }
 
             # Keys in both
             for key in d1.keys() & d2.keys():
                 if isinstance(d1[key], dict) and isinstance(d2[key], dict):
-                    nested_diff = _dict_diff(d1[key], d2[key], f"{path}.{key}" if path else key)
+                    nested_diff = _dict_diff(
+                        d1[key], d2[key], f"{path}.{key}" if path else key
+                    )
                     diff.update(nested_diff)
                 elif d1[key] != d2[key]:
-                    diff[f"{path}.{key}" if path else key] = {'self': d1[key], 'other': d2[key]}
+                    diff[f"{path}.{key}" if path else key] = {
+                        "self": d1[key],
+                        "other": d2[key],
+                    }
 
             return diff
 
@@ -686,8 +713,8 @@ class SimulationConfig:
 
         # Remove versioning fields from comparison
         for d in [self_dict, other_dict]:
-            d.pop('config_version', None)
-            d.pop('config_created_at', None)
-            d.pop('config_description', None)
+            d.pop("config_version", None)
+            d.pop("config_created_at", None)
+            d.pop("config_description", None)
 
         return _dict_diff(self_dict, other_dict)
