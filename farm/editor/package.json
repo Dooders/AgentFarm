@@ -1,0 +1,13 @@
+{
+	"name": "farm-editor-tests",
+	"private": true,
+	"type": "commonjs",
+	"devDependencies": {
+		"jest": "^29.7.0",
+		"jsdom": "^24.0.0"
+	},
+	"scripts": {
+		"test": "jest --config jest.config.cjs"
+	}
+}
+
