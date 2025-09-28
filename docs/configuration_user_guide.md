@@ -169,7 +169,7 @@ Templates allow you to create parameterized configurations that can be instantia
 ### Creating Templates
 
 ```python
-from farm.core.config_template import ConfigTemplate, ConfigTemplateManager
+from farm.config.template import ConfigTemplate, ConfigTemplateManager
 
 # Create a template from an existing configuration
 base_config = SimulationConfig.from_centralized_config()
@@ -264,7 +264,7 @@ Runtime reloading allows you to modify configuration files while your simulation
 ### Basic Usage
 
 ```python
-from farm.core.config_watcher import create_reloadable_config
+from farm.config.watcher import create_reloadable_config
 
 # Create a reloadable configuration
 reloadable = create_reloadable_config("config.yaml")
@@ -283,7 +283,7 @@ print(f"Current width: {config.width}")
 ### Advanced Usage with Callbacks
 
 ```python
-from farm.core.config_watcher import create_reloadable_config
+from farm.config.watcher import create_reloadable_config
 
 def on_config_change(new_config):
     print(f"Configuration updated! New width: {new_config.width}")
@@ -333,10 +333,10 @@ for key, change in differences.items():
 
 ```bash
 # Compare two config files
-python -m farm.core.config_cli diff config/versions/config_abc123.yaml config/versions/config_def456.yaml
+python -m farm.config.cli diff farm/config/versions/config_abc123.yaml farm/config/versions/config_def456.yaml
 
 # Compare a config file with a versioned config
-python -m farm.core.config_cli diff config/default.yaml abc123 --version-dir config/versions
+python -m farm.config.cli diff farm/config/default.yaml abc123 --version-dir farm/config/versions
 ```
 
 ## Performance Optimization
@@ -360,7 +360,7 @@ config = SimulationConfig.from_centralized_config(
 ### Lazy Loading
 
 ```python
-from farm.core.config_cache import LazyConfigLoader
+from farm.config.cache import LazyConfigLoader
 
 # Create a lazy loader
 lazy_loader = LazyConfigLoader()
@@ -379,7 +379,7 @@ config3 = lazy_loader.reload()  # Reloads from disk
 ### Preloading Common Configurations
 
 ```python
-from farm.core.config_cache import OptimizedConfigLoader
+from farm.config.cache import OptimizedConfigLoader
 
 loader = OptimizedConfigLoader()
 
@@ -395,7 +395,7 @@ config = loader.load_centralized_config(environment="production")
 ### Health Monitoring
 
 ```python
-from farm.core.config_monitor import get_config_system_health, log_config_system_status
+from farm.config.monitor import get_config_system_health, log_config_system_status
 
 # Get current health status
 health = get_config_system_health()
@@ -410,7 +410,7 @@ log_config_system_status()
 ### Performance Monitoring
 
 ```python
-from farm.core.config_monitor import get_global_monitor
+from farm.config.monitor import get_global_monitor
 
 monitor = get_global_monitor()
 
@@ -432,10 +432,10 @@ monitor.export_metrics("config_metrics.json")
 
 ```bash
 # Watch a configuration file
-python -m farm.core.config_cli watch start config/default.yaml --verbose
+python -m farm.config.cli watch start farm/config/default.yaml --verbose
 
 # Check watch status
-python -m farm.core.config_cli watch status
+python -m farm.config.cli watch status
 ```
 
 ## Command-Line Interface
@@ -446,49 +446,49 @@ The configuration CLI provides access to all features from the command line.
 
 ```bash
 # Create a versioned configuration
-python -m farm.core.config_cli version create \
+python -m farm.config.cli version create \
   --environment production \
   --profile benchmark \
   --description "Production benchmark config" \
-  --output-dir config/versions
+  --output-dir farm/config/versions
 
 # List all versions
-python -m farm.core.config_cli version list --directory config/versions
+python -m farm.config.cli version list --directory farm/config/versions
 
 # Load a specific version (prints to stdout)
-python -m farm.core.config_cli version load a1b2c3d4 \
-  --directory config/versions
+python -m farm.config.cli version load a1b2c3d4 \
+  --directory farm/config/versions
 ```
 
 ### Template Operations
 
 ```bash
 # Create a template
-python -m farm.core.config_cli template create my_template \
+python -m farm.config.cli template create my_template \
   --environment development \
   --description "Development template"
 
 # List templates
-python -m farm.core.config_cli template list
+python -m farm.config.cli template list
 
 # Instantiate a template
-python -m farm.core.config_cli template instantiate my_template output.yaml \
+python -m farm.config.cli template instantiate my_template output.yaml \
   --variables env_size=200 agent_count=25
 
 # Batch generate configs
-python -m farm.core.config_cli template batch my_template \
+python -m farm.config.cli template batch my_template \
   --variable-file variables.json \
-  --output-dir config/experiments
+  --output-dir farm/config/experiments
 ```
 
 ### File Watching
 
 ```bash
 # Start watching a config file
-python -m farm.core.config_cli watch start config/default.yaml --verbose
+python -m farm.config.cli watch start farm/config/default.yaml --verbose
 
 # Check watch status
-python -m farm.core.config_cli watch status
+python -m farm.config.cli watch status
 ```
 
 ## Troubleshooting
@@ -523,7 +523,7 @@ ValueError: Missing required variable: env_size
 
 2. **Check cache status:**
    ```python
-   from farm.core.config_cache import get_global_cache
+   from farm.config.cache import get_global_cache
    cache = get_global_cache()
    stats = cache.get_stats()
    print(stats)
@@ -531,7 +531,7 @@ ValueError: Missing required variable: env_size
 
 3. **Monitor operations:**
    ```python
-   from farm.core.config_monitor import get_global_monitor
+   from farm.config.monitor import get_global_monitor
    monitor = get_global_monitor()
    summary = monitor.get_metrics_summary()
    print(summary)

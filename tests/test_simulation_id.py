@@ -11,7 +11,7 @@ import tempfile
 import unittest
 from typing import Dict, List, Optional
 
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
 from farm.utils.identity import Identity
 

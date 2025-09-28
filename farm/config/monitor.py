@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-from farm.core.config import SimulationConfig
+from .config import SimulationConfig
 
 
 @dataclass
@@ -335,7 +335,7 @@ def monitored_version_config(*args, **kwargs):
 @monitor_config_operation("instantiate_template")
 def monitored_template_instantiate(*args, **kwargs):
     """Monitored version of template instantiation."""
-    from farm.core.config_template import ConfigTemplate
+    from .template import ConfigTemplate
     return ConfigTemplate.instantiate(*args, **kwargs)
 
 

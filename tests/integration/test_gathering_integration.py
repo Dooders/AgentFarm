@@ -6,7 +6,7 @@ if importlib.util.find_spec("torch") is None:
     pytest.skip("integration gathering tests require torch; skipping in lightweight env", allow_module_level=True)
 
 from farm.core.agent import BaseAgent
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 from farm.core.environment import Environment
 from farm.core.resources import Resource
 from farm.core.action import ActionType

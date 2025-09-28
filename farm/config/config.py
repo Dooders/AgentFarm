@@ -358,6 +358,7 @@ class SimulationConfig:
     config_created_at: Optional[str] = None
     config_description: Optional[str] = None
 
+
     def to_yaml(self, file_path: str) -> None:
         """Save configuration to a YAML file."""
         # Convert to dictionary, handling visualization and redis configs specially
@@ -436,7 +437,7 @@ class SimulationConfig:
         cls,
         environment: str = "development",
         profile: Optional[str] = None,
-        config_dir: str = "config",
+        config_dir: str = "farm/config",
         use_cache: bool = True,
         strict_validation: bool = False,
         auto_repair: bool = True
@@ -458,7 +459,7 @@ class SimulationConfig:
         Raises:
             ConfigurationError: If validation fails and auto_repair is disabled
         """
-        from farm.core.config_cache import OptimizedConfigLoader
+        from .cache import OptimizedConfigLoader
 
         # Use cache loader for basic loading
         loader = OptimizedConfigLoader()
@@ -471,7 +472,7 @@ class SimulationConfig:
 
         # Apply validation and repair if requested
         if strict_validation or auto_repair:
-            from farm.core.config_validation import SafeConfigLoader
+            from .validation import SafeConfigLoader
             loader = SafeConfigLoader()
             config, status_info = loader.load_config_safely(
                 environment=environment,

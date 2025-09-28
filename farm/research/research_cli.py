@@ -39,7 +39,7 @@ from pathlib import Path
 
 from research.research import ResearchProject
 
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 
 
 def main():

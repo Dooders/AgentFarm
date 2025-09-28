@@ -13,7 +13,7 @@ import random
 import torch
 from datetime import datetime
 
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
 
 

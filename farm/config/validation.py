@@ -9,7 +9,7 @@ import os
 import traceback
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from farm.core.config import SimulationConfig
+from .config import SimulationConfig
 
 
 class ConfigurationError(Exception):
@@ -484,7 +484,7 @@ class SafeConfigLoader:
 
         try:
             # Attempt to load configuration
-            from farm.core.config_cache import OptimizedConfigLoader
+            from .cache import OptimizedConfigLoader
             loader = OptimizedConfigLoader()
             config = loader.load_centralized_config(
                 environment=environment,

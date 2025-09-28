@@ -139,7 +139,7 @@ old_config = SimulationConfig.load_versioned_config("config/versions", "a1b2c3d4
 Create parameterized templates for systematic parameter sweeps:
 
 ```python
-from farm.core.config_template import ConfigTemplate, ConfigTemplateManager
+from farm.config.template import ConfigTemplate, ConfigTemplateManager
 
 # Create a template with placeholders
 template_dict = {
@@ -186,7 +186,7 @@ for key, change in differences.items():
 Automatically reload configurations when files change:
 
 ```python
-from farm.core.config_watcher import create_reloadable_config
+from farm.config.watcher import create_reloadable_config
 
 def on_config_change(new_config):
     print(f"Configuration updated! New width: {new_config.width}")
@@ -203,18 +203,18 @@ Use the configuration CLI for advanced management:
 
 ```bash
 # Version management
-python -m farm.core.config_cli version create --environment production --description "Production config"
-python -m farm.core.config_cli version list
+python -m farm.config.cli version create --environment production --description "Production config"
+python -m farm.config.cli version list
 
 # Template operations
-python -m farm.core.config_cli template create my_template --environment development
-python -m farm.core.config_cli template instantiate my_template output.yaml --variables size=200
+python -m farm.config.cli template create my_template --environment development
+python -m farm.config.cli template instantiate my_template output.yaml --variables size=200
 
 # Configuration comparison
-python -m farm.core.config_cli diff config/versions/config_abc123.yaml config/versions/config_def456.yaml
+python -m farm.config.cli diff farm/config/versions/config_abc123.yaml farm/config/versions/config_def456.yaml
 
 # File watching
-python -m farm.core.config_cli watch start config/default.yaml --verbose
+python -m farm.config.cli watch start farm/config/default.yaml --verbose
 ```
 
 ## Best Practices

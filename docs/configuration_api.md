@@ -549,7 +549,7 @@ Log the current status of the configuration system.
 
 ## Command-Line Interface
 
-### farm.core.config_cli
+### farm.config.cli
 
 The configuration CLI provides command-line access to all configuration features.
 

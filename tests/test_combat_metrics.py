@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from farm.core.environment import Environment
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 from farm.core.observations import ObservationConfig
 
 

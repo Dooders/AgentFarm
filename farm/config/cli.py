@@ -18,9 +18,9 @@ from typing import Any, Dict, List
 
 import yaml
 
-from farm.core.config import SimulationConfig
-from farm.core.config_template import ConfigTemplate, ConfigTemplateManager
-from farm.core.config_watcher import create_reloadable_config, get_global_watcher
+from .config import SimulationConfig
+from .template import ConfigTemplate, ConfigTemplateManager
+from .watcher import create_reloadable_config, get_global_watcher
 
 
 def cmd_version(args):
@@ -253,16 +253,16 @@ def main():
     version_create.add_argument("--environment", default="development", help="Environment")
     version_create.add_argument("--profile", help="Profile")
     version_create.add_argument("--description", help="Version description")
-    version_create.add_argument("--output-dir", default="config/versions", help="Output directory")
+    version_create.add_argument("--output-dir", default="farm/config/versions", help="Output directory")
 
     # version list
     version_list = version_subparsers.add_parser("list", help="List versioned configurations")
-    version_list.add_argument("--directory", default="config/versions", help="Directory to scan")
+    version_list.add_argument("--directory", default="farm/config/versions", help="Directory to scan")
 
     # version load
     version_load = version_subparsers.add_parser("load", help="Load a specific version")
     version_load.add_argument("version", help="Version hash to load")
-    version_load.add_argument("--directory", default="config/versions", help="Version directory")
+    version_load.add_argument("--directory", default="farm/config/versions", help="Version directory")
     version_load.add_argument("--output", help="Output file (prints to stdout if not specified)")
 
     # Template command
@@ -275,32 +275,32 @@ def main():
     template_create.add_argument("--environment", default="development", help="Environment")
     template_create.add_argument("--profile", help="Profile")
     template_create.add_argument("--description", help="Template description")
-    template_create.add_argument("--template-dir", default="config/templates", help="Template directory")
+    template_create.add_argument("--template-dir", default="farm/config/templates", help="Template directory")
 
     # template list
     template_list = template_subparsers.add_parser("list", help="List available templates")
-    template_list.add_argument("--template-dir", default="config/templates", help="Template directory")
+    template_list.add_argument("--template-dir", default="farm/config/templates", help="Template directory")
 
     # template instantiate
     template_inst = template_subparsers.add_parser("instantiate", help="Instantiate a template")
     template_inst.add_argument("name", help="Template name")
     template_inst.add_argument("output", help="Output configuration file")
     template_inst.add_argument("--variables", nargs="+", help="Variable assignments (key=value)")
-    template_inst.add_argument("--template-dir", default="config/templates", help="Template directory")
+    template_inst.add_argument("--template-dir", default="farm/config/templates", help="Template directory")
 
     # template batch
     template_batch = template_subparsers.add_parser("batch", help="Create batch of configs from template")
     template_batch.add_argument("name", help="Template name")
     template_batch.add_argument("--variables", nargs="+", help="Variable assignments for single config")
     template_batch.add_argument("--variable-file", help="JSON file with variable sets")
-    template_batch.add_argument("--output-dir", default="config/experiments", help="Output directory")
-    template_batch.add_argument("--template-dir", default="config/templates", help="Template directory")
+    template_batch.add_argument("--output-dir", default="farm/config/experiments", help="Output directory")
+    template_batch.add_argument("--template-dir", default="farm/config/templates", help="Template directory")
 
     # Diff command
     diff_parser = subparsers.add_parser("diff", help="Compare configurations")
     diff_parser.add_argument("config1", help="First config (file path or version hash)")
     diff_parser.add_argument("config2", help="Second config (file path or version hash)")
-    diff_parser.add_argument("--version-dir", default="config/versions", help="Directory for versioned configs")
+    diff_parser.add_argument("--version-dir", default="farm/config/versions", help="Directory for versioned configs")
 
     # Watch command
     watch_parser = subparsers.add_parser("watch", help="Watch configuration files")

@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple, get_args, get_origin
 
 from pydantic import BaseModel, ValidationError
 
-from farm.core.config import (
+from .config import (
     SimulationConfig,
     VisualizationConfig,
     RedisMemoryConfig,

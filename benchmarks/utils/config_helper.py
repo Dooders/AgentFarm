@@ -4,7 +4,7 @@ Configuration helper utilities for benchmarks.
 
 from typing import Any, Dict, Optional
 
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 
 
 def configure_for_performance_with_persistence(

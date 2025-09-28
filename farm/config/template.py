@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import yaml
 
-from farm.core.config import SimulationConfig
+from .config import SimulationConfig
 
 
 class ConfigTemplate:
@@ -214,7 +214,7 @@ class ConfigTemplateManager:
     Manager for configuration templates.
     """
 
-    def __init__(self, template_dir: str = "config/templates"):
+    def __init__(self, template_dir: str = "farm/config/templates"):
         """
         Initialize template manager.
 
@@ -310,7 +310,7 @@ class ConfigTemplateManager:
         self,
         template_name: str,
         variable_sets: List[Dict[str, Any]],
-        output_dir: str = "config/experiments"
+        output_dir: str = "farm/config/experiments"
     ) -> List[str]:
         """
         Create multiple configuration files from a template with different variable sets.

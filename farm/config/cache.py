@@ -15,7 +15,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import yaml
 
-from farm.core.config import SimulationConfig
+from .config import SimulationConfig
 
 
 class ConfigCache:
@@ -202,7 +202,7 @@ class OptimizedConfigLoader:
         self,
         environment: str = "development",
         profile: Optional[str] = None,
-        config_dir: str = "config",
+        config_dir: str = "farm/config",
         use_cache: bool = True
     ) -> SimulationConfig:
         """
@@ -253,7 +253,7 @@ class OptimizedConfigLoader:
             Loaded configuration
         """
         import os
-        from farm.core.config import VisualizationConfig, RedisMemoryConfig
+        from .config import VisualizationConfig, RedisMemoryConfig
 
         # Load base configuration
         base_path = os.path.join(config_dir, "default.yaml")
@@ -298,7 +298,7 @@ class OptimizedConfigLoader:
 
         return SimulationConfig(**base_config)
 
-    def preload_common_configs(self, config_dir: str = "config") -> None:
+    def preload_common_configs(self, config_dir: str = "farm/config") -> None:
         """
         Preload commonly used configurations into cache.
 
@@ -374,7 +374,7 @@ class LazyConfigLoader:
         self,
         environment: str = "development",
         profile: Optional[str] = None,
-        config_dir: str = "config"
+        config_dir: str = "farm/config"
     ) -> 'LazyConfigLoader':
         """
         Configure the loader parameters.

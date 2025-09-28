@@ -10,7 +10,7 @@ import pstats
 import time
 from io import StringIO
 
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
 
 

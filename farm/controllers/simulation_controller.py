@@ -14,7 +14,7 @@ import time
 from datetime import datetime
 from typing import Callable, Dict, Optional
 
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 from farm.core.environment import Environment
 from farm.database.database import SimulationDatabase
 from farm.database.models import Simulation

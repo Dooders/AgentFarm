@@ -92,7 +92,7 @@ def create_config_variation(base_config, variation_name, **changes):
 
 
 # Load base config using centralized system
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 base_config = SimulationConfig.from_centralized_config(
     environment="development",
     validate=False

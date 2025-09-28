@@ -13,9 +13,7 @@ import time
 from pathlib import Path
 from typing import Callable, Dict, Optional, Set, Union
 
-import yaml
-
-from farm.core.config import SimulationConfig
+from .config import SimulationConfig
 
 
 class ConfigWatcher:

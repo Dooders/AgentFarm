@@ -47,7 +47,7 @@ import torch
 from tqdm import tqdm
 
 from farm.core.agent import BaseAgent
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 from farm.core.environment import Environment
 from farm.utils.identity import Identity
 

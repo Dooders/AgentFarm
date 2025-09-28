@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 from farm.database import (
     SimulationDatabase,
     InMemorySimulationDatabase,

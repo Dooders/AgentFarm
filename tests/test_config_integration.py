@@ -14,15 +14,15 @@ This module tests the entire configuration ecosystem including:
 import json
 import os
 import tempfile
-import threading
+import threading    
 import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from farm.core.config import SimulationConfig
-from farm.core.config_template import ConfigTemplate, ConfigTemplateManager
-from farm.core.config_watcher import ConfigWatcher, create_reloadable_config
+from farm.config import SimulationConfig
+from farm.config.template import ConfigTemplate, ConfigTemplateManager
+from farm.config.watcher import ConfigWatcher, create_reloadable_config
 
 
 class TestConfigIntegration(unittest.TestCase):

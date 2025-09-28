@@ -5,7 +5,7 @@ import unittest
 import numpy as np
 
 from farm.core.agent import BaseAgent
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 from farm.core.environment import Environment
 from farm.core.resources import Resource
 from farm.database.database import SimulationDatabase
