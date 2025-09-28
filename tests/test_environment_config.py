@@ -226,7 +226,7 @@ class TestEnvironmentConfigManager:
     
     def test_available_environments(self, temp_config_dir):
         """Test getting list of available environments."""
-        base_config_path = temp_config_path / "base.yaml"
+        base_config_path = temp_config_dir / "base.yaml"
         
         manager = EnvironmentConfigManager(base_config_path=str(base_config_path))
         

@@ -511,8 +511,7 @@ class ConfigurationHotReloader:
                 
                 # Reload configuration
                 old_config = self.current_config
-                self.config_manager.reload_configs()
-                new_config = self.config_manager.get_effective_config()
+                new_config = self.config_manager.get_effective_config(force_reload=True)
                 
                 # Apply migrations if available
                 if self.migrator and self.version_detector:

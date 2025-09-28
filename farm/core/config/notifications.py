@@ -413,11 +413,11 @@ class ConfigurationNotificationManager:
                 self.async_loop.close()
     
     async def _async_processor(self) -> None:
-        """Process async notifications."""
+        """Process async notifications without blocking the event loop."""
         while self.async_running:
             try:
-                # Get notification from queue
-                notification = self.async_queue.get(timeout=0.1)
+                # Offload blocking queue.get to thread pool
+                notification = await asyncio.to_thread(self.async_queue.get, timeout=0.1)
                 
                 # Process async subscribers
                 for subscriber in self.async_subscribers:
@@ -430,6 +430,7 @@ class ConfigurationNotificationManager:
                         self.stats['async_notifications_failed'] += 1
                 
             except Empty:
+                await asyncio.sleep(0)
                 continue
             except Exception as e:
                 self.logger.error(f"Error processing async notification: {e}")

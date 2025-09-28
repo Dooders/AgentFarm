@@ -70,7 +70,8 @@ class MigrationTransformation:
                 from_version="unknown",
                 to_version="unknown",
                 message=f"Failed to apply transformation {self.operation}: {str(e)}",
-                migration_step=self.description
+                migration_step=self.description,
+                original_error=e
             )
     
     def _evaluate_condition(self, config: Dict[str, Any]) -> bool:
