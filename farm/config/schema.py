@@ -1,20 +1,32 @@
+"""
+Configuration schema generation utilities.
+
+This module provides functions to introspect configuration dataclasses and Pydantic models,
+generating JSON schemas for UI generation, validation, and documentation purposes.
+"""
+
 import dataclasses
 import datetime
-from dataclasses import is_dataclass, fields
+from dataclasses import fields, is_dataclass
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, get_args, get_origin
 
 from pydantic import BaseModel, ValidationError
 
-from .config import (
-    SimulationConfig,
-    VisualizationConfig,
-    RedisMemoryConfig,
-)
 from farm.core.observations import ObservationConfig, StorageMode
+
+from .config import RedisMemoryConfig, SimulationConfig, VisualizationConfig
 
 
 def _python_type_to_schema_type(annotation: Any) -> str:
+    """Convert Python type annotation to JSON schema type string.
+
+    Args:
+        annotation: Python type annotation to convert
+
+    Returns:
+        str: JSON schema type ("integer", "number", "boolean", "string", "array", "object")
+    """
     origin = get_origin(annotation)
     args = get_args(annotation)
 
@@ -48,6 +60,14 @@ def _python_type_to_schema_type(annotation: Any) -> str:
 
 
 def _enum_values(annotation: Any) -> Optional[List[Any]]:
+    """Extract enum values from an Enum type annotation.
+
+    Args:
+        annotation: Type annotation that may be an Enum
+
+    Returns:
+        Optional[List[Any]]: List of enum values, or None if not an Enum
+    """
     try:
         if issubclass(annotation, Enum):
             return [e.value for e in annotation]
@@ -57,13 +77,33 @@ def _enum_values(annotation: Any) -> Optional[List[Any]]:
 
 
 def _get_default_from_instance(instance: Any, name: str) -> Any:
+    """Safely get an attribute value from an instance.
+
+    Args:
+        instance: Object instance to get attribute from
+        name: Attribute name to retrieve
+
+    Returns:
+        Any: Attribute value, or None if attribute doesn't exist or can't be accessed
+    """
     try:
         return getattr(instance, name)
     except Exception:
         return None
 
 
-def _dataclass_to_properties(dc_cls: type, known_enums: Optional[Dict[str, List[Any]]] = None) -> Dict[str, Dict[str, Any]]:
+def _dataclass_to_properties(
+    dc_cls: type, known_enums: Optional[Dict[str, List[Any]]] = None
+) -> Dict[str, Dict[str, Any]]:
+    """Convert a dataclass to JSON schema properties dictionary.
+
+    Args:
+        dc_cls: Dataclass type to introspect
+        known_enums: Optional mapping of field names to enum values for fields that should be treated as enums
+
+    Returns:
+        Dict[str, Dict[str, Any]]: Dictionary mapping field names to schema property definitions
+    """
     props: Dict[str, Dict[str, Any]] = {}
 
     for f in fields(dc_cls):
@@ -77,8 +117,10 @@ def _dataclass_to_properties(dc_cls: type, known_enums: Optional[Dict[str, List[
             default_value = f.default
         elif getattr(f, "default_factory", dataclasses.MISSING) is not dataclasses.MISSING:  # type: ignore[attr-defined]
             try:
+                # Call the factory function to get the actual default value
                 default_value = f.default_factory()  # type: ignore[misc]
             except Exception:
+                # Factory function failed, use None as fallback
                 default_value = None
 
         schema_entry: Dict[str, Any] = {
@@ -100,7 +142,17 @@ def _dataclass_to_properties(dc_cls: type, known_enums: Optional[Dict[str, List[
     return props
 
 
-def _pydantic_model_to_properties(model_cls: type[BaseModel]) -> Dict[str, Dict[str, Any]]:
+def _pydantic_model_to_properties(
+    model_cls: type[BaseModel],
+) -> Dict[str, Dict[str, Any]]:
+    """Convert a Pydantic model to JSON schema properties dictionary.
+
+    Args:
+        model_cls: Pydantic model type to introspect
+
+    Returns:
+        Dict[str, Dict[str, Any]]: Dictionary mapping field names to schema property definitions
+    """
     schema = model_cls.model_json_schema()
     properties = schema.get("properties", {})
     result: Dict[str, Dict[str, Any]] = {}
@@ -121,7 +173,9 @@ def _pydantic_model_to_properties(model_cls: type[BaseModel]) -> Dict[str, Dict[
         elif "anyOf" in meta:
             # Optional fields often appear as anyOf [type,null]
             types = [t.get("type") for t in meta["anyOf"] if isinstance(t, dict)]
-            entry["type"] = next((t for t in types if t != "null"), types[0] if types else "object")
+            entry["type"] = next(
+                (t for t in types if t != "null"), types[0] if types else "object"
+            )
         else:
             entry["type"] = "object"
 
@@ -165,6 +219,7 @@ def generate_combined_config_schema() -> Dict[str, Any]:
     """
 
     # Known enum-like choices present as strings in dataclasses
+    # These fields use string values but should be treated as enums in the UI
     simulation_known_enums: Dict[str, List[Any]] = {
         "position_discretization_method": ["floor", "round", "ceil"],
         "db_pragma_profile": ["balanced", "performance", "safety", "memory"],
@@ -173,8 +228,11 @@ def generate_combined_config_schema() -> Dict[str, Any]:
         "device_preference": ["auto", "cpu", "cuda"],
     }
 
-    sim_props = _dataclass_to_properties(SimulationConfig, known_enums=simulation_known_enums)
-    # Remove nested sections from simulation section
+    sim_props = _dataclass_to_properties(
+        SimulationConfig, known_enums=simulation_known_enums
+    )
+    # Remove nested sections from simulation section to avoid duplication
+    # These are handled as separate top-level sections in the schema
     for nested in ("visualization", "redis", "observation"):
         sim_props.pop(nested, None)
 
@@ -184,7 +242,9 @@ def generate_combined_config_schema() -> Dict[str, Any]:
 
     return {
         "version": 1,
-        "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+        "generated_at": datetime.datetime.now(datetime.timezone.utc)
+        .isoformat()
+        .replace("+00:00", "Z"),
         "sections": {
             "simulation": {
                 "title": "Simulation",
@@ -207,4 +267,3 @@ def generate_combined_config_schema() -> Dict[str, Any]:
             },
         },
     }
-
