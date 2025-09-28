@@ -58,7 +58,8 @@ attack_range: 20.0
 attack_base_damage: 10.0
 attack_kill_reward: 5.0
 
-# Agent type ratios (must sum to 1.0)
+# Agent type ratios (must sum to 1.0, accounting for floating point precision)
+# Note: These ratios sum to 1.00 but may have slight floating point differences
 agent_type_ratios:
   SystemAgent: 0.33
   IndependentAgent: 0.33

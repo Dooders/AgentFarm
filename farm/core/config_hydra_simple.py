@@ -100,8 +100,8 @@ class SimpleHydraConfigManager:
                 if self.environment:
                     overrides.append(f"environments={self.environment}")
                 
-                # Add agent override (if different from default)
-                if self.agent and self.agent != "system_agent":
+                # Always add agent override
+                if self.agent:
                     overrides.append(f"agents={self.agent}")
                 
                 # Add custom overrides
@@ -178,6 +178,16 @@ class SimpleHydraConfigManager:
             self._config = None
             self._initialize_hydra()
             logger.info(f"Agent updated to: {agent}")
+    
+    def reload(self) -> None:
+        """Reload the configuration from files.
+        
+        This method can be called to refresh the configuration
+        when files have been modified externally.
+        """
+        self._config = None
+        self._initialize_hydra()
+        logger.info("Configuration reloaded")
     
     def add_override(self, override: str) -> None:
         """Add a configuration override and reload.

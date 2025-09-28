@@ -8,7 +8,7 @@ import sys
 import os
 sys.path.append('/workspace')
 
-from farm.core.config_hydra_simple import SimpleHydraConfigManager, create_simple_hydra_config_manager
+from farm.core.config_hydra_simple import create_simple_hydra_config_manager
 
 def test_basic_config_loading():
     """Test basic configuration loading."""

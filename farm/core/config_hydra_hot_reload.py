@@ -185,7 +185,7 @@ class HydraConfigurationHotReloader:
                 old_config = self.current_config
                 
                 # Reinitialize Hydra with current settings
-                self.config_manager._initialize_hydra()
+                self.config_manager.reload()
                 new_config = self.config_manager.to_dict()
                 
                 # Validate configuration if enabled

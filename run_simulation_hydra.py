@@ -19,6 +19,9 @@ sys.path.append('/workspace')
 from farm.core.config_hydra_simple import create_simple_hydra_config_manager
 from farm.core.simulation import run_simulation
 
+# Constants
+DEFAULT_MEMORY_LIMIT_MB = 1000
+
 
 def run_profiled_simulation(num_steps, config_dict, output_dir):
     """
@@ -176,7 +179,7 @@ def main():
     if args.in_memory:
         config_dict['use_in_memory_db'] = True
         config_dict['in_memory_db_memory_limit_mb'] = (
-            args.memory_limit if args.memory_limit else 1000
+            args.memory_limit if args.memory_limit else DEFAULT_MEMORY_LIMIT_MB
         )
         config_dict['persist_db_on_completion'] = not args.no_persist
         print("Using in-memory database for improved performance")
