@@ -1,0 +1,393 @@
+name: Comprehensive Benchmarking
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'benchmarks/**'
+      - 'farm/**'
+      - 'requirements.txt'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'benchmarks/**'
+      - 'farm/**'
+      - 'requirements.txt'
+  schedule:
+    # Run comprehensive benchmarks daily at 3 AM UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      benchmark_type:
+        description: 'Type of benchmark to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - perception
+          - memory
+          - performance
+          - regression
+
+env:
+  PYTHON_VERSION: '3.9'
+
+jobs:
+  # Job 1: Perception System Benchmarks
+  perception-benchmarks:
+    name: Perception System Benchmarks
+    runs-on: ubuntu-latest
+    if: github.event.inputs.benchmark_type == 'perception' || github.event.inputs.benchmark_type == 'all' || github.event.inputs.benchmark_type == ''
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Perception Metrics Benchmark (Small Scale)
+        run: |
+          python benchmarks/run_benchmarks.py \
+            --benchmark perception_metrics \
+            --pm-agents "50,100,200" \
+            --pm-radii "5,8,10" \
+            --pm-modes "hybrid,dense" \
+            --pm-bilinear "true,false" \
+            --pm-steps 20 \
+            --pm-device cpu
+
+      - name: Run Perception Metrics Benchmark (Medium Scale)
+        run: |
+          python benchmarks/run_benchmarks.py \
+            --benchmark perception_metrics \
+            --pm-agents "500,1000" \
+            --pm-radii "5,8" \
+            --pm-modes "hybrid" \
+            --pm-bilinear "true" \
+            --pm-steps 15 \
+            --pm-device cpu
+
+      - name: Run Observation Flow Benchmark
+        run: |
+          python benchmarks/run_benchmarks.py \
+            --benchmark observation_flow \
+            --obs-agents 200 \
+            --obs-steps 100 \
+            --obs-width 100 \
+            --obs-height 100 \
+            --obs-radius 8 \
+            --obs-device cpu
+
+      - name: Upload perception benchmark results
+        uses: actions/upload-artifact@v3
+        with:
+          name: perception-benchmark-results
+          path: benchmarks/results/
+
+  # Job 2: Memory System Benchmarks
+  memory-benchmarks:
+    name: Memory System Benchmarks
+    runs-on: ubuntu-latest
+    if: github.event.inputs.benchmark_type == 'memory' || github.event.inputs.benchmark_type == 'all' || github.event.inputs.benchmark_type == ''
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Memory Database Benchmark
+        run: |
+          python benchmarks/run_benchmarks.py \
+            --benchmark memory_db \
+            --steps 200 \
+            --agents 50 \
+            --iterations 5
+
+      - name: Run Redis Memory Benchmark
+        run: |
+          python benchmarks/run_benchmarks.py \
+            --benchmark redis_memory \
+            --memory-entries 1000 \
+            --batch-size 100 \
+            --search-radius 10 \
+            --memory-limit 10000
+
+      - name: Run Pragma Profile Benchmark
+        run: |
+          python benchmarks/run_benchmarks.py \
+            --benchmark pragma_profile \
+            --num-records 10000 \
+            --db-size-mb 50
+
+      - name: Upload memory benchmark results
+        uses: actions/upload-artifact@v3
+        with:
+          name: memory-benchmark-results
+          path: benchmarks/results/
+
+  # Job 3: Performance Regression Testing
+  performance-regression:
+    name: Performance Regression Testing
+    runs-on: ubuntu-latest
+    if: github.event.inputs.benchmark_type == 'regression' || github.event.inputs.benchmark_type == 'all' || github.event.inputs.benchmark_type == ''
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Get baseline performance (main branch)
+        run: |
+          git checkout main
+          python benchmarks/run_benchmarks.py \
+            --benchmark memory_db \
+            --steps 100 \
+            --agents 30 \
+            --iterations 3 \
+            --output baseline_performance.json
+
+      - name: Get current performance
+        run: |
+          git checkout ${{ github.head_ref || github.ref_name }}
+          python benchmarks/run_benchmarks.py \
+            --benchmark memory_db \
+            --steps 100 \
+            --agents 30 \
+            --iterations 3 \
+            --output current_performance.json
+
+      - name: Analyze performance regression
+        run: |
+          python -c "
+          import json
+          import sys
+          
+          def load_performance(file):
+              try:
+                  with open(file, 'r') as f:
+                      data = json.load(f)
+                  return data.get('mean_duration', 0)
+              except:
+                  return 0
+          
+          baseline = load_performance('baseline_performance.json')
+          current = load_performance('current_performance.json')
+          
+          if baseline == 0 or current == 0:
+              print('⚠️ Could not load performance data')
+              sys.exit(0)
+          
+          regression_percent = ((current - baseline) / baseline) * 100
+          
+          print(f'Baseline performance: {baseline:.3f}s')
+          print(f'Current performance: {current:.3f}s')
+          print(f'Performance change: {regression_percent:+.1f}%')
+          
+          # Fail if regression > 15%
+          if regression_percent > 15:
+              print('❌ Significant performance regression detected!')
+              sys.exit(1)
+          elif regression_percent > 5:
+              print('⚠️ Minor performance regression detected')
+          else:
+              print('✅ Performance within acceptable range')
+          "
+
+      - name: Upload performance comparison
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-comparison
+          path: |
+            baseline_performance.json
+            current_performance.json
+
+  # Job 4: Stress Testing
+  stress-testing:
+    name: Stress Testing
+    runs-on: ubuntu-latest
+    if: github.event.inputs.benchmark_type == 'performance' || github.event.inputs.benchmark_type == 'all' || github.event.inputs.benchmark_type == ''
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run stress test simulation
+        run: |
+          # Test with high agent count and long duration
+          timeout 300 python run_simulation.py \
+            --environment testing \
+            --steps 500 \
+            --profile benchmark
+
+      - name: Run memory stress test
+        run: |
+          python benchmarks/run_benchmarks.py \
+            --benchmark memory_db \
+            --steps 1000 \
+            --agents 100 \
+            --iterations 1
+
+      - name: Run perception stress test
+        run: |
+          python benchmarks/run_benchmarks.py \
+            --benchmark perception_metrics \
+            --pm-agents "2000" \
+            --pm-radii "10" \
+            --pm-modes "hybrid" \
+            --pm-steps 50 \
+            --pm-device cpu
+
+      - name: Upload stress test results
+        uses: actions/upload-artifact@v3
+        with:
+          name: stress-test-results
+          path: benchmarks/results/
+
+  # Job 5: Benchmark Results Analysis
+  analyze-results:
+    name: Analyze Benchmark Results
+    runs-on: ubuntu-latest
+    needs: [perception-benchmarks, memory-benchmarks, performance-regression, stress-testing]
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pandas matplotlib seaborn
+
+      - name: Download all benchmark results
+        uses: actions/download-artifact@v3
+        with:
+          path: benchmark-results/
+
+      - name: Generate benchmark summary
+        run: |
+          python -c "
+          import json
+          import os
+          import glob
+          
+          def analyze_benchmark_files():
+              results = {}
+              for root, dirs, files in os.walk('benchmark-results'):
+                  for file in files:
+                      if file.endswith('.json'):
+                          try:
+                              with open(os.path.join(root, file), 'r') as f:
+                                  data = json.load(f)
+                              results[file] = data
+                          except:
+                              pass
+              
+              print('📊 Benchmark Results Summary:')
+              print('=' * 50)
+              
+              for filename, data in results.items():
+                  print(f'\\n📁 {filename}:')
+                  if 'mean_duration' in data:
+                      print(f'  ⏱️  Mean Duration: {data[\"mean_duration\"]:.3f}s')
+                  if 'observes_per_sec' in data:
+                      print(f'  🚀 Throughput: {data[\"observes_per_sec\"]:.0f} obs/sec')
+                  if 'memory_reduction_percent' in data:
+                      print(f'  💾 Memory Reduction: {data[\"memory_reduction_percent\"]:.1f}%')
+              
+              # Save summary
+              with open('benchmark_summary.json', 'w') as f:
+                  json.dump(results, f, indent=2)
+          
+          analyze_benchmark_files()
+          "
+
+      - name: Upload benchmark summary
+        uses: actions/upload-artifact@v3
+        with:
+          name: benchmark-summary
+          path: benchmark_summary.json
+
+      - name: Comment on PR with benchmark results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            try {
+              const summary = JSON.parse(fs.readFileSync('benchmark_summary.json', 'utf8'));
+              let comment = '## 📊 Benchmark Results\n\n';
+              
+              for (const [filename, data] of Object.entries(summary)) {
+                comment += `### ${filename}\n`;
+                if (data.mean_duration) {
+                  comment += `- ⏱️ Mean Duration: ${data.mean_duration.toFixed(3)}s\n`;
+                }
+                if (data.observes_per_sec) {
+                  comment += `- 🚀 Throughput: ${data.observes_per_sec.toFixed(0)} obs/sec\n`;
+                }
+                if (data.memory_reduction_percent) {
+                  comment += `- 💾 Memory Reduction: ${data.memory_reduction_percent.toFixed(1)}%\n`;
+                }
+                comment += '\n';
+              }
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            } catch (error) {
+              console.log('Could not create benchmark comment:', error);
+            }

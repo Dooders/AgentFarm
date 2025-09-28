@@ -1,0 +1,47 @@
+# GitHub Actions Configuration
+# This file contains shared configuration for all workflows
+
+# Python versions to test against
+python_versions:
+  - '3.8'
+  - '3.9'
+  - '3.10'
+  - '3.11'
+
+# Node.js version for frontend components
+node_version: '18'
+
+# Benchmark configurations
+benchmark_configs:
+  small_scale:
+    agents: [50, 100, 200]
+    radii: [5, 8, 10]
+    steps: 20
+  medium_scale:
+    agents: [500, 1000]
+    radii: [5, 8]
+    steps: 15
+  large_scale:
+    agents: [2000]
+    radii: [10]
+    steps: 50
+
+# Security scan configurations
+security_configs:
+  bandit_severity: 'medium'  # low, medium, high
+  safety_check: true
+  semgrep_config: 'auto'
+  license_check: true
+
+# Test configurations
+test_configs:
+  coverage_threshold: 80
+  parallel_jobs: 4
+  timeout_minutes: 30
+
+# Performance thresholds
+performance_thresholds:
+  regression_threshold_percent: 15
+  warning_threshold_percent: 5
+  memory_usage_mb: 1024
+  max_execution_time_seconds: 300
