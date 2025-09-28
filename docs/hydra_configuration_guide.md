@@ -163,7 +163,7 @@ agent_parameters:
 ### Creating a Configuration Manager
 
 ```python
-from farm.core.config_hydra_simple import create_simple_hydra_config_manager
+from config_hydra import create_simple_hydra_config_manager
 
 # Create config manager with default settings
 config_manager = create_simple_hydra_config_manager(
@@ -312,75 +312,10 @@ python run_simulation_hydra.py \
 
 ## Hot-Reloading
 
-### Basic Hot-Reloading
+### Hot-Reloading (Not Available)
 
-```python
-from farm.core.config_hydra_hot_reload import HydraConfigurationHotReloader
-from farm.core.config.hot_reload import ReloadConfig, ReloadStrategy
+**Note**: Hot-reloading functionality has been removed from the current configuration system as it depended on legacy components and was not actively used. For development workflows requiring configuration changes, restart the application as needed.
 
-# Create hot-reloader
-reload_config = ReloadConfig(
-    strategy=ReloadStrategy.BATCHED,
-    batch_delay=1.0,
-    validate_on_reload=True,
-    enable_rollback=True
-)
-
-hot_reloader = HydraConfigurationHotReloader(config_manager, reload_config)
-
-# Start monitoring
-hot_reloader.start_monitoring()
-
-# Configuration will automatically reload when files change
-# ... your application code ...
-
-# Stop monitoring
-hot_reloader.stop_monitoring()
-```
-
-### Reload Strategies
-
-**Immediate Reload**:
-```python
-reload_config = ReloadConfig(strategy=ReloadStrategy.IMMEDIATE)
-```
-
-**Batched Reload** (recommended):
-```python
-reload_config = ReloadConfig(
-    strategy=ReloadStrategy.BATCHED,
-    batch_delay=1.0,
-    max_batch_size=10
-)
-```
-
-**Scheduled Reload**:
-```python
-reload_config = ReloadConfig(
-    strategy=ReloadStrategy.SCHEDULED,
-    schedule_interval=5.0
-)
-```
-
-**Manual Reload**:
-```python
-reload_config = ReloadConfig(strategy=ReloadStrategy.MANUAL)
-
-# Manually trigger reload
-hot_reloader.manual_reload()
-```
-
-### Notification System
-
-```python
-def on_config_reload(notification):
-    print(f"Config reloaded: {notification.message}")
-    if notification.error:
-        print(f"Error: {notification.error}")
-
-# Add notification callback
-hot_reloader.add_notification_callback(on_config_reload)
-```
 
 ## Validation
 
@@ -458,7 +393,7 @@ If you're migrating from the custom hierarchical configuration system:
    config_manager = EnvironmentConfigManager("config/base.yaml")
    
    # New way
-   from farm.core.config_hydra_simple import create_simple_hydra_config_manager
+   from config_hydra import create_simple_hydra_config_manager
    config_manager = create_simple_hydra_config_manager()
    ```
 
@@ -472,16 +407,7 @@ If you're migrating from the custom hierarchical configuration system:
    max_steps = config_manager.get('max_steps')
    ```
 
-3. **Update Hot-Reloading**:
-   ```python
-   # Old way
-   from farm.core.config import ConfigurationHotReloader
-   hot_reloader = ConfigurationHotReloader(config_manager)
-   
-   # New way
-   from farm.core.config_hydra_hot_reload import HydraConfigurationHotReloader
-   hot_reloader = HydraConfigurationHotReloader(config_manager, reload_config)
-   ```
+3. **Hot-Reloading**: Not available in current system (removed due to legacy dependencies)
 
 ### Configuration File Migration
 
@@ -537,18 +463,6 @@ if not os.path.exists(env_file):
     print(f"Environment file not found: {env_file}")
 ```
 
-**Hot-reloading not working**:
-```python
-# Check if monitoring is active
-if hot_reloader.is_monitoring():
-    print("Monitoring is active")
-else:
-    print("Monitoring is not active")
-
-# Check reload statistics
-stats = hot_reloader.get_reload_stats()
-print(f"Reload stats: {stats}")
-```
 
 ### Debug Mode
 
@@ -591,9 +505,7 @@ Complete example of using the Hydra configuration system.
 import sys
 sys.path.append('/workspace')
 
-from farm.core.config_hydra_simple import create_simple_hydra_config_manager
-from farm.core.config_hydra_hot_reload import HydraConfigurationHotReloader
-from farm.core.config.hot_reload import ReloadConfig, ReloadStrategy
+from config_hydra import create_simple_hydra_config_manager
 
 def main():
     # Create configuration manager
@@ -610,35 +522,9 @@ def main():
     print(f"Agent: {summary['agent']}")
     print(f"Max steps: {config_manager.get('max_steps')}")
     print(f"Debug mode: {config_manager.get('debug')}")
-    
-    # Set up hot-reloading
-    reload_config = ReloadConfig(
-        strategy=ReloadStrategy.BATCHED,
-        batch_delay=1.0,
-        validate_on_reload=True,
-        enable_rollback=True
-    )
-    
-    hot_reloader = HydraConfigurationHotReloader(config_manager, reload_config)
-    
-    # Add notification callback
-    def on_reload(notification):
-        print(f"Config reloaded: {notification.message}")
-    
-    hot_reloader.add_notification_callback(on_reload)
-    
-    # Start monitoring
-    hot_reloader.start_monitoring()
-    print("Hot-reloading started. Modify configuration files to see changes.")
-    
-    try:
-        # Your application code here
-        import time
-        time.sleep(10)  # Simulate application running
-    finally:
-        # Stop monitoring
-        hot_reloader.stop_monitoring()
-        print("Hot-reloading stopped.")
+
+    # Your application code here
+    print("Configuration loaded successfully!")
 
 if __name__ == "__main__":
     main()

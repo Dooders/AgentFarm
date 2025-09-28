@@ -524,29 +524,31 @@ validation:
 ### Loading Configurations
 
 ```python
-from farm.core.config import load_config, merge_configs
+from config_hydra import create_simple_hydra_config_manager
 
-# Load from file
-config = load_config('config/my_simulation.yaml')
+# Create Hydra-based configuration manager
+config_manager = create_simple_hydra_config_manager(
+    config_dir="config_hydra/conf",
+    environment="development"
+)
 
-# Merge multiple configurations
-base_config = load_config('config/base.yaml')
-override_config = load_config('config/experiment.yaml')
-final_config = merge_configs(base_config, override_config)
+# Access configuration values
+max_steps = config_manager.get('max_steps')
+width = config_manager.get('width')
+height = config_manager.get('height')
+
+# Get full configuration as dict
+config_dict = config_manager.to_dict()
 ```
 
-### Programmatic Configuration
+### Environment Switching
 
 ```python
-from farm.core.config import ConfigBuilder
+# Switch environments dynamically
+config_manager.update_environment("production")
 
-# Build configuration programmatically
-config = (ConfigBuilder()
-    .set_environment(width=60, height=60)
-    .set_agents(count=15, resources=100)
-    .set_learning(rate=0.001, memory=5000)
-    .enable_channels(['SELF_HP', 'ALLIES_HP', 'RESOURCES'])
-    .build())
+# Configuration automatically reloads with new environment overrides
+learning_rate = config_manager.get('learning_rate')
 ```
 
 ### Configuration Templates

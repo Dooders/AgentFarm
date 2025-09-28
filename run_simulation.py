@@ -10,7 +10,7 @@ import pstats
 import time
 from io import StringIO
 
-from farm.core.config_hydra_simple import create_simple_hydra_config_manager
+from config_hydra import create_simple_hydra_config_manager
 from farm.core.simulation import run_simulation
 
 
@@ -75,7 +75,7 @@ def main():
     try:
         # Create Hydra configuration manager
         config_manager = create_simple_hydra_config_manager(
-            config_dir="config_hydra/conf",
+            config_dir=os.path.abspath("config_hydra/conf"),
             environment="development",
             agent="system_agent"
         )
@@ -103,7 +103,9 @@ def main():
     print(f"Starting simulation with {args.steps} steps")
     print(f"Output will be saved to {output_dir}")
     print(
-        f"Agent configuration - System: {config.system_agents}, Independent: {config.independent_agents}, Control: {config.control_agents}"
+        f"Agent configuration - System: {config_manager.get_simulation_config().system_agents}, "
+        f"Independent: {config_manager.get_simulation_config().independent_agents}, "
+        f"Control: {config_manager.get_simulation_config().control_agents}"
     )
 
     try:
@@ -115,7 +117,7 @@ def main():
             profiler = cProfile.Profile()
             profiler.enable()
 
-            environment = run_profiled_simulation(args.steps, config, output_dir)
+            environment = run_profiled_simulation(args.steps, config_manager, output_dir)
 
             profiler.disable()
 
@@ -161,7 +163,7 @@ def main():
         else:
             # Run without profiling
             environment = run_simulation(
-                num_steps=args.steps, config=config, path=output_dir, save_config=True
+                num_steps=args.steps, config_manager=config_manager, path=output_dir, save_config=True
             )
 
         elapsed_time = time.time() - start_time

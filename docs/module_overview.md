@@ -184,27 +184,30 @@ observation:
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 from farm.core.agent import BaseAgent
-from farm.core.config import SimulationConfig
+from config_hydra import create_simple_hydra_config_manager
 import random
+
+# Load configuration with Hydra
+config_manager = create_simple_hydra_config_manager(
+    config_dir="config_hydra/conf",
+    environment="development"
+)
 
 # Configure observations
 obs_config = ObservationConfig(R=6, fov_radius=5)
 
-# Create simulation configuration
-config = SimulationConfig(
-    width=50,
-    height=50,
-    system_agents=5,
-    independent_agents=5,
-    observation=obs_config
-)
+# Get simulation parameters
+width = config_manager.get('width', 50)
+height = config_manager.get('height', 50)
+system_agents = config_manager.get('system_agents', 5)
+independent_agents = config_manager.get('independent_agents', 5)
 
 # Create environment
 env = Environment(
-    width=config.width,
-    height=config.height,
+    width=width,
+    height=height,
     resource_distribution={"type": "uniform"},
-    config=config
+    config=config_manager.to_dict()
 )
 
 # Add agents (environment is accepted and services are auto-injected)
@@ -316,24 +319,37 @@ territory_channel_idx = register_channel(TerritoryChannel("TERRITORY"))
 ### Experiment Configuration
 
 ```python
-from farm.core.config import ExperimentConfig
 from farm.runners.experiment_runner import ExperimentRunner
+from config_hydra import create_simple_hydra_config_manager
 
-# Define parameter variations
-experiment = ExperimentConfig(
-    name="resource_distribution_study",
-    variations=[
-        {"resource_distribution": "uniform", "resource_clusters": 1},
-        {"resource_distribution": "clustered", "resource_clusters": 3},
-        {"resource_distribution": "scattered", "resource_clusters": 10},
-    ],
-    num_iterations=5,  # Run 5 simulations per variation
-    num_steps=2000     # Each simulation runs for 2000 steps
-)
+# Define parameter variations using Hydra overrides
+experiment_configs = []
+base_config_dir = "config_hydra/conf"
 
-# Run experiment
+# Create different configurations with overrides
+overrides_list = [
+    ["resource_distribution=uniform", "resource_clusters=1"],
+    ["resource_distribution=clustered", "resource_clusters=3"],
+    ["resource_distribution=scattered", "resource_clusters=10"],
+]
+
+for overrides in overrides_list:
+    config_manager = create_simple_hydra_config_manager(
+        config_dir=base_config_dir,
+        environment="development",
+        overrides=overrides
+    )
+    experiment_configs.append(config_manager)
+
+# Run experiments with different configurations
 runner = ExperimentRunner()
-results = runner.run_experiment(experiment)
+for i, config_manager in enumerate(experiment_configs):
+    print(f"Running experiment {i+1}...")
+    results = runner.run_simulation(
+        config_manager=config_manager,
+        num_steps=2000,
+        save_results=True
+    )
 
 # Analyze results
 runner.generate_comparison_report(results)

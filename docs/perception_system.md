@@ -161,7 +161,6 @@ The system uses **13 default channels** (indices 0-12) that can be extended:
 
 ```python
 from farm.core.observations import ObservationConfig
-from farm.core.config import SimulationConfig
 
 # Create observation configuration
 obs_config = ObservationConfig(
@@ -231,9 +230,14 @@ observation:
   random_min: 0.0                # Random init minimum
   random_max: 1.0                # Random init maximum
 
-# Load from YAML
-from farm.core.config import SimulationConfig
-config = SimulationConfig.from_yaml("config.yaml")
+# Load from Hydra configuration
+from config_hydra import create_simple_hydra_config_manager
+
+config_manager = create_simple_hydra_config_manager(
+    config_dir="config_hydra/conf",
+    environment="development"
+)
+config = config_manager.to_dict()
 ```
 
 ---
@@ -381,7 +385,6 @@ hit_rate = hits / (hits + misses)
 ```python
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
-from farm.core.config import SimulationConfig
 
 # Create observation configuration
 obs_config = ObservationConfig(

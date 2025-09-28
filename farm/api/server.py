@@ -10,8 +10,7 @@ from flask_socketio import SocketIO, emit
 from farm.core.analysis import analyze_simulation
 from farm.analysis.service import AnalysisRequest, AnalysisService
 from farm.core.services import EnvConfigService
-from farm.core.config_hydra_simple import create_simple_hydra_config_manager
-from farm.core.config_hydra_models import HydraSimulationConfig
+from config_hydra import create_simple_hydra_config_manager, HydraSimulationConfig
 from farm.core.simulation import run_simulation
 from farm.database.database import SimulationDatabase
 

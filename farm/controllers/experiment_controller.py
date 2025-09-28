@@ -17,8 +17,7 @@ from typing import Dict, List, Optional
 from farm.analysis.comparative_analysis import compare_simulations
 from farm.charts.chart_analyzer import ChartAnalyzer
 from farm.controllers.simulation_controller import SimulationController
-from farm.core.config_hydra_simple import create_simple_hydra_config_manager
-from farm.core.config_hydra_models import HydraSimulationConfig
+from config_hydra import create_simple_hydra_config_manager, HydraSimulationConfig
 from farm.database.database import SimulationDatabase
 from farm.research.research import ResearchProject
 

@@ -7,7 +7,7 @@ from datetime import datetime
 
 from farm.core.analysis import SimulationAnalyzer
 from farm.core.cli import run_simulation
-from farm.core.config_hydra_models import HydraSimulationConfig
+from config_hydra import HydraSimulationConfig
 from farm.core.visualization import SimulationVisualizer
 from farm.runners.experiment_runner import ExperimentRunner
 

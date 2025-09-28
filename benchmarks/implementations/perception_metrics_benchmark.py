@@ -6,7 +6,7 @@ import time as _time
 import numpy as np
 
 from benchmarks.base.benchmark import Benchmark
-from farm.core.config_hydra_models import HydraSimulationConfig
+from config_hydra import HydraSimulationConfig
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 from farm.core.agent import BaseAgent

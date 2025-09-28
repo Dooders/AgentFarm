@@ -18,7 +18,7 @@ import psutil
 from joblib import Parallel, delayed
 from tqdm.auto import tqdm
 
-from farm.core.config_hydra_models import HydraSimulationConfig
+from config_hydra import HydraSimulationConfig
 from farm.core.simulation import run_simulation
 from farm.database.database import SimulationDatabase
 

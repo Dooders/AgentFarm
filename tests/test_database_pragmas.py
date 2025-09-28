@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from farm.core.config_hydra_models import HydraSimulationConfig
+from config_hydra import HydraSimulationConfig
 from farm.database import (
     SimulationDatabase,
     InMemorySimulationDatabase,

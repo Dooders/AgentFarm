@@ -47,8 +47,7 @@ import torch
 from tqdm import tqdm
 
 from farm.core.agent import BaseAgent
-from farm.core.config_hydra_models import HydraSimulationConfig
-from farm.core.config_hydra_simple import create_simple_hydra_config_manager
+from config_hydra import HydraSimulationConfig, create_simple_hydra_config_manager
 from farm.core.environment import Environment
 from farm.utils.identity import Identity
 

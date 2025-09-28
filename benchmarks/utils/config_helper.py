@@ -4,7 +4,7 @@ Configuration helper utilities for benchmarks.
 
 from typing import Any, Dict, Optional
 
-from farm.core.config_hydra_models import HydraSimulationConfig
+from config_hydra import HydraSimulationConfig
 
 
 def configure_for_performance_with_persistence(

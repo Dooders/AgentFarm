@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple, get_args, get_origin
 
 from pydantic import BaseModel, ValidationError
 
-from farm.core.config_hydra_models import (
+from .config_hydra_models import (
     HydraSimulationConfig,
     VisualizationConfig,
     RedisMemoryConfig,

@@ -11,7 +11,7 @@ from stable_baselines3.common.env_util import make_vec_env
 
 from farm.core.action import ActionType
 from farm.core.agent import BaseAgent
-from farm.core.config_hydra_models import HydraSimulationConfig
+from config_hydra import HydraSimulationConfig
 from farm.core.environment import Environment
 from farm.core.resources import Resource
 

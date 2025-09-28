@@ -11,7 +11,7 @@ import tempfile
 import unittest
 from typing import Dict, List, Optional
 
-from farm.core.config_hydra_models import HydraSimulationConfig
+from config_hydra import HydraSimulationConfig
 from farm.core.simulation import run_simulation
 from farm.utils.identity import Identity
 

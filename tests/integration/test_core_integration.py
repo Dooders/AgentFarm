@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 
 from farm.core.agent import BaseAgent
-from farm.core.config_hydra_models import HydraSimulationConfig
+from config_hydra import HydraSimulationConfig
 from farm.core.environment import Environment
 
 

@@ -14,8 +14,7 @@ import time
 from datetime import datetime
 from typing import Any, Callable, Dict, Optional
 
-from farm.core.config_hydra_simple import create_simple_hydra_config_manager
-from farm.core.config_hydra_models import HydraSimulationConfig
+from config_hydra import create_simple_hydra_config_manager, HydraSimulationConfig
 from farm.core.environment import Environment
 from farm.database.database import SimulationDatabase
 from farm.database.models import Simulation

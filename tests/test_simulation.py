@@ -5,8 +5,8 @@ import unittest
 import numpy as np
 
 from farm.core.agent import BaseAgent
-from farm.core.config_hydra_simple import create_simple_hydra_config_manager
-from farm.core.config_hydra_models import HydraSimulationConfig
+from config_hydra import create_simple_hydra_config_manager
+from config_hydra import HydraSimulationConfig
 from farm.core.environment import Environment
 from farm.core.resources import Resource
 from farm.database.database import SimulationDatabase

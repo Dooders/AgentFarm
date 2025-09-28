@@ -29,8 +29,7 @@ from farm.core.config import (
 
 **After**:
 ```python
-from farm.core.config_hydra_simple import create_simple_hydra_config_manager
-from farm.core.config_hydra_hot_reload import HydraConfigurationHotReloader
+from config_hydra import create_simple_hydra_config_manager
 ```
 
 ### Step 2: Replace Configuration Manager Creation
@@ -91,24 +90,9 @@ config_manager.set_environment("production")
 config_manager.update_environment("production")
 ```
 
-### Step 5: Update Hot-Reloading
+### Step 5: Hot-Reloading (Removed)
 
-**Before**:
-```python
-from farm.core.config import ConfigurationHotReloader, ReloadConfig
-
-reload_config = ReloadConfig(strategy=ReloadStrategy.BATCHED)
-hot_reloader = ConfigurationHotReloader(config_manager, reload_config)
-```
-
-**After**:
-```python
-from farm.core.config_hydra_hot_reload import HydraConfigurationHotReloader
-from farm.core.config.hot_reload import ReloadConfig, ReloadStrategy
-
-reload_config = ReloadConfig(strategy=ReloadStrategy.BATCHED)
-hot_reloader = HydraConfigurationHotReloader(config_manager, reload_config)
-```
+**Note**: The hot-reloading functionality has been removed as it depended on the legacy configuration system and was not actively used. For dynamic configuration reloading, consider restarting the application or implementing custom reload logic as needed.
 
 ### Step 6: Update Configuration Validation
 
@@ -193,7 +177,7 @@ def load_config():
 
 **After**:
 ```python
-from farm.core.config_hydra_simple import create_simple_hydra_config_manager
+from config_hydra import create_simple_hydra_config_manager
 
 def load_config():
     config_manager = create_simple_hydra_config_manager(
@@ -223,42 +207,9 @@ def switch_environment(config_manager, environment):
     return config
 ```
 
-### Example 3: Hot-Reloading Setup
+### Example 3: Hot-Reloading Setup (Removed)
 
-**Before**:
-```python
-from farm.core.config import ConfigurationHotReloader, ReloadConfig, ReloadStrategy
-
-def setup_hot_reloading(config_manager):
-    reload_config = ReloadConfig(
-        strategy=ReloadStrategy.BATCHED,
-        batch_delay=1.0,
-        validate_on_reload=True,
-        enable_rollback=True
-    )
-    
-    hot_reloader = ConfigurationHotReloader(config_manager, reload_config)
-    hot_reloader.start_monitoring()
-    return hot_reloader
-```
-
-**After**:
-```python
-from farm.core.config_hydra_hot_reload import HydraConfigurationHotReloader
-from farm.core.config.hot_reload import ReloadConfig, ReloadStrategy
-
-def setup_hot_reloading(config_manager):
-    reload_config = ReloadConfig(
-        strategy=ReloadStrategy.BATCHED,
-        batch_delay=1.0,
-        validate_on_reload=True,
-        enable_rollback=True
-    )
-    
-    hot_reloader = HydraConfigurationHotReloader(config_manager, reload_config)
-    hot_reloader.start_monitoring()
-    return hot_reloader
-```
+**Note**: Hot-reloading functionality has been removed from the current configuration system. The previous hot-reloading capabilities depended on the legacy configuration system and were not actively used in the current codebase.
 
 ### Example 4: Configuration Validation
 
@@ -387,17 +338,17 @@ The original configuration system remains available and functional.
 - [ ] Update hot-reloading setup
 - [ ] Update validation calls
 - [ ] Run configuration tests
-- [ ] Test hot-reloading functionality
 - [ ] Test integration with existing code
+- [ ] Remove legacy configuration files
 - [ ] Update documentation
 - [ ] Remove old configuration files (after verification)
 
 ## Support
 
-For migration support:
+For configuration support:
 
-1. **Check test files**: `test_simple_hydra.py`, `test_hydra_comprehensive.py`
-2. **Review examples**: `run_simulation_hydra.py`, `phase4_demo_hydra.py`
+1. **Check current test files**: Look in `tests/` directory for relevant configuration tests
+2. **Review examples**: Check `run_simulation.py` for current usage patterns
 3. **Read documentation**: `docs/hydra_configuration_guide.md`
 4. **Check Hydra docs**: [https://hydra.cc/](https://hydra.cc/)
 

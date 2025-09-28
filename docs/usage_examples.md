@@ -18,15 +18,21 @@ import torch
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 from farm.core.agent import BaseAgent
-from farm.core.config import SimulationConfig
+from config_hydra import create_simple_hydra_config_manager
 from farm.core.services.factory import AgentServiceFactory
 
 def create_basic_simulation():
     """Create a basic simulation with 10 agents."""
 
-    # 1. Configure observations
+    # 1. Load configuration using Hydra
+    config_manager = create_simple_hydra_config_manager(
+        config_dir="config_hydra/conf",
+        environment="development"
+    )
+
+    # 2. Configure observations
     obs_config = ObservationConfig(
-        R=6,                    # Observation radius (6 cells in each direction)
+        R=config_manager.get('perception_radius', 6),  # Get from config
         fov_radius=5,           # Field-of-view radius
         gamma_trail=0.95,       # Movement trails decay slowly
         gamma_dmg=0.90,         # Combat heat decays moderately
@@ -34,37 +40,34 @@ def create_basic_simulation():
         high_frequency_channels=["RESOURCES", "VISIBILITY"]
     )
 
-    # 2. Create simulation configuration
-    config = SimulationConfig(
-        width=50,               # 50x50 grid world
-        height=50,
-        initial_resources=200,  # Start with 200 resource units
-        resource_regen_rate=0.02,  # 2% regeneration per step
-        system_agents=5,        # Number of system agents
-        independent_agents=5,   # Number of independent agents
-        control_agents=0        # Number of control agents
-    )
+    # 3. Get simulation parameters from config
+    width = config_manager.get('width', 50)
+    height = config_manager.get('height', 50)
+    initial_resources = config_manager.get('initial_resources', 200)
+    system_agents = config_manager.get('system_agents', 5)
+    independent_agents = config_manager.get('independent_agents', 5)
 
-    # 3. Create environment
+    # 4. Create environment
     environment = Environment(
-        width=50,
-        height=50,
+        width=width,
+        height=height,
         resource_distribution={
             "type": "random",
-            "amount": 200
+            "amount": initial_resources
         },
-        config=config
+        config=config_manager.to_dict()
     )
 
-    # 4. Add agents (spatial service is required)
-    for i in range(10):
+    # 5. Add agents (spatial service is required)
+    for i in range(system_agents + independent_agents):
+        agent_type = "SystemAgent" if i < system_agents else "IndependentAgent"
         agent = BaseAgent(
             agent_id=f"agent_{i:02d}",
-            position=(random.randint(0, 49), random.randint(0, 49)),
-            resource_level=100,
+            position=(random.randint(0, width-1), random.randint(0, height-1)),
+            resource_level=config_manager.get('initial_resource_level', 100),
             spatial_service=environment.spatial_service,
             environment=environment,
-            agent_type="IndependentAgent",
+            agent_type=agent_type,
             generation=0,
         )
         environment.add_agent(agent)
@@ -154,8 +157,6 @@ from typing import Tuple, Optional
 from farm.core.agent import BaseAgent
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
-from farm.core.config import SimulationConfig
-
 class CooperativeAgent(BaseAgent):
     """An agent that prioritizes cooperation and resource sharing."""
 
@@ -386,8 +387,6 @@ from farm.core.channels import ChannelHandler, ChannelBehavior, register_channel
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 from farm.core.agent import BaseAgent
-from farm.core.config import SimulationConfig
-
 class WeatherChannel(ChannelHandler):
     """Channel representing dynamic weather conditions."""
 
@@ -677,35 +676,32 @@ from pathlib import Path
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 from farm.core.agent import BaseAgent
-from farm.core.config import SimulationConfig
+from config_hydra import create_simple_hydra_config_manager
 from farm.runners.experiment_runner import ExperimentRunner
 
-def create_config_variations(base_config: SimulationConfig, 
-                           parameter_ranges: Dict[str, List[Any]]) -> List[SimulationConfig]:
-    """Create configuration variations for parameter studies."""
-    
-    import itertools
-    
-    # Get parameter names and values
-    param_names = list(parameter_ranges.keys())
-    param_values = list(parameter_ranges.values())
-    
-    # Generate all combinations
-    combinations = list(itertools.product(*param_values))
-    
+def create_config_variations_with_hydra(config_dir: str,
+                                       overrides_list: List[List[str]]) -> List[dict]:
+    """Create configuration variations using Hydra overrides.
+
+    Example usage:
+        overrides = [
+            ["learning_rate=0.001", "gamma=0.95"],
+            ["learning_rate=0.01", "gamma=0.95"],
+            ["learning_rate=0.001", "gamma=0.99"],
+        ]
+        configs = create_config_variations_with_hydra("config_hydra/conf", overrides)
+    """
+
     configs = []
-    for combination in combinations:
-        # Create a copy of base config
-        config_dict = base_config.to_dict()
-        
-        # Update with current parameter combination
-        for param_name, param_value in zip(param_names, combination):
-            config_dict[param_name] = param_value
-            
-        # Create new config from updated dict
-        config = SimulationConfig.from_dict(config_dict)
-        configs.append(config)
-    
+    for overrides in overrides_list:
+        # Create config manager with overrides
+        config_manager = create_simple_hydra_config_manager(
+            config_dir=config_dir,
+            environment="development",
+            overrides=overrides
+        )
+        configs.append(config_manager.to_dict())
+
     return configs
 
 def run_single_experiment(config: SimulationConfig, num_steps: int = 500) -> Dict[str, Any]:

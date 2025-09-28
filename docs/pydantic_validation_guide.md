@@ -33,7 +33,7 @@ Pydantic validation provides:
 The main configuration model for complete simulation settings.
 
 ```python
-from farm.core.config_hydra_models import HydraSimulationConfig
+from config_hydra import HydraSimulationConfig
 
 # Create a validated configuration
 config = HydraSimulationConfig(
@@ -50,7 +50,7 @@ config = HydraSimulationConfig(
 Environment-specific configuration overrides.
 
 ```python
-from farm.core.config_hydra_models import HydraEnvironmentConfig
+from config_hydra import HydraEnvironmentConfig
 
 env_config = HydraEnvironmentConfig(
     debug=True,
@@ -63,7 +63,7 @@ env_config = HydraEnvironmentConfig(
 Agent-specific configuration overrides.
 
 ```python
-from farm.core.config_hydra_models import HydraAgentConfig, AgentParameters
+from config_hydra import HydraAgentConfig, AgentParameters
 
 agent_config = HydraAgentConfig(
     agent_parameters={
@@ -81,7 +81,7 @@ agent_config = HydraAgentConfig(
 Visualization and rendering settings.
 
 ```python
-from farm.core.config_hydra_models import VisualizationConfig
+from config_hydra import VisualizationConfig
 
 viz_config = VisualizationConfig(
     canvas_size=(800, 600),
@@ -94,7 +94,7 @@ viz_config = VisualizationConfig(
 Redis memory configuration.
 
 ```python
-from farm.core.config_hydra_models import RedisMemoryConfig
+from config_hydra import RedisMemoryConfig
 
 redis_config = RedisMemoryConfig(
     host="localhost",
@@ -107,7 +107,7 @@ redis_config = RedisMemoryConfig(
 Agent behavior parameters.
 
 ```python
-from farm.core.config_hydra_models import AgentParameters
+from config_hydra import AgentParameters
 
 params = AgentParameters(
     gather_efficiency_multiplier=0.5,
@@ -120,7 +120,7 @@ params = AgentParameters(
 Agent type distribution ratios.
 
 ```python
-from farm.core.config_hydra_models import AgentTypeRatios
+from config_hydra import AgentTypeRatios
 
 ratios = AgentTypeRatios(
     SystemAgent=0.4,
@@ -136,7 +136,7 @@ ratios = AgentTypeRatios(
 The `SimpleHydraConfigManager` includes built-in Pydantic validation:
 
 ```python
-from farm.core.config_hydra_simple import create_simple_hydra_config_manager
+from config_hydra import create_simple_hydra_config_manager
 
 # Create config manager
 config_manager = create_simple_hydra_config_manager(
@@ -162,7 +162,7 @@ print(f"Environment: {validated_config.width}x{validated_config.height}")
 You can also validate configuration dictionaries directly:
 
 ```python
-from farm.core.config_hydra_models import validate_config_dict
+from config_hydra import validate_config_dict
 
 config_dict = {
     "width": 100,
@@ -181,7 +181,7 @@ except ValidationError as e:
 ### Environment and Agent Validation
 
 ```python
-from farm.core.config_hydra_models import validate_environment_config, validate_agent_config
+from config_hydra import validate_environment_config, validate_agent_config
 
 # Validate environment config
 env_config = {"debug": True, "max_steps": 500}
@@ -327,7 +327,7 @@ To add new configuration fields:
 
 ```python
 from pydantic import BaseModel, Field
-from farm.core.config_hydra_models import HydraSimulationConfig
+from config_hydra import HydraSimulationConfig
 
 class ExtendedSimulationConfig(HydraSimulationConfig):
     # Add new fields
@@ -459,7 +459,7 @@ class SimulationConfig(BaseModel):
 ### Complete Configuration Example
 
 ```python
-from farm.core.config_hydra_models import (
+from config_hydra import (
     HydraSimulationConfig,
     VisualizationConfig,
     RedisMemoryConfig,
@@ -570,7 +570,7 @@ else:
 ### Integration with Hydra Example
 
 ```python
-from farm.core.config_hydra_simple import create_simple_hydra_config_manager
+from config_hydra import create_simple_hydra_config_manager
 
 def run_simulation_with_validation():
     """Run simulation with comprehensive validation."""

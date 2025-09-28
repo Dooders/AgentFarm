@@ -18,8 +18,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from farm.charts.chart_analyzer import ChartAnalyzer
-from farm.core.config_hydra_simple import create_simple_hydra_config_manager
-from farm.core.config_hydra_models import HydraSimulationConfig
+from config_hydra import create_simple_hydra_config_manager, HydraSimulationConfig
 from farm.core.simulation import run_simulation
 from farm.database.database import SimulationDatabase
 from scripts.significant_events import SignificantEventAnalyzer

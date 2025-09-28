@@ -39,7 +39,7 @@ from pathlib import Path
 
 from research.research import ResearchProject
 
-from farm.core.config_hydra_models import HydraSimulationConfig
+from config_hydra import HydraSimulationConfig
 
 
 def main():
