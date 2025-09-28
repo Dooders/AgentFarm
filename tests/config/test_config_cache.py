@@ -1,4 +1,4 @@
-"""
+THIS SHOULD BE A LINTER ERROR"""
 Unit tests for configuration caching functionality.
 
 This module tests the ConfigCache class and related caching functionality including:
@@ -156,7 +156,8 @@ class TestConfigCache(unittest.TestCase):
             self.assertIsNotNone(self.cache.get(cache_key, temp_file))
 
             # Modify file
-            time.sleep(0.1)  # Ensure mtime changes
+            import os
+            os.utime(base_config_path, None)  # Ensure mtime changes
             with open(temp_file, 'w') as f:
                 f.write("modified: data\n")
 

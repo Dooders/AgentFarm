@@ -146,7 +146,10 @@ class TestLazyConfigLoader(unittest.TestCase):
 
         # Modify the config file
         import time
-        time.sleep(0.1)  # Ensure timestamp difference
+        import os
+        # Touch the environment file to ensure mtime difference
+        env_path = os.path.join(self.environments_dir, "development.yaml")
+        os.utime(env_path, None)
         modified_config = self.base_config.copy()
         modified_config.update({"debug": True, "width": 999})
         with open(os.path.join(self.environments_dir, "development.yaml"), 'w') as f:

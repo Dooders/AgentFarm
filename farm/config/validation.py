@@ -432,29 +432,26 @@ class ConfigurationRecovery:
         Returns:
             Minimal working configuration
         """
-        # Create a minimal working configuration
-        config = SimulationConfig()
-
-        # Override with safe defaults
-        config.width = 50
-        config.height = 50
-        config.system_agents = 5
-        config.independent_agents = 5
-        config.control_agents = 5
-        config.max_population = 50
-        config.initial_resources = 20
-        config.max_resource_amount = 30
-        config.learning_rate = 0.001
-        config.gamma = 0.95
-        config.epsilon_start = 1.0
-        config.epsilon_min = 0.01
-        config.epsilon_decay = 0.995
-        config.memory_size = 1000
-        config.batch_size = 32
-        config.max_steps = 100
-        config.use_in_memory_db = True
-
-        return config
+        # Create a minimal working configuration using explicit constructor
+        return SimulationConfig(
+            width=50,
+            height=50,
+            system_agents=5,
+            independent_agents=5,
+            control_agents=5,
+            max_population=50,
+            initial_resources=20,
+            max_resource_amount=30,
+            learning_rate=0.001,
+            gamma=0.95,
+            epsilon_start=1.0,
+            epsilon_min=0.01,
+            epsilon_decay=0.995,
+            memory_size=1000,
+            batch_size=32,
+            max_steps=100,
+            use_in_memory_db=True,
+        )
 
     @staticmethod
     def attempt_config_repair(

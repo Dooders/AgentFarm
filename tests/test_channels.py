@@ -371,18 +371,11 @@ class TestGlobalFunctions(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        # Save the current registry state
-        from farm.core.channels import _global_registry
-        self._original_handlers = _global_registry._handlers.copy()
-        self._original_name_to_index = _global_registry._name_to_index.copy()
-        self._original_index_to_name = _global_registry._index_to_name.copy()
-        self._original_next_index = _global_registry._next_index
-
-        # Reset the global registry for each test
-        _global_registry._handlers.clear()
-        _global_registry._name_to_index.clear()
-        _global_registry._index_to_name.clear()
-        _global_registry._next_index = 0
+        # Save the current registry state using public API and reset
+        from farm.core.channels import get_channel_registry
+        registry = get_channel_registry()
+        self._snapshot = registry.snapshot_state()
+        registry.reset()
 
         class TestHandler(ChannelHandler):
             def __init__(self, name):
@@ -398,11 +391,8 @@ class TestGlobalFunctions(unittest.TestCase):
 
     def tearDown(self):
         """Restore original registry state after test."""
-        from farm.core.channels import _global_registry
-        _global_registry._handlers = self._original_handlers
-        _global_registry._name_to_index = self._original_name_to_index
-        _global_registry._index_to_name = self._original_index_to_name
-        _global_registry._next_index = self._original_next_index
+        from farm.core.channels import get_channel_registry
+        get_channel_registry().restore(self._snapshot)
 
     def test_register_channel(self):
         """Test register_channel global function."""
@@ -1049,26 +1039,16 @@ class TestIntegration(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        # Save the current registry state
-        from farm.core.channels import _global_registry
-        self._original_handlers = _global_registry._handlers.copy()
-        self._original_name_to_index = _global_registry._name_to_index.copy()
-        self._original_index_to_name = _global_registry._index_to_name.copy()
-        self._original_next_index = _global_registry._next_index
-
-        # Reset the global registry for each test
-        _global_registry._handlers.clear()
-        _global_registry._name_to_index.clear()
-        _global_registry._index_to_name.clear()
-        _global_registry._next_index = 0
+        # Save the current registry state using public API and reset
+        from farm.core.channels import get_channel_registry
+        registry = get_channel_registry()
+        self._snapshot = registry.snapshot_state()
+        registry.reset()
 
     def tearDown(self):
         """Restore original registry state after test."""
-        from farm.core.channels import _global_registry
-        _global_registry._handlers = self._original_handlers
-        _global_registry._name_to_index = self._original_name_to_index
-        _global_registry._index_to_name = self._original_index_to_name
-        _global_registry._next_index = self._original_next_index
+        from farm.core.channels import get_channel_registry
+        get_channel_registry().restore(self._snapshot)
 
     def test_full_channel_system_workflow(self):
         """Test a complete workflow of the channel system."""

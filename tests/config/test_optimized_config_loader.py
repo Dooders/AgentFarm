@@ -226,12 +226,15 @@ class TestOptimizedConfigLoader(unittest.TestCase):
         )
 
         # Modify the config file
-        import time
-        time.sleep(0.1)  # Ensure timestamp difference
+        import os
+        # Modify the config file and ensure mtime updates
         modified_config = self.base_config.copy()
         modified_config["width"] = 999
-        with open(os.path.join(self.environments_dir, "development.yaml"), 'w') as f:
+        config_path = os.path.join(self.environments_dir, "development.yaml")
+        with open(config_path, 'w') as f:
             yaml.dump(modified_config, f)
+        # Explicitly update the file's modification time
+        os.utime(config_path, None)
 
         # Load again - should get updated config
         config2 = loader.load_centralized_config(
