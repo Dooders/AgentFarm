@@ -19,6 +19,21 @@ from .migration import (
     ConfigurationVersionDetector,
 )
 from .migration_tool import MigrationTool
+from .hot_reload import (
+    ConfigurationHotReloader,
+    ReloadConfig,
+    ReloadStrategy,
+    ReloadEvent,
+    ReloadNotification,
+)
+from .notifications import (
+    ConfigurationNotificationManager,
+    NotificationConfig,
+    NotificationChannel,
+    NotificationPriority,
+    NotificationSubscriber,
+    AsyncNotificationSubscriber,
+)
 from .exceptions import (
     ConfigurationError,
     ValidationException,
@@ -38,6 +53,17 @@ __all__ = [
     "MigrationTransformation",
     "ConfigurationVersionDetector",
     "MigrationTool",
+    "ConfigurationHotReloader",
+    "ReloadConfig",
+    "ReloadStrategy",
+    "ReloadEvent",
+    "ReloadNotification",
+    "ConfigurationNotificationManager",
+    "NotificationConfig",
+    "NotificationChannel",
+    "NotificationPriority",
+    "NotificationSubscriber",
+    "AsyncNotificationSubscriber",
     "ConfigurationError",
     "ValidationException",
     "ConfigurationMigrationError",
