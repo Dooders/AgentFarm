@@ -1,0 +1,39 @@
+# Testing Environment Configuration
+# Overrides for testing environment
+
+# Enable debug mode for testing
+debug: true
+verbose_logging: true
+
+# Minimal simulation settings for fast tests
+max_steps: 10
+max_population: 10
+
+# Use in-memory database for testing
+use_in_memory_db: true
+persist_db_on_completion: false
+
+# Testing-specific learning parameters
+learning_rate: 0.1  # Very high learning rate for fast convergence
+epsilon_start: 0.1  # Low exploration for deterministic tests
+epsilon_min: 0.1
+
+# Minimal resource requirements
+initial_resources: 5
+resource_regen_rate: 0.5  # Very fast regeneration
+
+# Testing database settings
+db_pragma_profile: "performance"
+db_cache_size_mb: 10
+
+# Testing Redis settings
+redis:
+  host: localhost
+  port: 6379
+  db: 15  # Use high-numbered database for testing
+  environment: testing
+
+# Disable visualization for testing
+visualization:
+  display_enabled: false
+  show_debug_info: false

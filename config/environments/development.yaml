@@ -1,0 +1,40 @@
+# Development Environment Configuration
+# Overrides for development environment
+
+# Enable debug mode and verbose logging
+debug: true
+verbose_logging: true
+
+# Reduce simulation complexity for faster development
+max_steps: 100
+max_population: 50
+
+# Use in-memory database for faster development
+use_in_memory_db: true
+persist_db_on_completion: false
+
+# Enable visualization for development
+visualization:
+  display_enabled: true
+  show_debug_info: true
+  frame_rate: 10
+
+# Development-specific learning parameters
+learning_rate: 0.01  # Higher learning rate for faster convergence
+epsilon_start: 0.5   # Lower exploration for more predictable behavior
+epsilon_min: 0.1
+
+# Reduce resource requirements
+initial_resources: 10
+resource_regen_rate: 0.2  # Faster regeneration for testing
+
+# Development database settings
+db_pragma_profile: "performance"  # Optimize for speed
+db_cache_size_mb: 50  # Smaller cache for development
+
+# Development Redis settings
+redis:
+  host: localhost
+  port: 6379
+  db: 1  # Use different database for development
+  environment: development

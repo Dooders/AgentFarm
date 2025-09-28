@@ -1,0 +1,42 @@
+# Production Environment Configuration
+# Overrides for production environment
+
+# Disable debug mode for production
+debug: false
+verbose_logging: false
+
+# Full production simulation settings
+max_steps: 1000
+max_population: 300
+
+# Use persistent database for production
+use_in_memory_db: false
+persist_db_on_completion: true
+
+# Production learning parameters
+learning_rate: 0.001
+epsilon_start: 1.0
+epsilon_min: 0.01
+
+# Production resource settings
+initial_resources: 20
+resource_regen_rate: 0.1
+
+# Production database settings
+db_pragma_profile: "safety"  # Optimize for data safety
+db_cache_size_mb: 200
+db_synchronous_mode: "FULL"  # Maximum safety
+db_journal_mode: "WAL"
+
+# Production Redis settings
+redis:
+  host: prod-redis.example.com
+  port: 6379
+  db: 0
+  password: "${REDIS_PASSWORD}"  # Use environment variable
+  environment: production
+
+# Disable visualization for production
+visualization:
+  display_enabled: false
+  show_debug_info: false
