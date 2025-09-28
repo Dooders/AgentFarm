@@ -4,8 +4,8 @@
 
 defaults:
   - base/base
-  - environments/development
-  - agents/system_agent
+  - environments: development
+  - agents: system_agent
   - _self_
 
 # Global configuration overrides can be added here

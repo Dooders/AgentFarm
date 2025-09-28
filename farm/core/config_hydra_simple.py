@@ -98,7 +98,7 @@ class SimpleHydraConfigManager:
                 
                 # Add environment override
                 if self.environment:
-                    overrides.append(f"environment={self.environment}")
+                    overrides.append(f"environments={self.environment}")
                 
                 # Add agent override (if different from default)
                 if self.agent and self.agent != "system_agent":

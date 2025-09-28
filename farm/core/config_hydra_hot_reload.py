@@ -17,7 +17,7 @@ from hydra.core.global_hydra import GlobalHydra
 from omegaconf import DictConfig, OmegaConf
 
 from .config_hydra_simple import SimpleHydraConfigManager
-from .hot_reload import (
+from .config.hot_reload import (
     ConfigurationHotReloader,
     ReloadConfig,
     ReloadStrategy,
