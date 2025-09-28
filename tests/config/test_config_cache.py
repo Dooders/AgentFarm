@@ -1,5 +1,4 @@
-THIS SHOULD BE A LINTER ERROR"""
-Unit tests for configuration caching functionality.
+"""Unit tests for configuration caching functionality.
 
 This module tests the ConfigCache class and related caching functionality including:
 - Basic cache operations (get, put, invalidate, clear)
@@ -157,7 +156,7 @@ class TestConfigCache(unittest.TestCase):
 
             # Modify file
             import os
-            os.utime(base_config_path, None)  # Ensure mtime changes
+            os.utime(temp_file, None)  # Ensure mtime changes
             with open(temp_file, 'w') as f:
                 f.write("modified: data\n")
 
