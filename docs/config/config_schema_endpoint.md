@@ -1,8 +1,8 @@
-## Electron Configuration Explorer: Backend Support (Issue #356)
+## Configuration Schema API: Backend Support (Issue #356)
 
 ### Summary
 - **Added schema generator**: `farm/core/config_schema.py` produces a combined, JSON-serializable schema for configuration sections.
-- **New API endpoint**: `GET /config/schema` via `server/backend/app/routers/config.py` exposes the schema to the Electron app.
+- **New API endpoint**: `GET /config/schema` via `server/backend/app/routers/config.py` exposes the schema for client applications.
 - **App wiring**: Router included in `server/backend/app/main.py`.
 - **Basic test**: `tests/test_config_schema_endpoint.py` validates endpoint structure.
 
@@ -40,7 +40,7 @@
 }
 ```
 
-### How the Electron App Can Use This
+### How Client Applications Can Use This
 - **Fetch schema**: Call `GET /config/schema` on app load or when refreshing settings.
 - **Build UI**: For each section, iterate `properties` and render appropriate controls based on `type`, `default`, and `enum`.
 - **Hints/validation**:
