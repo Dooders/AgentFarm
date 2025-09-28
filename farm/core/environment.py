@@ -559,17 +559,38 @@ class Environment(AECEnv):
         - Records the death event for metrics tracking
         - Removes the agent from internal object mapping
         - Removes the agent from PettingZoo's agent list
+        - Cleans up all PettingZoo state dictionaries
         - Marks spatial index as dirty for next update
         - Cleans up agent observation data
         """
+        agent_id = agent.agent_id
         self.record_death()
-        if agent.agent_id in self._agent_objects:
-            del self._agent_objects[agent.agent_id]
-        if agent.agent_id in self.agents:
-            self.agents.remove(agent.agent_id)  # Remove from PettingZoo agents list
+        if agent_id in self._agent_objects:
+            del self._agent_objects[agent_id]
+        if agent_id in self.agents:
+            self.agents.remove(agent_id)  # Remove from PettingZoo agents list
+
+        # Clean up PettingZoo state dictionaries to prevent stale references
+        if agent_id in self._cumulative_rewards:
+            del self._cumulative_rewards[agent_id]
+        if agent_id in self.rewards:
+            del self.rewards[agent_id]
+        if agent_id in self.terminations:
+            del self.terminations[agent_id]
+        if agent_id in self.truncations:
+            del self.truncations[agent_id]
+        if agent_id in self.infos:
+            del self.infos[agent_id]
+        if agent_id in self.observations:
+            del self.observations[agent_id]
+
+        # Update agent_selection if necessary
+        if self.agent_selection == agent_id or not self.agents:
+            self._next_agent()
+
         self.spatial_index.mark_positions_dirty()  # Mark positions as dirty when agent is removed
-        if agent.agent_id in self.agent_observations:
-            del self.agent_observations[agent.agent_id]
+        if agent_id in self.agent_observations:
+            del self.agent_observations[agent_id]
 
     def log_interaction_edge(
         self,

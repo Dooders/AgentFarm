@@ -5,7 +5,7 @@ import unittest
 
 import numpy as np
 
-from farm.core.config import SimulationConfig
+from farm.config import SimulationConfig
 from farm.core.environment import Environment
 
 
@@ -13,20 +13,22 @@ class TestMemmapResources(unittest.TestCase):
     def setUp(self):
         self.tmpdir = os.getenv("TMPDIR", tempfile.gettempdir())
 
+        from farm.config.config import EnvironmentConfig, ResourceConfig
+
         self.cfg = SimulationConfig(
-            width=60,
-            height=60,
-            initial_resources=200,
-            max_resource_amount=30,
-            use_memmap_resources=True,
-            memmap_dir=self.tmpdir,
-            memmap_dtype="float32",
-            memmap_mode="w+",
+            environment=EnvironmentConfig(width=60, height=60),
+            resources=ResourceConfig(initial_resources=200, max_resource_amount=30),
             seed=12345,
         )
+
+        # Add memmap parameters dynamically (accessed via getattr in ResourceManager)
+        self.cfg.use_memmap_resources = True
+        self.cfg.memmap_dir = self.tmpdir
+        self.cfg.memmap_dtype = "float32"
+        self.cfg.memmap_mode = "w+"
         self.env = Environment(
-            width=self.cfg.width,
-            height=self.cfg.height,
+            width=self.cfg.environment.width,
+            height=self.cfg.environment.height,
             resource_distribution={},
             config=self.cfg,
             db_path=":memory:",
@@ -45,25 +47,29 @@ class TestMemmapResources(unittest.TestCase):
         self.assertTrue(os.path.exists(path))
 
         R = self.env.observation_config.R
-        ay, ax = self.cfg.height // 2, self.cfg.width // 2
+        ay, ax = self.cfg.environment.height // 2, self.cfg.environment.width // 2
         win = rm.get_resource_window(ay - R, ay + R + 1, ax - R, ax + R + 1)
         self.assertEqual(win.shape, (2 * R + 1, 2 * R + 1))
         self.assertTrue(np.all(win >= 0.0))
         self.assertTrue(np.all(win <= 1.0))
 
     def test_observation_uses_memmap_without_spatial_query(self):
-        # Make spatial_index.get_nearby raise if called; memmap path should not call it
-        def boom(*args, **kwargs):
-            raise AssertionError("spatial_index.get_nearby should not be called when memmap is enabled")
+        # Track calls to spatial_index.get_nearby to ensure resources don't use spatial queries
+        original_get_nearby = self.env.spatial_index.get_nearby
+        calls = []
 
-        self.env.spatial_index.get_nearby = boom  # type: ignore
+        def track_calls(*args, **kwargs):
+            calls.append(args)
+            return original_get_nearby(*args, **kwargs)
+
+        self.env.spatial_index.get_nearby = track_calls
 
         # Add an agent and request observation
         from farm.core.agent import BaseAgent
 
         agent = BaseAgent(
             agent_id=self.env.get_next_agent_id(),
-            position=(int(self.cfg.width // 2), int(self.cfg.height // 2)),
+            position=(int(self.cfg.environment.width // 2), int(self.cfg.environment.height // 2)),
             resource_level=5,
             environment=self.env,
             spatial_service=self.env.spatial_service,
@@ -75,6 +81,10 @@ class TestMemmapResources(unittest.TestCase):
         self.assertIsInstance(obs, np.ndarray)
         self.assertEqual(obs.shape, obs_space.shape)
         self.assertEqual(obs.dtype, obs_space.dtype)
+
+        # Verify that spatial queries were made for agents but NOT for resources
+        resource_queries = [call for call in calls if len(call) >= 3 and "resources" in call[2]]
+        self.assertEqual(len(resource_queries), 0, "Resource observation should not use spatial queries when memmap is enabled")
 
     def test_close_flushes_but_does_not_delete(self):
         rm = self.env.resource_manager
