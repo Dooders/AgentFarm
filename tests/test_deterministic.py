@@ -41,7 +41,7 @@ def get_simulation_state_hash(environment, debug=False):
     }
     
     # Sort agents by ID for consistency
-    for agent in sorted(environment.agents, key=lambda a: a.agent_id):
+    for agent in sorted(environment._agent_objects.values(), key=lambda a: a.agent_id):
         agent_state = {
             "id": agent.agent_id,
             "type": agent.__class__.__name__,
@@ -163,7 +163,9 @@ def run_determinism_test(environment, num_steps, seed=42, use_snapshot_steps=Non
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
+    # Note: PyTorch CuDNN deterministic mode can be very slow and may not be necessary
+    # for current simulation determinism. Uncomment if needed for debugging:
+    # torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     
     # Load configuration
@@ -172,7 +174,7 @@ def run_determinism_test(environment, num_steps, seed=42, use_snapshot_steps=Non
     # Override any config parameters that might affect determinism
     config.seed = seed
     
-    # Disable database operations to avoid external state issues
+    # Use in-memory database to avoid external state issues but allow persistence testing
     config.use_in_memory_db = True
     config.persist_db_on_completion = False
     
@@ -193,6 +195,7 @@ def run_determinism_test(environment, num_steps, seed=42, use_snapshot_steps=Non
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
+    # Keep CuDNN settings consistent
     
     # Run first simulation and capture state snapshots
     env1 = run_simulation(
@@ -213,6 +216,7 @@ def run_determinism_test(environment, num_steps, seed=42, use_snapshot_steps=Non
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
+    # Keep CuDNN settings consistent
     
     # Run second simulation
     env2 = run_simulation(

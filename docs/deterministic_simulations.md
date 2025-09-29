@@ -64,8 +64,10 @@ environment = run_simulation(
 import torch
 torch.manual_seed(42)
 torch.cuda.manual_seed_all(42)
-torch.backends.cudnn.deterministic = True  # May reduce performance but increases determinism
 torch.backends.cudnn.benchmark = False
+# Note: torch.backends.cudnn.deterministic = True is NOT needed for most simulations
+# and significantly reduces performance. Only enable if you encounter non-determinism
+# that cannot be resolved through proper seeding.
 ```
 
 3. **Control NumPy Randomness**:
@@ -102,9 +104,10 @@ If your simulation is not deterministic, consider these potential causes:
 
 Sometimes enforcing determinism can reduce performance:
 
-- `torch.backends.cudnn.deterministic = True` can slow down neural network operations
+- `torch.backends.cudnn.deterministic = True` can significantly slow down neural network operations and is usually unnecessary
 - Avoiding parallelism can increase runtime
-- Consider the tradeoffs based on your specific needs
+- For most AgentFarm simulations, proper seeding of Python, NumPy, and PyTorch random generators is sufficient for determinism
+- Only enable CuDNN deterministic mode if you encounter unexplained non-determinism after proper seeding
 
 ## Best Practices
 
