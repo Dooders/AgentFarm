@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import numpy as np
 
 from farm.core.resources import Resource
+from farm.core.geometry import discretize_position_continuous
 
 logger = logging.getLogger(__name__)
 
@@ -150,16 +151,7 @@ class ResourceManager:
             # Discretization
             method = getattr(self.config, "position_discretization_method", "floor") if self.config else "floor"
             for r in self.resources:
-                rx, ry = r.position[0], r.position[1]
-                if method == "round":
-                    x = max(0, min(int(round(rx)), W - 1))
-                    y = max(0, min(int(round(ry)), H - 1))
-                elif method == "ceil":
-                    x = max(0, min(int(math.ceil(rx)), W - 1))
-                    y = max(0, min(int(math.ceil(ry)), H - 1))
-                else:  # floor
-                    x = max(0, min(int(math.floor(rx)), W - 1))
-                    y = max(0, min(int(math.floor(ry)), H - 1))
+                x, y = discretize_position_continuous((r.position[0], r.position[1]), (W, H), method)
                 # Accumulate (clamped by max)
                 mm[y, x] = min(max_amount, float(mm[y, x]) + float(r.amount))
             mm.flush()
