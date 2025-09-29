@@ -110,7 +110,9 @@ class TestSpatialIndex(unittest.TestCase):
 
         # First call should return True and set cache
         self.assertTrue(self.spatial_index._counts_changed(0))
-        self.assertEqual(self.spatial_index._cached_counts, (0, 5))  # 0 agents, 5 resources
+        self.assertEqual(
+            self.spatial_index._cached_counts, (0, 5)
+        )  # 0 agents, 5 resources
 
         # Second call with same counts should return False
         self.assertFalse(self.spatial_index._counts_changed(0))
@@ -132,7 +134,9 @@ class TestSpatialIndex(unittest.TestCase):
 
         # Check that counts are updated
         self.assertTrue(self.spatial_index._counts_changed(1))
-        self.assertEqual(self.spatial_index._cached_counts, (1, 5))  # 1 agent, 5 resources
+        self.assertEqual(
+            self.spatial_index._cached_counts, (1, 5)
+        )  # 1 agent, 5 resources
 
     def test_counts_changed_agent_death(self):
         """Test count change detection when agent dies."""
@@ -155,7 +159,9 @@ class TestSpatialIndex(unittest.TestCase):
 
         # Check that counts changed
         self.assertTrue(self.spatial_index._counts_changed(0))
-        self.assertEqual(self.spatial_index._cached_counts, (0, 5))  # 0 alive agents, 5 resources
+        self.assertEqual(
+            self.spatial_index._cached_counts, (0, 5)
+        )  # 0 alive agents, 5 resources
 
     def test_hash_positions_changed_no_positions(self):
         """Test hash change detection with no positions."""
@@ -283,7 +289,9 @@ class TestSpatialIndex(unittest.TestCase):
         self.assertIsNotNone(self.spatial_index.agent_kdtree)
         if self.spatial_index.agent_positions is not None:
             self.assertEqual(len(self.spatial_index.agent_positions), 1)
-            self.assertEqual(self.spatial_index.agent_positions[0][0], 10)  # agent1's x position
+            self.assertEqual(
+                self.spatial_index.agent_positions[0][0], 10
+            )  # agent1's x position
 
     def test_update_no_changes(self):
         """Test update when no changes occur."""
@@ -291,9 +299,13 @@ class TestSpatialIndex(unittest.TestCase):
         self.spatial_index._positions_dirty = False
 
         # Mock the change detection methods
-        with patch.object(self.spatial_index, "_counts_changed", return_value=False) as mock_counts, patch.object(
+        with patch.object(
+            self.spatial_index, "_counts_changed", return_value=False
+        ) as mock_counts, patch.object(
             self.spatial_index, "_hash_positions_changed", return_value=False
-        ) as mock_hash, patch.object(self.spatial_index, "_rebuild_kdtrees") as mock_rebuild:
+        ) as mock_hash, patch.object(
+            self.spatial_index, "_rebuild_kdtrees"
+        ) as mock_rebuild:
             self.spatial_index.update()
 
             # Should not call any methods when not dirty
@@ -307,9 +319,13 @@ class TestSpatialIndex(unittest.TestCase):
     def test_update_counts_changed(self):
         """Test update when counts change."""
         # Mock the change detection methods
-        with patch.object(self.spatial_index, "_counts_changed", return_value=True) as mock_counts, patch.object(
+        with patch.object(
+            self.spatial_index, "_counts_changed", return_value=True
+        ) as mock_counts, patch.object(
             self.spatial_index, "_hash_positions_changed"
-        ) as mock_hash, patch.object(self.spatial_index, "_rebuild_kdtrees") as mock_rebuild:
+        ) as mock_hash, patch.object(
+            self.spatial_index, "_rebuild_kdtrees"
+        ) as mock_rebuild:
             self.spatial_index.update()
 
             # Should call rebuild and not check hash
@@ -324,9 +340,13 @@ class TestSpatialIndex(unittest.TestCase):
     def test_update_hash_changed(self):
         """Test update when hash changes."""
         # Mock the change detection methods
-        with patch.object(self.spatial_index, "_counts_changed", return_value=False) as mock_counts, patch.object(
+        with patch.object(
+            self.spatial_index, "_counts_changed", return_value=False
+        ) as mock_counts, patch.object(
             self.spatial_index, "_hash_positions_changed", return_value=True
-        ) as mock_hash, patch.object(self.spatial_index, "_rebuild_kdtrees") as mock_rebuild:
+        ) as mock_hash, patch.object(
+            self.spatial_index, "_rebuild_kdtrees"
+        ) as mock_rebuild:
             self.spatial_index.update()
 
             # Should call both checks and rebuild
@@ -351,7 +371,9 @@ class TestSpatialIndex(unittest.TestCase):
         result = self.spatial_index.get_nearby((-1, 10), 5, ["agents"])
         self.assertEqual(result.get("agents", []), [])
 
-        result = self.spatial_index.get_nearby((10, 101), 5, ["agents"])  # Outside height
+        result = self.spatial_index.get_nearby(
+            (10, 101), 5, ["agents"]
+        )  # Outside height
         self.assertEqual(result.get("agents", []), [])
 
     def test_get_nearby_no_kdtree(self):
@@ -495,7 +517,9 @@ class TestSpatialIndex(unittest.TestCase):
         result = self.spatial_index.get_nearby((-1, 10), 5, ["resources"])
         self.assertEqual(result.get("resources", []), [])
 
-        result = self.spatial_index.get_nearby((10, 101), 5, ["resources"])  # Outside height
+        result = self.spatial_index.get_nearby(
+            (10, 101), 5, ["resources"]
+        )  # Outside height
         self.assertEqual(result.get("resources", []), [])
 
         # Test valid inputs still work
@@ -506,10 +530,14 @@ class TestSpatialIndex(unittest.TestCase):
     def test_get_nearest_input_validation(self):
         """Test input validation for get_nearest (bug fix)."""
         # Test invalid position (outside 1% margin)
-        result = self.spatial_index.get_nearest((-2, 10), ["resources"])  # Outside 1% margin
+        result = self.spatial_index.get_nearest(
+            (-2, 10), ["resources"]
+        )  # Outside 1% margin
         self.assertIsNone(result.get("resources"))
 
-        result = self.spatial_index.get_nearest((10, 102), ["resources"])  # Outside 1% margin
+        result = self.spatial_index.get_nearest(
+            (10, 102), ["resources"]
+        )  # Outside 1% margin
         self.assertIsNone(result.get("resources"))
 
         # Test valid inputs still work
@@ -675,9 +703,13 @@ class TestSpatialIndex(unittest.TestCase):
         self.spatial_index._positions_dirty = True
 
         # Mock the change detection methods to return False
-        with patch.object(self.spatial_index, "_counts_changed", return_value=False) as mock_counts, patch.object(
+        with patch.object(
+            self.spatial_index, "_counts_changed", return_value=False
+        ) as mock_counts, patch.object(
             self.spatial_index, "_hash_positions_changed", return_value=False
-        ) as mock_hash, patch.object(self.spatial_index, "_rebuild_kdtrees") as mock_rebuild:
+        ) as mock_hash, patch.object(
+            self.spatial_index, "_rebuild_kdtrees"
+        ) as mock_rebuild:
             # Call update multiple times, marking dirty each time
             for _ in range(5):
                 self.spatial_index._positions_dirty = True
@@ -765,7 +797,9 @@ class TestSpatialIndex(unittest.TestCase):
 
         # Query at the duplicate position with small radius
         nearby = self.spatial_index.get_nearby(duplicate_pos, 0.1, ["agents"])
-        self.assertEqual(len(nearby["agents"]), num_duplicates)  # Should return all duplicates
+        self.assertEqual(
+            len(nearby["agents"]), num_duplicates
+        )  # Should return all duplicates
 
         # Check that all returned agents are at the position
         for agent in nearby["agents"]:
@@ -797,20 +831,26 @@ class TestSpatialIndex(unittest.TestCase):
 
         # Make a tiny floating-point change (e.g., arithmetic precision)
         agent1.position[0] += 1e-10  # Very small change
-        self.assertTrue(self.spatial_index._hash_positions_changed(alive_agents))  # Should detect
+        self.assertTrue(
+            self.spatial_index._hash_positions_changed(alive_agents)
+        )  # Should detect
 
         # Reset and test identical positions (should not detect change)
         agent1.position[0] -= 1e-10  # Restore exact
         self.spatial_index.force_rebuild()
         self.spatial_index._hash_positions_changed(alive_agents)  # Recache
-        self.assertFalse(self.spatial_index._hash_positions_changed(alive_agents))  # No change
+        self.assertFalse(
+            self.spatial_index._hash_positions_changed(alive_agents)
+        )  # No change
 
         # Test with floating-point equality (e.g., 0.1 + 0.2 != 0.3 but close)
         agent1.position[0] = 0.1 + 0.2
         self.spatial_index.force_rebuild()
         self.spatial_index._hash_positions_changed(alive_agents)
         agent1.position[0] = 0.3  # Mathematically equal but different binary
-        self.assertTrue(self.spatial_index._hash_positions_changed(alive_agents))  # Should detect binary difference
+        self.assertTrue(
+            self.spatial_index._hash_positions_changed(alive_agents)
+        )  # Should detect binary difference
 
     def test_very_large_number_of_agents(self):
         """Test performance and correctness with >10k agents."""
@@ -890,7 +930,9 @@ class TestSpatialIndex(unittest.TestCase):
         self.assertIn("test_quadtree", nearby)
 
         # Test range queries
-        range_results = self.spatial_index.get_nearby_range((30, 30, 40, 40), ["test_quadtree"])
+        range_results = self.spatial_index.get_nearby_range(
+            (30, 30, 40, 40), ["test_quadtree"]
+        )
         self.assertIn("test_quadtree", range_results)
 
         # Test quadtree stats
@@ -898,10 +940,95 @@ class TestSpatialIndex(unittest.TestCase):
         self.assertIsNotNone(stats)
         self.assertIn("total_entities", stats)
 
+    def test_spatial_hash_basic_operations(self):
+        """Test basic Spatial Hash operations via named indices."""
+        # Add some test agents
+        test_agents = []
+        for i in range(5):
+            agent = MockBaseAgent(
+                agent_id=f"hash_agent{i}",
+                position=(i * 20, i * 20),
+                resource_level=50,
+                environment=None,
+                generation=0,
+            )
+            test_agents.append(agent)
+
+        # Create a Spatial Hash index
+        self.spatial_index.register_index(
+            name="test_hash",
+            data_reference=test_agents,
+            position_getter=lambda a: a.position,
+            filter_func=None,
+            index_type="spatial_hash",
+            cell_size=10.0,
+        )
+
+        # Update to build the spatial hash
+        self.spatial_index.update()
+
+        # Test spatial hash nearby queries
+        nearby = self.spatial_index.get_nearby((50, 50), 20, ["test_hash"])
+        self.assertIn("test_hash", nearby)
+        self.assertGreaterEqual(len(nearby["test_hash"]), 1)
+
+        # Test nearest queries
+        nearest = self.spatial_index.get_nearest((0, 0), ["test_hash"])
+        self.assertIn("test_hash", nearest)
+
+        # Test rectangular range queries
+        range_results = self.spatial_index.get_nearby_range(
+            (30, 30, 40, 40), ["test_hash"]
+        )
+        self.assertIn("test_hash", range_results)
+
+    def test_spatial_hash_dynamic_updates(self):
+        """Test dynamic position updates in Spatial Hash indices."""
+        # Create test agent
+        agent = MockBaseAgent(
+            agent_id="dynamic_hash",
+            position=(10, 10),
+            resource_level=50,
+            environment=None,
+            generation=0,
+        )
+
+        # Create Spatial Hash index
+        self.spatial_index.register_index(
+            name="dynamic_hash",
+            data_reference=[agent],
+            position_getter=lambda a: a.position,
+            filter_func=None,
+            index_type="spatial_hash",
+            cell_size=8.0,
+        )
+
+        # Build the index
+        self.spatial_index.update()
+
+        # Initial position
+        initial_nearby = self.spatial_index.get_nearby((10, 10), 5, ["dynamic_hash"])
+        self.assertEqual(len(initial_nearby["dynamic_hash"]), 1)
+
+        # Update position
+        old_pos = (10, 10)
+        new_pos = (50, 50)
+        agent.position = new_pos
+        self.spatial_index.update_entity_position(agent, old_pos, new_pos)
+
+        # Check that agent is no longer found at old position
+        old_nearby = self.spatial_index.get_nearby((10, 10), 5, ["dynamic_hash"])
+        self.assertEqual(len(old_nearby["dynamic_hash"]), 0)
+
+        # Check that agent is found at new position
+        new_nearby = self.spatial_index.get_nearby((50, 50), 5, ["dynamic_hash"])
+        self.assertEqual(len(new_nearby["dynamic_hash"]), 1)
+
     def test_quadtree_vs_kdtree_performance(self):
         """Compare performance between Quadtree and KD-tree for different query patterns."""
-        import time
         import logging
+        import time
+
         logger = logging.getLogger(__name__)
 
         # Add many agents for meaningful performance comparison
@@ -941,7 +1068,10 @@ class TestSpatialIndex(unittest.TestCase):
 
         # Test radial queries (where KD-tree should excel)
         width, height = self.spatial_index.width, self.spatial_index.height
-        radial_positions = [(np.random.uniform(0, width), np.random.uniform(0, height)) for _ in range(100)]
+        radial_positions = [
+            (np.random.uniform(0, width), np.random.uniform(0, height))
+            for _ in range(100)
+        ]
         radius = 15
 
         # KD-tree radial queries
@@ -957,7 +1087,15 @@ class TestSpatialIndex(unittest.TestCase):
         quadtree_radial_time = time.time() - start_time
 
         # Test rectangular queries (where Quadtree should excel)
-        rect_queries = [(np.random.uniform(0, width-20), np.random.uniform(0, height-20), 20, 20) for _ in range(100)]
+        rect_queries = [
+            (
+                np.random.uniform(0, width - 20),
+                np.random.uniform(0, height - 20),
+                20,
+                20,
+            )
+            for _ in range(100)
+        ]
 
         # KD-tree rectangular queries (using range method)
         start_time = time.time()
@@ -973,21 +1111,37 @@ class TestSpatialIndex(unittest.TestCase):
 
         # Log performance results
         logger.info(f"Performance comparison (100 queries, {num_agents} agents):")
-        logger.info(f"Radial queries - KD-tree: {kdtree_radial_time:.3f}s, Quadtree: {quadtree_radial_time:.3f}s")
-        logger.info(f"Rectangular queries - KD-tree: {kdtree_rect_time:.3f}s, Quadtree: {quadtree_rect_time:.3f}s")
+        logger.info(
+            f"Radial queries - KD-tree: {kdtree_radial_time:.3f}s, Quadtree: {quadtree_radial_time:.3f}s"
+        )
+        logger.info(
+            f"Rectangular queries - KD-tree: {kdtree_rect_time:.3f}s, Quadtree: {quadtree_rect_time:.3f}s"
+        )
 
         # Performance validation - both methods should complete in reasonable time
         # KD-trees typically excel at radial queries, Quadtrees at rectangular queries
         # The key benefit is having both options available for different use cases
         max_reasonable_time = 1.0  # 1 second max for 100 queries
-        self.assertLess(quadtree_radial_time, max_reasonable_time,
-                       f"Quadtree radial queries too slow: {quadtree_radial_time:.3f}s")
-        self.assertLess(kdtree_radial_time, max_reasonable_time,
-                       f"KD-tree radial queries too slow: {kdtree_radial_time:.3f}s")
-        self.assertLess(quadtree_rect_time, max_reasonable_time,
-                       f"Quadtree rectangular queries too slow: {quadtree_rect_time:.3f}s")
-        self.assertLess(kdtree_rect_time, max_reasonable_time,
-                       f"KD-tree rectangular queries too slow: {kdtree_rect_time:.3f}s")
+        self.assertLess(
+            quadtree_radial_time,
+            max_reasonable_time,
+            f"Quadtree radial queries too slow: {quadtree_radial_time:.3f}s",
+        )
+        self.assertLess(
+            kdtree_radial_time,
+            max_reasonable_time,
+            f"KD-tree radial queries too slow: {kdtree_radial_time:.3f}s",
+        )
+        self.assertLess(
+            quadtree_rect_time,
+            max_reasonable_time,
+            f"Quadtree rectangular queries too slow: {quadtree_rect_time:.3f}s",
+        )
+        self.assertLess(
+            kdtree_rect_time,
+            max_reasonable_time,
+            f"KD-tree rectangular queries too slow: {kdtree_rect_time:.3f}s",
+        )
 
         # Log which method was faster for each query type
         if quadtree_rect_time < kdtree_rect_time:
@@ -1021,7 +1175,9 @@ class TestSpatialIndex(unittest.TestCase):
         self.spatial_index.update()
 
         # Initial position
-        initial_nearby = self.spatial_index.get_nearby((10, 10), 5, ["dynamic_quadtree"])
+        initial_nearby = self.spatial_index.get_nearby(
+            (10, 10), 5, ["dynamic_quadtree"]
+        )
         self.assertEqual(len(initial_nearby["dynamic_quadtree"]), 1)
 
         # Update position
@@ -1194,11 +1350,21 @@ class TestSpatialIndex(unittest.TestCase):
         self.assertTrue(self.spatial_index._is_valid_position((25.5, 75.3)))
 
         # Test invalid positions (outside 1% margin)
-        self.assertFalse(self.spatial_index._is_valid_position((-2, 50)))  # Outside 1% margin
-        self.assertFalse(self.spatial_index._is_valid_position((102, 50)))  # Outside 1% margin
-        self.assertFalse(self.spatial_index._is_valid_position((50, -2)))  # Outside 1% margin
-        self.assertFalse(self.spatial_index._is_valid_position((50, 102)))  # Outside 1% margin
-        self.assertFalse(self.spatial_index._is_valid_position((-10, -10)))  # Way outside bounds
+        self.assertFalse(
+            self.spatial_index._is_valid_position((-2, 50))
+        )  # Outside 1% margin
+        self.assertFalse(
+            self.spatial_index._is_valid_position((102, 50))
+        )  # Outside 1% margin
+        self.assertFalse(
+            self.spatial_index._is_valid_position((50, -2))
+        )  # Outside 1% margin
+        self.assertFalse(
+            self.spatial_index._is_valid_position((50, 102))
+        )  # Outside 1% margin
+        self.assertFalse(
+            self.spatial_index._is_valid_position((-10, -10))
+        )  # Way outside bounds
 
         # Test positions at exact boundaries (should be valid)
         self.assertTrue(self.spatial_index._is_valid_position((0, 0)))
@@ -1208,15 +1374,23 @@ class TestSpatialIndex(unittest.TestCase):
         margin_x = 100 * 0.01  # 1.0
         margin_y = 100 * 0.01  # 1.0
         self.assertTrue(self.spatial_index._is_valid_position((-margin_x + 0.1, 50)))
-        self.assertTrue(self.spatial_index._is_valid_position((100 + margin_x - 0.1, 50)))
+        self.assertTrue(
+            self.spatial_index._is_valid_position((100 + margin_x - 0.1, 50))
+        )
         self.assertTrue(self.spatial_index._is_valid_position((50, -margin_y + 0.1)))
-        self.assertTrue(self.spatial_index._is_valid_position((50, 100 + margin_y - 0.1)))
+        self.assertTrue(
+            self.spatial_index._is_valid_position((50, 100 + margin_y - 0.1))
+        )
 
         # Test positions just outside the margin (should be invalid)
         self.assertFalse(self.spatial_index._is_valid_position((-margin_x - 0.1, 50)))
-        self.assertFalse(self.spatial_index._is_valid_position((100 + margin_x + 0.1, 50)))
+        self.assertFalse(
+            self.spatial_index._is_valid_position((100 + margin_x + 0.1, 50))
+        )
         self.assertFalse(self.spatial_index._is_valid_position((50, -margin_y - 0.1)))
-        self.assertFalse(self.spatial_index._is_valid_position((50, 100 + margin_y + 0.1)))
+        self.assertFalse(
+            self.spatial_index._is_valid_position((50, 100 + margin_y + 0.1))
+        )
 
     def test_extreme_environment_sizes(self):
         """Test SpatialIndex with very small and very large environments."""
@@ -1236,7 +1410,9 @@ class TestSpatialIndex(unittest.TestCase):
 
         # Test margin calculation for small environment (1% of 1.0 = 0.01)
         self.assertTrue(small_index._is_valid_position((-0.009, 0.5)))  # Within margin
-        self.assertFalse(small_index._is_valid_position((-0.011, 0.5)))  # Outside margin
+        self.assertFalse(
+            small_index._is_valid_position((-0.011, 0.5))
+        )  # Outside margin
 
         # Test with very large environment
         large_index = SpatialIndex(width=1000000, height=1000000)
@@ -1248,8 +1424,12 @@ class TestSpatialIndex(unittest.TestCase):
         self.assertTrue(large_index._is_valid_position((1000000, 1000000)))
 
         # Test margin calculation for large environment (1% of 1000000 = 10000)
-        self.assertTrue(large_index._is_valid_position((-9999, 500000)))  # Within margin
-        self.assertFalse(large_index._is_valid_position((-10001, 500000)))  # Outside margin
+        self.assertTrue(
+            large_index._is_valid_position((-9999, 500000))
+        )  # Within margin
+        self.assertFalse(
+            large_index._is_valid_position((-10001, 500000))
+        )  # Outside margin
 
     def test_boundary_resources(self):
         """Test resources positioned at exact boundaries."""
@@ -1375,7 +1555,10 @@ class TestSpatialIndex(unittest.TestCase):
         self.assertIsInstance(nearby["agents"], list)
         # All nearby agents should be alive (the KD-tree should only contain alive agents)
         for agent in nearby["agents"]:
-            self.assertTrue(agent.alive, f"Agent {agent.agent_id} is not alive but was returned by spatial query")
+            self.assertTrue(
+                agent.alive,
+                f"Agent {agent.agent_id} is not alive but was returned by spatial query",
+            )
 
         # Also verify that get_agent_count matches the number of alive agents
         alive_count = sum(1 for agent in agents if agent.alive)
@@ -1389,8 +1572,12 @@ class TestSpatialIndex(unittest.TestCase):
         hash_index.set_references(agents, resources)
 
         # Test with empty state
-        self.assertTrue(hash_index._hash_positions_changed([]))  # First call should return True
-        self.assertFalse(hash_index._hash_positions_changed([]))  # Second call should return False
+        self.assertTrue(
+            hash_index._hash_positions_changed([])
+        )  # First call should return True
+        self.assertFalse(
+            hash_index._hash_positions_changed([])
+        )  # Second call should return False
 
         # Test with very large coordinates
         large_coord_agent = MockBaseAgent(
@@ -1500,10 +1687,16 @@ class TestSpatialIndex(unittest.TestCase):
         memory_increase = build_memory - initial_memory
 
         # Memory increase should be reasonable (less than 100MB for 50k agents + 10k resources)
-        self.assertLess(memory_increase, 100, f"Memory increase {memory_increase:.1f}MB exceeds threshold")
+        self.assertLess(
+            memory_increase,
+            100,
+            f"Memory increase {memory_increase:.1f}MB exceeds threshold",
+        )
 
         # Build time should be reasonable (less than 5 seconds)
-        self.assertLess(build_time, 5.0, f"Build time {build_time:.2f}s exceeds threshold")
+        self.assertLess(
+            build_time, 5.0, f"Build time {build_time:.2f}s exceeds threshold"
+        )
 
         # Test query performance
         query_start = time.time()
@@ -1516,7 +1709,11 @@ class TestSpatialIndex(unittest.TestCase):
         avg_query_time = query_time / num_queries
 
         # Average query time should be less than 10ms
-        self.assertLess(avg_query_time, 0.01, f"Average query time {avg_query_time:.4f}s exceeds threshold")
+        self.assertLess(
+            avg_query_time,
+            0.01,
+            f"Average query time {avg_query_time:.4f}s exceeds threshold",
+        )
 
         # Verify correctness
         self.assertEqual(large_index.get_agent_count(), num_agents)
@@ -1530,6 +1727,229 @@ class TestSpatialIndex(unittest.TestCase):
         self.assertIn("resources", center_query)
         # Should find some agents in a 50-unit radius around center of 1000x1000 area
         self.assertGreater(len(center_query["agents"]), 0)
+
+    def test_spatial_hash_cell_boundary_cases(self):
+        """Test SpatialHashGrid behavior with entities near cell boundaries."""
+        from farm.core.spatial_index import SpatialHashGrid
+
+        cell_size = 10.0
+        grid = SpatialHashGrid(cell_size=cell_size, width=100, height=100)
+
+        # Test entities at cell boundaries
+        # Cell boundaries occur at multiples of cell_size
+        boundary_positions = [
+            (9.999, 5.0),  # Just before cell boundary at x=10
+            (10.001, 5.0),  # Just after cell boundary at x=10
+            (5.0, 9.999),  # Just before cell boundary at y=10
+            (5.0, 10.001),  # Just after cell boundary at y=10
+            (9.999, 9.999),  # Corner case
+            (10.001, 10.001),  # Corner case
+        ]
+
+        entities = []
+        for i, pos in enumerate(boundary_positions):
+            entity = f"boundary_entity_{i}"
+            entities.append(entity)
+            grid.insert(entity, pos)
+
+        # Test that all entities can be found
+        for entity, pos in zip(entities, boundary_positions):
+            # Query in the cell where the entity should be
+            nearby = grid.query_radius(pos, 0.1)
+            self.assertTrue(
+                any(e == entity for e, p in nearby),
+                f"Entity at {pos} not found in its cell",
+            )
+
+        # Test nearest neighbor across cell boundaries
+        # Place entities just across cell boundaries from each other
+        grid2 = SpatialHashGrid(cell_size=10.0, width=100, height=100)
+
+        entity1 = "left_side"
+        entity2 = "right_side"
+        grid2.insert(entity1, (9.9, 5.0))  # In cell (0, 0)
+        grid2.insert(entity2, (10.1, 5.0))  # In cell (1, 0)
+
+        # Query from a point near the boundary
+        query_pos = (10.0, 5.0)
+        nearest = grid2.get_nearest(query_pos)
+        # Should find one of the entities (the closer one)
+        self.assertIsNotNone(nearest)
+        self.assertIn(nearest, [entity1, entity2])
+
+        # The nearest should be entity2 (at 10.1) when querying from 10.0
+        # Distance to entity1: |10.0 - 9.9| = 0.1
+        # Distance to entity2: |10.0 - 10.1| = 0.1
+        # Should find entity1 or entity2 (same distance)
+
+    def test_spatial_hash_farther_rings_get_nearest(self):
+        """Test get_nearest with entities in farther rings to verify early exit logic."""
+        from farm.core.spatial_index import SpatialHashGrid
+
+        cell_size = 5.0
+        grid = SpatialHashGrid(cell_size=cell_size, width=100, height=100)
+
+        # Create a scenario where early exit should trigger
+        center_pos = (25, 25)  # Cell (5, 5)
+
+        # Place a close entity in the center cell
+        close_entity = "close"
+        grid.insert(close_entity, (24, 24))  # Very close to center
+
+        # Place distant entities in farther rings
+        distant_entities = []
+        for ring in range(2, 6):  # Rings 2-5
+            for dx in [-ring, 0, ring]:
+                for dy in [-ring, 0, ring]:
+                    if dx == 0 and dy == 0:
+                        continue  # Skip center
+                    pos = (25 + dx * cell_size, 25 + dy * cell_size)
+                    entity = f"distant_r{ring}_{dx}_{dy}"
+                    distant_entities.append((entity, pos))
+                    grid.insert(entity, pos)
+
+        # Query nearest from center
+        nearest = grid.get_nearest(center_pos)
+        self.assertEqual(nearest, close_entity)
+
+        # Test with no close entities - should find one in outer rings
+        grid2 = SpatialHashGrid(cell_size=cell_size, width=100, height=100)
+
+        # Only place entities in ring 3
+        ring3_entities = []
+        ring = 3
+        for dx in [-ring, 0, ring]:
+            for dy in [-ring, 0, ring]:
+                if dx == 0 and dy == 0:
+                    continue
+                pos = (25 + dx * cell_size, 25 + dy * cell_size)
+                entity = f"ring3_{dx}_{dy}"
+                ring3_entities.append(entity)
+                grid2.insert(entity, pos)
+
+        # Query should find one of the ring 3 entities
+        nearest2 = grid2.get_nearest(center_pos)
+        self.assertIsNotNone(nearest2)
+        self.assertIn(nearest2, ring3_entities)
+
+    def test_spatial_hash_boundary_conditions(self):
+        """Test SpatialHashGrid with positions at environment boundaries."""
+        from farm.core.spatial_index import SpatialHashGrid
+
+        width, height = 100, 100
+        cell_size = 10.0
+        grid = SpatialHashGrid(cell_size=cell_size, width=width, height=height)
+
+        # Test entities at exact boundaries
+        boundary_positions = [
+            (0, 0),  # Bottom-left corner
+            (width, 0),  # Bottom-right corner
+            (0, height),  # Top-left corner
+            (width, height),  # Top-right corner
+            (width / 2, 0),  # Bottom edge center
+            (width / 2, height),  # Top edge center
+            (0, height / 2),  # Left edge center
+            (width, height / 2),  # Right edge center
+        ]
+
+        entities = []
+        for i, pos in enumerate(boundary_positions):
+            entity = f"boundary_{i}"
+            entities.append(entity)
+            grid.insert(entity, pos)
+
+        # Test that boundary entities can be queried
+        for entity, pos in zip(entities, boundary_positions):
+            # Query at the exact position
+            nearby = grid.query_radius(pos, 0.1)
+            found = any(e == entity for e, p in nearby)
+            self.assertTrue(found, f"Boundary entity at {pos} not found")
+
+        # Test nearest neighbor at boundaries
+        boundary_queries = [
+            (0, 0),  # Corner query
+            (width / 2, height / 2),  # Center query
+            (width - 0.1, height - 0.1),  # Near corner
+        ]
+
+        for query_pos in boundary_queries:
+            nearest = grid.get_nearest(query_pos)
+            self.assertIsNotNone(
+                nearest, f"No nearest entity found for query at {query_pos}"
+            )
+
+    def test_spatial_hash_early_exit_optimization(self):
+        """Test that the tightened nearest neighbor bound enables early exits."""
+        from farm.core.spatial_index import SpatialHashGrid
+
+        cell_size = 10.0
+        grid = SpatialHashGrid(cell_size=cell_size, width=200, height=200)
+
+        # Create a scenario where early exit should definitely trigger
+        query_pos = (50, 50)
+
+        # Place a very close entity
+        close_entity = "very_close"
+        close_pos = (50.1, 50.1)  # Extremely close
+        grid.insert(close_entity, close_pos)
+
+        # Place entities far away (beyond the early exit bound)
+        far_entity = "far_away"
+        far_pos = (150, 150)  # More than 100 units away
+        grid.insert(far_entity, far_pos)
+
+        # The nearest should be the close entity, and the algorithm should
+        # early exit before checking the far entity
+        nearest = grid.get_nearest(query_pos)
+        self.assertEqual(nearest, close_entity)
+
+        # Verify the far entity is actually farther
+        dx_close = close_pos[0] - query_pos[0]
+        dy_close = close_pos[1] - query_pos[1]
+        dist_close_sq = dx_close * dx_close + dy_close * dy_close
+
+        dx_far = far_pos[0] - query_pos[0]
+        dy_far = far_pos[1] - query_pos[1]
+        dist_far_sq = dx_far * dx_far + dy_far * dy_far
+
+        self.assertLess(dist_close_sq, dist_far_sq)
+
+    def test_spatial_hash_empty_cells_and_queries(self):
+        """Test SpatialHashGrid behavior with empty cells and edge case queries."""
+        from farm.core.spatial_index import SpatialHashGrid
+
+        grid = SpatialHashGrid(cell_size=10.0, width=100, height=100)
+
+        # Test queries when grid is empty
+        self.assertIsNone(grid.get_nearest((50, 50)))
+        self.assertEqual(grid.query_radius((50, 50), 10), [])
+        self.assertEqual(grid.query_range((40, 40, 20, 20)), [])
+
+        # Add one entity
+        entity = "single"
+        grid.insert(entity, (50, 50))
+
+        # Test queries with single entity
+        nearest = grid.get_nearest((50, 50))
+        self.assertEqual(nearest, entity)
+
+        nearby = grid.query_radius((50, 50), 5)
+        self.assertEqual(len(nearby), 1)
+        self.assertEqual(nearby[0][0], entity)
+
+        # Test queries far from the entity
+        far_nearest = grid.get_nearest((0, 0))
+        self.assertEqual(far_nearest, entity)  # Should still find it
+
+        far_nearby = grid.query_radius((0, 0), 5)
+        self.assertEqual(len(far_nearby), 0)  # Too far
+
+        # Test range queries
+        range_results = grid.query_range((45, 45, 10, 10))
+        self.assertEqual(len(range_results), 1)
+
+        range_results_empty = grid.query_range((0, 0, 10, 10))
+        self.assertEqual(len(range_results_empty), 0)
 
     def test_margin_calculation_edge_cases(self):
         """Test edge cases in margin calculation for position validation."""
@@ -1546,7 +1966,9 @@ class TestSpatialIndex(unittest.TestCase):
         self.assertTrue(tiny_index._is_valid_position((0, 0)))
         self.assertTrue(tiny_index._is_valid_position((0.1, 0.1)))
         self.assertTrue(tiny_index._is_valid_position((-0.0009, 0.05)))  # Within margin
-        self.assertFalse(tiny_index._is_valid_position((-0.0011, 0.05)))  # Outside margin
+        self.assertFalse(
+            tiny_index._is_valid_position((-0.0011, 0.05))
+        )  # Outside margin
 
         # Test with fractional dimensions
         fractional_index = SpatialIndex(width=10.5, height=7.25)
@@ -1559,15 +1981,24 @@ class TestSpatialIndex(unittest.TestCase):
 
         # Test positions within margin
         self.assertTrue(fractional_index._is_valid_position((-margin_x + 0.01, 3.625)))
-        self.assertTrue(fractional_index._is_valid_position((10.5 + margin_x - 0.01, 3.625)))
+        self.assertTrue(
+            fractional_index._is_valid_position((10.5 + margin_x - 0.01, 3.625))
+        )
         self.assertTrue(fractional_index._is_valid_position((5.25, -margin_y + 0.01)))
-        self.assertTrue(fractional_index._is_valid_position((5.25, 7.25 + margin_y - 0.01)))
+        self.assertTrue(
+            fractional_index._is_valid_position((5.25, 7.25 + margin_y - 0.01))
+        )
 
         # Test positions outside margin
         self.assertFalse(fractional_index._is_valid_position((-margin_x - 0.01, 3.625)))
-        self.assertFalse(fractional_index._is_valid_position((10.5 + margin_x + 0.01, 3.625)))
+        self.assertFalse(
+            fractional_index._is_valid_position((10.5 + margin_x + 0.01, 3.625))
+        )
         self.assertFalse(fractional_index._is_valid_position((5.25, -margin_y - 0.01)))
-        self.assertFalse(fractional_index._is_valid_position((5.25, 7.25 + margin_y + 0.01)))
+        self.assertFalse(
+            fractional_index._is_valid_position((5.25, 7.25 + margin_y + 0.01))
+        )
+
 
 class TestSpatialIndexNamedIndices(unittest.TestCase):
     """Additional tests for configurable named indices and generic getters."""
@@ -1597,8 +2028,20 @@ class TestSpatialIndexNamedIndices(unittest.TestCase):
 
         # Minimal resources
         resources = [
-            Resource(resource_id=1, position=(0, 0), amount=5, max_amount=10, regeneration_rate=0.1),
-            Resource(resource_id=2, position=(80, 80), amount=5, max_amount=10, regeneration_rate=0.1),
+            Resource(
+                resource_id=1,
+                position=(0, 0),
+                amount=5,
+                max_amount=10,
+                regeneration_rate=0.1,
+            ),
+            Resource(
+                resource_id=2,
+                position=(80, 80),
+                amount=5,
+                max_amount=10,
+                regeneration_rate=0.1,
+            ),
         ]
 
         index.set_references(agents, resources)
@@ -1625,7 +2068,9 @@ class TestSpatialIndexNamedIndices(unittest.TestCase):
         self.assertFalse(any(a.agent_id == "prey1" for a in nearby["predators"]))
 
         # Generic nearest limited to a specific index
-        nearest = index.get_nearest((9, 9), index_names=["predators"])  # closest to predator
+        nearest = index.get_nearest(
+            (9, 9), index_names=["predators"]
+        )  # closest to predator
         self.assertIn("predators", nearest)
         self.assertIsNotNone(nearest["predators"])
         self.assertEqual(nearest["predators"].agent_id, "pred1")
@@ -1646,7 +2091,9 @@ class TestSpatialIndexNamedIndices(unittest.TestCase):
             "all_agents": agents,
         }
 
-        custom_index = SpatialIndex(width=100, height=100, index_configs=idx_configs, index_data=idx_data)
+        custom_index = SpatialIndex(
+            width=100, height=100, index_configs=idx_configs, index_data=idx_data
+        )
 
         # Populate references
         a1 = MockBaseAgent("a1", (5, 5), 0, None)
