@@ -1563,7 +1563,7 @@ class AgentObservation:
         handlers = self.registry.get_all_handlers()
         ordered = sorted(handlers.keys(), key=lambda n: self.registry.get_index(n))
         return ObservationRenderer.render(
-            self.observation,
+            self.tensor(),
             ordered,
             mode=mode,
             size=size,
@@ -1580,7 +1580,7 @@ class AgentObservation:
         handlers = self.registry.get_all_handlers()
         ordered = sorted(handlers.keys(), key=lambda n: self.registry.get_index(n))
         meta = {"R": int(self.config.R)}
-        return ObservationRenderer.to_interactive_json(self.observation, ordered, meta)
+        return ObservationRenderer.to_interactive_json(self.tensor(), ordered, meta)
 
     def render_interactive_html(
         self,
@@ -1605,7 +1605,7 @@ class AgentObservation:
         handlers = self.registry.get_all_handlers()
         ordered = sorted(handlers.keys(), key=lambda n: self.registry.get_index(n))
         return ObservationRenderer.render_interactive_html(
-            self.observation,
+            self.tensor(),
             ordered,
             outfile=outfile,
             title=title,
