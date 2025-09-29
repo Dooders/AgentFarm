@@ -480,9 +480,9 @@ class Environment(AECEnv):
         # Register Quadtree versions of the default indices
         self.spatial_index.register_index(
             name="agents_quadtree",
-            data_reference=self._agent_objects,
-            position_getter=lambda aid: self._agent_objects[aid].position,
-            filter_func=lambda aid: getattr(self._agent_objects[aid], "alive", True),
+            data_getter=lambda: list(self._agent_objects.values()),
+            position_getter=lambda a: a.position,
+            filter_func=lambda a: getattr(a, "alive", True),
             index_type="quadtree",
         )
 

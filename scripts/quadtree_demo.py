@@ -114,8 +114,8 @@ def demo_performance_comparison():
         spatial_index.get_nearby(pos, 10, ["perf_quadtree"])
     quadtree_radial_time = time.time() - start_time
 
-    print(".3f")
-    print(".3f")
+    print(f"KD-tree radial queries: {kdtree_radial_time:.3f} seconds")
+    print(f"Quadtree radial queries: {quadtree_radial_time:.3f} seconds")
 
     # Test rectangular queries (Quadtree advantage)
     print("\nTesting rectangular range queries (Quadtree optimized)...")
@@ -133,13 +133,13 @@ def demo_performance_comparison():
         spatial_index.get_nearby_range(bounds, ["perf_quadtree"])
     quadtree_rect_time = time.time() - start_time
 
-    print(".3f")
-    print(".3f")
+    print(f"KD-tree rectangular query time: {kdtree_rect_time:.3f} s")
+    print(f"Quadtree rectangular query time: {quadtree_rect_time:.3f} s")
 
     # Calculate speedups
     if quadtree_rect_time < kdtree_rect_time:
         rect_speedup = kdtree_rect_time / quadtree_rect_time
-        print(".1f")
+        print(f"Rectangular query speedup (KD-tree / Quadtree): {rect_speedup:.1f}x")
 
     print()
 

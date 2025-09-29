@@ -10,6 +10,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 from scipy.spatial import cKDTree
+import heapq
 
 logger = logging.getLogger(__name__)
 
@@ -932,27 +933,66 @@ class SpatialIndex:
                 if state["quadtree"] is None or not state["cached_items"]:
                     results[name] = None
                     continue
-                # For quadtree, we need to find the closest entity manually
-                # since quadtree doesn't have built-in nearest neighbor search
-                entities_and_positions = state["quadtree"].query_radius(position, self.width + self.height)  # Large radius to get all
-                if not entities_and_positions:
-                    results[name] = None
-                    continue
-
-                # Find closest entity
-                closest_entity = None
-                min_distance = float('inf')
-                for entity, entity_pos in entities_and_positions:
-                    distance = ((position[0] - entity_pos[0]) ** 2 + (position[1] - entity_pos[1]) ** 2) ** 0.5
-                    if distance < min_distance:
-                        min_distance = distance
-                        closest_entity = entity
-
-                results[name] = closest_entity
+                # Use best-first search on quadtree for nearest neighbor
+                results[name] = self._quadtree_nearest(state["quadtree"], position)
 
             else:
                 results[name] = None
         return results
+
+    def _quadtree_nearest(self, quadtree: Quadtree, position: Tuple[float, float]) -> Optional[Any]:
+        """Find nearest entity in a quadtree using best-first search with pruning.
+
+        Explores nodes ordered by the minimum possible distance from the query point
+        to the node's bounds. Prunes subtrees whose min-distance exceeds the best
+        entity distance found so far.
+        """
+        if quadtree is None or quadtree.root is None:
+            return None
+
+        def rect_min_distance_sq(point: Tuple[float, float], bounds: Tuple[float, float, float, float]) -> float:
+            px, py = point
+            x, y, w, h = bounds
+            cx = px if x <= px <= x + w else (x if px < x else x + w)
+            cy = py if y <= py <= y + h else (y if py < y else y + h)
+            dx = px - cx
+            dy = py - cy
+            return dx * dx + dy * dy
+
+        def distance_sq(p1: Tuple[float, float], p2: Tuple[float, float]) -> float:
+            dx = p1[0] - p2[0]
+            dy = p1[1] - p2[1]
+            return dx * dx + dy * dy
+
+        best_entity: Optional[Any] = None
+        best_dist_sq: float = float("inf")
+
+        # Priority queue of (min_possible_distance_sq, node)
+        heap: List[Tuple[float, QuadtreeNode]] = []
+        heapq.heappush(heap, (rect_min_distance_sq(position, quadtree.root.bounds), quadtree.root))
+
+        while heap:
+            min_possible_sq, node = heapq.heappop(heap)
+
+            # If the closest possible entity in this node cannot beat current best, prune
+            if min_possible_sq >= best_dist_sq:
+                break
+
+            # Check entities stored at this node
+            for entity, entity_pos in node.entities:
+                d2 = distance_sq(position, entity_pos)
+                if d2 < best_dist_sq:
+                    best_dist_sq = d2
+                    best_entity = entity
+
+            # Explore children ordered by their min distance
+            if node.children:
+                for child in node.children:
+                    child_min_sq = rect_min_distance_sq(position, child.bounds)
+                    if child_min_sq < best_dist_sq:
+                        heapq.heappush(heap, (child_min_sq, child))
+
+        return best_entity
 
     def _is_valid_position(self, position: Tuple[float, float]) -> bool:
         """Check if a position is valid within the environment bounds.
