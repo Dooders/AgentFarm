@@ -18,6 +18,7 @@ from farm.core.channels import NUM_CHANNELS, Channel
 from farm.core.observations import (
     AgentObservation,
     ObservationConfig,
+    SparsePoints,
     crop_local,
     crop_local_stack,
     make_disk_mask,
@@ -656,3 +657,40 @@ class TestSparseMetrics:
         assert metrics["sparse_points"] >= 2
         assert metrics["dense_rebuilds"] >= 1
         assert metrics["sparse_apply_calls"] >= 1
+
+
+class TestGridSparsification:
+    """Tests for grid sparsification to SparsePoints with accuracy checks."""
+
+    def test_grid_sparsification_accuracy_and_memory(self):
+        # Configure to encourage sparsification
+        config = ObservationConfig(
+            R=2,
+            dtype="float32",
+            grid_sparsify_enabled=True,
+            grid_sparsify_threshold=0.25,  # sparsify when <25% non-zero
+            grid_zero_epsilon=1e-12,
+        )
+        obs = AgentObservation(config)
+
+        # Build a sparse local grid (S=2R+1=5)
+        S = 2 * config.R + 1
+        grid = torch.zeros(S, S, dtype=config.torch_dtype)
+        grid[0, 0] = 1.0
+        grid[S - 1, S // 2] = 0.5
+
+        # Store into a full-grid channel (e.g., RESOURCES)
+        channel_idx = Channel.RESOURCES
+        obs._store_sparse_grid(channel_idx, grid)
+
+        # Expect sparsification to SparsePoints backend
+        assert channel_idx in obs.sparse_channels
+        assert isinstance(obs.sparse_channels[channel_idx], SparsePoints)
+
+        # Dense reconstruction should match original grid exactly
+        dense = obs.tensor()
+        assert torch.allclose(dense[channel_idx], grid, atol=0.0, rtol=0.0)
+
+        # Memory estimate should indicate reduction relative to dense baseline
+        metrics = obs.get_metrics()
+        assert metrics["sparse_logical_bytes"] < metrics["dense_bytes"]
