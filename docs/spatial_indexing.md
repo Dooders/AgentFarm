@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-The AgentFarm spatial indexing system provides efficient proximity queries and spatial reasoning capabilities essential for scalable multi-agent simulations. The system implements dual spatial indexing strategies - KD-tree and Quadtree - to enable O(log n) proximity queries for entity detection and spatial awareness, optimized for different query patterns.
+The AgentFarm spatial indexing system provides efficient proximity queries and spatial reasoning capabilities essential for scalable multi-agent simulations. The system implements multiple spatial indexing strategies — KD-tree, Quadtree, and Spatial Hash Grid — to enable fast proximity queries for entity detection and spatial awareness, optimized for different query patterns.
 
 ---
 
@@ -36,7 +36,8 @@ The spatial indexing system enables:
 
 - **KD-Tree Indexing**: O(log n) queries using scipy.spatial.cKDTree with optimized change detection
 - **Quadtree Indexing**: Hierarchical spatial partitioning for efficient range queries and dynamic updates
-- **Dual Index Support**: Automatic selection of optimal indexing strategy per query type
+- **Spatial Hash Grid**: Uniform bucket grid for near-constant-time neighborhood queries and efficient dynamic updates
+- **Multiple Index Support**: Choose index per use case; enable additional indices alongside defaults
 - **Dynamic Updates**: Efficient position updates without full index rebuilds
 
 ---
@@ -107,6 +108,36 @@ range_entities = quadtree.query_range((x, y, w, h))     # O(log n) average
 - Range-based spatial operations (crowd density, group formations)
 - Scenarios requiring hierarchical spatial reasoning
 
+### 3. Spatial Hash Grid Indexing
+
+**Purpose**: Provides grid-based bucketing for O(1)-ish average neighborhood queries and fast dynamic updates.
+
+**Technical Implementation:**
+
+```python
+from farm.core.environment import Environment
+
+env = Environment(width=100, height=100, resource_distribution="uniform")
+env.enable_spatial_hash_indices(cell_size=5.0)  # optional cell size override
+
+# Queries
+nearby = env.spatial_index.get_nearby((50, 50), 10, ["agents_hash"])  # uses spatial hash
+nearest = env.spatial_index.get_nearest((42, 18), ["resources_hash"])  # hash nearest
+```
+
+**Key Features:**
+
+- **Uniform Grid Buckets**: Entities stored in integer (ix, iy) buckets
+- **Bounded Query Cost**: Only checks buckets overlapping the query region
+- **Fast Dynamic Updates**: O(1) remove/insert on moves
+- **Hotspot Robustness**: Performs well under non-uniform distributions
+
+**When to Use Spatial Hashing:**
+
+- Large, dynamic populations where rebuild cost is high
+- Frequent radius/neighbor queries with moderate radii
+- Non-uniform distributions (clusters, crowds) where locality helps
+
 ---
 
 ## Performance Characteristics
@@ -117,6 +148,7 @@ range_entities = quadtree.query_range((x, y, w, h))     # O(log n) average
 |----------|------------|------------|--------------|----------|
 | **KD-Tree** | O(n log n) | O(log n) | ~200 KB/100 agents | Radial queries, nearest neighbor |
 | **Quadtree** | O(n log n) | O(log n) | ~150 KB/100 agents | Range queries, dynamic updates |
+| **Spatial Hash** | O(n) | ~O(1) avg | ~120 KB/100 agents | Frequent neighbor queries, dynamic updates |
 
 ### Scaling Analysis
 
@@ -230,8 +262,23 @@ spatial_index.update_entity_position(
 )
 
 # Get detailed Quadtree statistics
+# Get detailed Quadtree statistics
 quadtree_stats = spatial_index.get_quadtree_stats("agents_quadtree")
 print(f"Quadtree depth: {quadtree_stats}")
+```
+
+### Enabling Spatial Hash Indices
+
+```python
+# Enable Spatial Hash indices for fast neighborhood queries and dynamic updates
+env.enable_spatial_hash_indices(cell_size=5.0)  # optional; uses heuristic if None
+
+# Use spatial-hash-backed indices
+nearby = spatial_index.get_nearby((x, y), radius, ["agents_hash"])  # bucketed radius query
+nearest = spatial_index.get_nearest((x, y), ["resources_hash"])     # nearest via grid expansion
+
+# Range queries
+in_rect = spatial_index.get_nearby_range((rx, ry, rw, rh), ["agents_hash"])
 ```
 
 ### Advanced Usage with Custom Queries
@@ -477,5 +524,6 @@ The spatial indexing system enables:
 
 - **Use KD-trees** for: Nearest neighbor searches, radial proximity queries, static or slowly changing environments
 - **Use Quadtrees** for: Rectangular range queries, area-of-effect operations, frequently moving entities, hierarchical spatial analysis
+- **Use Spatial Hash** for: Large dynamic populations, frequent neighborhood queries, and hotspot-heavy distributions
 
 This dual spatial foundation is essential for creating realistic multi-agent behaviors, from combat and resource gathering to social interactions and navigation, making it a critical component of the AgentFarm simulation framework.

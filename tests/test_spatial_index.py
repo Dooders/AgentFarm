@@ -898,6 +898,87 @@ class TestSpatialIndex(unittest.TestCase):
         self.assertIsNotNone(stats)
         self.assertIn("total_entities", stats)
 
+    def test_spatial_hash_basic_operations(self):
+        """Test basic Spatial Hash operations via named indices."""
+        # Add some test agents
+        test_agents = []
+        for i in range(5):
+            agent = MockBaseAgent(
+                agent_id=f"hash_agent{i}",
+                position=(i * 20, i * 20),
+                resource_level=50,
+                environment=None,
+                generation=0,
+            )
+            test_agents.append(agent)
+
+        # Create a Spatial Hash index
+        self.spatial_index.register_index(
+            name="test_hash",
+            data_reference=test_agents,
+            position_getter=lambda a: a.position,
+            filter_func=None,
+            index_type="spatial_hash",
+            cell_size=10.0,
+        )
+
+        # Update to build the spatial hash
+        self.spatial_index.update()
+
+        # Test spatial hash nearby queries
+        nearby = self.spatial_index.get_nearby((50, 50), 20, ["test_hash"])
+        self.assertIn("test_hash", nearby)
+        self.assertGreaterEqual(len(nearby["test_hash"]), 1)
+
+        # Test nearest queries
+        nearest = self.spatial_index.get_nearest((0, 0), ["test_hash"])
+        self.assertIn("test_hash", nearest)
+
+        # Test rectangular range queries
+        range_results = self.spatial_index.get_nearby_range((30, 30, 40, 40), ["test_hash"])
+        self.assertIn("test_hash", range_results)
+
+    def test_spatial_hash_dynamic_updates(self):
+        """Test dynamic position updates in Spatial Hash indices."""
+        # Create test agent
+        agent = MockBaseAgent(
+            agent_id="dynamic_hash",
+            position=(10, 10),
+            resource_level=50,
+            environment=None,
+            generation=0,
+        )
+
+        # Create Spatial Hash index
+        self.spatial_index.register_index(
+            name="dynamic_hash",
+            data_reference=[agent],
+            position_getter=lambda a: a.position,
+            filter_func=None,
+            index_type="spatial_hash",
+            cell_size=8.0,
+        )
+
+        # Build the index
+        self.spatial_index.update()
+
+        # Initial position
+        initial_nearby = self.spatial_index.get_nearby((10, 10), 5, ["dynamic_hash"])
+        self.assertEqual(len(initial_nearby["dynamic_hash"]), 1)
+
+        # Update position
+        old_pos = (10, 10)
+        new_pos = (50, 50)
+        agent.position = new_pos
+        self.spatial_index.update_entity_position(agent, old_pos, new_pos)
+
+        # Check that agent is no longer found at old position
+        old_nearby = self.spatial_index.get_nearby((10, 10), 5, ["dynamic_hash"])
+        self.assertEqual(len(old_nearby["dynamic_hash"]), 0)
+
+        # Check that agent is found at new position
+        new_nearby = self.spatial_index.get_nearby((50, 50), 5, ["dynamic_hash"])
+        self.assertEqual(len(new_nearby["dynamic_hash"]), 1)
     def test_quadtree_vs_kdtree_performance(self):
         """Compare performance between Quadtree and KD-tree for different query patterns."""
         import time

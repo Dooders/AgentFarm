@@ -325,6 +325,7 @@ class Environment(AECEnv):
         # Optionally enable Quadtree indices for performance comparison
         # This can be enabled via configuration or method call
         self._quadtree_enabled = False
+        self._spatial_hash_enabled = False
 
         # Perception profiler accumulators
         self._perception_profile = {
@@ -496,6 +497,43 @@ class Environment(AECEnv):
 
         self._quadtree_enabled = True
         logger.info("Quadtree indices enabled for spatial queries")
+
+    def enable_spatial_hash_indices(self, cell_size: Optional[float] = None) -> None:
+        """Enable Spatial Hash Grid indices alongside existing KD-tree indices.
+
+        Registers spatial-hash-based indices for agents and resources. Spatial hash
+        indices provide near-constant-time neighborhood queries by inspecting only
+        nearby buckets and support efficient dynamic updates.
+
+        Parameters
+        ----------
+        cell_size : float, optional
+            Size of each grid cell. If None, a heuristic based on environment
+            size is used to choose a reasonable default.
+        """
+        if self._spatial_hash_enabled:
+            return
+
+        self.spatial_index.register_index(
+            name="agents_hash",
+            data_getter=lambda: list(self._agent_objects.values()),
+            position_getter=lambda a: a.position,
+            filter_func=lambda a: getattr(a, "alive", True),
+            index_type="spatial_hash",
+            cell_size=cell_size,
+        )
+
+        self.spatial_index.register_index(
+            name="resources_hash",
+            data_reference=self.resources,
+            position_getter=lambda r: r.position,
+            filter_func=None,
+            index_type="spatial_hash",
+            cell_size=cell_size,
+        )
+
+        self._spatial_hash_enabled = True
+        logger.info("Spatial hash indices enabled for spatial queries (cell_size=%s)", cell_size)
 
     # Resource IDs are managed by ResourceManager
 
