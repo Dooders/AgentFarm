@@ -266,6 +266,10 @@ class Environment(AECEnv):
         self.infos = {}
         self.observations = {}
 
+        # Initialize spatial index attributes
+        self._quadtree_enabled = False
+        self._spatial_hash_enabled = False
+
         # Initialize spatial index for efficient spatial queries with batch updates
         from farm.utils.config_utils import resolve_spatial_index_config
         spatial_config = resolve_spatial_index_config(config)
@@ -348,10 +352,7 @@ class Environment(AECEnv):
         )
         self.spatial_index.update()
 
-        # Optionally enable Quadtree indices for performance comparison
-        # This can be enabled via configuration or method call
-        self._quadtree_enabled = False
-        self._spatial_hash_enabled = False
+        # Quadtree and spatial hash indices are already initialized above
 
         # Perception profiler accumulators
         self._perception_profile = {

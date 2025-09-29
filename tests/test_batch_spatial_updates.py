@@ -157,7 +157,7 @@ class TestSpatialIndexBatchUpdates:
             max_batch_size=50
         )
         
-        assert spatial_index.enable_batch_updates is True
+        assert spatial_index._initial_batch_updates_enabled is True
         assert spatial_index.max_batch_size == 50
         assert spatial_index._batch_update_enabled is True
         assert spatial_index._dirty_region_tracker is not None
@@ -171,7 +171,7 @@ class TestSpatialIndexBatchUpdates:
             enable_batch_updates=False
         )
         
-        assert spatial_index.enable_batch_updates is False
+        assert spatial_index._initial_batch_updates_enabled is False
         assert spatial_index._batch_update_enabled is False
         assert spatial_index._dirty_region_tracker is None
 
@@ -357,7 +357,7 @@ class TestEnvironmentBatchUpdates:
         )
         
         # Check that spatial index was configured correctly
-        assert env.spatial_index.enable_batch_updates is True
+        assert env.spatial_index._batch_update_enabled is True
         assert env.spatial_index._dirty_region_tracker.region_size == 30.0
         assert env.spatial_index.max_batch_size == 25
 
@@ -374,7 +374,7 @@ class TestEnvironmentBatchUpdates:
         )
         
         # Check that default batch updates are enabled
-        assert env.spatial_index.enable_batch_updates is True
+        assert env.spatial_index._initial_batch_updates_enabled is True
         assert env.spatial_index._dirty_region_tracker.region_size == 50.0
         assert env.spatial_index.max_batch_size == 100
 
@@ -454,8 +454,8 @@ class TestPerformanceImprovements:
             enable_batch_updates=False
         )
         
-        # Create mock entities
-        entities = [Mock() for _ in range(50)]
+        # Create mock entities - use larger batch for meaningful performance comparison
+        entities = [Mock() for _ in range(200)]
         
         # Time batch updates
         start_time = time.time()

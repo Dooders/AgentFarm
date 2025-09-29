@@ -904,7 +904,7 @@ class SpatialIndex:
         """
         self.width = width
         self.height = height
-        self.enable_batch_updates = enable_batch_updates
+        self._initial_batch_updates_enabled = enable_batch_updates
         self.max_batch_size = max_batch_size
 
         # KD-tree attributes
@@ -935,7 +935,7 @@ class SpatialIndex:
         self._initial_index_data = index_data or {}
 
         # Batch update system
-        if self.enable_batch_updates:
+        if self._initial_batch_updates_enabled:
             self._dirty_region_tracker = DirtyRegionTracker(
                 region_size=region_size,
                 max_regions=max(1000, int((width * height) / (region_size * region_size)))

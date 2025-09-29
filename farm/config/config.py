@@ -25,6 +25,20 @@ class SpatialIndexConfig:
     performance_monitoring: bool = True
     debug_queries: bool = False
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert SpatialIndexConfig to a JSON-serializable dictionary."""
+        return {
+            "enable_batch_updates": self.enable_batch_updates,
+            "region_size": self.region_size,
+            "max_batch_size": self.max_batch_size,
+            "max_regions": self.max_regions,
+            "enable_quadtree_indices": self.enable_quadtree_indices,
+            "enable_spatial_hash_indices": self.enable_spatial_hash_indices,
+            "spatial_hash_cell_size": self.spatial_hash_cell_size,
+            "performance_monitoring": self.performance_monitoring,
+            "debug_queries": self.debug_queries,
+        }
+
 
 @dataclass
 class EnvironmentConfig:
@@ -477,13 +491,17 @@ class SimulationConfig:
                 "modules",
             ]:
                 # Convert nested config objects to dicts
-                config_dict.update(
-                    {
-                        f"{key}.{k}": v
-                        for k, v in value.__dict__.items()
-                        if not k.startswith("_")
-                    }
-                )
+                for k, v in value.__dict__.items():
+                    if k.startswith("_"):
+                        continue
+                    elif key == "environment" and k == "spatial_index" and v is not None:
+                        # Handle SpatialIndexConfig specially
+                        if hasattr(v, 'to_dict'):
+                            config_dict[f"{key}.{k}"] = v.to_dict()
+                        else:
+                            config_dict[f"{key}.{k}"] = v
+                    else:
+                        config_dict[f"{key}.{k}"] = v
             else:
                 config_dict[key] = value
         return config_dict
