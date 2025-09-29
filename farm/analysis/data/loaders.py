@@ -271,7 +271,7 @@ class SQLiteLoader(DatabaseLoader):
         return pd.DataFrame(data)
 
     def iter_agents(
-        self, simulation_id: Optional[int] = None, chunk_size: int = 10000
+        self, simulation_id: Optional[int] = None, chunk_size: int = 10000, columns: Optional[List[str]] = None
     ) -> "Iterator[pd.DataFrame]":
         session = self.get_session()
         try:
@@ -280,22 +280,23 @@ class SQLiteLoader(DatabaseLoader):
                 query = query.filter(AgentModel.simulation_id == simulation_id)
             buffer: list = []
             for agent in query.yield_per(chunk_size):
-                buffer.append(
-                    {
-                        "id": agent.id,
-                        "simulation_id": agent.simulation_id,
-                        "agent_type": agent.agent_type,
-                        "generation": agent.generation,
-                        "parent_id": agent.parent_id,
-                        "birth_step": agent.birth_step,
-                        "death_step": agent.death_step,
-                        "genome": agent.genome,
-                        "position_x": agent.position_x,
-                        "position_y": agent.position_y,
-                        "initial_health": agent.initial_health,
-                        "initial_energy": agent.initial_energy,
-                    }
-                )
+                row = {
+                    "id": agent.id,
+                    "simulation_id": agent.simulation_id,
+                    "agent_type": agent.agent_type,
+                    "generation": agent.generation,
+                    "parent_id": agent.parent_id,
+                    "birth_step": agent.birth_step,
+                    "death_step": agent.death_step,
+                    "genome": agent.genome,
+                    "position_x": agent.position_x,
+                    "position_y": agent.position_y,
+                    "initial_health": agent.initial_health,
+                    "initial_energy": agent.initial_energy,
+                }
+                if columns is not None:
+                    row = {k: v for k, v in row.items() if k in columns}
+                buffer.append(row)
                 if len(buffer) >= chunk_size:
                     yield pd.DataFrame(buffer)
                     buffer = []
@@ -340,7 +341,7 @@ class SQLiteLoader(DatabaseLoader):
         return pd.DataFrame(data)
 
     def iter_resources(
-        self, simulation_id: Optional[int] = None, chunk_size: int = 10000
+        self, simulation_id: Optional[int] = None, chunk_size: int = 10000, columns: Optional[List[str]] = None
     ) -> "Iterator[pd.DataFrame]":
         session = self.get_session()
         try:
@@ -349,18 +350,19 @@ class SQLiteLoader(DatabaseLoader):
                 query = query.filter(ResourceModel.simulation_id == simulation_id)
             buffer: list = []
             for resource in query.yield_per(chunk_size):
-                buffer.append(
-                    {
-                        "id": resource.id,
-                        "simulation_id": resource.simulation_id,
-                        "resource_type": resource.resource_type,
-                        "position_x": resource.position_x,
-                        "position_y": resource.position_y,
-                        "creation_step": resource.creation_step,
-                        "depletion_step": resource.depletion_step,
-                        "initial_value": resource.initial_value,
-                    }
-                )
+                row = {
+                    "id": resource.id,
+                    "simulation_id": resource.simulation_id,
+                    "resource_type": resource.resource_type,
+                    "position_x": resource.position_x,
+                    "position_y": resource.position_y,
+                    "creation_step": resource.creation_step,
+                    "depletion_step": resource.depletion_step,
+                    "initial_value": resource.initial_value,
+                }
+                if columns is not None:
+                    row = {k: v for k, v in row.items() if k in columns}
+                buffer.append(row)
                 if len(buffer) >= chunk_size:
                     yield pd.DataFrame(buffer)
                     buffer = []
@@ -403,7 +405,7 @@ class SQLiteLoader(DatabaseLoader):
         return pd.DataFrame(data)
 
     def iter_steps(
-        self, simulation_id: Optional[int] = None, chunk_size: int = 10000
+        self, simulation_id: Optional[int] = None, chunk_size: int = 10000, columns: Optional[List[str]] = None
     ) -> "Iterator[pd.DataFrame]":
         session = self.get_session()
         try:
@@ -412,16 +414,17 @@ class SQLiteLoader(DatabaseLoader):
                 query = query.filter(SimulationStepModel.simulation_id == simulation_id)
             buffer: list = []
             for step in query.yield_per(chunk_size):
-                buffer.append(
-                    {
-                        "id": step.id,
-                        "simulation_id": step.simulation_id,
-                        "step_number": step.step_number,
-                        "agent_counts": json.loads(step.agent_counts),
-                        "resource_counts": json.loads(step.resource_counts),
-                        "timestamp": step.timestamp,
-                    }
-                )
+                row = {
+                    "id": step.id,
+                    "simulation_id": step.simulation_id,
+                    "step_number": step.step_number,
+                    "agent_counts": json.loads(step.agent_counts),
+                    "resource_counts": json.loads(step.resource_counts),
+                    "timestamp": step.timestamp,
+                }
+                if columns is not None:
+                    row = {k: v for k, v in row.items() if k in columns}
+                buffer.append(row)
                 if len(buffer) >= chunk_size:
                     yield pd.DataFrame(buffer)
                     buffer = []
@@ -470,7 +473,7 @@ class SQLiteLoader(DatabaseLoader):
         return pd.DataFrame(data)
 
     def iter_reproduction_events(
-        self, simulation_id: Optional[int] = None, chunk_size: int = 10000
+        self, simulation_id: Optional[int] = None, chunk_size: int = 10000, columns: Optional[List[str]] = None
     ) -> "Iterator[pd.DataFrame]":
         session = self.get_session()
         try:
@@ -479,20 +482,21 @@ class SQLiteLoader(DatabaseLoader):
                 query = query.filter(ReproductionEventModel.simulation_id == simulation_id)
             buffer: list = []
             for event in query.yield_per(chunk_size):
-                buffer.append(
-                    {
-                        "id": event.id,
-                        "simulation_id": event.simulation_id,
-                        "step_number": event.step_number,
-                        "parent_id": event.parent_id,
-                        "child_id": event.child_id,
-                        "parent_health": event.parent_health,
-                        "parent_energy": event.parent_energy,
-                        "parent_age": event.parent_age,
-                        "child_genome": event.child_genome,
-                        "mutation_rate": event.mutation_rate,
-                    }
-                )
+                row = {
+                    "id": event.id,
+                    "simulation_id": event.simulation_id,
+                    "step_number": event.step_number,
+                    "parent_id": event.parent_id,
+                    "child_id": event.child_id,
+                    "parent_health": event.parent_health,
+                    "parent_energy": event.parent_energy,
+                    "parent_age": event.parent_age,
+                    "child_genome": event.child_genome,
+                    "mutation_rate": event.mutation_rate,
+                }
+                if columns is not None:
+                    row = {k: v for k, v in row.items() if k in columns}
+                buffer.append(row)
                 if len(buffer) >= chunk_size:
                     yield pd.DataFrame(buffer)
                     buffer = []
@@ -528,23 +532,24 @@ class SQLiteLoader(DatabaseLoader):
 
         return pd.DataFrame(data)
 
-    def iter_simulations(self, chunk_size: int = 10000) -> "Iterator[pd.DataFrame]":
+    def iter_simulations(self, chunk_size: int = 10000, columns: Optional[List[str]] = None) -> "Iterator[pd.DataFrame]":
         session = self.get_session()
         try:
             buffer: list = []
             for sim in session.query(Simulation).yield_per(chunk_size):
-                buffer.append(
-                    {
-                        "simulation_id": sim.simulation_id,
-                        "experiment_id": sim.experiment_id,
-                        "start_time": sim.start_time,
-                        "end_time": sim.end_time,
-                        "status": sim.status,
-                        "parameters": sim.parameters,
-                        "results_summary": sim.results_summary,
-                        "simulation_db_path": sim.simulation_db_path,
-                    }
-                )
+                row = {
+                    "simulation_id": sim.simulation_id,
+                    "experiment_id": sim.experiment_id,
+                    "start_time": sim.start_time,
+                    "end_time": sim.end_time,
+                    "status": sim.status,
+                    "parameters": sim.parameters,
+                    "results_summary": sim.results_summary,
+                    "simulation_db_path": sim.simulation_db_path,
+                }
+                if columns is not None:
+                    row = {k: v for k, v in row.items() if k in columns}
+                buffer.append(row)
                 if len(buffer) >= chunk_size:
                     yield pd.DataFrame(buffer)
                     buffer = []
@@ -634,7 +639,7 @@ class SimulationLoader(SQLiteLoader):
         kwargs["simulation_id"] = self.simulation_id
         return super().load_data(table=table, **kwargs)
 
-    def iter_data(self, table: str = "steps", chunk_size: int = 10000, **kwargs):
+    def iter_data(self, table: str = "steps", chunk_size: int = 10000, columns: Optional[List[str]] = None, **kwargs):
         if self.simulation_id is None:
             raise ValueError("No simulation ID or name specified, or name not found")
 
@@ -650,7 +655,7 @@ class SimulationLoader(SQLiteLoader):
             raise ValueError(
                 f"Unknown table: {table}. Available: {list(table_iters.keys())}"
             )
-        yield from table_iters[table](chunk_size=chunk_size, **kwargs)
+        yield from table_iters[table](chunk_size=chunk_size, columns=columns, **kwargs)
 
     def load_time_series(self) -> pd.DataFrame:
         """Load time series data for the simulation.

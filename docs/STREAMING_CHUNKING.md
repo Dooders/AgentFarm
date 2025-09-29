@@ -67,10 +67,22 @@ for df in exp.iter_data(table="steps", chunk_size=5_000):
 
 ### Configuration tips
 
-- **Chunk sizing**: Start with `chunk_size` or `chunksize` between 10,000 and 200,000 rows depending on row width and memory. Increase if IO-bound, decrease if memory headroom is tight.
+- **Chunk sizing**: Start with `chunk_size` or `chunksize` between 2,000 and 50,000 rows depending on row width and memory. Increase if IO-bound, decrease if memory headroom is tight.
 - **JSON**: For multi-GB JSON, use line-delimited JSON (`.jsonl`/`.ndjson`) to enable streaming. Non-line-delimited JSON is loaded as a single chunk by design.
 - **SQLite**: The `iter_*` methods internally use `yield_per(...)` to reduce memory overhead when loading ORM rows.
 - **Downstream processing**: Prefer per-chunk transformations to avoid concatenating all chunks. If a final analysis requires a full DataFrame, the framework will concatenate at the end only when no `process_chunk` callback is supplied.
+
+### Performance tuning
+
+- **Column projection**: Use `columns=[...]` with `SimulationLoader.iter_data(...)`/`SQLiteLoader` iterators to fetch only needed fields. This can significantly improve throughput and reduce memory.
+- **Indexes**: Ensure your database has an index on filtering columns. For example, add an index on `simulation_steps(simulation_id)` and optionally `simulation_steps(simulation_id, step_number)` to accelerate range scans:
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_sim_steps_sim_id ON simulation_steps(simulation_id);
+CREATE INDEX IF NOT EXISTS idx_sim_steps_sim_id_step ON simulation_steps(simulation_id, step_number);
+```
+
+- **ORM vs raw SQL**: For maximum streaming performance, prefer raw SQL chunking (`execute_query_iter`) over ORM iteration.
 
 ### Backwards compatibility
 
