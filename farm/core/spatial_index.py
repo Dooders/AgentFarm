@@ -17,6 +17,16 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Set
 import numpy as np
 from scipy.spatial import cKDTree
 
+# Import GPU acceleration modules
+try:
+    from .gpu_spatial import GPUDeviceManager, GPUSpatialOperations, GPUAcceleratedKDTree
+    GPU_AVAILABLE = True
+except ImportError:
+    GPUDeviceManager = None
+    GPUSpatialOperations = None
+    GPUAcceleratedKDTree = None
+    GPU_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 # Type aliases for better code clarity
@@ -882,6 +892,8 @@ class SpatialIndex:
         enable_batch_updates: bool = True,
         region_size: float = 50.0,
         max_batch_size: int = 100,
+        enable_gpu_acceleration: bool = True,
+        gpu_device: Optional[str] = None,
     ):
         """Initialize the spatial index.
 
@@ -901,17 +913,37 @@ class SpatialIndex:
             Size of regions for dirty region tracking
         max_batch_size : int
             Maximum number of position updates to batch together
+        enable_gpu_acceleration : bool
+            Enable GPU acceleration for spatial computations
+        gpu_device : str, optional
+            Preferred GPU device ('cupy', 'cuda', 'cpu'). If None, auto-detects best available.
         """
         self.width = width
         self.height = height
         self._initial_batch_updates_enabled = enable_batch_updates
         self.max_batch_size = max_batch_size
+        
+        # GPU acceleration setup
+        self._gpu_acceleration_enabled = enable_gpu_acceleration and GPU_AVAILABLE
+        if self._gpu_acceleration_enabled:
+            self._gpu_device_manager = GPUDeviceManager(gpu_device)
+            self._gpu_operations = GPUSpatialOperations(self._gpu_device_manager)
+            logger.info(f"GPU acceleration enabled using device: {self._gpu_device_manager.device}")
+        else:
+            self._gpu_device_manager = None
+            self._gpu_operations = None
+            if enable_gpu_acceleration and not GPU_AVAILABLE:
+                logger.warning("GPU acceleration requested but GPU libraries not available")
 
         # KD-tree attributes
         self.agent_kdtree: Optional[cKDTree] = None
         self.resource_kdtree: Optional[cKDTree] = None
         self.agent_positions: Optional[np.ndarray] = None
         self.resource_positions: Optional[np.ndarray] = None
+        
+        # GPU-accelerated KD-trees
+        self._gpu_agent_kdtree: Optional[GPUAcceleratedKDTree] = None
+        self._gpu_resource_kdtree: Optional[GPUAcceleratedKDTree] = None
 
         # Position change tracking for optimized updates
         self._positions_dirty: bool = True
@@ -1353,9 +1385,16 @@ class SpatialIndex:
         if alive_agents:
             self.agent_positions = np.array([agent.position for agent in alive_agents])
             self.agent_kdtree = cKDTree(self.agent_positions)
+            
+            # Build GPU-accelerated KD-tree if available
+            if self._gpu_acceleration_enabled and GPUAcceleratedKDTree is not None:
+                self._gpu_agent_kdtree = GPUAcceleratedKDTree(
+                    self.agent_positions, self._gpu_device_manager
+                )
         else:
             self.agent_kdtree = None
             self.agent_positions = None
+            self._gpu_agent_kdtree = None
 
         # Update resource KD-tree
         # Filter out resources without valid positions
@@ -1367,9 +1406,16 @@ class SpatialIndex:
                 [resource.position for resource in valid_resources]
             )
             self.resource_kdtree = cKDTree(self.resource_positions)
+            
+            # Build GPU-accelerated KD-tree if available
+            if self._gpu_acceleration_enabled and GPUAcceleratedKDTree is not None:
+                self._gpu_resource_kdtree = GPUAcceleratedKDTree(
+                    self.resource_positions, self._gpu_device_manager
+                )
         else:
             self.resource_kdtree = None
             self.resource_positions = None
+            self._gpu_resource_kdtree = None
 
         # Also update any additional named indices after defaults are built
         self._update_named_indices()
@@ -2068,4 +2114,273 @@ class SpatialIndex:
         if quadtree_info:
             stats["quadtree_indices"] = quadtree_info
 
+        # Add GPU acceleration information
+        if self._gpu_acceleration_enabled:
+            stats["gpu_acceleration"] = {
+                "enabled": True,
+                "device": self._gpu_device_manager.device if self._gpu_device_manager else "unknown",
+                "gpu_agent_kdtree": self._gpu_agent_kdtree is not None,
+                "gpu_resource_kdtree": self._gpu_resource_kdtree is not None,
+            }
+            if self._gpu_operations:
+                stats["gpu_performance"] = self._gpu_operations.get_performance_stats()
+        else:
+            stats["gpu_acceleration"] = {"enabled": False}
+
+        return stats
+    
+    def get_nearby_gpu(
+        self,
+        position: Tuple[float, float],
+        radius: float,
+        index_names: Optional[List[str]] = None,
+    ) -> Dict[str, List[Any]]:
+        """GPU-accelerated nearby query across one or more named indices.
+        
+        This method uses GPU acceleration when available, falling back to CPU
+        operations when GPU is not available or suitable.
+        
+        Parameters
+        ----------
+        position : Tuple[float, float]
+            Query position as (x, y) coordinates
+        radius : float
+            Search radius around the query position. Must be positive.
+        index_names : List[str], optional
+            Names of specific indices to search. If None, searches all registered indices.
+            
+        Returns
+        -------
+        Dict[str, List[Any]]
+            Dictionary mapping index names to lists of nearby items within the radius.
+        """
+        if not self._gpu_acceleration_enabled or not self._gpu_operations:
+            # Fallback to regular CPU method
+            return self.get_nearby(position, radius, index_names)
+        
+        self.update()
+        
+        # Input validation
+        if radius <= 0 or not self._is_valid_position(position):
+            return {}
+        
+        names = index_names or list(self._named_indices.keys())
+        results: Dict[str, List[Any]] = {}
+        
+        for name in names:
+            state = self._named_indices.get(name)
+            if state is None:
+                results[name] = []
+                continue
+            
+            # Use GPU-accelerated KD-tree for default indices
+            if name == "agents" and self._gpu_agent_kdtree is not None:
+                indices = self._gpu_agent_kdtree.query_ball_point(
+                    np.array([position]), radius
+                )[0]
+                cached_items = state["cached_items"] or []
+                results[name] = [cached_items[i] for i in indices]
+            elif name == "resources" and self._gpu_resource_kdtree is not None:
+                indices = self._gpu_resource_kdtree.query_ball_point(
+                    np.array([position]), radius
+                )[0]
+                cached_items = state["cached_items"] or []
+                results[name] = [cached_items[i] for i in indices]
+            else:
+                # Fallback to regular method for other indices
+                results[name] = self.get_nearby(position, radius, [name]).get(name, [])
+        
+        return results
+    
+    def get_nearest_gpu(
+        self, position: Tuple[float, float], index_names: Optional[List[str]] = None
+    ) -> Dict[str, Optional[Any]]:
+        """GPU-accelerated nearest query across one or more named indices.
+        
+        This method uses GPU acceleration when available, falling back to CPU
+        operations when GPU is not available or suitable.
+        
+        Parameters
+        ----------
+        position : Tuple[float, float]
+            The (x, y) coordinates to query for the nearest item.
+        index_names : List[str], optional
+            List of index names to query. If None, queries all registered indices.
+            
+        Returns
+        -------
+        Dict[str, Optional[Any]]
+            A dictionary mapping each index name to the nearest item in that index,
+            or None if the index is empty or not found.
+        """
+        if not self._gpu_acceleration_enabled or not self._gpu_operations:
+            # Fallback to regular CPU method
+            return self.get_nearest(position, index_names)
+        
+        self.update()
+        if not self._is_valid_position(position):
+            return {}
+        
+        names = index_names or list(self._named_indices.keys())
+        results: Dict[str, Optional[Any]] = {}
+        
+        for name in names:
+            state = self._named_indices.get(name)
+            if state is None:
+                results[name] = None
+                continue
+            
+            # Use GPU-accelerated KD-tree for default indices
+            if name == "agents" and self._gpu_agent_kdtree is not None:
+                distances, indices = self._gpu_agent_kdtree.query(np.array([position]))
+                if len(indices) > 0 and indices[0] is not None:
+                    cached_items = state["cached_items"] or []
+                    results[name] = cached_items[indices[0][0]]
+                else:
+                    results[name] = None
+            elif name == "resources" and self._gpu_resource_kdtree is not None:
+                distances, indices = self._gpu_resource_kdtree.query(np.array([position]))
+                if len(indices) > 0 and indices[0] is not None:
+                    cached_items = state["cached_items"] or []
+                    results[name] = cached_items[indices[0][0]]
+                else:
+                    results[name] = None
+            else:
+                # Fallback to regular method for other indices
+                results[name] = self.get_nearest(position, [name]).get(name)
+        
+        return results
+    
+    def batch_query_gpu(
+        self,
+        positions: np.ndarray,
+        radius: float,
+        index_names: Optional[List[str]] = None,
+    ) -> Dict[str, List[List[Any]]]:
+        """GPU-accelerated batch query for multiple positions.
+        
+        This method is optimized for querying multiple positions at once,
+        providing significant performance improvements for batch operations.
+        
+        Parameters
+        ----------
+        positions : np.ndarray
+            Array of query positions, shape (n, 2)
+        radius : float
+            Search radius around each query position
+        index_names : List[str], optional
+            Names of specific indices to search
+            
+        Returns
+        -------
+        Dict[str, List[List[Any]]]
+            Dictionary mapping index names to lists of results for each query position
+        """
+        if not self._gpu_acceleration_enabled or not self._gpu_operations:
+            # Fallback to individual queries
+            results = {}
+            names = index_names or list(self._named_indices.keys())
+            for name in names:
+                results[name] = []
+                for pos in positions:
+                    nearby = self.get_nearby(tuple(pos), radius, [name])
+                    results[name].append(nearby.get(name, []))
+            return results
+        
+        self.update()
+        
+        names = index_names or list(self._named_indices.keys())
+        results: Dict[str, List[List[Any]]] = {}
+        
+        for name in names:
+            state = self._named_indices.get(name)
+            if state is None:
+                results[name] = [[] for _ in range(len(positions))]
+                continue
+            
+            # Use GPU-accelerated batch operations
+            if name == "agents" and self._gpu_agent_kdtree is not None:
+                batch_indices = self._gpu_agent_kdtree.query_ball_point(positions, radius)
+                cached_items = state["cached_items"] or []
+                results[name] = [[cached_items[i] for i in indices] for indices in batch_indices]
+            elif name == "resources" and self._gpu_resource_kdtree is not None:
+                batch_indices = self._gpu_resource_kdtree.query_ball_point(positions, radius)
+                cached_items = state["cached_items"] or []
+                results[name] = [[cached_items[i] for i in indices] for indices in batch_indices]
+            else:
+                # Fallback to individual queries for other indices
+                results[name] = []
+                for pos in positions:
+                    nearby = self.get_nearby(tuple(pos), radius, [name])
+                    results[name].append(nearby.get(name, []))
+        
+        return results
+    
+    def enable_gpu_acceleration(self, gpu_device: Optional[str] = None) -> bool:
+        """Enable GPU acceleration for spatial computations.
+        
+        Parameters
+        ----------
+        gpu_device : str, optional
+            Preferred GPU device ('cupy', 'cuda', 'cpu'). If None, auto-detects best available.
+            
+        Returns
+        -------
+        bool
+            True if GPU acceleration was successfully enabled, False otherwise
+        """
+        if not GPU_AVAILABLE:
+            logger.warning("GPU libraries not available, cannot enable GPU acceleration")
+            return False
+        
+        try:
+            self._gpu_device_manager = GPUDeviceManager(gpu_device)
+            self._gpu_operations = GPUSpatialOperations(self._gpu_device_manager)
+            self._gpu_acceleration_enabled = True
+            
+            # Rebuild KD-trees with GPU acceleration
+            self._rebuild_kdtrees()
+            
+            logger.info(f"GPU acceleration enabled using device: {self._gpu_device_manager.device}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to enable GPU acceleration: {e}")
+            self._gpu_acceleration_enabled = False
+            return False
+    
+    def disable_gpu_acceleration(self) -> None:
+        """Disable GPU acceleration and fall back to CPU operations."""
+        self._gpu_acceleration_enabled = False
+        self._gpu_device_manager = None
+        self._gpu_operations = None
+        self._gpu_agent_kdtree = None
+        self._gpu_resource_kdtree = None
+        
+        # Rebuild KD-trees without GPU acceleration
+        self._rebuild_kdtrees()
+        
+        logger.info("GPU acceleration disabled, using CPU operations")
+    
+    def clear_gpu_memory(self) -> None:
+        """Clear GPU memory cache to free up memory."""
+        if self._gpu_operations:
+            self._gpu_operations.clear_memory()
+            logger.debug("GPU memory cache cleared")
+    
+    def get_gpu_performance_stats(self) -> Dict[str, Any]:
+        """Get detailed GPU performance statistics.
+        
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing GPU performance metrics and statistics
+        """
+        if not self._gpu_acceleration_enabled or not self._gpu_operations:
+            return {"gpu_acceleration_enabled": False}
+        
+        stats = self._gpu_operations.get_performance_stats()
+        stats["gpu_acceleration_enabled"] = True
+        stats["agent_kdtree_gpu"] = self._gpu_agent_kdtree is not None
+        stats["resource_kdtree_gpu"] = self._gpu_resource_kdtree is not None
+        
         return stats

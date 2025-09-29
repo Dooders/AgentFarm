@@ -24,6 +24,13 @@ class SpatialIndexConfig:
     spatial_hash_cell_size: Optional[float] = None
     performance_monitoring: bool = True
     debug_queries: bool = False
+    
+    # GPU acceleration configuration
+    enable_gpu_acceleration: bool = True
+    gpu_device: Optional[str] = None  # 'cupy', 'cuda', 'cpu', or None for auto-detection
+    gpu_memory_pool_size: int = 1024 * 1024 * 1024  # 1GB default
+    gpu_fallback_to_cpu: bool = True  # Fallback to CPU if GPU fails
+    gpu_performance_threshold: float = 1.5  # Minimum speedup to use GPU
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert SpatialIndexConfig to a JSON-serializable dictionary."""
@@ -37,6 +44,11 @@ class SpatialIndexConfig:
             "spatial_hash_cell_size": self.spatial_hash_cell_size,
             "performance_monitoring": self.performance_monitoring,
             "debug_queries": self.debug_queries,
+            "enable_gpu_acceleration": self.enable_gpu_acceleration,
+            "gpu_device": self.gpu_device,
+            "gpu_memory_pool_size": self.gpu_memory_pool_size,
+            "gpu_fallback_to_cpu": self.gpu_fallback_to_cpu,
+            "gpu_performance_threshold": self.gpu_performance_threshold,
         }
 
 

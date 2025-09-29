@@ -280,7 +280,9 @@ class Environment(AECEnv):
                 self.height,
                 enable_batch_updates=spatial_config.enable_batch_updates,
                 region_size=spatial_config.region_size,
-                max_batch_size=spatial_config.max_batch_size
+                max_batch_size=spatial_config.max_batch_size,
+                enable_gpu_acceleration=spatial_config.enable_gpu_acceleration,
+                gpu_device=spatial_config.gpu_device
             )
             
             # Enable additional index types if configured
@@ -289,13 +291,15 @@ class Environment(AECEnv):
             if spatial_config.enable_spatial_hash_indices:
                 self.enable_spatial_hash_indices(spatial_config.spatial_hash_cell_size)
         else:
-            # Default configuration with batch updates enabled
+            # Default configuration with batch updates and GPU acceleration enabled
             self.spatial_index = SpatialIndex(
                 self.width, 
                 self.height,
                 enable_batch_updates=True,
                 region_size=50.0,
-                max_batch_size=100
+                max_batch_size=100,
+                enable_gpu_acceleration=True,
+                gpu_device=None  # Auto-detect best available device
             )
         
         # Provide spatial service via adapter around spatial_index
