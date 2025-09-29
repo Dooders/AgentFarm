@@ -52,6 +52,11 @@ gymnasium>=0.28.0  # Modern Gym replacement for environments
 shimmy>=1.0.0  # Environment wrappers for compatibility
 stable-baselines3>=2.0.0  # Reinforcement learning algorithms
 
+# Web API
+Flask>=2.0.0
+Flask-CORS>=3.0.0
+Flask-SocketIO>=5.0.0
+
 # Optional dependencies
 # tensorflow>=2.7.0  # Uncomment if needed for specific implementations
 moviepy>=1.0.3  # For video generation and processing

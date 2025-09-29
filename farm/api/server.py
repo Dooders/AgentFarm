@@ -7,10 +7,10 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 
-from farm.core.analysis import analyze_simulation
 from farm.analysis.service import AnalysisRequest, AnalysisService
-from farm.core.services import EnvConfigService
 from farm.config import SimulationConfig
+from farm.core.analysis import analyze_simulation
+from farm.core.services import EnvConfigService
 from farm.core.simulation import run_simulation
 from farm.database.database import SimulationDatabase
 

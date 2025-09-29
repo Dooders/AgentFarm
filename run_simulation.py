@@ -2,7 +2,7 @@
 """
 Simple script to run a single simulation using the farm simulation framework.
 """
-
+# Standard library imports
 import argparse
 import cProfile
 import os
@@ -10,6 +10,7 @@ import pstats
 import time
 from io import StringIO
 
+# Local imports
 from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
 
