@@ -48,7 +48,7 @@ from pettingzoo import AECEnv
 # Use action registry for cleaner action management
 from farm.core.action import ActionType, action_registry
 from farm.core.channels import NUM_CHANNELS
-from farm.config import SimulationConfig
+from farm.config import SimulationConfig, ResourceConfig
 from farm.core.metrics_tracker import MetricsTracker
 from farm.core.observations import AgentObservation, ObservationConfig
 from farm.core.resource_manager import ResourceManager
@@ -907,9 +907,10 @@ class Environment(AECEnv):
         cleanup operations.
         """
         if hasattr(self, "resource_manager") and self.resource_manager is not None:
-            # Ensure memmap file is flushed; keep file for reuse by default
+            # Ensure memmap file is flushed; delete based on config (default: keep for reuse)
+            delete_memmap = getattr(self.config, "resources", ResourceConfig()).memmap_delete_on_close
             try:
-                self.resource_manager.cleanup_memmap(delete_file=False)
+                self.resource_manager.cleanup_memmap(delete_file=delete_memmap)
             except Exception as e:
                 logger.exception("Error during memmap cleanup in Environment.close(): %s", e)
         if hasattr(self, "db") and self.db is not None:

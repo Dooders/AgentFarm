@@ -10,6 +10,8 @@ The workflow ensures that:
 - Simulation timing is within expected bounds
 - Any changes to the codebase don't break deterministic behavior
 
+**Determinism Note**: Results may vary across different OS/BLAS/CUDA versions. This check validates consistency within the same environment. Cross-platform determinism requires additional validation.
+
 ## Configuration
 
 The workflow is configured to check for these expected results:
@@ -71,11 +73,13 @@ Runs the project test suites on pushes and pull requests to `main`.
 
 - Python tests
   - Sets up Python 3.10
+  - Caches pip dependencies for faster builds
   - Installs dependencies from `requirements.txt`
   - Runs `pytest` with coverage reporting (`--cov=farm --cov-report=term-missing`)
 
 - JavaScript UI tests
   - Sets up Node.js 20
+  - Caches npm dependencies for faster builds
   - Working directory: `farm/editor`
   - Installs dependencies (`npm ci` with fallback to `npm install`)
   - Runs Jest tests (`npm test -- --runInBand`)

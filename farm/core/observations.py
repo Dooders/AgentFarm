@@ -1629,8 +1629,9 @@ class AgentObservation:
             else:
                 try:
                     sparse_points += int((channel_data != 0).sum().item())
-                except Exception:
-                    pass
+                except (AttributeError, TypeError, RuntimeError) as e:
+                    logger.warning(f"Failed to count sparse points for channel: {e}")
+                    continue
         # Include points counted during dense baseline writes
         if self._dense_storage:
             sparse_points = max(sparse_points, int(self._metrics.get("sparse_points_count", 0)))

@@ -2,6 +2,10 @@
 
 Environment variables can override defaults at runtime:
 - MEMMAP_RSS_DELTA_RATIO: acceptable RSS increase as a fraction of memmap size (default 0.5)
+  Lower values (e.g., 0.1-0.3) provide stricter memory usage validation but may be too
+  conservative for systems with high baseline memory usage. Higher values (e.g., 0.8-1.0)
+  allow more memory overhead but risk missing true memory issues. The 0.5 default balances
+  detection sensitivity with practical system variation.
 """
 
 import math

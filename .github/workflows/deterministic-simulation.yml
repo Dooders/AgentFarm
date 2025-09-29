@@ -32,6 +32,12 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
+    - name: Note determinism factors
+      run: |
+        echo "⚠️  Determinism Note: Results may vary across different OS/BLAS/CUDA versions."
+        echo "   This check validates consistency within the same environment."
+        echo "   Cross-platform determinism requires additional validation."
+
     - name: Run deterministic simulation
       id: simulation
       run: |
