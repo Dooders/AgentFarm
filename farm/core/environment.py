@@ -322,6 +322,10 @@ class Environment(AECEnv):
         )
         self.spatial_index.update()
 
+        # Optionally enable Quadtree indices for performance comparison
+        # This can be enabled via configuration or method call
+        self._quadtree_enabled = False
+
         # Perception profiler accumulators
         self._perception_profile = {
             "spatial_query_time_s": 0.0,
@@ -462,6 +466,36 @@ class Environment(AECEnv):
         # Use generic method with "resources" index
         nearest = self.spatial_index.get_nearest(position, ["resources"])
         return nearest.get("resources")
+
+    def enable_quadtree_indices(self) -> None:
+        """Enable Quadtree indices alongside existing KD-tree indices.
+
+        This creates additional Quadtree-based spatial indices for performance
+        comparison and hierarchical spatial operations. The Quadtrees will be
+        available alongside the existing KD-tree indices.
+        """
+        if self._quadtree_enabled:
+            return  # Already enabled
+
+        # Register Quadtree versions of the default indices
+        self.spatial_index.register_index(
+            name="agents_quadtree",
+            data_reference=self._agent_objects,
+            position_getter=lambda aid: self._agent_objects[aid].position,
+            filter_func=lambda aid: getattr(self._agent_objects[aid], "alive", True),
+            index_type="quadtree",
+        )
+
+        self.spatial_index.register_index(
+            name="resources_quadtree",
+            data_reference=self.resources,
+            position_getter=lambda r: r.position,
+            filter_func=None,
+            index_type="quadtree",
+        )
+
+        self._quadtree_enabled = True
+        logger.info("Quadtree indices enabled for spatial queries")
 
     # Resource IDs are managed by ResourceManager
 

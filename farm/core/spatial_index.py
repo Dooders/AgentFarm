@@ -14,6 +14,310 @@ from scipy.spatial import cKDTree
 logger = logging.getLogger(__name__)
 
 
+class QuadtreeNode:
+    """
+    A node in a quadtree for hierarchical spatial partitioning.
+
+    Each node represents a rectangular region and can contain entities or be subdivided
+    into four child quadrants. This enables efficient range queries and hierarchical operations.
+    """
+
+    def __init__(self, bounds: Tuple[float, float, float, float], capacity: int = 4):
+        """
+        Initialize a quadtree node.
+
+        Parameters
+        ----------
+        bounds : Tuple[float, float, float, float]
+            (x, y, width, height) defining the rectangular region
+        capacity : int
+            Maximum entities before subdivision (default 4)
+        """
+        self.bounds = bounds  # (x, y, width, height)
+        self.capacity = capacity
+        self.entities: List[Any] = []
+        self.children: Optional[List[QuadtreeNode]] = None
+        self.is_divided = False
+
+    def insert(self, entity: Any, position: Tuple[float, float]) -> bool:
+        """
+        Insert an entity into this node or its children.
+
+        Parameters
+        ----------
+        entity : Any
+            The entity to insert
+        position : Tuple[float, float]
+            (x, y) position of the entity
+
+        Returns
+        -------
+        bool
+            True if insertion was successful, False if entity is outside bounds
+        """
+        # Check if entity is within this node's bounds
+        if not self._contains_point(position):
+            return False
+
+        # If not divided and not at capacity, add directly
+        if not self.is_divided and len(self.entities) < self.capacity:
+            self.entities.append((entity, position))
+            return True
+
+        # If not divided but at capacity, subdivide first
+        if not self.is_divided:
+            self._subdivide()
+
+        # Insert into appropriate child quadrant
+        for child in self.children:
+            if child.insert(entity, position):
+                return True
+
+        # This shouldn't happen if bounds checking is correct
+        return False
+
+    def _subdivide(self) -> None:
+        """Subdivide this node into four quadrants."""
+        x, y, width, height = self.bounds
+        half_width = width / 2
+        half_height = height / 2
+
+        # Create four child quadrants
+        self.children = [
+            # Northwest
+            QuadtreeNode((x, y, half_width, half_height), self.capacity),
+            # Northeast
+            QuadtreeNode((x + half_width, y, half_width, half_height), self.capacity),
+            # Southwest
+            QuadtreeNode((x, y + half_height, half_width, half_height), self.capacity),
+            # Southeast
+            QuadtreeNode((x + half_width, y + half_height, half_width, half_height), self.capacity),
+        ]
+
+        # Redistribute existing entities to children
+        entities_to_redistribute = self.entities[:]
+        self.entities.clear()
+
+        for entity, position in entities_to_redistribute:
+            inserted = False
+            for child in self.children:
+                if child.insert(entity, position):
+                    inserted = True
+                    break
+            if not inserted:
+                # If entity can't be inserted into children, keep it in parent
+                self.entities.append((entity, position))
+
+        self.is_divided = True
+
+    def query_range(self, range_bounds: Tuple[float, float, float, float]) -> List[Tuple[Any, Tuple[float, float]]]:
+        """
+        Query all entities within a rectangular range.
+
+        Parameters
+        ----------
+        range_bounds : Tuple[float, float, float, float]
+            (x, y, width, height) of the query rectangle
+
+        Returns
+        -------
+        List[Tuple[Any, Tuple[float, float]]]
+            List of (entity, position) tuples within the range
+        """
+        results = []
+
+        # If range doesn't intersect this node, return empty
+        if not self._intersects_range(range_bounds):
+            return results
+
+        # If this node is not divided, check all entities
+        if not self.is_divided:
+            for entity, position in self.entities:
+                if self._point_in_range(position, range_bounds):
+                    results.append((entity, position))
+            return results
+
+        # If divided, query children and also check any entities that remain in parent
+        if self.children:
+            for child in self.children:
+                results.extend(child.query_range(range_bounds))
+
+        # Check any entities that couldn't be subdivided
+        for entity, position in self.entities:
+            if self._point_in_range(position, range_bounds):
+                results.append((entity, position))
+
+        return results
+
+    def query_radius(self, center: Tuple[float, float], radius: float) -> List[Tuple[Any, Tuple[float, float]]]:
+        """
+        Query all entities within a circular radius.
+
+        Parameters
+        ----------
+        center : Tuple[float, float]
+            (x, y) center of the circle
+        radius : float
+            Radius of the circle
+
+        Returns
+        -------
+        List[Tuple[Any, Tuple[float, float]]]
+            List of (entity, position) tuples within the radius
+        """
+        results = []
+
+        # Use bounding box for initial filtering
+        x, y = center
+        bbox = (x - radius, y - radius, radius * 2, radius * 2)
+
+        # Get entities in bounding box
+        bbox_entities = self.query_range(bbox)
+
+        # Filter to circular radius
+        for entity, position in bbox_entities:
+            if self._distance(center, position) <= radius:
+                results.append((entity, position))
+
+        return results
+
+    def remove(self, entity: Any, position: Tuple[float, float]) -> bool:
+        """
+        Remove an entity from this node or its children.
+
+        Parameters
+        ----------
+        entity : Any
+            The entity to remove
+        position : Tuple[float, float]
+            (x, y) position of the entity
+
+        Returns
+        -------
+        bool
+            True if entity was found and removed, False otherwise
+        """
+        # Check if position is within this node's bounds
+        if not self._contains_point(position):
+            return False
+
+        # If not divided, check direct entities
+        if not self.is_divided:
+            for i, (ent, pos) in enumerate(self.entities):
+                if ent is entity:
+                    self.entities.pop(i)
+                    return True
+            return False
+
+        # If divided, try to remove from children
+        if self.children:
+            for child in self.children:
+                if child.remove(entity, position):
+                    return True
+
+        # Check entities that remain in parent
+        for i, (ent, pos) in enumerate(self.entities):
+            if ent is entity:
+                self.entities.pop(i)
+                return True
+
+        return False
+
+    def clear(self) -> None:
+        """Clear all entities from this node and its children."""
+        self.entities.clear()
+        if self.children:
+            for child in self.children:
+                child.clear()
+            self.children = None
+        self.is_divided = False
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get statistics about this quadtree node."""
+        entity_count = len(self.entities)
+        if self.children:
+            for child in self.children:
+                entity_count += child.get_stats()["total_entities"]
+
+        return {
+            "bounds": self.bounds,
+            "is_divided": self.is_divided,
+            "local_entities": len(self.entities),
+            "total_entities": entity_count,
+            "children_count": len(self.children) if self.children else 0,
+        }
+
+    def _contains_point(self, point: Tuple[float, float]) -> bool:
+        """Check if a point is within this node's bounds."""
+        px, py = point
+        x, y, width, height = self.bounds
+        return x <= px < x + width and y <= py < y + height
+
+    def _intersects_range(self, range_bounds: Tuple[float, float, float, float]) -> bool:
+        """Check if a rectangular range intersects this node's bounds."""
+        rx, ry, rwidth, rheight = range_bounds
+        nx, ny, nwidth, nheight = self.bounds
+
+        return (rx < nx + nwidth and rx + rwidth > nx and
+                ry < ny + nheight and ry + rheight > ny)
+
+    def _point_in_range(self, point: Tuple[float, float], range_bounds: Tuple[float, float, float, float]) -> bool:
+        """Check if a point is within a rectangular range."""
+        px, py = point
+        rx, ry, rwidth, rheight = range_bounds
+        return rx <= px < rx + rwidth and ry <= py < ry + rheight
+
+    @staticmethod
+    def _distance(p1: Tuple[float, float], p2: Tuple[float, float]) -> float:
+        """Calculate Euclidean distance between two points."""
+        return ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) ** 0.5
+
+
+class Quadtree:
+    """
+    Quadtree implementation for efficient spatial partitioning and range queries.
+    """
+
+    def __init__(self, bounds: Tuple[float, float, float, float], capacity: int = 4):
+        """
+        Initialize a quadtree.
+
+        Parameters
+        ----------
+        bounds : Tuple[float, float, float, float]
+            (x, y, width, height) defining the root region
+        capacity : int
+            Maximum entities per node before subdivision
+        """
+        self.root = QuadtreeNode(bounds, capacity)
+        self.bounds = bounds
+        self.capacity = capacity
+
+    def insert(self, entity: Any, position: Tuple[float, float]) -> bool:
+        """Insert an entity at the given position."""
+        return self.root.insert(entity, position)
+
+    def remove(self, entity: Any, position: Tuple[float, float]) -> bool:
+        """Remove an entity from the given position."""
+        return self.root.remove(entity, position)
+
+    def query_range(self, bounds: Tuple[float, float, float, float]) -> List[Tuple[Any, Tuple[float, float]]]:
+        """Query all entities within a rectangular range."""
+        return self.root.query_range(bounds)
+
+    def query_radius(self, center: Tuple[float, float], radius: float) -> List[Tuple[Any, Tuple[float, float]]]:
+        """Query all entities within a circular radius."""
+        return self.root.query_radius(center, radius)
+
+    def clear(self) -> None:
+        """Clear all entities from the quadtree."""
+        self.root.clear()
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get statistics about the quadtree."""
+        return self.root.get_stats()
+
+
 class SpatialIndex:
     """
     Efficient spatial indexing using KD-trees with optimized change detection.
@@ -311,6 +615,7 @@ class SpatialIndex:
         position_getter: Optional[Callable[[Any], Tuple[float, float]]] = None,
         filter_func: Optional[Callable[[Any], bool]] = None,
         data_getter: Optional[Callable[[], List[Any]]] = None,
+        index_type: str = "kdtree",
     ) -> None:
         """Register a configurable named index.
 
@@ -326,6 +631,8 @@ class SpatialIndex:
             Predicate to include items (e.g., filter alive agents)
         data_getter : callable, optional
             Function returning the current list for this index
+        index_type : str, optional
+            Type of spatial index ("kdtree" or "quadtree", default "kdtree")
         """
         if position_getter is None:
             position_getter = lambda x: getattr(x, "position", None)
@@ -335,7 +642,9 @@ class SpatialIndex:
             "data_getter": data_getter,
             "position_getter": position_getter,
             "filter_func": filter_func,
+            "index_type": index_type,
             "kdtree": None,
+            "quadtree": None,
             "positions": None,
             "cached_items": None,
             "cached_count": None,
@@ -412,8 +721,10 @@ class SpatialIndex:
                 state["positions_dirty"] = False
 
     def _rebuild_named_index(self, name: str) -> None:
-        """Rebuild KD-tree for a specific named index."""
+        """Rebuild spatial index (KD-tree or Quadtree) for a specific named index."""
         state = self._named_indices[name]
+        index_type = state.get("index_type", "kdtree")
+
         # Resolve items
         items = None
         if state["data_getter"] is not None:
@@ -434,17 +745,45 @@ class SpatialIndex:
             it for it in filtered_items if state["position_getter"](it) is not None
         ]
 
-        # Build positions array
-        if valid_items:
-            positions = np.array([state["position_getter"](it) for it in valid_items])
-            kdtree = cKDTree(positions)
-        else:
-            positions = None
-            kdtree = None
+        if index_type == "kdtree":
+            # Build KD-tree
+            if valid_items:
+                positions = np.array([state["position_getter"](it) for it in valid_items])
+                kdtree = cKDTree(positions)
+            else:
+                positions = None
+                kdtree = None
 
-        state["cached_items"] = valid_items
-        state["positions"] = positions
-        state["kdtree"] = kdtree
+            state["cached_items"] = valid_items
+            state["positions"] = positions
+            state["kdtree"] = kdtree
+            state["quadtree"] = None  # Clear quadtree if switching
+
+        elif index_type == "quadtree":
+            # Build Quadtree
+            if valid_items:
+                # Create quadtree with environment bounds
+                bounds = (0, 0, self.width, self.height)
+                quadtree = Quadtree(bounds, capacity=4)
+
+                # Insert all valid items
+                for item in valid_items:
+                    position = state["position_getter"](item)
+                    quadtree.insert(item, position)
+
+                positions = np.array([state["position_getter"](it) for it in valid_items])
+            else:
+                quadtree = None
+                positions = None
+
+            state["cached_items"] = valid_items
+            state["positions"] = positions
+            state["quadtree"] = quadtree
+            state["kdtree"] = None  # Clear kdtree if switching
+
+        else:
+            raise ValueError(f"Unknown index type: {index_type}")
+
         state["cached_count"] = len(valid_items)
         if positions is not None and len(positions) > 0:
             state["cached_hash"] = hashlib.md5(positions.tobytes()).hexdigest()
@@ -502,12 +841,30 @@ class SpatialIndex:
         results: Dict[str, List[Any]] = {}
         for name in names:
             state = self._named_indices.get(name)
-            if state is None or state["kdtree"] is None:
+            if state is None:
                 results[name] = []
                 continue
-            indices = state["kdtree"].query_ball_point(position, radius)
-            cached_items = state["cached_items"] or []
-            results[name] = [cached_items[i] for i in indices]
+
+            index_type = state.get("index_type", "kdtree")
+
+            if index_type == "kdtree":
+                if state["kdtree"] is None:
+                    results[name] = []
+                    continue
+                indices = state["kdtree"].query_ball_point(position, radius)
+                cached_items = state["cached_items"] or []
+                results[name] = [cached_items[i] for i in indices]
+
+            elif index_type == "quadtree":
+                if state["quadtree"] is None:
+                    results[name] = []
+                    continue
+                # Use quadtree radius query
+                entities_and_positions = state["quadtree"].query_radius(position, radius)
+                results[name] = [entity for entity, pos in entities_and_positions]
+
+            else:
+                results[name] = []
         return results
 
 
@@ -558,11 +915,43 @@ class SpatialIndex:
         results: Dict[str, Optional[Any]] = {}
         for name in names:
             state = self._named_indices.get(name)
-            if state is None or state["kdtree"] is None or not state["cached_items"]:
+            if state is None:
                 results[name] = None
                 continue
-            _, idx = state["kdtree"].query(position)
-            results[name] = state["cached_items"][idx]
+
+            index_type = state.get("index_type", "kdtree")
+
+            if index_type == "kdtree":
+                if state["kdtree"] is None or not state["cached_items"]:
+                    results[name] = None
+                    continue
+                _, idx = state["kdtree"].query(position)
+                results[name] = state["cached_items"][idx]
+
+            elif index_type == "quadtree":
+                if state["quadtree"] is None or not state["cached_items"]:
+                    results[name] = None
+                    continue
+                # For quadtree, we need to find the closest entity manually
+                # since quadtree doesn't have built-in nearest neighbor search
+                entities_and_positions = state["quadtree"].query_radius(position, self.width + self.height)  # Large radius to get all
+                if not entities_and_positions:
+                    results[name] = None
+                    continue
+
+                # Find closest entity
+                closest_entity = None
+                min_distance = float('inf')
+                for entity, entity_pos in entities_and_positions:
+                    distance = ((position[0] - entity_pos[0]) ** 2 + (position[1] - entity_pos[1]) ** 2) ** 0.5
+                    if distance < min_distance:
+                        min_distance = distance
+                        closest_entity = entity
+
+                results[name] = closest_entity
+
+            else:
+                results[name] = None
         return results
 
     def _is_valid_position(self, position: Tuple[float, float]) -> bool:
@@ -619,10 +1008,148 @@ class SpatialIndex:
         """
         return self._positions_dirty
 
+    def update_entity_position(self, entity: Any, old_position: Tuple[float, float], new_position: Tuple[float, float]) -> None:
+        """Update an entity's position in all quadtree indices.
+
+        For KD-tree indices, this will mark positions as dirty for rebuild on next query.
+        For Quadtree indices, this will efficiently update the entity's position.
+
+        Parameters
+        ----------
+        entity : Any
+            The entity whose position is being updated
+        old_position : Tuple[float, float]
+            The entity's old (x, y) position
+        new_position : Tuple[float, float]
+            The entity's new (x, y) position
+        """
+        for name, state in self._named_indices.items():
+            index_type = state.get("index_type", "kdtree")
+
+            if index_type == "quadtree" and state["quadtree"] is not None:
+                # Remove from old position and insert at new position
+                state["quadtree"].remove(entity, old_position)
+                state["quadtree"].insert(entity, new_position)
+
+                # Update cached position data for change detection
+                if state["positions"] is not None:
+                    # Find and update the position in the cached positions array
+                    cached_items = state["cached_items"] or []
+                    for i, cached_entity in enumerate(cached_items):
+                        if cached_entity is entity:
+                            if i < len(state["positions"]):
+                                state["positions"][i] = new_position
+                            break
+
+                # Mark as dirty to trigger hash recalculation
+                state["positions_dirty"] = True
+
+            elif index_type == "kdtree":
+                # For KD-trees, just mark positions as dirty for rebuild
+                state["positions_dirty"] = True
+
+        # Also mark main positions as dirty
+        self._positions_dirty = True
+
     def force_rebuild(self) -> None:
-        """Force a rebuild of the KD-trees regardless of change detection."""
+        """Force a rebuild of the spatial indices regardless of change detection."""
         self._rebuild_kdtrees()
         self._positions_dirty = False
+
+    def get_nearby_range(
+        self,
+        bounds: Tuple[float, float, float, float],
+        index_names: Optional[List[str]] = None,
+    ) -> Dict[str, List[Any]]:
+        """Query entities within a rectangular range (optimized for Quadtrees).
+
+        Parameters
+        ----------
+        bounds : Tuple[float, float, float, float]
+            (x, y, width, height) defining the rectangular query region
+        index_names : List[str], optional
+            Names of specific indices to search. If None, searches all quadtree indices.
+
+        Returns
+        -------
+        Dict[str, List[Any]]
+            Dictionary mapping index names to lists of entities within the range.
+        """
+        self.update()
+
+        # Input validation
+        x, y, width, height = bounds
+        if width <= 0 or height <= 0:
+            return {}
+
+        names = index_names or list(self._named_indices.keys())
+        results: Dict[str, List[Any]] = {}
+
+        for name in names:
+            state = self._named_indices.get(name)
+            if state is None:
+                results[name] = []
+                continue
+
+            index_type = state.get("index_type", "kdtree")
+
+            if index_type == "quadtree" and state["quadtree"] is not None:
+                # Use quadtree rectangular query
+                entities_and_positions = state["quadtree"].query_range(bounds)
+                results[name] = [entity for entity, pos in entities_and_positions]
+
+            elif index_type == "kdtree" and state["kdtree"] is not None and state["cached_items"]:
+                # For KD-trees, we use a different approach for rectangular queries
+                # Since KD-trees don't have built-in rectangular query support,
+                # we can use the existing radial query method with a large enough radius
+                # to cover the rectangle, then filter to the actual rectangle
+                cached_items = state["cached_items"]
+                positions = state["positions"]
+
+                if positions is not None:
+                    # Calculate center and radius to cover the entire rectangle
+                    center_x = x + width / 2
+                    center_y = y + height / 2
+                    # Use diagonal distance as radius to ensure coverage
+                    radius = ((width/2)**2 + (height/2)**2)**0.5
+
+                    # Query with large radius
+                    indices = state["kdtree"].query_ball_point((center_x, center_y), radius)
+
+                    # Filter to actual rectangular bounds
+                    entities_in_range = []
+                    for i in indices:
+                        if i < len(positions):
+                            px, py = positions[i]
+                            if (x <= px < x + width and y <= py < y + height):
+                                entities_in_range.append(cached_items[i])
+                    results[name] = entities_in_range
+                else:
+                    results[name] = []
+
+            else:
+                results[name] = []
+
+        return results
+
+    def get_quadtree_stats(self, index_name: str) -> Optional[Dict[str, Any]]:
+        """Get detailed statistics about a specific quadtree index.
+
+        Parameters
+        ----------
+        index_name : str
+            Name of the quadtree index
+
+        Returns
+        -------
+        Dict[str, Any] or None
+            Quadtree statistics if the index exists and is a quadtree, None otherwise
+        """
+        state = self._named_indices.get(index_name)
+        if state is None or state.get("index_type") != "quadtree" or state["quadtree"] is None:
+            return None
+
+        return state["quadtree"].get_stats()
 
     def get_stats(self) -> dict:
         """Get statistics about the spatial index.
@@ -632,7 +1159,7 @@ class SpatialIndex:
         dict
             Dictionary containing spatial index statistics
         """
-        return {
+        stats = {
             "agent_count": self.get_agent_count(),
             "resource_count": self.get_resource_count(),
             "agent_kdtree_exists": self.agent_kdtree is not None,
@@ -643,3 +1170,17 @@ class SpatialIndex:
                 self._cached_hash[:20] + "..." if self._cached_hash else None
             ),
         }
+
+        # Add quadtree information for each index
+        quadtree_info = {}
+        for name, state in self._named_indices.items():
+            if state.get("index_type") == "quadtree":
+                quadtree_info[name] = {
+                    "exists": state["quadtree"] is not None,
+                    "total_entities": state.get("cached_count", 0),
+                }
+
+        if quadtree_info:
+            stats["quadtree_indices"] = quadtree_info
+
+        return stats

@@ -357,6 +357,31 @@ class TestEnvironment(unittest.TestCase):
         if nearest_resource:
             self.assertIsInstance(nearest_resource.position, tuple)
 
+    def test_quadtree_indices(self):
+        """Test Quadtree index functionality"""
+        # Enable Quadtree indices
+        self.env.enable_quadtree_indices()
+
+        # Check that Quadtree indices were registered
+        stats = self.env.spatial_index.get_stats()
+        self.assertIn("quadtree_indices", stats)
+        self.assertGreater(len(stats["quadtree_indices"]), 0)
+
+        # Test Quadtree-specific queries
+        if self.env.agent_objects:
+            agent = self.env.agent_objects[0]
+            position = agent.position
+
+            # Test range queries (Quadtree optimized)
+            bounds = (position[0]-5, position[1]-5, 10, 10)
+            nearby_in_range = self.env.spatial_index.get_nearby_range(bounds, ["agents_quadtree"])
+            self.assertIsInstance(nearby_in_range, dict)
+
+            # Test Quadtree stats
+            quadtree_stats = self.env.spatial_index.get_quadtree_stats("agents_quadtree")
+            self.assertIsNotNone(quadtree_stats)
+            self.assertIn("total_entities", quadtree_stats)
+
     def test_position_validation(self):
         """Test position validation logic"""
         # Valid positions

@@ -29,7 +29,7 @@ farm.core/
 ├── resources.py           # Resource definitions and types
 ├── senses.py              # Sensory input processing
 ├── simulation.py          # Simulation orchestration
-├── spatial_index.py       # Spatial indexing for performance
+├── spatial_index.py       # Dual spatial indexing (KD-tree + Quadtree) for performance
 ├── state.py               # Environment state management
 └── visualization.py       # Core visualization components
 ```
