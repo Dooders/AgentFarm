@@ -200,7 +200,7 @@ def main():
             )
         else:
             agent_types = {}
-            for agent in environment.agents:
+            for agent in environment.agent_objects:
                 agent_type = agent.__class__.__name__
                 if agent_type in agent_types:
                     agent_types[agent_type] += 1
