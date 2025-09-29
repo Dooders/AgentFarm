@@ -5,17 +5,25 @@ with optimized change detection and efficient spatial querying capabilities.
 """
 
 import hashlib
-import math
+import heapq
 import logging
-from typing import Any, Callable, Dict, List, Optional, Tuple, Set
 from collections import defaultdict, deque
 from dataclasses import dataclass
 
+import math
+from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar
+
 import numpy as np
 from scipy.spatial import cKDTree
-import heapq
 
 logger = logging.getLogger(__name__)
+
+# Type aliases for better code clarity
+Position = Tuple[float, float]
+Bounds = Tuple[float, float, float, float]  # (x, y, width, height)
+Entity = TypeVar("Entity")  # Generic entity type
+
+DEFAULT_TARGET_CELLS = 20.0
 
 
 @dataclass
@@ -233,22 +241,54 @@ class SpatialHashGrid:
     Partitions 2D space into fixed-size square cells. Entities are stored in
     buckets keyed by integer cell coordinates. Queries inspect only nearby
     buckets, keeping cost bounded regardless of global population size.
+
+    Warning
+    -------
+    This implementation is not thread-safe. Concurrent access to insert(),
+    remove(), move(), or query methods may result in data corruption or
+    incorrect results. Use external synchronization if multi-threaded access
+    is required.
+
+    Notes
+    -----
+    - Cell size should be chosen based on typical query radii and entity density
+    - Smaller cells provide better query performance but use more memory
+    - Larger cells reduce memory usage but may increase query times
+    - Default cell size calculation aims for ~sqrt(area)/20 cells per dimension
     """
 
     def __init__(self, cell_size: float, width: float, height: float):
+        """
+        Initialize the spatial hash grid.
+
+        Parameters
+        ----------
+        cell_size : float
+            Size of each square cell in the grid. Must be positive.
+            Smaller values provide better spatial resolution but use more memory.
+        width : float
+            Width of the environment/space being indexed.
+        height : float
+            Height of the environment/space being indexed.
+
+        Raises
+        ------
+        ValueError
+            If cell_size is not positive.
+        """
         if cell_size <= 0:
             raise ValueError("cell_size must be positive")
         self.cell_size = float(cell_size)
         self.width = float(width)
         self.height = float(height)
         # (ix, iy) -> List[(entity, (x, y))]
-        self._buckets: Dict[Tuple[int, int], List[Tuple[Any, Tuple[float, float]]]] = {}
+        self._buckets: Dict[Tuple[int, int], List[Tuple[Any, Position]]] = {}
 
-    def _cell_coords(self, position: Tuple[float, float]) -> Tuple[int, int]:
+    def _cell_coords(self, position: Position) -> Tuple[int, int]:
         x, y = position
         return int(x // self.cell_size), int(y // self.cell_size)
 
-    def _bucket_keys_for_bounds(self, bounds: Tuple[float, float, float, float]) -> List[Tuple[int, int]]:
+    def _bucket_keys_for_bounds(self, bounds: Bounds) -> List[Tuple[int, int]]:
         x, y, w, h = bounds
         if w <= 0 or h <= 0:
             return []
@@ -262,11 +302,46 @@ class SpatialHashGrid:
                 keys.append((ix, iy))
         return keys
 
-    def insert(self, entity: Any, position: Tuple[float, float]) -> None:
+    def insert(self, entity: Any, position: Position) -> None:
+        """
+        Insert an entity at the specified position.
+
+        Parameters
+        ----------
+        entity : Any
+            The entity to insert into the spatial index.
+        position : Position
+            The (x, y) coordinates where the entity is located.
+
+        Notes
+        -----
+        If the entity is already present at this position, it will be added again.
+        This allows multiple instances of the same entity at the same location.
+        """
         key = self._cell_coords(position)
         self._buckets.setdefault(key, []).append((entity, position))
 
-    def remove(self, entity: Any, position: Tuple[float, float]) -> bool:
+    def remove(self, entity: Any, position: Position) -> bool:
+        """
+        Remove an entity from the specified position.
+
+        Parameters
+        ----------
+        entity : Any
+            The entity to remove.
+        position : Position
+            The (x, y) coordinates where the entity should be located.
+
+        Returns
+        -------
+        bool
+            True if the entity was found and removed, False otherwise.
+
+        Notes
+        -----
+        Only removes the first matching entity at the exact position.
+        If multiple instances exist, only one is removed.
+        """
         key = self._cell_coords(position)
         bucket = self._buckets.get(key)
         if not bucket:
@@ -279,7 +354,25 @@ class SpatialHashGrid:
                 return True
         return False
 
-    def move(self, entity: Any, old_position: Tuple[float, float], new_position: Tuple[float, float]) -> None:
+    def move(self, entity: Any, old_position: Position, new_position: Position) -> None:
+        """
+        Move an entity from one position to another.
+
+        Parameters
+        ----------
+        entity : Any
+            The entity to move.
+        old_position : Position
+            The current (x, y) coordinates of the entity.
+        new_position : Position
+            The new (x, y) coordinates for the entity.
+
+        Notes
+        -----
+        This operation is optimized: if the entity stays within the same cell,
+        only the position is updated. Otherwise, it's removed from the old cell
+        and inserted into the new cell.
+        """
         old_key = self._cell_coords(old_position)
         new_key = self._cell_coords(new_position)
         if old_key == new_key:
@@ -293,12 +386,36 @@ class SpatialHashGrid:
         self.remove(entity, old_position)
         self.insert(entity, new_position)
 
-    def query_radius(self, center: Tuple[float, float], radius: float) -> List[Tuple[Any, Tuple[float, float]]]:
+    def query_radius(
+        self, center: Position, radius: float
+    ) -> List[Tuple[Any, Position]]:
+        """
+        Find all entities within a circular radius of a center point.
+
+        Parameters
+        ----------
+        center : Position
+            The (x, y) center point of the query circle.
+        radius : float
+            The radius of the query circle. Must be positive.
+
+        Returns
+        -------
+        List[Tuple[Any, Position]]
+            List of (entity, position) tuples for entities within the radius.
+            Positions are exact entity locations, not cell centers.
+
+        Notes
+        -----
+        This method uses a bounding box approximation for efficiency, then
+        filters results to the exact circular radius. Performance is O(k)
+        where k is the number of entities in the queried cells.
+        """
         if radius <= 0:
             return []
         cx, cy = center
         bounds = (cx - radius, cy - radius, radius * 2, radius * 2)
-        results: List[Tuple[Any, Tuple[float, float]]] = []
+        results: List[Tuple[Any, Position]] = []
         for key in self._bucket_keys_for_bounds(bounds):
             for entity, pos in self._buckets.get(key, []):
                 dx = pos[0] - cx
@@ -307,11 +424,29 @@ class SpatialHashGrid:
                     results.append((entity, pos))
         return results
 
-    def query_range(self, bounds: Tuple[float, float, float, float]) -> List[Tuple[Any, Tuple[float, float]]]:
+    def query_range(self, bounds: Bounds) -> List[Tuple[Any, Position]]:
+        """
+        Find all entities within a rectangular bounds.
+
+        Parameters
+        ----------
+        bounds : Bounds
+            The rectangular bounds as (x, y, width, height).
+
+        Returns
+        -------
+        List[Tuple[Any, Position]]
+            List of (entity, position) tuples for entities within the bounds.
+
+        Notes
+        -----
+        The bounds use half-open interval [x, x+width) x [y, y+height).
+        Performance is O(k) where k is the number of entities in the queried cells.
+        """
         x, y, w, h = bounds
         if w <= 0 or h <= 0:
             return []
-        results: List[Tuple[Any, Tuple[float, float]]] = []
+        results: List[Tuple[Any, Position]] = []
         for key in self._bucket_keys_for_bounds(bounds):
             for entity, pos in self._buckets.get(key, []):
                 px, py = pos
@@ -319,7 +454,38 @@ class SpatialHashGrid:
                     results.append((entity, pos))
         return results
 
-    def get_nearest(self, position: Tuple[float, float]) -> Optional[Any]:
+    def get_nearest(self, position: Position) -> Optional[Any]:
+        """
+        Find the nearest entity to the given position.
+
+        This method performs a ring-based search starting from the cell containing
+        the query position and expanding outward. It includes an early exit optimization
+        when it can prove that no closer entity exists in outer rings.
+
+        Parameters
+        ----------
+        position : Position
+            The (x, y) query position.
+
+        Returns
+        -------
+        Optional[Any]
+            The nearest entity, or None if no entities exist in the index.
+
+        Notes
+        -----
+        - Search starts with the cell containing the query position
+        - Expands outward in Manhattan distance rings from the center cell
+        - Uses early exit optimization based on minimum distance bounds
+        - Time complexity is typically O(1) for dense populations, but can be
+          O(n) in the worst case for sparse or empty regions
+
+        Examples
+        --------
+        >>> grid = SpatialHashGrid(cell_size=10.0, width=100, height=100)
+        >>> grid.insert(entity, (25, 25))
+        >>> nearest = grid.get_nearest((20, 20))  # Returns entity
+        """
         cx, cy = position
         ix, iy = self._cell_coords(position)
         best_entity: Optional[Any] = None
@@ -339,10 +505,12 @@ class SpatialHashGrid:
         # entity may be in an adjacent cell near the boundary.
         consider_bucket((ix, iy))
 
-        # Conservative ring cap: enough to cover full world extent in cells.
-        # Use ceil to avoid underestimating when cell_size < 1.0.
-        safe_cell = self.cell_size if self.cell_size > 0 else 1.0
-        max_rings = int(math.ceil(max(self.width, self.height) / safe_cell)) + 2
+        # Conservative ring cap: enough to cover the environment plus margin for entities
+        # potentially outside bounds. Use the diagonal distance plus one dimension as margin.
+        max_env_distance = math.sqrt(self.width**2 + self.height**2)
+        margin = max(self.width, self.height)
+        max_search_distance = max_env_distance + margin
+        max_rings = int(math.ceil(max_search_distance / self.cell_size)) + 1
         for r in range(1, max_rings):
             for dx in range(-r, r + 1):
                 consider_bucket((ix + dx, iy - r))
@@ -350,9 +518,17 @@ class SpatialHashGrid:
             for dy in range(-r + 1, r):
                 consider_bucket((ix - r, iy + dy))
                 consider_bucket((ix + r, iy + dy))
+            # Early exit only when we can prove that no entity in the next ring
+            # can be closer than the current best. The closest cell center in ring r+1
+            # is at least r * cell_size away, but entities can be up to cell_size/sqrt(2)
+            # closer than their cell centers, so we use a tighter bound.
             if best_entity is not None:
-                return best_entity
-        return None
+                # Distance to closest cell center in next ring minus max distance within cell
+                cell_radius = self.cell_size / math.sqrt(2)
+                min_dist_to_next_ring = max(0, r * self.cell_size - cell_radius)
+                if best_dist_sq <= min_dist_to_next_ring * min_dist_to_next_ring:
+                    return best_entity
+        return best_entity
 
 
 class QuadtreeNode:
@@ -432,7 +608,10 @@ class QuadtreeNode:
             # Southwest
             QuadtreeNode((x, y + half_height, half_width, half_height), self.capacity),
             # Southeast
-            QuadtreeNode((x + half_width, y + half_height, half_width, half_height), self.capacity),
+            QuadtreeNode(
+                (x + half_width, y + half_height, half_width, half_height),
+                self.capacity,
+            ),
         ]
 
         # Redistribute existing entities to children
@@ -451,7 +630,9 @@ class QuadtreeNode:
 
         self.is_divided = True
 
-    def query_range(self, range_bounds: Tuple[float, float, float, float]) -> List[Tuple[Any, Tuple[float, float]]]:
+    def query_range(
+        self, range_bounds: Tuple[float, float, float, float]
+    ) -> List[Tuple[Any, Tuple[float, float]]]:
         """
         Query all entities within a rectangular range.
 
@@ -490,7 +671,9 @@ class QuadtreeNode:
 
         return results
 
-    def query_radius(self, center: Tuple[float, float], radius: float) -> List[Tuple[Any, Tuple[float, float]]]:
+    def query_radius(
+        self, center: Tuple[float, float], radius: float
+    ) -> List[Tuple[Any, Tuple[float, float]]]:
         """
         Query all entities within a circular radius.
 
@@ -594,15 +777,25 @@ class QuadtreeNode:
         x, y, width, height = self.bounds
         return x <= px < x + width and y <= py < y + height
 
-    def _intersects_range(self, range_bounds: Tuple[float, float, float, float]) -> bool:
+    def _intersects_range(
+        self, range_bounds: Tuple[float, float, float, float]
+    ) -> bool:
         """Check if a rectangular range intersects this node's bounds."""
         rx, ry, rwidth, rheight = range_bounds
         nx, ny, nwidth, nheight = self.bounds
 
-        return (rx < nx + nwidth and rx + rwidth > nx and
-                ry < ny + nheight and ry + rheight > ny)
+        return (
+            rx < nx + nwidth
+            and rx + rwidth > nx
+            and ry < ny + nheight
+            and ry + rheight > ny
+        )
 
-    def _point_in_range(self, point: Tuple[float, float], range_bounds: Tuple[float, float, float, float]) -> bool:
+    def _point_in_range(
+        self,
+        point: Tuple[float, float],
+        range_bounds: Tuple[float, float, float, float],
+    ) -> bool:
         """Check if a point is within a rectangular range."""
         px, py = point
         rx, ry, rwidth, rheight = range_bounds
@@ -642,11 +835,15 @@ class Quadtree:
         """Remove an entity from the given position."""
         return self.root.remove(entity, position)
 
-    def query_range(self, bounds: Tuple[float, float, float, float]) -> List[Tuple[Any, Tuple[float, float]]]:
+    def query_range(
+        self, bounds: Tuple[float, float, float, float]
+    ) -> List[Tuple[Any, Tuple[float, float]]]:
         """Query all entities within a rectangular range."""
         return self.root.query_range(bounds)
 
-    def query_radius(self, center: Tuple[float, float], radius: float) -> List[Tuple[Any, Tuple[float, float]]]:
+    def query_radius(
+        self, center: Tuple[float, float], radius: float
+    ) -> List[Tuple[Any, Tuple[float, float]]]:
         """Query all entities within a circular radius."""
         return self.root.query_radius(center, radius)
 
@@ -1028,7 +1225,9 @@ class SpatialIndex:
             return
 
         # Precompute alive agents once to avoid redundant computation
-        alive_agents = [agent for agent in self._agents if getattr(agent, "alive", False)]
+        alive_agents = [
+            agent for agent in self._agents if getattr(agent, "alive", False)
+        ]
         current_agent_count = len(alive_agents)
 
         # Count-based quick check for structural changes
@@ -1139,7 +1338,9 @@ class SpatialIndex:
         """
         # Update agent KD-tree
         if alive_agents is None:
-            alive_agents = [agent for agent in self._agents if getattr(agent, "alive", False)]
+            alive_agents = [
+                agent for agent in self._agents if getattr(agent, "alive", False)
+            ]
 
         # Filter out agents without valid positions
         alive_agents = [agent for agent in alive_agents if agent.position is not None]
@@ -1323,7 +1524,9 @@ class SpatialIndex:
         if index_type == "kdtree":
             # Build KD-tree
             if valid_items:
-                positions = np.array([state["position_getter"](it) for it in valid_items])
+                positions = np.array(
+                    [state["position_getter"](it) for it in valid_items]
+                )
                 kdtree = cKDTree(positions)
             else:
                 positions = None
@@ -1347,7 +1550,9 @@ class SpatialIndex:
                     position = state["position_getter"](item)
                     quadtree.insert(item, position)
 
-                positions = np.array([state["position_getter"](it) for it in valid_items])
+                positions = np.array(
+                    [state["position_getter"](it) for it in valid_items]
+                )
             else:
                 quadtree = None
                 positions = None
@@ -1363,14 +1568,22 @@ class SpatialIndex:
             if valid_items:
                 cs = state.get("cell_size")
                 if cs is None:
-                    target_cells = 20.0
-                    cell_w = max(self.width / target_cells, 1.0)
-                    cell_h = max(self.height / target_cells, 1.0)
+                    # Adaptive cell size based on environment dimensions
+                    # Aim for roughly sqrt(area)/20 cells per dimension for good performance
+                    # This scales with environment size and provides reasonable granularity
+                    env_area = self.width * self.height
+                    target_cells_per_dim = max(5.0, math.sqrt(env_area) / 20.0)
+                    cell_w = max(self.width / target_cells_per_dim, 1.0)
+                    cell_h = max(self.height / target_cells_per_dim, 1.0)
                     cs = float((cell_w + cell_h) / 2.0)
-                grid = SpatialHashGrid(cell_size=cs, width=self.width, height=self.height)
+                grid = SpatialHashGrid(
+                    cell_size=cs, width=self.width, height=self.height
+                )
                 for item in valid_items:
                     grid.insert(item, state["position_getter"](item))
-                positions = np.array([state["position_getter"](it) for it in valid_items])
+                positions = np.array(
+                    [state["position_getter"](it) for it in valid_items]
+                )
             else:
                 grid = None
                 positions = None
@@ -1389,8 +1602,6 @@ class SpatialIndex:
             state["cached_hash"] = hashlib.md5(positions.tobytes()).hexdigest()
         else:
             state["cached_hash"] = "0"
-
-
 
     def get_nearby(
         self,
@@ -1460,20 +1671,23 @@ class SpatialIndex:
                     results[name] = []
                     continue
                 # Use quadtree radius query
-                entities_and_positions = state["quadtree"].query_radius(position, radius)
+                entities_and_positions = state["quadtree"].query_radius(
+                    position, radius
+                )
                 results[name] = [entity for entity, pos in entities_and_positions]
 
             elif index_type == "spatial_hash":
                 if state["spatial_hash"] is None:
                     results[name] = []
                     continue
-                entities_and_positions = state["spatial_hash"].query_radius(position, radius)
+                entities_and_positions = state["spatial_hash"].query_radius(
+                    position, radius
+                )
                 results[name] = [entity for entity, _ in entities_and_positions]
 
             else:
                 results[name] = []
         return results
-
 
     def get_nearest(
         self, position: Tuple[float, float], index_names: Optional[List[str]] = None
@@ -1552,7 +1766,9 @@ class SpatialIndex:
                 results[name] = None
         return results
 
-    def _quadtree_nearest(self, quadtree: Quadtree, position: Tuple[float, float]) -> Optional[Any]:
+    def _quadtree_nearest(
+        self, quadtree: Quadtree, position: Tuple[float, float]
+    ) -> Optional[Any]:
         """Find nearest entity in a quadtree using best-first search with pruning.
 
         Explores nodes ordered by the minimum possible distance from the query point
@@ -1562,7 +1778,9 @@ class SpatialIndex:
         if quadtree is None or quadtree.root is None:
             return None
 
-        def rect_min_distance_sq(point: Tuple[float, float], bounds: Tuple[float, float, float, float]) -> float:
+        def rect_min_distance_sq(
+            point: Tuple[float, float], bounds: Tuple[float, float, float, float]
+        ) -> float:
             px, py = point
             x, y, w, h = bounds
             cx = px if x <= px <= x + w else (x if px < x else x + w)
@@ -1581,7 +1799,9 @@ class SpatialIndex:
 
         # Priority queue of (min_possible_distance_sq, node)
         heap: List[Tuple[float, QuadtreeNode]] = []
-        heapq.heappush(heap, (rect_min_distance_sq(position, quadtree.root.bounds), quadtree.root))
+        heapq.heappush(
+            heap, (rect_min_distance_sq(position, quadtree.root.bounds), quadtree.root)
+        )
 
         while heap:
             min_possible_sq, node = heapq.heappop(heap)
@@ -1738,7 +1958,11 @@ class SpatialIndex:
                 entities_and_positions = state["quadtree"].query_range(bounds)
                 results[name] = [entity for entity, pos in entities_and_positions]
 
-            elif index_type == "kdtree" and state["kdtree"] is not None and state["cached_items"]:
+            elif (
+                index_type == "kdtree"
+                and state["kdtree"] is not None
+                and state["cached_items"]
+            ):
                 # For KD-trees, we use a different approach for rectangular queries
                 # Since KD-trees don't have built-in rectangular query support,
                 # we can use the existing radial query method with a large enough radius
@@ -1751,17 +1975,19 @@ class SpatialIndex:
                     center_x = x + width / 2
                     center_y = y + height / 2
                     # Use diagonal distance as radius to ensure coverage
-                    radius = ((width/2)**2 + (height/2)**2)**0.5
+                    radius = ((width / 2) ** 2 + (height / 2) ** 2) ** 0.5
 
                     # Query with large radius
-                    indices = state["kdtree"].query_ball_point((center_x, center_y), radius)
+                    indices = state["kdtree"].query_ball_point(
+                        (center_x, center_y), radius
+                    )
 
                     # Filter to actual rectangular bounds
                     entities_in_range = []
                     for i in indices:
                         if i < len(positions):
                             px, py = positions[i]
-                            if (x <= px < x + width and y <= py < y + height):
+                            if x <= px < x + width and y <= py < y + height:
                                 entities_in_range.append(cached_items[i])
                     results[name] = entities_in_range
                 else:
@@ -1790,7 +2016,11 @@ class SpatialIndex:
             Quadtree statistics if the index exists and is a quadtree, None otherwise
         """
         state = self._named_indices.get(index_name)
-        if state is None or state.get("index_type") != "quadtree" or state["quadtree"] is None:
+        if (
+            state is None
+            or state.get("index_type") != "quadtree"
+            or state["quadtree"] is None
+        ):
             return None
 
         return state["quadtree"].get_stats()
