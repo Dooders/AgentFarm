@@ -4,7 +4,12 @@ module.exports = {
 	roots: ['<rootDir>'],
 	testMatch: ['**/__tests__/**/*.test.js'],
 	setupFiles: [],
-	transform: {},
+	transform: {
+		'^.+\\.js$': 'babel-jest',
+	},
+	transformIgnorePatterns: [
+		'node_modules/(?!((@babel/runtime|@jest/transform|@jest/environment|@sinonjs/fake-timers)/.*))'
+	],
 	moduleFileExtensions: ['js'],
 };
 
