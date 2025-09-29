@@ -475,9 +475,9 @@ class TestPerformanceImprovements:
         individual_time = time.time() - start_time
         
         # Batch updates should be faster (or at least not significantly slower)
-        # Note: This test might be flaky due to timing variations, but it's useful
-        # for detecting major performance regressions
-        assert batch_time <= individual_time * 2  # Allow some tolerance
+        # Use a more precise threshold: batch should be at least 10% faster
+        performance_ratio = batch_time / individual_time
+        assert performance_ratio <= 0.9, f"Batch updates should be at least 10% faster, but ratio was {performance_ratio:.3f}"
 
     def test_region_based_efficiency(self):
         """Test that region-based updates are more efficient than global updates."""
@@ -613,7 +613,6 @@ class TestAcceptanceCriteria:
     def test_batch_updates_in_simulation_steps(self):
         """Test that simulation processes updates in batches during steps."""
         # Create environment with batch updates
-        from farm.config.config import SpatialIndexConfig, EnvironmentConfig, SimulationConfig
         
         spatial_config = SpatialIndexConfig(
             enable_batch_updates=True,
@@ -697,31 +696,45 @@ class TestAcceptanceCriteria:
         # Create entities for testing
         entities = [Mock() for _ in range(100)]
         
-        # Measure batch update performance
-        start_time = time.time()
-        for i, entity in enumerate(entities):
-            spatial_index_batch.add_position_update(
-                entity, (i * 5.0, i * 5.0), (i * 5.0 + 2.0, i * 5.0 + 2.0), "agent"
-            )
-        spatial_index_batch.process_batch_updates(force=True)
-        batch_time = time.time() - start_time
+        # Run multiple iterations to reduce timing variability
+        num_iterations = 3
+        batch_times = []
+        individual_times = []
         
-        # Measure individual update performance
-        start_time = time.time()
-        for i, entity in enumerate(entities):
-            spatial_index_individual.update_entity_position(
-                entity, (i * 5.0, i * 5.0), (i * 5.0 + 2.0, i * 5.0 + 2.0)
-            )
-        individual_time = time.time() - start_time
+        for iteration in range(num_iterations):
+            # Measure batch update performance
+            start_time = time.time()
+            for i, entity in enumerate(entities):
+                spatial_index_batch.add_position_update(
+                    entity, (i * 5.0, i * 5.0), (i * 5.0 + 2.0, i * 5.0 + 2.0), "agent"
+                )
+            spatial_index_batch.process_batch_updates(force=True)
+            batch_times.append(time.time() - start_time)
+            
+            # Measure individual update performance
+            start_time = time.time()
+            for i, entity in enumerate(entities):
+                spatial_index_individual.update_entity_position(
+                    entity, (i * 5.0, i * 5.0), (i * 5.0 + 2.0, i * 5.0 + 2.0)
+                )
+            individual_times.append(time.time() - start_time)
+        
+        # Calculate average times
+        avg_batch_time = sum(batch_times) / len(batch_times)
+        avg_individual_time = sum(individual_times) / len(individual_times)
         
         # Verify that batch updates provide performance improvement
-        # (Allow for some variance due to timing precision)
-        assert batch_time <= individual_time * 1.5
+        # Use a more precise threshold: batch should be at least 20% faster
+        performance_ratio = avg_batch_time / avg_individual_time
+        assert performance_ratio <= 0.8, f"Batch updates should be at least 20% faster, but ratio was {performance_ratio:.3f}"
         
         # Verify that batch processing was actually used
         batch_stats = spatial_index_batch.get_batch_update_stats()
         assert batch_stats["total_batch_updates"] > 0
         assert batch_stats["average_batch_size"] > 0
+        
+        # Additional validation: ensure batch processing is more efficient
+        assert batch_stats["total_regions_processed"] < len(entities), "Should process fewer regions than entities"
 
     def test_data_integrity_validation(self):
         """Test that all regions display current data with no stale information."""

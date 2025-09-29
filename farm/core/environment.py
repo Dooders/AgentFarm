@@ -268,7 +268,7 @@ class Environment(AECEnv):
 
         # Initialize spatial index for efficient spatial queries with batch updates
         spatial_config = None
-        if config and hasattr(config, 'environment') and config.environment.spatial_index:
+        if config and hasattr(config, 'environment') and config.environment is not None and hasattr(config.environment, 'spatial_index') and config.environment.spatial_index:
             spatial_config = config.environment.spatial_index
         
         if spatial_config:

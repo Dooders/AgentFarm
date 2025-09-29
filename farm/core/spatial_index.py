@@ -7,11 +7,12 @@ with optimized change detection and efficient spatial querying capabilities.
 import hashlib
 import heapq
 import logging
+import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
 
 import math
-from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar
+from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Set
 
 import numpy as np
 from scipy.spatial import cKDTree
@@ -100,7 +101,6 @@ class DirtyRegionTracker:
             Timestamp when region was marked dirty
         """
         if timestamp is None:
-            import time
             timestamp = time.time()
             
         region_coords = self._world_to_region_coords(position)
@@ -131,7 +131,6 @@ class DirtyRegionTracker:
         priority : int
             Priority level for all regions
         """
-        import time
         timestamp = time.time()
         
         for position in positions:
@@ -941,7 +940,7 @@ class SpatialIndex:
                 region_size=region_size,
                 max_regions=max(1000, int((width * height) / (region_size * region_size)))
             )
-            self._pending_position_updates: List[Tuple[Any, Tuple[float, float], Tuple[float, float]]] = []
+            self._pending_position_updates: List[Tuple[Any, Tuple[float, float], Tuple[float, float], str, int]] = []
             self._batch_update_enabled = True
         else:
             self._dirty_region_tracker = None
@@ -1078,7 +1077,6 @@ class SpatialIndex:
         if not force and len(self._pending_position_updates) < self.max_batch_size:
             return
 
-        import time
         start_time = time.time()
 
         # Group updates by entity type for efficient processing
