@@ -34,9 +34,11 @@ A quick map of core modules and primary entry points:
 - AgentObservation: hybrid sparse/dense observation buffer
 - ChannelRegistry and handlers: SELF_HP, RESOURCES, VISIBILITY, etc.
 
-### farm/core/spatial_index.py
-- SpatialIndex: KD-tree indexing for agents/resources + named indices
-- Nearby/nearest queries, dirty/rehash-aware rebuilds
+### farm/core/spatial (module)
+- SpatialIndex: Orchestrates KD-tree, Quadtree, and Spatial Hash indices; batch updates with dirty regions
+- Quadtree, QuadtreeNode: Hierarchical spatial partitioning API
+- SpatialHashGrid: Uniform grid bucketing for neighbor/range queries
+- Backward compatibility: `farm.core.spatial_index` re-exports these symbols
 
 ### farm/core/resource_manager.py
 - ResourceManager: initialize/regenerate/consume, stats, add/remove

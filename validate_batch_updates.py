@@ -121,7 +121,7 @@ def main():
         'farm/config/config.py',
         'farm/core/environment.py',
         'farm/core/metrics_tracker.py',
-        'tests/test_batch_spatial_updates.py'
+        'tests/spatial/test_batch_spatial_updates.py'
     ]
     
     all_valid = True
