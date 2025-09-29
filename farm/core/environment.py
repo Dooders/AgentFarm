@@ -266,8 +266,38 @@ class Environment(AECEnv):
         self.infos = {}
         self.observations = {}
 
-        # Initialize spatial index for efficient spatial queries
-        self.spatial_index = SpatialIndex(self.width, self.height)
+        # Initialize spatial index attributes
+        self._quadtree_enabled = False
+        self._spatial_hash_enabled = False
+
+        # Initialize spatial index for efficient spatial queries with batch updates
+        from farm.utils.config_utils import resolve_spatial_index_config
+        spatial_config = resolve_spatial_index_config(config)
+        
+        if spatial_config:
+            self.spatial_index = SpatialIndex(
+                self.width, 
+                self.height,
+                enable_batch_updates=spatial_config.enable_batch_updates,
+                region_size=spatial_config.region_size,
+                max_batch_size=spatial_config.max_batch_size
+            )
+            
+            # Enable additional index types if configured
+            if spatial_config.enable_quadtree_indices:
+                self.enable_quadtree_indices()
+            if spatial_config.enable_spatial_hash_indices:
+                self.enable_spatial_hash_indices(spatial_config.spatial_hash_cell_size)
+        else:
+            # Default configuration with batch updates enabled
+            self.spatial_index = SpatialIndex(
+                self.width, 
+                self.height,
+                enable_batch_updates=True,
+                region_size=50.0,
+                max_batch_size=100
+            )
+        
         # Provide spatial service via adapter around spatial_index
         self.spatial_service = SpatialIndexAdapter(self.spatial_index)
 
@@ -322,10 +352,7 @@ class Environment(AECEnv):
         )
         self.spatial_index.update()
 
-        # Optionally enable Quadtree indices for performance comparison
-        # This can be enabled via configuration or method call
-        self._quadtree_enabled = False
-        self._spatial_hash_enabled = False
+        # Quadtree and spatial hash indices are already initialized above
 
         # Perception profiler accumulators
         self._perception_profile = {
@@ -408,6 +435,48 @@ class Environment(AECEnv):
     def mark_positions_dirty(self) -> None:
         """Public method for agents to mark positions as dirty when they move."""
         self.spatial_index.mark_positions_dirty()
+
+    def process_batch_spatial_updates(self, force: bool = False) -> None:
+        """
+        Process any pending batch spatial updates.
+        
+        Parameters
+        ----------
+        force : bool
+            Force processing even if batch is not full
+        """
+        if hasattr(self.spatial_index, 'process_batch_updates'):
+            self.spatial_index.process_batch_updates(force=force)
+
+    def get_spatial_performance_stats(self) -> Dict[str, Any]:
+        """Get performance statistics for spatial indexing and batch updates."""
+        stats = {}
+        
+        # Get basic spatial index stats
+        if hasattr(self.spatial_index, 'get_stats'):
+            stats.update(self.spatial_index.get_stats())
+        
+        # Get batch update stats if available
+        if hasattr(self.spatial_index, 'get_batch_update_stats'):
+            batch_stats = self.spatial_index.get_batch_update_stats()
+            stats['batch_updates'] = batch_stats
+        
+        # Get perception profile stats
+        if hasattr(self, 'get_perception_profile'):
+            perception_stats = self.get_perception_profile()
+            stats['perception'] = perception_stats
+        
+        return stats
+
+    def enable_batch_spatial_updates(self, region_size: float = 50.0, max_batch_size: int = 100) -> None:
+        """Enable batch spatial updates with the specified configuration."""
+        if hasattr(self.spatial_index, 'enable_batch_updates'):
+            self.spatial_index.enable_batch_updates(region_size, max_batch_size)
+
+    def disable_batch_spatial_updates(self) -> None:
+        """Disable batch spatial updates and process any pending updates."""
+        if hasattr(self.spatial_index, 'disable_batch_updates'):
+            self.spatial_index.disable_batch_updates()
 
     def get_nearby_agents(
         self, position: Tuple[float, float], radius: float
@@ -810,8 +879,15 @@ class Environment(AECEnv):
                 resources=self.resources,
             )
 
-            # Update spatial index
+            # Update spatial performance metrics
+            spatial_stats = self.get_spatial_performance_stats()
+            self.metrics_tracker.update_spatial_performance_metrics(spatial_stats)
+
+            # Update spatial index (this will process any pending batch updates)
             self.spatial_index.update()
+
+            # Process any remaining batch updates to ensure all position changes are applied
+            self.process_batch_spatial_updates(force=True)
 
             # Reset counters for next step
             self.resources_shared_this_step = 0
