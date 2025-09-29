@@ -203,7 +203,8 @@ test('Apply preset deep-merges and Undo preset restores previous config', async 
     expect(undoBtn.disabled).toBe(false)
     undoBtn.click()
     await new Promise((r) => setTimeout(r, 0))
-    expect(zoomInput.value).toBe('1')
+    const zoomInputAfterUndo = explorer.querySelector('.details-content input[type="number"]')
+    expect(zoomInputAfterUndo.value).toBe('1')
 
     window.configSchemaService.loadConfig = originalLoad
 })

@@ -1,3 +1,9 @@
+"""Configurable thresholds and knobs for memmap acceptance validation.
+
+Environment variables can override defaults at runtime:
+- MEMMAP_RSS_DELTA_RATIO: acceptable RSS increase as a fraction of memmap size (default 0.5)
+"""
+
 import math
 import os
 import random
@@ -5,11 +11,6 @@ import sys
 import tempfile
 import time
 from typing import Tuple
-"""Configurable thresholds and knobs for memmap acceptance validation.
-
-Environment variables can override defaults at runtime:
-- MEMMAP_RSS_DELTA_RATIO: acceptable RSS increase as a fraction of memmap size (default 0.5)
-"""
 
 MEMORY_ACCEPTANCE_RSS_DELTA_RATIO: float = float(
     os.getenv("MEMMAP_RSS_DELTA_RATIO", "0.5")

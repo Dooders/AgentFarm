@@ -62,26 +62,26 @@ jobs:
       env:
         # Configure expected values for your deterministic simulation
         # Adjust these values based on your specific simulation results
-        EXPECTED_EARLY_TERMINATION: 1  # 1 if simulation terminates early, 0 if runs full 1000 steps
-        EXPECTED_AGENT_COUNT: 0         # Final agent count (should be 0 when terminating early)
-        EXPECTED_MIN_TIME: 1.0          # Minimum expected simulation time in seconds
-        EXPECTED_MAX_TIME: 300.0        # Maximum expected simulation time in seconds
+        EXPECTED_EARLY_TERMINATION: 0  # 1 if simulation terminates early, 0 if runs full 1000 steps
+        EXPECTED_AGENT_COUNT: 32        # Final agent count from deterministic run with seed 42
+        EXPECTED_MIN_TIME: 60.0         # Minimum expected simulation time in seconds
+        EXPECTED_MAX_TIME: 600.0        # Maximum expected simulation time in seconds (10 minutes)
       run: |
         echo "Checking deterministic results..."
         echo "Expected: Early termination = $EXPECTED_EARLY_TERMINATION, Final agents = $EXPECTED_AGENT_COUNT"
         echo "Actual: Early termination = ${{ steps.simulation.outputs.early_termination }}, Final agents = ${{ steps.simulation.outputs.final_agent_count }}, Time = ${{ steps.simulation.outputs.simulation_time }} seconds"
 
-        # Check for expected early termination (simulates terminating at step 168)
+        # Check for expected early termination behavior
         if [ "${{ steps.simulation.outputs.early_termination }}" != "$EXPECTED_EARLY_TERMINATION" ]; then
-          echo "::warning::Early termination mismatch! Expected: $EXPECTED_EARLY_TERMINATION, Got: ${{ steps.simulation.outputs.early_termination }}"
-          echo "::warning::This indicates the simulation termination behavior has changed"
-          echo "::warning::Expected behavior: simulation terminates early at step 168 (out of 1000 max steps)"
-          # Note: Changed from error to warning - you can change back to exit 1 if you want strict enforcement
+          echo "::error::Early termination mismatch! Expected: $EXPECTED_EARLY_TERMINATION, Got: ${{ steps.simulation.outputs.early_termination }}"
+          echo "::error::Simulation should run to completion without early termination"
+          exit 1
         fi
 
         # Check final agent count
         if [ "${{ steps.simulation.outputs.final_agent_count }}" != "$EXPECTED_AGENT_COUNT" ]; then
           echo "::error::Final agent count mismatch! Expected: $EXPECTED_AGENT_COUNT, Got: ${{ steps.simulation.outputs.final_agent_count }}"
+          echo "::error::This indicates non-deterministic behavior or simulation changes"
           exit 1
         fi
 
