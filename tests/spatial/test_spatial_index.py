@@ -17,7 +17,7 @@ from unittest.mock import MagicMock, Mock, patch
 import numpy as np
 
 # Add the project root to the Python path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from farm.core.resources import Resource
 from farm.core.spatial import SpatialIndex

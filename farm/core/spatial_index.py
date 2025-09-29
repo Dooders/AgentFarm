@@ -12,7 +12,8 @@ This shim will be removed in a future release.
 import warnings
 
 warnings.warn(
-    "farm.core.spatial_index is deprecated; use farm.core.spatial instead.",
+    "farm.core.spatial_index is deprecated; use farm.core.spatial instead. "
+    "This shim will be removed in a future minor release (target: >= 1.2).",
     DeprecationWarning,
     stacklevel=2,
 )
