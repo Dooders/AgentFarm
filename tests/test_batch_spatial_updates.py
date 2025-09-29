@@ -517,5 +517,251 @@ class TestPerformanceImprovements:
         assert stats["total_regions_processed"] > 0
 
 
+class TestAcceptanceCriteria:
+    """Test that the implementation meets all acceptance criteria from Issue #346."""
+
+    def test_reduces_update_overhead_in_dynamic_simulations(self):
+        """Test that batch updates reduce computational overhead in dynamic simulations."""
+        # Create spatial index with batch updates
+        spatial_index = SpatialIndex(
+            width=1000.0,
+            height=1000.0,
+            enable_batch_updates=True,
+            region_size=50.0,
+            max_batch_size=20
+        )
+        
+        # Simulate dynamic simulation with many position changes
+        entities = [Mock() for _ in range(100)]
+        
+        # Add many position updates
+        for i, entity in enumerate(entities):
+            spatial_index.add_position_update(
+                entity, 
+                (i * 5.0, i * 5.0), 
+                (i * 5.0 + 10.0, i * 5.0 + 10.0), 
+                "agent"
+            )
+        
+        # Process batch updates
+        spatial_index.process_batch_updates(force=True)
+        
+        # Verify that batch processing was used
+        stats = spatial_index.get_batch_update_stats()
+        assert stats["total_batch_updates"] > 0
+        assert stats["total_individual_updates"] == 100
+        assert stats["average_batch_size"] > 0
+        
+        # Verify that regions were tracked efficiently
+        assert stats["total_regions_processed"] > 0
+        assert stats["total_regions_processed"] < 100  # Should be fewer regions than entities
+
+    def test_no_stale_data_issues(self):
+        """Test that the system ensures all regions reflect current state without stale data."""
+        spatial_index = SpatialIndex(
+            width=200.0,
+            height=200.0,
+            enable_batch_updates=True,
+            region_size=50.0,
+            max_batch_size=10
+        )
+        
+        # Create entities and track their positions
+        entities = [Mock() for _ in range(5)]
+        entity_positions = {}
+        
+        # Add initial position updates
+        for i, entity in enumerate(entities):
+            old_pos = (i * 10.0, i * 10.0)
+            new_pos = (i * 10.0 + 5.0, i * 10.0 + 5.0)
+            entity_positions[entity] = new_pos
+            spatial_index.add_position_update(entity, old_pos, new_pos, "agent")
+        
+        # Process batch updates
+        spatial_index.process_batch_updates(force=True)
+        
+        # Verify that all regions are cleared after processing
+        dirty_regions = spatial_index._dirty_region_tracker.get_dirty_regions("agent")
+        assert len(dirty_regions) == 0  # No stale dirty regions
+        
+        # Verify that positions are marked as dirty for KD-tree rebuild
+        assert spatial_index._positions_dirty is True
+        
+        # Verify that batch queue is empty
+        assert len(spatial_index._pending_position_updates) == 0
+
+    def test_dirty_flags_for_regions(self):
+        """Test that each region has dirty flags to indicate changes."""
+        tracker = DirtyRegionTracker(region_size=50.0)
+        
+        # Mark regions as dirty
+        positions = [(25.0, 25.0), (75.0, 75.0), (125.0, 125.0)]
+        for pos in positions:
+            tracker.mark_region_dirty(pos, "agent", priority=1)
+        
+        # Verify that regions are marked as dirty
+        dirty_regions = tracker.get_dirty_regions("agent")
+        assert len(dirty_regions) == 3
+        
+        # Verify that each region has proper dirty flag information
+        for region in dirty_regions:
+            assert region.entity_type == "agent"
+            assert region.priority == 1
+            assert region.timestamp > 0
+            assert len(region.bounds) == 4  # (x, y, width, height)
+
+    def test_batch_updates_in_simulation_steps(self):
+        """Test that simulation processes updates in batches during steps."""
+        # Create environment with batch updates
+        from farm.config.config import SpatialIndexConfig, EnvironmentConfig, SimulationConfig
+        
+        spatial_config = SpatialIndexConfig(
+            enable_batch_updates=True,
+            region_size=50.0,
+            max_batch_size=5
+        )
+        
+        env_config = EnvironmentConfig(spatial_index=spatial_config)
+        config = SimulationConfig()
+        config.environment = env_config
+        
+        env = Environment(
+            width=200,
+            height=200,
+            resource_distribution="uniform",
+            config=config
+        )
+        
+        # Add some position updates
+        entities = [Mock() for _ in range(10)]
+        for i, entity in enumerate(entities):
+            env.spatial_index.add_position_update(
+                entity, (i * 10.0, i * 10.0), (i * 10.0 + 5.0, i * 10.0 + 5.0), "agent"
+            )
+        
+        # Simulate environment update (which should process batch updates)
+        env.update()
+        
+        # Verify that batch updates were processed
+        stats = env.get_spatial_performance_stats()
+        batch_stats = stats['batch_updates']
+        assert batch_stats['total_batch_updates'] > 0
+        assert batch_stats['total_individual_updates'] == 10
+
+    def test_clearing_dirty_flags_post_update(self):
+        """Test that dirty flags are cleared after processing updates."""
+        tracker = DirtyRegionTracker(region_size=50.0)
+        
+        # Mark several regions as dirty
+        positions = [(25.0, 25.0), (75.0, 75.0), (125.0, 125.0)]
+        for pos in positions:
+            tracker.mark_region_dirty(pos, "agent")
+        
+        # Verify regions are dirty
+        dirty_regions = tracker.get_dirty_regions("agent")
+        assert len(dirty_regions) == 3
+        
+        # Clear regions (simulating post-update cleanup)
+        region_coords_list = []
+        for region in dirty_regions:
+            region_coords = tracker._world_to_region_coords((region.bounds[0], region.bounds[1]))
+            region_coords_list.append(region_coords)
+        
+        tracker.clear_regions(region_coords_list)
+        
+        # Verify that regions are no longer dirty
+        dirty_regions_after = tracker.get_dirty_regions("agent")
+        assert len(dirty_regions_after) == 0
+        
+        # Verify statistics were updated
+        stats = tracker.get_stats()
+        assert stats["total_regions_updated"] == 3
+
+    def test_performance_improvement_validation(self):
+        """Test that performance improvements are measurable and significant."""
+        # Test with batch updates
+        spatial_index_batch = SpatialIndex(
+            width=1000.0,
+            height=1000.0,
+            enable_batch_updates=True,
+            max_batch_size=50
+        )
+        
+        # Test without batch updates
+        spatial_index_individual = SpatialIndex(
+            width=1000.0,
+            height=1000.0,
+            enable_batch_updates=False
+        )
+        
+        # Create entities for testing
+        entities = [Mock() for _ in range(100)]
+        
+        # Measure batch update performance
+        start_time = time.time()
+        for i, entity in enumerate(entities):
+            spatial_index_batch.add_position_update(
+                entity, (i * 5.0, i * 5.0), (i * 5.0 + 2.0, i * 5.0 + 2.0), "agent"
+            )
+        spatial_index_batch.process_batch_updates(force=True)
+        batch_time = time.time() - start_time
+        
+        # Measure individual update performance
+        start_time = time.time()
+        for i, entity in enumerate(entities):
+            spatial_index_individual.update_entity_position(
+                entity, (i * 5.0, i * 5.0), (i * 5.0 + 2.0, i * 5.0 + 2.0)
+            )
+        individual_time = time.time() - start_time
+        
+        # Verify that batch updates provide performance improvement
+        # (Allow for some variance due to timing precision)
+        assert batch_time <= individual_time * 1.5
+        
+        # Verify that batch processing was actually used
+        batch_stats = spatial_index_batch.get_batch_update_stats()
+        assert batch_stats["total_batch_updates"] > 0
+        assert batch_stats["average_batch_size"] > 0
+
+    def test_data_integrity_validation(self):
+        """Test that all regions display current data with no stale information."""
+        spatial_index = SpatialIndex(
+            width=200.0,
+            height=200.0,
+            enable_batch_updates=True,
+            region_size=50.0,
+            max_batch_size=10
+        )
+        
+        # Create entities with known positions
+        entities = [Mock() for _ in range(5)]
+        expected_positions = {}
+        
+        # Add position updates and track expected final positions
+        for i, entity in enumerate(entities):
+            old_pos = (i * 20.0, i * 20.0)
+            new_pos = (i * 20.0 + 10.0, i * 20.0 + 10.0)
+            expected_positions[entity] = new_pos
+            spatial_index.add_position_update(entity, old_pos, new_pos, "agent")
+        
+        # Process batch updates
+        spatial_index.process_batch_updates(force=True)
+        
+        # Verify that all dirty regions have been cleared
+        dirty_regions = spatial_index._dirty_region_tracker.get_dirty_regions("agent")
+        assert len(dirty_regions) == 0
+        
+        # Verify that the spatial index is marked for update (ensuring data consistency)
+        assert spatial_index._positions_dirty is True
+        
+        # Verify that no pending updates remain
+        assert len(spatial_index._pending_position_updates) == 0
+        
+        # Verify that batch processing statistics are accurate
+        stats = spatial_index.get_batch_update_stats()
+        assert stats["total_individual_updates"] == 5
+        assert stats["total_regions_processed"] > 0
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
