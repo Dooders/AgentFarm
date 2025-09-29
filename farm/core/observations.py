@@ -403,6 +403,26 @@ class ObservationConfig(BaseModel):
         default_factory=dict,
         description="Optional per-channel reduction overrides by channel name",
     )
+    # Grid sparsification for full-grid channels (e.g., RESOURCES/OBSTACLES/TERRAIN_COST)
+    grid_sparsify_enabled: bool = Field(
+        default=True,
+        description="If True, store full-grid channels as SparsePoints when density is low",
+    )
+    grid_sparsify_threshold: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description="Sparsify grids when non-zero density is below this fraction",
+    )
+    grid_zero_epsilon: float = Field(
+        default=1e-12,
+        ge=0.0,
+        description="Values with absolute magnitude <= eps are treated as zero for sparsification",
+    )
+    grid_sparse_reduction: str = Field(
+        default="overwrite",
+        description="Reduction to use when applying sparsified grids back to dense: 'max'|'sum'|'overwrite'",
+    )
 
     @field_validator("dtype")
     @classmethod
@@ -1056,7 +1076,34 @@ class AgentObservation:
             # Remove sparse mirror to avoid duplicate work
             self.sparse_channels.pop(channel_idx, None)
         else:
-            self.sparse_channels[channel_idx] = grid  # Store as dense for these
+            # Optionally compress sparse grids to point representation
+            should_sparsify = bool(getattr(self.config, "grid_sparsify_enabled", True))
+            if should_sparsify:
+                S = 2 * int(self.config.R) + 1
+                total = max(1, S * S)
+                eps = float(getattr(self.config, "grid_zero_epsilon", 1e-12))
+                # Count non-zero entries (treat small values as zeros)
+                try:
+                    nnz = int((grid.abs() > eps).sum().item())
+                except Exception:
+                    nnz = 0
+                density = nnz / float(total)
+                threshold = float(getattr(self.config, "grid_sparsify_threshold", 0.5))
+                if nnz > 0 and density < threshold:
+                    # Build SparsePoints from non-zero cells
+                    nz_idx = torch.nonzero(grid.abs() > eps, as_tuple=False)
+                    sp = SparsePoints(self.config.device, self.config.torch_dtype)
+                    # Ensure correct device/dtype
+                    sp.indices = nz_idx.t().to(device=self.config.device, dtype=torch.long)
+                    sp.values = grid[nz_idx[:, 0], nz_idx[:, 1]].to(
+                        device=self.config.device, dtype=self.config.torch_dtype
+                    )
+                    self.sparse_channels[channel_idx] = sp
+                else:
+                    # Store as dense tensor if not sparse enough
+                    self.sparse_channels[channel_idx] = grid
+            else:
+                self.sparse_channels[channel_idx] = grid  # Store as dense for these
         self.cache_dirty = True
         if self.config.enable_metrics:
             try:
