@@ -23,7 +23,7 @@ Usage:
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Iterator, Callable, List
 
 import pandas as pd
 
@@ -37,13 +37,18 @@ class DataLoader(ABC):
     """
 
     @abstractmethod
-    def load_data(self, *args, **kwargs) -> pd.DataFrame:
-        """Load data from the source.
-
-        Returns:
-            pd.DataFrame: Data loaded from the source
-        """
+    def iter_data(self, *args, **kwargs) -> Iterator[pd.DataFrame]:
+        """Stream data in chunks (primary API)."""
         pass
+
+    def load_data(self, *args, **kwargs) -> pd.DataFrame:
+        """Load all data by concatenating streamed chunks (secondary API)."""
+        chunks: List[pd.DataFrame] = list(self.iter_data(*args, **kwargs))
+        if not chunks:
+            return pd.DataFrame()
+        if len(chunks) == 1:
+            return chunks[0]
+        return pd.concat(chunks, ignore_index=True)
 
     @abstractmethod
     def get_metadata(self) -> Dict[str, Any]:
@@ -338,6 +343,58 @@ class AnalysisTask(ABC):
             self._analysis_results = self.analyzer.analyze(self._processed_data)
         else:
             self._analysis_results = {}
+
+        # Create visualizations
+        if self.visualizer is not None and self._analysis_results:
+            self.visualizer.data = self._analysis_results
+            self.visualizer.create_charts()
+
+        # Generate report
+        if self.reporter is not None and output_path is not None:
+            if self.visualizer is not None:
+                self.reporter._charts = self.visualizer.charts
+            self.reporter._data = self._analysis_results
+            self.reporter.generate(output_path)
+
+        return self._analysis_results
+
+    def run_streaming(
+        self,
+        output_path: Optional[str] = None,
+        process_chunk: Optional[Callable[[pd.DataFrame], None]] = None,
+        loader_args: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Run the analysis task in a streaming fashion using data chunks.
+
+        Args:
+            output_path: Path to save report (if reporter provided)
+            process_chunk: Optional callback called with each processed chunk
+            loader_args: Optional arguments forwarded to data_loader.iter_data
+
+        Returns:
+            Dict[str, Any]: Final analysis results (may be empty if purely streaming)
+        """
+        if self.data_loader is None:
+            raise ValueError("Streaming requires a data_loader")
+
+        loader_args = loader_args or {}
+
+        # Stream chunks
+        aggregated_data = []
+        for chunk in self.data_loader.iter_data(**loader_args):
+            processed = self.data_processor.process(chunk) if self.data_processor else chunk
+            if process_chunk is not None:
+                process_chunk(processed)
+            else:
+                # Fallback accumulation when no callback provided
+                aggregated_data.append(processed)
+
+        # If we have aggregated data and an analyzer, run once on the combined data
+        if aggregated_data and self.analyzer is not None:
+            combined = pd.concat(aggregated_data, ignore_index=True) if len(aggregated_data) > 1 else aggregated_data[0]
+            self._analysis_results = self.analyzer.analyze(combined)
+        else:
+            self._analysis_results = self._analysis_results or {}
 
         # Create visualizations
         if self.visualizer is not None and self._analysis_results:

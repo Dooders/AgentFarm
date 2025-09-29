@@ -137,6 +137,66 @@ class SQLiteLoader(DatabaseLoader):
 
         return pd.DataFrame(data, columns=columns)
 
+    def execute_query_iter(
+        self, query: str, params: Optional[Dict[str, Any]] = None, chunk_size: int = 10000
+    ) -> "Iterator[pd.DataFrame]":
+        """Execute a SQL query and stream results in DataFrame chunks.
+
+        Args:
+            query: SQL query string
+            params: Query parameters
+            chunk_size: Number of rows per yielded chunk
+
+        Yields:
+            DataFrame chunks of up to chunk_size rows
+        """
+        if self._connection is None:
+            self.connect()
+
+        if params is None:
+            params = {}
+
+        if self._connection is None:
+            raise RuntimeError("Failed to establish database connection")
+
+        # Use server-side cursor-like behavior via fetchmany loop
+        result = self._connection.execute(text(query), params)
+        columns = list(result.keys())
+        while True:
+            rows = result.fetchmany(chunk_size)
+            if not rows:
+                break
+            yield pd.DataFrame(rows, columns=columns)
+
+    def iter_data(self, *args, **kwargs):
+        """Stream data from a specified table.
+
+        Args:
+            table: One of 'agents', 'resources', 'steps', 'reproductions', 'simulations'
+            chunk_size: Rows per chunk (default 10000)
+            simulation_id: Optional simulation filter for applicable tables
+        """
+        if "table" not in kwargs:
+            raise ValueError("The 'table' parameter is required")
+
+        table = kwargs.pop("table")
+        chunk_size = int(kwargs.pop("chunk_size", 10000))
+
+        table_iters = {
+            "agents": self.iter_agents,
+            "resources": self.iter_resources,
+            "steps": self.iter_steps,
+            "reproductions": self.iter_reproduction_events,
+            "simulations": self.iter_simulations,
+        }
+
+        if table not in table_iters:
+            raise ValueError(
+                f"Unknown table: {table}. Available tables: {list(table_iters.keys())}"
+            )
+
+        yield from table_iters[table](chunk_size=chunk_size, **kwargs)
+
     def load_data(self, *args, **kwargs) -> pd.DataFrame:
         """Load data from the database.
 
@@ -210,6 +270,41 @@ class SQLiteLoader(DatabaseLoader):
 
         return pd.DataFrame(data)
 
+    def iter_agents(
+        self, simulation_id: Optional[int] = None, chunk_size: int = 10000, columns: Optional[List[str]] = None
+    ) -> "Iterator[pd.DataFrame]":
+        session = self.get_session()
+        try:
+            query = session.query(AgentModel)
+            if simulation_id is not None:
+                query = query.filter(AgentModel.simulation_id == simulation_id)
+            buffer: list = []
+            for agent in query.yield_per(chunk_size):
+                row = {
+                    "id": agent.id,
+                    "simulation_id": agent.simulation_id,
+                    "agent_type": agent.agent_type,
+                    "generation": agent.generation,
+                    "parent_id": agent.parent_id,
+                    "birth_step": agent.birth_step,
+                    "death_step": agent.death_step,
+                    "genome": agent.genome,
+                    "position_x": agent.position_x,
+                    "position_y": agent.position_y,
+                    "initial_health": agent.initial_health,
+                    "initial_energy": agent.initial_energy,
+                }
+                if columns is not None:
+                    row = {k: v for k, v in row.items() if k in columns}
+                buffer.append(row)
+                if len(buffer) >= chunk_size:
+                    yield pd.DataFrame(buffer)
+                    buffer = []
+            if buffer:
+                yield pd.DataFrame(buffer)
+        finally:
+            session.close()
+
     def load_resources(self, simulation_id: Optional[int] = None) -> pd.DataFrame:
         """Load resource data from the database.
 
@@ -245,6 +340,37 @@ class SQLiteLoader(DatabaseLoader):
 
         return pd.DataFrame(data)
 
+    def iter_resources(
+        self, simulation_id: Optional[int] = None, chunk_size: int = 10000, columns: Optional[List[str]] = None
+    ) -> "Iterator[pd.DataFrame]":
+        session = self.get_session()
+        try:
+            query = session.query(ResourceModel)
+            if simulation_id is not None:
+                query = query.filter(ResourceModel.simulation_id == simulation_id)
+            buffer: list = []
+            for resource in query.yield_per(chunk_size):
+                row = {
+                    "id": resource.id,
+                    "simulation_id": resource.simulation_id,
+                    "resource_type": resource.resource_type,
+                    "position_x": resource.position_x,
+                    "position_y": resource.position_y,
+                    "creation_step": resource.creation_step,
+                    "depletion_step": resource.depletion_step,
+                    "initial_value": resource.initial_value,
+                }
+                if columns is not None:
+                    row = {k: v for k, v in row.items() if k in columns}
+                buffer.append(row)
+                if len(buffer) >= chunk_size:
+                    yield pd.DataFrame(buffer)
+                    buffer = []
+            if buffer:
+                yield pd.DataFrame(buffer)
+        finally:
+            session.close()
+
     def load_steps(self, simulation_id: Optional[int] = None) -> pd.DataFrame:
         """Load simulation step data from the database.
 
@@ -277,6 +403,35 @@ class SQLiteLoader(DatabaseLoader):
             data.append(step_dict)
 
         return pd.DataFrame(data)
+
+    def iter_steps(
+        self, simulation_id: Optional[int] = None, chunk_size: int = 10000, columns: Optional[List[str]] = None
+    ) -> "Iterator[pd.DataFrame]":
+        session = self.get_session()
+        try:
+            query = session.query(SimulationStepModel)
+            if simulation_id is not None:
+                query = query.filter(SimulationStepModel.simulation_id == simulation_id)
+            buffer: list = []
+            for step in query.yield_per(chunk_size):
+                row = {
+                    "id": step.id,
+                    "simulation_id": step.simulation_id,
+                    "step_number": step.step_number,
+                    "agent_counts": json.loads(step.agent_counts),
+                    "resource_counts": json.loads(step.resource_counts),
+                    "timestamp": step.timestamp,
+                }
+                if columns is not None:
+                    row = {k: v for k, v in row.items() if k in columns}
+                buffer.append(row)
+                if len(buffer) >= chunk_size:
+                    yield pd.DataFrame(buffer)
+                    buffer = []
+            if buffer:
+                yield pd.DataFrame(buffer)
+        finally:
+            session.close()
 
     def load_reproduction_events(
         self, simulation_id: Optional[int] = None
@@ -317,6 +472,39 @@ class SQLiteLoader(DatabaseLoader):
 
         return pd.DataFrame(data)
 
+    def iter_reproduction_events(
+        self, simulation_id: Optional[int] = None, chunk_size: int = 10000, columns: Optional[List[str]] = None
+    ) -> "Iterator[pd.DataFrame]":
+        session = self.get_session()
+        try:
+            query = session.query(ReproductionEventModel)
+            if simulation_id is not None:
+                query = query.filter(ReproductionEventModel.simulation_id == simulation_id)
+            buffer: list = []
+            for event in query.yield_per(chunk_size):
+                row = {
+                    "id": event.id,
+                    "simulation_id": event.simulation_id,
+                    "step_number": event.step_number,
+                    "parent_id": event.parent_id,
+                    "child_id": event.child_id,
+                    "parent_health": event.parent_health,
+                    "parent_energy": event.parent_energy,
+                    "parent_age": event.parent_age,
+                    "child_genome": event.child_genome,
+                    "mutation_rate": event.mutation_rate,
+                }
+                if columns is not None:
+                    row = {k: v for k, v in row.items() if k in columns}
+                buffer.append(row)
+                if len(buffer) >= chunk_size:
+                    yield pd.DataFrame(buffer)
+                    buffer = []
+            if buffer:
+                yield pd.DataFrame(buffer)
+        finally:
+            session.close()
+
     def load_simulations(self) -> pd.DataFrame:
         """Load simulation metadata from the database.
 
@@ -343,6 +531,32 @@ class SQLiteLoader(DatabaseLoader):
             data.append(sim_dict)
 
         return pd.DataFrame(data)
+
+    def iter_simulations(self, chunk_size: int = 10000, columns: Optional[List[str]] = None) -> "Iterator[pd.DataFrame]":
+        session = self.get_session()
+        try:
+            buffer: list = []
+            for sim in session.query(Simulation).yield_per(chunk_size):
+                row = {
+                    "simulation_id": sim.simulation_id,
+                    "experiment_id": sim.experiment_id,
+                    "start_time": sim.start_time,
+                    "end_time": sim.end_time,
+                    "status": sim.status,
+                    "parameters": sim.parameters,
+                    "results_summary": sim.results_summary,
+                    "simulation_db_path": sim.simulation_db_path,
+                }
+                if columns is not None:
+                    row = {k: v for k, v in row.items() if k in columns}
+                buffer.append(row)
+                if len(buffer) >= chunk_size:
+                    yield pd.DataFrame(buffer)
+                    buffer = []
+            if buffer:
+                yield pd.DataFrame(buffer)
+        finally:
+            session.close()
 
     def get_metadata(self) -> Dict[str, Any]:
         """Get metadata about the database.
@@ -425,6 +639,24 @@ class SimulationLoader(SQLiteLoader):
         kwargs["simulation_id"] = self.simulation_id
         return super().load_data(table=table, **kwargs)
 
+    def iter_data(self, table: str = "steps", chunk_size: int = 10000, columns: Optional[List[str]] = None, **kwargs):
+        if self.simulation_id is None:
+            raise ValueError("No simulation ID or name specified, or name not found")
+
+        kwargs["simulation_id"] = self.simulation_id
+        table_iters = {
+            "agents": self.iter_agents,
+            "resources": self.iter_resources,
+            "steps": self.iter_steps,
+            "reproductions": self.iter_reproduction_events,
+            "simulations": self.iter_simulations,
+        }
+        if table not in table_iters:
+            raise ValueError(
+                f"Unknown table: {table}. Available: {list(table_iters.keys())}"
+            )
+        yield from table_iters[table](chunk_size=chunk_size, columns=columns, **kwargs)
+
     def load_time_series(self) -> pd.DataFrame:
         """Load time series data for the simulation.
 
@@ -444,6 +676,21 @@ class SimulationLoader(SQLiteLoader):
                 )
 
         return pd.DataFrame(agent_counts)
+
+    def iter_time_series(self, chunk_size: int = 10000) -> "Iterator[pd.DataFrame]":
+        """Stream time series rows derived from steps in chunks."""
+        buffer: list = []
+        for steps_df in self.iter_data(table="steps", chunk_size=chunk_size):
+            for _, row in steps_df.iterrows():
+                step = row["step_number"]
+                counts = row["agent_counts"]
+                for agent_type, count in counts.items():
+                    buffer.append({"step": step, "agent_type": agent_type, "count": count})
+                    if len(buffer) >= chunk_size:
+                        yield pd.DataFrame(buffer)
+                        buffer = []
+        if buffer:
+            yield pd.DataFrame(buffer)
 
     def get_simulation_config(self) -> Dict[str, Any]:
         """Get the configuration for the simulation.
@@ -478,18 +725,16 @@ class CSVLoader(DataLoader):
         self.file_path = file_path
 
     def load_data(self, **kwargs) -> pd.DataFrame:
-        """Load data from a CSV file.
+        # Use base concatenation of iter_data for default streaming semantics
+        return super().load_data(**kwargs)
 
-        Args:
-            **kwargs: Additional parameters for pd.read_csv
-
-        Returns:
-            pd.DataFrame: Loaded data
-        """
+    def iter_data(self, chunksize: int = 100000, **kwargs):
         if not os.path.exists(self.file_path):
             raise FileNotFoundError(f"CSV file not found: {self.file_path}")
-
-        return pd.read_csv(self.file_path, **kwargs)
+        # Pandas returns an iterator of DataFrames when chunksize is provided
+        reader = pd.read_csv(self.file_path, chunksize=chunksize, **kwargs)
+        for chunk in reader:
+            yield chunk
 
     def get_metadata(self) -> Dict[str, Any]:
         """Get metadata about the CSV file.
@@ -530,18 +775,23 @@ class JSONLoader(DataLoader):
         self.file_path = file_path
 
     def load_data(self, **kwargs) -> pd.DataFrame:
-        """Load data from a JSON file.
+        # Use base concatenation of iter_data for default streaming semantics
+        return super().load_data(**kwargs)
 
-        Args:
-            **kwargs: Additional parameters for pd.read_json
-
-        Returns:
-            pd.DataFrame: Loaded data
-        """
+    def iter_data(self, chunksize: int = 100000, lines: Optional[bool] = None, **kwargs):
         if not os.path.exists(self.file_path):
             raise FileNotFoundError(f"JSON file not found: {self.file_path}")
 
-        return pd.read_json(self.file_path, **kwargs)
+        # If file is JSON Lines or caller requests lines mode, use pandas chunking
+        if lines is True or (lines is None and self.file_path.lower().endswith((".jsonl", ".ndjson"))):
+            reader = pd.read_json(self.file_path, lines=True, chunksize=chunksize, **kwargs)
+            for chunk in reader:
+                yield chunk
+            return
+
+        # Fallback: directly load once when not line-delimited (avoid recursion via load_data)
+        df = pd.read_json(self.file_path, lines=False, **kwargs)
+        yield df
 
     def get_metadata(self) -> Dict[str, Any]:
         """Get metadata about the JSON file.
@@ -610,6 +860,18 @@ class ExperimentLoader(DataLoader):
             return pd.DataFrame()
 
         return pd.concat(all_data, ignore_index=True)
+
+    def iter_data(self, table: str = "simulations", chunk_size: int = 10000, **kwargs):
+        for loader in self._loaders:
+            try:
+                # Dispatch to iterator on each loader directly
+                iterator = loader.iter_data(table=table, chunk_size=chunk_size, **kwargs)
+                for chunk in iterator:
+                    chunk = chunk.copy()
+                    chunk["db_path"] = loader.db_path  # type: ignore[attr-defined]
+                    yield chunk
+            except Exception as e:
+                print(f"Error streaming data from {getattr(loader, 'db_path', 'unknown')}: {e}")
 
     def get_metadata(self) -> Dict[str, Any]:
         """Get metadata about all the simulation databases.
