@@ -87,6 +87,12 @@ metrics = obs.get_metrics()
 - [Health Resource Analysis](health_resource_analysis.md) - Agent health and resource utilization analysis
 - [Experiment Analysis](experiment_analysis.md) - Tools for analyzing experiment results
 
+### Performance & Optimization
+- [Spatial Indexing](spatial_indexing.md) - Advanced spatial indexing with GPU acceleration
+- [GPU Acceleration Setup Guide](gpu_acceleration_setup_guide.md) - Complete setup guide for GPU acceleration
+- [GPU Acceleration Acceptance Criteria](gpu_acceleration_acceptance_criteria.md) - Verification of performance requirements
+- [Batch Spatial Updates Guide](batch_spatial_updates_guide.md) - Optimized spatial update system
+
 ### AI & Learning
 - [Deep Q Learning](deep_q_learning.md) - Reinforcement learning implementation
 - [Redis Agent Memory](redis_agent_memory.md) - Distributed agent memory system
