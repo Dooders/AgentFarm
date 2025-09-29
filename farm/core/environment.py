@@ -1032,6 +1032,17 @@ class Environment(AECEnv):
         self._agent_objects[agent.agent_id] = agent
         self.agents.append(agent.agent_id)  # Add to PettingZoo agents list
 
+        # Initialize PettingZoo state dictionaries for the new agent
+        self.rewards[agent.agent_id] = 0
+        self._cumulative_rewards[agent.agent_id] = 0
+        self.terminations[agent.agent_id] = False
+        self.truncations[agent.agent_id] = False
+        self.infos[agent.agent_id] = {}
+        # Initialize observation with zeros since agent_observations isn't set up yet
+        self.observations[agent.agent_id] = np.zeros(
+            self._observation_space.shape, dtype=self._observation_space.dtype
+        )
+
         # Mark positions as dirty when new agent is added
         self.spatial_index.mark_positions_dirty()
 
