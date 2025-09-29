@@ -59,6 +59,7 @@ from farm.core.services.interfaces import (
 )
 from farm.core.state import AgentState
 from farm.database.data_types import GenomeId
+from farm.utils.config_utils import get_nested_then_flat
 
 try:
     from farm.memory.redis_memory import AgentMemoryManager, RedisMemoryConfig
@@ -213,35 +214,39 @@ class BaseAgent:
         self.previous_state: AgentState | None = None
         self.previous_action = None
         # Movement distance from nested agent behavior when available
-        if self.config and getattr(self.config, "agent_behavior", None) is not None:
-            self.max_movement = getattr(self.config.agent_behavior, "max_movement", 8)
-        else:
-            self.max_movement = (
-                getattr(self.config, "max_movement", 8) if self.config else 8
-            )  # Legacy fallback
+        self.max_movement = get_nested_then_flat(
+            config=self.config,
+            nested_parent_attr="agent_behavior",
+            nested_attr_name="max_movement",
+            flat_attr_name="max_movement",
+            default_value=8,
+            expected_types=(int, float),
+        )
         self.total_reward = 0.0
         self.episode_rewards = []
         self.losses = []
         self.starvation_counter = 0  # Counter for consecutive steps with zero resources
         # Max steps agent can survive without resources
-        if self.config and getattr(self.config, "agent_behavior", None) is not None:
-            self.starvation_threshold = getattr(
-                self.config.agent_behavior, "starvation_threshold", 100
-            )
-        else:
-            self.starvation_threshold = (
-                getattr(self.config, "starvation_threshold", 100) if self.config else 100
-            )
+        self.starvation_threshold = get_nested_then_flat(
+            config=self.config,
+            nested_parent_attr="agent_behavior",
+            nested_attr_name="starvation_threshold",
+            flat_attr_name="starvation_threshold",
+            default_value=100,
+            expected_types=(int, float),
+        )
         self.birth_time = self.time_service.current_time() if self.time_service else 0
 
         # Initialize health tracking first
         # Starting health from combat configuration when available
-        if self.config and getattr(self.config, "combat", None) is not None:
-            self.starting_health = getattr(self.config.combat, "starting_health", 100)
-        else:
-            self.starting_health = (
-                getattr(self.config, "starting_health", 100) if self.config else 100
-            )
+        self.starting_health = get_nested_then_flat(
+            config=self.config,
+            nested_parent_attr="combat",
+            nested_attr_name="starting_health",
+            flat_attr_name="starting_health",
+            default_value=100,
+            expected_types=(int, float),
+        )
         self.current_health = self.starting_health
         self.is_defending = False
         self.defense_timer = 0
@@ -384,10 +389,14 @@ class BaseAgent:
         # Get perception radius from config
         try:
             # Perception radius from nested agent behavior when available
-            if self.config and getattr(self.config, "agent_behavior", None) is not None:
-                radius = getattr(self.config.agent_behavior, "perception_radius", 5)
-            else:
-                radius = getattr(self.config, "perception_radius", 5) if self.config else 5
+            radius = get_nested_then_flat(
+                config=self.config,
+                nested_parent_attr="agent_behavior",
+                nested_attr_name="perception_radius",
+                flat_attr_name="perception_radius",
+                default_value=5,
+                expected_types=(int, float),
+            )
             # Create perception grid centered on agent
             size = 2 * radius + 1
         except TypeError:
@@ -561,14 +570,14 @@ class BaseAgent:
                 from farm.core.channels import NUM_CHANNELS
 
                 try:
-                    if self.config and getattr(self.config, "agent_behavior", None) is not None:
-                        radius = getattr(self.config.agent_behavior, "perception_radius", 5)
-                    else:
-                        radius = (
-                            getattr(self.config, "perception_radius", 5)
-                            if self.config
-                            else 5
-                        )
+                    radius = get_nested_then_flat(
+                        config=self.config,
+                        nested_parent_attr="agent_behavior",
+                        nested_attr_name="perception_radius",
+                        flat_attr_name="perception_radius",
+                        default_value=5,
+                        expected_types=(int, float),
+                    )
                     size = 2 * radius + 1
                 except TypeError:
                     # Handle cases where config attributes return non-numeric values
@@ -580,12 +589,14 @@ class BaseAgent:
             from farm.core.channels import NUM_CHANNELS
 
             try:
-                if self.config and getattr(self.config, "agent_behavior", None) is not None:
-                    radius = getattr(self.config.agent_behavior, "perception_radius", 5)
-                else:
-                    radius = (
-                        getattr(self.config, "perception_radius", 5) if self.config else 5
-                    )
+                radius = get_nested_then_flat(
+                    config=self.config,
+                    nested_parent_attr="agent_behavior",
+                    nested_attr_name="perception_radius",
+                    flat_attr_name="perception_radius",
+                    default_value=5,
+                    expected_types=(int, float),
+                )
                 size = 2 * radius + 1
             except TypeError:
                 # Handle cases where config attributes return non-numeric values
@@ -968,10 +979,14 @@ class BaseAgent:
             return
 
         # Resource consumption
-        if self.config and getattr(self.config, "agent_behavior", None) is not None:
-            consumption = getattr(self.config.agent_behavior, "base_consumption_rate", 1)
-        else:
-            consumption = getattr(self.config, "base_consumption_rate", 1) if self.config else 1
+        consumption = get_nested_then_flat(
+            config=self.config,
+            nested_parent_attr="agent_behavior",
+            nested_attr_name="base_consumption_rate",
+            flat_attr_name="base_consumption_rate",
+            default_value=1,
+            expected_types=(int, float),
+        )
         self.resource_level -= consumption
 
         # Check starvation state - exit early if agent dies
@@ -1285,10 +1300,13 @@ class BaseAgent:
             new_agent = agent_class(
                 agent_id=new_id,
                 position=self.position,
-                resource_level=(
-                    getattr(self.config.agent_behavior, "offspring_initial_resources", 10)
-                    if (self.config and getattr(self.config, "agent_behavior", None) is not None)
-                    else (getattr(self.config, "offspring_initial_resources", 10) if self.config else 10)
+                resource_level=get_nested_then_flat(
+                    config=self.config,
+                    nested_parent_attr="agent_behavior",
+                    nested_attr_name="offspring_initial_resources",
+                    flat_attr_name="offspring_initial_resources",
+                    default_value=10,
+                    expected_types=(int, float),
                 ),
                 spatial_service=self.spatial_service,
                 metrics_service=self.metrics_service,
@@ -1315,12 +1333,14 @@ class BaseAgent:
 
         # Subtract offspring cost from parent's resources
         try:
-            if self.config and getattr(self.config, "agent_behavior", None) is not None:
-                offspring_cost = getattr(self.config.agent_behavior, "offspring_cost", 5)
-            else:
-                offspring_cost = (
-                    getattr(self.config, "offspring_cost", 5) if self.config else 5
-                )
+            offspring_cost = get_nested_then_flat(
+                config=self.config,
+                nested_parent_attr="agent_behavior",
+                nested_attr_name="offspring_cost",
+                flat_attr_name="offspring_cost",
+                default_value=5,
+                expected_types=(int, float),
+            )
             self.resource_level -= offspring_cost
         except Exception as e:
             logger.error(
@@ -1475,13 +1495,14 @@ class BaseAgent:
     @property
     def attack_strength(self) -> float:
         """Calculate the agent's current attack strength."""
-        base_attack = None
-        if self.config and getattr(self.config, "agent_behavior", None) is not None:
-            base_attack = getattr(self.config.agent_behavior, "base_attack_strength", None)
-        if base_attack is None and self.config is not None:
-            base_attack = getattr(self.config, "base_attack_strength", None)
-        if base_attack is None:
-            base_attack = 10
+        base_attack = get_nested_then_flat(
+            config=self.config,
+            nested_parent_attr="agent_behavior",
+            nested_attr_name="base_attack_strength",
+            flat_attr_name="base_attack_strength",
+            default_value=10,
+            expected_types=(int, float),
+        )
         return base_attack * (self.current_health / self.starting_health)
 
     @property
@@ -1489,13 +1510,14 @@ class BaseAgent:
         """Calculate the agent's current defense strength."""
         if not self.is_defending:
             return 0.0
-        base_defense = None
-        if self.config and getattr(self.config, "agent_behavior", None) is not None:
-            base_defense = getattr(self.config.agent_behavior, "base_defense_strength", None)
-        if base_defense is None and self.config is not None:
-            base_defense = getattr(self.config, "base_defense_strength", None)
-        if base_defense is None:
-            base_defense = 5
+        base_defense = get_nested_then_flat(
+            config=self.config,
+            nested_parent_attr="agent_behavior",
+            nested_attr_name="base_defense_strength",
+            flat_attr_name="base_defense_strength",
+            default_value=5,
+            expected_types=(int, float),
+        )
         return base_defense
 
     def get_action_weights(self) -> dict:
