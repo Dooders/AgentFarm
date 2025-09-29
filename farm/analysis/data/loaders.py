@@ -789,8 +789,9 @@ class JSONLoader(DataLoader):
                 yield chunk
             return
 
-        # Fallback: load once when not line-delimited (chunking not supported without extra deps)
-        yield self.load_data(**kwargs)
+        # Fallback: directly load once when not line-delimited (avoid recursion via load_data)
+        df = pd.read_json(self.file_path, lines=False, **kwargs)
+        yield df
 
     def get_metadata(self) -> Dict[str, Any]:
         """Get metadata about the JSON file.
@@ -863,12 +864,8 @@ class ExperimentLoader(DataLoader):
     def iter_data(self, table: str = "simulations", chunk_size: int = 10000, **kwargs):
         for loader in self._loaders:
             try:
-                # Dispatch to iterator on each SQLiteLoader
-                if isinstance(loader, SQLiteLoader):
-                    sim_loader = SimulationLoader(db_path=loader.db_path)
-                    iterator = sim_loader.iter_data(table=table, chunk_size=chunk_size, **kwargs)
-                else:
-                    iterator = loader.iter_data(**kwargs)
+                # Dispatch to iterator on each loader directly
+                iterator = loader.iter_data(table=table, chunk_size=chunk_size, **kwargs)
                 for chunk in iterator:
                     chunk = chunk.copy()
                     chunk["db_path"] = loader.db_path  # type: ignore[attr-defined]
