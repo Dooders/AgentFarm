@@ -1084,10 +1084,7 @@ class AgentObservation:
                 total = max(1, S * S)
                 eps = float(getattr(self.config, "grid_zero_epsilon", 1e-12))
                 # Count non-zero entries (treat small values as zeros)
-                try:
-                    nnz = int((grid.abs() > eps).sum().item())
-                except (RuntimeError, TypeError, ValueError):
-                    nnz = 0
+                nnz = int((grid.abs() > eps).sum().item())
                 density = nnz / float(total)
                 threshold = float(getattr(self.config, "grid_sparsify_threshold", 0.5))
                 if nnz > 0 and density < threshold:
