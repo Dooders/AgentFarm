@@ -8,6 +8,8 @@ entire spatial indices on every position change.
 
 import pytest
 import time
+from collections import defaultdict
+from dataclasses import dataclass
 from unittest.mock import Mock, patch
 from typing import List, Tuple
 
