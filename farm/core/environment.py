@@ -61,7 +61,7 @@ from farm.core.services.implementations import (
     EnvironmentValidationService,
     SpatialIndexAdapter,
 )
-from farm.core.spatial_index import SpatialIndex
+from farm.core.spatial import SpatialIndex
 from farm.core.state import EnvironmentState
 from farm.database.utilities import setup_db
 from farm.utils.identity import Identity, IdentityConfig
