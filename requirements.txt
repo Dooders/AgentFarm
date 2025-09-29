@@ -5,11 +5,13 @@ pandas>=1.3.0
 matplotlib>=3.4.0
 pyyaml>=6.0
 sqlalchemy>=1.4.0
+pydantic>=2.0.0  # Data validation and serialization
 deepdiff>=5.8.0
 pettingzoo>=1.24.0  # Multi-agent reinforcement learning environments
 
-# Database 
+# Database
 # Note: sqlite3 is part of Python standard library, no need to install separately
+redis>=4.0.0  # Redis client for memory management
 
 # GUI
 # Note: tkinter is part of Python standard library, no need to install separately
@@ -22,6 +24,7 @@ seaborn>=0.11.0  # Statistical visualizations
 
 # Testing
 pytest>=6.2.5
+pytest-cov>=4.0.0
 
 # Utilities
 tqdm>=4.62.0  # Progress bars
@@ -47,6 +50,7 @@ dash>=2.0.0  # Dashboard for visualization
 tianshou>=0.4.11,<0.5.0  # Tianshou RL library (PPO, SAC, A2C, DQN, DDPG, etc.) - pinned due to NumPy compatibility
 gymnasium>=0.28.0  # Modern Gym replacement for environments
 shimmy>=1.0.0  # Environment wrappers for compatibility
+stable-baselines3>=2.0.0  # Reinforcement learning algorithms
 
 # Optional dependencies
 # tensorflow>=2.7.0  # Uncomment if needed for specific implementations

@@ -1309,16 +1309,25 @@ class Environment(AECEnv):
         height, width = int(self.height), int(self.width)
 
         # Get discretization method from config
-        discretization_method = (
-            getattr(self.config, "position_discretization_method", "floor")
-            if self.config
-            else "floor"
-        )
-        use_bilinear = (
-            getattr(self.config, "use_bilinear_interpolation", True)
-            if self.config
-            else True
-        )
+        # Resolve discretization/interpolation from nested environment config when available
+        if self.config and getattr(self.config, "environment", None) is not None:
+            discretization_method = getattr(
+                self.config.environment, "position_discretization_method", "floor"
+            )
+            use_bilinear = getattr(
+                self.config.environment, "use_bilinear_interpolation", True
+            )
+        else:
+            discretization_method = (
+                getattr(self.config, "position_discretization_method", "floor")
+                if self.config
+                else "floor"
+            )
+            use_bilinear = (
+                getattr(self.config, "use_bilinear_interpolation", True)
+                if self.config
+                else True
+            )
 
         # Agent position as (y, x) using configured discretization method
         grid_size = (width, height)
@@ -1337,9 +1346,20 @@ class Environment(AECEnv):
             dtype=self.observation_config.torch_dtype,
             device=self.observation_config.device,
         )
-        max_amount = self.max_resource or (
-            self.config.resources.max_resource_amount if self.config else 10
-        )
+        # Max amount resolution prefers nested resources config when available
+        if self.max_resource is not None:
+            max_amount = self.max_resource
+        else:
+            from farm.utils.config_utils import get_nested_then_flat
+
+            max_amount = get_nested_then_flat(
+                config=self.config,
+                nested_parent_attr="resources",
+                nested_attr_name="max_resource_amount",
+                flat_attr_name="max_resource_amount",
+                default_value=10,
+                expected_types=(int, float),
+            )
 
         # Query nearby resources within a radius covering the local window
         # Use slightly larger than R to capture bilinear spread near the boundary

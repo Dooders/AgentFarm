@@ -98,7 +98,7 @@ class DeviceManager:
                 else:
                     raise RuntimeError(
                         f"CUDA device not working and fallback disabled: {e}"
-                    )
+                    ) from e
         else:
             logger.info("CUDA not available, using CPU")
             return torch.device("cpu")
@@ -140,7 +140,7 @@ class DeviceManager:
                 else:
                     raise RuntimeError(
                         f"Invalid CUDA device specification and fallback disabled: {e}"
-                    )
+                    ) from e
         else:
             device = torch.device("cuda:0")
 
@@ -159,7 +159,7 @@ class DeviceManager:
             else:
                 raise RuntimeError(
                     f"CUDA device {device} not working and fallback disabled: {e}"
-                )
+                ) from e
 
     def _configure_device(self) -> None:
         """Configure device-specific settings."""
@@ -235,7 +235,7 @@ class DeviceManager:
         try:
             return tensor.to(target_device)
         except Exception as e:
-            raise RuntimeError(f"Failed to move tensor to device {target_device}: {e}")
+            raise RuntimeError(f"Failed to move tensor to device {target_device}: {e}") from e
 
     def get_optimal_device_for_model(
         self, model_size_mb: Optional[float] = None
@@ -379,9 +379,48 @@ def create_device_from_config(config) -> torch.device:
     Returns:
         torch.device: Configured device
     """
+    # Support nested SimulationConfig.device as well as flat configs
+    from farm.utils.config_utils import get_nested_then_flat
+
+    preference = get_nested_then_flat(
+        config=config,
+        nested_parent_attr="device",
+        nested_attr_name="device_preference",
+        flat_attr_name="device_preference",
+        default_value="auto",
+        expected_types=(str,),
+    )
+
+    fallback = get_nested_then_flat(
+        config=config,
+        nested_parent_attr="device",
+        nested_attr_name="device_fallback",
+        flat_attr_name="device_fallback",
+        default_value=True,
+        expected_types=(bool,),
+    )
+
+    memory_fraction = get_nested_then_flat(
+        config=config,
+        nested_parent_attr="device",
+        nested_attr_name="device_memory_fraction",
+        flat_attr_name="device_memory_fraction",
+        default_value=None,
+        expected_types=(int, float, type(None)),
+    )
+
+    validate_compatibility = get_nested_then_flat(
+        config=config,
+        nested_parent_attr="device",
+        nested_attr_name="device_validate_compatibility",
+        flat_attr_name="device_validate_compatibility",
+        default_value=True,
+        expected_types=(bool,),
+    )
+
     return get_device(
-        preference=getattr(config, "device_preference", "auto"),
-        fallback=getattr(config, "device_fallback", True),
-        memory_fraction=getattr(config, "device_memory_fraction", None),
-        validate_compatibility=getattr(config, "device_validate_compatibility", True),
+        preference=preference,
+        fallback=fallback,
+        memory_fraction=memory_fraction,
+        validate_compatibility=validate_compatibility,
     )
