@@ -89,7 +89,7 @@ def compare_states(state1, state2):
     state2 : dict
         Second simulation state
     """
-    print(f"\nComparing simulation states:")
+    print("\nComparing simulation states:")
     
     # Check if time steps match
     if state1["time"] != state2["time"]:
@@ -229,7 +229,7 @@ def run_determinism_test(environment, num_steps, seed=42, use_snapshot_steps=Non
     
     is_deterministic = hash1 == hash2
     
-    print(f"\nDeterminism Test Results:")
+    print("\nDeterminism Test Results:")
     print(f"  - First simulation state hash: {hash1}")
     print(f"  - Second simulation state hash: {hash2}")
     print(f"  - Deterministic: {is_deterministic}")

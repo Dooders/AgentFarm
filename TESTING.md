@@ -1,4 +1,4 @@
-## Testing Framework
+# Testing Framework
 
 This repository uses pytest for Python tests and Jest for a small set of browser-based UI tests under `farm/editor`.
 
@@ -59,4 +59,3 @@ npm test --prefix farm/editor -- --runInBand
 - Use markers to categorize runtime; integration tests should be under `tests/integration/`.
 - Prefer fixtures over ad-hoc setup code; share helpers via `tests/utils`.
 - Default runs exclude `integration` and `slow` to keep CI fast.
-

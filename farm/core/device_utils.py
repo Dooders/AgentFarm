@@ -98,7 +98,7 @@ class DeviceManager:
                 else:
                     raise RuntimeError(
                         f"CUDA device not working and fallback disabled: {e}"
-                    )
+                    ) from e
         else:
             logger.info("CUDA not available, using CPU")
             return torch.device("cpu")
@@ -140,7 +140,7 @@ class DeviceManager:
                 else:
                     raise RuntimeError(
                         f"Invalid CUDA device specification and fallback disabled: {e}"
-                    )
+                    ) from e
         else:
             device = torch.device("cuda:0")
 
@@ -159,7 +159,7 @@ class DeviceManager:
             else:
                 raise RuntimeError(
                     f"CUDA device {device} not working and fallback disabled: {e}"
-                )
+                ) from e
 
     def _configure_device(self) -> None:
         """Configure device-specific settings."""
@@ -235,7 +235,7 @@ class DeviceManager:
         try:
             return tensor.to(target_device)
         except Exception as e:
-            raise RuntimeError(f"Failed to move tensor to device {target_device}: {e}")
+            raise RuntimeError(f"Failed to move tensor to device {target_device}: {e}") from e
 
     def get_optimal_device_for_model(
         self, model_size_mb: Optional[float] = None
