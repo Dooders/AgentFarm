@@ -77,7 +77,7 @@ nearest_resource = spatial_index.get_nearest(position, ["resources"])   # O(log 
 **Technical Implementation:**
 
 ```python
-from farm.core.spatial_index import Quadtree
+from farm.core.spatial import Quadtree
 
 # Create quadtree with environment bounds
 bounds = (0, 0, width, height)
@@ -223,7 +223,7 @@ spatial_performance_metrics: true  # Collect performance metrics
 ### Basic Usage
 
 ```python
-from farm.core.spatial_index import SpatialIndex
+from farm.core.spatial import SpatialIndex
 from farm.core.environment import Environment
 
 # Create environment with spatial indexing
