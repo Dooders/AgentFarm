@@ -380,38 +380,43 @@ def create_device_from_config(config) -> torch.device:
         torch.device: Configured device
     """
     # Support nested SimulationConfig.device as well as flat configs
-    device_cfg = getattr(config, "device", None)
-    preference = (
-        getattr(device_cfg, "device_preference", None)
-        if device_cfg is not None
-        else None
-    ) or getattr(config, "device_preference", "auto")
+    from farm.utils.config_utils import get_nested_then_flat
 
-    fallback = (
-        getattr(device_cfg, "device_fallback", None)
-        if device_cfg is not None
-        else None
+    preference = get_nested_then_flat(
+        config=config,
+        nested_parent_attr="device",
+        nested_attr_name="device_preference",
+        flat_attr_name="device_preference",
+        default_value="auto",
+        expected_types=(str,),
     )
-    if fallback is None:
-        fallback = getattr(config, "device_fallback", True)
 
-    memory_fraction = (
-        getattr(device_cfg, "device_memory_fraction", None)
-        if device_cfg is not None
-        else None
+    fallback = get_nested_then_flat(
+        config=config,
+        nested_parent_attr="device",
+        nested_attr_name="device_fallback",
+        flat_attr_name="device_fallback",
+        default_value=True,
+        expected_types=(bool,),
     )
-    if memory_fraction is None:
-        memory_fraction = getattr(config, "device_memory_fraction", None)
 
-    validate_compatibility = (
-        getattr(device_cfg, "device_validate_compatibility", None)
-        if device_cfg is not None
-        else None
+    memory_fraction = get_nested_then_flat(
+        config=config,
+        nested_parent_attr="device",
+        nested_attr_name="device_memory_fraction",
+        flat_attr_name="device_memory_fraction",
+        default_value=None,
+        expected_types=(int, float, type(None)),
     )
-    if validate_compatibility is None:
-        validate_compatibility = getattr(
-            config, "device_validate_compatibility", True
-        )
+
+    validate_compatibility = get_nested_then_flat(
+        config=config,
+        nested_parent_attr="device",
+        nested_attr_name="device_validate_compatibility",
+        flat_attr_name="device_validate_compatibility",
+        default_value=True,
+        expected_types=(bool,),
+    )
 
     return get_device(
         preference=preference,

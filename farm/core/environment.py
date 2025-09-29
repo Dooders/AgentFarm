@@ -1347,11 +1347,18 @@ class Environment(AECEnv):
             device=self.observation_config.device,
         )
         # Max amount resolution prefers nested resources config when available
-        if self.config and getattr(self.config, "resources", None) is not None:
-            max_amount = self.max_resource or self.config.resources.max_resource_amount
+        if self.max_resource is not None:
+            max_amount = self.max_resource
         else:
-            max_amount = self.max_resource or (
-                getattr(self.config, "max_resource_amount", 10) if self.config else 10
+            from farm.utils.config_utils import get_nested_then_flat
+
+            max_amount = get_nested_then_flat(
+                config=self.config,
+                nested_parent_attr="resources",
+                nested_attr_name="max_resource_amount",
+                flat_attr_name="max_resource_amount",
+                default_value=10,
+                expected_types=(int, float),
             )
 
         # Query nearby resources within a radius covering the local window
