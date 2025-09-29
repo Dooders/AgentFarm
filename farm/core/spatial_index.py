@@ -1114,10 +1114,14 @@ class SpatialIndex:
         self._batch_update_stats["total_batch_updates"] += 1
         self._batch_update_stats["total_individual_updates"] += batch_size
         self._batch_update_stats["total_regions_processed"] += regions_processed
-        self._batch_update_stats["average_batch_size"] = (
-            (self._batch_update_stats["average_batch_size"] * (self._batch_update_stats["total_batch_updates"] - 1) + batch_size) /
-            self._batch_update_stats["total_batch_updates"]
-        )
+        # Update running average with clearer intermediate variables
+        total_batches = self._batch_update_stats["total_batch_updates"]
+        prev_avg = self._batch_update_stats["average_batch_size"]
+        if total_batches <= 1:
+            new_avg = float(batch_size)
+        else:
+            new_avg = ((prev_avg * (total_batches - 1)) + batch_size) / float(total_batches)
+        self._batch_update_stats["average_batch_size"] = new_avg
         self._batch_update_stats["last_batch_time"] = end_time - start_time
 
         logger.debug(
@@ -1894,11 +1898,20 @@ class SpatialIndex:
         new_position : Tuple[float, float]
             The entity's new (x, y) position
         """
-        # Determine entity type based on entity attributes or context
-        entity_type = "agent"  # Default
-        if hasattr(entity, 'resource_level') and not hasattr(entity, 'alive'):
-            entity_type = "resource"
-        elif hasattr(entity, 'alive'):
+        # Determine entity type using named index membership to avoid fragile attribute checks
+        entity_type = "agent"
+        try:
+            # Prefer explicit membership in registered named indices
+            resources_state = self._named_indices.get("resources")
+            if resources_state and resources_state.get("cached_items"):
+                if entity in resources_state["cached_items"]:
+                    entity_type = "resource"
+            else:
+                # Fallback: if no cached list, infer by presence in resources reference
+                if entity in self._resources:
+                    entity_type = "resource"
+        except Exception:
+            # Default to agent on any unexpected issue
             entity_type = "agent"
 
         # Use batch updates if enabled
