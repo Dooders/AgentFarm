@@ -267,9 +267,8 @@ class Environment(AECEnv):
         self.observations = {}
 
         # Initialize spatial index for efficient spatial queries with batch updates
-        spatial_config = None
-        if config and hasattr(config, 'environment') and config.environment is not None and hasattr(config.environment, 'spatial_index') and config.environment.spatial_index:
-            spatial_config = config.environment.spatial_index
+        from farm.utils.config_utils import resolve_spatial_index_config
+        spatial_config = resolve_spatial_index_config(config)
         
         if spatial_config:
             self.spatial_index = SpatialIndex(

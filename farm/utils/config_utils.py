@@ -70,3 +70,19 @@ def get_nested_then_flat(
         pass
 
     return default_value
+
+
+def resolve_spatial_index_config(config):
+    """Resolve nested environment.spatial_index config safely.
+
+    Returns the spatial index config object if present, else None.
+    """
+    try:
+        if config is None:
+            return None
+        env_cfg = getattr(config, "environment", None)
+        if env_cfg is None:
+            return None
+        return getattr(env_cfg, "spatial_index", None)
+    except Exception:
+        return None

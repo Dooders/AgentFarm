@@ -26,29 +26,32 @@ def validate_python_syntax(file_path):
         return False
 
 def check_imports(file_path):
-    """Check if the file has proper imports."""
+    """Check if the file has proper imports using AST parsing (robust)."""
     try:
         with open(file_path, 'r') as f:
             content = f.read()
-        
-        # Check for required imports
-        required_imports = [
-            'from typing import',
-            'from dataclasses import',
-            'from collections import'
-        ]
-        
-        missing_imports = []
-        for required in required_imports:
-            if required not in content:
-                missing_imports.append(required)
-        
-        if missing_imports:
-            print(f"⚠ {file_path}: Missing imports: {missing_imports}")
+
+        tree = ast.parse(content)
+
+        imported_modules = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    imported_modules.add((alias.name or '').split('.')[0])
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    imported_modules.add(node.module.split('.')[0])
+
+        # Required top-level modules we expect across the implementation
+        required_modules = {'typing', 'dataclasses', 'collections'}
+        missing = sorted(m for m in required_modules if m not in imported_modules)
+
+        if missing:
+            print(f"⚠ {file_path}: Missing imports: {missing}")
         else:
             print(f"✓ {file_path}: All required imports present")
-        
-        return len(missing_imports) == 0
+
+        return len(missing) == 0
     except Exception as e:
         print(f"✗ {file_path}: Error checking imports: {e}")
         return False
