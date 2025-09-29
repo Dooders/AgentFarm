@@ -47,7 +47,7 @@ jobs:
         early_termination=$(echo "$output" | grep -c "Simulation stopped early")
 
         # Check if simulation completed (look for completion message)
-        if echo "$output" | grep -q "Simulation completed"; then
+        if echo "$output" | grep -q "=== SIMULATION COMPLETED SUCCESSFULLY ==="; then
           echo "Simulation completed successfully"
           echo "final_agent_count=$final_agent_count" >> $GITHUB_OUTPUT
           echo "simulation_time=$simulation_time" >> $GITHUB_OUTPUT
