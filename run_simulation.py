@@ -8,7 +8,12 @@ import cProfile
 import os
 import pstats
 import time
+import warnings
 from io import StringIO
+
+# Suppress warnings that might interfere with CI output parsing
+warnings.filterwarnings("ignore", category=RuntimeWarning)
+warnings.filterwarnings("ignore", category=UserWarning, module="tianshou")
 
 # Local imports
 from farm.config import SimulationConfig
@@ -183,11 +188,15 @@ def main():
             )
 
         elapsed_time = time.time() - start_time
-        print(f"\nSimulation completed in {elapsed_time:.2f} seconds")
-        print(f"Final agent count: {len(environment.agents)}")
+        # Ensure output is flushed for reliable CI detection
+        import sys
+        print("\n=== SIMULATION COMPLETED SUCCESSFULLY ===", flush=True)
+        print(f"Simulation completed in {elapsed_time:.2f} seconds", flush=True)
+        print(f"Final agent count: {len(environment.agents)}", flush=True)
         if len(environment.agents) == 0:
             print(
-                "WARNING: No agents were created or all agents died during simulation"
+                "WARNING: No agents were created or all agents died during simulation",
+                flush=True
             )
         else:
             agent_types = {}
@@ -197,8 +206,8 @@ def main():
                     agent_types[agent_type] += 1
                 else:
                     agent_types[agent_type] = 1
-            print(f"Agent types: {agent_types}")
-        print(f"Results saved to {output_dir}")
+            print(f"Agent types: {agent_types}", flush=True)
+        print(f"Results saved to {output_dir}", flush=True)
     except Exception as e:
         print(f"Simulation failed: {e}")
 

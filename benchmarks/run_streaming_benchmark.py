@@ -1,18 +1,17 @@
+import json as pyjson
 import os
+import sqlite3
 import tempfile
 import time
-import sqlite3
-import json as pyjson
-import resource
 from contextlib import closing
-from typing import Tuple, List, Dict, Any
+from typing import Any, Dict, List, Tuple
 
 import pandas as pd
+import psutil
+from sqlalchemy import Column, Integer, String, Text, create_engine, text
+from sqlalchemy.orm import Session, declarative_base
 
 from farm.analysis.data.loaders import SQLiteLoader
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import declarative_base, Session
-from sqlalchemy import Column, Integer, String, Text
 
 
 def create_temp_db(num_steps: int = 200000) -> Tuple[str, str]:
@@ -61,7 +60,9 @@ def create_temp_db(num_steps: int = 200000) -> Tuple[str, str]:
             """
         )
         # Index to accelerate WHERE simulation_id = ?
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_sim_steps_sim_id ON simulation_steps(simulation_id)")
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sim_steps_sim_id ON simulation_steps(simulation_id)"
+        )
 
         # Populate rows
         batch = []
@@ -89,8 +90,9 @@ def create_temp_db(num_steps: int = 200000) -> Tuple[str, str]:
 
 
 def current_peak_rss_mb() -> float:
-    # ru_maxrss is kilobytes on Linux
-    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
+    # Get current RSS in MB (psutil returns bytes)
+    process = psutil.Process()
+    return process.memory_info().rss / (1024 * 1024)
 
 
 def measure_full_load(db_path: str, simulation_id: str) -> Dict[str, Any]:
@@ -108,7 +110,12 @@ def measure_full_load(db_path: str, simulation_id: str) -> Dict[str, Any]:
     return {"seconds": t1 - t0, "peak_rss_mb": max(before_mem, after_mem)}
 
 
-def measure_streaming(db_path: str, simulation_id: str, chunk_size: int = 10000, select_step_only: bool = False) -> Dict[str, Any]:
+def measure_streaming(
+    db_path: str,
+    simulation_id: str,
+    chunk_size: int = 10000,
+    select_step_only: bool = False,
+) -> Dict[str, Any]:
     loader = SQLiteLoader(db_path=db_path)
     if select_step_only:
         query = "SELECT step_number FROM simulation_steps WHERE simulation_id = :sim_id"
@@ -120,7 +127,9 @@ def measure_streaming(db_path: str, simulation_id: str, chunk_size: int = 10000,
     before_mem = current_peak_rss_mb()
     t0 = time.perf_counter()
     total = 0
-    for chunk in loader.execute_query_iter(query, params={"sim_id": simulation_id}, chunk_size=chunk_size):
+    for chunk in loader.execute_query_iter(
+        query, params={"sim_id": simulation_id}, chunk_size=chunk_size
+    ):
         total += len(chunk)
     t1 = time.perf_counter()
     assert total > 0
@@ -128,7 +137,12 @@ def measure_streaming(db_path: str, simulation_id: str, chunk_size: int = 10000,
     return {"seconds": t1 - t0, "peak_rss_mb": max(before_mem, after_mem)}
 
 
-def measure_orm_streaming(db_path: str, simulation_id: str, chunk_size: int = 10000, select_step_only: bool = False) -> Dict[str, Any]:
+def measure_orm_streaming(
+    db_path: str,
+    simulation_id: str,
+    chunk_size: int = 10000,
+    select_step_only: bool = False,
+) -> Dict[str, Any]:
     """Benchmark ORM-style streaming using a minimal mapped class for this benchmark schema."""
     engine = create_engine(f"sqlite:///{db_path}")
     Base = declarative_base()
@@ -171,9 +185,15 @@ def main():
     orm_all: Dict[int, Dict[str, Any]] = {}
 
     for cs in chunk_sizes:
-        raw_all[cs] = measure_streaming(db_path, sim_id, chunk_size=cs, select_step_only=False)
-        raw_step_only[cs] = measure_streaming(db_path, sim_id, chunk_size=cs, select_step_only=True)
-        orm_all[cs] = measure_orm_streaming(db_path, sim_id, chunk_size=cs, select_step_only=False)
+        raw_all[cs] = measure_streaming(
+            db_path, sim_id, chunk_size=cs, select_step_only=False
+        )
+        raw_step_only[cs] = measure_streaming(
+            db_path, sim_id, chunk_size=cs, select_step_only=True
+        )
+        orm_all[cs] = measure_orm_streaming(
+            db_path, sim_id, chunk_size=cs, select_step_only=False
+        )
 
     def best_of(results: Dict[int, Dict[str, Any]]):
         best_cs = min(results, key=lambda k: results[k]["seconds"])  # type: ignore
@@ -185,19 +205,39 @@ def main():
 
     output = {
         "num_steps": 200000,
-        "full_load": {"seconds": round(full["seconds"], 3), "peak_rss_mb": round(full["peak_rss_mb"], 1)},
-        "best_raw_stream_all": {"chunk_size": best_raw_all_cs, "seconds": round(best_raw_all["seconds"], 3), "peak_rss_mb": round(best_raw_all["peak_rss_mb"], 1)},
-        "best_raw_stream_step_only": {"chunk_size": best_raw_step_cs, "seconds": round(best_raw_step["seconds"], 3), "peak_rss_mb": round(best_raw_step["peak_rss_mb"], 1)},
-        "best_orm_stream_all": {"chunk_size": best_orm_all_cs, "seconds": round(best_orm_all["seconds"], 3), "peak_rss_mb": round(best_orm_all["peak_rss_mb"], 1)},
+        "full_load": {
+            "seconds": round(full["seconds"], 3),
+            "peak_rss_mb": round(full["peak_rss_mb"], 1),
+        },
+        "best_raw_stream_all": {
+            "chunk_size": best_raw_all_cs,
+            "seconds": round(best_raw_all["seconds"], 3),
+            "peak_rss_mb": round(best_raw_all["peak_rss_mb"], 1),
+        },
+        "best_raw_stream_step_only": {
+            "chunk_size": best_raw_step_cs,
+            "seconds": round(best_raw_step["seconds"], 3),
+            "peak_rss_mb": round(best_raw_step["peak_rss_mb"], 1),
+        },
+        "best_orm_stream_all": {
+            "chunk_size": best_orm_all_cs,
+            "seconds": round(best_orm_all["seconds"], 3),
+            "peak_rss_mb": round(best_orm_all["peak_rss_mb"], 1),
+        },
     }
     # Percent deltas vs full load
-    for k in ["best_raw_stream_all", "best_raw_stream_step_only", "best_orm_stream_all"]:
+    for k in [
+        "best_raw_stream_all",
+        "best_raw_stream_step_only",
+        "best_orm_stream_all",
+    ]:
         sec = output[k]["seconds"]
-        output[k]["vs_full_pct"] = round((sec / output["full_load"]["seconds"] - 1) * 100, 2)
+        output[k]["vs_full_pct"] = round(
+            (sec / output["full_load"]["seconds"] - 1) * 100, 2
+        )
 
     print(pyjson.dumps(output))
 
 
 if __name__ == "__main__":
     main()
-

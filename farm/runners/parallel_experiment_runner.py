@@ -397,7 +397,9 @@ class ParallelExperimentRunner:
         try:
             # Configure process pool
             pool_config = self._configure_process_pool()
-            n_jobs = pool_config.pop("n_jobs")
+            n_jobs = pool_config["n_jobs"]
+            # Remove n_jobs from pool_config to avoid duplicate keyword argument
+            pool_config = {k: v for k, v in pool_config.items() if k != "n_jobs"}
 
             # Remove the callback parameter if it exists in pool_config
             if "callback" in pool_config:
