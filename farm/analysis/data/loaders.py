@@ -168,6 +168,35 @@ class SQLiteLoader(DatabaseLoader):
                 break
             yield pd.DataFrame(rows, columns=columns)
 
+    def iter_data(self, *args, **kwargs):
+        """Stream data from a specified table.
+
+        Args:
+            table: One of 'agents', 'resources', 'steps', 'reproductions', 'simulations'
+            chunk_size: Rows per chunk (default 10000)
+            simulation_id: Optional simulation filter for applicable tables
+        """
+        if "table" not in kwargs:
+            raise ValueError("The 'table' parameter is required")
+
+        table = kwargs.pop("table")
+        chunk_size = int(kwargs.pop("chunk_size", 10000))
+
+        table_iters = {
+            "agents": self.iter_agents,
+            "resources": self.iter_resources,
+            "steps": self.iter_steps,
+            "reproductions": self.iter_reproduction_events,
+            "simulations": self.iter_simulations,
+        }
+
+        if table not in table_iters:
+            raise ValueError(
+                f"Unknown table: {table}. Available tables: {list(table_iters.keys())}"
+            )
+
+        yield from table_iters[table](chunk_size=chunk_size, **kwargs)
+
     def load_data(self, *args, **kwargs) -> pd.DataFrame:
         """Load data from the database.
 
@@ -691,18 +720,8 @@ class CSVLoader(DataLoader):
         self.file_path = file_path
 
     def load_data(self, **kwargs) -> pd.DataFrame:
-        """Load data from a CSV file.
-
-        Args:
-            **kwargs: Additional parameters for pd.read_csv
-
-        Returns:
-            pd.DataFrame: Loaded data
-        """
-        if not os.path.exists(self.file_path):
-            raise FileNotFoundError(f"CSV file not found: {self.file_path}")
-
-        return pd.read_csv(self.file_path, **kwargs)
+        # Use base concatenation of iter_data for default streaming semantics
+        return super().load_data(**kwargs)
 
     def iter_data(self, chunksize: int = 100000, **kwargs):
         if not os.path.exists(self.file_path):
@@ -751,18 +770,8 @@ class JSONLoader(DataLoader):
         self.file_path = file_path
 
     def load_data(self, **kwargs) -> pd.DataFrame:
-        """Load data from a JSON file.
-
-        Args:
-            **kwargs: Additional parameters for pd.read_json
-
-        Returns:
-            pd.DataFrame: Loaded data
-        """
-        if not os.path.exists(self.file_path):
-            raise FileNotFoundError(f"JSON file not found: {self.file_path}")
-
-        return pd.read_json(self.file_path, **kwargs)
+        # Use base concatenation of iter_data for default streaming semantics
+        return super().load_data(**kwargs)
 
     def iter_data(self, chunksize: int = 100000, lines: Optional[bool] = None, **kwargs):
         if not os.path.exists(self.file_path):

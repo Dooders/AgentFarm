@@ -23,7 +23,7 @@ Usage:
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Iterator, Callable
+from typing import Any, Dict, Optional, Iterator, Callable, List
 
 import pandas as pd
 
@@ -37,24 +37,18 @@ class DataLoader(ABC):
     """
 
     @abstractmethod
-    def load_data(self, *args, **kwargs) -> pd.DataFrame:
-        """Load data from the source.
-
-        Returns:
-            pd.DataFrame: Data loaded from the source
-        """
+    def iter_data(self, *args, **kwargs) -> Iterator[pd.DataFrame]:
+        """Stream data in chunks (primary API)."""
         pass
 
-    def iter_data(self, *args, **kwargs) -> Iterator[pd.DataFrame]:
-        """Stream data in chunks.
-
-        Default implementation loads all data and yields it as a single chunk.
-        Concrete loaders should override for efficient chunked processing.
-
-        Yields:
-            Iterator[pd.DataFrame]: Data chunks
-        """
-        yield self.load_data(*args, **kwargs)
+    def load_data(self, *args, **kwargs) -> pd.DataFrame:
+        """Load all data by concatenating streamed chunks (secondary API)."""
+        chunks: List[pd.DataFrame] = list(self.iter_data(*args, **kwargs))
+        if not chunks:
+            return pd.DataFrame()
+        if len(chunks) == 1:
+            return chunks[0]
+        return pd.concat(chunks, ignore_index=True)
 
     @abstractmethod
     def get_metadata(self) -> Dict[str, Any]:

@@ -4,11 +4,12 @@ This document explains the new streaming/chunked data processing capabilities ad
 
 ### What changed
 
-- Added an iterator API to `DataLoader` via `iter_data(...)` for streaming chunks.
+- `iter_data(...)` is now the primary API on `DataLoader` for streaming chunks.
+- `load_data(...)` now concatenates streamed chunks and is considered secondary.
 - Added `run_streaming(...)` to `AnalysisTask` to process data incrementally.
 - Implemented chunked streaming in loaders:
-  - `CSVLoader.iter_data(...)` uses pandas `chunksize`.
-  - `JSONLoader.iter_data(...)` streams JSON Lines (`.jsonl`/`.ndjson`) via pandas; falls back to single-load for non-line-delimited JSON.
+- `CSVLoader.iter_data(...)` uses pandas `chunksize` (and `load_data` leverages it by default).
+- `JSONLoader.iter_data(...)` streams JSON Lines (`.jsonl`/`.ndjson`) via pandas; falls back to single-load for non-line-delimited JSON (and `load_data` leverages streaming by default).
   - `SQLiteLoader.execute_query_iter(...)` streams query results; plus `iter_agents/resources/steps/reproduction_events/simulations(...)`.
   - `SimulationLoader.iter_data(...)` dispatches to table-specific iterators; `iter_time_series(...)` streams derived rows.
   - `ExperimentLoader.iter_data(...)` streams across multiple simulation DBs and annotates each chunk with `db_path`.
