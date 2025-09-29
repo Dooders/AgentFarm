@@ -7,8 +7,12 @@ with optimized change detection and efficient spatial querying capabilities.
 import hashlib
 import heapq
 import logging
+import time
+from collections import defaultdict, deque
+from dataclasses import dataclass
+
 import math
-from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar
+from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Set
 
 import numpy as np
 from scipy.spatial import cKDTree
@@ -21,6 +25,212 @@ Bounds = Tuple[float, float, float, float]  # (x, y, width, height)
 Entity = TypeVar("Entity")  # Generic entity type
 
 DEFAULT_TARGET_CELLS = 20.0
+
+
+@dataclass
+class DirtyRegion:
+    """Represents a dirty region that needs spatial index updates."""
+    bounds: Tuple[float, float, float, float]  # (x, y, width, height)
+    entity_type: str  # 'agent', 'resource', etc.
+    priority: int = 0  # Higher priority regions updated first
+    timestamp: float = 0.0  # When the region was marked dirty
+
+
+class DirtyRegionTracker:
+    """
+    Tracks dirty regions for efficient batch spatial updates.
+    
+    This class manages regions that have changed and need spatial index updates,
+    providing efficient batching and priority-based update scheduling.
+    """
+    
+    def __init__(self, region_size: float = 50.0, max_regions: int = 1000):
+        """
+        Initialize the dirty region tracker.
+        
+        Parameters
+        ----------
+        region_size : float
+            Size of each region for spatial partitioning
+        max_regions : int
+            Maximum number of regions to track before forcing cleanup
+        """
+        self.region_size = region_size
+        self.max_regions = max_regions
+        
+        # Track dirty regions by entity type
+        self._dirty_regions: Dict[str, Set[Tuple[int, int]]] = defaultdict(set)
+        self._region_priorities: Dict[Tuple[int, int], int] = {}
+        self._region_timestamps: Dict[Tuple[int, int], float] = {}
+        
+        # Batch update queue
+        self._update_queue: deque = deque()
+        self._batch_size = 10  # Process this many regions per batch
+        
+        # Performance metrics
+        self._total_regions_marked = 0
+        self._total_regions_updated = 0
+        self._batch_count = 0
+        
+    def _world_to_region_coords(self, position: Tuple[float, float]) -> Tuple[int, int]:
+        """Convert world coordinates to region coordinates."""
+        x, y = position
+        return int(x // self.region_size), int(y // self.region_size)
+    
+    def _region_to_world_bounds(self, region_coords: Tuple[int, int]) -> Tuple[float, float, float, float]:
+        """Convert region coordinates to world bounds."""
+        rx, ry = region_coords
+        x = rx * self.region_size
+        y = ry * self.region_size
+        return (x, y, self.region_size, self.region_size)
+    
+    def mark_region_dirty(self, position: Tuple[float, float], entity_type: str, 
+                         priority: int = 0, timestamp: Optional[float] = None) -> None:
+        """
+        Mark a region as dirty for the given entity type.
+        
+        Parameters
+        ----------
+        position : Tuple[float, float]
+            World position that falls within the dirty region
+        entity_type : str
+            Type of entity ('agent', 'resource', etc.)
+        priority : int
+            Priority level (higher = more important)
+        timestamp : float, optional
+            Timestamp when region was marked dirty
+        """
+        if timestamp is None:
+            timestamp = time.time()
+            
+        region_coords = self._world_to_region_coords(position)
+        
+        self._dirty_regions[entity_type].add(region_coords)
+        self._region_priorities[region_coords] = max(
+            self._region_priorities.get(region_coords, 0), priority
+        )
+        self._region_timestamps[region_coords] = timestamp
+        
+        self._total_regions_marked += 1
+        
+        # Cleanup if we have too many regions
+        if len(self._region_priorities) > self.max_regions:
+            self._cleanup_old_regions()
+    
+    def mark_region_dirty_batch(self, positions: List[Tuple[float, float]], 
+                               entity_type: str, priority: int = 0) -> None:
+        """
+        Mark multiple regions as dirty in a single batch operation.
+        
+        Parameters
+        ----------
+        positions : List[Tuple[float, float]]
+            List of world positions
+        entity_type : str
+            Type of entity
+        priority : int
+            Priority level for all regions
+        """
+        timestamp = time.time()
+        
+        for position in positions:
+            self.mark_region_dirty(position, entity_type, priority, timestamp)
+    
+    def get_dirty_regions(self, entity_type: Optional[str] = None, 
+                         max_count: Optional[int] = None) -> List[DirtyRegion]:
+        """
+        Get dirty regions that need updates, optionally filtered by entity type.
+        
+        Parameters
+        ----------
+        entity_type : str, optional
+            Filter by entity type. If None, returns all dirty regions.
+        max_count : int, optional
+            Maximum number of regions to return
+            
+        Returns
+        -------
+        List[DirtyRegion]
+            List of dirty regions sorted by priority (highest first)
+        """
+        dirty_regions = []
+        
+        # Collect regions
+        if entity_type is not None:
+            region_sets = {entity_type: self._dirty_regions.get(entity_type, set())}
+        else:
+            region_sets = self._dirty_regions
+        
+        for et, regions in region_sets.items():
+            for region_coords in regions:
+                bounds = self._region_to_world_bounds(region_coords)
+                priority = self._region_priorities.get(region_coords, 0)
+                timestamp = self._region_timestamps.get(region_coords, 0.0)
+                
+                dirty_regions.append(DirtyRegion(
+                    bounds=bounds,
+                    entity_type=et,
+                    priority=priority,
+                    timestamp=timestamp
+                ))
+        
+        # Sort by priority (highest first), then by timestamp (oldest first)
+        dirty_regions.sort(key=lambda r: (-r.priority, r.timestamp))
+        
+        if max_count is not None:
+            dirty_regions = dirty_regions[:max_count]
+            
+        return dirty_regions
+    
+    def clear_region(self, region_coords: Tuple[int, int]) -> None:
+        """Clear a specific region from dirty tracking."""
+        for entity_type in self._dirty_regions:
+            self._dirty_regions[entity_type].discard(region_coords)
+        
+        self._region_priorities.pop(region_coords, None)
+        self._region_timestamps.pop(region_coords, None)
+        self._total_regions_updated += 1
+    
+    def clear_regions(self, region_coords_list: List[Tuple[int, int]]) -> None:
+        """Clear multiple regions from dirty tracking."""
+        for region_coords in region_coords_list:
+            self.clear_region(region_coords)
+    
+    def clear_all_regions(self) -> None:
+        """Clear all dirty regions."""
+        self._dirty_regions.clear()
+        self._region_priorities.clear()
+        self._region_timestamps.clear()
+        self._update_queue.clear()
+    
+    def _cleanup_old_regions(self) -> None:
+        """Remove oldest regions when we exceed max_regions limit."""
+        if len(self._region_priorities) <= self.max_regions:
+            return
+            
+        # Sort by timestamp and remove oldest regions
+        sorted_regions = sorted(
+            self._region_priorities.items(),
+            key=lambda x: self._region_timestamps.get(x[0], 0.0)
+        )
+        
+        regions_to_remove = len(self._region_priorities) - self.max_regions
+        for region_coords, _ in sorted_regions[:regions_to_remove]:
+            self.clear_region(region_coords)
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Get statistics about dirty region tracking."""
+        total_dirty = sum(len(regions) for regions in self._dirty_regions.values())
+        
+        return {
+            "total_dirty_regions": total_dirty,
+            "regions_by_type": {et: len(regions) for et, regions in self._dirty_regions.items()},
+            "total_regions_marked": self._total_regions_marked,
+            "total_regions_updated": self._total_regions_updated,
+            "batch_count": self._batch_count,
+            "region_size": self.region_size,
+            "max_regions": self.max_regions
+        }
 
 
 class SpatialHashGrid:
@@ -647,17 +857,20 @@ class Quadtree:
 
 class SpatialIndex:
     """
-    Efficient spatial indexing using KD-trees with optimized change detection.
+    Efficient spatial indexing using KD-trees with optimized change detection and batch updates.
 
     This index maintains separate KD-trees for agents and resources and supports
     additional named indices. It uses multi-stage change detection (dirty flag,
     count deltas, and position hashing) to avoid unnecessary KD-tree rebuilds.
+    Enhanced with batch spatial updates and dirty region tracking for improved performance.
 
     Capabilities:
     - O(log n) nearest/nearby queries across one or more indices
     - Named index registration for custom data sources
     - Relaxed bounds validation to tolerate edge cases
     - Deterministic caching of alive agents for query post-processing
+    - Batch spatial updates with dirty region tracking
+    - Region-based incremental updates for better performance
     """
 
     def __init__(
@@ -666,6 +879,9 @@ class SpatialIndex:
         height: float,
         index_configs: Optional[Dict[str, Dict[str, Any]]] = None,
         index_data: Optional[Dict[str, Any]] = None,
+        enable_batch_updates: bool = True,
+        region_size: float = 50.0,
+        max_batch_size: int = 100,
     ):
         """Initialize the spatial index.
 
@@ -675,9 +891,21 @@ class SpatialIndex:
             Width of the environment
         height : float
             Height of the environment
+        index_configs : dict, optional
+            Configuration for named indices
+        index_data : dict, optional
+            Initial data for named indices
+        enable_batch_updates : bool
+            Enable batch spatial updates with dirty region tracking
+        region_size : float
+            Size of regions for dirty region tracking
+        max_batch_size : int
+            Maximum number of position updates to batch together
         """
         self.width = width
         self.height = height
+        self.enable_batch_updates = enable_batch_updates
+        self.max_batch_size = max_batch_size
 
         # KD-tree attributes
         self.agent_kdtree: Optional[cKDTree] = None
@@ -705,6 +933,28 @@ class SpatialIndex:
         # We defer registration until references are provided or explicit register_index is called
         self._initial_index_configs = index_configs or {}
         self._initial_index_data = index_data or {}
+
+        # Batch update system
+        if self.enable_batch_updates:
+            self._dirty_region_tracker = DirtyRegionTracker(
+                region_size=region_size,
+                max_regions=max(1000, int((width * height) / (region_size * region_size)))
+            )
+            self._pending_position_updates: List[Tuple[Any, Tuple[float, float], Tuple[float, float], str, int]] = []
+            self._batch_update_enabled = True
+        else:
+            self._dirty_region_tracker = None
+            self._pending_position_updates = []
+            self._batch_update_enabled = False
+
+        # Performance metrics for batch updates
+        self._batch_update_stats = {
+            "total_batch_updates": 0,
+            "total_individual_updates": 0,
+            "total_regions_processed": 0,
+            "average_batch_size": 0.0,
+            "last_batch_time": 0.0
+        }
 
     def set_references(self, agents: List, resources: List) -> None:
         """Set references to agent and resource lists.
@@ -776,14 +1026,195 @@ class SpatialIndex:
         for idx in self._named_indices.values():
             idx["positions_dirty"] = True
 
+    def add_position_update(self, entity: Any, old_position: Tuple[float, float], 
+                           new_position: Tuple[float, float], entity_type: str = "agent",
+                           priority: int = 0) -> None:
+        """
+        Add a position update to the batch queue for efficient processing.
+        
+        Parameters
+        ----------
+        entity : Any
+            The entity whose position is being updated
+        old_position : Tuple[float, float]
+            The entity's old position
+        new_position : Tuple[float, float]
+            The entity's new position
+        entity_type : str
+            Type of entity ('agent', 'resource', etc.)
+        priority : int
+            Priority level for the update (higher = more important)
+        """
+        if not self._batch_update_enabled:
+            # Fall back to immediate update
+            self.update_entity_position(entity, old_position, new_position)
+            return
+
+        # Add to pending updates
+        self._pending_position_updates.append((entity, old_position, new_position, entity_type, priority))
+        
+        # Mark regions as dirty
+        if self._dirty_region_tracker:
+            self._dirty_region_tracker.mark_region_dirty(old_position, entity_type, priority)
+            self._dirty_region_tracker.mark_region_dirty(new_position, entity_type, priority)
+
+        # Process batch if it's full
+        if len(self._pending_position_updates) >= self.max_batch_size:
+            self.process_batch_updates()
+
+    def process_batch_updates(self, force: bool = False) -> None:
+        """
+        Process all pending position updates in a batch.
+        
+        Parameters
+        ----------
+        force : bool
+            Force processing even if batch is not full
+        """
+        if not self._batch_update_enabled or not self._pending_position_updates:
+            return
+
+        if not force and len(self._pending_position_updates) < self.max_batch_size:
+            return
+
+        start_time = time.time()
+
+        # Group updates by entity type for efficient processing
+        updates_by_type = defaultdict(list)
+        for entity, old_pos, new_pos, entity_type, priority in self._pending_position_updates:
+            updates_by_type[entity_type].append((entity, old_pos, new_pos, priority))
+
+        # Process each entity type
+        regions_processed = 0
+        for entity_type, updates in updates_by_type.items():
+            # Get dirty regions for this entity type
+            dirty_regions = self._dirty_region_tracker.get_dirty_regions(entity_type) if self._dirty_region_tracker else []
+            
+            # Process updates for this entity type
+            for entity, old_pos, new_pos, priority in updates:
+                self._process_single_position_update(entity, old_pos, new_pos, entity_type)
+            
+            # Clear processed regions
+            if self._dirty_region_tracker and dirty_regions:
+                region_coords_list = []
+                for region in dirty_regions:
+                    region_coords = self._dirty_region_tracker._world_to_region_coords(
+                        (region.bounds[0], region.bounds[1])
+                    )
+                    region_coords_list.append(region_coords)
+                self._dirty_region_tracker.clear_regions(region_coords_list)
+                regions_processed += len(region_coords_list)
+
+        # Clear pending updates
+        batch_size = len(self._pending_position_updates)
+        self._pending_position_updates.clear()
+
+        # Update statistics
+        end_time = time.time()
+        self._batch_update_stats["total_batch_updates"] += 1
+        self._batch_update_stats["total_individual_updates"] += batch_size
+        self._batch_update_stats["total_regions_processed"] += regions_processed
+        self._batch_update_stats["average_batch_size"] = (
+            (self._batch_update_stats["average_batch_size"] * (self._batch_update_stats["total_batch_updates"] - 1) + batch_size) /
+            self._batch_update_stats["total_batch_updates"]
+        )
+        self._batch_update_stats["last_batch_time"] = end_time - start_time
+
+        logger.debug(
+            "Processed batch update: %d entities, %d regions, %.3f seconds",
+            batch_size, regions_processed, end_time - start_time
+        )
+
+    def _process_single_position_update(self, entity: Any, old_position: Tuple[float, float], 
+                                       new_position: Tuple[float, float], entity_type: str) -> None:
+        """
+        Process a single position update efficiently.
+        
+        Parameters
+        ----------
+        entity : Any
+            The entity whose position is being updated
+        old_position : Tuple[float, float]
+            The entity's old position
+        new_position : Tuple[float, float]
+            The entity's new position
+        entity_type : str
+            Type of entity
+        """
+        # Update named indices that support incremental updates
+        for name, state in self._named_indices.items():
+            index_type = state.get("index_type", "kdtree")
+
+            if index_type == "quadtree" and state["quadtree"] is not None:
+                # Efficient quadtree update
+                state["quadtree"].remove(entity, old_position)
+                state["quadtree"].insert(entity, new_position)
+                
+                # Update cached position data
+                if state["positions"] is not None:
+                    cached_items = state["cached_items"] or []
+                    for i, cached_entity in enumerate(cached_items):
+                        if cached_entity is entity and i < len(state["positions"]):
+                            state["positions"][i] = new_position
+                            break
+
+            elif index_type == "spatial_hash" and state["spatial_hash"] is not None:
+                # Efficient spatial hash update
+                state["spatial_hash"].move(entity, old_position, new_position)
+                if state["positions"] is not None:
+                    cached_items = state["cached_items"] or []
+                    for i, cached_entity in enumerate(cached_items):
+                        if cached_entity is entity and i < len(state["positions"]):
+                            state["positions"][i] = new_position
+                            break
+
+            elif index_type == "kdtree":
+                # For KD-trees, we still need to mark as dirty for rebuild
+                state["positions_dirty"] = True
+
+        # Mark main positions as dirty for KD-tree rebuilds
+        self._positions_dirty = True
+
+    def get_batch_update_stats(self) -> Dict[str, Any]:
+        """Get statistics about batch updates."""
+        stats = dict(self._batch_update_stats)
+        if self._dirty_region_tracker:
+            stats.update(self._dirty_region_tracker.get_stats())
+        return stats
+
+    def enable_batch_updates(self, region_size: float = 50.0, max_batch_size: int = 100) -> None:
+        """Enable batch updates with the specified configuration."""
+        if not self._batch_update_enabled:
+            self._dirty_region_tracker = DirtyRegionTracker(
+                region_size=region_size,
+                max_regions=max(1000, int((self.width * self.height) / (region_size * region_size)))
+            )
+            self._batch_update_enabled = True
+            self.max_batch_size = max_batch_size
+            logger.info("Batch updates enabled with region_size=%s, max_batch_size=%s", region_size, max_batch_size)
+
+    def disable_batch_updates(self) -> None:
+        """Disable batch updates and process any pending updates."""
+        if self._batch_update_enabled:
+            # Process any pending updates
+            self.process_batch_updates(force=True)
+            self._batch_update_enabled = False
+            self._dirty_region_tracker = None
+            logger.info("Batch updates disabled")
+
     def update(self) -> None:
-        """Smart KD-tree update with optimized change detection.
+        """Smart KD-tree update with optimized change detection and batch processing.
 
         Uses a multi-level optimization strategy:
-        1. Dirty flag check (O(1)) - fastest for no-change scenarios
-        2. Count-based check (O(1)) - catches structural changes
-        3. Hash-based verification (O(n)) - ensures correctness
+        1. Process any pending batch updates first
+        2. Dirty flag check (O(1)) - fastest for no-change scenarios
+        3. Count-based check (O(1)) - catches structural changes
+        4. Hash-based verification (O(n)) - ensures correctness
         """
+        # Process any pending batch updates first
+        if self._batch_update_enabled and self._pending_position_updates:
+            self.process_batch_updates(force=True)
+
         # Fast path: if positions are not dirty, skip all expensive operations
         if not self._positions_dirty:
             # Only update named indices if they haven't been initialized yet
@@ -1447,16 +1878,12 @@ class SpatialIndex:
         """
         return self._positions_dirty
 
-    def update_entity_position(
-        self,
-        entity: Any,
-        old_position: Tuple[float, float],
-        new_position: Tuple[float, float],
-    ) -> None:
-        """Update an entity's position in all quadtree indices.
+    def update_entity_position(self, entity: Any, old_position: Tuple[float, float], new_position: Tuple[float, float]) -> None:
+        """Update an entity's position in all spatial indices.
 
-        For KD-tree indices, this will mark positions as dirty for rebuild on next query.
-        For Quadtree indices, this will efficiently update the entity's position.
+        This method now supports both immediate updates and batch updates depending on configuration.
+        For batch updates, the position change is queued for efficient batch processing.
+        For immediate updates, the position is updated directly in all indices.
 
         Parameters
         ----------
@@ -1467,43 +1894,20 @@ class SpatialIndex:
         new_position : Tuple[float, float]
             The entity's new (x, y) position
         """
-        for name, state in self._named_indices.items():
-            index_type = state.get("index_type", "kdtree")
+        # Determine entity type based on entity attributes or context
+        entity_type = "agent"  # Default
+        if hasattr(entity, 'resource_level') and not hasattr(entity, 'alive'):
+            entity_type = "resource"
+        elif hasattr(entity, 'alive'):
+            entity_type = "agent"
 
-            if index_type == "quadtree" and state["quadtree"] is not None:
-                # Remove from old position and insert at new position
-                state["quadtree"].remove(entity, old_position)
-                state["quadtree"].insert(entity, new_position)
+        # Use batch updates if enabled
+        if self._batch_update_enabled:
+            self.add_position_update(entity, old_position, new_position, entity_type)
+            return
 
-                # Update cached position data for change detection
-                if state["positions"] is not None:
-                    # Find and update the position in the cached positions array
-                    cached_items = state["cached_items"] or []
-                    for i, cached_entity in enumerate(cached_items):
-                        if cached_entity is entity:
-                            if i < len(state["positions"]):
-                                state["positions"][i] = new_position
-                            break
-
-                # Mark as dirty to trigger hash recalculation
-                state["positions_dirty"] = True
-
-            elif index_type == "kdtree":
-                # For KD-trees, just mark positions as dirty for rebuild
-                state["positions_dirty"] = True
-
-            elif index_type == "spatial_hash" and state["spatial_hash"] is not None:
-                state["spatial_hash"].move(entity, old_position, new_position)
-                if state["positions"] is not None:
-                    cached_items = state["cached_items"] or []
-                    for i, cached_entity in enumerate(cached_items):
-                        if cached_entity is entity and i < len(state["positions"]):
-                            state["positions"][i] = new_position
-                            break
-                state["positions_dirty"] = True
-
-        # Also mark main positions as dirty
-        self._positions_dirty = True
+        # Immediate update (original behavior)
+        self._process_single_position_update(entity, old_position, new_position, entity_type)
 
     def force_rebuild(self) -> None:
         """Force a rebuild of the spatial indices regardless of change detection."""
