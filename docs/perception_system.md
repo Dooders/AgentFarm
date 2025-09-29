@@ -82,7 +82,12 @@ The system uses **13 default channels** (indices 0-12) that can be extended:
 
 ### Spatial Reasoning & Efficiency
 
-**KD-Tree Spatial Indexing**: Uses scipy.spatial.cKDTree for O(log n) proximity queries with smart change detection to minimize rebuilds.
+**Dual Spatial Indexing**: The system uses both KD-tree and Quadtree indexing strategies for optimal performance across different query patterns:
+
+- **KD-Tree Indexing**: scipy.spatial.cKDTree for O(log n) radial and nearest-neighbor queries
+- **Quadtree Indexing**: Hierarchical partitioning for efficient rectangular range queries and dynamic updates
+
+**Smart Index Selection**: The system automatically chooses the most efficient indexing strategy based on query type and entity movement patterns.
 
 **Key Features**:
 

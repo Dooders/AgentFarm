@@ -859,6 +859,185 @@ class TestSpatialIndex(unittest.TestCase):
         # Check count
         self.assertEqual(self.spatial_index.get_agent_count(), num_agents)
 
+    def test_quadtree_basic_operations(self):
+        """Test basic Quadtree operations."""
+        # Add some test agents
+        test_agents = []
+        for i in range(5):
+            agent = MockBaseAgent(
+                agent_id=f"test_agent{i}",
+                position=(i * 20, i * 20),
+                resource_level=50,
+                environment=None,
+                generation=0,
+            )
+            test_agents.append(agent)
+
+        # Create a Quadtree index
+        self.spatial_index.register_index(
+            name="test_quadtree",
+            data_reference=test_agents,
+            position_getter=lambda a: a.position,
+            filter_func=None,
+            index_type="quadtree",
+        )
+
+        # Update to build the quadtree
+        self.spatial_index.update()
+
+        # Test quadtree queries
+        nearby = self.spatial_index.get_nearby((50, 50), 20, ["test_quadtree"])
+        self.assertIn("test_quadtree", nearby)
+
+        # Test range queries
+        range_results = self.spatial_index.get_nearby_range((30, 30, 40, 40), ["test_quadtree"])
+        self.assertIn("test_quadtree", range_results)
+
+        # Test quadtree stats
+        stats = self.spatial_index.get_quadtree_stats("test_quadtree")
+        self.assertIsNotNone(stats)
+        self.assertIn("total_entities", stats)
+
+    def test_quadtree_vs_kdtree_performance(self):
+        """Compare performance between Quadtree and KD-tree for different query patterns."""
+        import time
+        import logging
+        logger = logging.getLogger(__name__)
+
+        # Add many agents for meaningful performance comparison
+        num_agents = 1000
+        width, height = self.spatial_index.width, self.spatial_index.height
+        test_agents = []
+        for i in range(num_agents):
+            agent = MockBaseAgent(
+                agent_id=f"perf_agent{i}",
+                position=(np.random.uniform(0, width), np.random.uniform(0, height)),
+                resource_level=50,
+                environment=None,
+                generation=0,
+            )
+            test_agents.append(agent)
+
+        # Create KD-tree index
+        self.spatial_index.register_index(
+            name="perf_kdtree",
+            data_reference=test_agents,
+            position_getter=lambda a: a.position,
+            filter_func=None,
+            index_type="kdtree",
+        )
+
+        # Create Quadtree index
+        self.spatial_index.register_index(
+            name="perf_quadtree",
+            data_reference=test_agents,
+            position_getter=lambda a: a.position,
+            filter_func=None,
+            index_type="quadtree",
+        )
+
+        # Build the indices
+        self.spatial_index.update()
+
+        # Test radial queries (where KD-tree should excel)
+        width, height = self.spatial_index.width, self.spatial_index.height
+        radial_positions = [(np.random.uniform(0, width), np.random.uniform(0, height)) for _ in range(100)]
+        radius = 15
+
+        # KD-tree radial queries
+        start_time = time.time()
+        for pos in radial_positions:
+            self.spatial_index.get_nearby(pos, radius, ["perf_kdtree"])
+        kdtree_radial_time = time.time() - start_time
+
+        # Quadtree radial queries
+        start_time = time.time()
+        for pos in radial_positions:
+            self.spatial_index.get_nearby(pos, radius, ["perf_quadtree"])
+        quadtree_radial_time = time.time() - start_time
+
+        # Test rectangular queries (where Quadtree should excel)
+        rect_queries = [(np.random.uniform(0, width-20), np.random.uniform(0, height-20), 20, 20) for _ in range(100)]
+
+        # KD-tree rectangular queries (using range method)
+        start_time = time.time()
+        for bounds in rect_queries:
+            self.spatial_index.get_nearby_range(bounds, ["perf_kdtree"])
+        kdtree_rect_time = time.time() - start_time
+
+        # Quadtree rectangular queries
+        start_time = time.time()
+        for bounds in rect_queries:
+            self.spatial_index.get_nearby_range(bounds, ["perf_quadtree"])
+        quadtree_rect_time = time.time() - start_time
+
+        # Log performance results
+        logger.info(f"Performance comparison (100 queries, {num_agents} agents):")
+        logger.info(f"Radial queries - KD-tree: {kdtree_radial_time:.3f}s, Quadtree: {quadtree_radial_time:.3f}s")
+        logger.info(f"Rectangular queries - KD-tree: {kdtree_rect_time:.3f}s, Quadtree: {quadtree_rect_time:.3f}s")
+
+        # Performance validation - both methods should complete in reasonable time
+        # KD-trees typically excel at radial queries, Quadtrees at rectangular queries
+        # The key benefit is having both options available for different use cases
+        max_reasonable_time = 1.0  # 1 second max for 100 queries
+        self.assertLess(quadtree_radial_time, max_reasonable_time,
+                       f"Quadtree radial queries too slow: {quadtree_radial_time:.3f}s")
+        self.assertLess(kdtree_radial_time, max_reasonable_time,
+                       f"KD-tree radial queries too slow: {kdtree_radial_time:.3f}s")
+        self.assertLess(quadtree_rect_time, max_reasonable_time,
+                       f"Quadtree rectangular queries too slow: {quadtree_rect_time:.3f}s")
+        self.assertLess(kdtree_rect_time, max_reasonable_time,
+                       f"KD-tree rectangular queries too slow: {kdtree_rect_time:.3f}s")
+
+        # Log which method was faster for each query type
+        if quadtree_rect_time < kdtree_rect_time:
+            speedup = kdtree_rect_time / quadtree_rect_time
+            logger.info(f"Quadtree {speedup:.1f}x faster for rectangular queries")
+        else:
+            speedup = quadtree_rect_time / kdtree_rect_time
+            logger.info(f"KD-tree {speedup:.1f}x faster for rectangular queries")
+
+    def test_quadtree_dynamic_updates(self):
+        """Test dynamic position updates in Quadtree indices."""
+        # Create test agent
+        agent = MockBaseAgent(
+            agent_id="dynamic_test",
+            position=(10, 10),
+            resource_level=50,
+            environment=None,
+            generation=0,
+        )
+
+        # Create Quadtree index
+        self.spatial_index.register_index(
+            name="dynamic_quadtree",
+            data_reference=[agent],
+            position_getter=lambda a: a.position,
+            filter_func=None,
+            index_type="quadtree",
+        )
+
+        # Build the index
+        self.spatial_index.update()
+
+        # Initial position
+        initial_nearby = self.spatial_index.get_nearby((10, 10), 5, ["dynamic_quadtree"])
+        self.assertEqual(len(initial_nearby["dynamic_quadtree"]), 1)
+
+        # Update position
+        old_pos = (10, 10)
+        new_pos = (50, 50)
+        agent.position = new_pos
+        self.spatial_index.update_entity_position(agent, old_pos, new_pos)
+
+        # Check that agent is no longer found at old position
+        old_nearby = self.spatial_index.get_nearby((10, 10), 5, ["dynamic_quadtree"])
+        self.assertEqual(len(old_nearby["dynamic_quadtree"]), 0)
+
+        # Check that agent is found at new position
+        new_nearby = self.spatial_index.get_nearby((50, 50), 5, ["dynamic_quadtree"])
+        self.assertEqual(len(new_nearby["dynamic_quadtree"]), 1)
+
     def test_spatial_query_performance(self):
         """Test that spatial queries are efficient."""
         # Add many agents

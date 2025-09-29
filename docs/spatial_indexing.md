@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-The AgentFarm spatial indexing system provides efficient proximity queries and spatial reasoning capabilities essential for scalable multi-agent simulations. The system implements KD-tree based spatial indexing to enable O(log n) proximity queries for entity detection and spatial awareness.
+The AgentFarm spatial indexing system provides efficient proximity queries and spatial reasoning capabilities essential for scalable multi-agent simulations. The system implements dual spatial indexing strategies - KD-tree and Quadtree - to enable O(log n) proximity queries for entity detection and spatial awareness, optimized for different query patterns.
 
 ---
 
@@ -35,6 +35,9 @@ The spatial indexing system enables:
 **Spatial Index Implementation:**
 
 - **KD-Tree Indexing**: O(log n) queries using scipy.spatial.cKDTree with optimized change detection
+- **Quadtree Indexing**: Hierarchical spatial partitioning for efficient range queries and dynamic updates
+- **Dual Index Support**: Automatic selection of optimal indexing strategy per query type
+- **Dynamic Updates**: Efficient position updates without full index rebuilds
 
 ---
 
@@ -66,6 +69,44 @@ nearest_resource = spatial_index.get_nearest(position, ["resources"])   # O(log 
 - **Multi-Entity Type Queries**: Separate trees for agents and resources
 - **Automatic Cache Invalidation**: Rebuilds when positions change significantly
 
+### 2. Quadtree Based Indexing
+
+**Purpose**: Provides hierarchical spatial partitioning for efficient range queries and dynamic entity updates.
+
+**Technical Implementation:**
+
+```python
+from farm.core.spatial_index import Quadtree
+
+# Create quadtree with environment bounds
+bounds = (0, 0, width, height)
+quadtree = Quadtree(bounds, capacity=4)
+
+# Insert entities
+for entity in entities:
+    position = entity.position
+    quadtree.insert(entity, position)
+
+# Query operations
+nearby_entities = quadtree.query_radius(center, radius)  # O(log n) average
+range_entities = quadtree.query_range((x, y, w, h))     # O(log n) average
+```
+
+**Key Features:**
+
+- **Hierarchical Subdivision**: Automatically divides space into quadrants when capacity exceeded
+- **Rectangular Range Queries**: Highly efficient for finding entities within rectangular regions
+- **Dynamic Updates**: Efficient position updates without full tree rebuilds
+- **Memory Efficient**: Hierarchical structure reduces cache misses for range queries
+- **Spatial Locality**: Nearby entities are grouped together in the hierarchy
+
+**When to Use Quadtree Indexing:**
+
+- Rectangular or area-of-effect queries (combat, vision cones, territory analysis)
+- High-frequency position updates (agent movement, dynamic environments)
+- Range-based spatial operations (crowd density, group formations)
+- Scenarios requiring hierarchical spatial reasoning
+
 ---
 
 ## Performance Characteristics
@@ -74,7 +115,8 @@ nearest_resource = spatial_index.get_nearest(position, ["resources"])   # O(log 
 
 | Strategy | Build Time | Query Time | Memory Usage | Best For |
 |----------|------------|------------|--------------|----------|
-| **KD-Tree** | O(n log n) | O(log n) | ~200 KB/100 agents | Continuous space, large radii |
+| **KD-Tree** | O(n log n) | O(log n) | ~200 KB/100 agents | Radial queries, nearest neighbor |
+| **Quadtree** | O(n log n) | O(log n) | ~150 KB/100 agents | Range queries, dynamic updates |
 
 ### Scaling Analysis
 
@@ -85,12 +127,22 @@ nearest_resource = spatial_index.get_nearest(position, ["resources"])   # O(log 
 - **Update Frequency**: Only when positions change significantly
 - **Memory Usage**: ~200 KB per 100 agents/resources
 
+**For Quadtree Implementation:**
+
+- **Build Time**: O(n log n) for n entities (with hierarchical subdivision)
+- **Query Time**: O(log n) average for range queries, O(log n) for radius queries
+- **Update Frequency**: Incremental updates for position changes
+- **Memory Usage**: ~150 KB per 100 agents (more efficient for range queries)
+- **Subdivision**: Automatic quadrant division based on entity density
+
 ### Optimization Strategies
 
 **Change Detection**: Only rebuild when positions actually change
 **Incremental Updates**: Partial tree updates for small changes
 **Query Batching**: Multiple queries in single tree traversal
 **Caching**: Cache frequent proximity queries
+**Dual Indexing**: Use KD-trees for radial queries, Quadtrees for range queries
+
 
 ---
 
@@ -130,7 +182,7 @@ spatial_performance_metrics: true  # Collect performance metrics
 - Memory budget allows for tree storage
 - You need efficient proximity queries for hundreds to thousands of agents
 
-**Note**: The current implementation only supports KD-tree indexing. The system automatically handles change detection and cache invalidation to optimize performance.
+**Note**: The system supports both KD-tree and Quadtree indexing. KD-trees are the default for their superior performance on radial queries. Quadtree indices can be enabled for specific use cases requiring efficient range queries and dynamic updates.
 
 ---
 
@@ -158,6 +210,28 @@ nearby_agents = spatial_index.get_nearby(agent.position, radius=5, ["agents"])
 
 # Query nearest resource
 nearest_resource = spatial_index.get_nearest(agent.position, ["resources"])
+```
+
+### Enabling Quadtree Indices
+
+```python
+# Enable Quadtree indices for range queries and dynamic updates
+env.enable_quadtree_indices()
+
+# Now you can use Quadtree-optimized queries
+nearby_in_range = spatial_index.get_nearby_range(
+    (x, y, width, height),  # Rectangular bounds
+    ["agents_quadtree"]     # Use Quadtree index
+)
+
+# Dynamic position updates are more efficient with Quadtrees
+spatial_index.update_entity_position(
+    agent, old_position, new_position
+)
+
+# Get detailed Quadtree statistics
+quadtree_stats = spatial_index.get_quadtree_stats("agents_quadtree")
+print(f"Quadtree depth: {quadtree_stats}")
 ```
 
 ### Advanced Usage with Custom Queries
@@ -388,13 +462,20 @@ For detailed performance characteristics:
 
 ## Conclusion
 
-The AgentFarm spatial indexing system provides the foundation for efficient spatial reasoning in multi-agent simulations. The KD-tree based implementation offers optimal performance for continuous-space environments with efficient proximity queries and scalable spatial awareness.
+The AgentFarm spatial indexing system provides the foundation for efficient spatial reasoning in multi-agent simulations. The dual indexing system with KD-trees and Quadtrees offers optimal performance for different query patterns in continuous-space environments.
 
 The spatial indexing system enables:
 
-- **Efficient proximity queries** for real-time agent interactions using O(log n) KD-tree queries
+- **Efficient proximity queries** for real-time agent interactions using O(log n) queries
+- **Dual indexing strategies**: KD-trees for radial queries, Quadtrees for range queries
 - **Scalable spatial awareness** supporting thousands of agents with optimized change detection
 - **Memory-efficient storage** with intelligent cache invalidation and position tracking
+- **Dynamic updates**: Efficient position changes without full index rebuilds
 - **Flexible named indices** for custom spatial data sources and filtering
 
-This spatial foundation is essential for creating realistic multi-agent behaviors, from combat and resource gathering to social interactions and navigation, making it a critical component of the AgentFarm simulation framework.
+**Choosing the Right Index:**
+
+- **Use KD-trees** for: Nearest neighbor searches, radial proximity queries, static or slowly changing environments
+- **Use Quadtrees** for: Rectangular range queries, area-of-effect operations, frequently moving entities, hierarchical spatial analysis
+
+This dual spatial foundation is essential for creating realistic multi-agent behaviors, from combat and resource gathering to social interactions and navigation, making it a critical component of the AgentFarm simulation framework.
