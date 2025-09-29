@@ -15,6 +15,132 @@ import heapq
 logger = logging.getLogger(__name__)
 
 
+class SpatialHashGrid:
+    """
+    Uniform grid-based spatial hash for fast neighborhood queries.
+
+    Partitions 2D space into fixed-size square cells. Entities are stored in
+    buckets keyed by integer cell coordinates. Queries inspect only nearby
+    buckets, keeping cost bounded regardless of global population size.
+    """
+
+    def __init__(self, cell_size: float, width: float, height: float):
+        if cell_size <= 0:
+            raise ValueError("cell_size must be positive")
+        self.cell_size = float(cell_size)
+        self.width = float(width)
+        self.height = float(height)
+        # (ix, iy) -> List[(entity, (x, y))]
+        self._buckets: Dict[Tuple[int, int], List[Tuple[Any, Tuple[float, float]]]] = {}
+
+    def _cell_coords(self, position: Tuple[float, float]) -> Tuple[int, int]:
+        x, y = position
+        return int(x // self.cell_size), int(y // self.cell_size)
+
+    def _bucket_keys_for_bounds(self, bounds: Tuple[float, float, float, float]) -> List[Tuple[int, int]]:
+        x, y, w, h = bounds
+        if w <= 0 or h <= 0:
+            return []
+        x0 = int(x // self.cell_size)
+        y0 = int(y // self.cell_size)
+        x1 = int((x + w) // self.cell_size)
+        y1 = int((y + h) // self.cell_size)
+        keys: List[Tuple[int, int]] = []
+        for iy in range(y0, y1 + 1):
+            for ix in range(x0, x1 + 1):
+                keys.append((ix, iy))
+        return keys
+
+    def insert(self, entity: Any, position: Tuple[float, float]) -> None:
+        key = self._cell_coords(position)
+        self._buckets.setdefault(key, []).append((entity, position))
+
+    def remove(self, entity: Any, position: Tuple[float, float]) -> bool:
+        key = self._cell_coords(position)
+        bucket = self._buckets.get(key)
+        if not bucket:
+            return False
+        for i, (ent, _pos) in enumerate(bucket):
+            if ent is entity:
+                bucket.pop(i)
+                if not bucket:
+                    self._buckets.pop(key, None)
+                return True
+        return False
+
+    def move(self, entity: Any, old_position: Tuple[float, float], new_position: Tuple[float, float]) -> None:
+        old_key = self._cell_coords(old_position)
+        new_key = self._cell_coords(new_position)
+        if old_key == new_key:
+            bucket = self._buckets.get(old_key)
+            if bucket:
+                for i, (ent, _pos) in enumerate(bucket):
+                    if ent is entity:
+                        bucket[i] = (entity, new_position)
+                        break
+            return
+        self.remove(entity, old_position)
+        self.insert(entity, new_position)
+
+    def query_radius(self, center: Tuple[float, float], radius: float) -> List[Tuple[Any, Tuple[float, float]]]:
+        if radius <= 0:
+            return []
+        cx, cy = center
+        bounds = (cx - radius, cy - radius, radius * 2, radius * 2)
+        results: List[Tuple[Any, Tuple[float, float]]] = []
+        for key in self._bucket_keys_for_bounds(bounds):
+            for entity, pos in self._buckets.get(key, []):
+                dx = pos[0] - cx
+                dy = pos[1] - cy
+                if dx * dx + dy * dy <= radius * radius:
+                    results.append((entity, pos))
+        return results
+
+    def query_range(self, bounds: Tuple[float, float, float, float]) -> List[Tuple[Any, Tuple[float, float]]]:
+        x, y, w, h = bounds
+        if w <= 0 or h <= 0:
+            return []
+        results: List[Tuple[Any, Tuple[float, float]]] = []
+        for key in self._bucket_keys_for_bounds(bounds):
+            for entity, pos in self._buckets.get(key, []):
+                px, py = pos
+                if x <= px < x + w and y <= py < y + h:
+                    results.append((entity, pos))
+        return results
+
+    def get_nearest(self, position: Tuple[float, float]) -> Optional[Any]:
+        cx, cy = position
+        ix, iy = self._cell_coords(position)
+        best_entity: Optional[Any] = None
+        best_dist_sq: float = float("inf")
+
+        def consider_bucket(key: Tuple[int, int]) -> None:
+            nonlocal best_entity, best_dist_sq
+            for entity, pos in self._buckets.get(key, []):
+                dx = pos[0] - cx
+                dy = pos[1] - cy
+                d2 = dx * dx + dy * dy
+                if d2 < best_dist_sq:
+                    best_dist_sq = d2
+                    best_entity = entity
+
+        consider_bucket((ix, iy))
+        if best_entity is not None:
+            return best_entity
+
+        max_rings = int(max(self.width, self.height) // max(self.cell_size, 1.0)) + 2
+        for r in range(1, max_rings):
+            for dx in range(-r, r + 1):
+                consider_bucket((ix + dx, iy - r))
+                consider_bucket((ix + dx, iy + r))
+            for dy in range(-r + 1, r):
+                consider_bucket((ix - r, iy + dy))
+                consider_bucket((ix + r, iy + dy))
+            if best_entity is not None:
+                return best_entity
+        return None
+
+
 class QuadtreeNode:
     """
     A node in a quadtree for hierarchical spatial partitioning.
@@ -617,6 +743,7 @@ class SpatialIndex:
         filter_func: Optional[Callable[[Any], bool]] = None,
         data_getter: Optional[Callable[[], List[Any]]] = None,
         index_type: str = "kdtree",
+        cell_size: Optional[float] = None,
     ) -> None:
         """Register a configurable named index.
 
@@ -646,11 +773,13 @@ class SpatialIndex:
             "index_type": index_type,
             "kdtree": None,
             "quadtree": None,
+            "spatial_hash": None,
             "positions": None,
             "cached_items": None,
             "cached_count": None,
             "cached_hash": None,
             "positions_dirty": True,
+            "cell_size": cell_size,
         }
 
     def _update_named_indices(self) -> None:
@@ -722,7 +851,7 @@ class SpatialIndex:
                 state["positions_dirty"] = False
 
     def _rebuild_named_index(self, name: str) -> None:
-        """Rebuild spatial index (KD-tree or Quadtree) for a specific named index."""
+        """Rebuild spatial index for a specific named index (kdtree/quadtree/spatial_hash)."""
         state = self._named_indices[name]
         index_type = state.get("index_type", "kdtree")
 
@@ -759,6 +888,7 @@ class SpatialIndex:
             state["positions"] = positions
             state["kdtree"] = kdtree
             state["quadtree"] = None  # Clear quadtree if switching
+            state["spatial_hash"] = None
 
         elif index_type == "quadtree":
             # Build Quadtree
@@ -781,6 +911,30 @@ class SpatialIndex:
             state["positions"] = positions
             state["quadtree"] = quadtree
             state["kdtree"] = None  # Clear kdtree if switching
+            state["spatial_hash"] = None
+
+        elif index_type == "spatial_hash":
+            # Build spatial hash grid
+            if valid_items:
+                cs = state.get("cell_size")
+                if cs is None:
+                    target_cells = 20.0
+                    cell_w = max(self.width / target_cells, 1.0)
+                    cell_h = max(self.height / target_cells, 1.0)
+                    cs = float((cell_w + cell_h) / 2.0)
+                grid = SpatialHashGrid(cell_size=cs, width=self.width, height=self.height)
+                for item in valid_items:
+                    grid.insert(item, state["position_getter"](item))
+                positions = np.array([state["position_getter"](it) for it in valid_items])
+            else:
+                grid = None
+                positions = None
+
+            state["cached_items"] = valid_items
+            state["positions"] = positions
+            state["spatial_hash"] = grid
+            state["kdtree"] = None
+            state["quadtree"] = None
 
         else:
             raise ValueError(f"Unknown index type: {index_type}")
@@ -864,6 +1018,13 @@ class SpatialIndex:
                 entities_and_positions = state["quadtree"].query_radius(position, radius)
                 results[name] = [entity for entity, pos in entities_and_positions]
 
+            elif index_type == "spatial_hash":
+                if state["spatial_hash"] is None:
+                    results[name] = []
+                    continue
+                entities_and_positions = state["spatial_hash"].query_radius(position, radius)
+                results[name] = [entity for entity, _ in entities_and_positions]
+
             else:
                 results[name] = []
         return results
@@ -935,6 +1096,12 @@ class SpatialIndex:
                     continue
                 # Use best-first search on quadtree for nearest neighbor
                 results[name] = self._quadtree_nearest(state["quadtree"], position)
+
+            elif index_type == "spatial_hash":
+                if state["spatial_hash"] is None or not state["cached_items"]:
+                    results[name] = None
+                    continue
+                results[name] = state["spatial_hash"].get_nearest(position)
 
             else:
                 results[name] = None
@@ -1088,6 +1255,16 @@ class SpatialIndex:
                 # For KD-trees, just mark positions as dirty for rebuild
                 state["positions_dirty"] = True
 
+            elif index_type == "spatial_hash" and state["spatial_hash"] is not None:
+                state["spatial_hash"].move(entity, old_position, new_position)
+                if state["positions"] is not None:
+                    cached_items = state["cached_items"] or []
+                    for i, cached_entity in enumerate(cached_items):
+                        if cached_entity is entity and i < len(state["positions"]):
+                            state["positions"][i] = new_position
+                            break
+                state["positions_dirty"] = True
+
         # Also mark main positions as dirty
         self._positions_dirty = True
 
@@ -1166,6 +1343,10 @@ class SpatialIndex:
                     results[name] = entities_in_range
                 else:
                     results[name] = []
+
+            elif index_type == "spatial_hash" and state["spatial_hash"] is not None:
+                entities_and_positions = state["spatial_hash"].query_range(bounds)
+                results[name] = [entity for entity, _ in entities_and_positions]
 
             else:
                 results[name] = []
