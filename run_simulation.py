@@ -120,7 +120,7 @@ def main():
                 print(f"Warning: Failed to set seed on config: {e}")
     except Exception as e:
         print(f"Failed to load configuration: {e}")
-        return
+        exit(1)
 
     # Run simulation
     print(f"Starting simulation with {args.steps} steps")
@@ -210,6 +210,7 @@ def main():
         print(f"Results saved to {output_dir}", flush=True)
     except Exception as e:
         print(f"Simulation failed: {e}")
+        exit(1)
 
 
 if __name__ == "__main__":
