@@ -47,6 +47,12 @@ def main():
         "--steps", type=int, default=1000, help="Number of simulation steps to run"
     )
     parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Deterministic seed for the simulation (overrides config if provided)",
+    )
+    parser.add_argument(
         "--perf-profile",
         action="store_true",
         help="Enable performance profiling with cProfile and SnakeViz visualization",
@@ -99,6 +105,14 @@ def main():
                 print(f"Memory limit: {args.memory_limit} MB")
             if args.no_persist:
                 print("Warning: In-memory database will not be persisted to disk")
+        # Apply seed override if provided
+        if args.seed is not None:
+            try:
+                # SimulationConfig should accept seed directly
+                config.seed = args.seed
+                print(f"Using deterministic seed: {args.seed}")
+            except Exception as e:
+                print(f"Warning: Failed to set seed on config: {e}")
     except Exception as e:
         print(f"Failed to load configuration: {e}")
         return

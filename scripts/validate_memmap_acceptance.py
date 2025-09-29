@@ -5,6 +5,15 @@ import sys
 import tempfile
 import time
 from typing import Tuple
+"""Configurable thresholds and knobs for memmap acceptance validation.
+
+Environment variables can override defaults at runtime:
+- MEMMAP_RSS_DELTA_RATIO: acceptable RSS increase as a fraction of memmap size (default 0.5)
+"""
+
+MEMORY_ACCEPTANCE_RSS_DELTA_RATIO: float = float(
+    os.getenv("MEMMAP_RSS_DELTA_RATIO", "0.5")
+)
 
 import numpy as np
 
@@ -173,7 +182,9 @@ def run_trial(
     # Acceptance checks
     print("\nAcceptance Criteria:")
     # 1) States load/stream without full RAM usage -> memmap exists; RSS didn't jump close to memmap size
-    memory_ok = mm_exists and (rss_after_mm - rss_before_mm) < (mm_size_mb * 0.5)
+    memory_ok = mm_exists and (rss_after_mm - rss_before_mm) < (
+        mm_size_mb * MEMORY_ACCEPTANCE_RSS_DELTA_RATIO
+    )
     print(
         f"- Streaming without full RAM usage: {'PASS' if memory_ok else 'WARN'} (RSS change={rss_after_mm - rss_before_mm:.1f} MB vs file {mm_size_mb:.1f} MB)"
     )

@@ -52,6 +52,7 @@ from farm.config import SimulationConfig
 from farm.core.metrics_tracker import MetricsTracker
 from farm.core.observations import AgentObservation, ObservationConfig
 from farm.core.resource_manager import ResourceManager
+from farm.core.geometry import discretize_position_continuous
 from farm.core.services.implementations import (
     EnvironmentAgentLifecycleService,
     EnvironmentLoggingService,
@@ -68,34 +69,7 @@ from farm.utils.identity import Identity, IdentityConfig
 logger = logging.getLogger(__name__)
 
 
-def discretize_position_continuous(
-    position: Tuple[float, float], grid_size: Tuple[int, int], method: str = "floor"
-) -> Tuple[int, int]:
-    """
-    Convert continuous position to discrete grid coordinates using specified method.
-
-    Args:
-        position: (x, y) continuous coordinates
-        grid_size: (width, height) of the grid
-        method: Discretization method - "floor", "round", or "ceil"
-
-    Returns:
-        (x_idx, y_idx) discrete grid coordinates
-    """
-    x, y = position
-    width, height = grid_size
-
-    if method == "round":
-        x_idx = max(0, min(int(round(x)), width - 1))
-        y_idx = max(0, min(int(round(y)), height - 1))
-    elif method == "ceil":
-        x_idx = max(0, min(int(math.ceil(x)), width - 1))
-        y_idx = max(0, min(int(math.ceil(y)), height - 1))
-    else:  # "floor" (default)
-        x_idx = max(0, min(int(math.floor(x)), width - 1))
-        y_idx = max(0, min(int(math.floor(y)), height - 1))
-
-    return x_idx, y_idx
+ 
 
 
 def bilinear_distribute_value(
@@ -1418,11 +1392,20 @@ class Environment(AECEnv):
                 x0 = ax - R
                 x1 = ax + R + 1
                 window_np = self.resource_manager.get_resource_window(y0, y1, x0, x1, normalize=True)
-                # Convert to torch tensor of correct dtype/device
-                resource_local = torch.from_numpy(window_np).to(
-                    dtype=self.observation_config.torch_dtype,
-                    device=self.observation_config.device,
-                )
+                # Convert to torch tensor of correct dtype/device with minimal copies
+                if (
+                    self.observation_config.device == "cpu"
+                    and self.observation_config.torch_dtype == torch.float32
+                    and window_np.dtype == np.float32
+                ):
+                    resource_local = torch.from_numpy(window_np)
+                else:
+                    resource_local = torch.tensor(
+                        window_np,
+                        dtype=self.observation_config.torch_dtype,
+                        device=self.observation_config.device,
+                        copy=False,
+                    )
             else:
                 _tq0 = _time.perf_counter()
                 nearby = self.spatial_index.get_nearby(agent.position, R + 1, ["resources"])

@@ -145,7 +145,9 @@ class SQLiteLoader(DatabaseLoader):
         Args:
             query: SQL query string
             params: Query parameters
-            chunk_size: Number of rows per yielded chunk
+            chunk_size: Number of rows per yielded chunk. For best throughput, prefer
+                larger chunk sizes (e.g., 10,000–50,000). Very small chunks can incur
+                significant overhead due to DataFrame construction per chunk.
 
         Yields:
             DataFrame chunks of up to chunk_size rows
