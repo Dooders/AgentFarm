@@ -2,14 +2,20 @@
 """
 Simple script to run a single simulation using the farm simulation framework.
 """
-
+# Standard library imports
 import argparse
 import cProfile
 import os
 import pstats
 import time
+import warnings
 from io import StringIO
 
+# Suppress warnings that might interfere with CI output parsing
+warnings.filterwarnings("ignore", category=RuntimeWarning)
+warnings.filterwarnings("ignore", category=UserWarning, module="tianshou")
+
+# Local imports
 from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
 
@@ -44,6 +50,12 @@ def main():
     )
     parser.add_argument(
         "--steps", type=int, default=1000, help="Number of simulation steps to run"
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Deterministic seed for the simulation (overrides config if provided)",
     )
     parser.add_argument(
         "--perf-profile",
@@ -98,9 +110,17 @@ def main():
                 print(f"Memory limit: {args.memory_limit} MB")
             if args.no_persist:
                 print("Warning: In-memory database will not be persisted to disk")
+        # Apply seed override if provided
+        if args.seed is not None:
+            try:
+                # SimulationConfig should accept seed directly
+                config.seed = args.seed
+                print(f"Using deterministic seed: {args.seed}")
+            except Exception as e:
+                print(f"Warning: Failed to set seed on config: {e}")
     except Exception as e:
         print(f"Failed to load configuration: {e}")
-        return
+        exit(1)
 
     # Run simulation
     print(f"Starting simulation with {args.steps} steps")
@@ -168,24 +188,29 @@ def main():
             )
 
         elapsed_time = time.time() - start_time
-        print(f"\nSimulation completed in {elapsed_time:.2f} seconds")
-        print(f"Final agent count: {len(environment.agents)}")
+        # Ensure output is flushed for reliable CI detection
+        import sys
+        print("\n=== SIMULATION COMPLETED SUCCESSFULLY ===", flush=True)
+        print(f"Simulation completed in {elapsed_time:.2f} seconds", flush=True)
+        print(f"Final agent count: {len(environment.agents)}", flush=True)
         if len(environment.agents) == 0:
             print(
-                "WARNING: No agents were created or all agents died during simulation"
+                "WARNING: No agents were created or all agents died during simulation",
+                flush=True
             )
         else:
             agent_types = {}
-            for agent in environment.agents:
+            for agent in environment.agent_objects:
                 agent_type = agent.__class__.__name__
                 if agent_type in agent_types:
                     agent_types[agent_type] += 1
                 else:
                     agent_types[agent_type] = 1
-            print(f"Agent types: {agent_types}")
-        print(f"Results saved to {output_dir}")
+            print(f"Agent types: {agent_types}", flush=True)
+        print(f"Results saved to {output_dir}", flush=True)
     except Exception as e:
         print(f"Simulation failed: {e}")
+        exit(1)
 
 
 if __name__ == "__main__":

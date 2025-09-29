@@ -372,7 +372,9 @@ def run_simulation(
         )
 
         # Main simulation loop
-        for step in tqdm(range(num_steps), desc="Simulation progress", unit="step"):
+        # Disable tqdm progress bar in CI environments to avoid output interference
+        disable_tqdm = os.environ.get("CI", "").lower() in ("true", "1") or os.environ.get("GITHUB_ACTIONS", "").lower() == "true"
+        for step in tqdm(range(num_steps), desc="Simulation progress", unit="step", disable=disable_tqdm):
             logging.info(f"Starting step {step}/{num_steps}")
 
             # Process agents in batches

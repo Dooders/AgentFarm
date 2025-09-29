@@ -48,6 +48,7 @@ class ResourceConfig:
     resource_regen_rate: float = 0.1
     resource_regen_amount: int = 2
     max_resource_amount: int = 30
+    memmap_delete_on_close: bool = False  # Delete memmap files when Environment closes
 
 
 @dataclass

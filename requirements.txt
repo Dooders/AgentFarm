@@ -30,6 +30,7 @@ pytest-cov>=4.0.0
 tqdm>=4.62.0  # Progress bars
 colorama>=0.4.4  # Terminal colors
 python-dotenv>=0.19.0  # Environment variables
+psutil>=5.8.0  # System and process utilities (CPU, memory monitoring)
 
 # Machine Learning
 # For PyTorch, choose one of:
@@ -51,6 +52,11 @@ tianshou>=0.4.11,<0.5.0  # Tianshou RL library (PPO, SAC, A2C, DQN, DDPG, etc.) 
 gymnasium>=0.28.0  # Modern Gym replacement for environments
 shimmy>=1.0.0  # Environment wrappers for compatibility
 stable-baselines3>=2.0.0  # Reinforcement learning algorithms
+
+# Web API
+Flask>=2.0.0
+Flask-CORS>=3.0.0
+Flask-SocketIO>=5.0.0
 
 # Optional dependencies
 # tensorflow>=2.7.0  # Uncomment if needed for specific implementations

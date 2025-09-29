@@ -51,10 +51,10 @@ Channel Types and Behaviors:
 
 from __future__ import annotations
 
+import math
 from abc import ABC, abstractmethod
 from enum import IntEnum
-from typing import TYPE_CHECKING, Dict, Optional, Tuple
-import math
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 import torch
 
@@ -872,11 +872,11 @@ class WorldLayerHandler(ChannelHandler):
         if self.layer_key not in world_layers:
             return
 
-        from farm.core.observations import (
+        from farm.core.observations import (  # Import here to avoid circular import
             crop_local,
             crop_local_rotated,
             rotate_local_grid,
-        )  # Import here to avoid circular import
+        )
 
         # Accept either a full world grid (H, W) or a pre-cropped local grid (S, S)
         layer = world_layers[self.layer_key]
