@@ -12,6 +12,21 @@ from farm.core.observations import ObservationConfig
 
 
 @dataclass
+class SpatialIndexConfig:
+    """Configuration for spatial indexing and batch updates."""
+
+    enable_batch_updates: bool = True
+    region_size: float = 50.0
+    max_batch_size: int = 100
+    max_regions: int = 1000
+    enable_quadtree_indices: bool = False
+    enable_spatial_hash_indices: bool = False
+    spatial_hash_cell_size: Optional[float] = None
+    performance_monitoring: bool = True
+    debug_queries: bool = False
+
+
+@dataclass
 class EnvironmentConfig:
     """Configuration for simulation environment settings."""
 
@@ -21,6 +36,7 @@ class EnvironmentConfig:
     use_bilinear_interpolation: bool = (
         True  # Whether to use bilinear interpolation for resources
     )
+    spatial_index: Optional[SpatialIndexConfig] = None
 
 
 @dataclass

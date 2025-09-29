@@ -19,6 +19,45 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class SpatialPerformanceMetrics:
+    """Metrics for spatial indexing and batch update performance."""
+
+    total_batch_updates: int = 0
+    total_individual_updates: int = 0
+    total_regions_processed: int = 0
+    average_batch_size: float = 0.0
+    last_batch_time: float = 0.0
+    total_dirty_regions: int = 0
+    regions_by_type: Dict[str, int] = field(default_factory=dict)
+    total_regions_marked: int = 0
+    total_regions_updated: int = 0
+    batch_count: int = 0
+    spatial_query_time: float = 0.0
+    bilinear_time: float = 0.0
+    nearest_time: float = 0.0
+    bilinear_points: int = 0
+    nearest_points: int = 0
+
+    def reset(self) -> None:
+        """Reset all spatial performance metrics to zero."""
+        self.total_batch_updates = 0
+        self.total_individual_updates = 0
+        self.total_regions_processed = 0
+        self.average_batch_size = 0.0
+        self.last_batch_time = 0.0
+        self.total_dirty_regions = 0
+        self.regions_by_type.clear()
+        self.total_regions_marked = 0
+        self.total_regions_updated = 0
+        self.batch_count = 0
+        self.spatial_query_time = 0.0
+        self.bilinear_time = 0.0
+        self.nearest_time = 0.0
+        self.bilinear_points = 0
+        self.nearest_points = 0
+
+
+@dataclass
 class StepMetrics:
     """Metrics for a single simulation step."""
 
@@ -33,6 +72,7 @@ class StepMetrics:
     reproduction_attempts: int = 0
     reproduction_successes: int = 0
     resource_consumption: float = 0.0
+    spatial_performance: SpatialPerformanceMetrics = field(default_factory=SpatialPerformanceMetrics)
 
     def reset(self) -> None:
         """Reset all step-specific metrics to zero."""
@@ -47,6 +87,7 @@ class StepMetrics:
         self.reproduction_attempts = 0
         self.reproduction_successes = 0
         self.resource_consumption = 0.0
+        self.spatial_performance.reset()
 
 
 @dataclass
@@ -118,6 +159,34 @@ class MetricsTracker:
         """Record resources shared between agents."""
         self.step_metrics.resources_shared += amount
         self.step_metrics.resources_shared_this_step += amount
+
+    def update_spatial_performance_metrics(self, spatial_stats: Dict[str, Any]) -> None:
+        """Update spatial performance metrics from spatial index statistics."""
+        if not spatial_stats:
+            return
+
+        # Update batch update metrics
+        if 'batch_updates' in spatial_stats:
+            batch_stats = spatial_stats['batch_updates']
+            self.step_metrics.spatial_performance.total_batch_updates = batch_stats.get('total_batch_updates', 0)
+            self.step_metrics.spatial_performance.total_individual_updates = batch_stats.get('total_individual_updates', 0)
+            self.step_metrics.spatial_performance.total_regions_processed = batch_stats.get('total_regions_processed', 0)
+            self.step_metrics.spatial_performance.average_batch_size = batch_stats.get('average_batch_size', 0.0)
+            self.step_metrics.spatial_performance.last_batch_time = batch_stats.get('last_batch_time', 0.0)
+            self.step_metrics.spatial_performance.total_dirty_regions = batch_stats.get('total_dirty_regions', 0)
+            self.step_metrics.spatial_performance.regions_by_type = batch_stats.get('regions_by_type', {})
+            self.step_metrics.spatial_performance.total_regions_marked = batch_stats.get('total_regions_marked', 0)
+            self.step_metrics.spatial_performance.total_regions_updated = batch_stats.get('total_regions_updated', 0)
+            self.step_metrics.spatial_performance.batch_count = batch_stats.get('batch_count', 0)
+
+        # Update perception performance metrics
+        if 'perception' in spatial_stats:
+            perception_stats = spatial_stats['perception']
+            self.step_metrics.spatial_performance.spatial_query_time = perception_stats.get('spatial_query_time_s', 0.0)
+            self.step_metrics.spatial_performance.bilinear_time = perception_stats.get('bilinear_time_s', 0.0)
+            self.step_metrics.spatial_performance.nearest_time = perception_stats.get('nearest_time_s', 0.0)
+            self.step_metrics.spatial_performance.bilinear_points = perception_stats.get('bilinear_points', 0)
+            self.step_metrics.spatial_performance.nearest_points = perception_stats.get('nearest_points', 0)
 
     def record_reproduction_attempt(self) -> None:
         """Record a reproduction attempt."""
