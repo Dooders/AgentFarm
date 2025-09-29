@@ -979,6 +979,7 @@ class TestSpatialIndex(unittest.TestCase):
         # Check that agent is found at new position
         new_nearby = self.spatial_index.get_nearby((50, 50), 5, ["dynamic_hash"])
         self.assertEqual(len(new_nearby["dynamic_hash"]), 1)
+
     def test_quadtree_vs_kdtree_performance(self):
         """Compare performance between Quadtree and KD-tree for different query patterns."""
         import time

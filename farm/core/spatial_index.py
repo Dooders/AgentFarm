@@ -5,6 +5,7 @@ with optimized change detection and efficient spatial querying capabilities.
 """
 
 import hashlib
+import math
 import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -124,11 +125,14 @@ class SpatialHashGrid:
                     best_dist_sq = d2
                     best_entity = entity
 
+        # Always consider center cell first, but do not return early; a closer
+        # entity may be in an adjacent cell near the boundary.
         consider_bucket((ix, iy))
-        if best_entity is not None:
-            return best_entity
 
-        max_rings = int(max(self.width, self.height) // max(self.cell_size, 1.0)) + 2
+        # Conservative ring cap: enough to cover full world extent in cells.
+        # Use ceil to avoid underestimating when cell_size < 1.0.
+        safe_cell = self.cell_size if self.cell_size > 0 else 1.0
+        max_rings = int(math.ceil(max(self.width, self.height) / safe_cell)) + 2
         for r in range(1, max_rings):
             for dx in range(-r, r + 1):
                 consider_bucket((ix + dx, iy - r))
@@ -851,7 +855,16 @@ class SpatialIndex:
                 state["positions_dirty"] = False
 
     def _rebuild_named_index(self, name: str) -> None:
-        """Rebuild spatial index for a specific named index (kdtree/quadtree/spatial_hash)."""
+        """Rebuild spatial index for a specific named index (kdtree/quadtree/spatial_hash).
+
+        For spatial hash indices, the `state` dictionary may include a `cell_size`
+        parameter that controls the size of each grid cell. When not provided, a
+        heuristic is applied based on environment dimensions to choose a reasonable
+        default cell size.
+
+        Args:
+            name: The name of the index to rebuild.
+        """
         state = self._named_indices[name]
         index_type = state.get("index_type", "kdtree")
 
