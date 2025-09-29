@@ -16,6 +16,9 @@ import heapq
 logger = logging.getLogger(__name__)
 
 
+DEFAULT_TARGET_CELLS = 20.0
+
+
 class SpatialHashGrid:
     """
     Uniform grid-based spatial hash for fast neighborhood queries.
@@ -131,7 +134,7 @@ class SpatialHashGrid:
 
         # Conservative ring cap: enough to cover full world extent in cells.
         # Use ceil to avoid underestimating when cell_size < 1.0.
-        safe_cell = self.cell_size if self.cell_size > 0 else 1.0
+        safe_cell = self.cell_size
         max_rings = int(math.ceil(max(self.width, self.height) / safe_cell)) + 2
         for r in range(1, max_rings):
             for dx in range(-r, r + 1):
@@ -140,9 +143,14 @@ class SpatialHashGrid:
             for dy in range(-r + 1, r):
                 consider_bucket((ix - r, iy + dy))
                 consider_bucket((ix + r, iy + dy))
+            # Early exit only when we can prove that no entity in the next ring
+            # can be closer than the current best. The closest possible point in
+            # the next ring (r+1) is at least r * cell_size away.
             if best_entity is not None:
-                return best_entity
-        return None
+                min_dist_to_next_ring = r * self.cell_size
+                if best_dist_sq <= min_dist_to_next_ring * min_dist_to_next_ring:
+                    return best_entity
+        return best_entity
 
 
 class QuadtreeNode:
@@ -931,7 +939,7 @@ class SpatialIndex:
             if valid_items:
                 cs = state.get("cell_size")
                 if cs is None:
-                    target_cells = 20.0
+                    target_cells = DEFAULT_TARGET_CELLS
                     cell_w = max(self.width / target_cells, 1.0)
                     cell_h = max(self.height / target_cells, 1.0)
                     cs = float((cell_w + cell_h) / 2.0)
