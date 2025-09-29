@@ -1078,6 +1078,7 @@ class AgentObservation:
         else:
             # Optionally compress sparse grids to point representation
             should_sparsify = bool(getattr(self.config, "grid_sparsify_enabled", True))
+            store_obj = None
             if should_sparsify:
                 S = 2 * int(self.config.R) + 1
                 total = max(1, S * S)
@@ -1085,7 +1086,7 @@ class AgentObservation:
                 # Count non-zero entries (treat small values as zeros)
                 try:
                     nnz = int((grid.abs() > eps).sum().item())
-                except Exception:
+                except (RuntimeError, TypeError, ValueError):
                     nnz = 0
                 density = nnz / float(total)
                 threshold = float(getattr(self.config, "grid_sparsify_threshold", 0.5))
@@ -1098,12 +1099,16 @@ class AgentObservation:
                     sp.values = grid[nz_idx[:, 0], nz_idx[:, 1]].to(
                         device=self.config.device, dtype=self.config.torch_dtype
                     )
-                    self.sparse_channels[channel_idx] = sp
-                else:
-                    # Store as dense tensor if not sparse enough
-                    self.sparse_channels[channel_idx] = grid
-            else:
-                self.sparse_channels[channel_idx] = grid  # Store as dense for these
+                    # Tag sparsified grids with reduction hint from config
+                    try:
+                        sp._reduction = str(getattr(self.config, "grid_sparse_reduction", "overwrite"))
+                    except Exception:
+                        sp._reduction = "overwrite"
+                    store_obj = sp
+            # Fallback to dense grid storage
+            if store_obj is None:
+                store_obj = grid
+            self.sparse_channels[channel_idx] = store_obj
         self.cache_dirty = True
         if self.config.enable_metrics:
             try:
@@ -1215,15 +1220,18 @@ class AgentObservation:
                 # Sparse points
                 channel_plane = self.dense_cache[channel_idx]
                 # Determine reduction per channel
-                handlers = self.registry.get_all_handlers()
-                channel_name = None
-                for name, _handler in handlers.items():
-                    if self.registry.get_index(name) == channel_idx:
-                        channel_name = name
-                        break
-                reduction = self.config.channel_reduction_overrides.get(
-                    channel_name or "", self.config.default_point_reduction
-                )
+                # Prefer per-object reduction if provided (e.g., sparsified full grids)
+                reduction = getattr(channel_data, "_reduction", None)
+                if not reduction:
+                    handlers = self.registry.get_all_handlers()
+                    channel_name = None
+                    for name, _handler in handlers.items():
+                        if self.registry.get_index(name) == channel_idx:
+                            channel_name = name
+                            break
+                    reduction = self.config.channel_reduction_overrides.get(
+                        channel_name or "", self.config.default_point_reduction
+                    )
                 backend = self.config.sparse_backend
                 before_calls = channel_data._apply_calls
                 before_time = channel_data._apply_time_s_total
