@@ -332,11 +332,7 @@ class SpatialIndex:
             new_pos,
             entity_type,
             priority,
-<<<<<<< HEAD
-        ) in self._pending_position_updates:
-=======
         ) in selected_updates:
->>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
             updates_by_type[entity_type].append((entity, old_pos, new_pos, priority))
 
         # Track which regions we've processed for each entity type
@@ -345,14 +341,6 @@ class SpatialIndex:
         # Process each entity type
         regions_processed = 0
         for entity_type, updates in updates_by_type.items():
-<<<<<<< HEAD
-            # Get dirty regions for this entity type
-            dirty_regions = (
-                self._dirty_region_tracker.get_dirty_regions(entity_type)
-                if self._dirty_region_tracker
-                else []
-            )
-=======
             # Get dirty regions for this entity type that are affected by our selected updates
             if self._dirty_region_tracker:
                 # Collect all positions affected by this batch
@@ -382,7 +370,6 @@ class SpatialIndex:
                         processed_regions.append(region)
 
                 processed_regions_by_type[entity_type] = processed_regions
->>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
 
             # Process updates for this entity type
             for entity, old_pos, new_pos, _priority in updates:
@@ -393,11 +380,7 @@ class SpatialIndex:
             # Clear only the regions we actually processed
             if self._dirty_region_tracker and entity_type in processed_regions_by_type:
                 region_coords_list = []
-<<<<<<< HEAD
-                for region in dirty_regions:
-=======
                 for region in processed_regions_by_type[entity_type]:
->>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
                     region_coords = self._dirty_region_tracker._world_to_region_coords(
                         (region.bounds[0], region.bounds[1])
                     )
@@ -418,11 +401,7 @@ class SpatialIndex:
         if total_batches <= 1:
             new_avg = float(updates_to_process)
         else:
-<<<<<<< HEAD
-            new_avg = ((prev_avg * (total_batches - 1)) + batch_size) / float(
-=======
             new_avg = ((prev_avg * (total_batches - 1)) + updates_to_process) / float(
->>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
                 total_batches
             )
         self._batch_update_stats["average_batch_size"] = new_avg
@@ -433,11 +412,7 @@ class SpatialIndex:
 
         logger.debug(
             "Processed batch update: %d entities, %d regions, %.3f seconds",
-<<<<<<< HEAD
-            batch_size,
-=======
             updates_to_process,
->>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
             regions_processed,
             end_time - start_time,
         )
@@ -820,17 +795,9 @@ class SpatialIndex:
                 state["positions_dirty"] = False
                 if state.get("cached_count") is None:
                     current_items = state["cached_items"] or []
-<<<<<<< HEAD
-                    valid_items = [
-                        it
-                        for it in current_items
-                        if state["position_getter"](it) is not None
-                    ]
-=======
                     valid_items = self._filter_items_with_positions(
                         current_items, state["position_getter"]
                     )
->>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
                     current_positions = (
                         np.array([state["position_getter"](it) for it in valid_items])
                         if valid_items
@@ -851,17 +818,9 @@ class SpatialIndex:
                 state["positions_dirty"] = False
                 if state.get("cached_count") is None:
                     current_items = state["cached_items"] or []
-<<<<<<< HEAD
-                    valid_items = [
-                        it
-                        for it in current_items
-                        if state["position_getter"](it) is not None
-                    ]
-=======
                     valid_items = self._filter_items_with_positions(
                         current_items, state["position_getter"]
                     )
->>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
                     current_positions = (
                         np.array([state["position_getter"](it) for it in valid_items])
                         if valid_items
@@ -893,15 +852,9 @@ class SpatialIndex:
             filtered_items = [it for it in items if state["filter_func"](it)]
         else:
             filtered_items = list(items)
-<<<<<<< HEAD
-        valid_items = [
-            it for it in filtered_items if state["position_getter"](it) is not None
-        ]
-=======
         valid_items = self._filter_items_with_positions(
             filtered_items, state["position_getter"]
         )
->>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
 
         if index_type == "kdtree":
             if valid_items:
@@ -974,10 +927,7 @@ class SpatialIndex:
         position: Tuple[float, float],
         radius: float,
         index_names: Optional[List[str]] = None,
-<<<<<<< HEAD
-=======
         allow_stale_reads: bool = False,
->>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
     ) -> Dict[str, List[Any]]:
         """
         Get entities within a radius of a position across specified indices.
@@ -1039,11 +989,6 @@ class SpatialIndex:
         return results
 
     def get_nearest(
-<<<<<<< HEAD
-        self, position: Tuple[float, float], index_names: Optional[List[str]] = None
-    ) -> Dict[str, Optional[Any]]:
-        self.update()
-=======
         self,
         position: Tuple[float, float],
         index_names: Optional[List[str]] = None,
@@ -1069,7 +1014,6 @@ class SpatialIndex:
         """
         if not allow_stale_reads:
             self.update()
->>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
         if not self._is_valid_position(position):
             return {}
         names = index_names or list(self._named_indices.keys())
@@ -1151,8 +1095,6 @@ class SpatialIndex:
         return (-margin_x <= x <= self.width + margin_x) and (
             -margin_y <= y <= self.height + margin_y
         )
-<<<<<<< HEAD
-=======
 
     def _filter_items_with_positions(
         self,
@@ -1160,7 +1102,6 @@ class SpatialIndex:
         position_getter: Callable[[Any], Optional[Tuple[float, float]]],
     ) -> List[Any]:
         return [it for it in items if position_getter(it) is not None]
->>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
 
     def get_agent_count(self) -> int:
         return len([a for a in self._agents if getattr(a, "alive", False)])
@@ -1223,10 +1164,7 @@ class SpatialIndex:
         self,
         bounds: Tuple[float, float, float, float],
         index_names: Optional[List[str]] = None,
-<<<<<<< HEAD
-=======
         allow_stale_reads: bool = False,
->>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
     ) -> Dict[str, List[Any]]:
         """
         Get entities within a rectangular bounds across specified indices.
