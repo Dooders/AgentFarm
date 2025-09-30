@@ -23,13 +23,15 @@ from unittest.mock import Mock
 
 import numpy as np
 import psutil
-from memory_profiler import profile
+# Optional import: memory_profiler is not required at runtime
+try:
+    from memory_profiler import profile  # noqa: F401
+except Exception:  # pragma: no cover - optional dependency
+    profile = None  # type: ignore
 
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from benchmarks.base.benchmark import Benchmark
-from benchmarks.base.results import BenchmarkResults
 from farm.core.spatial import Quadtree, SpatialHashGrid, SpatialIndex
 
 
@@ -627,14 +629,15 @@ def main():
     print("Generating memory analysis report...")
     report = benchmark.generate_memory_report(scaling_results)
 
-    # Save results
-    os.makedirs("/workspace/benchmarks/results", exist_ok=True)
+    # Save results in a container-agnostic location
+    results_dir = os.path.join(os.getcwd(), "benchmarks", "results")
+    os.makedirs(results_dir, exist_ok=True)
 
     # Save scaling results
     import json
 
     with open(
-        "/workspace/benchmarks/results/spatial_memory_scaling.json",
+        os.path.join(results_dir, "spatial_memory_scaling.json"),
         "w",
         encoding="utf-8",
     ) as f:
@@ -642,13 +645,13 @@ def main():
 
     # Save report
     with open(
-        "/workspace/benchmarks/results/spatial_memory_report.md", "w", encoding="utf-8"
+        os.path.join(results_dir, "spatial_memory_report.md"), "w", encoding="utf-8"
     ) as f:
         f.write(report)
 
     print("\nMemory profiling completed!")
-    print("Results saved to: /workspace/benchmarks/results/spatial_memory_scaling.json")
-    print("Report saved to: /workspace/benchmarks/results/spatial_memory_report.md")
+    print(f"Results saved to: {os.path.join(results_dir, 'spatial_memory_scaling.json')}")
+    print(f"Report saved to: {os.path.join(results_dir, 'spatial_memory_report.md')}")
     print("\n" + "=" * 50)
     print("MEMORY EFFICIENCY SUMMARY")
     print("=" * 50)
