@@ -21,7 +21,61 @@ The batch spatial updates feature implements dirty region tracking to optimize s
 
 ## Configuration
 
+### Preset Configuration Profiles
+
+For common use cases, use one of the preset configuration profiles:
+
+```python
+from farm.config.config import SpatialIndexConfig, EnvironmentConfig, SimulationConfig
+
+# Profile 1: Dense Population (many agents in small area)
+# Optimized for: High agent density, frequent neighbor queries
+spatial_config = SpatialIndexConfig.preset_dense_population()
+# Equivalent to:
+# - region_size=25.0 (finer granularity)
+# - max_batch_size=50 (more frequent updates)
+# - enable_spatial_hash_indices=True (fast neighbor queries)
+# - spatial_hash_cell_size=15.0 (smaller cells)
+
+# Profile 2: Sparse Realtime (few agents, low latency required)
+# Optimized for: Real-time responsiveness, low agent count
+spatial_config = SpatialIndexConfig.preset_sparse_realtime()
+# Equivalent to:
+# - region_size=100.0 (less tracking overhead)
+# - max_batch_size=25 (immediate updates)
+# - enable_batch_updates=True (batching still helps)
+
+# Profile 3: Large Environment (big simulation area)
+# Optimized for: Large worlds, range queries, moderate agent count
+spatial_config = SpatialIndexConfig.preset_large_environment()
+# Equivalent to:
+# - region_size=75.0 (balanced tracking)
+# - max_batch_size=150 (higher throughput)
+# - max_regions=2000 (more regions for larger area)
+# - enable_quadtree_indices=True (efficient range queries)
+
+# Profile 4: High Throughput (batch processing, latency tolerant)
+# Optimized for: Maximum throughput, offline analysis
+spatial_config = SpatialIndexConfig.preset_high_throughput()
+# Equivalent to:
+# - region_size=50.0 (balanced)
+# - max_batch_size=200 (large batches)
+# - enable_batch_updates=True
+
+# Apply preset and customize if needed
+env_config = EnvironmentConfig(
+    width=200,
+    height=200,
+    spatial_index=spatial_config
+)
+
+config = SimulationConfig()
+config.environment = env_config
+```
+
 ### Basic Configuration
+
+For custom configurations, create a `SpatialIndexConfig` manually:
 
 ```python
 from farm.config.config import SpatialIndexConfig, EnvironmentConfig, SimulationConfig
@@ -97,7 +151,7 @@ env.enable_batch_spatial_updates(region_size=30.0, max_batch_size=75)
 env.disable_batch_spatial_updates()
 ```
 
-### Performance Monitoring
+### Accessing Performance Statistics
 
 ```python
 # Get spatial performance statistics
@@ -120,23 +174,62 @@ print(f"Bilinear interpolation time: {perception_stats['bilinear_time_s']:.3f}s"
 # Access spatial index directly
 spatial_index = env.spatial_index
 
-# Add position updates manually
+# Add position updates manually with priority
 entity = some_agent
 spatial_index.add_position_update(
     entity, 
     old_position=(10.0, 10.0), 
     new_position=(20.0, 20.0),
     entity_type="agent",
-    priority=1
+    priority=1  # See Priority System section below
 )
 
 # Process batch updates
 spatial_index.process_batch_updates(force=True)
 
-# Get batch update statistics
+# Get batch update statistics (using public API)
 batch_stats = spatial_index.get_batch_update_stats()
-print(f"Pending updates: {len(spatial_index._pending_position_updates)}")
+print(f"Pending updates: {batch_stats['pending_updates_count']}")
+print(f"Total batch updates: {batch_stats['total_batch_updates']}")
 ```
+
+### Priority System
+
+The priority system controls the order in which position updates are processed within a batch:
+
+```python
+# Priority levels (higher = processed first)
+PRIORITY_CRITICAL = 3   # Player entities, important NPCs
+PRIORITY_HIGH = 2       # Active combat participants, quest-critical agents
+PRIORITY_NORMAL = 1     # Regular agents (default)
+PRIORITY_LOW = 0        # Background entities, decorative elements
+
+# Example usage
+spatial_index.add_position_update(
+    player_entity,
+    old_position=(0, 0),
+    new_position=(10, 10),
+    entity_type="player",
+    priority=3  # PRIORITY_CRITICAL - processed first
+)
+
+spatial_index.add_position_update(
+    background_entity,
+    old_position=(5, 5),
+    new_position=(6, 6),
+    entity_type="decoration",
+    priority=0  # PRIORITY_LOW - processed last
+)
+```
+
+**When to use different priorities:**
+
+- **Critical (3)**: Entities that must be updated immediately (player, boss enemies)
+- **High (2)**: Entities actively involved in important interactions (combat, cutscenes)
+- **Normal (1)**: Most agents in the simulation (default)
+- **Low (0)**: Non-essential entities that can tolerate update delays
+
+**Note**: Within the same priority level, updates are processed in FIFO order. Priority only affects ordering between different priority levels.
 
 ## Performance Tuning
 
@@ -241,23 +334,165 @@ def analyze_spatial_performance(env):
     }
 ```
 
+## Error Handling
+
+### Handling Configuration Errors
+
+```python
+from farm.config.config import SpatialIndexConfig
+
+try:
+    spatial_config = SpatialIndexConfig(
+        region_size=-10.0  # Invalid: negative region size
+    )
+except ValueError as e:
+    print(f"Configuration error: {e}")
+    # Use safe defaults
+    spatial_config = SpatialIndexConfig.preset_dense_population()
+```
+
+### Handling Runtime Errors
+
+```python
+# Check if batch updates are enabled before manual control
+if env.spatial_index.is_batch_updates_enabled():
+    try:
+        env.process_batch_spatial_updates(force=True)
+    except MemoryError:
+        # Handle out-of-memory during batch processing
+        print("Memory limit reached. Reducing batch size...")
+        env.disable_batch_spatial_updates()
+        env.enable_batch_spatial_updates(
+            region_size=100.0,  # Larger regions = less memory
+            max_batch_size=50    # Smaller batches
+        )
+    except TimeoutError as e:
+        # Handle batch processing timeout
+        print(f"Batch processing timeout: {e}")
+        # Process in smaller chunks
+        stats = env.spatial_index.get_batch_update_stats()
+        if stats['pending_updates_count'] > 1000:
+            env.spatial_index.clear_pending_updates()
+else:
+    print("Batch updates not enabled")
+```
+
+### Monitoring for Issues
+
+```python
+def check_spatial_health(env):
+    """Check spatial index health and detect potential issues."""
+    stats = env.get_spatial_performance_stats()
+    batch_stats = stats['batch_updates']
+    
+    issues = []
+    
+    # Check for excessive pending updates
+    pending = batch_stats.get('pending_updates_count', 0)
+    if pending > 1000:
+        issues.append({
+            'severity': 'high',
+            'message': f'Excessive pending updates ({pending}). Consider processing batch or increasing max_batch_size.',
+            'metric': 'pending_updates',
+            'value': pending
+        })
+    
+    # Check for region overflow
+    dirty_regions = batch_stats.get('total_dirty_regions', 0)
+    max_regions = env.spatial_index.max_regions
+    if dirty_regions > max_regions * 0.9:
+        issues.append({
+            'severity': 'medium',
+            'message': f'Approaching max regions limit ({dirty_regions}/{max_regions}). Consider increasing region_size or max_regions.',
+            'metric': 'dirty_regions',
+            'value': dirty_regions
+        })
+    
+    # Check for slow batch processing
+    last_batch_time = batch_stats.get('last_batch_time', 0)
+    if last_batch_time > 0.1:  # 100ms threshold
+        issues.append({
+            'severity': 'medium',
+            'message': f'Slow batch processing ({last_batch_time:.3f}s). Consider reducing batch size or enabling spatial indices.',
+            'metric': 'batch_processing_time',
+            'value': last_batch_time
+        })
+    
+    return issues
+
+# Usage
+issues = check_spatial_health(env)
+for issue in issues:
+    print(f"[{issue['severity'].upper()}] {issue['message']}")
+```
+
+### Graceful Degradation
+
+```python
+def setup_spatial_with_fallback(env_config):
+    """Setup spatial indices with graceful fallback on failure."""
+    try:
+        # Try optimal configuration
+        spatial_config = SpatialIndexConfig.preset_dense_population()
+        env_config.spatial_index = spatial_config
+        return spatial_config
+    except MemoryError:
+        # Fall back to minimal configuration
+        print("Warning: Insufficient memory for optimal config. Using minimal settings.")
+        spatial_config = SpatialIndexConfig(
+            enable_batch_updates=True,
+            region_size=100.0,
+            max_batch_size=25,
+            max_regions=500,
+            enable_quadtree_indices=False,
+            enable_spatial_hash_indices=False
+        )
+        env_config.spatial_index = spatial_config
+        return spatial_config
+```
+
 ## Troubleshooting
 
-### Common Issues
+### Diagnosing Issues
 
 1. **High Memory Usage**
-   - Reduce `max_regions` parameter
-   - Increase `region_size` to reduce number of regions
-   - Disable unused index types
+   - **Symptom**: MemoryError or high RAM consumption
+   - **Solutions**:
+     - Reduce `max_regions` parameter (e.g., from 1000 to 500)
+     - Increase `region_size` to reduce number of tracked regions (e.g., from 25 to 100)
+     - Disable unused index types (set `enable_quadtree_indices=False`)
+     - Use `SpatialIndexConfig.preset_sparse_realtime()` profile
 
 2. **Low Performance**
-   - Enable quadtree indices for range queries
-   - Enable spatial hash indices for neighbor queries
-   - Optimize batch size and region size
+   - **Symptom**: High spatial query times (>10ms)
+   - **Solutions**:
+     - Enable quadtree indices for range queries (`enable_quadtree_indices=True`)
+     - Enable spatial hash indices for neighbor queries (`enable_spatial_hash_indices=True`)
+     - Optimize batch size and region size based on workload
+     - Use `SpatialIndexConfig.preset_large_environment()` for large worlds
 
 3. **High Latency**
-   - Reduce `max_batch_size` for more frequent updates
-   - Use `process_batch_spatial_updates(force=True)` for immediate processing
+   - **Symptom**: Delayed entity position updates
+   - **Solutions**:
+     - Reduce `max_batch_size` for more frequent updates (e.g., from 100 to 25)
+     - Use `process_batch_spatial_updates(force=True)` for immediate processing
+     - Use `SpatialIndexConfig.preset_sparse_realtime()` profile
+     - Increase priority for critical entities
+
+4. **Pending Updates Accumulation**
+   - **Symptom**: `pending_updates_count` keeps growing
+   - **Solutions**:
+     - Increase `max_batch_size` to process more updates per batch
+     - Call `process_batch_updates(force=True)` more frequently
+     - Check for bottlenecks using `get_spatial_performance_stats()`
+     - Consider if batch updates are appropriate for your use case
+
+5. **Region Overflow**
+   - **Symptom**: Warning about exceeding `max_regions`
+   - **Solutions**:
+     - Increase `max_regions` parameter
+     - Increase `region_size` to reduce total region count
+     - Process batch updates more frequently to clear dirty regions
 
 ### Debug Mode
 
@@ -271,6 +506,7 @@ spatial_config = SpatialIndexConfig(
 ```
 
 This will log detailed information about:
+
 - Batch update processing
 - Region marking and clearing
 - Spatial query performance
@@ -321,3 +557,5 @@ The batch spatial updates feature provides significant performance improvements 
 - Complex multi-agent interactions
 
 By following this guide and monitoring performance metrics, you can optimize your simulation for maximum efficiency while maintaining data integrity and system reliability.
+ 
+ 

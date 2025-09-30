@@ -177,14 +177,14 @@ class SpatialBenchmark:
         process = psutil.Process()
         baseline_memory = process.memory_info().rss / 1024 / 1024  # MB
 
-        # Measure build time
+        # Measure build time and memory
+        tracemalloc.start()
         start_time = time.perf_counter()
         spatial_index.update()
         results["build_time"] = time.perf_counter() - start_time
-
-        # Measure memory usage after index creation and calculate difference
-        post_memory = process.memory_info().rss / 1024 / 1024  # MB
-        results["memory_usage"] = post_memory - baseline_memory
+        current, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+        results["memory_usage"] = peak / 1024 / 1024  # Convert to MB
 
         # Generate test queries
         test_queries = []
@@ -235,14 +235,14 @@ class SpatialBenchmark:
         process = psutil.Process()
         baseline_memory = process.memory_info().rss / 1024 / 1024  # MB
 
-        # Measure build time
+        # Measure build time and memory
+        tracemalloc.start()
         start_time = time.perf_counter()
         kdtree = cKDTree(positions)
         results["build_time"] = time.perf_counter() - start_time
-
-        # Measure memory usage after index creation and calculate difference
-        post_memory = process.memory_info().rss / 1024 / 1024  # MB
-        results["memory_usage"] = post_memory - baseline_memory
+        current, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+        results["memory_usage"] = peak / 1024 / 1024
 
         # Generate test queries
         test_queries = []
@@ -294,14 +294,14 @@ class SpatialBenchmark:
         process = psutil.Process()
         baseline_memory = process.memory_info().rss / 1024 / 1024  # MB
 
-        # Measure build time
+        # Measure build time and memory
+        tracemalloc.start()
         start_time = time.perf_counter()
         kdtree = KDTree(positions)
         results["build_time"] = time.perf_counter() - start_time
-
-        # Measure memory usage after index creation and calculate difference
-        post_memory = process.memory_info().rss / 1024 / 1024  # MB
-        results["memory_usage"] = post_memory - baseline_memory
+        current, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+        results["memory_usage"] = peak / 1024 / 1024
 
         # Generate test queries
         test_queries = []
@@ -353,14 +353,14 @@ class SpatialBenchmark:
         process = psutil.Process()
         baseline_memory = process.memory_info().rss / 1024 / 1024  # MB
 
-        # Measure build time
+        # Measure build time and memory
+        tracemalloc.start()
         start_time = time.perf_counter()
         balltree = BallTree(positions)
         results["build_time"] = time.perf_counter() - start_time
-
-        # Measure memory usage after index creation and calculate difference
-        post_memory = process.memory_info().rss / 1024 / 1024  # MB
-        results["memory_usage"] = post_memory - baseline_memory
+        current, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+        results["memory_usage"] = peak / 1024 / 1024
 
         # Generate test queries
         test_queries = []
@@ -405,6 +405,7 @@ class SpatialBenchmark:
             "individual_update_time": 0.0,
             "speedup": 0.0,
             "memory_efficiency": 0.0,
+            "memory_usage": 0.0,
         }
 
         # Create spatial index with batch updates enabled
@@ -429,6 +430,8 @@ class SpatialBenchmark:
         num_updates = int(len(entities) * update_fraction)
         entities_to_update = random.sample(entities, num_updates)
 
+        # Add tracemalloc for batch updates
+        tracemalloc.start()
         # Benchmark batch updates
         start_time = time.perf_counter()
         for entity in entities_to_update:
@@ -440,6 +443,9 @@ class SpatialBenchmark:
             spatial_index.add_position_update(entity, old_pos, new_pos, "test_entities")
         spatial_index.process_batch_updates(force=True)
         batch_time = time.perf_counter() - start_time
+        current, peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+        results["memory_usage"] = peak / 1024 / 1024  # Measure for batch
 
         # Reset positions
         for entity in entities_to_update:

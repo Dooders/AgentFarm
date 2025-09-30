@@ -5,12 +5,19 @@ This package contains:
 - Spatial hash grid for uniform-grid indexing
 - Quadtree for hierarchical partitioning
 - SpatialIndex orchestrating KD-tree, Quadtree, and Spatial Hash indices
+- Priority constants for batch update ordering
 """
 
 from .dirty_regions import DirtyRegion, DirtyRegionTracker
 from .hash_grid import SpatialHashGrid
+from .index import (
+    PRIORITY_CRITICAL,
+    PRIORITY_HIGH,
+    PRIORITY_LOW,
+    PRIORITY_NORMAL,
+    SpatialIndex,
+)
 from .quadtree import Quadtree, QuadtreeNode
-from .index import SpatialIndex
 
 __all__ = [
     "DirtyRegion",
@@ -19,5 +26,8 @@ __all__ = [
     "Quadtree",
     "QuadtreeNode",
     "SpatialIndex",
+    "PRIORITY_LOW",
+    "PRIORITY_NORMAL",
+    "PRIORITY_HIGH",
+    "PRIORITY_CRITICAL",
 ]
-

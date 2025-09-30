@@ -100,8 +100,9 @@ def run_memory_profiling():
     # Save results
     import json
 
+    results_dir = os.path.join(os.getcwd(), "benchmarks", "results")
     with open(
-        "/workspace/benchmarks/results/spatial_memory_scaling.json",
+        os.path.join(results_dir, "spatial_memory_scaling.json"),
         "w",
         encoding="utf-8",
     ) as f:
@@ -110,7 +111,7 @@ def run_memory_profiling():
     # Generate and save report
     report = benchmark.generate_memory_report(scaling_results)
     with open(
-        "/workspace/benchmarks/results/spatial_memory_report.md", "w", encoding="utf-8"
+        os.path.join(results_dir, "spatial_memory_report.md"), "w", encoding="utf-8"
     ) as f:
         f.write(report)
 
@@ -186,7 +187,9 @@ def generate_visualizations(comprehensive_results=None, memory_results=None):
         comprehensive_results, memory_results
     )
     with open(
-        "/workspace/benchmarks/results/visualization_report.md", "w", encoding="utf-8"
+        os.path.join(os.getcwd(), "benchmarks", "results", "visualization_report.md"),
+        "w",
+        encoding="utf-8",
     ) as f:
         f.write(report)
 
@@ -228,7 +231,12 @@ def run_performance_analysis(comprehensive_results=None, memory_results=None):
 
     # Save report
     with open(
-        "/workspace/benchmarks/results/comprehensive_performance_analysis.md",
+        os.path.join(
+            os.getcwd(),
+            "benchmarks",
+            "results",
+            "comprehensive_performance_analysis.md",
+        ),
         "w",
         encoding="utf-8",
     ) as f:
@@ -252,7 +260,7 @@ def create_summary_report():
     summary.append("")
 
     # Check which results are available
-    results_dir = Path("/workspace/benchmarks/results")
+    results_dir = Path(os.path.join(os.getcwd(), "benchmarks", "results"))
     available_files = list(results_dir.glob("*.json")) + list(results_dir.glob("*.md"))
 
     summary.append("## Available Results")
@@ -289,7 +297,12 @@ def create_summary_report():
         import json
 
         with open(
-            "/workspace/benchmarks/results/comprehensive_spatial_benchmark.json",
+            os.path.join(
+                os.getcwd(),
+                "benchmarks",
+                "results",
+                "comprehensive_spatial_benchmark.json",
+            ),
             "r",
             encoding="utf-8",
         ) as f:
@@ -371,7 +384,9 @@ def create_summary_report():
     # Save summary
     summary_text = "\n".join(summary)
     with open(
-        "/workspace/benchmarks/results/benchmark_summary.md", "w", encoding="utf-8"
+        os.path.join(os.getcwd(), "benchmarks", "results", "benchmark_summary.md"),
+        "w",
+        encoding="utf-8",
     ) as f:
         f.write(summary_text)
 
@@ -398,8 +413,11 @@ def main():
     args = parser.parse_args()
 
     # Create results directory
-    os.makedirs("/workspace/benchmarks/results", exist_ok=True)
-    os.makedirs("/workspace/benchmarks/results/visualizations", exist_ok=True)
+    os.makedirs(os.path.join(os.getcwd(), "benchmarks", "results"), exist_ok=True)
+    os.makedirs(
+        os.path.join(os.getcwd(), "benchmarks", "results", "visualizations"),
+        exist_ok=True,
+    )
 
     start_time = time.time()
 
@@ -439,7 +457,7 @@ def main():
         print("BENCHMARK SUITE COMPLETED SUCCESSFULLY")
         print("=" * 60)
         print(f"Total execution time: {total_time:.2f} seconds")
-        print("Results saved to: /workspace/benchmarks/results/")
+        print("Results saved to: " + os.path.join(os.getcwd(), "benchmarks", "results"))
         print("")
         print("Generated files:")
         print("- comprehensive_spatial_benchmark.json")

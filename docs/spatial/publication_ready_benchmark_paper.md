@@ -1,14 +1,14 @@
-# A High-Performance Spatial Indexing Framework: AgentFarm's Multi-Index Architecture with Industry-Leading Performance
+# A Performance Analysis of AgentFarm's Spatial Indexing Framework
 
 ## Abstract
 
-We present AgentFarm, a novel spatial indexing framework that demonstrates significant performance improvements over existing industry-standard implementations. Our framework introduces a multi-index architecture combining quadtree and spatial hash grid implementations, along with innovative batch update mechanisms and dirty region tracking. Comprehensive benchmarking across multiple entity counts (100-2000), data distributions (uniform, clustered, linear), and query types demonstrates that AgentFarm achieves 9-18x faster build times, 1.4-2.6x faster query performance, and 7-18x faster dynamic updates compared to industry standards. The framework provides unique capabilities including batch spatial updates, multi-index support, and performance monitoring that are not available in existing solutions. Our results establish AgentFarm as a production-ready, industry-leading spatial indexing solution suitable for real-time simulations, large-scale systems, and dynamic environments.
+We present AgentFarm, a spatial indexing framework that offers solid performance through its multi-index architecture combining quadtree and spatial hash grid implementations, along with batch update mechanisms. Comprehensive benchmarking across entity counts (100-10,000) and distributions shows AgentFarm is competitive but generally slower than industry standards like SciPy KD-Tree in build and query times, with strengths in internal dynamic updates. The framework provides useful capabilities including batch updates and multi-index support.
 
 **Keywords**: spatial indexing, quadtree, spatial hash grid, performance optimization, dynamic updates, benchmarking
 
 ## 1. Introduction
 
-Spatial indexing is a fundamental requirement for efficient spatial queries in applications ranging from geographic information systems to real-time simulations. Current industry-standard implementations, including scipy.spatial.cKDTree and sklearn.neighbors, provide basic spatial indexing capabilities but suffer from limitations in build performance, dynamic update support, and scalability.
+Spatial indexing is a fundamental requirement for efficient spatial queries in applications ranging from geographic information systems to real-time simulations. Current industry-standard implementations, including scipy.spatial.cKDTree and sklearn.neighbors, provide efficient spatial indexing but AgentFarm offers comparable performance with additional features for dynamic scenarios.
 
 This paper presents AgentFarm, a high-performance spatial indexing framework that addresses these limitations through innovative architectural design and optimization techniques. Our contributions include:
 
@@ -115,30 +115,25 @@ We measured:
 
 #### 5.3.1 Build Time Performance
 
-| Implementation | Build Time (ms) | vs Industry Standard |
+| Implementation | Build Time (ms) | vs SciPy KD-Tree |
 |----------------|----------------|---------------------|
-| AgentFarm Spatial Hash | 0.54 | 9-18x faster |
-| AgentFarm Quadtree | 6.43 | 2x faster |
-| scipy.spatial.cKDTree | 5-10 | Baseline |
-| sklearn.neighbors.KDTree | 8-15 | 1.5-2x slower |
+| AgentFarm Spatial Hash | 2.38 | ~4.8x slower |
+| AgentFarm Quadtree | 15.06 | ~30x slower |
+| SciPy KD-Tree | 0.50 | Baseline |
+| sklearn.neighbors.KDTree | 0.74 | ~1.5x slower |
 
 #### 5.3.2 Query Time Performance
 
-| Implementation | Query Time (μs) | vs Industry Standard |
+| Implementation | Query Time (μs) | vs SciPy KD-Tree |
 |----------------|----------------|---------------------|
-| AgentFarm Spatial Hash | 5.78 | 1.4-2.6x faster |
-| AgentFarm Quadtree | 12.74 | Competitive |
-| scipy.spatial.cKDTree | 8-15 | Baseline |
-| sklearn.neighbors.KDTree | 10-20 | 1.2-1.7x slower |
+| AgentFarm Spatial Hash | 12.59 | ~1.7x slower |
+| AgentFarm Quadtree | 34.48 | ~4.8x slower |
+| SciPy KD-Tree | 7.25 | Baseline |
+| sklearn.neighbors.KDTree | 39.58 | ~5.5x slower |
 
 #### 5.3.3 Dynamic Update Performance
 
-| Implementation | Update Time (ms) | vs Industry Standard |
-|----------------|-----------------|---------------------|
-| AgentFarm Spatial Hash | 0.27 | 7-18x faster |
-| AgentFarm Quadtree | 1.23 | 2-4x faster |
-| Custom implementations | 2-5 | Baseline |
-| Database spatial indexes | 5-20 | 2-4x slower |
+Limited data shows internal batch updates provide 4-6x speedup over individual updates in AgentFarm, but direct industry comparisons are not available.
 
 #### 5.3.4 Memory Efficiency
 
@@ -179,12 +174,12 @@ AgentFarm shows exceptional robustness across data distributions:
 
 ### 6.1 Performance Analysis
 
-Our results demonstrate that AgentFarm achieves significant performance improvements over industry standards:
+Our results demonstrate that AgentFarm provides solid performance:
 
-1. **Build Performance**: 9-18x faster build times enable rapid index construction
-2. **Query Performance**: 1.4-2.6x faster queries improve application responsiveness
-3. **Dynamic Updates**: 7-18x faster updates enable real-time applications
-4. **Memory Efficiency**: 10-33% better memory usage reduces infrastructure costs
+1. **Build Performance**: Competitive but slower than SciPy
+2. **Query Performance**: Reasonable but not leading
+3. **Dynamic Updates**: Good internal efficiency
+4. **Memory Efficiency**: Comparable
 
 ### 6.2 Architectural Advantages
 
@@ -272,16 +267,14 @@ Future feature development:
 
 ## 10. Conclusion
 
-We have presented AgentFarm, a high-performance spatial indexing framework that demonstrates significant improvements over existing industry-standard implementations. Our comprehensive benchmarking shows that AgentFarm achieves:
+We have presented AgentFarm, a spatial indexing framework that demonstrates competitive performance relative to industry standards. Our benchmarking shows:
 
-- **9-18x faster** build times than industry standards
-- **1.4-2.6x faster** query performance than industry standards
-- **7-18x faster** dynamic updates (unique capability)
-- **10-33% better** memory efficiency than industry standards
+- Build times 2-30x slower than SciPy KD-Tree
+- Query times 1.5-5x slower
+- Good internal dynamic update capabilities
+- Comparable memory efficiency
 
-The framework's multi-index architecture, batch update mechanisms, and performance monitoring capabilities provide unique advantages not available in existing solutions. AgentFarm is production-ready and suitable for a wide range of applications including real-time simulations, large-scale systems, and dynamic environments.
-
-Our results establish AgentFarm as an industry-leading spatial indexing solution that significantly advances the state of the art in spatial indexing performance and capabilities.
+AgentFarm provides value through its flexible architecture and is suitable for applications where custom features outweigh raw speed advantages of established libraries.
 
 ## Acknowledgments
 
@@ -349,4 +342,4 @@ The authors thank the AgentFarm development team for their contributions to the 
 **Institution**: [Your Institution]  
 **Date**: September 30, 2025
 
-**Note**: This paper presents research results and is suitable for publication in computer science conferences and journals focusing on spatial indexing, performance optimization, and data structures.
+**Note**: This paper presents analysis based on comprehensive_spatial_benchmark.json data.
