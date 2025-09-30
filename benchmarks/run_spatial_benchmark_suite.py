@@ -327,29 +327,33 @@ def create_summary_report():
                     by_impl[impl] = []
                 by_impl[impl].append(result)
 
-            # Best build time
-            best_build = min(
-                by_impl.keys(),
-                key=lambda impl: sum(r["build_time"] for r in by_impl[impl])
-                / len(by_impl[impl]),
-            )
-            summary.append(f"- **Fastest Build Time**: {best_build}")
+            # Only compute best performers if we have results
+            if by_impl:
+                # Best build time
+                best_build = min(
+                    by_impl.keys(),
+                    key=lambda impl: sum(r["build_time"] for r in by_impl[impl])
+                    / len(by_impl[impl]),
+                )
+                summary.append(f"- **Fastest Build Time**: {best_build}")
 
-            # Best query time
-            best_query = min(
-                by_impl.keys(),
-                key=lambda impl: sum(r["avg_query_time"] for r in by_impl[impl])
-                / len(by_impl[impl]),
-            )
-            summary.append(f"- **Fastest Query Time**: {best_query}")
+                # Best query time
+                best_query = min(
+                    by_impl.keys(),
+                    key=lambda impl: sum(r["avg_query_time"] for r in by_impl[impl])
+                    / len(by_impl[impl]),
+                )
+                summary.append(f"- **Fastest Query Time**: {best_query}")
 
-            # Best memory usage
-            best_memory = min(
-                by_impl.keys(),
-                key=lambda impl: sum(r["memory_usage"] for r in by_impl[impl])
-                / len(by_impl[impl]),
-            )
-            summary.append(f"- **Lowest Memory Usage**: {best_memory}")
+                # Best memory usage
+                best_memory = min(
+                    by_impl.keys(),
+                    key=lambda impl: sum(r["memory_usage"] for r in by_impl[impl])
+                    / len(by_impl[impl]),
+                )
+                summary.append(f"- **Lowest Memory Usage**: {best_memory}")
+            else:
+                summary.append("- No performance metrics available (no results with build_time)")
 
     except FileNotFoundError:
         summary.append("- Comprehensive benchmark results not available")

@@ -628,27 +628,25 @@ def main():
     report = benchmark.generate_memory_report(scaling_results)
 
     # Save results
-    os.makedirs("/workspace/benchmarks/results", exist_ok=True)
+    # Use relative path from the benchmarks directory
+    results_dir = os.path.join(os.path.dirname(__file__), "../../results")
+    os.makedirs(results_dir, exist_ok=True)
 
     # Save scaling results
     import json
 
-    with open(
-        "/workspace/benchmarks/results/spatial_memory_scaling.json",
-        "w",
-        encoding="utf-8",
-    ) as f:
+    scaling_results_path = os.path.join(results_dir, "spatial_memory_scaling.json")
+    with open(scaling_results_path, "w", encoding="utf-8") as f:
         json.dump(scaling_results, f, indent=2)
 
     # Save report
-    with open(
-        "/workspace/benchmarks/results/spatial_memory_report.md", "w", encoding="utf-8"
-    ) as f:
+    report_path = os.path.join(results_dir, "spatial_memory_report.md")
+    with open(report_path, "w", encoding="utf-8") as f:
         f.write(report)
 
     print("\nMemory profiling completed!")
-    print("Results saved to: /workspace/benchmarks/results/spatial_memory_scaling.json")
-    print("Report saved to: /workspace/benchmarks/results/spatial_memory_report.md")
+    print(f"Results saved to: {scaling_results_path}")
+    print(f"Report saved to: {report_path}")
     print("\n" + "=" * 50)
     print("MEMORY EFFICIENCY SUMMARY")
     print("=" * 50)
