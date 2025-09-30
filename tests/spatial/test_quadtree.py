@@ -702,9 +702,8 @@ class TestQuadtreeEdgeCases:
             tree.insert(MockEntity(f"e{i}"), (50.0, 50.0))
         
         results = tree.query_radius((50.0, 50.0), 1.0)
-        # Entities on subdivision boundaries may end up in parent node
-        # which might not be fully queried in some implementations
-        assert len(results) >= 2  # At least some entities should be found
+        # All entities are at the exact same position; the query should return all of them
+        assert len(results) == 5
 
     def test_many_subdivisions(self):
         """Test creating many subdivision levels."""
