@@ -1286,7 +1286,8 @@ def defend_action(agent: "BaseAgent") -> dict:
                 )
 
         # Calculate simple reward for defensive action
-        reward = 0.02  # Small reward for successful defense
+        # Use config value if available, otherwise fall back to default
+        reward = getattr(getattr(agent.config, 'action_rewards', None), 'defend_success_reward', 0.02)
         agent.total_reward += reward
 
         # Log the defend action using helper function
@@ -1361,7 +1362,8 @@ def pass_action(agent: "BaseAgent") -> dict:
 
     try:
         # Calculate small reward for strategic inaction
-        reward = 0.01  # Minimal reward for passing
+        # Use config value if available, otherwise fall back to default
+        reward = getattr(getattr(agent.config, 'action_rewards', None), 'pass_action_reward', 0.01)
         agent.total_reward += reward
 
         # Log the pass action using helper function

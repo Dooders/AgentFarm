@@ -145,7 +145,9 @@ class ResourceManager:
             assert mm is not None
             mm[:] = 0
             max_amount = (
-                getattr(self.config, "max_resource_amount", 10) if self.config else 10
+                getattr(getattr(self.config, "resources", None), "max_resource_amount", 10)
+                if self.config
+                else 10
             )
             H, W = self._memmap_shape
             # Discretization
@@ -239,7 +241,9 @@ class ResourceManager:
             amount = distribution["amount"]
         else:
             amount = (
-                getattr(self.config, "initial_resources", 20) if self.config else 20
+                getattr(getattr(self.config, "resources", None), "initial_resources", 20)
+                if self.config
+                else 20
             )
 
         logger.info(f"Initializing {amount} resources using original Environment logic")
@@ -270,7 +274,7 @@ class ResourceManager:
                     self.config.resources.max_resource_amount if self.config else 10
                 ),
                 regeneration_rate=(
-                    getattr(self.config, "resource_regen_rate", 0.1)
+                    getattr(getattr(self.config, "resources", None), "resource_regen_rate", 0.1)
                     if self.config
                     else 0.1
                 ),
@@ -399,7 +403,9 @@ class ResourceManager:
         # Get configuration parameters
         max_amount = self.config.resources.max_resource_amount if self.config else 10
         regeneration_rate = (
-            getattr(self.config, "resource_regen_rate", 0.1) if self.config else 0.1
+            getattr(getattr(self.config, "resources", None), "resource_regen_rate", 0.1)
+            if self.config
+            else 0.1
         )
 
         resource = Resource(
@@ -458,7 +464,7 @@ class ResourceManager:
 
                 # Check if this resource should regenerate (same as original)
                 regen_rate = (
-                    getattr(self.config, "resource_regen_rate", 0.1)
+                    getattr(getattr(self.config, "resources", None), "resource_regen_rate", 0.1)
                     if self.config
                     else 0.1
                 )
@@ -470,7 +476,7 @@ class ResourceManager:
                     max_resource is None or resource.amount < max_resource
                 ):
                     regen_amount = (
-                        getattr(self.config, "resource_regen_amount", 2)
+                        getattr(getattr(self.config, "resources", None), "resource_regen_amount", 2)
                         if self.config
                         else 2
                     )
@@ -486,7 +492,9 @@ class ResourceManager:
         else:
             # Use standard random method if no seed is set (same as original)
             regen_rate = (
-                getattr(self.config, "resource_regen_rate", 0.1) if self.config else 0.1
+                getattr(getattr(self.config, "resources", None), "resource_regen_rate", 0.1)
+                if self.config
+                else 0.1
             )
             max_resource = (
                 self.config.resources.max_resource_amount if self.config else None
@@ -498,7 +506,7 @@ class ResourceManager:
                     max_resource is None or resource.amount < max_resource
                 ):
                     regen_amount = (
-                        getattr(self.config, "resource_regen_amount", 2)
+                        getattr(getattr(self.config, "resources", None), "resource_regen_amount", 2)
                         if self.config
                         else 2
                     )
@@ -559,14 +567,14 @@ class ResourceManager:
 
     def _update_resources_random(self, stats: Dict):
         """Update resources using random regeneration logic."""
-        regen_rate = self.config.resource_regen_rate if self.config else 0.1
+        regen_rate = getattr(getattr(self.config, "resources", None), "resource_regen_rate", 0.1) if self.config else 0.1
 
         # Create regeneration mask
         regen_mask = np.random.random(len(self.resources)) < regen_rate
 
         for resource, should_regen in zip(self.resources, regen_mask):
             if should_regen and resource.amount < resource.max_amount:
-                regen_amount = self.config.resource_regen_amount if self.config else 2
+                regen_amount = getattr(getattr(self.config, "resources", None), "resource_regen_amount", 2) if self.config else 2
 
                 old_amount = resource.amount
                 resource.regenerate(regen_amount)
@@ -692,7 +700,8 @@ class ResourceManager:
             The newly created resource
         """
         if amount is None:
-            amount = 5  # Default amount
+            # Use config value if available, otherwise use default
+            amount = getattr(getattr(self.config, 'resources', None), 'default_spawn_amount', 5) if self.config else 5
 
         resource = Resource(
             resource_id=self.next_resource_id,

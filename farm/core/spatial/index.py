@@ -88,6 +88,7 @@ class SpatialIndex:
         max_batch_size: int = 100,
         flush_interval_seconds: float = 1.0,
         max_pending_updates_before_flush: int = 50,
+        dirty_region_batch_size: int = 10,
     ):
         """
         Initialize the SpatialIndex.
@@ -112,11 +113,14 @@ class SpatialIndex:
             Time-based flush policy: automatically flush pending updates after this many seconds
         max_pending_updates_before_flush : int, default 50
             Size-based flush policy: automatically flush when this many updates are pending
+        dirty_region_batch_size : int, default 10
+            Number of dirty regions to process per batch
         """
         self.width = width
         self.height = height
         self._initial_batch_updates_enabled = enable_batch_updates
         self.max_batch_size = max_batch_size
+        self._dirty_region_batch_size = dirty_region_batch_size
 
         # Flush policy settings
         self.flush_interval_seconds = flush_interval_seconds
@@ -154,6 +158,7 @@ class SpatialIndex:
                 max_regions=max(
                     1000, int((width * height) / (region_size * region_size))
                 ),
+                batch_size=self._dirty_region_batch_size,
             )
             self._pending_position_updates: List[
                 Tuple[Any, Tuple[float, float], Tuple[float, float], str, int]
@@ -550,6 +555,7 @@ class SpatialIndex:
                 self._dirty_region_tracker = DirtyRegionTracker(
                     region_size=region_size,
                     max_regions=max_regions,
+                    batch_size=self._dirty_region_batch_size,
                 )
                 self._batch_update_enabled = True
                 self.max_batch_size = max_batch_size

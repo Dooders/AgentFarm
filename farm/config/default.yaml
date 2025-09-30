@@ -35,6 +35,7 @@ initial_resources: 20
 resource_regen_rate: 0.1
 resource_regen_amount: 2
 max_resource_amount: 30
+default_spawn_amount: 5
 
 # Agent behavior settings
 base_consumption_rate: 0.15
@@ -54,6 +55,9 @@ batch_size: 32
 training_frequency: 4
 dqn_hidden_size: 24
 tau: 0.005
+dqn_state_cache_size: 100
+gradient_clip_norm: 1.0
+enable_gradient_clipping: true
 
 # Movement Module Parameters
 move_target_update_freq: 100
@@ -210,6 +214,18 @@ db_synchronous_mode: "NORMAL"
 db_journal_mode: "WAL"
 db_custom_pragmas: {}
 
+# Database connection pooling
+connection_pool_size: 10
+connection_pool_recycle: 3600
+connection_timeout: 30
+
+# Database buffering and commits
+log_buffer_size: 1000
+commit_interval_seconds: 30
+
+# Database export settings
+export_batch_size: 1000
+
 # Curriculum learning phases
 curriculum_phases:
   - steps: 100
@@ -224,6 +240,26 @@ device_preference: "auto"
 device_fallback: true
 device_memory_fraction: null
 device_validate_compatibility: true
+
+# Performance optimization settings
+agent_processing_batch_size: 32
+resource_processing_batch_size: 100
+enable_parallel_processing: false
+max_worker_threads: 4
+enable_memory_pooling: true
+memory_pool_size_mb: 100
+enable_state_caching: true
+cache_ttl_seconds: 60
+
+# Action reward configuration
+defend_success_reward: 0.02
+pass_action_reward: 0.01
+successful_gather_bonus: 0.05
+successful_share_bonus: 0.03
+successful_attack_bonus: 0.1
+reproduction_success_bonus: 0.15
+failed_action_penalty: -0.05
+collision_penalty: -0.02
 
 # Redis configuration
 redis:

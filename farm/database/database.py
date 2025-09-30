@@ -199,11 +199,26 @@ class SimulationDatabase:
         custom_pragmas = {}
 
         if config:
-            pragma_profile = getattr(config, "db_pragma_profile", pragma_profile)
-            cache_size_mb = getattr(config, "db_cache_size_mb", cache_size_mb)
-            synchronous_mode = getattr(config, "db_synchronous_mode", synchronous_mode)
-            journal_mode = getattr(config, "db_journal_mode", journal_mode)
-            custom_pragmas = getattr(config, "db_custom_pragmas", {})
+            db_pragmas = getattr(config, "database", None)
+            # Prefer nested config.database when available, with fallback to top-level for backwards compatibility
+            if isinstance(db_pragmas, dict):
+                pragma_profile = db_pragmas.get("db_pragma_profile", getattr(config, "db_pragma_profile", pragma_profile))
+                cache_size_mb = db_pragmas.get("db_cache_size_mb", getattr(config, "db_cache_size_mb", cache_size_mb))
+                synchronous_mode = db_pragmas.get("db_synchronous_mode", getattr(config, "db_synchronous_mode", synchronous_mode))
+                journal_mode = db_pragmas.get("db_journal_mode", getattr(config, "db_journal_mode", journal_mode))
+                custom_pragmas = db_pragmas.get("db_custom_pragmas", getattr(config, "db_custom_pragmas", {}))
+            elif db_pragmas is not None:
+                pragma_profile = getattr(db_pragmas, "db_pragma_profile", getattr(config, "db_pragma_profile", pragma_profile))
+                cache_size_mb = getattr(db_pragmas, "db_cache_size_mb", getattr(config, "db_cache_size_mb", cache_size_mb))
+                synchronous_mode = getattr(db_pragmas, "db_synchronous_mode", getattr(config, "db_synchronous_mode", synchronous_mode))
+                journal_mode = getattr(db_pragmas, "db_journal_mode", getattr(config, "db_journal_mode", journal_mode))
+                custom_pragmas = getattr(db_pragmas, "db_custom_pragmas", getattr(config, "db_custom_pragmas", {}))
+            else:
+                pragma_profile = getattr(config, "db_pragma_profile", pragma_profile)
+                cache_size_mb = getattr(config, "db_cache_size_mb", cache_size_mb)
+                synchronous_mode = getattr(config, "db_synchronous_mode", synchronous_mode)
+                journal_mode = getattr(config, "db_journal_mode", journal_mode)
+                custom_pragmas = getattr(config, "db_custom_pragmas", {})
 
         # Store pragma settings for reference
         self.pragma_profile = pragma_profile
@@ -212,18 +227,33 @@ class SimulationDatabase:
         self.journal_mode = journal_mode
         self.custom_pragmas = custom_pragmas
 
-        # Create engine with connect_args
+        # Store config values for reference (prefer nested config.database)
+        db_cfg = getattr(config, "database", None) if config else None
+
+        def _get_db_setting(name, default):
+            if db_cfg is None:
+                # Backward-compatible fallback to top-level config
+                return getattr(config, name, default) if config else default
+            if isinstance(db_cfg, dict):
+                return db_cfg.get(name, getattr(config, name, default) if config else default)
+            return getattr(db_cfg, name, getattr(config, name, default) if config else default)
+
+        self.pool_size = _get_db_setting("connection_pool_size", 10)
+        self.pool_recycle = _get_db_setting("connection_pool_recycle", 3600)
+        self.connection_timeout = _get_db_setting("connection_timeout", 30)
+        
+        # Create engine with connect_args using config values
         self.engine = create_engine(
             self._get_database_url(db_path),
             # Larger pool size for concurrent operations
-            pool_size=10,
+            pool_size=self.pool_size,
             # Longer timeout before connections are recycled
-            pool_recycle=3600,
+            pool_recycle=self.pool_recycle,
             # Enable connection pooling
             poolclass=QueuePool,
             # Optimize for write-heavy workloads
             connect_args={
-                "timeout": 30,  # Longer timeout for busy database
+                "timeout": self.connection_timeout,  # Longer timeout for busy database
                 "check_same_thread": False,  # Allow cross-thread usage
             },
         )
@@ -296,11 +326,21 @@ class SimulationDatabase:
         self.session_manager.engine = self.engine
         self.session_manager.Session = self.Session
 
-        # Initialize data logger with simulation_id
+        # Initialize data logger with simulation_id and config values (prefer nested config.database)
+        db_cfg_for_logger = getattr(config, 'database', None) if config else None
+        if isinstance(db_cfg_for_logger, dict):
+            log_buffer_size = db_cfg_for_logger.get('log_buffer_size', getattr(config, 'log_buffer_size', 1000) if config else 1000)
+            commit_interval = db_cfg_for_logger.get('commit_interval_seconds', getattr(config, 'commit_interval_seconds', 30) if config else 30)
+        elif db_cfg_for_logger is not None:
+            log_buffer_size = getattr(db_cfg_for_logger, 'log_buffer_size', getattr(config, 'log_buffer_size', 1000) if config else 1000)
+            commit_interval = getattr(db_cfg_for_logger, 'commit_interval_seconds', getattr(config, 'commit_interval_seconds', 30) if config else 30)
+        else:
+            log_buffer_size = getattr(config, 'log_buffer_size', 1000) if config else 1000
+            commit_interval = getattr(config, 'commit_interval_seconds', 30) if config else 30
         self.logger = DataLogger(
             self,
             simulation_id=self.simulation_id,
-            config=DataLoggingConfig(buffer_size=1000),
+            config=DataLoggingConfig(buffer_size=log_buffer_size, commit_interval=commit_interval),
         )
         self.query = DataRetriever(self.session_manager)
 
