@@ -23,13 +23,15 @@ from unittest.mock import Mock
 
 import numpy as np
 import psutil
-from memory_profiler import profile
+# Optional import: memory_profiler is not required at runtime
+try:
+    from memory_profiler import profile  # noqa: F401
+except Exception:  # pragma: no cover - optional dependency
+    profile = None  # type: ignore
 
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from benchmarks.base.benchmark import Benchmark
-from benchmarks.base.results import BenchmarkResults
 from farm.core.spatial import Quadtree, SpatialHashGrid, SpatialIndex
 
 
