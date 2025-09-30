@@ -51,8 +51,11 @@ class DirtyRegionTracker:
         self._total_regions_updated = 0
         self._batch_count = 0
 
-    def _world_to_region_coords(self, position: Tuple[float, float]) -> Tuple[int, int]:
-        """Convert world coordinates to region coordinates."""
+    def world_to_region_coords(self, position: Tuple[float, float]) -> Tuple[int, int]:
+        """Convert world coordinates to region coordinates.
+
+        Public wrapper to avoid external callers depending on private methods.
+        """
         x, y = position
         return int(x // self.region_size), int(y // self.region_size)
 
@@ -87,7 +90,7 @@ class DirtyRegionTracker:
         if timestamp is None:
             timestamp = time.time()
 
-        region_coords = self._world_to_region_coords(position)
+        region_coords = self.world_to_region_coords(position)
 
         self._dirty_regions[entity_type].add(region_coords)
         self._region_priorities[region_coords] = max(

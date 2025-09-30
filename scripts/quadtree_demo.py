@@ -11,12 +11,15 @@ Usage:
 """
 
 import time
+
 import numpy as np
+
 from farm.core.spatial import SpatialIndex
 
 
 class MockAgent:
     """Simple mock agent for demonstration."""
+
     def __init__(self, agent_id, position):
         self.agent_id = agent_id
         self.position = position
@@ -43,7 +46,7 @@ def demo_basic_quadtree():
         name="demo_quadtree",
         data_reference=agents,
         position_getter=lambda a: a.position,
-        index_type="quadtree"
+        index_type="quadtree",
     )
 
     # Build the index
@@ -86,21 +89,23 @@ def demo_performance_comparison():
         name="perf_kdtree",
         data_reference=agents,
         position_getter=lambda a: a.position,
-        index_type="kdtree"
+        index_type="kdtree",
     )
 
     spatial_index.register_index(
         name="perf_quadtree",
         data_reference=agents,
         position_getter=lambda a: a.position,
-        index_type="quadtree"
+        index_type="quadtree",
     )
 
     spatial_index.update()
 
     # Test radial queries (KD-tree advantage)
     print("Testing radial queries (KD-tree optimized)...")
-    radial_positions = [(np.random.uniform(0, 100), np.random.uniform(0, 100)) for _ in range(50)]
+    radial_positions = [
+        (np.random.uniform(0, 100), np.random.uniform(0, 100)) for _ in range(50)
+    ]
 
     # KD-tree radial queries
     start_time = time.time()
@@ -119,7 +124,9 @@ def demo_performance_comparison():
 
     # Test rectangular queries (Quadtree advantage)
     print("\nTesting rectangular range queries (Quadtree optimized)...")
-    rect_queries = [(np.random.uniform(0, 80), np.random.uniform(0, 80), 20, 20) for _ in range(50)]
+    rect_queries = [
+        (np.random.uniform(0, 80), np.random.uniform(0, 80), 20, 20) for _ in range(50)
+    ]
 
     # KD-tree rectangular queries
     start_time = time.time()
@@ -158,7 +165,7 @@ def demo_dynamic_updates():
         name="moving_quadtree",
         data_reference=[agent],
         position_getter=lambda a: a.position,
-        index_type="quadtree"
+        index_type="quadtree",
     )
     spatial_index.update()
 
@@ -167,8 +174,10 @@ def demo_dynamic_updates():
     # Simulate movement
     for i in range(5):
         old_pos = agent.position
-        new_pos = (old_pos[0] + np.random.uniform(-5, 5),
-                  old_pos[1] + np.random.uniform(-5, 5))
+        new_pos = (
+            old_pos[0] + np.random.uniform(-5, 5),
+            old_pos[1] + np.random.uniform(-5, 5),
+        )
         new_pos = (max(0, min(100, new_pos[0])), max(0, min(100, new_pos[1])))
 
         # Update position efficiently
@@ -203,13 +212,13 @@ def demo_quadtree_statistics():
         name="stats_quadtree",
         data_reference=agents,
         position_getter=lambda a: a.position,
-        index_type="quadtree"
+        index_type="quadtree",
     )
     spatial_index.update()
 
     # Get detailed statistics
     stats = spatial_index.get_quadtree_stats("stats_quadtree")
-    print(f"Quadtree Statistics:")
+    print("Quadtree Statistics:")
     print(f"  Total entities: {stats['total_entities']}")
     print(f"  Local entities (root): {stats['local_entities']}")
     print(f"  Is divided: {stats['is_divided']}")
@@ -241,6 +250,7 @@ def main():
     except Exception as e:
         print(f"Demo failed with error: {e}")
         import traceback
+
         traceback.print_exc()
 
 

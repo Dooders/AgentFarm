@@ -26,6 +26,105 @@ class SpatialIndexConfig:
     performance_monitoring: bool = True
     debug_queries: bool = False
 
+    def __post_init__(self):
+        """Validate configuration parameters."""
+        if self.region_size <= 0:
+            raise ValueError(f"region_size must be positive, got {self.region_size}")
+        if self.max_batch_size <= 0:
+            raise ValueError(f"max_batch_size must be positive, got {self.max_batch_size}")
+        if self.max_regions <= 0:
+            raise ValueError(f"max_regions must be positive, got {self.max_regions}")
+        if self.spatial_hash_cell_size is not None and self.spatial_hash_cell_size <= 0:
+            raise ValueError(f"spatial_hash_cell_size must be positive, got {self.spatial_hash_cell_size}")
+
+    @classmethod
+    def preset_dense_population(cls) -> "SpatialIndexConfig":
+        """
+        Preset configuration optimized for dense populations.
+        
+        Use for: High agent density, frequent neighbor queries
+        - Smaller regions for finer granularity
+        - More frequent updates
+        - Spatial hash enabled for fast neighbor lookups
+        """
+        return cls(
+            enable_batch_updates=True,
+            region_size=25.0,
+            max_batch_size=50,
+            max_regions=1000,
+            enable_quadtree_indices=False,
+            enable_spatial_hash_indices=True,
+            spatial_hash_cell_size=15.0,
+            performance_monitoring=True,
+            debug_queries=False,
+        )
+
+    @classmethod
+    def preset_sparse_realtime(cls) -> "SpatialIndexConfig":
+        """
+        Preset configuration optimized for sparse, real-time scenarios.
+        
+        Use for: Real-time responsiveness, low agent count
+        - Larger regions to reduce tracking overhead
+        - Smaller batches for immediate updates
+        - Minimal index overhead
+        """
+        return cls(
+            enable_batch_updates=True,
+            region_size=100.0,
+            max_batch_size=25,
+            max_regions=500,
+            enable_quadtree_indices=False,
+            enable_spatial_hash_indices=False,
+            spatial_hash_cell_size=None,
+            performance_monitoring=True,
+            debug_queries=False,
+        )
+
+    @classmethod
+    def preset_large_environment(cls) -> "SpatialIndexConfig":
+        """
+        Preset configuration optimized for large environments.
+        
+        Use for: Large worlds, range queries, moderate agent count
+        - Balanced region tracking
+        - Higher throughput batching
+        - Quadtree enabled for efficient range queries
+        """
+        return cls(
+            enable_batch_updates=True,
+            region_size=75.0,
+            max_batch_size=150,
+            max_regions=2000,
+            enable_quadtree_indices=True,
+            enable_spatial_hash_indices=False,
+            spatial_hash_cell_size=None,
+            performance_monitoring=True,
+            debug_queries=False,
+        )
+
+    @classmethod
+    def preset_high_throughput(cls) -> "SpatialIndexConfig":
+        """
+        Preset configuration optimized for high throughput batch processing.
+        
+        Use for: Maximum throughput, offline analysis, latency-tolerant scenarios
+        - Balanced region size
+        - Large batches for maximum throughput
+        - Performance monitoring enabled
+        """
+        return cls(
+            enable_batch_updates=True,
+            region_size=50.0,
+            max_batch_size=200,
+            max_regions=1000,
+            enable_quadtree_indices=False,
+            enable_spatial_hash_indices=False,
+            spatial_hash_cell_size=None,
+            performance_monitoring=True,
+            debug_queries=False,
+        )
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert SpatialIndexConfig to a JSON-serializable dictionary."""
         return {

@@ -93,10 +93,11 @@ def main():
     # Load configuration
     try:
         config = SimulationConfig.from_centralized_config(
-            environment=args.environment,
-            profile=args.profile
+            environment=args.environment, profile=args.profile
         )
-        print(f"Loaded configuration (environment: {args.environment}, profile: {args.profile or 'none'})")
+        print(
+            f"Loaded configuration (environment: {args.environment}, profile: {args.profile or 'none'})"
+        )
 
         # Apply in-memory database settings if requested
         if args.in_memory:
@@ -190,13 +191,14 @@ def main():
         elapsed_time = time.time() - start_time
         # Ensure output is flushed for reliable CI detection
         import sys
+
         print("\n=== SIMULATION COMPLETED SUCCESSFULLY ===", flush=True)
         print(f"Simulation completed in {elapsed_time:.2f} seconds", flush=True)
         print(f"Final agent count: {len(environment.agents)}", flush=True)
         if len(environment.agents) == 0:
             print(
                 "WARNING: No agents were created or all agents died during simulation",
-                flush=True
+                flush=True,
             )
         else:
             agent_types = {}

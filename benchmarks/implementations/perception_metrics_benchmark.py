@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from typing import Dict, Any, List, Tuple
 import time as _time
+from typing import Any, Dict, List, Tuple, Union, Optional
 
 import numpy as np
 
 from benchmarks.base.benchmark import Benchmark
-from farm.config import SimulationConfig
+from farm.config import EnvironmentConfig, SimulationConfig
+from farm.config.config import DatabaseConfig
+from farm.core.agent import BaseAgent
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
-from farm.core.agent import BaseAgent
-
 
 DEFAULT_MIN_ENV_SIZE = 200
 DEFAULT_ENV_SCALE = 2.5
@@ -31,13 +31,23 @@ class PerceptionMetricsBenchmark(Benchmark):
 
     def __init__(
         self,
-        agent_counts: List[int] = [100, 1000, 10000],
-        radii: List[int] = [5, 8, 10],
-        storage_modes: List[str] = ["hybrid", "dense"],
-        use_bilinear_list: List[bool] = [True, False],
+        agent_counts: Optional[List[int]] = None,
+        radii: Optional[List[int]] = None,
+        storage_modes: Optional[List[str]] = None,
+        use_bilinear_list: Optional[List[bool]] = None,
         steps: int = 10,
         device: str = "cpu",
     ) -> None:
+        # Set defaults for mutable arguments
+        if agent_counts is None:
+            agent_counts = [100, 1000, 10000]
+        if radii is None:
+            radii = [5, 8, 10]
+        if storage_modes is None:
+            storage_modes = ["hybrid", "dense"]
+        if use_bilinear_list is None:
+            use_bilinear_list = [True, False]
+
         super().__init__(
             name="perception_metrics",
             description="Profile perception memory/latency across scales and modes",
@@ -60,7 +70,9 @@ class PerceptionMetricsBenchmark(Benchmark):
         self._env: Environment | None = None
         self._agent_ids: List[str] = []
 
-    def _make_env(self, width: int, height: int, R: int, storage_mode: str, use_bilinear: bool) -> Environment:
+    def _make_env(
+        self, width: int, height: int, R: int, storage_mode: str, use_bilinear: bool
+    ) -> Environment:
         obs_cfg = ObservationConfig(
             R=R,
             fov_radius=R,
@@ -71,12 +83,16 @@ class PerceptionMetricsBenchmark(Benchmark):
             enable_metrics=True,
         )
         sim_cfg = SimulationConfig(
-            width=width,
-            height=height,
             observation=obs_cfg,
-            use_in_memory_db=True,
-            persist_db_on_completion=False,
-            use_bilinear_interpolation=use_bilinear,
+            environment=EnvironmentConfig(
+                width=width,
+                height=height,
+                use_bilinear_interpolation=use_bilinear,
+            ),
+            database=DatabaseConfig(
+                use_in_memory_db=True,
+                persist_db_on_completion=False,
+            ),
         )
         env = Environment(
             width=width,
@@ -103,7 +119,9 @@ class PerceptionMetricsBenchmark(Benchmark):
             )
             env.add_agent(agent)
             agent_ids.append(agent.agent_id)
-        env.spatial_index.set_references(list(env._agent_objects.values()), env.resources)
+        env.spatial_index.set_references(
+            list(env._agent_objects.values()), env.resources
+        )
         env.spatial_index.update()
         return agent_ids
 
@@ -114,7 +132,9 @@ class PerceptionMetricsBenchmark(Benchmark):
     def _run_once(
         self, num_agents: int, R: int, storage_mode: str, use_bilinear: bool
     ) -> Dict[str, Any]:
-        width = max(DEFAULT_MIN_ENV_SIZE, int(DEFAULT_ENV_SCALE * R * (num_agents ** 0.5)))
+        width = max(
+            DEFAULT_MIN_ENV_SIZE, int(DEFAULT_ENV_SCALE * R * (num_agents**0.5))
+        )
         height = width
         env = self._make_env(width, height, R, storage_mode, use_bilinear)
         agent_ids = self._spawn_agents(env, num_agents)
@@ -144,7 +164,9 @@ class PerceptionMetricsBenchmark(Benchmark):
             sample_obs = env.agent_observations.get(agent_ids[0])
             if sample_obs is not None and hasattr(sample_obs, "get_metrics"):
                 obs_metrics = sample_obs.get_metrics()
-        perc_profile = getattr(env, "get_perception_profile", lambda reset=False: {})(reset=True)
+        perc_profile = getattr(env, "get_perception_profile", lambda reset=False: {})(
+            reset=True
+        )
 
         # GFLOPs est
         C = DEFAULT_CHANNEL_COUNT
@@ -152,7 +174,11 @@ class PerceptionMetricsBenchmark(Benchmark):
         k_ops_per_cell = OPERATIONS_PER_CELL_ESTIMATE
         dense_rebuilds = float(obs_metrics.get("dense_rebuilds", 0))
         total_cells = float(C * S * S)
-        gflops_est = (total_cells * k_ops_per_cell * dense_rebuilds) / 1e9 / max(total_time, 1e-9)
+        gflops_est = (
+            (total_cells * k_ops_per_cell * dense_rebuilds)
+            / 1e9
+            / max(total_time, 1e-9)
+        )
 
         env.close()
 
@@ -163,15 +189,21 @@ class PerceptionMetricsBenchmark(Benchmark):
             "use_bilinear": use_bilinear,
             "total_observes": total_observes,
             "total_time_s": total_time,
-            "observes_per_sec": (total_observes / total_time) if total_time > 0 else 0.0,
+            "observes_per_sec": (
+                (total_observes / total_time) if total_time > 0 else 0.0
+            ),
             "mean_step_time_s": mean_step,
             "p95_step_time_s": p95_step,
             "obs_dense_bytes": int(obs_metrics.get("dense_bytes", 0)),
             "obs_sparse_bytes": int(obs_metrics.get("sparse_logical_bytes", 0)),
-            "obs_memory_reduction_percent": float(obs_metrics.get("memory_reduction_percent", 0.0)),
+            "obs_memory_reduction_percent": float(
+                obs_metrics.get("memory_reduction_percent", 0.0)
+            ),
             "obs_cache_hit_rate": float(obs_metrics.get("cache_hit_rate", 1.0)),
             "obs_dense_rebuilds": int(obs_metrics.get("dense_rebuilds", 0)),
-            "obs_dense_rebuild_time_s_total": float(obs_metrics.get("dense_rebuild_time_s_total", 0.0)),
+            "obs_dense_rebuild_time_s_total": float(
+                obs_metrics.get("dense_rebuild_time_s_total", 0.0)
+            ),
             "gflops_observation_est": float(max(0.0, gflops_est)),
             "perception_profile": perc_profile,
         }

@@ -35,11 +35,15 @@ class QuadtreeNode:
         x, y, width, height = self.bounds
         half_width = width / 2
         half_height = height / 2
+        # Subdivide the region into four equal quadrants
         self.children = [
             QuadtreeNode((x, y, half_width, half_height), self.capacity),
             QuadtreeNode((x + half_width, y, half_width, half_height), self.capacity),
             QuadtreeNode((x, y + half_height, half_width, half_height), self.capacity),
-            QuadtreeNode((x + half_width, y + half_height, half_width, half_height), self.capacity),
+            QuadtreeNode(
+                (x + half_width, y + half_height, half_width, half_height),
+                self.capacity,
+            ),
         ]
         entities_to_redistribute = self.entities[:]
         self.entities.clear()
@@ -53,7 +57,9 @@ class QuadtreeNode:
                 self.entities.append((entity, position))
         self.is_divided = True
 
-    def query_range(self, range_bounds: Tuple[float, float, float, float]) -> List[Tuple[Any, Tuple[float, float]]]:
+    def query_range(
+        self, range_bounds: Tuple[float, float, float, float]
+    ) -> List[Tuple[Any, Tuple[float, float]]]:
         results: List[Tuple[Any, Tuple[float, float]]] = []
         if not self._intersects_range(range_bounds):
             return results
@@ -70,7 +76,9 @@ class QuadtreeNode:
                 results.append((entity, position))
         return results
 
-    def query_radius(self, center: Tuple[float, float], radius: float) -> List[Tuple[Any, Tuple[float, float]]]:
+    def query_radius(
+        self, center: Tuple[float, float], radius: float
+    ) -> List[Tuple[Any, Tuple[float, float]]]:
         results: List[Tuple[Any, Tuple[float, float]]] = []
         x, y = center
         bbox = (x - radius, y - radius, radius * 2, radius * 2)
@@ -125,12 +133,23 @@ class QuadtreeNode:
         x, y, width, height = self.bounds
         return x <= px < x + width and y <= py < y + height
 
-    def _intersects_range(self, range_bounds: Tuple[float, float, float, float]) -> bool:
+    def _intersects_range(
+        self, range_bounds: Tuple[float, float, float, float]
+    ) -> bool:
         rx, ry, rwidth, rheight = range_bounds
         nx, ny, nwidth, nheight = self.bounds
-        return rx < nx + nwidth and rx + rwidth > nx and ry < ny + nheight and ry + rheight > ny
+        return (
+            rx < nx + nwidth
+            and rx + rwidth > nx
+            and ry < ny + nheight
+            and ry + rheight > ny
+        )
 
-    def _point_in_range(self, point: Tuple[float, float], range_bounds: Tuple[float, float, float, float]) -> bool:
+    def _point_in_range(
+        self,
+        point: Tuple[float, float],
+        range_bounds: Tuple[float, float, float, float],
+    ) -> bool:
         px, py = point
         rx, ry, rwidth, rheight = range_bounds
         return rx <= px < rx + rwidth and ry <= py < ry + rheight
@@ -154,10 +173,14 @@ class Quadtree:
     def remove(self, entity: Any, position: Tuple[float, float]) -> bool:
         return self.root.remove(entity, position)
 
-    def query_range(self, bounds: Tuple[float, float, float, float]) -> List[Tuple[Any, Tuple[float, float]]]:
+    def query_range(
+        self, bounds: Tuple[float, float, float, float]
+    ) -> List[Tuple[Any, Tuple[float, float]]]:
         return self.root.query_range(bounds)
 
-    def query_radius(self, center: Tuple[float, float], radius: float) -> List[Tuple[Any, Tuple[float, float]]]:
+    def query_radius(
+        self, center: Tuple[float, float], radius: float
+    ) -> List[Tuple[Any, Tuple[float, float]]]:
         return self.root.query_radius(center, radius)
 
     def clear(self) -> None:
@@ -165,4 +188,3 @@ class Quadtree:
 
     def get_stats(self) -> Dict[str, Any]:
         return self.root.get_stats()
-
