@@ -18,18 +18,20 @@ import sys
 import time
 from pathlib import Path
 
-# Add project root to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-from benchmarks.implementations.comprehensive_spatial_benchmark import (
+from benchmarks.implementations.spatial.comprehensive_spatial_benchmark import (
     SpatialBenchmark,
     SpatialBenchmarkConfig,
 )
-from benchmarks.implementations.spatial_memory_profiler import SpatialMemoryBenchmark
-from benchmarks.implementations.spatial_performance_analyzer import (
+from benchmarks.implementations.spatial.spatial_memory_profiler import (
+    SpatialMemoryBenchmark,
+)
+from benchmarks.implementations.spatial.spatial_performance_analyzer import (
     SpatialPerformanceAnalyzer,
 )
 from benchmarks.utils.spatial_visualization import SpatialBenchmarkVisualizer
+
+# Add project root to path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
 def run_comprehensive_benchmark(quick_mode: bool = False):

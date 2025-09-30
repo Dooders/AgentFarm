@@ -10,4 +10,9 @@ __all__ = [
     "PragmaProfileBenchmark",
     "RedisMemoryBenchmark",
     "ObservationFlowBenchmark",
+    "PerceptionMetricsBenchmark",
+    "SpatialBenchmark",
+    "SpatialMemoryBenchmark",
+    "SpatialPerformanceAnalyzer",
+    "SpatialBenchmarkVisualizer",
 ]

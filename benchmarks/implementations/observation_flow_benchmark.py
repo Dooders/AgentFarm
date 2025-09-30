@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from typing import Dict, Any, Optional
 import time as _time
+from typing import Any, Dict, Optional
 
 try:
     import numpy as np  # type: ignore
@@ -9,12 +9,12 @@ except Exception:  # pragma: no cover
     np = None
 
 from benchmarks.base.benchmark import Benchmark
-from farm.config import SimulationConfig
+from farm.config import EnvironmentConfig, SimulationConfig
+from farm.config.config import DatabaseConfig
+from farm.core.agent import BaseAgent
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 from farm.core.services.implementations import SpatialIndexAdapter
-from farm.core.agent import BaseAgent
-import torch
 
 
 class ObservationFlowBenchmark(Benchmark):
@@ -72,12 +72,12 @@ class ObservationFlowBenchmark(Benchmark):
             initialization="zeros",
         )
         sim_cfg = SimulationConfig(
-            width=self._width,
-            height=self._height,
             seed=42,
             observation=obs_cfg,
-            use_in_memory_db=True,
-            persist_db_on_completion=False,
+            environment=EnvironmentConfig(width=self._width, height=self._height),
+            database=DatabaseConfig(
+                use_in_memory_db=True, persist_db_on_completion=False
+            ),
         )
         env = Environment(
             width=self._width,
@@ -117,7 +117,9 @@ class ObservationFlowBenchmark(Benchmark):
             self._agent_ids.append(agent.agent_id)
 
         # Ensure spatial index reflects new agents
-        env.spatial_index.set_references(list(env._agent_objects.values()), env.resources)
+        env.spatial_index.set_references(
+            list(env._agent_objects.values()), env.resources
+        )
         env.spatial_index.update()
 
     def setup(self) -> None:
@@ -150,10 +152,14 @@ class ObservationFlowBenchmark(Benchmark):
         obs_per_sec = total_observes / total_time if total_time > 0 else 0.0
         if np is not None:
             mean_step = float(np.mean(per_step_times)) if per_step_times else 0.0
-            p95_step = float(np.percentile(per_step_times, 95)) if per_step_times else 0.0
+            p95_step = (
+                float(np.percentile(per_step_times, 95)) if per_step_times else 0.0
+            )
         else:
             # Simple approximations without numpy
-            mean_step = sum(per_step_times) / len(per_step_times) if per_step_times else 0.0
+            mean_step = (
+                sum(per_step_times) / len(per_step_times) if per_step_times else 0.0
+            )
             sorted_times = sorted(per_step_times)
             if sorted_times:
                 k = int(0.95 * (len(sorted_times) - 1))
@@ -187,7 +193,11 @@ class ObservationFlowBenchmark(Benchmark):
         k_ops_per_cell = 2.0
         total_cells = float(C * S * S)
         dense_rebuilds = float(obs_metrics.get("dense_rebuilds", 0))
-        gflops_est = (total_cells * k_ops_per_cell * dense_rebuilds) / 1e9 / max(total_time, 1e-9)
+        gflops_est = (
+            (total_cells * k_ops_per_cell * dense_rebuilds)
+            / 1e9
+            / max(total_time, 1e-9)
+        )
 
         return {
             "total_observes": total_observes,
@@ -199,10 +209,14 @@ class ObservationFlowBenchmark(Benchmark):
             "num_agents": self._num_agents,
             "obs_dense_bytes": int(obs_metrics.get("dense_bytes", 0)),
             "obs_sparse_bytes": int(obs_metrics.get("sparse_logical_bytes", 0)),
-            "obs_memory_reduction_percent": float(obs_metrics.get("memory_reduction_percent", 0.0)),
+            "obs_memory_reduction_percent": float(
+                obs_metrics.get("memory_reduction_percent", 0.0)
+            ),
             "obs_cache_hit_rate": float(obs_metrics.get("cache_hit_rate", 1.0)),
             "obs_dense_rebuilds": int(obs_metrics.get("dense_rebuilds", 0)),
-            "obs_dense_rebuild_time_s_total": float(obs_metrics.get("dense_rebuild_time_s_total", 0.0)),
+            "obs_dense_rebuild_time_s_total": float(
+                obs_metrics.get("dense_rebuild_time_s_total", 0.0)
+            ),
             "gflops_observation_est": float(max(0.0, gflops_est)),
             "perception_profile": perc_profile,
         }
