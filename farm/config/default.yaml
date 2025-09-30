@@ -191,11 +191,6 @@ gather_mult_low_resources: 1.5
 share_mult_wealthy: 1.3
 share_mult_poor: 0.5
 
-# Attack multipliers
-attack_starvation_threshold: 0.5
-attack_mult_desperate: 1.4
-attack_mult_stable: 0.6
-
 # Simulation control
 max_wait_steps: 10
 simulation_steps: 100
