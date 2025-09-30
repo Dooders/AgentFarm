@@ -522,47 +522,29 @@ class SpatialIndex:
             self._resources, lambda r: getattr(r, "position", None)
         )
 
-        # Check if entity lists changed (different objects or counts)
-        agent_count_changed = len(valid_alive_agents) != (
-            len(self._cached_agent_positions)
-            if self._cached_agent_positions is not None
-            else 0
+        # Get current positions
+        current_agent_positions = (
+            np.array([agent.position for agent in valid_alive_agents])
+            if valid_alive_agents
+            else None
         )
-        resource_count_changed = len(valid_resources) != (
-            len(self._cached_resource_positions)
-            if self._cached_resource_positions is not None
-            else 0
+        current_resource_positions = (
+            np.array([resource.position for resource in valid_resources])
+            if valid_resources
+            else None
         )
 
-        # Update cached positions only if entity lists changed
-        if agent_count_changed or self._cached_agent_positions is None:
-            self._cached_agent_positions = (
-                np.array([agent.position for agent in valid_alive_agents])
-                if valid_alive_agents
-                else None
-            )
-
-        if resource_count_changed or self._cached_resource_positions is None:
-            self._cached_resource_positions = (
-                np.array([resource.position for resource in valid_resources])
-                if valid_resources
-                else None
-            )
-
-        # Compute hashes from cached arrays
-        if (
-            self._cached_agent_positions is not None
-            and len(self._cached_agent_positions) > 0
-        ):
-            agent_hash = hashlib.md5(self._cached_agent_positions.tobytes()).hexdigest()
+        # Compute hashes from current positions
+        if current_agent_positions is not None and len(current_agent_positions) > 0:
+            agent_hash = hashlib.md5(current_agent_positions.tobytes()).hexdigest()
         else:
             agent_hash = "0"
         if (
-            self._cached_resource_positions is not None
-            and len(self._cached_resource_positions) > 0
+            current_resource_positions is not None
+            and len(current_resource_positions) > 0
         ):
             resource_hash = hashlib.md5(
-                self._cached_resource_positions.tobytes()
+                current_resource_positions.tobytes()
             ).hexdigest()
         else:
             resource_hash = "0"
@@ -570,6 +552,9 @@ class SpatialIndex:
         current_hash = f"{agent_hash}:{resource_hash}"
         if self._cached_hash is None or self._cached_hash != current_hash:
             self._cached_hash = current_hash
+            # Update cached positions to current positions
+            self._cached_agent_positions = current_agent_positions
+            self._cached_resource_positions = current_resource_positions
             return True
         return False
 
