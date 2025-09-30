@@ -157,7 +157,6 @@ The project includes a modern React-based configuration explorer built with Elec
 The interface features a complete hierarchical folder structure with collapsible sections for intuitive parameter organization and real-time configuration editing with live validation.
 
 **Greyscale Theme**
-
 - Professional greyscale palette via CSS variables in `src/styles/index.css`
 - Leva greyscale overrides in `src/styles/leva-theme.css` with `data-theme="custom"`
 - Typography: Albertus for labels (12px), JetBrains Mono for numbers (11-12px)
@@ -266,4 +265,4 @@ Please see [Contributing Guidelines](CONTRIBUTING.md) for more information on ho
 
 ## Support
 
-If you encounter any issues, please check [issues page](https://github.com/Dooders/AgentFarm/issues) or open a new issue.
+If you encounter any issues, please check [issues page](https://github.com/Dooders/AgentFarm/issues) or create a new issue with detailed information about your problem.
