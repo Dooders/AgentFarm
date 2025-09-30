@@ -282,7 +282,8 @@ class Environment(AECEnv):
                 self.height,
                 enable_batch_updates=spatial_config.enable_batch_updates,
                 region_size=spatial_config.region_size,
-                max_batch_size=spatial_config.max_batch_size
+                max_batch_size=spatial_config.max_batch_size,
+                dirty_region_batch_size=getattr(spatial_config, "dirty_region_batch_size", 10),
             )
             
             # Enable additional index types if configured
@@ -297,7 +298,8 @@ class Environment(AECEnv):
                 self.height,
                 enable_batch_updates=True,
                 region_size=50.0,
-                max_batch_size=100
+                max_batch_size=100,
+                dirty_region_batch_size=10,
             )
         
         # Provide spatial service via adapter around spatial_index

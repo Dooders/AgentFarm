@@ -425,9 +425,13 @@ class BaseDQNModule:
         self.optimizer.zero_grad()
         loss.backward()
         
-        # Apply gradient clipping if enabled
-        if getattr(self.config, 'enable_gradient_clipping', True):
-            max_norm = getattr(self.config, 'gradient_clip_norm', 1.0)
+        # Apply gradient clipping if enabled (read from learning config when available)
+        learning_cfg = getattr(self, 'config', None)
+        # Prefer nested learning config if provided in SimulationConfig style objects
+        nested_learning = getattr(learning_cfg, 'learning', None)
+        enable_clip = getattr(nested_learning or learning_cfg, 'enable_gradient_clipping', True)
+        if enable_clip:
+            max_norm = getattr(nested_learning or learning_cfg, 'gradient_clip_norm', 1.0)
             torch.nn.utils.clip_grad_norm_(self.q_network.parameters(), max_norm=max_norm)
         
         self.optimizer.step()

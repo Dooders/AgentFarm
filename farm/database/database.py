@@ -311,9 +311,17 @@ class SimulationDatabase:
         self.session_manager.engine = self.engine
         self.session_manager.Session = self.Session
 
-        # Initialize data logger with simulation_id and config values
-        log_buffer_size = getattr(config, 'log_buffer_size', 1000) if config else 1000
-        commit_interval = getattr(config, 'commit_interval_seconds', 30) if config else 30
+        # Initialize data logger with simulation_id and config values (prefer nested config.database)
+        db_cfg_for_logger = getattr(config, 'database', None) if config else None
+        if isinstance(db_cfg_for_logger, dict):
+            log_buffer_size = db_cfg_for_logger.get('log_buffer_size', getattr(config, 'log_buffer_size', 1000) if config else 1000)
+            commit_interval = db_cfg_for_logger.get('commit_interval_seconds', getattr(config, 'commit_interval_seconds', 30) if config else 30)
+        elif db_cfg_for_logger is not None:
+            log_buffer_size = getattr(db_cfg_for_logger, 'log_buffer_size', getattr(config, 'log_buffer_size', 1000) if config else 1000)
+            commit_interval = getattr(db_cfg_for_logger, 'commit_interval_seconds', getattr(config, 'commit_interval_seconds', 30) if config else 30)
+        else:
+            log_buffer_size = getattr(config, 'log_buffer_size', 1000) if config else 1000
+            commit_interval = getattr(config, 'commit_interval_seconds', 30) if config else 30
         self.logger = DataLogger(
             self,
             simulation_id=self.simulation_id,
