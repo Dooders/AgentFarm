@@ -37,6 +37,8 @@ Notes
 import logging
 import math
 import random
+from collections import defaultdict
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import time as _time
 
@@ -61,7 +63,7 @@ from farm.core.services.implementations import (
     EnvironmentValidationService,
     SpatialIndexAdapter,
 )
-from farm.core.spatial_index import SpatialIndex
+from farm.core.spatial import SpatialIndex
 from farm.core.state import EnvironmentState
 from farm.database.utilities import setup_db
 from farm.utils.identity import Identity, IdentityConfig

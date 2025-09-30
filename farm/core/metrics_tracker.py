@@ -8,6 +8,7 @@ Environment class and provides a clean interface for metric collection.
 """
 
 import logging
+from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Dict
 

@@ -84,7 +84,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from farm.core.channels import ChannelBehavior, get_channel_registry
 from farm.core.observation_render import ObservationRenderer
-from farm.core.spatial_index import SpatialIndex
+from farm.core.spatial import SpatialIndex
 
 logger = logging.getLogger(__name__)
 

@@ -12,7 +12,7 @@ Usage:
 
 import time
 import numpy as np
-from farm.core.spatial_index import SpatialIndex
+from farm.core.spatial import SpatialIndex
 
 
 class MockAgent:

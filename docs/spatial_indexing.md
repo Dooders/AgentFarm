@@ -77,7 +77,7 @@ nearest_resource = spatial_index.get_nearest(position, ["resources"])   # O(log 
 **Technical Implementation:**
 
 ```python
-from farm.core.spatial_index import Quadtree
+from farm.core.spatial import Quadtree
 
 # Create quadtree with environment bounds
 bounds = (0, 0, width, height)
@@ -223,7 +223,7 @@ spatial_performance_metrics: true  # Collect performance metrics
 ### Basic Usage
 
 ```python
-from farm.core.spatial_index import SpatialIndex
+from farm.core.spatial import SpatialIndex
 from farm.core.environment import Environment
 
 # Create environment with spatial indexing
@@ -517,6 +517,7 @@ The spatial indexing system now includes **batch spatial updates with dirty regi
 
 - **Dirty Region Tracking**: Only regions that have changed are marked for updates
 - **Batch Processing**: Multiple position updates are collected and processed together
+- **Partial Flushing**: Process only a subset of pending updates for fine-grained control
 - **Priority-Based Updates**: Higher priority regions are updated first
 - **Automatic Cleanup**: Old regions are automatically cleaned up to prevent memory bloat
 - **Performance Monitoring**: Detailed statistics about update efficiency
@@ -527,6 +528,7 @@ The spatial indexing system now includes **batch spatial updates with dirty regi
 - **Improved Scalability**: Performance improvements scale with simulation size
 - **Data Integrity**: Ensures all regions reflect current state without stale data
 - **Memory Efficiency**: Better memory usage patterns through batched processing
+- **Fine-Grained Control**: Partial flushing enables responsive applications with high throughput
 
 ### Configuration
 
@@ -548,11 +550,45 @@ spatial_config = SpatialIndexConfig(
 # Batch updates are automatically enabled and work transparently
 env = Environment(width=200, height=200, resource_distribution="uniform", config=config)
 
+# For fine-grained control, use partial flushing
+spatial_index = env.spatial_index
+
+# Process only a subset of pending updates
+processed = spatial_index.flush_partial_updates(max_updates=25)
+print(f"Processed {processed} updates")
+
+# Check remaining pending updates
+pending = len(spatial_index._pending_position_updates)
+print(f"Remaining updates: {pending}")
+
 # Monitor performance
 stats = env.get_spatial_performance_stats()
 print(f"Batch updates processed: {stats['batch_updates']['total_batch_updates']}")
 print(f"Average batch size: {stats['batch_updates']['average_batch_size']}")
 ```
+
+### Partial Flushing
+
+For advanced applications requiring fine-grained control over update timing, the system supports **partial flushing** of pending updates:
+
+```python
+# Process updates in chunks for responsive applications
+total_processed = 0
+while len(spatial_index._pending_position_updates) > 0:
+    processed = spatial_index.flush_partial_updates(max_updates=10)
+    total_processed += processed
+    # Yield control or perform other tasks here
+    time.sleep(0.001)  # Brief pause to maintain responsiveness
+
+print(f"Total updates processed: {total_processed}")
+```
+
+**When to Use Partial Flushing:**
+
+- Real-time applications requiring consistent frame rates
+- Systems with tight latency requirements
+- High-throughput scenarios where full batch processing causes unacceptable pauses
+- Progressive update strategies for large simulations
 
 ## Conclusion
 
@@ -567,6 +603,7 @@ The spatial indexing system enables:
 - **Dynamic updates**: Efficient position changes without full index rebuilds
 - **Flexible named indices** for custom spatial data sources and filtering
 - **Batch spatial updates**: Only update regions that have changed for maximum efficiency
+- **Partial flushing**: Fine-grained control over update timing for responsive applications
 - **Dirty region tracking**: Systematic approach to ensure data integrity and performance
 
 **Choosing the Right Index:**
@@ -575,5 +612,6 @@ The spatial indexing system enables:
 - **Use Quadtrees** for: Rectangular range queries, area-of-effect operations, frequently moving entities, hierarchical spatial analysis
 - **Use Spatial Hash** for: Large dynamic populations, frequent neighborhood queries, and hotspot-heavy distributions
 - **Use Batch Updates** for: Dynamic simulations with frequent position changes, large-scale environments, performance-critical applications
+- **Use Partial Flushing** for: Real-time applications, high-throughput scenarios, systems with latency requirements
 
 This enhanced spatial foundation is essential for creating realistic multi-agent behaviors, from combat and resource gathering to social interactions and navigation, making it a critical component of the AgentFarm simulation framework. The batch spatial updates feature ensures that the system can scale efficiently to handle complex, dynamic simulations with thousands of agents while maintaining optimal performance.
