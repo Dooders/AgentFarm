@@ -301,8 +301,8 @@ class SpatialIndex:
         return False
 
     def _hash_positions_changed(self, alive_agents: List) -> bool:
-        valid_alive_agents = [agent for agent in alive_agents if getattr(agent, "position", None) is not None]
-        valid_resources = [resource for resource in self._resources if getattr(resource, "position", None) is not None]
+        valid_alive_agents = self._filter_items_with_positions(alive_agents, lambda a: getattr(a, "position", None))
+        valid_resources = self._filter_items_with_positions(self._resources, lambda r: getattr(r, "position", None))
         current_agent_positions = np.array([agent.position for agent in valid_alive_agents]) if valid_alive_agents else None
         current_resource_positions = np.array([resource.position for resource in valid_resources]) if valid_resources else None
         if current_agent_positions is not None and len(current_agent_positions) > 0:
@@ -322,7 +322,7 @@ class SpatialIndex:
     def _rebuild_kdtrees(self, alive_agents: List = None) -> None:
         if alive_agents is None:
             alive_agents = [agent for agent in self._agents if getattr(agent, "alive", False)]
-        alive_agents = [agent for agent in alive_agents if getattr(agent, "position", None) is not None]
+        alive_agents = self._filter_items_with_positions(alive_agents, lambda a: getattr(a, "position", None))
         self._cached_alive_agents = alive_agents
         if alive_agents:
             self.agent_positions = np.array([agent.position for agent in alive_agents])
@@ -330,7 +330,7 @@ class SpatialIndex:
         else:
             self.agent_kdtree = None
             self.agent_positions = None
-        valid_resources = [resource for resource in self._resources if getattr(resource, "position", None) is not None]
+        valid_resources = self._filter_items_with_positions(self._resources, lambda r: getattr(r, "position", None))
         if valid_resources:
             self.resource_positions = np.array([resource.position for resource in valid_resources])
             self.resource_kdtree = cKDTree(self.resource_positions)
@@ -377,7 +377,7 @@ class SpatialIndex:
                 state["positions_dirty"] = False
                 if state.get("cached_count") is None:
                     current_items = state["cached_items"] or []
-                    valid_items = [it for it in current_items if state["position_getter"](it) is not None]
+                    valid_items = self._filter_items_with_positions(current_items, state["position_getter"])
                     current_positions = (
                         np.array([state["position_getter"](it) for it in valid_items]) if valid_items else None
                     )
@@ -396,7 +396,7 @@ class SpatialIndex:
                 state["positions_dirty"] = False
                 if state.get("cached_count") is None:
                     current_items = state["cached_items"] or []
-                    valid_items = [it for it in current_items if state["position_getter"](it) is not None]
+                    valid_items = self._filter_items_with_positions(current_items, state["position_getter"])
                     current_positions = (
                         np.array([state["position_getter"](it) for it in valid_items]) if valid_items else None
                     )
@@ -426,7 +426,7 @@ class SpatialIndex:
             filtered_items = [it for it in items if state["filter_func"](it)]
         else:
             filtered_items = list(items)
-        valid_items = [it for it in filtered_items if state["position_getter"](it) is not None]
+        valid_items = self._filter_items_with_positions(filtered_items, state["position_getter"])
 
         if index_type == "kdtree":
             if valid_items:
@@ -597,6 +597,13 @@ class SpatialIndex:
         margin_x = self.width * 0.01
         margin_y = self.height * 0.01
         return (-margin_x <= x <= self.width + margin_x) and (-margin_y <= y <= self.height + margin_y)
+
+    def _filter_items_with_positions(
+        self,
+        items: List[Any],
+        position_getter: Callable[[Any], Optional[Tuple[float, float]]],
+    ) -> List[Any]:
+        return [it for it in items if position_getter(it) is not None]
 
     def get_agent_count(self) -> int:
         return len([a for a in self._agents if getattr(a, "alive", False)])
