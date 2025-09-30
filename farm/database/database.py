@@ -212,10 +212,20 @@ class SimulationDatabase:
         self.journal_mode = journal_mode
         self.custom_pragmas = custom_pragmas
 
-        # Store config values for reference
-        self.pool_size = getattr(config, 'connection_pool_size', 10) if hasattr(config, 'connection_pool_size') else 10
-        self.pool_recycle = getattr(config, 'connection_pool_recycle', 3600) if hasattr(config, 'connection_pool_recycle') else 3600
-        self.connection_timeout = getattr(config, 'connection_timeout', 30) if hasattr(config, 'connection_timeout') else 30
+        # Store config values for reference (prefer nested config.database)
+        db_cfg = getattr(config, "database", None) if config else None
+
+        def _get_db_setting(name, default):
+            if db_cfg is None:
+                # Backward-compatible fallback to top-level config
+                return getattr(config, name, default) if config else default
+            if isinstance(db_cfg, dict):
+                return db_cfg.get(name, getattr(config, name, default) if config else default)
+            return getattr(db_cfg, name, getattr(config, name, default) if config else default)
+
+        self.pool_size = _get_db_setting("connection_pool_size", 10)
+        self.pool_recycle = _get_db_setting("connection_pool_recycle", 3600)
+        self.connection_timeout = _get_db_setting("connection_timeout", 30)
         
         # Create engine with connect_args using config values
         self.engine = create_engine(
@@ -302,8 +312,8 @@ class SimulationDatabase:
         self.session_manager.Session = self.Session
 
         # Initialize data logger with simulation_id and config values
-        log_buffer_size = getattr(config, 'log_buffer_size', 1000) if hasattr(config, 'log_buffer_size') else 1000
-        commit_interval = getattr(config, 'commit_interval_seconds', 30) if hasattr(config, 'commit_interval_seconds') else 30
+        log_buffer_size = getattr(config, 'log_buffer_size', 1000) if config else 1000
+        commit_interval = getattr(config, 'commit_interval_seconds', 30) if config else 30
         self.logger = DataLogger(
             self,
             simulation_id=self.simulation_id,
