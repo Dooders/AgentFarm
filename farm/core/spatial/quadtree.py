@@ -29,12 +29,22 @@ class QuadtreeNode:
         for child in self.children or []:
             if child.insert(entity, position):
                 return True
-        return False
+        # If entity can't be inserted into any child, store it in this node
+        # This handles cases where entities are at boundaries or cause infinite subdivision
+        self.entities.append((entity, position))
+        return True
 
     def _subdivide(self) -> None:
         x, y, width, height = self.bounds
         half_width = width / 2
         half_height = height / 2
+        
+        # Prevent infinite subdivision by checking minimum size
+        if half_width < 1e-10 or half_height < 1e-10:
+            # Keep entities in this node if subdivision would create nodes too small
+            self.is_divided = False
+            return
+            
         # Subdivide the region into four equal quadrants
         self.children = [
             QuadtreeNode((x, y, half_width, half_height), self.capacity),
@@ -54,6 +64,7 @@ class QuadtreeNode:
                     inserted = True
                     break
             if not inserted:
+                # If entity can't be inserted into any child, keep it in this node
                 self.entities.append((entity, position))
         self.is_divided = True
 
@@ -131,6 +142,7 @@ class QuadtreeNode:
     def _contains_point(self, point: Tuple[float, float]) -> bool:
         px, py = point
         x, y, width, height = self.bounds
+        # Use consistent boundary handling: include left and top boundaries, exclude right and bottom
         return x <= px < x + width and y <= py < y + height
 
     def _intersects_range(

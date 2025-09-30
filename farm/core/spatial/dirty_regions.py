@@ -23,7 +23,7 @@ class DirtyRegionTracker:
     providing efficient batching and priority-based update scheduling.
     """
 
-    def __init__(self, region_size: float = 50.0, max_regions: int = 1000):
+    def __init__(self, region_size: float = 50.0, max_regions: int = 1000, batch_size: int = 10):
         """
         Initialize the dirty region tracker.
 
@@ -33,6 +33,8 @@ class DirtyRegionTracker:
             Size of each region for spatial partitioning
         max_regions : int
             Maximum number of regions to track before forcing cleanup
+        batch_size : int
+            Number of regions to process per batch (default: 10)
         """
         self.region_size = region_size
         self.max_regions = max_regions
@@ -44,7 +46,7 @@ class DirtyRegionTracker:
 
         # Batch update queue
         self._update_queue: deque = deque()
-        self._batch_size = 10  # Process this many regions per batch
+        self._batch_size = batch_size  # Process this many regions per batch
 
         # Performance metrics
         self._total_regions_marked = 0

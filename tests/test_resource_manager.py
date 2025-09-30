@@ -32,8 +32,11 @@ class TestResourceManager(unittest.TestCase):
         # Mock the nested resources config structure
         self.config.resources = Mock()
         self.config.resources.max_resource_amount = 20
-        self.config.resource_regen_rate = 0.1
-        self.config.resource_regen_amount = 2
+        self.config.resources.resource_regen_rate = 0.1
+        self.config.resources.resource_regen_amount = 2
+        self.config.resources.default_spawn_amount = 5.0
+        # Ensure memmap_dir returns None to use temp directory
+        self.config.memmap_dir = None
 
         # Mock database logger
         self.mock_logger = Mock()
@@ -45,6 +48,7 @@ class TestResourceManager(unittest.TestCase):
             config=self.config,
             seed=None,
             database_logger=self.mock_logger,
+            simulation_id="test_simulation",
         )
 
     def tearDown(self):
@@ -72,6 +76,7 @@ class TestResourceManager(unittest.TestCase):
             config=self.config,
             seed=seed,
             database_logger=self.mock_logger,
+            simulation_id="test_simulation",
         )
 
         self.assertEqual(resource_manager.seed_value, seed)
@@ -141,6 +146,7 @@ class TestResourceManager(unittest.TestCase):
             config=self.config,
             seed=42,
             database_logger=self.mock_logger,
+            simulation_id="test_simulation",
         )
 
         position = (50.0, 50.0)
@@ -151,7 +157,9 @@ class TestResourceManager(unittest.TestCase):
         self.assertIsInstance(resource, Resource)
         self.assertEqual(resource.position, position)
         self.assertEqual(resource.max_amount, self.config.resources.max_resource_amount)
-        self.assertEqual(resource.regeneration_rate, self.config.resource_regen_rate)
+        self.assertEqual(
+            resource.regeneration_rate, self.config.resources.resource_regen_rate
+        )
 
         # With seed=42, pos_sum=100, so amount should be 3 + (100 % 6) = 3 + 4 = 7
         self.assertEqual(resource.amount, 7)
@@ -190,6 +198,7 @@ class TestResourceManager(unittest.TestCase):
             config=self.config,
             seed=42,
             database_logger=self.mock_logger,
+            simulation_id="test_simulation",
         )
 
         # Create some resources
@@ -392,6 +401,7 @@ class TestResourceManager(unittest.TestCase):
             config=self.config,
             seed=seed,
             database_logger=self.mock_logger,
+            simulation_id="test_simulation",
         )
 
         rm2 = ResourceManager(
@@ -400,6 +410,7 @@ class TestResourceManager(unittest.TestCase):
             config=self.config,
             seed=seed,
             database_logger=self.mock_logger,
+            simulation_id="test_simulation",
         )
 
         # Initialize resources with same distribution

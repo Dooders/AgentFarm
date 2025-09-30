@@ -216,9 +216,13 @@ class BaseDQNModule:
         self.episode_rewards = []
         self.pending_experiences = []
 
-        # Add caching for state tensors
+        # Add caching for state tensors with configurable size
         self._state_cache = {}
-        self._max_cache_size = 100
+        # Handle nested learning config access pattern (consistent with gradient clipping)
+        learning_cfg = getattr(self, "config", None)
+        nested_learning = getattr(learning_cfg, "learning", None)
+        learning_config = nested_learning or learning_cfg
+        self._max_cache_size = getattr(learning_config, "dqn_state_cache_size", 100)
 
     def _set_seed(self, seed: int) -> None:
         """Set seeds for all random number generators to ensure reproducibility.
@@ -421,10 +425,22 @@ class BaseDQNModule:
 
         # Compute loss and update network
         loss = self.criterion(current_q_values, target_q_values)
-        torch.nn.utils.clip_grad_norm_(self.q_network.parameters(), max_norm=1.0)
 
         self.optimizer.zero_grad()
         loss.backward()
+
+        # Apply gradient clipping if enabled (read from learning config when available)
+        learning_cfg = getattr(self, "config", None)
+        # Prefer nested learning config if provided in SimulationConfig style objects
+        nested_learning = getattr(learning_cfg, "learning", None)
+        learning_config = nested_learning or learning_cfg
+        enable_clip = getattr(learning_config, "enable_gradient_clipping", True)
+        if enable_clip:
+            max_norm = getattr(learning_config, "gradient_clip_norm", 1.0)
+            torch.nn.utils.clip_grad_norm_(
+                self.q_network.parameters(), max_norm=max_norm
+            )
+
         self.optimizer.step()
 
         # Soft update target network

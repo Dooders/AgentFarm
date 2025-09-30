@@ -25,6 +25,7 @@ class SpatialIndexConfig:
     spatial_hash_cell_size: Optional[float] = None
     performance_monitoring: bool = True
     debug_queries: bool = False
+    dirty_region_batch_size: int = 10  # Process this many dirty regions per batch
 
     def __post_init__(self):
         """Validate configuration parameters."""
@@ -137,6 +138,7 @@ class SpatialIndexConfig:
             "spatial_hash_cell_size": self.spatial_hash_cell_size,
             "performance_monitoring": self.performance_monitoring,
             "debug_queries": self.debug_queries,
+            "dirty_region_batch_size": self.dirty_region_batch_size,
         }
 
 
@@ -179,6 +181,7 @@ class ResourceConfig:
     resource_regen_amount: int = 2
     max_resource_amount: int = 30
     memmap_delete_on_close: bool = False  # Delete memmap files when Environment closes
+    default_spawn_amount: int = 5  # Default amount when spawning new resources
 
 
 @dataclass
@@ -195,6 +198,13 @@ class LearningConfig:
     training_frequency: int = 4
     dqn_hidden_size: int = 24
     tau: float = 0.005
+    
+    # Caching settings
+    dqn_state_cache_size: int = 100  # Maximum size of DQN state tensor cache
+    
+    # Gradient clipping
+    gradient_clip_norm: float = 1.0  # Max norm for gradient clipping
+    enable_gradient_clipping: bool = True  # Whether to clip gradients during training
 
 
 @dataclass
@@ -262,6 +272,18 @@ class DatabaseConfig:
     db_custom_pragmas: Dict[str, str] = field(
         default_factory=dict
     )  # Custom pragma overrides
+    
+    # Connection pooling settings
+    connection_pool_size: int = 10  # Size of the connection pool
+    connection_pool_recycle: int = 3600  # Recycle connections after this many seconds
+    connection_timeout: int = 30  # Timeout for database operations in seconds
+    
+    # Buffering and commit settings
+    log_buffer_size: int = 1000  # Maximum size of log buffers before auto-flush
+    commit_interval_seconds: int = 30  # Maximum time between commits in seconds
+    
+    # Export settings
+    export_batch_size: int = 1000  # Batch size for data export operations
 
 
 @dataclass
@@ -313,6 +335,46 @@ class VersioningConfig:
     config_version: Optional[str] = None
     config_created_at: Optional[str] = None
     config_description: Optional[str] = None
+
+
+@dataclass
+class PerformanceConfig:
+    """Configuration for performance optimization settings."""
+
+    # Batch processing sizes
+    agent_processing_batch_size: int = 32  # Number of agents processed per batch
+    resource_processing_batch_size: int = 100  # Number of resources processed per batch
+
+    # Parallel processing (future use)
+    enable_parallel_processing: bool = False  # Whether to enable parallel agent processing
+    max_worker_threads: int = 4  # Maximum number of worker threads for parallel processing
+
+    # Memory management
+    enable_memory_pooling: bool = True  # Whether to use memory pooling for optimization
+    memory_pool_size_mb: int = 100  # Size of memory pool in megabytes
+
+    # State caching
+    enable_state_caching: bool = True  # Whether to enable state caching
+    cache_ttl_seconds: int = 60  # Time-to-live for cached states in seconds
+
+
+@dataclass
+class ActionRewardConfig:
+    """Configuration for action-specific rewards and penalties."""
+
+    # Core action rewards
+    defend_success_reward: float = 0.02  # Reward for successful defense action
+    pass_action_reward: float = 0.01  # Reward for passing/waiting strategically
+
+    # Extended rewards (for future use or module-specific overrides)
+    successful_gather_bonus: float = 0.05  # Bonus reward for successful gathering
+    successful_share_bonus: float = 0.03  # Bonus reward for successful sharing
+    successful_attack_bonus: float = 0.1  # Bonus reward for successful attack
+    reproduction_success_bonus: float = 0.15  # Bonus reward for successful reproduction
+
+    # Action penalties
+    failed_action_penalty: float = -0.05  # Penalty for failed actions
+    collision_penalty: float = -0.02  # Penalty for movement collisions
 
 
 @dataclass
@@ -533,6 +595,8 @@ class SimulationConfig:
     curriculum: CurriculumConfig = field(default_factory=CurriculumConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     versioning: VersioningConfig = field(default_factory=VersioningConfig)
+    performance: PerformanceConfig = field(default_factory=PerformanceConfig)
+    action_rewards: ActionRewardConfig = field(default_factory=ActionRewardConfig)
     modules: ModuleConfig = field(default_factory=ModuleConfig)
 
     # Existing nested configs (kept for backward compatibility)
@@ -588,6 +652,8 @@ class SimulationConfig:
                 "curriculum",
                 "logging",
                 "versioning",
+                "performance",
+                "action_rewards",
                 "modules",
             ]:
                 # Convert nested config objects to dicts
@@ -681,6 +747,10 @@ class SimulationConfig:
                 nested_data[parent] = LoggingConfig(**config_dict)
             elif parent == "versioning":
                 nested_data[parent] = VersioningConfig(**config_dict)
+            elif parent == "performance":
+                nested_data[parent] = PerformanceConfig(**config_dict)
+            elif parent == "action_rewards":
+                nested_data[parent] = ActionRewardConfig(**config_dict)
             elif parent == "modules":
                 nested_data[parent] = ModuleConfig(**config_dict)
 
@@ -801,6 +871,7 @@ class SimulationConfig:
                     "resource_regen_rate",
                     "resource_regen_amount",
                     "max_resource_amount",
+                    "default_spawn_amount",
                 ],
             ),
             "learning": (
@@ -816,6 +887,9 @@ class SimulationConfig:
                     "training_frequency",
                     "dqn_hidden_size",
                     "tau",
+                    "dqn_state_cache_size",
+                    "gradient_clip_norm",
+                    "enable_gradient_clipping",
                 ],
             ),
             "combat": (
@@ -866,6 +940,12 @@ class SimulationConfig:
                     "db_synchronous_mode",
                     "db_journal_mode",
                     "db_custom_pragmas",
+                    "connection_pool_size",
+                    "connection_pool_recycle",
+                    "connection_timeout",
+                    "log_buffer_size",
+                    "commit_interval_seconds",
+                    "export_batch_size",
                 ],
             ),
             "device": (
@@ -882,6 +962,32 @@ class SimulationConfig:
             "versioning": (
                 VersioningConfig,
                 ["config_version", "config_created_at", "config_description"],
+            ),
+            "performance": (
+                PerformanceConfig,
+                [
+                    "agent_processing_batch_size",
+                    "resource_processing_batch_size",
+                    "enable_parallel_processing",
+                    "max_worker_threads",
+                    "enable_memory_pooling",
+                    "memory_pool_size_mb",
+                    "enable_state_caching",
+                    "cache_ttl_seconds",
+                ],
+            ),
+            "action_rewards": (
+                ActionRewardConfig,
+                [
+                    "defend_success_reward",
+                    "pass_action_reward",
+                    "successful_gather_bonus",
+                    "successful_share_bonus",
+                    "successful_attack_bonus",
+                    "reproduction_success_bonus",
+                    "failed_action_penalty",
+                    "collision_penalty",
+                ],
             ),
         }
 

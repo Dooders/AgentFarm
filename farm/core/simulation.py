@@ -387,7 +387,9 @@ def run_simulation(
                 )
                 break
 
-            batch_size = 32  # Adjust based on your needs
+            # Get batch size from config, with fallback to default
+            perf_cfg = getattr(config, 'performance', None)
+            batch_size = getattr(perf_cfg, 'agent_processing_batch_size', 32)
 
             # Process batches without a nested progress bar
             batch_ranges = list(range(0, len(alive_agents), batch_size))
