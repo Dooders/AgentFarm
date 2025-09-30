@@ -317,8 +317,11 @@ def create_summary_report():
             summary.append("")
 
             # Find best performing implementations
+            # Filter out batch update results that don't have build_time
+            regular_results = [r for r in results["results"] if "build_time" in r]
+            
             by_impl = {}
-            for result in results["results"]:
+            for result in regular_results:
                 impl = result["implementation"]
                 if impl not in by_impl:
                     by_impl[impl] = []

@@ -1,4 +1,3 @@
-<<<<<<< HEAD:docs/spatial/batch_spatial_updates_guide.md
 # Batch Spatial Updates with Dirty Region Tracking
 
 This guide explains how to use the new batch spatial updates feature in AgentFarm, which significantly improves performance by only updating regions that have actually changed.
@@ -558,8 +557,7 @@ The batch spatial updates feature provides significant performance improvements 
 - Complex multi-agent interactions
 
 By following this guide and monitoring performance metrics, you can optimize your simulation for maximum efficiency while maintaining data integrity and system reliability.
- 
- 
+
 =======
 # Batch Spatial Updates with Dirty Region Tracking
 
@@ -917,4 +915,3 @@ The batch spatial updates feature provides significant performance improvements 
 - Complex multi-agent interactions
 
 By following this guide and monitoring performance metrics, you can optimize your simulation for maximum efficiency while maintaining data integrity and system reliability.
->>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916:docs/batch_spatial_updates_guide.md

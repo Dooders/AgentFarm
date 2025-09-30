@@ -103,8 +103,9 @@ class SpatialPerformanceAnalyzer:
         metrics = []
 
         # Filter out batch results that don't have the expected metrics
+        # Only include regular benchmark results that have build_time
         filtered_results = [
-            r for r in results.get("results", []) if "memory_usage" in r
+            r for r in results.get("results", []) if "build_time" in r
         ]
 
         for result in filtered_results:
