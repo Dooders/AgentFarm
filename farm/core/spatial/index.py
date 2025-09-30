@@ -33,6 +33,24 @@ class SpatialIndex:
     additional named indices. It uses multi-stage change detection (dirty flag,
     count deltas, and position hashing) to avoid unnecessary KD-tree rebuilds.
     Enhanced with batch spatial updates and dirty region tracking for improved performance.
+
+    **Thread Safety**: This class is not thread-safe. All operations should be performed
+    from the same thread to avoid race conditions and data corruption.
+
+    **Batch Updates**: When batch updates are enabled, position changes are queued and
+    processed in batches. The system supports both full batch processing and partial flushing
+    for fine-grained control over update timing. Read operations can opt into stale reads
+    (allow_stale_reads=True) to avoid forcing batch processing. Time-based and size-based
+    flush policies control when pending updates are automatically processed.
+
+    **Partial Flushing**: For advanced use cases, partial batch flushing allows processing
+    only a subset of pending updates, which can help maintain responsiveness in high-throughput
+    scenarios while still providing incremental progress on spatial index updates.
+
+    **Read Consistency**: By default, read operations (get_nearby, get_nearest, get_nearby_range)
+    ensure consistency by processing any pending updates. Callers can opt into potentially
+    stale reads by setting allow_stale_reads=True for better performance when exact
+    consistency is not required.
     """
 
     def __init__(
@@ -44,11 +62,41 @@ class SpatialIndex:
         enable_batch_updates: bool = True,
         region_size: float = 50.0,
         max_batch_size: int = 100,
+        flush_interval_seconds: float = 1.0,
+        max_pending_updates_before_flush: int = 50,
     ):
+        """
+        Initialize the SpatialIndex.
+
+        Parameters
+        ----------
+        width : float
+            Width of the spatial environment
+        height : float
+            Height of the spatial environment
+        index_configs : dict, optional
+            Configuration for named indices
+        index_data : dict, optional
+            Initial data for named indices
+        enable_batch_updates : bool, default True
+            Whether to enable batch update processing for better performance
+        region_size : float, default 50.0
+            Size of regions for dirty region tracking
+        max_batch_size : int, default 100
+            Maximum number of updates to process in a single batch
+        flush_interval_seconds : float, default 1.0
+            Time-based flush policy: automatically flush pending updates after this many seconds
+        max_pending_updates_before_flush : int, default 50
+            Size-based flush policy: automatically flush when this many updates are pending
+        """
         self.width = width
         self.height = height
         self._initial_batch_updates_enabled = enable_batch_updates
         self.max_batch_size = max_batch_size
+
+        # Flush policy settings
+        self.flush_interval_seconds = flush_interval_seconds
+        self.max_pending_updates_before_flush = max_pending_updates_before_flush
 
         # KD-tree attributes
         self.agent_kdtree: Optional[cKDTree] = None
@@ -60,6 +108,8 @@ class SpatialIndex:
         self._positions_dirty: bool = True
         self._cached_counts: Optional[Tuple[int, int]] = None
         self._cached_hash: Optional[str] = None
+        self._cached_agent_positions: Optional[np.ndarray] = None
+        self._cached_resource_positions: Optional[np.ndarray] = None
 
         # Cached alive agents for efficient querying
         self._cached_alive_agents: Optional[List] = None
@@ -85,10 +135,12 @@ class SpatialIndex:
                 Tuple[Any, Tuple[float, float], Tuple[float, float], str, int]
             ] = []
             self._batch_update_enabled = True
+            self._last_flush_time = time.time()
         else:
             self._dirty_region_tracker = None
             self._pending_position_updates = []
             self._batch_update_enabled = False
+            self._last_flush_time = 0.0
 
         self._batch_update_stats = {
             "total_batch_updates": 0,
@@ -101,6 +153,8 @@ class SpatialIndex:
     def set_references(self, agents: List, resources: List) -> None:
         self._agents = agents
         self._resources = resources
+        # Update resources set cache for efficient entity type detection
+        self._resources_set = set(id(r) for r in resources) if resources else set()
 
         try:
             if any(isinstance(a, (str, bytes)) for a in agents):
@@ -149,6 +203,8 @@ class SpatialIndex:
 
     def mark_positions_dirty(self) -> None:
         self._positions_dirty = True
+        self._cached_agent_positions = None
+        self._cached_resource_positions = None
         for idx in self._named_indices.values():
             idx["positions_dirty"] = True
 
@@ -201,22 +257,74 @@ class SpatialIndex:
                 new_position, entity_type, priority
             )
 
-        # Process batch if it's full
-        if len(self._pending_position_updates) >= self.max_batch_size:
+        # Check flush policies
+        if self._should_flush_updates():
             self.process_batch_updates()
 
-    def process_batch_updates(self, force: bool = False) -> None:
+    def _should_flush_updates(self) -> bool:
+        """Check if pending updates should be flushed based on policies."""
+        if not self._batch_update_enabled or not self._pending_position_updates:
+            return False
+
+        current_time = time.time()
+
+        # Size-based flush: if we have too many pending updates
+        if len(self._pending_position_updates) >= self.max_pending_updates_before_flush:
+            return True
+
+        # Time-based flush: if enough time has passed since last flush
+        if current_time - self._last_flush_time >= self.flush_interval_seconds:
+            return True
+
+        # Original batch size limit (backwards compatibility)
+        if len(self._pending_position_updates) >= self.max_batch_size:
+            return True
+
+        return False
+
+    def process_batch_updates(
+        self, force: bool = False, max_updates: Optional[int] = None
+    ) -> int:
+        """
+        Process pending position updates in batches.
+
+        Parameters
+        ----------
+        force : bool, default False
+            If True, process updates even if below batch size threshold
+        max_updates : int, optional
+            Maximum number of updates to process. If None, process all pending updates.
+
+        Returns
+        -------
+        int
+            Number of updates actually processed
+        """
         if not self._batch_update_enabled:
-            return
+            return 0
         # If no queued objects, nothing to do
         if not self._pending_position_updates:
-            return
+            return 0
         # If not forced, only process when queue reaches batch size
         if not force and len(self._pending_position_updates) < self.max_batch_size:
-            return
+            return 0
         start_time = time.time()
 
-        # Group updates by entity type for efficient processing
+        # Determine how many updates to process
+        total_pending = len(self._pending_position_updates)
+        updates_to_process = (
+            min(total_pending, max_updates)
+            if max_updates is not None
+            else total_pending
+        )
+        if updates_to_process == 0:
+            return 0
+
+        # Select updates to process (take from the front of the queue)
+        selected_updates = self._pending_position_updates[:updates_to_process]
+        remaining_updates = self._pending_position_updates[updates_to_process:]
+
+        # Group selected updates by entity type for efficient processing
         updates_by_type = defaultdict(list)
         for (
             entity,
@@ -224,18 +332,57 @@ class SpatialIndex:
             new_pos,
             entity_type,
             priority,
+<<<<<<< HEAD
         ) in self._pending_position_updates:
+=======
+        ) in selected_updates:
+>>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
             updates_by_type[entity_type].append((entity, old_pos, new_pos, priority))
+
+        # Track which regions we've processed for each entity type
+        processed_regions_by_type = {}
 
         # Process each entity type
         regions_processed = 0
         for entity_type, updates in updates_by_type.items():
+<<<<<<< HEAD
             # Get dirty regions for this entity type
             dirty_regions = (
                 self._dirty_region_tracker.get_dirty_regions(entity_type)
                 if self._dirty_region_tracker
                 else []
             )
+=======
+            # Get dirty regions for this entity type that are affected by our selected updates
+            if self._dirty_region_tracker:
+                # Collect all positions affected by this batch
+                affected_positions = set()
+                for _, old_pos, new_pos, _ in updates:
+                    affected_positions.add(old_pos)
+                    affected_positions.add(new_pos)
+
+                # Find regions that contain any of our affected positions
+                affected_regions = set()
+                for pos in affected_positions:
+                    region_coords = self._dirty_region_tracker._world_to_region_coords(
+                        pos
+                    )
+                    affected_regions.add(region_coords)
+
+                # Get the actual dirty regions that intersect with our affected regions
+                dirty_regions = self._dirty_region_tracker.get_dirty_regions(
+                    entity_type
+                )
+                processed_regions = []
+                for region in dirty_regions:
+                    region_coords = self._dirty_region_tracker._world_to_region_coords(
+                        (region.bounds[0], region.bounds[1])
+                    )
+                    if region_coords in affected_regions:
+                        processed_regions.append(region)
+
+                processed_regions_by_type[entity_type] = processed_regions
+>>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
 
             # Process updates for this entity type
             for entity, old_pos, new_pos, _priority in updates:
@@ -243,10 +390,14 @@ class SpatialIndex:
                     entity, old_pos, new_pos, entity_type
                 )
 
-            # Clear processed regions
-            if self._dirty_region_tracker and dirty_regions:
+            # Clear only the regions we actually processed
+            if self._dirty_region_tracker and entity_type in processed_regions_by_type:
                 region_coords_list = []
+<<<<<<< HEAD
                 for region in dirty_regions:
+=======
+                for region in processed_regions_by_type[entity_type]:
+>>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
                     region_coords = self._dirty_region_tracker._world_to_region_coords(
                         (region.bounds[0], region.bounds[1])
                     )
@@ -254,32 +405,44 @@ class SpatialIndex:
                 self._dirty_region_tracker.clear_regions(region_coords_list)
                 regions_processed += len(region_coords_list)
 
-        # Clear pending updates
-        batch_size = len(self._pending_position_updates)
-        self._pending_position_updates.clear()
+        # Update pending updates queue
+        self._pending_position_updates = remaining_updates
 
         # Update statistics
         end_time = time.time()
         self._batch_update_stats["total_batch_updates"] += 1
-        self._batch_update_stats["total_individual_updates"] += batch_size
+        self._batch_update_stats["total_individual_updates"] += updates_to_process
         self._batch_update_stats["total_regions_processed"] += regions_processed
         total_batches = self._batch_update_stats["total_batch_updates"]
         prev_avg = self._batch_update_stats["average_batch_size"]
         if total_batches <= 1:
-            new_avg = float(batch_size)
+            new_avg = float(updates_to_process)
         else:
+<<<<<<< HEAD
             new_avg = ((prev_avg * (total_batches - 1)) + batch_size) / float(
+=======
+            new_avg = ((prev_avg * (total_batches - 1)) + updates_to_process) / float(
+>>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
                 total_batches
             )
         self._batch_update_stats["average_batch_size"] = new_avg
         self._batch_update_stats["last_batch_time"] = end_time - start_time
 
+        # Update last flush time
+        self._last_flush_time = end_time
+
         logger.debug(
             "Processed batch update: %d entities, %d regions, %.3f seconds",
+<<<<<<< HEAD
             batch_size,
+=======
+            updates_to_process,
+>>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
             regions_processed,
             end_time - start_time,
         )
+
+        return updates_to_process
 
     def _process_single_position_update(
         self,
@@ -329,6 +492,7 @@ class SpatialIndex:
             stats.update(self._dirty_region_tracker.get_stats())
         return stats
 
+<<<<<<< HEAD
     def is_batch_updates_enabled(self) -> bool:
         """Check if batch updates are currently enabled."""
         return self._batch_update_enabled
@@ -402,6 +566,25 @@ class SpatialIndex:
                     "Failed to enable batch updates due to memory constraints: %s", e
                 )
                 raise
+=======
+    def enable_batch_updates(
+        self, region_size: float = 50.0, max_batch_size: int = 100
+    ) -> None:
+        if not self._batch_update_enabled:
+            self._dirty_region_tracker = DirtyRegionTracker(
+                region_size=region_size,
+                max_regions=max(
+                    1000, int((self.width * self.height) / (region_size * region_size))
+                ),
+            )
+            self._batch_update_enabled = True
+            self.max_batch_size = max_batch_size
+            logger.info(
+                "Batch updates enabled with region_size=%s, max_batch_size=%s",
+                region_size,
+                max_batch_size,
+            )
+>>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
 
     def disable_batch_updates(self) -> None:
         if self._batch_update_enabled:
@@ -409,6 +592,39 @@ class SpatialIndex:
             self._batch_update_enabled = False
             self._dirty_region_tracker = None
             logger.info("Batch updates disabled")
+
+    def flush_pending_updates(self) -> None:
+        """
+        Explicitly flush all pending position updates.
+
+        This method forces processing of any queued batch updates immediately,
+        ensuring spatial indices are fully up-to-date. Use this when you need
+        guaranteed consistency for subsequent spatial queries.
+        """
+        if self._batch_update_enabled and self._pending_position_updates:
+            self.process_batch_updates(force=True)
+
+    def flush_partial_updates(self, max_updates: int) -> int:
+        """
+        Process a limited number of pending position updates.
+
+        This method allows for incremental processing of batch updates,
+        useful for maintaining responsiveness in high-throughput scenarios
+        while still providing some update progress.
+
+        Parameters
+        ----------
+        max_updates : int
+            Maximum number of updates to process in this call.
+
+        Returns
+        -------
+        int
+            Number of updates actually processed.
+        """
+        if not self._batch_update_enabled or not self._pending_position_updates:
+            return 0
+        return self.process_batch_updates(force=True, max_updates=max_updates)
 
     def update(self) -> None:
         if self._batch_update_enabled and self._pending_position_updates:
@@ -441,6 +657,7 @@ class SpatialIndex:
         return False
 
     def _hash_positions_changed(self, alive_agents: List) -> bool:
+<<<<<<< HEAD
         valid_alive_agents = [
             agent
             for agent in alive_agents
@@ -451,6 +668,16 @@ class SpatialIndex:
             for resource in self._resources
             if getattr(resource, "position", None) is not None
         ]
+=======
+        valid_alive_agents = self._filter_items_with_positions(
+            alive_agents, lambda a: getattr(a, "position", None)
+        )
+        valid_resources = self._filter_items_with_positions(
+            self._resources, lambda r: getattr(r, "position", None)
+        )
+
+        # Get current positions
+>>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
         current_agent_positions = (
             np.array([agent.position for agent in valid_alive_agents])
             if valid_alive_agents
@@ -461,6 +688,11 @@ class SpatialIndex:
             if valid_resources
             else None
         )
+<<<<<<< HEAD
+=======
+
+        # Compute hashes from current positions
+>>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
         if current_agent_positions is not None and len(current_agent_positions) > 0:
             agent_hash = hashlib.md5(current_agent_positions.tobytes()).hexdigest()
         else:
@@ -474,9 +706,13 @@ class SpatialIndex:
             ).hexdigest()
         else:
             resource_hash = "0"
+
         current_hash = f"{agent_hash}:{resource_hash}"
         if self._cached_hash is None or self._cached_hash != current_hash:
             self._cached_hash = current_hash
+            # Update cached positions to current positions
+            self._cached_agent_positions = current_agent_positions
+            self._cached_resource_positions = current_resource_positions
             return True
         return False
 
@@ -485,18 +721,45 @@ class SpatialIndex:
             alive_agents = [
                 agent for agent in self._agents if getattr(agent, "alive", False)
             ]
+<<<<<<< HEAD
         alive_agents = [
             agent
             for agent in alive_agents
             if getattr(agent, "position", None) is not None
         ]
+=======
+        alive_agents = self._filter_items_with_positions(
+            alive_agents, lambda a: getattr(a, "position", None)
+        )
+>>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
         self._cached_alive_agents = alive_agents
+
+        # Update cached position arrays for hash optimization
+        self._cached_agent_positions = (
+            np.array([agent.position for agent in alive_agents])
+            if alive_agents
+            else None
+        )
+        valid_resources = self._filter_items_with_positions(
+            self._resources, lambda r: getattr(r, "position", None)
+        )
+        self._cached_resource_positions = (
+            np.array([resource.position for resource in valid_resources])
+            if valid_resources
+            else None
+        )
+
         if alive_agents:
-            self.agent_positions = np.array([agent.position for agent in alive_agents])
+            self.agent_positions = (
+                self._cached_agent_positions.copy()
+                if self._cached_agent_positions is not None
+                else None
+            )
             self.agent_kdtree = cKDTree(self.agent_positions)
         else:
             self.agent_kdtree = None
             self.agent_positions = None
+<<<<<<< HEAD
         valid_resources = [
             resource
             for resource in self._resources
@@ -505,6 +768,13 @@ class SpatialIndex:
         if valid_resources:
             self.resource_positions = np.array(
                 [resource.position for resource in valid_resources]
+=======
+        if valid_resources:
+            self.resource_positions = (
+                self._cached_resource_positions.copy()
+                if self._cached_resource_positions is not None
+                else None
+>>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
             )
             self.resource_kdtree = cKDTree(self.resource_positions)
         else:
@@ -550,11 +820,17 @@ class SpatialIndex:
                 state["positions_dirty"] = False
                 if state.get("cached_count") is None:
                     current_items = state["cached_items"] or []
+<<<<<<< HEAD
                     valid_items = [
                         it
                         for it in current_items
                         if state["position_getter"](it) is not None
                     ]
+=======
+                    valid_items = self._filter_items_with_positions(
+                        current_items, state["position_getter"]
+                    )
+>>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
                     current_positions = (
                         np.array([state["position_getter"](it) for it in valid_items])
                         if valid_items
@@ -575,11 +851,17 @@ class SpatialIndex:
                 state["positions_dirty"] = False
                 if state.get("cached_count") is None:
                     current_items = state["cached_items"] or []
+<<<<<<< HEAD
                     valid_items = [
                         it
                         for it in current_items
                         if state["position_getter"](it) is not None
                     ]
+=======
+                    valid_items = self._filter_items_with_positions(
+                        current_items, state["position_getter"]
+                    )
+>>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
                     current_positions = (
                         np.array([state["position_getter"](it) for it in valid_items])
                         if valid_items
@@ -611,9 +893,15 @@ class SpatialIndex:
             filtered_items = [it for it in items if state["filter_func"](it)]
         else:
             filtered_items = list(items)
+<<<<<<< HEAD
         valid_items = [
             it for it in filtered_items if state["position_getter"](it) is not None
         ]
+=======
+        valid_items = self._filter_items_with_positions(
+            filtered_items, state["position_getter"]
+        )
+>>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
 
         if index_type == "kdtree":
             if valid_items:
@@ -686,8 +974,33 @@ class SpatialIndex:
         position: Tuple[float, float],
         radius: float,
         index_names: Optional[List[str]] = None,
+<<<<<<< HEAD
+=======
+        allow_stale_reads: bool = False,
+>>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
     ) -> Dict[str, List[Any]]:
-        self.update()
+        """
+        Get entities within a radius of a position across specified indices.
+
+        Parameters
+        ----------
+        position : Tuple[float, float]
+            Center position for the radius query
+        radius : float
+            Search radius
+        index_names : List[str], optional
+            Names of indices to query. If None, queries all indices.
+        allow_stale_reads : bool, default False
+            If True, skip forcing pending batch updates to be processed.
+            This can improve performance but may return stale results.
+
+        Returns
+        -------
+        Dict[str, List[Any]]
+            Dictionary mapping index names to lists of entities within the radius
+        """
+        if not allow_stale_reads:
+            self.update()
         if radius <= 0 or not self._is_valid_position(position):
             return {}
         names = index_names or list(self._named_indices.keys())
@@ -726,9 +1039,37 @@ class SpatialIndex:
         return results
 
     def get_nearest(
+<<<<<<< HEAD
         self, position: Tuple[float, float], index_names: Optional[List[str]] = None
     ) -> Dict[str, Optional[Any]]:
         self.update()
+=======
+        self,
+        position: Tuple[float, float],
+        index_names: Optional[List[str]] = None,
+        allow_stale_reads: bool = False,
+    ) -> Dict[str, Optional[Any]]:
+        """
+        Get the nearest entity to a position across specified indices.
+
+        Parameters
+        ----------
+        position : Tuple[float, float]
+            Query position
+        index_names : List[str], optional
+            Names of indices to query. If None, queries all indices.
+        allow_stale_reads : bool, default False
+            If True, skip forcing pending batch updates to be processed.
+            This can improve performance but may return stale results.
+
+        Returns
+        -------
+        Dict[str, Optional[Any]]
+            Dictionary mapping index names to the nearest entity (or None if no entities)
+        """
+        if not allow_stale_reads:
+            self.update()
+>>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
         if not self._is_valid_position(position):
             return {}
         names = index_names or list(self._named_indices.keys())
@@ -810,6 +1151,16 @@ class SpatialIndex:
         return (-margin_x <= x <= self.width + margin_x) and (
             -margin_y <= y <= self.height + margin_y
         )
+<<<<<<< HEAD
+=======
+
+    def _filter_items_with_positions(
+        self,
+        items: List[Any],
+        position_getter: Callable[[Any], Optional[Tuple[float, float]]],
+    ) -> List[Any]:
+        return [it for it in items if position_getter(it) is not None]
+>>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
 
     def get_agent_count(self) -> int:
         return len([a for a in self._agents if getattr(a, "alive", False)])
@@ -826,18 +1177,37 @@ class SpatialIndex:
         old_position: Tuple[float, float],
         new_position: Tuple[float, float],
     ) -> None:
-        entity_type = "agent"
-        try:
-            resources_state = self._named_indices.get("resources")
-            if resources_state and resources_state.get("cached_items"):
-                if entity in resources_state["cached_items"]:
-                    entity_type = "resource"
-            else:
-                if entity in self._resources:
-                    entity_type = "resource"
-        except Exception:
-            entity_type = "agent"
+        # Determine entity type more efficiently
+        entity_type = self._determine_entity_type(entity)
+        self._continue_update_entity_position(
+            entity, old_position, new_position, entity_type
+        )
 
+    def _determine_entity_type(self, entity: Any) -> str:
+        """Determine if entity is an agent or resource more efficiently."""
+        # First check if entity has 'alive' attribute (agents typically do)
+        if hasattr(entity, "alive"):
+            return "agent"
+
+        # Check if entity is in resources (use cached set for O(1) lookup if available)
+        if not hasattr(self, "_resources_set"):
+            self._resources_set = (
+                set(id(r) for r in self._resources) if self._resources else set()
+            )
+
+        if id(entity) in self._resources_set:
+            return "resource"
+
+        # Default to agent if uncertain
+        return "agent"
+
+    def _continue_update_entity_position(
+        self,
+        entity: Any,
+        old_position: Tuple[float, float],
+        new_position: Tuple[float, float],
+        entity_type: str,
+    ) -> None:
         if self._batch_update_enabled:
             self.add_position_update(entity, old_position, new_position, entity_type)
             return
@@ -853,8 +1223,31 @@ class SpatialIndex:
         self,
         bounds: Tuple[float, float, float, float],
         index_names: Optional[List[str]] = None,
+<<<<<<< HEAD
+=======
+        allow_stale_reads: bool = False,
+>>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
     ) -> Dict[str, List[Any]]:
-        self.update()
+        """
+        Get entities within a rectangular bounds across specified indices.
+
+        Parameters
+        ----------
+        bounds : Tuple[float, float, float, float]
+            Rectangular bounds as (x, y, width, height)
+        index_names : List[str], optional
+            Names of indices to query. If None, queries all indices.
+        allow_stale_reads : bool, default False
+            If True, skip forcing pending batch updates to be processed.
+            This can improve performance but may return stale results.
+
+        Returns
+        -------
+        Dict[str, List[Any]]
+            Dictionary mapping index names to lists of entities within the bounds
+        """
+        if not allow_stale_reads:
+            self.update()
         x, y, width, height = bounds
         if width <= 0 or height <= 0:
             return {}
