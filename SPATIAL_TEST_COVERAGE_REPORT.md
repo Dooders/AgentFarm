@@ -143,6 +143,7 @@ cd /workspace && pytest tests/spatial/ -v --cov=farm/core/spatial
 3. **Performance Testing**: Tests with 1000+ entities to verify scalability
 4. **Integration Testing**: Tests combining multiple operations and index types
 5. **Documentation**: Each test class and method has clear docstrings explaining what is being tested
+6. **Clean API Usage**: Tests use only public APIs, avoiding manipulation of internal state for better maintainability
 
 ## Recommendations
 

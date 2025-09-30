@@ -1064,20 +1064,21 @@ class TestSpatialIndexProcessBatchUpdatesEdgeCases:
             height=100.0,
             enable_batch_updates=True,
             max_batch_size=10,
+            max_pending_updates_before_flush=1000,  # High to avoid auto-flush
+            flush_interval_seconds=1000.0,  # High to avoid time-based flush
         )
         
         entity = MockEntity("e1")
+        # Add a single update (below max_batch_size of 10)
         spatial_index.add_position_update(entity, (10.0, 10.0), (20.0, 20.0))
         
-        # Remove from pending to set it up manually
-        spatial_index._pending_position_updates.clear()
-        spatial_index._pending_position_updates.append(
-            (entity, (10.0, 10.0), (20.0, 20.0), "agent", PRIORITY_NORMAL)
-        )
+        # Verify the update was queued
+        assert len(spatial_index._pending_position_updates) == 1
         
-        # Without force and below threshold
+        # Without force and below threshold, should not process
         processed = spatial_index.process_batch_updates(force=False)
         assert processed == 0
+        # Update should still be pending
         assert len(spatial_index._pending_position_updates) == 1
 
 
