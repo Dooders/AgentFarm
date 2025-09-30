@@ -230,22 +230,23 @@ class TestQuadtreeNodeRemove:
         
         assert result is False
 
-    def test_remove_from_wrong_position(self):
-        """Test removing entity from wrong position."""
+    def test_remove_from_wrong_position_in_bounds(self):
+        """Test removing entity with wrong position but within bounds."""
         node = QuadtreeNode((0.0, 0.0, 100.0, 100.0), capacity=4)
         entity = MockEntity("e1")
         
+        # Insert entity at one position
         node.insert(entity, (50.0, 50.0))
-        # Remove looks for entity by identity, so if found in wrong position it still removes
-        # This test verifies behavior - entity inserted at (50,50) should be found
-        # when remove is called, even if position parameter is different
+        
+        # Try to remove with a different position (but still in bounds)
+        # The implementation searches by entity identity within the subtree containing
+        # the given position. Since (30, 30) is in the same root node, it will find
+        # and remove the entity even though the position doesn't match exactly.
         result = node.remove(entity, (30.0, 30.0))
         
-        # The current implementation searches by entity identity in the subtree
-        # So this may return True if the entity is found in that subtree
-        # Let's test with a position outside the bounds instead
-        result2 = node.remove(entity, (150.0, 150.0))
-        assert result2 is False  # Outside bounds should definitely return False
+        # This should succeed because the entity is found by identity
+        assert result is True
+        assert len(node.entities) == 0
 
     def test_remove_outside_bounds(self):
         """Test removing with position outside bounds."""
