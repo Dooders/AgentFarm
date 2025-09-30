@@ -467,7 +467,6 @@ class SpatialIndex:
             stats.update(self._dirty_region_tracker.get_stats())
         return stats
 
-<<<<<<< HEAD
     def is_batch_updates_enabled(self) -> bool:
         """Check if batch updates are currently enabled."""
         return self._batch_update_enabled
@@ -541,25 +540,6 @@ class SpatialIndex:
                     "Failed to enable batch updates due to memory constraints: %s", e
                 )
                 raise
-=======
-    def enable_batch_updates(
-        self, region_size: float = 50.0, max_batch_size: int = 100
-    ) -> None:
-        if not self._batch_update_enabled:
-            self._dirty_region_tracker = DirtyRegionTracker(
-                region_size=region_size,
-                max_regions=max(
-                    1000, int((self.width * self.height) / (region_size * region_size))
-                ),
-            )
-            self._batch_update_enabled = True
-            self.max_batch_size = max_batch_size
-            logger.info(
-                "Batch updates enabled with region_size=%s, max_batch_size=%s",
-                region_size,
-                max_batch_size,
-            )
->>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
 
     def disable_batch_updates(self) -> None:
         if self._batch_update_enabled:
@@ -632,18 +612,6 @@ class SpatialIndex:
         return False
 
     def _hash_positions_changed(self, alive_agents: List) -> bool:
-<<<<<<< HEAD
-        valid_alive_agents = [
-            agent
-            for agent in alive_agents
-            if getattr(agent, "position", None) is not None
-        ]
-        valid_resources = [
-            resource
-            for resource in self._resources
-            if getattr(resource, "position", None) is not None
-        ]
-=======
         valid_alive_agents = self._filter_items_with_positions(
             alive_agents, lambda a: getattr(a, "position", None)
         )
@@ -652,7 +620,6 @@ class SpatialIndex:
         )
 
         # Get current positions
->>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
         current_agent_positions = (
             np.array([agent.position for agent in valid_alive_agents])
             if valid_alive_agents
@@ -663,11 +630,8 @@ class SpatialIndex:
             if valid_resources
             else None
         )
-<<<<<<< HEAD
-=======
 
         # Compute hashes from current positions
->>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
         if current_agent_positions is not None and len(current_agent_positions) > 0:
             agent_hash = hashlib.md5(current_agent_positions.tobytes()).hexdigest()
         else:
@@ -696,17 +660,9 @@ class SpatialIndex:
             alive_agents = [
                 agent for agent in self._agents if getattr(agent, "alive", False)
             ]
-<<<<<<< HEAD
-        alive_agents = [
-            agent
-            for agent in alive_agents
-            if getattr(agent, "position", None) is not None
-        ]
-=======
         alive_agents = self._filter_items_with_positions(
             alive_agents, lambda a: getattr(a, "position", None)
         )
->>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
         self._cached_alive_agents = alive_agents
 
         # Update cached position arrays for hash optimization
@@ -734,22 +690,11 @@ class SpatialIndex:
         else:
             self.agent_kdtree = None
             self.agent_positions = None
-<<<<<<< HEAD
-        valid_resources = [
-            resource
-            for resource in self._resources
-            if getattr(resource, "position", None) is not None
-        ]
-        if valid_resources:
-            self.resource_positions = np.array(
-                [resource.position for resource in valid_resources]
-=======
         if valid_resources:
             self.resource_positions = (
                 self._cached_resource_positions.copy()
                 if self._cached_resource_positions is not None
                 else None
->>>>>>> 9648f755cecf5fc839573dca29fbecd2c0513916
             )
             self.resource_kdtree = cKDTree(self.resource_positions)
         else:
