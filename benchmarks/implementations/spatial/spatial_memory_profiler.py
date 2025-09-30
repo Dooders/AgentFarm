@@ -245,6 +245,7 @@ class SpatialMemoryBenchmark:
             old_pos = entity.position
             new_pos = (np.random.uniform(0, 1000), np.random.uniform(0, 1000))
             spatial_index.add_position_update(entity, old_pos, new_pos, "test_entities")
+            entity.position = new_pos
 
         spatial_index.process_batch_updates(force=True)
 

@@ -260,19 +260,12 @@ class SpatialIndex:
             self.update_entity_position(entity, old_position, new_position)
             return
 
-        # Validate priority
-        if (
-            not isinstance(priority, int)
-            or priority < PRIORITY_LOW
-            or priority > PRIORITY_CRITICAL
-        ):
-            logger.warning(
-                "Invalid priority %s, using PRIORITY_NORMAL. Valid range: %d-%d",
-                priority,
-                PRIORITY_LOW,
-                PRIORITY_CRITICAL,
-            )
-            priority = PRIORITY_NORMAL
+        # Validate and clamp priority
+        try:
+            p = int(priority)
+        except Exception:
+            p = PRIORITY_NORMAL
+        priority = max(PRIORITY_LOW, min(p, PRIORITY_CRITICAL))
 
         # Add to pending updates
         self._pending_position_updates.append(

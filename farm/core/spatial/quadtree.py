@@ -35,7 +35,7 @@ class QuadtreeNode:
         x, y, width, height = self.bounds
         half_width = width / 2
         half_height = height / 2
-        # Ensure no gaps at boundaries by making the last child inclusive
+        # Subdivide the region into four equal quadrants
         self.children = [
             QuadtreeNode((x, y, half_width, half_height), self.capacity),
             QuadtreeNode((x + half_width, y, half_width, half_height), self.capacity),

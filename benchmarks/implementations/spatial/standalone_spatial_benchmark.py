@@ -598,8 +598,12 @@ class StandaloneSpatialBenchmark:
             },
         }
 
-        os.makedirs("/workspace/benchmarks/results", exist_ok=True)
-        filepath = os.path.join("/workspace/benchmarks/results", filename)
+        # Determine results directory: env var override, otherwise repo-relative
+        results_dir = os.environ.get("BENCH_RESULTS_DIR") or os.path.join(
+            os.getcwd(), "benchmarks", "results"
+        )
+        os.makedirs(results_dir, exist_ok=True)
+        filepath = os.path.join(results_dir, filename)
 
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(results_data, f, indent=2)
@@ -610,8 +614,12 @@ class StandaloneSpatialBenchmark:
         """Save performance report to file."""
         report = self.generate_report()
 
-        os.makedirs("/workspace/benchmarks/results", exist_ok=True)
-        filepath = os.path.join("/workspace/benchmarks/results", filename)
+        # Determine results directory: env var override, otherwise repo-relative
+        results_dir = os.environ.get("BENCH_RESULTS_DIR") or os.path.join(
+            os.getcwd(), "benchmarks", "results"
+        )
+        os.makedirs(results_dir, exist_ok=True)
+        filepath = os.path.join(results_dir, filename)
 
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(report)

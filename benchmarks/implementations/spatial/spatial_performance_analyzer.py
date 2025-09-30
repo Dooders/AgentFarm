@@ -943,18 +943,17 @@ def main():
     print("Generating comprehensive performance analysis report...")
     report = analyzer.generate_comprehensive_report(results, memory_results)
 
-    # Save report
-    with open(
-        "/workspace/benchmarks/results/comprehensive_performance_analysis.md",
-        "w",
-        encoding="utf-8",
-    ) as f:
+    # Save report (env override or repo-relative)
+    results_dir = os.environ.get("BENCH_RESULTS_DIR") or os.path.join(
+        os.getcwd(), "benchmarks", "results"
+    )
+    os.makedirs(results_dir, exist_ok=True)
+    out_path = os.path.join(results_dir, "comprehensive_performance_analysis.md")
+    with open(out_path, "w", encoding="utf-8") as f:
         f.write(report)
 
     print("\nPerformance analysis completed!")
-    print(
-        "Report saved to: /workspace/benchmarks/results/comprehensive_performance_analysis.md"
-    )
+    print(f"Report saved to: {out_path}")
 
     # Print summary
     print("\n" + "=" * 60)
