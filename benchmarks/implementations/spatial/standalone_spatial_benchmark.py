@@ -245,6 +245,9 @@ class StandaloneSpatialBenchmark:
         num_updates = max(1, len(entities) // 10)  # Update 10% of entities
         entities_to_update = random.sample(entities, num_updates)
 
+        # Save original positions for fair comparison
+        original_positions = {entity: entity.position for entity in entities_to_update}
+
         # Benchmark quadtree updates
         start_time = time.perf_counter()
         for entity in entities_to_update:
@@ -255,9 +258,14 @@ class StandaloneSpatialBenchmark:
             entity.position = new_pos
         quadtree_time = time.perf_counter() - start_time
 
-        # Reset positions
+        # Restore original positions for fair comparison with spatial hash
         for entity in entities_to_update:
-            entity.position = (random.uniform(0, 1000), random.uniform(0, 1000))
+            current_pos = entity.position
+            original_pos = original_positions[entity]
+            # Remove from quadtree at current position and restore to original
+            quadtree.remove(entity, current_pos)
+            quadtree.insert(entity, original_pos)
+            entity.position = original_pos
 
         # Benchmark spatial hash updates
         start_time = time.perf_counter()

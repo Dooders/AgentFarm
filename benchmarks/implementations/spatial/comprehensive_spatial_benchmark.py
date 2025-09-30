@@ -459,6 +459,9 @@ class SpatialBenchmark:
         num_updates = int(len(entities) * update_fraction)
         entities_to_update = random.sample(entities, num_updates)
 
+        # Save original positions for comparison
+        original_positions = {entity: entity.position for entity in entities_to_update}
+
         # Add tracemalloc for batch updates
         tracemalloc.start()
         # Benchmark batch updates
@@ -470,18 +473,19 @@ class SpatialBenchmark:
                 random.uniform(0, self.config.world_height),
             )
             spatial_index.add_position_update(entity, old_pos, new_pos, "test_entities")
+            entity.position = new_pos  # Synchronize entity position
         spatial_index.process_batch_updates(force=True)
         batch_time = time.perf_counter() - start_time
         current, peak = tracemalloc.get_traced_memory()
         tracemalloc.stop()
         results["memory_usage"] = peak / 1024 / 1024  # Measure for batch
 
-        # Reset positions
+        # Restore original positions for fair comparison
         for entity in entities_to_update:
-            entity.position = (
-                random.uniform(0, self.config.world_width),
-                random.uniform(0, self.config.world_height),
-            )
+            entity.position = original_positions[entity]
+
+        # Rebuild the spatial index with original positions
+        spatial_index.update()
 
         # Benchmark individual updates
         spatial_index.disable_batch_updates()
@@ -493,6 +497,7 @@ class SpatialBenchmark:
                 random.uniform(0, self.config.world_height),
             )
             spatial_index.update_entity_position(entity, old_pos, new_pos)
+            entity.position = new_pos  # Synchronize entity position
         individual_time = time.perf_counter() - start_time
 
         results["batch_update_time"] = batch_time
