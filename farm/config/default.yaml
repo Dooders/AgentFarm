@@ -56,6 +56,8 @@ training_frequency: 4
 dqn_hidden_size: 24
 tau: 0.005
 dqn_state_cache_size: 100
+gradient_clip_norm: 1.0
+enable_gradient_clipping: true
 
 # Movement Module Parameters
 move_target_update_freq: 100

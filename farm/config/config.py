@@ -200,6 +200,10 @@ class LearningConfig:
     
     # Caching settings
     dqn_state_cache_size: int = 100  # Maximum size of DQN state tensor cache
+    
+    # Gradient clipping
+    gradient_clip_norm: float = 1.0  # Max norm for gradient clipping
+    enable_gradient_clipping: bool = True  # Whether to clip gradients during training
 
 
 @dataclass
@@ -883,6 +887,8 @@ class SimulationConfig:
                     "dqn_hidden_size",
                     "tau",
                     "dqn_state_cache_size",
+                    "gradient_clip_norm",
+                    "enable_gradient_clipping",
                 ],
             ),
             "combat": (
