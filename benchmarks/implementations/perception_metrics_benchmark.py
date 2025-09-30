@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time as _time
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union, Optional
 
 import numpy as np
 
@@ -31,10 +31,10 @@ class PerceptionMetricsBenchmark(Benchmark):
 
     def __init__(
         self,
-        agent_counts: Union[List[int], None] = None,
-        radii: Union[List[int], None] = None,
-        storage_modes: Union[List[str], None] = None,
-        use_bilinear_list: Union[List[bool], None] = None,
+        agent_counts: Optional[List[int]] = None,
+        radii: Optional[List[int]] = None,
+        storage_modes: Optional[List[str]] = None,
+        use_bilinear_list: Optional[List[bool]] = None,
         steps: int = 10,
         device: str = "cpu",
     ) -> None:

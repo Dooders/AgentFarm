@@ -383,7 +383,7 @@ class SpatialIndex:
                 # Find regions that contain any of our affected positions
                 affected_regions = set()
                 for pos in affected_positions:
-                    region_coords = self._dirty_region_tracker._world_to_region_coords(
+                    region_coords = self._dirty_region_tracker.world_to_region_coords(
                         pos
                     )
                     affected_regions.add(region_coords)
@@ -394,7 +394,7 @@ class SpatialIndex:
                 )
                 processed_regions = []
                 for region in dirty_regions:
-                    region_coords = self._dirty_region_tracker._world_to_region_coords(
+                    region_coords = self._dirty_region_tracker.world_to_region_coords(
                         (region.bounds[0], region.bounds[1])
                     )
                     if region_coords in affected_regions:
@@ -412,7 +412,7 @@ class SpatialIndex:
             if self._dirty_region_tracker and entity_type in processed_regions_by_type:
                 region_coords_list = []
                 for region in processed_regions_by_type[entity_type]:
-                    region_coords = self._dirty_region_tracker._world_to_region_coords(
+                    region_coords = self._dirty_region_tracker.world_to_region_coords(
                         (region.bounds[0], region.bounds[1])
                     )
                     region_coords_list.append(region_coords)
@@ -522,7 +522,7 @@ class SpatialIndex:
                     entity_type
                 )
                 for region in dirty_regions:
-                    region_coords = self._dirty_region_tracker._world_to_region_coords(
+                    region_coords = self._dirty_region_tracker.world_to_region_coords(
                         (region.bounds[0], region.bounds[1])
                     )
                     all_regions.append(region_coords)
