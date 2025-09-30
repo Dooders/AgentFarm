@@ -1,4 +1,25 @@
-"""SpatialIndex orchestrator for KD-tree, Quadtree, and Spatial Hash indices."""
+"""SpatialIndex orchestrator for KD-tree, Quadtree, and Spatial Hash indices.
+
+This module provides the core spatial indexing infrastructure for AgentFarm simulations.
+It orchestrates multiple spatial data structures (KD-trees, Quadtrees, and Spatial Hash grids)
+to enable efficient spatial queries and position updates.
+
+**Priority System:**
+Position updates can be prioritized to control processing order within batches:
+- PRIORITY_LOW (0): Background entities, decorative elements
+- PRIORITY_NORMAL (1): Regular agents (default)
+- PRIORITY_HIGH (2): Active combat participants, quest-critical agents
+- PRIORITY_CRITICAL (3): Player entities, important NPCs
+
+Higher priority updates are processed first within each batch.
+
+**Key Features:**
+- Multi-stage change detection to minimize unnecessary index rebuilds
+- Batch update processing with dirty region tracking
+- Support for multiple index types (KD-tree, Quadtree, Spatial Hash)
+- Configurable flush policies (time-based and size-based)
+- Memory-efficient position caching
+"""
 
 import hashlib
 import heapq
@@ -16,6 +37,16 @@ from .hash_grid import SpatialHashGrid
 from .quadtree import Quadtree, QuadtreeNode
 
 logger = logging.getLogger(__name__)
+
+
+# Priority constants for position updates
+PRIORITY_LOW = 0  # Background entities, decorative elements
+PRIORITY_NORMAL = 1  # Regular agents (default)
+PRIORITY_HIGH = 2  # Active combat participants, quest-critical agents
+PRIORITY_CRITICAL = 3  # Player entities, important NPCs
+
+# Quadtree boundary adjustment constant to avoid boundary issues
+BOUNDARY_EPSILON = 1e-10
 
 
 class SpatialIndex:
@@ -207,12 +238,41 @@ class SpatialIndex:
         old_position: Tuple[float, float],
         new_position: Tuple[float, float],
         entity_type: str = "agent",
-        priority: int = 0,
+        priority: int = PRIORITY_NORMAL,
     ) -> None:
+        """
+        Add a position update to the batch queue.
+
+        Args:
+            entity: The entity being moved
+            old_position: Previous (x, y) position
+            new_position: New (x, y) position
+            entity_type: Type of entity ("agent", "resource", etc.)
+            priority: Update priority (0=LOW, 1=NORMAL, 2=HIGH, 3=CRITICAL)
+                     Higher priority updates are processed first within a batch.
+
+        Note:
+            If batch updates are disabled, the update is applied immediately.
+            If the batch reaches max_batch_size, it will be processed automatically.
+        """
         if not self._batch_update_enabled:
             # Fall back to immediate update
             self.update_entity_position(entity, old_position, new_position)
             return
+
+        # Validate priority
+        if (
+            not isinstance(priority, int)
+            or priority < PRIORITY_LOW
+            or priority > PRIORITY_CRITICAL
+        ):
+            logger.warning(
+                "Invalid priority %s, using PRIORITY_NORMAL. Valid range: %d-%d",
+                priority,
+                PRIORITY_LOW,
+                PRIORITY_CRITICAL,
+            )
+            priority = PRIORITY_NORMAL
 
         # Add to pending updates
         self._pending_position_updates.append(
@@ -421,28 +481,96 @@ class SpatialIndex:
         self._positions_dirty = True
 
     def get_batch_update_stats(self) -> Dict[str, Any]:
+        """
+        Get batch update statistics.
+
+        Returns:
+            Dict with batch update stats including:
+            - pending_updates_count: Number of pending position updates
+            - total_batch_updates: Total number of batch operations
+            - average_batch_size: Average updates per batch
+            - last_batch_time: Time taken for last batch
+            - total_dirty_regions: Current dirty regions (if tracking enabled)
+        """
         stats = dict(self._batch_update_stats)
+        stats["pending_updates_count"] = len(self._pending_position_updates)
         if self._dirty_region_tracker:
             stats.update(self._dirty_region_tracker.get_stats())
         return stats
 
+    def is_batch_updates_enabled(self) -> bool:
+        """Check if batch updates are currently enabled."""
+        return self._batch_update_enabled
+
+    def clear_pending_updates(self) -> int:
+        """
+        Clear all pending position updates without processing them.
+
+        Use with caution - this may cause spatial index inconsistency.
+        Only use when you need to recover from an error state.
+
+        Returns:
+            Number of updates that were cleared
+        """
+        count = len(self._pending_position_updates)
+        self._pending_position_updates.clear()
+        if self._dirty_region_tracker:
+            # Clear all dirty regions
+            all_regions = []
+            for entity_type in ["agent", "resource"]:
+                dirty_regions = self._dirty_region_tracker.get_dirty_regions(
+                    entity_type
+                )
+                for region in dirty_regions:
+                    region_coords = self._dirty_region_tracker._world_to_region_coords(
+                        (region.bounds[0], region.bounds[1])
+                    )
+                    all_regions.append(region_coords)
+            if all_regions:
+                self._dirty_region_tracker.clear_regions(all_regions)
+        logger.warning("Cleared %d pending position updates", count)
+        return count
+
     def enable_batch_updates(
         self, region_size: float = 50.0, max_batch_size: int = 100
     ) -> None:
+        """
+        Enable batch spatial updates with dirty region tracking.
+
+        Args:
+            region_size: Size of each region for tracking (must be positive)
+            max_batch_size: Maximum updates per batch (must be positive)
+
+        Raises:
+            ValueError: If region_size or max_batch_size are invalid
+        """
+        if region_size <= 0:
+            raise ValueError(f"region_size must be positive, got {region_size}")
+        if max_batch_size <= 0:
+            raise ValueError(f"max_batch_size must be positive, got {max_batch_size}")
+
         if not self._batch_update_enabled:
-            self._dirty_region_tracker = DirtyRegionTracker(
-                region_size=region_size,
-                max_regions=max(
+            try:
+                max_regions = max(
                     1000, int((self.width * self.height) / (region_size * region_size))
-                ),
-            )
-            self._batch_update_enabled = True
-            self.max_batch_size = max_batch_size
-            logger.info(
-                "Batch updates enabled with region_size=%s, max_batch_size=%s",
-                region_size,
-                max_batch_size,
-            )
+                )
+                self._dirty_region_tracker = DirtyRegionTracker(
+                    region_size=region_size,
+                    max_regions=max_regions,
+                )
+                self._batch_update_enabled = True
+                self.max_batch_size = max_batch_size
+                logger.info(
+                    "Batch updates enabled with region_size=%s, max_batch_size=%s, max_regions=%s",
+                    region_size,
+                    max_batch_size,
+                    max_regions,
+                )
+            except MemoryError as e:
+                logger.error(
+                    "Failed to enable batch updates due to memory constraints: %s", e
+                )
+                raise
 
     def disable_batch_updates(self) -> None:
         if self._batch_update_enabled:
@@ -720,7 +848,13 @@ class SpatialIndex:
             state["spatial_hash"] = None
         elif index_type == "quadtree":
             if valid_items:
-                bounds = (0, 0, self.width, self.height)
+                # Use exclusive bounds to avoid boundary issues with quadtree subdivision
+                bounds = (
+                    0,
+                    0,
+                    self.width - BOUNDARY_EPSILON,
+                    self.height - BOUNDARY_EPSILON,
+                )
                 quadtree = Quadtree(bounds, capacity=4)
                 for item in valid_items:
                     position = state["position_getter"](item)
