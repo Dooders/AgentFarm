@@ -199,24 +199,75 @@ class SimulationDatabase:
         custom_pragmas = {}
 
         if config:
+            print(
+                f"DEBUG: Config.db_pragma_profile: {getattr(config, 'db_pragma_profile', 'NOT_FOUND')}"
+            )
             db_pragmas = getattr(config, "database", None)
+            print(
+                f"DEBUG: db_pragmas.db_pragma_profile: {getattr(db_pragmas, 'db_pragma_profile', 'NOT_FOUND') if db_pragmas else 'None'}"
+            )
             # Prefer nested config.database when available, with fallback to top-level for backwards compatibility
             if isinstance(db_pragmas, dict):
-                pragma_profile = db_pragmas.get("db_pragma_profile", getattr(config, "db_pragma_profile", pragma_profile))
-                cache_size_mb = db_pragmas.get("db_cache_size_mb", getattr(config, "db_cache_size_mb", cache_size_mb))
-                synchronous_mode = db_pragmas.get("db_synchronous_mode", getattr(config, "db_synchronous_mode", synchronous_mode))
-                journal_mode = db_pragmas.get("db_journal_mode", getattr(config, "db_journal_mode", journal_mode))
-                custom_pragmas = db_pragmas.get("db_custom_pragmas", getattr(config, "db_custom_pragmas", {}))
+                pragma_profile = db_pragmas.get(
+                    "db_pragma_profile",
+                    getattr(config, "db_pragma_profile", pragma_profile),
+                )
+                cache_size_mb = db_pragmas.get(
+                    "db_cache_size_mb",
+                    getattr(config, "db_cache_size_mb", cache_size_mb),
+                )
+                synchronous_mode = db_pragmas.get(
+                    "db_synchronous_mode",
+                    getattr(config, "db_synchronous_mode", synchronous_mode),
+                )
+                journal_mode = db_pragmas.get(
+                    "db_journal_mode", getattr(config, "db_journal_mode", journal_mode)
+                )
+                custom_pragmas = db_pragmas.get(
+                    "db_custom_pragmas", getattr(config, "db_custom_pragmas", {})
+                )
             elif db_pragmas is not None:
-                pragma_profile = getattr(db_pragmas, "db_pragma_profile", getattr(config, "db_pragma_profile", pragma_profile))
-                cache_size_mb = getattr(db_pragmas, "db_cache_size_mb", getattr(config, "db_cache_size_mb", cache_size_mb))
-                synchronous_mode = getattr(db_pragmas, "db_synchronous_mode", getattr(config, "db_synchronous_mode", synchronous_mode))
-                journal_mode = getattr(db_pragmas, "db_journal_mode", getattr(config, "db_journal_mode", journal_mode))
-                custom_pragmas = getattr(db_pragmas, "db_custom_pragmas", getattr(config, "db_custom_pragmas", {}))
+                pragma_profile = getattr(
+                    db_pragmas,
+                    "db_pragma_profile",
+                    getattr(config, "db_pragma_profile", pragma_profile),
+                )
+                # If pragma_profile is the default, try to get it from top-level config
+                if pragma_profile == "balanced":  # balanced is the default
+                    top_level_profile = getattr(
+                        config, "db_pragma_profile", pragma_profile
+                    )
+                    if top_level_profile != "balanced":
+                        pragma_profile = top_level_profile
+                cache_size_mb = getattr(
+                    db_pragmas,
+                    "db_cache_size_mb",
+                    getattr(config, "db_cache_size_mb", cache_size_mb),
+                )
+                synchronous_mode = getattr(
+                    db_pragmas,
+                    "db_synchronous_mode",
+                    getattr(config, "db_synchronous_mode", synchronous_mode),
+                )
+                journal_mode = getattr(
+                    db_pragmas,
+                    "db_journal_mode",
+                    getattr(config, "db_journal_mode", journal_mode),
+                )
+                custom_pragmas = getattr(
+                    db_pragmas,
+                    "db_custom_pragmas",
+                    getattr(config, "db_custom_pragmas", {}),
+                )
+                # If custom_pragmas is empty in the nested config, try to get it from top-level config
+                if not custom_pragmas:
+                    custom_pragmas = getattr(config, "db_custom_pragmas", {})
             else:
                 pragma_profile = getattr(config, "db_pragma_profile", pragma_profile)
                 cache_size_mb = getattr(config, "db_cache_size_mb", cache_size_mb)
-                synchronous_mode = getattr(config, "db_synchronous_mode", synchronous_mode)
+                synchronous_mode = getattr(
+                    config, "db_synchronous_mode", synchronous_mode
+                )
                 journal_mode = getattr(config, "db_journal_mode", journal_mode)
                 custom_pragmas = getattr(config, "db_custom_pragmas", {})
 
@@ -235,13 +286,17 @@ class SimulationDatabase:
                 # Backward-compatible fallback to top-level config
                 return getattr(config, name, default) if config else default
             if isinstance(db_cfg, dict):
-                return db_cfg.get(name, getattr(config, name, default) if config else default)
-            return getattr(db_cfg, name, getattr(config, name, default) if config else default)
+                return db_cfg.get(
+                    name, getattr(config, name, default) if config else default
+                )
+            return getattr(
+                db_cfg, name, getattr(config, name, default) if config else default
+            )
 
         self.pool_size = _get_db_setting("connection_pool_size", 10)
         self.pool_recycle = _get_db_setting("connection_pool_recycle", 3600)
         self.connection_timeout = _get_db_setting("connection_timeout", 30)
-        
+
         # Create engine with connect_args using config values
         self.engine = create_engine(
             self._get_database_url(db_path),
@@ -265,21 +320,29 @@ class SimulationDatabase:
         # Apply profile-specific settings
         self._direct_apply_pragma_profile(cursor, pragma_profile)
 
-        # Apply any specific overrides
-        if synchronous_mode not in ["NORMAL", "OFF", "FULL"]:
+        # Apply any specific overrides (only if they differ from profile defaults)
+        # Get the profile defaults to compare against
+        from .pragma_docs import get_pragma_profile
+
+        profile_defaults = get_pragma_profile(pragma_profile)
+
+        # Only apply overrides if they are explicitly set and different from profile defaults
+        # Don't apply default config values that override profile settings
+        if (
+            synchronous_mode in ["NORMAL", "OFF", "FULL"]
+            and synchronous_mode != profile_defaults.get("synchronous")
+            and synchronous_mode != "NORMAL"
+        ):  # Don't override with default NORMAL
             cursor.execute(f"PRAGMA synchronous={synchronous_mode}")
 
-        if journal_mode not in [
-            "WAL",
-            "MEMORY",
-            "DELETE",
-            "TRUNCATE",
-            "PERSIST",
-            "OFF",
-        ]:
+        if (
+            journal_mode in ["WAL", "MEMORY", "DELETE", "TRUNCATE", "PERSIST", "OFF"]
+            and journal_mode != profile_defaults.get("journal_mode")
+            and journal_mode != "WAL"
+        ):  # Don't override with default WAL
             cursor.execute(f"PRAGMA journal_mode={journal_mode}")
 
-        # Apply custom pragmas
+        # Apply custom pragmas (these override everything)
         for pragma, value in custom_pragmas.items():
             cursor.execute(f"PRAGMA {pragma}={value}")
 
@@ -294,21 +357,30 @@ class SimulationDatabase:
             # Apply the selected pragma profile
             self._direct_apply_pragma_profile(cursor, pragma_profile)
 
-            # Apply any specific overrides
-            if synchronous_mode not in ["NORMAL", "OFF", "FULL"]:
+            # Apply any specific overrides (only if they differ from profile defaults)
+            # Get the profile defaults to compare against
+            from .pragma_docs import get_pragma_profile
+
+            profile_defaults = get_pragma_profile(pragma_profile)
+
+            # Only apply overrides if they are explicitly set and different from profile defaults
+            # Don't apply default config values that override profile settings
+            if (
+                synchronous_mode in ["NORMAL", "OFF", "FULL"]
+                and synchronous_mode != profile_defaults.get("synchronous")
+                and synchronous_mode != "NORMAL"
+            ):  # Don't override with default NORMAL
                 cursor.execute(f"PRAGMA synchronous={synchronous_mode}")
 
-            if journal_mode not in [
-                "WAL",
-                "MEMORY",
-                "DELETE",
-                "TRUNCATE",
-                "PERSIST",
-                "OFF",
-            ]:
+            if (
+                journal_mode
+                in ["WAL", "MEMORY", "DELETE", "TRUNCATE", "PERSIST", "OFF"]
+                and journal_mode != profile_defaults.get("journal_mode")
+                and journal_mode != "WAL"
+            ):  # Don't override with default WAL
                 cursor.execute(f"PRAGMA journal_mode={journal_mode}")
 
-            # Apply custom pragmas
+            # Apply custom pragmas (these override everything)
             for pragma, value in custom_pragmas.items():
                 cursor.execute(f"PRAGMA {pragma}={value}")
 
@@ -327,20 +399,40 @@ class SimulationDatabase:
         self.session_manager.Session = self.Session
 
         # Initialize data logger with simulation_id and config values (prefer nested config.database)
-        db_cfg_for_logger = getattr(config, 'database', None) if config else None
+        db_cfg_for_logger = getattr(config, "database", None) if config else None
         if isinstance(db_cfg_for_logger, dict):
-            log_buffer_size = db_cfg_for_logger.get('log_buffer_size', getattr(config, 'log_buffer_size', 1000) if config else 1000)
-            commit_interval = db_cfg_for_logger.get('commit_interval_seconds', getattr(config, 'commit_interval_seconds', 30) if config else 30)
+            log_buffer_size = db_cfg_for_logger.get(
+                "log_buffer_size",
+                getattr(config, "log_buffer_size", 1000) if config else 1000,
+            )
+            commit_interval = db_cfg_for_logger.get(
+                "commit_interval_seconds",
+                getattr(config, "commit_interval_seconds", 30) if config else 30,
+            )
         elif db_cfg_for_logger is not None:
-            log_buffer_size = getattr(db_cfg_for_logger, 'log_buffer_size', getattr(config, 'log_buffer_size', 1000) if config else 1000)
-            commit_interval = getattr(db_cfg_for_logger, 'commit_interval_seconds', getattr(config, 'commit_interval_seconds', 30) if config else 30)
+            log_buffer_size = getattr(
+                db_cfg_for_logger,
+                "log_buffer_size",
+                getattr(config, "log_buffer_size", 1000) if config else 1000,
+            )
+            commit_interval = getattr(
+                db_cfg_for_logger,
+                "commit_interval_seconds",
+                getattr(config, "commit_interval_seconds", 30) if config else 30,
+            )
         else:
-            log_buffer_size = getattr(config, 'log_buffer_size', 1000) if config else 1000
-            commit_interval = getattr(config, 'commit_interval_seconds', 30) if config else 30
+            log_buffer_size = (
+                getattr(config, "log_buffer_size", 1000) if config else 1000
+            )
+            commit_interval = (
+                getattr(config, "commit_interval_seconds", 30) if config else 30
+            )
         self.logger = DataLogger(
             self,
             simulation_id=self.simulation_id,
-            config=DataLoggingConfig(buffer_size=log_buffer_size, commit_interval=commit_interval),
+            config=DataLoggingConfig(
+                buffer_size=log_buffer_size, commit_interval=commit_interval
+            ),
         )
         self.query = DataRetriever(self.session_manager)
 
@@ -773,9 +865,15 @@ class SimulationDatabase:
                 base_path = filepath.rsplit(".", 1)[0]
                 for data_type, df in data.items():
                     if isinstance(df, pd.DataFrame):
-                        df.to_csv(f"{base_path}_{data_type}.csv", index=False, encoding="utf-8")
+                        df.to_csv(
+                            f"{base_path}_{data_type}.csv",
+                            index=False,
+                            encoding="utf-8",
+                        )
                     elif data_type == "metadata":
-                        with open(f"{base_path}_metadata.json", "w", encoding="utf-8") as f:
+                        with open(
+                            f"{base_path}_metadata.json", "w", encoding="utf-8"
+                        ) as f:
                             json.dump(df, f, indent=2)
 
             elif format == "excel":
@@ -1134,8 +1232,14 @@ class SimulationDatabase:
             # Also log as interaction for comprehensive tracking (minimal data to avoid duplication)
             interaction_type = "reproduce" if success else "reproduce_failed"
             target_type = "agent" if offspring_id and success else "position"
-            target_id = offspring_id if offspring_id and success else (
-                f"{parent_position[0]},{parent_position[1]}" if parent_position else "unknown"
+            target_id = (
+                offspring_id
+                if offspring_id and success
+                else (
+                    f"{parent_position[0]},{parent_position[1]}"
+                    if parent_position
+                    else "unknown"
+                )
             )
 
             # Only store essential relationship data - full details already in ReproductionEventModel
@@ -1323,8 +1427,10 @@ class InMemorySimulationDatabase(SimulationDatabase):
         self.memory_usage_samples = []
 
         # Override memory limit if specified in config
-        if memory_limit_mb is None and config and hasattr(
-            config, "in_memory_db_memory_limit_mb"
+        if (
+            memory_limit_mb is None
+            and config
+            and hasattr(config, "in_memory_db_memory_limit_mb")
         ):
             self.memory_limit_mb = config.in_memory_db_memory_limit_mb
 
