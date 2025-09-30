@@ -90,7 +90,7 @@ class DirtyRegionTracker:
         if timestamp is None:
             timestamp = time.time()
 
-        region_coords = self._world_to_region_coords(position)
+        region_coords = self.world_to_region_coords(position)
 
         self._dirty_regions[entity_type].add(region_coords)
         self._region_priorities[region_coords] = max(

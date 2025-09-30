@@ -48,7 +48,7 @@ class TestDirtyRegionTracker:
 
     def test_region_coordinate_conversion(self):
         tracker = DirtyRegionTracker(region_size=50.0)
-        region_coords = tracker._world_to_region_coords((75.0, 125.0))
+        region_coords = tracker.world_to_region_coords((75.0, 125.0))
         assert region_coords == (1, 2)
         bounds = tracker._region_to_world_bounds((1, 2))
         assert bounds == (50.0, 100.0, 50.0, 50.0)
@@ -57,7 +57,7 @@ class TestDirtyRegionTracker:
         tracker = DirtyRegionTracker(region_size=50.0)
         tracker.mark_region_dirty((25.0, 25.0), "agent")
         tracker.mark_region_dirty((75.0, 75.0), "agent")
-        region_coords = tracker._world_to_region_coords((25.0, 25.0))
+        region_coords = tracker.world_to_region_coords((25.0, 25.0))
         tracker.clear_region(region_coords)
         dirty_regions = tracker.get_dirty_regions("agent")
         assert len(dirty_regions) == 1
@@ -103,14 +103,14 @@ class TestDirtyRegionTracker:
         tracker.mark_region_dirty((125.0, 125.0), "agent")
 
         # Clear only the first region
-        region_coords = tracker._world_to_region_coords((25.0, 25.0))
+        region_coords = tracker.world_to_region_coords((25.0, 25.0))
         tracker.clear_region(region_coords)
 
         dirty_regions = tracker.get_dirty_regions("agent")
         assert len(dirty_regions) == 2
 
         # Clear another region
-        region_coords = tracker._world_to_region_coords((75.0, 75.0))
+        region_coords = tracker.world_to_region_coords((75.0, 75.0))
         tracker.clear_region(region_coords)
 
         dirty_regions = tracker.get_dirty_regions("agent")
@@ -125,8 +125,8 @@ class TestDirtyRegionTracker:
 
         # Clear first and third regions
         coords_list = [
-            tracker._world_to_region_coords((25.0, 25.0)),
-            tracker._world_to_region_coords((125.0, 125.0)),
+            tracker.world_to_region_coords((25.0, 25.0)),
+            tracker.world_to_region_coords((125.0, 125.0)),
         ]
         tracker.clear_regions(coords_list)
 
@@ -134,7 +134,7 @@ class TestDirtyRegionTracker:
         assert len(dirty_regions) == 1
         # The remaining region should be at (75.0, 75.0)
         expected_bounds = tracker._region_to_world_bounds(
-            tracker._world_to_region_coords((75.0, 75.0))
+            tracker.world_to_region_coords((75.0, 75.0))
         )
         assert dirty_regions[0].bounds == expected_bounds
 
