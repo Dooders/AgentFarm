@@ -29,15 +29,25 @@ from matplotlib.colors import LinearSegmentedColormap
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 # Set style for better-looking plots
-plt.style.use('seaborn-v0_8')
+try:
+    plt.style.use('seaborn-v0_8')
+except ValueError:
+    try:
+        plt.style.use('seaborn')
+    except ValueError:
+        plt.style.use('default')
 sns.set_palette("husl")
 
 
 class SpatialBenchmarkVisualizer:
     """Visualization tools for spatial indexing benchmark results."""
     
-    def __init__(self, results_dir: str = "/workspace/benchmarks/results"):
-        self.results_dir = results_dir
+    def __init__(self, results_dir: str = None):
+        if results_dir is None:
+            # Default to benchmarks/results relative to current working directory
+            self.results_dir = os.path.join(os.getcwd(), "benchmarks", "results")
+        else:
+            self.results_dir = results_dir
         self.figures = []
         
     def load_benchmark_results(self, filename: str) -> Dict[str, Any]:
@@ -781,12 +791,13 @@ def main():
     report = visualizer.generate_visualization_report(results, memory_results)
     
     # Save report
-    with open("/workspace/benchmarks/results/visualization_report.md", "w") as f:
+    results_dir = os.path.join(os.getcwd(), "benchmarks", "results")
+    with open(os.path.join(results_dir, "visualization_report.md"), "w") as f:
         f.write(report)
     
     print("\nVisualization generation completed!")
-    print("Figures saved to: /workspace/benchmarks/results/visualizations/")
-    print("Report saved to: /workspace/benchmarks/results/visualization_report.md")
+    print(f"Figures saved to: {os.path.join(results_dir, 'visualizations')}/")
+    print(f"Report saved to: {os.path.join(results_dir, 'visualization_report.md')}")
     print(f"\nGenerated {len(visualizer.figures)} visualization figures")
 
 

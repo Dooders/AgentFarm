@@ -54,12 +54,16 @@ def run_comprehensive_benchmark(quick_mode: bool = False):
     benchmark = SpatialBenchmark(config)
     results = benchmark.run_comprehensive_benchmark()
     
+    # Create results directory relative to current working directory
+    results_dir = os.path.join(os.getcwd(), "benchmarks", "results")
+    os.makedirs(results_dir, exist_ok=True)
+    
     # Save results
-    results.save_to_file("/workspace/benchmarks/results/comprehensive_spatial_benchmark.json")
+    results.save_to_file(os.path.join(results_dir, "comprehensive_spatial_benchmark.json"))
     
     # Generate and save report
     report = benchmark.generate_performance_report(results)
-    with open("/workspace/benchmarks/results/comprehensive_spatial_report.md", "w") as f:
+    with open(os.path.join(results_dir, "comprehensive_spatial_report.md"), "w") as f:
         f.write(report)
     
     print("✓ Comprehensive benchmark completed")

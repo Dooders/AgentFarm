@@ -43,9 +43,22 @@ class DirectSpatialBenchmark:
         
     def _load_components(self):
         """Load spatial components directly from files."""
+        # Get the workspace root directory (assuming we're in /workspace or a subdirectory)
+        current_dir = os.getcwd()
+        if current_dir.endswith('/workspace'):
+            workspace_root = current_dir
+        else:
+            # Find workspace root by looking for farm directory
+            workspace_root = current_dir
+            while workspace_root != '/' and not os.path.exists(os.path.join(workspace_root, 'farm')):
+                workspace_root = os.path.dirname(workspace_root)
+        
+        quadtree_path = os.path.join(workspace_root, 'farm', 'core', 'spatial', 'quadtree.py')
+        hash_grid_path = os.path.join(workspace_root, 'farm', 'core', 'spatial', 'hash_grid.py')
+        
         try:
             # Load Quadtree
-            spec = importlib.util.spec_from_file_location('quadtree', '/workspace/farm/core/spatial/quadtree.py')
+            spec = importlib.util.spec_from_file_location('quadtree', quadtree_path)
             quadtree_module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(quadtree_module)
             self.quadtree_class = quadtree_module.Quadtree
@@ -55,7 +68,7 @@ class DirectSpatialBenchmark:
         
         try:
             # Load SpatialHashGrid
-            spec = importlib.util.spec_from_file_location('hash_grid', '/workspace/farm/core/spatial/hash_grid.py')
+            spec = importlib.util.spec_from_file_location('hash_grid', hash_grid_path)
             hash_grid_module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(hash_grid_module)
             self.spatial_hash_class = hash_grid_module.SpatialHashGrid
@@ -519,8 +532,10 @@ class DirectSpatialBenchmark:
             }
         }
         
-        os.makedirs("/workspace/benchmarks/results", exist_ok=True)
-        filepath = os.path.join("/workspace/benchmarks/results", filename)
+        # Create results directory relative to current working directory
+        results_dir = os.path.join(os.getcwd(), "benchmarks", "results")
+        os.makedirs(results_dir, exist_ok=True)
+        filepath = os.path.join(results_dir, filename)
         
         with open(filepath, "w") as f:
             json.dump(results_data, f, indent=2)
@@ -531,8 +546,10 @@ class DirectSpatialBenchmark:
         """Save performance report to file."""
         report = self.generate_report()
         
-        os.makedirs("/workspace/benchmarks/results", exist_ok=True)
-        filepath = os.path.join("/workspace/benchmarks/results", filename)
+        # Create results directory relative to current working directory
+        results_dir = os.path.join(os.getcwd(), "benchmarks", "results")
+        os.makedirs(results_dir, exist_ok=True)
+        filepath = os.path.join(results_dir, filename)
         
         with open(filepath, "w") as f:
             f.write(report)

@@ -59,8 +59,12 @@ class OptimizationRecommendation:
 class SpatialPerformanceAnalyzer:
     """Comprehensive performance analyzer for spatial indexing implementations."""
     
-    def __init__(self, results_dir: str = "/workspace/benchmarks/results"):
-        self.results_dir = results_dir
+    def __init__(self, results_dir: str = None):
+        if results_dir is None:
+            # Default to benchmarks/results relative to current working directory
+            self.results_dir = os.path.join(os.getcwd(), "benchmarks", "results")
+        else:
+            self.results_dir = results_dir
         self.industry_standards = self._load_industry_standards()
         
     def _load_industry_standards(self) -> Dict[str, Dict[str, float]]:
@@ -106,7 +110,10 @@ class SpatialPerformanceAnalyzer:
                 scaling_factor = 1.0
             else:
                 # Estimate scaling factor based on entity count
-                scaling_factor = (result["entity_count"] / baseline_count) ** 0.7  # Approximate log scaling
+                # Use 0.7 as an approximation for logarithmic scaling behavior
+                # This value represents the typical scaling exponent for spatial data structures
+                # where performance degrades sub-linearly with entity count
+                scaling_factor = (result["entity_count"] / baseline_count) ** 0.7
             
             # Calculate efficiency score (lower is better)
             efficiency_score = (

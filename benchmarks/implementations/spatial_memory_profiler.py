@@ -155,12 +155,12 @@ class SpatialMemoryProfiler:
 class MockEntity:
     """Mock entity for memory profiling."""
     
-    def __init__(self, entity_id: str, position: Tuple[float, float]):
+    def __init__(self, entity_id: str, position: Tuple[float, float], data_size: int = 100):
         self.entity_id = entity_id
         self.position = position
         self.alive = True
         # Add some data to make entities more realistic
-        self.data = np.random.random(100)  # 100 random floats
+        self.data = np.random.random(data_size)  # configurable number of random floats
 
 
 class SpatialMemoryBenchmark:
@@ -334,8 +334,12 @@ class SpatialMemoryBenchmark:
         
         return results
     
-    def profile_memory_scaling(self) -> Dict[str, Any]:
-        """Profile memory usage scaling with entity count."""
+    def profile_memory_scaling(self, data_size: int = 100) -> Dict[str, Any]:
+        """Profile memory usage scaling with entity count.
+        
+        Args:
+            data_size: Size of random data array for each entity (default: 100)
+        """
         entity_counts = [100, 500, 1000, 2000, 5000]
         scaling_results = {
             "entity_counts": entity_counts,
@@ -353,7 +357,7 @@ class SpatialMemoryBenchmark:
             for i in range(count):
                 x = np.random.uniform(0, 1000)
                 y = np.random.uniform(0, 1000)
-                entities.append(MockEntity(f"entity_{i}", (x, y)))
+                entities.append(MockEntity(f"entity_{i}", (x, y), data_size))
             
             # Profile each implementation
             implementations = [

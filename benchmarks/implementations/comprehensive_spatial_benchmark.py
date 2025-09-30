@@ -174,14 +174,18 @@ class SpatialBenchmark(Benchmark):
             cell_size=20.0 if index_type == "spatial_hash" else None
         )
         
+        # Measure memory usage before index creation
+        process = psutil.Process()
+        baseline_memory = process.memory_info().rss / 1024 / 1024  # MB
+        
         # Measure build time
         start_time = time.perf_counter()
         spatial_index.update()
         results["build_time"] = time.perf_counter() - start_time
         
-        # Measure memory usage
-        process = psutil.Process()
-        results["memory_usage"] = process.memory_info().rss / 1024 / 1024  # MB
+        # Measure memory usage after index creation and calculate difference
+        post_memory = process.memory_info().rss / 1024 / 1024  # MB
+        results["memory_usage"] = post_memory - baseline_memory
         
         # Generate test queries
         test_queries = []
@@ -228,14 +232,18 @@ class SpatialBenchmark(Benchmark):
         # Extract positions
         positions = np.array([e.position for e in entities])
         
+        # Measure memory usage before index creation
+        process = psutil.Process()
+        baseline_memory = process.memory_info().rss / 1024 / 1024  # MB
+        
         # Measure build time
         start_time = time.perf_counter()
         kdtree = cKDTree(positions)
         results["build_time"] = time.perf_counter() - start_time
         
-        # Measure memory usage
-        process = psutil.Process()
-        results["memory_usage"] = process.memory_info().rss / 1024 / 1024  # MB
+        # Measure memory usage after index creation and calculate difference
+        post_memory = process.memory_info().rss / 1024 / 1024  # MB
+        results["memory_usage"] = post_memory - baseline_memory
         
         # Generate test queries
         test_queries = []
@@ -283,14 +291,18 @@ class SpatialBenchmark(Benchmark):
         # Extract positions
         positions = np.array([e.position for e in entities])
         
+        # Measure memory usage before index creation
+        process = psutil.Process()
+        baseline_memory = process.memory_info().rss / 1024 / 1024  # MB
+        
         # Measure build time
         start_time = time.perf_counter()
         kdtree = KDTree(positions)
         results["build_time"] = time.perf_counter() - start_time
         
-        # Measure memory usage
-        process = psutil.Process()
-        results["memory_usage"] = process.memory_info().rss / 1024 / 1024  # MB
+        # Measure memory usage after index creation and calculate difference
+        post_memory = process.memory_info().rss / 1024 / 1024  # MB
+        results["memory_usage"] = post_memory - baseline_memory
         
         # Generate test queries
         test_queries = []
@@ -338,14 +350,18 @@ class SpatialBenchmark(Benchmark):
         # Extract positions
         positions = np.array([e.position for e in entities])
         
+        # Measure memory usage before index creation
+        process = psutil.Process()
+        baseline_memory = process.memory_info().rss / 1024 / 1024  # MB
+        
         # Measure build time
         start_time = time.perf_counter()
         balltree = BallTree(positions)
         results["build_time"] = time.perf_counter() - start_time
         
-        # Measure memory usage
-        process = psutil.Process()
-        results["memory_usage"] = process.memory_info().rss / 1024 / 1024  # MB
+        # Measure memory usage after index creation and calculate difference
+        post_memory = process.memory_info().rss / 1024 / 1024  # MB
+        results["memory_usage"] = post_memory - baseline_memory
         
         # Generate test queries
         test_queries = []

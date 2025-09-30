@@ -34,7 +34,7 @@ Based on typical industry benchmarks for spatial indexing:
 | **AgentFarm Quadtree** | ~2x faster | ~1.5x faster | ~1.2x more efficient |
 | **AgentFarm Spatial Hash** | ~10x faster | ~2x faster | ~1.5x more efficient |
 
-*Note: Industry standards based on typical scipy.spatial and sklearn.neighbors performance*
+*Note: Industry standards based on typical scipy.spatial (v1.11.x) and scikit-learn.neighbors (v1.3.x) performance*
 
 ### Competitive Advantages
 
