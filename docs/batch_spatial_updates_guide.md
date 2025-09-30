@@ -92,10 +92,43 @@ env = Environment(
 # Process pending batch updates manually
 env.process_batch_spatial_updates(force=True)
 
+# Process only a subset of pending updates (partial flushing)
+updates_processed = env.spatial_index.flush_partial_updates(max_updates=50)
+
 # Enable/disable batch updates at runtime
 env.enable_batch_spatial_updates(region_size=30.0, max_batch_size=75)
 env.disable_batch_spatial_updates()
 ```
+
+### Partial Flushing
+
+For advanced use cases requiring fine-grained control over update timing, the system supports partial flushing of pending updates:
+
+```python
+# Process only a limited number of updates
+updates_processed = spatial_index.flush_partial_updates(max_updates=25)
+
+# Check how many updates remain pending
+pending_count = len(spatial_index._pending_position_updates)
+
+# Process updates in chunks for responsive applications
+while len(spatial_index._pending_position_updates) > 0:
+    processed = spatial_index.flush_partial_updates(max_updates=10)
+    # Process other tasks or yield control here
+    time.sleep(0.001)  # Brief pause to maintain responsiveness
+```
+
+**Benefits of Partial Flushing:**
+- Maintains application responsiveness in high-throughput scenarios
+- Allows incremental progress on spatial index updates
+- Enables cooperative multitasking with spatial processing
+- Provides fine-grained control over update timing
+
+**Use Cases:**
+- Real-time applications requiring consistent frame rates
+- Systems with tight latency requirements
+- Scenarios where full batch processing would cause unacceptable pauses
+- Progressive update strategies for large simulations
 
 ### Performance Monitoring
 
