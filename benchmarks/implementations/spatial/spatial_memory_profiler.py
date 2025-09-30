@@ -32,7 +32,7 @@ except Exception:  # pragma: no cover - optional dependency
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from farm.core.spatial import Quadtree, SpatialHashGrid, SpatialIndex
+from farm.core.spatial import SpatialIndex
 
 
 class MemorySnapshot:

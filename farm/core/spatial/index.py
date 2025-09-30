@@ -1,4 +1,25 @@
-"""SpatialIndex orchestrator for KD-tree, Quadtree, and Spatial Hash indices."""
+"""SpatialIndex orchestrator for KD-tree, Quadtree, and Spatial Hash indices.
+
+This module provides the core spatial indexing infrastructure for AgentFarm simulations.
+It orchestrates multiple spatial data structures (KD-trees, Quadtrees, and Spatial Hash grids)
+to enable efficient spatial queries and position updates.
+
+**Priority System:**
+Position updates can be prioritized to control processing order within batches:
+- PRIORITY_LOW (0): Background entities, decorative elements
+- PRIORITY_NORMAL (1): Regular agents (default)
+- PRIORITY_HIGH (2): Active combat participants, quest-critical agents
+- PRIORITY_CRITICAL (3): Player entities, important NPCs
+
+Higher priority updates are processed first within each batch.
+
+**Key Features:**
+- Multi-stage change detection to minimize unnecessary index rebuilds
+- Batch update processing with dirty region tracking
+- Support for multiple index types (KD-tree, Quadtree, Spatial Hash)
+- Configurable flush policies (time-based and size-based)
+- Memory-efficient position caching
+"""
 
 import hashlib
 import heapq
@@ -23,6 +44,9 @@ PRIORITY_LOW = 0  # Background entities, decorative elements
 PRIORITY_NORMAL = 1  # Regular agents (default)
 PRIORITY_HIGH = 2  # Active combat participants, quest-critical agents
 PRIORITY_CRITICAL = 3  # Player entities, important NPCs
+
+# Quadtree boundary adjustment constant to avoid boundary issues
+BOUNDARY_EPSILON = 1e-10
 
 
 class SpatialIndex:
@@ -237,9 +261,16 @@ class SpatialIndex:
             return
 
         # Validate priority
-        if not isinstance(priority, int) or priority < 0 or priority > 3:
+        if (
+            not isinstance(priority, int)
+            or priority < PRIORITY_LOW
+            or priority > PRIORITY_CRITICAL
+        ):
             logger.warning(
-                "Invalid priority %s, using PRIORITY_NORMAL. Valid range: 0-3", priority
+                "Invalid priority %s, using PRIORITY_NORMAL. Valid range: %d-%d",
+                priority,
+                PRIORITY_LOW,
+                PRIORITY_CRITICAL,
             )
             priority = PRIORITY_NORMAL
 
@@ -818,7 +849,12 @@ class SpatialIndex:
         elif index_type == "quadtree":
             if valid_items:
                 # Use exclusive bounds to avoid boundary issues with quadtree subdivision
-                bounds = (0, 0, self.width - 1e-10, self.height - 1e-10)
+                bounds = (
+                    0,
+                    0,
+                    self.width - BOUNDARY_EPSILON,
+                    self.height - BOUNDARY_EPSILON,
+                )
                 quadtree = Quadtree(bounds, capacity=4)
                 for item in valid_items:
                     position = state["position_getter"](item)

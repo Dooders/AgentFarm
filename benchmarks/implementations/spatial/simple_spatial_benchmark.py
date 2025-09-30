@@ -286,13 +286,10 @@ class SimpleSpatialBenchmark:
             report.append("No benchmark results available.")
             return "\n".join(report)
 
-        # Group results by implementation
-        by_implementation = {}
-        for result in self.results:
-            impl_name = result["implementation"]
-            if impl_name not in by_implementation:
-                by_implementation[impl_name] = []
-            by_implementation[impl_name].append(result)
+        # Group results by implementation using helper
+        from benchmarks.utils.result_helpers import group_results_by_implementation
+
+        by_implementation = group_results_by_implementation(self.results)
 
         # Performance comparison table
         report.append("## Performance Comparison")
@@ -422,21 +419,17 @@ class SimpleSpatialBenchmark:
         report.append("### Best Implementation by Use Case:")
         report.append("")
 
-        # Find best implementations
-        best_build_time = min(
-            by_implementation.keys(),
-            key=lambda impl: sum(r["build_time"] for r in by_implementation[impl])
-            / len(by_implementation[impl]),
+        # Find best implementations using helper
+        from benchmarks.utils.result_helpers import get_best_implementation
+
+        best_build_time = get_best_implementation(
+            by_implementation, "build_time", minimize=True
         )
-        best_query_time = min(
-            by_implementation.keys(),
-            key=lambda impl: sum(r["avg_query_time"] for r in by_implementation[impl])
-            / len(by_implementation[impl]),
+        best_query_time = get_best_implementation(
+            by_implementation, "avg_query_time", minimize=True
         )
-        best_memory = min(
-            by_implementation.keys(),
-            key=lambda impl: sum(r["memory_usage"] for r in by_implementation[impl])
-            / len(by_implementation[impl]),
+        best_memory = get_best_implementation(
+            by_implementation, "memory_usage", minimize=True
         )
 
         report.append(f"- **Fastest Build Time**: {best_build_time}")
@@ -535,13 +528,13 @@ def main():
     print("=" * 50)
 
     if results:
-        # Group by implementation
-        by_impl = {}
-        for result in results:
-            impl = result["implementation"]
-            if impl not in by_impl:
-                by_impl[impl] = []
-            by_impl[impl].append(result)
+        # Group by implementation using helper
+        from benchmarks.utils.result_helpers import (
+            get_best_implementation,
+            group_results_by_implementation,
+        )
+
+        by_impl = group_results_by_implementation(results)
 
         print("\nPerformance Summary:")
         for impl_name, impl_results in by_impl.items():
@@ -555,17 +548,9 @@ def main():
             print(f"  - Build time: {avg_build:.2f} ms")
             print(f"  - Query time: {avg_query:.2f} μs")
 
-        # Find best implementations
-        best_build = min(
-            by_impl.keys(),
-            key=lambda impl: sum(r["build_time"] for r in by_impl[impl])
-            / len(by_impl[impl]),
-        )
-        best_query = min(
-            by_impl.keys(),
-            key=lambda impl: sum(r["avg_query_time"] for r in by_impl[impl])
-            / len(by_impl[impl]),
-        )
+        # Find best implementations using helper
+        best_build = get_best_implementation(by_impl, "build_time", minimize=True)
+        best_query = get_best_implementation(by_impl, "avg_query_time", minimize=True)
 
         print("\nBest Performance:")
         print(f"  - Fastest build: {best_build}")

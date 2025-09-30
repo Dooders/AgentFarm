@@ -28,6 +28,10 @@ from benchmarks.implementations.spatial.spatial_memory_profiler import (
 from benchmarks.implementations.spatial.spatial_performance_analyzer import (
     SpatialPerformanceAnalyzer,
 )
+from benchmarks.utils.result_helpers import (
+    filter_and_group_results,
+    get_best_implementation,
+)
 from benchmarks.utils.spatial_visualization import SpatialBenchmarkVisualizer
 
 # Add project root to path
@@ -316,44 +320,35 @@ def create_summary_report():
             summary.append(f"- **Total Test Scenarios**: {len(results['results'])}")
             summary.append("")
 
-            # Find best performing implementations
-            # Filter out batch update results that don't have build_time
-            regular_results = [r for r in results["results"] if "build_time" in r]
-            
-            by_impl = {}
-            for result in regular_results:
-                impl = result["implementation"]
-                if impl not in by_impl:
-                    by_impl[impl] = []
-                by_impl[impl].append(result)
+            # Find best performing implementations using helper function
+            try:
+                by_impl = filter_and_group_results(results["results"], "build_time")
 
-            # Only compute best performers if we have results
-            if by_impl:
-                # Best build time
-                best_build = min(
-                    by_impl.keys(),
-                    key=lambda impl: sum(r["build_time"] for r in by_impl[impl])
-                    / len(by_impl[impl]),
-                )
-                summary.append(f"- **Fastest Build Time**: {best_build}")
+                if by_impl:
+                    # Best build time
+                    best_build = get_best_implementation(
+                        by_impl, "build_time", minimize=True
+                    )
+                    summary.append(f"- **Fastest Build Time**: {best_build}")
 
-                # Best query time
-                best_query = min(
-                    by_impl.keys(),
-                    key=lambda impl: sum(r["avg_query_time"] for r in by_impl[impl])
-                    / len(by_impl[impl]),
-                )
-                summary.append(f"- **Fastest Query Time**: {best_query}")
+                    # Best query time
+                    best_query = get_best_implementation(
+                        by_impl, "avg_query_time", minimize=True
+                    )
+                    summary.append(f"- **Fastest Query Time**: {best_query}")
 
-                # Best memory usage
-                best_memory = min(
-                    by_impl.keys(),
-                    key=lambda impl: sum(r["memory_usage"] for r in by_impl[impl])
-                    / len(by_impl[impl]),
-                )
-                summary.append(f"- **Lowest Memory Usage**: {best_memory}")
-            else:
-                summary.append("- No performance metrics available (no results with build_time)")
+                    # Best memory usage
+                    best_memory = get_best_implementation(
+                        by_impl, "memory_usage", minimize=True
+                    )
+                    summary.append(f"- **Lowest Memory Usage**: {best_memory}")
+                else:
+                    summary.append(
+                        "- No performance metrics available (no results with build_time)"
+                    )
+            except ValueError as e:
+                # Handle case where comparison cannot be performed
+                summary.append(f"- Unable to determine best performers: {e}")
 
     except FileNotFoundError:
         summary.append("- Comprehensive benchmark results not available")

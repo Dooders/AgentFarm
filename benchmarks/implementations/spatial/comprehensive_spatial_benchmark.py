@@ -28,13 +28,29 @@ from unittest.mock import Mock
 
 import numpy as np
 import psutil
-from scipy.spatial import cKDTree
-from sklearn.neighbors import BallTree, KDTree
+
+# Lazy imports for optional dependencies
+try:
+    from scipy.spatial import cKDTree
+
+    SCIPY_AVAILABLE = True
+except ImportError:
+    SCIPY_AVAILABLE = False
+    cKDTree = None
+
+try:
+    from sklearn.neighbors import BallTree, KDTree
+
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
+    BallTree = None
+    KDTree = None
 
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from farm.core.spatial import SpatialIndex, Quadtree, SpatialHashGrid
+from farm.core.spatial import Quadtree, SpatialHashGrid, SpatialIndex
 
 
 class MockEntity:
@@ -221,6 +237,9 @@ class SpatialBenchmark:
 
     def benchmark_scipy_kdtree(self, entities: List[MockEntity]) -> Dict[str, Any]:
         """Benchmark scipy.spatial.cKDTree implementation."""
+        if not SCIPY_AVAILABLE:
+            raise ImportError("scipy is not available. Install with: pip install scipy")
+
         results = {
             "build_time": 0.0,
             "query_times": [],
@@ -280,6 +299,11 @@ class SpatialBenchmark:
 
     def benchmark_sklearn_kdtree(self, entities: List[MockEntity]) -> Dict[str, Any]:
         """Benchmark sklearn.neighbors.KDTree implementation."""
+        if not SKLEARN_AVAILABLE:
+            raise ImportError(
+                "sklearn is not available. Install with: pip install scikit-learn"
+            )
+
         results = {
             "build_time": 0.0,
             "query_times": [],
@@ -339,6 +363,11 @@ class SpatialBenchmark:
 
     def benchmark_sklearn_balltree(self, entities: List[MockEntity]) -> Dict[str, Any]:
         """Benchmark sklearn.neighbors.BallTree implementation."""
+        if not SKLEARN_AVAILABLE:
+            raise ImportError(
+                "sklearn is not available. Install with: pip install scikit-learn"
+            )
+
         results = {
             "build_time": 0.0,
             "query_times": [],
@@ -491,7 +520,7 @@ class SpatialBenchmark:
                 # Generate entities
                 entities = self.generate_entities(entity_count, distribution)
 
-                # Test different implementations
+                # Test different implementations (include only available ones)
                 implementations = [
                     (
                         "AgentFarm KD-Tree",
@@ -513,16 +542,31 @@ class SpatialBenchmark:
                             "spatial_hash",
                         ),
                     ),
-                    ("SciPy KD-Tree", partial(self.benchmark_scipy_kdtree, entities)),
-                    (
-                        "Scikit-learn KD-Tree",
-                        partial(self.benchmark_sklearn_kdtree, entities),
-                    ),
-                    (
-                        "Scikit-learn BallTree",
-                        partial(self.benchmark_sklearn_balltree, entities),
-                    ),
                 ]
+
+                # Add scipy benchmarks if available
+                if SCIPY_AVAILABLE:
+                    implementations.append(
+                        (
+                            "SciPy KD-Tree",
+                            partial(self.benchmark_scipy_kdtree, entities),
+                        )
+                    )
+
+                # Add sklearn benchmarks if available
+                if SKLEARN_AVAILABLE:
+                    implementations.extend(
+                        [
+                            (
+                                "Scikit-learn KD-Tree",
+                                partial(self.benchmark_sklearn_kdtree, entities),
+                            ),
+                            (
+                                "Scikit-learn BallTree",
+                                partial(self.benchmark_sklearn_balltree, entities),
+                            ),
+                        ]
+                    )
 
                 for impl_name, impl_func in implementations:
                     print(f"    Testing {impl_name}...")
@@ -774,28 +818,22 @@ def main():
     # Save results
     import json
 
-    with open(
-        "/workspace/benchmarks/results/comprehensive_spatial_benchmark.json",
-        "w",
-        encoding="utf-8",
-    ) as f:
+    # Use relative path from current working directory
+    results_dir = os.path.join(os.getcwd(), "benchmarks", "results")
+    os.makedirs(results_dir, exist_ok=True)
+
+    results_path = os.path.join(results_dir, "comprehensive_spatial_benchmark.json")
+    with open(results_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2)
 
     # Save report
-    with open(
-        "/workspace/benchmarks/results/comprehensive_spatial_report.md",
-        "w",
-        encoding="utf-8",
-    ) as f:
+    report_path = os.path.join(results_dir, "comprehensive_spatial_report.md")
+    with open(report_path, "w", encoding="utf-8") as f:
         f.write(report)
 
     print("\nBenchmark completed!")
-    print(
-        "Results saved to: /workspace/benchmarks/results/comprehensive_spatial_benchmark.json"
-    )
-    print(
-        "Report saved to: /workspace/benchmarks/results/comprehensive_spatial_report.md"
-    )
+    print(f"Results saved to: {results_path}")
+    print(f"Report saved to: {report_path}")
     print("\n" + "=" * 60)
     print("PERFORMANCE SUMMARY")
     print("=" * 60)
