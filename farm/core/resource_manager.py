@@ -692,7 +692,8 @@ class ResourceManager:
             The newly created resource
         """
         if amount is None:
-            amount = 5  # Default amount
+            # Use config value if available, otherwise use default
+            amount = getattr(getattr(self.config, 'resources', None), 'default_spawn_amount', 5) if self.config and hasattr(self.config, 'resources') else 5
 
         resource = Resource(
             resource_id=self.next_resource_id,

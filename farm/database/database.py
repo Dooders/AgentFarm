@@ -212,18 +212,23 @@ class SimulationDatabase:
         self.journal_mode = journal_mode
         self.custom_pragmas = custom_pragmas
 
-        # Create engine with connect_args
+        # Store config values for reference
+        self.pool_size = getattr(config, 'connection_pool_size', 10) if hasattr(config, 'connection_pool_size') else 10
+        self.pool_recycle = getattr(config, 'connection_pool_recycle', 3600) if hasattr(config, 'connection_pool_recycle') else 3600
+        self.connection_timeout = getattr(config, 'connection_timeout', 30) if hasattr(config, 'connection_timeout') else 30
+        
+        # Create engine with connect_args using config values
         self.engine = create_engine(
             self._get_database_url(db_path),
             # Larger pool size for concurrent operations
-            pool_size=10,
+            pool_size=self.pool_size,
             # Longer timeout before connections are recycled
-            pool_recycle=3600,
+            pool_recycle=self.pool_recycle,
             # Enable connection pooling
             poolclass=QueuePool,
             # Optimize for write-heavy workloads
             connect_args={
-                "timeout": 30,  # Longer timeout for busy database
+                "timeout": self.connection_timeout,  # Longer timeout for busy database
                 "check_same_thread": False,  # Allow cross-thread usage
             },
         )
@@ -296,11 +301,13 @@ class SimulationDatabase:
         self.session_manager.engine = self.engine
         self.session_manager.Session = self.Session
 
-        # Initialize data logger with simulation_id
+        # Initialize data logger with simulation_id and config values
+        log_buffer_size = getattr(config, 'log_buffer_size', 1000) if hasattr(config, 'log_buffer_size') else 1000
+        commit_interval = getattr(config, 'commit_interval_seconds', 30) if hasattr(config, 'commit_interval_seconds') else 30
         self.logger = DataLogger(
             self,
             simulation_id=self.simulation_id,
-            config=DataLoggingConfig(buffer_size=1000),
+            config=DataLoggingConfig(buffer_size=log_buffer_size, commit_interval=commit_interval),
         )
         self.query = DataRetriever(self.session_manager)
 

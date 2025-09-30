@@ -216,9 +216,9 @@ class BaseDQNModule:
         self.episode_rewards = []
         self.pending_experiences = []
 
-        # Add caching for state tensors
+        # Add caching for state tensors with configurable size
         self._state_cache = {}
-        self._max_cache_size = 100
+        self._max_cache_size = getattr(config, 'dqn_state_cache_size', 100)
 
     def _set_seed(self, seed: int) -> None:
         """Set seeds for all random number generators to ensure reproducibility.
