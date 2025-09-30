@@ -199,11 +199,26 @@ class SimulationDatabase:
         custom_pragmas = {}
 
         if config:
-            pragma_profile = getattr(config, "db_pragma_profile", pragma_profile)
-            cache_size_mb = getattr(config, "db_cache_size_mb", cache_size_mb)
-            synchronous_mode = getattr(config, "db_synchronous_mode", synchronous_mode)
-            journal_mode = getattr(config, "db_journal_mode", journal_mode)
-            custom_pragmas = getattr(config, "db_custom_pragmas", {})
+            db_pragmas = getattr(config, "database", None)
+            # Prefer nested config.database when available, with fallback to top-level for backwards compatibility
+            if isinstance(db_pragmas, dict):
+                pragma_profile = db_pragmas.get("db_pragma_profile", getattr(config, "db_pragma_profile", pragma_profile))
+                cache_size_mb = db_pragmas.get("db_cache_size_mb", getattr(config, "db_cache_size_mb", cache_size_mb))
+                synchronous_mode = db_pragmas.get("db_synchronous_mode", getattr(config, "db_synchronous_mode", synchronous_mode))
+                journal_mode = db_pragmas.get("db_journal_mode", getattr(config, "db_journal_mode", journal_mode))
+                custom_pragmas = db_pragmas.get("db_custom_pragmas", getattr(config, "db_custom_pragmas", {}))
+            elif db_pragmas is not None:
+                pragma_profile = getattr(db_pragmas, "db_pragma_profile", getattr(config, "db_pragma_profile", pragma_profile))
+                cache_size_mb = getattr(db_pragmas, "db_cache_size_mb", getattr(config, "db_cache_size_mb", cache_size_mb))
+                synchronous_mode = getattr(db_pragmas, "db_synchronous_mode", getattr(config, "db_synchronous_mode", synchronous_mode))
+                journal_mode = getattr(db_pragmas, "db_journal_mode", getattr(config, "db_journal_mode", journal_mode))
+                custom_pragmas = getattr(db_pragmas, "db_custom_pragmas", getattr(config, "db_custom_pragmas", {}))
+            else:
+                pragma_profile = getattr(config, "db_pragma_profile", pragma_profile)
+                cache_size_mb = getattr(config, "db_cache_size_mb", cache_size_mb)
+                synchronous_mode = getattr(config, "db_synchronous_mode", synchronous_mode)
+                journal_mode = getattr(config, "db_journal_mode", journal_mode)
+                custom_pragmas = getattr(config, "db_custom_pragmas", {})
 
         # Store pragma settings for reference
         self.pragma_profile = pragma_profile

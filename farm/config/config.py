@@ -138,6 +138,7 @@ class SpatialIndexConfig:
             "spatial_hash_cell_size": self.spatial_hash_cell_size,
             "performance_monitoring": self.performance_monitoring,
             "debug_queries": self.debug_queries,
+            "dirty_region_batch_size": self.dirty_region_batch_size,
         }
 
 
