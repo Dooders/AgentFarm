@@ -71,9 +71,13 @@ class SpatialIndex:
         if self._initial_batch_updates_enabled:
             self._dirty_region_tracker = DirtyRegionTracker(
                 region_size=region_size,
-                max_regions=max(1000, int((width * height) / (region_size * region_size))),
+                max_regions=max(
+                    1000, int((width * height) / (region_size * region_size))
+                ),
             )
-            self._pending_position_updates: List[Tuple[Any, Tuple[float, float], Tuple[float, float], str, int]] = []
+            self._pending_position_updates: List[
+                Tuple[Any, Tuple[float, float], Tuple[float, float], str, int]
+            ] = []
             self._batch_update_enabled = True
         else:
             self._dirty_region_tracker = None
@@ -121,9 +125,15 @@ class SpatialIndex:
             data_ref_or_getter = self._initial_index_data.get(name)
             self.register_index(
                 name=name,
-                data_reference=(data_ref_or_getter if isinstance(data_ref_or_getter, list) else None),
-                data_getter=(data_ref_or_getter if callable(data_ref_or_getter) else None),
-                position_getter=cfg.get("position_getter", lambda x: getattr(x, "position", None)),
+                data_reference=(
+                    data_ref_or_getter if isinstance(data_ref_or_getter, list) else None
+                ),
+                data_getter=(
+                    data_ref_or_getter if callable(data_ref_or_getter) else None
+                ),
+                position_getter=cfg.get(
+                    "position_getter", lambda x: getattr(x, "position", None)
+                ),
                 filter_func=cfg.get("filter_func", None),
                 index_type=cfg.get("index_type", "kdtree"),
                 cell_size=cfg.get("cell_size"),
@@ -150,12 +160,18 @@ class SpatialIndex:
             return
 
         # Add to pending updates
-        self._pending_position_updates.append((entity, old_position, new_position, entity_type, priority))
+        self._pending_position_updates.append(
+            (entity, old_position, new_position, entity_type, priority)
+        )
 
         # Mark regions as dirty
         if self._dirty_region_tracker:
-            self._dirty_region_tracker.mark_region_dirty(old_position, entity_type, priority)
-            self._dirty_region_tracker.mark_region_dirty(new_position, entity_type, priority)
+            self._dirty_region_tracker.mark_region_dirty(
+                old_position, entity_type, priority
+            )
+            self._dirty_region_tracker.mark_region_dirty(
+                new_position, entity_type, priority
+            )
 
         # Process batch if it's full
         if len(self._pending_position_updates) >= self.max_batch_size:
@@ -174,24 +190,38 @@ class SpatialIndex:
 
         # Group updates by entity type for efficient processing
         updates_by_type = defaultdict(list)
-        for entity, old_pos, new_pos, entity_type, priority in self._pending_position_updates:
+        for (
+            entity,
+            old_pos,
+            new_pos,
+            entity_type,
+            priority,
+        ) in self._pending_position_updates:
             updates_by_type[entity_type].append((entity, old_pos, new_pos, priority))
 
         # Process each entity type
         regions_processed = 0
         for entity_type, updates in updates_by_type.items():
             # Get dirty regions for this entity type
-            dirty_regions = self._dirty_region_tracker.get_dirty_regions(entity_type) if self._dirty_region_tracker else []
+            dirty_regions = (
+                self._dirty_region_tracker.get_dirty_regions(entity_type)
+                if self._dirty_region_tracker
+                else []
+            )
 
             # Process updates for this entity type
             for entity, old_pos, new_pos, _priority in updates:
-                self._process_single_position_update(entity, old_pos, new_pos, entity_type)
+                self._process_single_position_update(
+                    entity, old_pos, new_pos, entity_type
+                )
 
             # Clear processed regions
             if self._dirty_region_tracker and dirty_regions:
                 region_coords_list = []
                 for region in dirty_regions:
-                    region_coords = self._dirty_region_tracker._world_to_region_coords((region.bounds[0], region.bounds[1]))
+                    region_coords = self._dirty_region_tracker._world_to_region_coords(
+                        (region.bounds[0], region.bounds[1])
+                    )
                     region_coords_list.append(region_coords)
                 self._dirty_region_tracker.clear_regions(region_coords_list)
                 regions_processed += len(region_coords_list)
@@ -210,13 +240,17 @@ class SpatialIndex:
         if total_batches <= 1:
             new_avg = float(batch_size)
         else:
-            new_avg = ((prev_avg * (total_batches - 1)) + batch_size) / float(total_batches)
+            new_avg = ((prev_avg * (total_batches - 1)) + batch_size) / float(
+                total_batches
+            )
         self._batch_update_stats["average_batch_size"] = new_avg
         self._batch_update_stats["last_batch_time"] = end_time - start_time
 
         logger.debug(
             "Processed batch update: %d entities, %d regions, %.3f seconds",
-            batch_size, regions_processed, end_time - start_time
+            batch_size,
+            regions_processed,
+            end_time - start_time,
         )
 
     def _process_single_position_update(
@@ -255,15 +289,23 @@ class SpatialIndex:
             stats.update(self._dirty_region_tracker.get_stats())
         return stats
 
-    def enable_batch_updates(self, region_size: float = 50.0, max_batch_size: int = 100) -> None:
+    def enable_batch_updates(
+        self, region_size: float = 50.0, max_batch_size: int = 100
+    ) -> None:
         if not self._batch_update_enabled:
             self._dirty_region_tracker = DirtyRegionTracker(
                 region_size=region_size,
-                max_regions=max(1000, int((self.width * self.height) / (region_size * region_size))),
+                max_regions=max(
+                    1000, int((self.width * self.height) / (region_size * region_size))
+                ),
             )
             self._batch_update_enabled = True
             self.max_batch_size = max_batch_size
-            logger.info("Batch updates enabled with region_size=%s, max_batch_size=%s", region_size, max_batch_size)
+            logger.info(
+                "Batch updates enabled with region_size=%s, max_batch_size=%s",
+                region_size,
+                max_batch_size,
+            )
 
     def disable_batch_updates(self) -> None:
         if self._batch_update_enabled:
@@ -279,7 +321,9 @@ class SpatialIndex:
             if self.agent_kdtree is None or self.resource_kdtree is None:
                 self._update_named_indices()
             return
-        alive_agents = [agent for agent in self._agents if getattr(agent, "alive", False)]
+        alive_agents = [
+            agent for agent in self._agents if getattr(agent, "alive", False)
+        ]
         current_agent_count = len(alive_agents)
         if self._counts_changed(current_agent_count):
             self._rebuild_kdtrees(alive_agents)
@@ -301,16 +345,37 @@ class SpatialIndex:
         return False
 
     def _hash_positions_changed(self, alive_agents: List) -> bool:
-        valid_alive_agents = [agent for agent in alive_agents if getattr(agent, "position", None) is not None]
-        valid_resources = [resource for resource in self._resources if getattr(resource, "position", None) is not None]
-        current_agent_positions = np.array([agent.position for agent in valid_alive_agents]) if valid_alive_agents else None
-        current_resource_positions = np.array([resource.position for resource in valid_resources]) if valid_resources else None
+        valid_alive_agents = [
+            agent
+            for agent in alive_agents
+            if getattr(agent, "position", None) is not None
+        ]
+        valid_resources = [
+            resource
+            for resource in self._resources
+            if getattr(resource, "position", None) is not None
+        ]
+        current_agent_positions = (
+            np.array([agent.position for agent in valid_alive_agents])
+            if valid_alive_agents
+            else None
+        )
+        current_resource_positions = (
+            np.array([resource.position for resource in valid_resources])
+            if valid_resources
+            else None
+        )
         if current_agent_positions is not None and len(current_agent_positions) > 0:
             agent_hash = hashlib.md5(current_agent_positions.tobytes()).hexdigest()
         else:
             agent_hash = "0"
-        if current_resource_positions is not None and len(current_resource_positions) > 0:
-            resource_hash = hashlib.md5(current_resource_positions.tobytes()).hexdigest()
+        if (
+            current_resource_positions is not None
+            and len(current_resource_positions) > 0
+        ):
+            resource_hash = hashlib.md5(
+                current_resource_positions.tobytes()
+            ).hexdigest()
         else:
             resource_hash = "0"
         current_hash = f"{agent_hash}:{resource_hash}"
@@ -321,8 +386,14 @@ class SpatialIndex:
 
     def _rebuild_kdtrees(self, alive_agents: List = None) -> None:
         if alive_agents is None:
-            alive_agents = [agent for agent in self._agents if getattr(agent, "alive", False)]
-        alive_agents = [agent for agent in alive_agents if getattr(agent, "position", None) is not None]
+            alive_agents = [
+                agent for agent in self._agents if getattr(agent, "alive", False)
+            ]
+        alive_agents = [
+            agent
+            for agent in alive_agents
+            if getattr(agent, "position", None) is not None
+        ]
         self._cached_alive_agents = alive_agents
         if alive_agents:
             self.agent_positions = np.array([agent.position for agent in alive_agents])
@@ -330,9 +401,15 @@ class SpatialIndex:
         else:
             self.agent_kdtree = None
             self.agent_positions = None
-        valid_resources = [resource for resource in self._resources if getattr(resource, "position", None) is not None]
+        valid_resources = [
+            resource
+            for resource in self._resources
+            if getattr(resource, "position", None) is not None
+        ]
         if valid_resources:
-            self.resource_positions = np.array([resource.position for resource in valid_resources])
+            self.resource_positions = np.array(
+                [resource.position for resource in valid_resources]
+            )
             self.resource_kdtree = cKDTree(self.resource_positions)
         else:
             self.resource_kdtree = None
@@ -377,9 +454,15 @@ class SpatialIndex:
                 state["positions_dirty"] = False
                 if state.get("cached_count") is None:
                     current_items = state["cached_items"] or []
-                    valid_items = [it for it in current_items if state["position_getter"](it) is not None]
+                    valid_items = [
+                        it
+                        for it in current_items
+                        if state["position_getter"](it) is not None
+                    ]
                     current_positions = (
-                        np.array([state["position_getter"](it) for it in valid_items]) if valid_items else None
+                        np.array([state["position_getter"](it) for it in valid_items])
+                        if valid_items
+                        else None
                     )
                     if current_positions is not None and len(current_positions) > 0:
                         curr_hash = hashlib.md5(current_positions.tobytes()).hexdigest()
@@ -396,9 +479,15 @@ class SpatialIndex:
                 state["positions_dirty"] = False
                 if state.get("cached_count") is None:
                     current_items = state["cached_items"] or []
-                    valid_items = [it for it in current_items if state["position_getter"](it) is not None]
+                    valid_items = [
+                        it
+                        for it in current_items
+                        if state["position_getter"](it) is not None
+                    ]
                     current_positions = (
-                        np.array([state["position_getter"](it) for it in valid_items]) if valid_items else None
+                        np.array([state["position_getter"](it) for it in valid_items])
+                        if valid_items
+                        else None
                     )
                     if current_positions is not None and len(current_positions) > 0:
                         curr_hash = hashlib.md5(current_positions.tobytes()).hexdigest()
@@ -426,11 +515,15 @@ class SpatialIndex:
             filtered_items = [it for it in items if state["filter_func"](it)]
         else:
             filtered_items = list(items)
-        valid_items = [it for it in filtered_items if state["position_getter"](it) is not None]
+        valid_items = [
+            it for it in filtered_items if state["position_getter"](it) is not None
+        ]
 
         if index_type == "kdtree":
             if valid_items:
-                positions = np.array([state["position_getter"](it) for it in valid_items])
+                positions = np.array(
+                    [state["position_getter"](it) for it in valid_items]
+                )
                 kdtree = cKDTree(positions)
             else:
                 positions = None
@@ -442,12 +535,15 @@ class SpatialIndex:
             state["spatial_hash"] = None
         elif index_type == "quadtree":
             if valid_items:
-                bounds = (0, 0, self.width, self.height)
+                # Use exclusive bounds to avoid boundary issues with quadtree subdivision
+                bounds = (0, 0, self.width - 1e-10, self.height - 1e-10)
                 quadtree = Quadtree(bounds, capacity=4)
                 for item in valid_items:
                     position = state["position_getter"](item)
                     quadtree.insert(item, position)
-                positions = np.array([state["position_getter"](it) for it in valid_items])
+                positions = np.array(
+                    [state["position_getter"](it) for it in valid_items]
+                )
             else:
                 quadtree = None
                 positions = None
@@ -465,10 +561,14 @@ class SpatialIndex:
                     cell_w = max(self.width / target_cells_per_dim, 1.0)
                     cell_h = max(self.height / target_cells_per_dim, 1.0)
                     cs = float((cell_w + cell_h) / 2.0)
-                grid = SpatialHashGrid(cell_size=cs, width=self.width, height=self.height)
+                grid = SpatialHashGrid(
+                    cell_size=cs, width=self.width, height=self.height
+                )
                 for item in valid_items:
                     grid.insert(item, state["position_getter"](item))
-                positions = np.array([state["position_getter"](it) for it in valid_items])
+                positions = np.array(
+                    [state["position_getter"](it) for it in valid_items]
+                )
             else:
                 grid = None
                 positions = None
@@ -486,7 +586,10 @@ class SpatialIndex:
             state["cached_hash"] = "0"
 
     def get_nearby(
-        self, position: Tuple[float, float], radius: float, index_names: Optional[List[str]] = None
+        self,
+        position: Tuple[float, float],
+        radius: float,
+        index_names: Optional[List[str]] = None,
     ) -> Dict[str, List[Any]]:
         self.update()
         if radius <= 0 or not self._is_valid_position(position):
@@ -510,19 +613,25 @@ class SpatialIndex:
                 if state["quadtree"] is None:
                     results[name] = []
                     continue
-                entities_and_positions = state["quadtree"].query_radius(position, radius)
+                entities_and_positions = state["quadtree"].query_radius(
+                    position, radius
+                )
                 results[name] = [entity for entity, _ in entities_and_positions]
             elif index_type == "spatial_hash":
                 if state["spatial_hash"] is None:
                     results[name] = []
                     continue
-                entities_and_positions = state["spatial_hash"].query_radius(position, radius)
+                entities_and_positions = state["spatial_hash"].query_radius(
+                    position, radius
+                )
                 results[name] = [entity for entity, _ in entities_and_positions]
             else:
                 results[name] = []
         return results
 
-    def get_nearest(self, position: Tuple[float, float], index_names: Optional[List[str]] = None) -> Dict[str, Optional[Any]]:
+    def get_nearest(
+        self, position: Tuple[float, float], index_names: Optional[List[str]] = None
+    ) -> Dict[str, Optional[Any]]:
         self.update()
         if not self._is_valid_position(position):
             return {}
@@ -554,11 +663,15 @@ class SpatialIndex:
                 results[name] = None
         return results
 
-    def _quadtree_nearest(self, quadtree: Quadtree, position: Tuple[float, float]) -> Optional[Any]:
+    def _quadtree_nearest(
+        self, quadtree: Quadtree, position: Tuple[float, float]
+    ) -> Optional[Any]:
         if quadtree is None or quadtree.root is None:
             return None
 
-        def rect_min_distance_sq(point: Tuple[float, float], bounds: Tuple[float, float, float, float]) -> float:
+        def rect_min_distance_sq(
+            point: Tuple[float, float], bounds: Tuple[float, float, float, float]
+        ) -> float:
             px, py = point
             x, y, w, h = bounds
             cx = px if x <= px <= x + w else (x if px < x else x + w)
@@ -575,7 +688,9 @@ class SpatialIndex:
         best_entity: Optional[Any] = None
         best_dist_sq: float = float("inf")
         heap: List[Tuple[float, QuadtreeNode]] = []
-        heapq.heappush(heap, (rect_min_distance_sq(position, quadtree.root.bounds), quadtree.root))
+        heapq.heappush(
+            heap, (rect_min_distance_sq(position, quadtree.root.bounds), quadtree.root)
+        )
         while heap:
             min_possible_sq, node = heapq.heappop(heap)
             if min_possible_sq >= best_dist_sq:
@@ -596,7 +711,9 @@ class SpatialIndex:
         x, y = position
         margin_x = self.width * 0.01
         margin_y = self.height * 0.01
-        return (-margin_x <= x <= self.width + margin_x) and (-margin_y <= y <= self.height + margin_y)
+        return (-margin_x <= x <= self.width + margin_x) and (
+            -margin_y <= y <= self.height + margin_y
+        )
 
     def get_agent_count(self) -> int:
         return len([a for a in self._agents if getattr(a, "alive", False)])
@@ -608,7 +725,10 @@ class SpatialIndex:
         return self._positions_dirty
 
     def update_entity_position(
-        self, entity: Any, old_position: Tuple[float, float], new_position: Tuple[float, float]
+        self,
+        entity: Any,
+        old_position: Tuple[float, float],
+        new_position: Tuple[float, float],
     ) -> None:
         entity_type = "agent"
         try:
@@ -625,14 +745,18 @@ class SpatialIndex:
         if self._batch_update_enabled:
             self.add_position_update(entity, old_position, new_position, entity_type)
             return
-        self._process_single_position_update(entity, old_position, new_position, entity_type)
+        self._process_single_position_update(
+            entity, old_position, new_position, entity_type
+        )
 
     def force_rebuild(self) -> None:
         self._rebuild_kdtrees()
         self._positions_dirty = False
 
     def get_nearby_range(
-        self, bounds: Tuple[float, float, float, float], index_names: Optional[List[str]] = None
+        self,
+        bounds: Tuple[float, float, float, float],
+        index_names: Optional[List[str]] = None,
     ) -> Dict[str, List[Any]]:
         self.update()
         x, y, width, height = bounds
@@ -649,14 +773,20 @@ class SpatialIndex:
             if index_type == "quadtree" and state["quadtree"] is not None:
                 entities_and_positions = state["quadtree"].query_range(bounds)
                 results[name] = [entity for entity, _ in entities_and_positions]
-            elif index_type == "kdtree" and state["kdtree"] is not None and state["cached_items"]:
+            elif (
+                index_type == "kdtree"
+                and state["kdtree"] is not None
+                and state["cached_items"]
+            ):
                 cached_items = state["cached_items"]
                 positions = state["positions"]
                 if positions is not None:
                     center_x = x + width / 2
                     center_y = y + height / 2
                     radius = ((width / 2) ** 2 + (height / 2) ** 2) ** 0.5
-                    indices = state["kdtree"].query_ball_point((center_x, center_y), radius)
+                    indices = state["kdtree"].query_ball_point(
+                        (center_x, center_y), radius
+                    )
                     entities_in_range = []
                     for i in indices:
                         if i < len(positions):
@@ -675,7 +805,11 @@ class SpatialIndex:
 
     def get_quadtree_stats(self, index_name: str) -> Optional[Dict[str, Any]]:
         state = self._named_indices.get(index_name)
-        if state is None or state.get("index_type") != "quadtree" or state["quadtree"] is None:
+        if (
+            state is None
+            or state.get("index_type") != "quadtree"
+            or state["quadtree"] is None
+        ):
             return None
         return state["quadtree"].get_stats()
 
@@ -687,13 +821,17 @@ class SpatialIndex:
             "resource_kdtree_exists": self.resource_kdtree is not None,
             "positions_dirty": self._positions_dirty,
             "cached_counts": self._cached_counts,
-            "cached_hash": (self._cached_hash[:20] + "..." if self._cached_hash else None),
+            "cached_hash": (
+                self._cached_hash[:20] + "..." if self._cached_hash else None
+            ),
         }
         quadtree_info = {}
         for name, state in self._named_indices.items():
             if state.get("index_type") == "quadtree":
-                quadtree_info[name] = {"exists": state["quadtree"] is not None, "total_entities": state.get("cached_count", 0)}
+                quadtree_info[name] = {
+                    "exists": state["quadtree"] is not None,
+                    "total_entities": state.get("cached_count", 0),
+                }
         if quadtree_info:
             stats["quadtree_indices"] = quadtree_info
         return stats
-
