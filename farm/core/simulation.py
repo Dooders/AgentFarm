@@ -134,7 +134,9 @@ def create_initial_agents(
         environment.add_agent(agent)
         positions.append(position)
 
-    logger.info("agents_created", agent_type="independent", count=num_independent_agents)
+    logger.info(
+        "agents_created", agent_type="independent", count=num_independent_agents
+    )
 
     # Create control agents (now using BaseAgent)
     for _ in range(num_control_agents):
@@ -183,7 +185,9 @@ def init_random_seeds(seed=None):
                 # torch.backends.cudnn.deterministic = True
                 # torch.backends.cudnn.benchmark = False
         except ImportError:
-            logger.info("pytorch_unavailable", message="Skipping torch seed initialization")
+            logger.info(
+                "pytorch_unavailable", message="Skipping torch seed initialization"
+            )
 
         logger.info("random_seeds_initialized", seed=seed, deterministic=True)
 
@@ -296,9 +300,16 @@ def run_simulation(
                     os.remove(db_path)
                 except PermissionError:
                     # If can't remove, create unique filename
+                    original_db_path = (
+                        db_path  # Store original path before modification
+                    )
                     base, ext = os.path.splitext(db_path)
                     db_path = f"{base}_{int(time.time())}{ext}"
-                    logger.warning("database_path_changed", original_path=db_path, new_path=db_path)
+                    logger.warning(
+                        "database_path_changed",
+                        original_path=original_db_path,
+                        new_path=db_path,
+                    )
 
             # Create parent directory if it doesn't exist
             if db_path is not None:
@@ -356,8 +367,16 @@ def run_simulation(
 
         # Main simulation loop
         # Disable tqdm progress bar in CI environments to avoid output interference
-        disable_tqdm = os.environ.get("CI", "").lower() in ("true", "1") or os.environ.get("GITHUB_ACTIONS", "").lower() == "true"
-        for step in tqdm(range(num_steps), desc="Simulation progress", unit="step", disable=disable_tqdm):
+        disable_tqdm = (
+            os.environ.get("CI", "").lower() in ("true", "1")
+            or os.environ.get("GITHUB_ACTIONS", "").lower() == "true"
+        )
+        for step in tqdm(
+            range(num_steps),
+            desc="Simulation progress",
+            unit="step",
+            disable=disable_tqdm,
+        ):
             logger.debug("step_starting", step=step, total_steps=num_steps)
 
             # Process agents in batches
@@ -374,8 +393,8 @@ def run_simulation(
                 break
 
             # Get batch size from config, with fallback to default
-            perf_cfg = getattr(config, 'performance', None)
-            batch_size = getattr(perf_cfg, 'agent_processing_batch_size', 32)
+            perf_cfg = getattr(config, "performance", None)
+            batch_size = getattr(perf_cfg, "agent_processing_batch_size", 32)
 
             # Process batches without a nested progress bar
             batch_ranges = list(range(0, len(alive_agents), batch_size))
@@ -415,8 +434,8 @@ def run_simulation(
                         )
                         logger.info(
                             "database_persisted",
-                            rows_copied=stats['rows_copied'],
-                            duration_seconds=round(stats['duration'], 2),
+                            rows_copied=stats["rows_copied"],
+                            duration_seconds=round(stats["duration"], 2),
                             db_path=db_path,
                         )
                     else:
