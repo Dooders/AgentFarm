@@ -5,7 +5,7 @@ Provides centralized registration and discovery of analysis modules.
 """
 
 import importlib
-import logging
+from farm.utils.logging_config import get_logger
 from typing import Dict, List, Optional
 
 from farm.analysis.protocols import AnalysisModule
@@ -13,7 +13,7 @@ from farm.analysis.exceptions import ModuleNotFoundError, ConfigurationError
 from farm.core.services import IConfigService
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ModuleRegistry:

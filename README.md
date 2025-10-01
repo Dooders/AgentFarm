@@ -38,7 +38,7 @@ This repository is being developed to support research in the [Dooders](https://
 - Parameter sweep experiments
 - Comparative analysis framework
 - Experiment replication tools
-- Detailed logging and tracking
+- **Structured Logging System**: Professional-grade logging with structlog for rich, contextual, machine-readable logs
 
 ### Data System
 - **Comprehensive Data Architecture**: Layered system with database, repositories, analyzers, and services
@@ -78,6 +78,33 @@ This repository is being developed to support research in the [Dooders](https://
 - **Error Handling**: Robust error handling with retry logic and graceful fallbacks
 - **Performance Monitoring**: Built-in metrics tracking and optimization
 - **Cross-Platform Support**: Works in both Electron and browser environments
+
+## Logging & Observability ✨
+
+AgentFarm now includes **professional-grade structured logging** with `structlog`:
+
+**Key Features:**
+- 🔍 Rich contextual logs (simulation_id, step, agent_id, etc.)
+- 📊 Machine-readable JSON output for analysis
+- 🎨 Multiple formats: Console (colored), JSON, plain text
+- ⚡ Performance-optimized with log sampling
+- 🛡️ Automatic sensitive data censoring
+
+**Quick Example:**
+```python
+from farm.utils import configure_logging, get_logger
+
+configure_logging(environment="development", log_level="INFO")
+logger = get_logger(__name__)
+
+logger.info("simulation_started", num_agents=100, num_steps=1000)
+```
+
+**Learn More:**
+- [Getting Started Guide](LOGGING_README.md)
+- [Quick Reference](docs/LOGGING_QUICK_REFERENCE.md)
+- [Complete Documentation](docs/logging_guide.md)
+- [Examples](examples/logging_examples.py)
 
 ## Quick Start
 

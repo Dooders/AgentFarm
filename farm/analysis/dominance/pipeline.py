@@ -1,4 +1,4 @@
-import logging
+from farm.utils.logging_config import get_logger
 import pandas as pd
 
 from farm.analysis.common.metrics import get_valid_numeric_columns

@@ -11,7 +11,7 @@ The DominanceAnalysis class at the bottom uses the old BaseAnalysisModule
 and is kept for backwards compatibility. New code should use the module system.
 """
 
-import logging
+from farm.utils.logging_config import get_logger
 import traceback
 
 import pandas as pd

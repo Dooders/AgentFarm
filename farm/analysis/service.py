@@ -6,7 +6,7 @@ Provides high-level API for running analysis with validation, caching, and progr
 
 import hashlib
 import json
-import logging
+from farm.utils.logging_config import get_logger
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any, Dict, Optional, Callable, List
@@ -22,7 +22,7 @@ from farm.analysis.exceptions import (
 from farm.core.services import IConfigService
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass

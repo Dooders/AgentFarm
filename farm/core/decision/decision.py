@@ -13,7 +13,6 @@ Key Features:
     - Save/load functionality for model persistence
 """
 
-import logging
 import os
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
@@ -21,6 +20,9 @@ import numpy as np
 import torch
 
 from farm.core.decision.config import DecisionConfig
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # Check Tianshou availability
 try:
@@ -29,8 +31,7 @@ try:
     TIANSHOU_AVAILABLE = True
 except ImportError:
     TIANSHOU_AVAILABLE = False
-    logger = logging.getLogger(__name__)
-    logger.warning("Tianshou not available. Using fallback algorithms.")
+    logger.warning("tianshou_unavailable", message="Using fallback algorithms")
 
 # Initialize algorithm registry - populated conditionally based on Tianshou availability
 _ALGORITHM_REGISTRY = {}
@@ -58,14 +59,11 @@ if TIANSHOU_AVAILABLE:
         )
 
     except ImportError:
-        logger = logging.getLogger(__name__)
-        logger.warning("Could not import Tianshou wrappers. Using fallback algorithms.")
+        logger.warning("tianshou_wrappers_unavailable", message="Using fallback algorithms")
         TIANSHOU_AVAILABLE = False
 
 if TYPE_CHECKING:
     from farm.core.agent import BaseAgent
-
-logger = logging.getLogger(__name__)
 
 
 class DecisionModule:
@@ -165,14 +163,17 @@ class DecisionModule:
             self._initialize_fallback()
         else:
             logger.warning(
-                f"Algorithm {algorithm_type} not available or not supported. Using fallback."
+                "algorithm_unavailable",
+                algorithm_type=algorithm_type,
+                agent_id=self.agent_id,
+                message="Using fallback",
             )
             self._initialize_fallback()
 
     def _initialize_tianshou_ppo(self):
         """Initialize PPO using Tianshou."""
         if "ppo" not in _ALGORITHM_REGISTRY:
-            logger.warning(f"Tianshou PPO not available for agent {self.agent_id}")
+            logger.warning("algorithm_not_available", algorithm="ppo", agent_id=self.agent_id)
             self._initialize_fallback()
             return
 
@@ -201,18 +202,22 @@ class DecisionModule:
                 batch_size=self.config.rl_batch_size,
                 train_freq=self.config.rl_train_freq,
             )
-            logger.info(f"Initialized Tianshou PPO for agent {self.agent_id}")
+            logger.info("algorithm_initialized", algorithm="ppo", agent_id=self.agent_id)
 
         except Exception as e:
             logger.error(
-                f"Failed to initialize Tianshou PPO for agent {self.agent_id}: {e}"
+                "algorithm_initialization_failed",
+                algorithm="ppo",
+                agent_id=self.agent_id,
+                error_type=type(e).__name__,
+                error_message=str(e),
             )
             self._initialize_fallback()
 
     def _initialize_tianshou_sac(self):
         """Initialize SAC using Tianshou."""
         if "sac" not in _ALGORITHM_REGISTRY:
-            logger.warning(f"Tianshou SAC not available for agent {self.agent_id}")
+            logger.warning("algorithm_not_available", algorithm="sac", agent_id=self.agent_id)
             self._initialize_fallback()
             return
 
@@ -239,11 +244,15 @@ class DecisionModule:
                 batch_size=self.config.rl_batch_size,
                 train_freq=self.config.rl_train_freq,
             )
-            logger.info(f"Initialized Tianshou SAC for agent {self.agent_id}")
+            logger.info("algorithm_initialized", algorithm="sac", agent_id=self.agent_id)
 
         except Exception as e:
             logger.error(
-                f"Failed to initialize Tianshou SAC for agent {self.agent_id}: {e}"
+                "algorithm_initialization_failed",
+                algorithm="sac",
+                agent_id=self.agent_id,
+                error_type=type(e).__name__,
+                error_message=str(e),
             )
             self._initialize_fallback()
 
@@ -278,11 +287,15 @@ class DecisionModule:
                 batch_size=self.config.rl_batch_size,
                 train_freq=self.config.rl_train_freq,
             )
-            logger.info(f"Initialized Tianshou DQN for agent {self.agent_id}")
+            logger.info("algorithm_initialized", algorithm="dqn", agent_id=self.agent_id)
 
         except Exception as e:
             logger.error(
-                f"Failed to initialize Tianshou DQN for agent {self.agent_id}: {e}"
+                "algorithm_initialization_failed",
+                algorithm="dqn",
+                agent_id=self.agent_id,
+                error_type=type(e).__name__,
+                error_message=str(e),
             )
             self._initialize_fallback()
 
@@ -317,11 +330,15 @@ class DecisionModule:
                 batch_size=self.config.rl_batch_size,
                 train_freq=self.config.rl_train_freq,
             )
-            logger.info(f"Initialized Tianshou A2C for agent {self.agent_id}")
+            logger.info("algorithm_initialized", algorithm="a2c", agent_id=self.agent_id)
 
         except Exception as e:
             logger.error(
-                f"Failed to initialize Tianshou A2C for agent {self.agent_id}: {e}"
+                "algorithm_initialization_failed",
+                algorithm="a2c",
+                agent_id=self.agent_id,
+                error_type=type(e).__name__,
+                error_message=str(e),
             )
             self._initialize_fallback()
 
@@ -353,17 +370,21 @@ class DecisionModule:
                 batch_size=self.config.rl_batch_size,
                 train_freq=self.config.rl_train_freq,
             )
-            logger.info(f"Initialized Tianshou DDPG for agent {self.agent_id}")
+            logger.info("algorithm_initialized", algorithm="ddpg", agent_id=self.agent_id)
 
         except Exception as e:
             logger.error(
-                f"Failed to initialize Tianshou DDPG for agent {self.agent_id}: {e}"
+                "algorithm_initialization_failed",
+                algorithm="ddpg",
+                agent_id=self.agent_id,
+                error_type=type(e).__name__,
+                error_message=str(e),
             )
             self._initialize_fallback()
 
     def _initialize_fallback(self):
         """Initialize a fallback decision mechanism."""
-        logger.info(f"Using fallback decision mechanism for agent {self.agent_id}")
+        logger.info("using_fallback_algorithm", agent_id=self.agent_id)
 
         # Simple epsilon-greedy random action selection
         class FallbackAlgorithm:
