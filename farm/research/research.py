@@ -28,15 +28,15 @@ ResearchProject : class
     Main class for managing research projects and experiments
 """
 
-import errno
 import json
-import os
 import shutil
 import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Union
+
+import structlog
 
 from farm.config import SimulationConfig
 from farm.runners.experiment_runner import ExperimentRunner
@@ -157,9 +157,9 @@ class ResearchProject:
                     break
                 except PermissionError as e:
                     if attempt == max_attempts - 1:  # Last attempt
-                        raise Exception(
+                        raise OSError(
                             f"Unable to delete directory after {max_attempts} attempts: {e}"
-                        )
+                        ) from e
                     time.sleep(1)  # Wait a second before retrying
 
         self._setup_directory_structure()
@@ -211,7 +211,7 @@ class ResearchProject:
         # Create hypothesis.md
         hypothesis_path = self.project_path / "hypothesis.md"
         if not hypothesis_path.exists():
-            with open(hypothesis_path, "w") as f:
+            with open(hypothesis_path, "w", encoding="utf-8") as f:
                 f.write(
                     "# Research Hypotheses\n\n## Primary Hypothesis\n\n## Secondary Hypotheses\n"
                 )
@@ -227,7 +227,7 @@ class ResearchProject:
         #     if not protocol_path.exists():
         #         protocol_path.touch()
 
-    def _setup_logging(self) -> logging.Logger:
+    def _setup_logging(self) -> structlog.stdlib.BoundLogger:
         """Configure project-specific logging."""
         log_path = self.project_path / "research.log"
 
@@ -240,7 +240,7 @@ class ResearchProject:
     def _save_metadata(self) -> None:
         """Save project metadata to JSON file."""
         metadata_path = self.project_path / "metadata.json"
-        with open(metadata_path, "w") as f:
+        with open(metadata_path, "w", encoding="utf-8") as f:
             json.dump(vars(self.metadata), f, indent=2)
 
     def create_experiment(
@@ -284,7 +284,7 @@ class ResearchProject:
 
         # Save experiment configuration
         config_path = exp_path / "experiment-config.json"
-        with open(config_path, "w") as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config.to_dict(), f, indent=2)
 
         # Create experiment design document
@@ -292,7 +292,9 @@ class ResearchProject:
         # with open(design_path, "w") as f:
         #     f.write(f"# {name}\n\n## Description\n{description}\n\n## Methodology\n")
 
-        self.logger.info("experiment_created", experiment_id=exp_id, experiment_name=name)
+        self.logger.info(
+            "experiment_created", experiment_id=exp_id, experiment_name=name
+        )
         return str(exp_path)
 
     def run_experiment(
@@ -326,7 +328,7 @@ class ResearchProject:
 
         # Load experiment config
         config_path = exp_path / "experiment-config.json"
-        with open(config_path) as f:
+        with open(config_path, encoding="utf-8") as f:
             config_dict = json.load(f)
         config = SimulationConfig.from_dict(config_dict)
 
@@ -402,7 +404,7 @@ class ResearchProject:
 
         # Append to bibliography
         bib_path = self.project_path / "literature" / "bibliography.bib"
-        with open(bib_path, "a") as f:
+        with open(bib_path, "a", encoding="utf-8") as f:
             f.write(bib_entry)
 
         # Copy PDF if provided
@@ -415,7 +417,7 @@ class ResearchProject:
             notes_path = (
                 self.project_path / "literature" / "papers" / f"{citation_key}_notes.md"
             )
-            with open(notes_path, "w") as f:
+            with open(notes_path, "w", encoding="utf-8") as f:
                 f.write(f"# Notes on {title}\n\n{notes}")
 
         self.logger.info(f"Added literature reference: {citation_key}")
@@ -434,7 +436,7 @@ class ResearchProject:
             Protocol category (analysis, validation, etc)
         """
         protocol_path = self.project_path / "protocols" / f"{name}.md"
-        with open(protocol_path, "w") as f:
+        with open(protocol_path, "w", encoding="utf-8") as f:
             f.write(content)
 
         self.logger.info(f"Added {category} protocol: {name}")
