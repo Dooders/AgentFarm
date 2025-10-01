@@ -627,14 +627,14 @@ class AgentMemoryManager:
             self.redis.ping()
             logger.info(
                 "memory_manager_connected",
-                host=config.host,
-                port=config.port,
+                host=self.config.host,
+                port=self.config.port,
             )
         except redis.ConnectionError as e:
             logger.error(
                 "redis_manager_connection_failed",
-                host=config.host,
-                port=config.port,
+                host=self.config.host,
+                port=self.config.port,
                 error_type=type(e).__name__,
                 error_message=str(e),
             )

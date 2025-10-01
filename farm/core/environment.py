@@ -1611,10 +1611,11 @@ class Environment(AECEnv):
                 error_message=str(e),
             )
             nearby_resources = []
-        except Exception:
+        except Exception as e:
             logger.error(
                 "resource_layer_build_error",
-                error_type=type(e).__name__ if "e" in locals() else "Unknown",
+                error_type=type(e).__name__,
+                error_message=str(e),
                 exc_info=True,
             )
             nearby_resources = []
