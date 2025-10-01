@@ -58,6 +58,10 @@ def add_logger_name(logger: Any, method_name: str, event_dict: EventDict) -> Eve
     record = event_dict.get("_record")
     if record:
         event_dict["logger"] = record.name
+    else:
+        # Fallback to logger instance name if available
+        if hasattr(logger, 'name'):
+            event_dict["logger"] = logger.name
     return event_dict
 
 
@@ -76,7 +80,21 @@ def extract_exception_info(logger: Any, method_name: str, event_dict: EventDict)
     """Extract exception information if present."""
     exc_info = event_dict.pop("exc_info", None)
     if exc_info:
-        event_dict["exception"] = structlog.processors.format_exc_info(logger, method_name, {"exc_info": exc_info})
+        # Format exception with full traceback
+        formatted_exc = structlog.processors.format_exc_info(logger, method_name, {"exc_info": exc_info})
+        if formatted_exc:
+            event_dict["exception"] = formatted_exc.get("exception", "")
+    return event_dict
+
+
+def add_process_info(logger: Any, method_name: str, event_dict: EventDict) -> EventDict:
+    """Add process ID and thread ID to log entries."""
+    import os
+    import threading
+    
+    event_dict["process_id"] = os.getpid()
+    event_dict["thread_id"] = threading.get_ident()
+    event_dict["thread_name"] = threading.current_thread().name
     return event_dict
 
 
@@ -101,6 +119,7 @@ def configure_logging(
     json_logs: bool = False,
     enable_colors: bool = True,
     include_caller_info: bool = True,
+    include_process_info: bool = False,
 ) -> None:
     """Configure structured logging for the application.
     
@@ -111,6 +130,7 @@ def configure_logging(
         json_logs: Whether to output JSON formatted logs to file
         enable_colors: Enable colored console output (development only)
         include_caller_info: Include file/line/function info in logs
+        include_process_info: Include process/thread IDs (useful for parallel execution)
     """
     # Determine log level
     level_map = {
@@ -151,6 +171,10 @@ def configure_logging(
                 structlog.processors.CallsiteParameter.LINENO,
             }
         ))
+    
+    # Add process/thread info if requested (useful for parallel execution)
+    if include_process_info:
+        processors.append(add_process_info)
     
     # Configure output format based on environment
     if environment == "production" or json_logs:

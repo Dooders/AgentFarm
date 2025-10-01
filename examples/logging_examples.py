@@ -277,6 +277,29 @@ def example_nested_contexts():
         logger.info("experiment_completed")
 
 
+def example_advanced_features():
+    """Example 11: Advanced features (DatabaseLogger, PerformanceMonitor)."""
+    print("\n=== Example 11: Advanced Features ===\n")
+    
+    from farm.utils import DatabaseLogger, PerformanceMonitor
+    
+    # DatabaseLogger
+    db_logger = DatabaseLogger("/tmp/test.db", simulation_id="sim_001")
+    db_logger.log_query("select", "agents", duration_ms=12.3, rows=100)
+    db_logger.log_transaction("commit", duration_ms=5.2)
+    
+    # PerformanceMonitor with checkpoints
+    with PerformanceMonitor("data_processing") as monitor:
+        time.sleep(0.01)
+        monitor.checkpoint("load_data")
+        
+        time.sleep(0.01)
+        monitor.checkpoint("transform_data")
+        
+        time.sleep(0.01)
+        monitor.checkpoint("save_results")
+
+
 def main():
     """Run all examples."""
     # Configure logging for examples
@@ -300,6 +323,7 @@ def main():
     example_bound_logger()
     example_error_logging()
     example_nested_contexts()
+    example_advanced_features()
     
     logger.info("completed_all_examples")
     

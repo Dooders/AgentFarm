@@ -16,7 +16,9 @@ from farm.utils.logging_config import (
 )
 from farm.utils.logging_utils import (
     AgentLogger,
+    DatabaseLogger,
     LogSampler,
+    PerformanceMonitor,
     log_context,
     log_errors,
     log_experiment,
@@ -41,4 +43,6 @@ __all__ = [
     "log_experiment",
     "LogSampler",
     "AgentLogger",
+    "DatabaseLogger",
+    "PerformanceMonitor",
 ]

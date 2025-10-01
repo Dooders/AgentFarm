@@ -411,6 +411,128 @@ class AgentLogger:
         self.logger.info("agent_born", parent_ids=parent_ids, **context)
 
 
+class DatabaseLogger:
+    """Specialized logger for database operations with automatic context binding."""
+    
+    def __init__(self, db_path: str, simulation_id: Optional[str] = None):
+        """Initialize database logger.
+        
+        Args:
+            db_path: Path to database file
+            simulation_id: Optional simulation ID to bind
+        """
+        self.db_path = db_path
+        self.simulation_id = simulation_id
+        self.logger = get_logger("farm.database").bind(
+            db_path=db_path,
+        )
+        if simulation_id:
+            self.logger = self.logger.bind(simulation_id=simulation_id)
+    
+    def log_query(
+        self,
+        query_type: str,
+        table: str,
+        duration_ms: Optional[float] = None,
+        rows: Optional[int] = None,
+        **details: Any,
+    ) -> None:
+        """Log a database query.
+        
+        Args:
+            query_type: Type of query (select, insert, update, delete)
+            table: Table name
+            duration_ms: Query duration in milliseconds
+            rows: Number of rows affected
+            **details: Additional query details
+        """
+        self.logger.info(
+            "database_query",
+            query_type=query_type,
+            table=table,
+            duration_ms=duration_ms,
+            rows=rows,
+            **details,
+        )
+    
+    def log_transaction(
+        self,
+        status: str,
+        duration_ms: Optional[float] = None,
+        **details: Any,
+    ) -> None:
+        """Log a database transaction.
+        
+        Args:
+            status: Transaction status (commit, rollback, begin)
+            duration_ms: Transaction duration
+            **details: Additional details
+        """
+        self.logger.info(
+            "database_transaction",
+            status=status,
+            duration_ms=duration_ms,
+            **details,
+        )
+
+
+class PerformanceMonitor:
+    """Context manager for detailed performance monitoring."""
+    
+    def __init__(self, operation: str, logger_name: str = "farm.performance"):
+        """Initialize performance monitor.
+        
+        Args:
+            operation: Name of operation being monitored
+            logger_name: Logger to use
+        """
+        self.operation = operation
+        self.logger = get_logger(logger_name)
+        self.start_time = 0.0
+        self.checkpoints: List[Tuple[str, float]] = []
+    
+    def __enter__(self):
+        """Start monitoring."""
+        self.start_time = time.perf_counter()
+        self.logger.debug(f"{self.operation}_started")
+        return self
+    
+    def checkpoint(self, name: str) -> None:
+        """Record a checkpoint.
+        
+        Args:
+            name: Checkpoint name
+        """
+        elapsed = (time.perf_counter() - self.start_time) * 1000
+        self.checkpoints.append((name, elapsed))
+        self.logger.debug(
+            "checkpoint",
+            operation=self.operation,
+            checkpoint=name,
+            elapsed_ms=round(elapsed, 2),
+        )
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """End monitoring and log results."""
+        total_ms = (time.perf_counter() - self.start_time) * 1000
+        
+        if exc_type is None:
+            self.logger.info(
+                "operation_completed",
+                operation=self.operation,
+                duration_ms=round(total_ms, 2),
+                checkpoints=len(self.checkpoints),
+            )
+        else:
+            self.logger.error(
+                "operation_failed",
+                operation=self.operation,
+                duration_ms=round(total_ms, 2),
+                error_type=exc_type.__name__,
+                error_message=str(exc_val),
+            )
+
+
 __all__ = [
     "log_performance",
     "log_errors",
@@ -420,4 +542,6 @@ __all__ = [
     "log_experiment",
     "LogSampler",
     "AgentLogger",
+    "DatabaseLogger",
+    "PerformanceMonitor",
 ]
