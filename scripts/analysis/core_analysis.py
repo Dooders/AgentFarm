@@ -14,6 +14,9 @@ import json
 import logging
 import os
 import statistics
+
+# Import our utility modules
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -21,44 +24,24 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import sqlalchemy
-from matplotlib import pyplot as plt
 from sqlalchemy import func
 from sqlalchemy.orm import sessionmaker
 
 # Import database models
-from farm.database.models import (
-    ActionModel,
-    AgentModel,
-    AgentStateModel,
-    HealthIncident,
-    LearningExperienceModel,
-    ReproductionEventModel,
-    SimulationStepModel,
-)
+from farm.database.models import ActionModel, AgentModel, ReproductionEventModel
 
-# Import our utility modules
-from ..data_extraction import (
-    extract_time_series,
-    get_column_data_at_steps,
-    get_initial_positions,
-    validate_dataframe,
-)
-from ..database_utils import (
+# Add the project root to the path to enable absolute imports
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+from scripts.data_extraction import extract_time_series, validate_dataframe
+from scripts.database_utils import (
     create_database_session,
-    get_agent_counts_by_type,
-    get_final_step_number,
-    get_iteration_number,
     get_simulation_database_path,
     get_simulation_folders,
     validate_simulation_folder,
 )
-from ..visualization_utils import (
-    create_box_plot,
-    create_histogram,
-    create_time_series_plot,
-    save_figure,
-    setup_plot_style,
-)
+from scripts.visualization_utils import create_time_series_plot, save_figure
 
 logger = logging.getLogger(__name__)
 
@@ -416,7 +399,7 @@ class UnifiedExperimentAnalyzer:
 
         # Save report
         report_path = self.output_dir / "comprehensive_analysis_report.json"
-        with open(report_path, "w") as f:
+        with open(report_path, "w", encoding="utf-8") as f:
             # Convert numpy types to JSON serializable
             json_report = self._make_json_serializable(report)
             json.dump(json_report, f, indent=2)

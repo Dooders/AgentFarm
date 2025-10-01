@@ -11,13 +11,13 @@ import time
 import warnings
 from io import StringIO
 
-# Suppress warnings that might interfere with CI output parsing
-warnings.filterwarnings("ignore", category=RuntimeWarning)
-warnings.filterwarnings("ignore", category=UserWarning, module="tianshou")
-
 # Local imports
 from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
+
+# Suppress warnings that might interfere with CI output parsing
+warnings.filterwarnings("ignore", category=RuntimeWarning)
+warnings.filterwarnings("ignore", category=UserWarning, module="tianshou")
 
 
 def run_profiled_simulation(num_steps, config, output_dir):
