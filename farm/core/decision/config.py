@@ -228,12 +228,14 @@ class DecisionConfig(BaseDQNConfig):
         # Instead of raising an error, log a warning and return 'fallback'
         # This allows the DecisionModule to handle invalid algorithms gracefully
         if v not in valid:
-            import logging
+            from farm.utils.logging_config import get_logger
 
-            logger = logging.getLogger(__name__)
+            logger = get_logger(__name__)
             logger.warning(
-                f"Invalid algorithm type '{v}'. Valid options: {valid}. "
-                "Falling back to 'fallback' algorithm."
+                "invalid_algorithm_type",
+                algorithm_type=v,
+                valid_options=valid,
+                message="Falling back to 'fallback' algorithm."
             )
             return "fallback"
         return v

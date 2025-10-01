@@ -16,7 +16,9 @@ from farm.database.experiment_database import ExperimentDatabase, SimulationCont
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
-logger = logging.getLogger(__name__)
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def generate_agent_states(num_agents: int, step: int) -> List[Tuple]:

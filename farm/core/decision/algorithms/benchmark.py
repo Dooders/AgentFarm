@@ -19,7 +19,9 @@ import pandas as pd
 from .base import ActionAlgorithm, AlgorithmRegistry
 from .rl_base import RLAlgorithm
 
-logger = logging.getLogger(__name__)
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass

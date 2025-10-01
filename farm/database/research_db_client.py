@@ -10,7 +10,9 @@ from sqlalchemy.orm import Session, sessionmaker
 from farm.database.models import Base
 from farm.database.research_models import ExperimentStats, IterationStats, Research
 
-logger = logging.getLogger(__name__)
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class ResearchDBClient:

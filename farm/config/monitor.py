@@ -51,7 +51,8 @@ class ConfigMonitor:
         Args:
             logger: Logger instance to use (creates default if None)
         """
-        self.logger = logger or logging.getLogger("config_monitor")
+        from farm.utils.logging_config import get_logger
+        self.logger = logger or get_logger("config_monitor")
         self.metrics: List[ConfigMetrics] = []
         self.max_metrics_history = 1000
 

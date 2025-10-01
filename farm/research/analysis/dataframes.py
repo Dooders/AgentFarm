@@ -9,7 +9,9 @@ from farm.research.analysis.util import (
     validate_resource_level_data,
 )
 
-logger = logging.getLogger(__name__)
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def create_population_df(

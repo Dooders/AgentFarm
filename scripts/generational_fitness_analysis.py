@@ -42,7 +42,9 @@ from farm.database.models import (
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
-logger = logging.getLogger(__name__)
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # Constants for file paths
 DEFAULT_DATA_PATH = "results/one_of_a_kind/experiments/data"

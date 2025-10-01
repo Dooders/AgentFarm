@@ -86,8 +86,8 @@ class SocialDynamicsAnalyzer:
         os.makedirs(output_dir, exist_ok=True)
 
         # Setup logging
-        self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.INFO)
+        from farm.utils.logging_config import get_logger
+        self.logger = get_logger(__name__)
 
         # Get simulation folders
         self.sim_folders = get_simulation_folders(experiment_path)

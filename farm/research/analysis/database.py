@@ -22,7 +22,9 @@ from farm.research.analysis.util import (
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
-logger = logging.getLogger(__name__)
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def find_simulation_databases(base_path: str) -> List[str]:

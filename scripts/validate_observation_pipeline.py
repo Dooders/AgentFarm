@@ -30,7 +30,9 @@ from farm.core.services.factory import AgentServiceFactory
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 class MockSpatialService:
     """Mock spatial service for testing."""

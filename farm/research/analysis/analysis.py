@@ -22,7 +22,9 @@ from farm.research.analysis.util import (
 
 # EXPERIMENT_DATA_PATH = "results/one_of_a_kind_v1/experiments/data"
 
-logger = logging.getLogger(__name__)
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def detect_early_terminations(
