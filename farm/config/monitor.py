@@ -5,6 +5,7 @@ This module provides comprehensive logging, metrics, and monitoring
 capabilities for the configuration system.
 """
 
+import logging
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass

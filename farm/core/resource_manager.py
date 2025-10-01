@@ -278,10 +278,18 @@ class ResourceManager:
                 else 20
             )
 
+        # Handle both string and dict distribution types
+        if isinstance(distribution, str):
+            distribution_type = distribution
+        elif isinstance(distribution, dict):
+            distribution_type = distribution.get("type", "random")
+        else:
+            distribution_type = "random"
+            
         logger.info(
             "resources_initializing",
             amount=amount,
-            distribution_type=distribution.get("type", "random"),
+            distribution_type=distribution_type,
         )
 
         # Clear existing resources

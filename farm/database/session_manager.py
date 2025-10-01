@@ -221,4 +221,9 @@ class SessionManager:
                 delattr(self, "engine")
 
         except Exception as e:
-            logging.error(f"Error during session cleanup: {e}", exc_info=True)
+            logger.error(
+                "session_cleanup_error",
+                error_type=type(e).__name__,
+                error_message=str(e),
+                exc_info=True
+            )
