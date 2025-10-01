@@ -1,171 +1,271 @@
 """
 Registry for analysis modules.
-This module provides a central registry for all analysis modules.
+
+Provides centralized registration and discovery of analysis modules.
 """
 
 import importlib
-import os
 import logging
 from typing import Dict, List, Optional
 
-from farm.analysis.base_module import AnalysisModule
-from farm.core.services import IConfigService, EnvConfigService
+from farm.analysis.protocols import AnalysisModule
+from farm.analysis.exceptions import ModuleNotFoundError, ConfigurationError
+from farm.core.services import IConfigService
+
+
+logger = logging.getLogger(__name__)
 
 
 class ModuleRegistry:
     """
     Registry for analysis modules.
-
-    This class provides a central registry for all analysis modules.
-    It allows modules to be registered and retrieved by name.
+    
+    Provides centralized registration and discovery of all available
+    analysis modules in the system.
     """
-
+    
     def __init__(self):
-        """Initialize the module registry."""
-        self._modules = {}
-
-    def register_module(self, module: AnalysisModule) -> None:
+        """Initialize empty registry."""
+        self._modules: Dict[str, AnalysisModule] = {}
+    
+    def register(self, module: AnalysisModule) -> None:
+        """Register an analysis module.
+        
+        Args:
+            module: Module to register
+            
+        Raises:
+            ConfigurationError: If module name conflicts with existing module
         """
-        Register an analysis module.
-
-        Parameters
-        ----------
-        module : AnalysisModule
-            The module to register
-        """
+        if module.name in self._modules:
+            logger.warning(
+                f"Module '{module.name}' already registered. Replacing with new instance."
+            )
+        
         self._modules[module.name] = module
-
-    def get_module(self, name: str) -> Optional[AnalysisModule]:
+        logger.info(f"Registered analysis module: {module.name}")
+    
+    def unregister(self, name: str) -> None:
+        """Unregister a module by name.
+        
+        Args:
+            name: Module name to unregister
         """
-        Get a module by name.
-
-        Parameters
-        ----------
-        name : str
-            Name of the module
-
-        Returns
-        -------
-        Optional[AnalysisModule]
-            The requested module, or None if not found
+        if name in self._modules:
+            del self._modules[name]
+            logger.info(f"Unregistered analysis module: {name}")
+    
+    def get(self, name: str) -> AnalysisModule:
+        """Get a module by name.
+        
+        Args:
+            name: Module name
+            
+        Returns:
+            The requested module
+            
+        Raises:
+            ModuleNotFoundError: If module doesn't exist
+        """
+        if name not in self._modules:
+            raise ModuleNotFoundError(name, self.get_module_names())
+        return self._modules[name]
+    
+    def get_optional(self, name: str) -> Optional[AnalysisModule]:
+        """Get a module by name, returning None if not found.
+        
+        Args:
+            name: Module name
+            
+        Returns:
+            Module or None if not found
         """
         return self._modules.get(name)
-
+    
     def get_module_names(self) -> List[str]:
+        """Get list of all registered module names.
+        
+        Returns:
+            Sorted list of module names
         """
-        Get a list of all registered module names.
-
-        Returns
-        -------
-        List[str]
-            List of module names
-        """
-        return list(self._modules.keys())
-
-    def get_modules(self) -> Dict[str, AnalysisModule]:
-        """
-        Get all registered modules.
-
-        Returns
-        -------
-        Dict[str, AnalysisModule]
+        return sorted(self._modules.keys())
+    
+    def get_all(self) -> Dict[str, AnalysisModule]:
+        """Get all registered modules.
+        
+        Returns:
             Dictionary mapping module names to modules
         """
-        return self._modules
+        return self._modules.copy()
+    
+    def clear(self) -> None:
+        """Clear all registered modules."""
+        self._modules.clear()
+        logger.info("Cleared all registered modules")
+    
+    def list_modules(self) -> str:
+        """Get formatted string listing all modules.
+        
+        Returns:
+            Formatted string with module information
+        """
+        if not self._modules:
+            return "No modules registered"
+        
+        lines = ["Registered Analysis Modules:", ""]
+        for name in sorted(self._modules.keys()):
+            module = self._modules[name]
+            lines.append(f"  - {name}: {module.description}")
+        
+        return "\n".join(lines)
 
 
-# Create a singleton instance
+# Global registry instance
 registry = ModuleRegistry()
 
 
-def register_modules(config_env_var: str = "FARM_ANALYSIS_MODULES", *, config_service: IConfigService):
-    """
-    Register available analysis modules.
-
+def register_modules(
+    config_env_var: str = "FARM_ANALYSIS_MODULES",
+    *,
+    config_service: IConfigService
+) -> int:
+    """Register analysis modules from configuration.
+    
     Discovery order:
-    1) Environment variable FARM_ANALYSIS_MODULES as comma-separated import paths to module singletons
-       e.g., "farm.analysis.dominance.module.dominance_module, farm.analysis.template.module.template_module"
-    2) Fallback to built-in dominance module if env is not set.
+    1. Environment variable FARM_ANALYSIS_MODULES as comma-separated import paths
+    2. Fallback to built-in modules if nothing configured
+    
+    Args:
+        config_env_var: Environment variable name to check
+        config_service: Configuration service for retrieving module paths
+        
+    Returns:
+        Number of successfully registered modules
     """
-    module_paths_list = config_service.get_analysis_module_paths(config_env_var)
-
+    module_paths = config_service.get_analysis_module_paths(config_env_var)
+    
     successfully_registered = 0
-
-    for path in module_paths_list:
+    
+    for path in module_paths:
         try:
             module_path, attr = path.rsplit(".", 1)
         except ValueError:
-            logging.warning("Invalid analysis module path (no attribute specified): %s", path)
+            logger.warning(
+                f"Invalid analysis module path (no attribute specified): {path}"
+            )
             continue
-
+        
         try:
             mod = importlib.import_module(module_path)
             instance = getattr(mod, attr)
         except (ImportError, AttributeError) as err:
-            logging.warning("Failed to import analysis module '%s': %s", path, err)
+            logger.warning(f"Failed to import analysis module '{path}': {err}")
             continue
         except Exception as err:
-            logging.warning("Unexpected error loading analysis module '%s': %s", path, err)
-            continue
-
-        if isinstance(instance, AnalysisModule):
-            registry.register_module(instance)
-            successfully_registered += 1
-        else:
-            logging.warning(
-                "Configured object at '%s' is not an AnalysisModule instance; skipping.",
-                path,
+            logger.warning(
+                f"Unexpected error loading analysis module '{path}': {err}"
             )
-
-    # Fallback to built-in dominance module if nothing was registered
+            continue
+        
+        # Check if instance matches AnalysisModule protocol
+        if not _implements_analysis_module_protocol(instance):
+            logger.warning(
+                f"Configured object at '{path}' doesn't implement AnalysisModule protocol"
+            )
+            continue
+        
+        registry.register(instance)
+        successfully_registered += 1
+    
+    # Fallback to built-in modules if nothing registered
     if successfully_registered == 0:
+        logger.info("No modules configured, attempting to register built-in modules")
+        successfully_registered = _register_builtin_modules()
+    
+    logger.info(f"Successfully registered {successfully_registered} analysis module(s)")
+    return successfully_registered
+
+
+def _implements_analysis_module_protocol(obj: any) -> bool:
+    """Check if object implements AnalysisModule protocol.
+    
+    Args:
+        obj: Object to check
+        
+    Returns:
+        True if object implements the protocol
+    """
+    required_attrs = ['name', 'description', 'get_data_processor', 
+                      'get_analysis_functions', 'get_function_groups']
+    return all(hasattr(obj, attr) for attr in required_attrs)
+
+
+def _register_builtin_modules() -> int:
+    """Register built-in analysis modules.
+    
+    Returns:
+        Number of successfully registered modules
+    """
+    builtin_modules = [
+        "farm.analysis.dominance.module.dominance_module",
+        "farm.analysis.null_module.null_module",
+    ]
+    
+    count = 0
+    for path in builtin_modules:
         try:
-            from farm.analysis.dominance.module import dominance_module
-
-            registry.register_module(dominance_module)
-            successfully_registered = 1
+            module_path, attr = path.rsplit(".", 1)
+            mod = importlib.import_module(module_path)
+            instance = getattr(mod, attr)
+            
+            if _implements_analysis_module_protocol(instance):
+                registry.register(instance)
+                count += 1
         except Exception as err:
-            logging.warning(
-                "Failed to register fallback dominance module: %s", err
-            )
+            logger.debug(f"Couldn't register built-in module '{path}': {err}")
+            continue
+    
+    return count
 
 
-def get_module(name: str) -> Optional[AnalysisModule]:
+# Convenience functions
+def get_module(name: str) -> AnalysisModule:
+    """Get a module by name.
+    
+    Args:
+        name: Module name
+        
+    Returns:
+        The requested module
+        
+    Raises:
+        ModuleNotFoundError: If module doesn't exist
     """
-    Get a module by name.
-
-    Parameters
-    ----------
-    name : str
-        Name of the module
-
-    Returns
-    -------
-    Optional[AnalysisModule]
-        The requested module, or None if not found
-    """
-    return registry.get_module(name)
+    return registry.get(name)
 
 
 def get_module_names() -> List[str]:
-    """
-    Get a list of all registered module names.
-
-    Returns
-    -------
-    List[str]
-        List of module names
+    """Get list of all registered module names.
+    
+    Returns:
+        Sorted list of module names
     """
     return registry.get_module_names()
 
 
 def get_modules() -> Dict[str, AnalysisModule]:
-    """
-    Get all registered modules.
-
-    Returns
-    -------
-    Dict[str, AnalysisModule]
+    """Get all registered modules.
+    
+    Returns:
         Dictionary mapping module names to modules
     """
-    return registry.get_modules()
+    return registry.get_all()
+
+
+def list_modules() -> str:
+    """Get formatted string listing all modules.
+    
+    Returns:
+        Formatted string with module information
+    """
+    return registry.list_modules()

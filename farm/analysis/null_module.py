@@ -1,27 +1,33 @@
+"""
+Null analysis module for testing and as a minimal example.
+"""
+
 from typing import Callable, Optional
+import pandas as pd
 
-from farm.analysis.base_module import AnalysisModule
+from farm.analysis.core import BaseAnalysisModule, SimpleDataProcessor
 
 
-class NullModule(AnalysisModule):
+class NullModule(BaseAnalysisModule):
+    """No-op analysis module that does nothing.
+    
+    Useful for testing and as a minimal example of the module structure.
+    """
+    
     def __init__(self, name: str = "null", description: str = "No-op analysis module"):
         super().__init__(name=name, description=description)
 
-    def register_analysis(self) -> None:
-        self._analysis_functions = {}
-        self._analysis_groups = {"all": []}
+    def register_functions(self) -> None:
+        """Register no functions (null module)."""
+        self._functions = {}
+        self._groups = {"all": []}
 
-    def get_data_processor(self) -> Callable:
-        def _noop(*args, **kwargs):
-            return None
-
-        return _noop
-
-    def get_db_loader(self) -> Optional[Callable]:
-        return None
-
-    def get_db_filename(self) -> Optional[str]:
-        return None
+    def get_data_processor(self) -> SimpleDataProcessor:
+        """Return a processor that returns empty DataFrame."""
+        def _noop_processor(*args, **kwargs) -> pd.DataFrame:
+            return pd.DataFrame()
+        
+        return SimpleDataProcessor(_noop_processor)
 
 
 # Provide a lightweight singleton for registry-based discovery

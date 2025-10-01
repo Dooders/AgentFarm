@@ -1,7 +1,7 @@
 import logging
 import pandas as pd
 
-from farm.analysis.base_module import get_valid_numeric_columns
+from farm.analysis.common.metrics import get_valid_numeric_columns
 from farm.analysis.dominance.compute import (
     compute_population_dominance,
     compute_survival_dominance,
