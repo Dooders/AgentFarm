@@ -1,7 +1,7 @@
 import logging
 import pandas as pd
 
-from farm.analysis.base_module import get_valid_numeric_columns, group_and_analyze
+from farm.analysis.common.metrics import get_valid_numeric_columns, group_and_analyze
 from farm.analysis.common.metrics import analyze_correlations, split_and_compare_groups
 from farm.analysis.dominance.compute import (
     aggregate_reproduction_analysis_results,
