@@ -23,6 +23,9 @@ from scipy.stats import mannwhitneyu, kruskal, chi2_contingency, pearsonr, spear
 from scipy.signal import find_peaks, periodogram
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.tsa.stattools import adfuller, kpss, coint
+from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.vector_ar.var_model import VAR
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
 from statsmodels.stats.power import ttest_power
 from statsmodels.stats.effect_size import cohens_d, cohens_f
 from sklearn.cluster import KMeans
@@ -1251,6 +1254,474 @@ class SimulationAnalyzer:
         plt.savefig(f"temporal_analysis_sim_{simulation_id}.png", dpi=300, bbox_inches='tight')
         plt.close()
 
+    def analyze_advanced_time_series_models(self, simulation_id: int) -> Dict[str, Any]:
+        """Perform advanced time series modeling including ARIMA, VAR, and forecasting.
+
+        Args:
+            simulation_id: ID of the simulation to analyze
+
+        Returns:
+            Dictionary containing advanced time series modeling results
+        """
+        logger.info(f"Performing advanced time series modeling for simulation {simulation_id}")
+
+        steps = (
+            self.session.query(SimulationStepModel)
+            .filter(SimulationStepModel.simulation_id == simulation_id)
+            .order_by(SimulationStepModel.step_number)
+            .all()
+        )
+
+        if len(steps) < 50:
+            logger.warning(f"Insufficient data points ({len(steps)}) for advanced time series modeling")
+            return {"error": "Insufficient data for advanced modeling", "min_points_required": 50}
+
+        # Convert to DataFrame
+        step_data = []
+        for step in steps:
+            step_data.append({
+                "step": step.step_number,
+                "system_agents": step.system_agents or 0,
+                "independent_agents": step.independent_agents or 0,
+                "control_agents": step.control_agents or 0,
+                "total_agents": step.total_agents or 0,
+                "resource_efficiency": step.resource_efficiency or 0,
+                "average_agent_health": step.average_agent_health or 0,
+                "average_reward": step.average_reward or 0,
+            })
+        
+        df = pd.DataFrame(step_data)
+        df.set_index('step', inplace=True)
+
+        advanced_results = {}
+        
+        # 1. ARIMA Modeling
+        arima_results = {}
+        time_series_columns = ['system_agents', 'independent_agents', 'control_agents', 'total_agents']
+        
+        for column in time_series_columns:
+            if column not in df.columns:
+                continue
+                
+            series = df[column].dropna()
+            if len(series) < 30:
+                continue
+                
+            logger.info(f"Fitting ARIMA model for {column}")
+            
+            try:
+                # Auto ARIMA parameter selection (simplified)
+                best_aic = float('inf')
+                best_order = None
+                best_model = None
+                
+                # Try different ARIMA orders
+                for p in range(0, 3):
+                    for d in range(0, 2):
+                        for q in range(0, 3):
+                            try:
+                                model = ARIMA(series, order=(p, d, q))
+                                fitted_model = model.fit()
+                                
+                                if fitted_model.aic < best_aic:
+                                    best_aic = fitted_model.aic
+                                    best_order = (p, d, q)
+                                    best_model = fitted_model
+                            except:
+                                continue
+                
+                if best_model is not None:
+                    # Generate forecasts
+                    forecast_steps = min(10, len(series) // 4)
+                    forecast = best_model.forecast(steps=forecast_steps)
+                    forecast_ci = best_model.get_forecast(steps=forecast_steps).conf_int()
+                    
+                    # Model diagnostics
+                    residuals = best_model.resid
+                    
+                    arima_results[column] = {
+                        "model_order": best_order,
+                        "aic": best_aic,
+                        "bic": best_model.bic,
+                        "forecast": forecast.tolist(),
+                        "forecast_ci_lower": forecast_ci.iloc[:, 0].tolist(),
+                        "forecast_ci_upper": forecast_ci.iloc[:, 1].tolist(),
+                        "residuals_stats": {
+                            "mean": residuals.mean(),
+                            "std": residuals.std(),
+                            "skewness": stats.skew(residuals),
+                            "kurtosis": stats.kurtosis(residuals)
+                        },
+                        "model_summary": {
+                            "params": best_model.params.to_dict(),
+                            "pvalues": best_model.pvalues.to_dict(),
+                            "log_likelihood": best_model.llf
+                        }
+                    }
+                    
+                    # Ljung-Box test for residual autocorrelation
+                    try:
+                        from statsmodels.stats.diagnostic import acorr_ljungbox
+                        lb_stat, lb_pvalue = acorr_ljungbox(residuals, lags=10, return_p_value=True)
+                        arima_results[column]["ljung_box_test"] = {
+                            "statistic": lb_stat.iloc[-1],
+                            "p_value": lb_pvalue.iloc[-1],
+                            "residuals_white_noise": lb_pvalue.iloc[-1] > 0.05
+                        }
+                    except ImportError:
+                        pass
+                
+            except Exception as e:
+                logger.warning(f"ARIMA modeling failed for {column}: {e}")
+                arima_results[column] = {"error": str(e)}
+        
+        # 2. Vector Autoregression (VAR) for multivariate time series
+        var_results = {}
+        
+        try:
+            # Prepare multivariate data
+            var_data = df[['system_agents', 'independent_agents', 'control_agents']].dropna()
+            
+            if len(var_data) >= 30:
+                logger.info("Fitting VAR model for agent populations")
+                
+                # Fit VAR model
+                var_model = VAR(var_data)
+                lag_order = var_model.select_order(maxlags=10)
+                best_lag = lag_order.aic
+                
+                fitted_var = var_model.fit(best_lag)
+                
+                # Generate forecasts
+                forecast_steps = min(10, len(var_data) // 4)
+                var_forecast = fitted_var.forecast(var_data.values[-best_lag:], steps=forecast_steps)
+                
+                # Granger causality tests
+                granger_results = {}
+                for cause_var in var_data.columns:
+                    for effect_var in var_data.columns:
+                        if cause_var != effect_var:
+                            try:
+                                gc_test = fitted_var.test_causality(effect_var, cause_var, kind='f')
+                                granger_results[f"{cause_var}_causes_{effect_var}"] = {
+                                    "statistic": gc_test.test_statistic,
+                                    "p_value": gc_test.pvalue,
+                                    "significant": gc_test.pvalue < 0.05
+                                }
+                            except:
+                                pass
+                
+                var_results = {
+                    "model_order": best_lag,
+                    "aic": fitted_var.aic,
+                    "bic": fitted_var.bic,
+                    "forecast": var_forecast.tolist(),
+                    "granger_causality": granger_results,
+                    "model_summary": {
+                        "params": fitted_var.params.to_dict(),
+                        "resid_stats": {
+                            "mean": fitted_var.resid.mean().to_dict(),
+                            "std": fitted_var.resid.std().to_dict()
+                        }
+                    }
+                }
+                
+        except Exception as e:
+            logger.warning(f"VAR modeling failed: {e}")
+            var_results = {"error": str(e)}
+        
+        # 3. Exponential Smoothing
+        exp_smoothing_results = {}
+        
+        for column in time_series_columns:
+            if column not in df.columns:
+                continue
+                
+            series = df[column].dropna()
+            if len(series) < 20:
+                continue
+                
+            logger.info(f"Fitting exponential smoothing for {column}")
+            
+            try:
+                # Try different exponential smoothing models
+                models = {}
+                
+                # Simple exponential smoothing
+                try:
+                    simple_model = ExponentialSmoothing(series, trend=None, seasonal=None).fit()
+                    models["simple"] = {
+                        "aic": simple_model.aic,
+                        "bic": simple_model.bic,
+                        "sse": simple_model.sse
+                    }
+                except:
+                    pass
+                
+                # Holt's linear trend
+                try:
+                    holt_model = ExponentialSmoothing(series, trend="add", seasonal=None).fit()
+                    models["holt"] = {
+                        "aic": holt_model.aic,
+                        "bic": holt_model.bic,
+                        "sse": holt_model.sse
+                    }
+                except:
+                    pass
+                
+                # Holt-Winters with seasonality (if enough data)
+                if len(series) >= 24:
+                    try:
+                        seasonal_period = min(12, len(series) // 2)
+                        hw_model = ExponentialSmoothing(
+                            series, trend="add", seasonal="add", seasonal_periods=seasonal_period
+                        ).fit()
+                        models["holt_winters"] = {
+                            "aic": hw_model.aic,
+                            "bic": hw_model.bic,
+                            "sse": hw_model.sse,
+                            "seasonal_period": seasonal_period
+                        }
+                    except:
+                        pass
+                
+                if models:
+                    # Select best model based on AIC
+                    best_model_name = min(models.keys(), key=lambda k: models[k]["aic"])
+                    best_model_info = models[best_model_name]
+                    
+                    # Generate forecasts
+                    if best_model_name == "simple":
+                        model = ExponentialSmoothing(series, trend=None, seasonal=None).fit()
+                    elif best_model_name == "holt":
+                        model = ExponentialSmoothing(series, trend="add", seasonal=None).fit()
+                    else:  # holt_winters
+                        seasonal_period = best_model_info["seasonal_period"]
+                        model = ExponentialSmoothing(
+                            series, trend="add", seasonal="add", seasonal_periods=seasonal_period
+                        ).fit()
+                    
+                    forecast_steps = min(10, len(series) // 4)
+                    forecast = model.forecast(steps=forecast_steps)
+                    
+                    exp_smoothing_results[column] = {
+                        "best_model": best_model_name,
+                        "model_info": best_model_info,
+                        "forecast": forecast.tolist(),
+                        "fitted_values": model.fittedvalues.tolist(),
+                        "residuals": model.resid.tolist()
+                    }
+                
+            except Exception as e:
+                logger.warning(f"Exponential smoothing failed for {column}: {e}")
+                exp_smoothing_results[column] = {"error": str(e)}
+        
+        # 4. Model Comparison and Selection
+        model_comparison = {}
+        
+        for column in time_series_columns:
+            if column not in df.columns:
+                continue
+                
+            comparison = {}
+            
+            # ARIMA results
+            if column in arima_results and "error" not in arima_results[column]:
+                comparison["arima"] = {
+                    "aic": arima_results[column]["aic"],
+                    "bic": arima_results[column]["bic"]
+                }
+            
+            # Exponential smoothing results
+            if column in exp_smoothing_results and "error" not in exp_smoothing_results[column]:
+                comparison["exponential_smoothing"] = {
+                    "aic": exp_smoothing_results[column]["model_info"]["aic"],
+                    "bic": exp_smoothing_results[column]["model_info"]["bic"]
+                }
+            
+            if comparison:
+                # Select best model based on AIC
+                best_model = min(comparison.keys(), key=lambda k: comparison[k]["aic"])
+                model_comparison[column] = {
+                    "best_model": best_model,
+                    "comparison": comparison
+                }
+        
+        # Create advanced visualization
+        self._create_advanced_time_series_visualization(
+            df, arima_results, var_results, exp_smoothing_results, simulation_id
+        )
+        
+        return {
+            "arima_models": arima_results,
+            "var_model": var_results,
+            "exponential_smoothing": exp_smoothing_results,
+            "model_comparison": model_comparison,
+            "metadata": {
+                "analysis_timestamp": pd.Timestamp.now().isoformat(),
+                "total_steps": len(df),
+                "methods_used": [
+                    "ARIMA modeling with auto parameter selection",
+                    "Vector Autoregression (VAR)",
+                    "Exponential Smoothing (Simple, Holt, Holt-Winters)",
+                    "Granger Causality Testing",
+                    "Model comparison and selection",
+                    "Forecasting with confidence intervals"
+                ]
+            }
+        }
+
+    def _create_advanced_time_series_visualization(self, df: pd.DataFrame, arima_results: Dict, 
+                                                var_results: Dict, exp_smoothing_results: Dict, 
+                                                simulation_id: int) -> None:
+        """Create advanced time series modeling visualization."""
+        
+        fig = plt.figure(figsize=(20, 16))
+        
+        # 1. Original time series with ARIMA forecasts
+        ax1 = plt.subplot(3, 3, (1, 2))
+        
+        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
+        for i, column in enumerate(['system_agents', 'independent_agents', 'control_agents', 'total_agents']):
+            if column in df.columns:
+                ax1.plot(df.index, df[column], label=column.replace('_agents', ''), 
+                        color=colors[i], linewidth=2, alpha=0.8)
+                
+                # Add ARIMA forecast if available
+                if column in arima_results and "error" not in arima_results[column]:
+                    forecast = arima_results[column]["forecast"]
+                    forecast_ci_lower = arima_results[column]["forecast_ci_lower"]
+                    forecast_ci_upper = arima_results[column]["forecast_ci_upper"]
+                    
+                    forecast_start = len(df)
+                    forecast_end = forecast_start + len(forecast)
+                    forecast_x = range(forecast_start, forecast_end)
+                    
+                    ax1.plot(forecast_x, forecast, '--', color=colors[i], alpha=0.7, linewidth=2)
+                    ax1.fill_between(forecast_x, forecast_ci_lower, forecast_ci_upper, 
+                                   alpha=0.2, color=colors[i])
+        
+        ax1.set_title(f"Advanced Time Series Analysis - Simulation {simulation_id}", 
+                     fontsize=16, fontweight='bold')
+        ax1.set_xlabel("Simulation Step")
+        ax1.set_ylabel("Number of Agents")
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+        
+        # 2. ARIMA model diagnostics
+        ax2 = plt.subplot(3, 3, 3)
+        if arima_results:
+            model_orders = []
+            aic_values = []
+            model_names = []
+            
+            for column, result in arima_results.items():
+                if "error" not in result:
+                    model_orders.append(str(result["model_order"]))
+                    aic_values.append(result["aic"])
+                    model_names.append(column.replace('_agents', ''))
+            
+            if model_orders:
+                bars = ax2.bar(model_names, aic_values, color='skyblue', alpha=0.7)
+                ax2.set_title("ARIMA Model AIC Comparison")
+                ax2.set_ylabel("AIC")
+                ax2.tick_params(axis='x', rotation=45)
+                
+                # Add model orders as text
+                for bar, order in zip(bars, model_orders):
+                    height = bar.get_height()
+                    ax2.text(bar.get_x() + bar.get_width()/2., height + height*0.01,
+                            f'ARIMA{order}', ha='center', va='bottom', fontsize=8)
+        
+        # 3. VAR Granger Causality
+        ax3 = plt.subplot(3, 3, 4)
+        if var_results and "error" not in var_results and "granger_causality" in var_results:
+            gc_results = var_results["granger_causality"]
+            if gc_results:
+                causes = []
+                p_values = []
+                
+                for test_name, result in gc_results.items():
+                    if result["significant"]:
+                        causes.append(test_name.replace('_causes_', ' → '))
+                        p_values.append(result["p_value"])
+                
+                if causes:
+                    bars = ax3.barh(causes, p_values, color='lightcoral', alpha=0.7)
+                    ax3.set_title("Significant Granger Causality")
+                    ax3.set_xlabel("p-value")
+                    ax3.axvline(x=0.05, color='red', linestyle='--', alpha=0.7, label='α=0.05')
+                    ax3.legend()
+        
+        # 4. Exponential Smoothing Forecasts
+        ax4 = plt.subplot(3, 3, 5)
+        if exp_smoothing_results:
+            for column, result in exp_smoothing_results.items():
+                if "error" not in result and "forecast" in result:
+                    forecast = result["forecast"]
+                    forecast_start = len(df)
+                    forecast_end = forecast_start + len(forecast)
+                    forecast_x = range(forecast_start, forecast_end)
+                    
+                    ax4.plot(forecast_x, forecast, 'o-', label=column.replace('_agents', ''), 
+                            linewidth=2, markersize=4)
+            
+            ax4.set_title("Exponential Smoothing Forecasts")
+            ax4.set_xlabel("Forecast Step")
+            ax4.set_ylabel("Predicted Value")
+            ax4.legend()
+            ax4.grid(True, alpha=0.3)
+        
+        # 5. Model Comparison
+        ax5 = plt.subplot(3, 3, 6)
+        # This would show model comparison results
+        
+        # 6. Residuals Analysis
+        ax6 = plt.subplot(3, 3, 7)
+        if arima_results:
+            residuals_data = []
+            for column, result in arima_results.items():
+                if "error" not in result and "residuals_stats" in result:
+                    residuals_data.append(result["residuals_stats"]["std"])
+            
+            if residuals_data:
+                ax6.hist(residuals_data, bins=10, alpha=0.7, color='lightgreen')
+                ax6.set_title("ARIMA Residuals Standard Deviation")
+                ax6.set_xlabel("Residual Std")
+                ax6.set_ylabel("Frequency")
+        
+        # 7. Forecast Accuracy (if we had actual future data)
+        ax7 = plt.subplot(3, 3, 8)
+        # This would show forecast accuracy metrics
+        
+        # 8. Summary Statistics
+        ax8 = plt.subplot(3, 3, 9)
+        ax8.axis('off')
+        
+        # Create summary text
+        summary_text = f"Advanced Time Series Modeling Summary\n\n"
+        summary_text += f"Simulation ID: {simulation_id}\n"
+        summary_text += f"Total Steps: {len(df)}\n"
+        summary_text += f"ARIMA Models: {len([k for k, v in arima_results.items() if 'error' not in v])}\n"
+        summary_text += f"VAR Model: {'Yes' if 'error' not in var_results else 'No'}\n"
+        summary_text += f"Exp. Smoothing: {len([k for k, v in exp_smoothing_results.items() if 'error' not in v])}\n\n"
+        
+        summary_text += "Methods Applied:\n"
+        summary_text += "• ARIMA with auto parameter selection\n"
+        summary_text += "• Vector Autoregression (VAR)\n"
+        summary_text += "• Exponential Smoothing\n"
+        summary_text += "• Granger Causality Testing\n"
+        summary_text += "• Model comparison and selection\n"
+        summary_text += "• Forecasting with confidence intervals"
+        
+        ax8.text(0.05, 0.95, summary_text, transform=ax8.transAxes, fontsize=10,
+                verticalalignment='top', fontfamily='monospace',
+                bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))
+        
+        plt.tight_layout()
+        plt.savefig(f"advanced_time_series_models_sim_{simulation_id}.png", dpi=300, bbox_inches='tight')
+        plt.close()
+
     def analyze_agent_decisions(self, simulation_id: int) -> pd.DataFrame:
         """Analyze patterns in agent decision-making.
 
@@ -1816,6 +2287,7 @@ class SimulationAnalyzer:
                 "critical_events": self.identify_critical_events(simulation_id, significance_level),
                 "agent_decisions": self.analyze_agent_decisions(simulation_id),
                 "temporal_patterns": self.analyze_temporal_patterns(simulation_id),
+                "advanced_time_series_models": self.analyze_advanced_time_series_models(simulation_id),
                 "advanced_ml": self.analyze_with_advanced_ml(simulation_id),
             }
 
@@ -1831,6 +2303,8 @@ class SimulationAnalyzer:
                     "Effect size calculations (Cohen's d, Hedges' g, eta-squared)",
                     "Statistical power analysis",
                     "Time series analysis (ADF, KPSS, seasonal decomposition)",
+                    "Advanced time series modeling (ARIMA, VAR, exponential smoothing)",
+                    "Granger causality testing and forecasting",
                     "Advanced ML (ensemble methods, feature selection)",
                     "Cross-validation and hyperparameter tuning"
                 ],
