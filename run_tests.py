@@ -23,7 +23,13 @@ def run_analysis_tests():
     # Discover and run tests
     loader = unittest.TestLoader()
     start_dir = workspace_root / 'tests'
-    suite = loader.discover(start_dir, pattern='test_simulation_analysis.py')
+    
+    # Run all test files
+    suite = loader.discover(start_dir, pattern='test_*.py')
+    
+    print(f"\nFound test files:")
+    for test_file in start_dir.glob('test_*.py'):
+        print(f"  ✓ {test_file.name}")
     
     # Run tests with detailed output
     runner = unittest.TextTestRunner(verbosity=2, stream=sys.stdout)

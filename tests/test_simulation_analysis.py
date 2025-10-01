@@ -428,6 +428,40 @@ class TestStatisticalValidation(unittest.TestCase):
         change_point_z_scores = z_scores[45:55]  # Around the change point
         self.assertTrue(np.any(np.abs(change_point_z_scores) > 2.0))
 
+    @patch('matplotlib.pyplot.savefig')
+    @patch('matplotlib.pyplot.show')
+    @patch('matplotlib.pyplot.close')
+    def test_analyze_advanced_time_series_models(self, mock_close, mock_show, mock_savefig):
+        # Ensure enough data for advanced time series modeling
+        self.analyzer.session.simulation_steps = [
+            MockSimulationStepModel(1, i, 10 + i, 5 + i, 2 + i, 17 + 3 * i, 0.5 + i * 0.01, 80 - i, 100 + i * 5)
+            for i in range(100)
+        ]
+        results = self.analyzer.analyze_advanced_time_series_models(1)
+        self.assertIn("arima_models", results)
+        self.assertIn("var_model", results)
+        self.assertIn("exponential_smoothing", results)
+        self.assertIn("model_comparison", results)
+        self.assertTrue(mock_savefig.called)
+        
+        # Check for specific ARIMA model results
+        self.assertIn("system_agents", results["arima_models"])
+        self.assertIn("independent_agents", results["arima_models"])
+        
+        # Check for VAR model results
+        if "error" not in results["var_model"]:
+            self.assertIn("model_order", results["var_model"])
+            self.assertIn("granger_causality", results["var_model"])
+        
+        # Check for exponential smoothing results
+        self.assertIn("system_agents", results["exponential_smoothing"])
+        
+        # Test with insufficient data
+        self.analyzer.session.simulation_steps = self.mock_steps[:10] # Less than 50
+        results_insufficient = self.analyzer.analyze_advanced_time_series_models(1)
+        self.assertIn("error", results_insufficient)
+        self.analyzer.session.simulation_steps = self.mock_steps # Restore
+
 
 if __name__ == '__main__':
     # Run tests with verbose output

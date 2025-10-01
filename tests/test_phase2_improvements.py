@@ -445,6 +445,44 @@ class TestPhase2Improvements(unittest.TestCase):
         
         compare_values(result1, result2)
 
+    @patch('matplotlib.pyplot.savefig')
+    @patch('matplotlib.pyplot.show')
+    @patch('matplotlib.pyplot.close')
+    def test_analyze_advanced_time_series_models_integration(self, mock_close, mock_show, mock_savefig):
+        logger.info("Running test_analyze_advanced_time_series_models_integration")
+        results = self.analyzer.analyze_advanced_time_series_models(1)
+        self.assertIn("arima_models", results)
+        self.assertIn("var_model", results)
+        self.assertIn("exponential_smoothing", results)
+        self.assertIn("model_comparison", results)
+        self.assertIn("metadata", results)
+        self.assertTrue(mock_savefig.called)
+        
+        # Check ARIMA models
+        arima_models = results["arima_models"]
+        self.assertIsInstance(arima_models, dict)
+        
+        # Check VAR model
+        var_model = results["var_model"]
+        if "error" not in var_model:
+            self.assertIn("model_order", var_model)
+            self.assertIn("aic", var_model)
+            self.assertIn("granger_causality", var_model)
+        
+        # Check exponential smoothing
+        exp_smoothing = results["exponential_smoothing"]
+        self.assertIsInstance(exp_smoothing, dict)
+        
+        # Check model comparison
+        model_comparison = results["model_comparison"]
+        self.assertIsInstance(model_comparison, dict)
+        
+        # Test with insufficient data
+        self.analyzer.session.simulation_steps = self.mock_steps[:10]
+        results_insufficient = self.analyzer.analyze_advanced_time_series_models(1)
+        self.assertIn("error", results_insufficient)
+        self.analyzer.session.simulation_steps = self.mock_steps # Restore
+
 
 if __name__ == '__main__':
     # Run tests with verbose output
