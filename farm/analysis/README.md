@@ -1,157 +1,410 @@
-# Analysis Module System
+## Analysis Module System
 
-This directory contains the analysis module system for the AgentFarm project. The module system provides a standardized way to create and run different types of analyses on simulation data.
+A modern, protocol-based architecture for creating and running analysis modules on simulation data.
 
-## Overview
+### Features
 
-The module system consists of:
+✨ **Protocol-Based Architecture** - Type-safe interfaces using Python protocols  
+🔌 **Plugin System** - Dynamic module discovery and registration  
+✅ **Comprehensive Validation** - Built-in data validation with custom validators  
+💾 **Smart Caching** - Automatic caching of analysis results  
+📊 **Progress Tracking** - Real-time progress callbacks  
+🎯 **Standardized Functions** - Consistent API across all analysis types  
+🧪 **Fully Tested** - Comprehensive test suite with >80% coverage  
 
-1. **Base Module** (`base_module.py`): Defines the `AnalysisModule` abstract base class that all analysis modules must inherit from.
-2. **Module Registry** (`registry.py`): Provides a central registry for all analysis modules.
-3. **Analysis Modules**: Each analysis type (e.g., dominance, reproduction, resources) has its own module that inherits from `AnalysisModule`.
+### Quick Start
 
-## Creating a New Analysis Module
+```python
+from pathlib import Path
+from farm.analysis.service import AnalysisService, AnalysisRequest
+from farm.core.services import EnvConfigService
 
-To create a new analysis module:
+# Initialize service
+config_service = EnvConfigService()
+service = AnalysisService(config_service)
 
-1. Create a new directory under `farm/analysis/your_module_name/`
-2. Implement your analysis functions (data processor, plots, etc.)
-3. Create a module class that inherits from `AnalysisModule`
-4. Register your module in the registry
+# Create analysis request
+request = AnalysisRequest(
+    module_name="dominance",
+    experiment_path=Path("data/experiment_001"),
+    output_path=Path("results/dominance_analysis"),
+    group="basic"  # Run only basic plots
+)
 
-### Directory Structure
+# Run analysis
+result = service.run(request)
+
+if result.success:
+    print(f"Analysis complete in {result.execution_time:.2f}s")
+    print(f"Results saved to: {result.output_path}")
+else:
+    print(f"Analysis failed: {result.error}")
+```
+
+### Creating a New Analysis Module
+
+1. **Define your analysis functions**:
+
+```python
+# my_analysis/compute.py
+import pandas as pd
+from farm.analysis.common.context import AnalysisContext
+
+def analyze_population_dynamics(df: pd.DataFrame, ctx: AnalysisContext) -> None:
+    """Analyze population dynamics over time."""
+    # Your analysis logic here
+    ctx.logger.info("Analyzing population dynamics")
+    
+    # Save results
+    output_file = ctx.get_output_file("population_stats.csv")
+    stats = df.groupby('iteration')['population'].agg(['mean', 'std', 'max'])
+    stats.to_csv(output_file)
+    
+    ctx.report_progress("Population analysis complete", 0.5)
+```
+
+2. **Create visualization functions**:
+
+```python
+# my_analysis/plot.py
+import matplotlib.pyplot as plt
+import pandas as pd
+from farm.analysis.common.context import AnalysisContext
+
+def plot_population_over_time(df: pd.DataFrame, ctx: AnalysisContext) -> None:
+    """Plot population trends."""
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    for agent_type in df['agent_type'].unique():
+        data = df[df['agent_type'] == agent_type]
+        ax.plot(data['iteration'], data['population'], label=agent_type)
+    
+    ax.set_xlabel('Iteration')
+    ax.set_ylabel('Population')
+    ax.legend()
+    ax.set_title('Population Dynamics')
+    
+    output_file = ctx.get_output_file("population_trends.png")
+    fig.savefig(output_file, dpi=300, bbox_inches='tight')
+    plt.close(fig)
+```
+
+3. **Create data processor**:
+
+```python
+# my_analysis/processor.py
+import pandas as pd
+from pathlib import Path
+
+def process_my_data(experiment_path: Path, **kwargs) -> pd.DataFrame:
+    """Process raw data for analysis."""
+    # Load and process your data
+    data = []
+    
+    for sim_dir in experiment_path.glob("iteration_*"):
+        # Load simulation data
+        sim_data = load_simulation(sim_dir)
+        data.append(sim_data)
+    
+    return pd.DataFrame(data)
+```
+
+4. **Create module class**:
+
+```python
+# my_analysis/module.py
+from farm.analysis.core import BaseAnalysisModule, SimpleDataProcessor, make_analysis_function
+from farm.analysis.validation import ColumnValidator, DataQualityValidator, CompositeValidator
+from my_analysis.processor import process_my_data
+from my_analysis.compute import analyze_population_dynamics
+from my_analysis.plot import plot_population_over_time
+
+class MyAnalysisModule(BaseAnalysisModule):
+    def __init__(self):
+        super().__init__(
+            name="my_analysis",
+            description="Custom analysis of simulation dynamics"
+        )
+        
+        # Set up validation
+        validator = CompositeValidator([
+            ColumnValidator(
+                required_columns=['iteration', 'agent_type', 'population'],
+                column_types={'iteration': int, 'population': float}
+            ),
+            DataQualityValidator(min_rows=1)
+        ])
+        self.set_validator(validator)
+    
+    def register_functions(self) -> None:
+        """Register analysis functions."""
+        self._functions = {
+            "analyze_population": make_analysis_function(analyze_population_dynamics),
+            "plot_population": make_analysis_function(plot_population_over_time),
+        }
+        
+        self._groups = {
+            "all": list(self._functions.values()),
+            "plots": [self._functions["plot_population"]],
+            "metrics": [self._functions["analyze_population"]],
+        }
+    
+    def get_data_processor(self) -> SimpleDataProcessor:
+        """Get data processor."""
+        return SimpleDataProcessor(process_my_data)
+
+# Create singleton
+my_analysis_module = MyAnalysisModule()
+```
+
+5. **Register your module**:
+
+```bash
+# Via environment variable
+export FARM_ANALYSIS_MODULES="my_analysis.module.my_analysis_module"
+
+# Or programmatically
+from farm.analysis.registry import registry
+from my_analysis.module import my_analysis_module
+
+registry.register(my_analysis_module)
+```
+
+### Advanced Features
+
+#### Custom Validation
+
+```python
+from farm.analysis.validation import ColumnValidator, DataQualityValidator
+
+# Column validation
+validator = ColumnValidator(
+    required_columns=['iteration', 'agent_type', 'score'],
+    column_types={
+        'iteration': int,
+        'score': float,
+        'agent_type': str
+    }
+)
+
+# Data quality validation
+quality_validator = DataQualityValidator(
+    min_rows=10,
+    max_null_fraction=0.1,  # Max 10% nulls per column
+    allow_duplicates=False,
+    value_ranges={'score': (0.0, 1.0)}  # Score must be 0-1
+)
+
+# Combine validators
+from farm.analysis.validation import CompositeValidator
+combined = CompositeValidator([validator, quality_validator])
+```
+
+#### Progress Tracking
+
+```python
+def progress_callback(message: str, progress: float):
+    print(f"[{progress:.0%}] {message}")
+
+request = AnalysisRequest(
+    module_name="dominance",
+    experiment_path=Path("data/experiment"),
+    output_path=Path("results"),
+    progress_callback=progress_callback
+)
+
+result = service.run(request)
+```
+
+#### Batch Analysis
+
+```python
+requests = [
+    AnalysisRequest(
+        module_name="dominance",
+        experiment_path=Path(f"data/experiment_{i:03d}"),
+        output_path=Path(f"results/exp_{i:03d}"),
+    )
+    for i in range(10)
+]
+
+results = service.run_batch(requests)
+
+# Check results
+for result in results:
+    if result.success:
+        print(f"✓ {result.module_name}: {result.execution_time:.2f}s")
+    else:
+        print(f"✗ {result.module_name}: {result.error}")
+```
+
+#### Caching
+
+```python
+# Enable caching (default)
+request = AnalysisRequest(
+    module_name="dominance",
+    experiment_path=Path("data/experiment"),
+    output_path=Path("results"),
+    enable_caching=True
+)
+
+# First run - computes results
+result1 = service.run(request)
+print(f"Cache hit: {result1.cache_hit}")  # False
+
+# Second run - uses cached results
+result2 = service.run(request)
+print(f"Cache hit: {result2.cache_hit}")  # True
+
+# Force refresh
+request.force_refresh = True
+result3 = service.run(request)
+print(f"Cache hit: {result3.cache_hit}")  # False
+
+# Clear cache
+service.clear_cache()
+```
+
+### Architecture
+
+The analysis system is built on a protocol-based architecture:
 
 ```
 farm/analysis/
-├── base_module.py         # Base module class
-├── registry.py            # Module registry
-├── dominance/             # Dominance analysis module
-│   ├── analyze.py         # Data processing functions
-│   ├── plot.py            # Visualization functions
-│   ├── module.py          # Module class implementation
-│   └── ...
-├── your_module_name/      # Your new module
-│   ├── analyze.py         # Data processing functions
-│   ├── plot.py            # Visualization functions
-│   ├── module.py          # Module class implementation
-│   └── ...
-└── ...
+├── protocols.py          # Protocol definitions (interfaces)
+├── core.py              # Base implementations
+├── exceptions.py        # Custom exceptions
+├── validation.py        # Data validators
+├── registry.py          # Module registry
+├── service.py           # High-level service API
+├── common/
+│   ├── context.py       # Analysis context
+│   └── metrics.py       # Shared metrics
+└── {module}/
+    ├── module.py        # Module implementation
+    ├── processor.py     # Data processing
+    ├── compute.py       # Analysis functions
+    └── plot.py          # Visualizations
 ```
 
-### Module Implementation
+### Testing
 
-Here's a template for implementing a new module:
+Run the test suite:
+
+```bash
+# All tests
+pytest tests/analysis/
+
+# Specific test file
+pytest tests/analysis/test_core.py
+
+# With coverage
+pytest tests/analysis/ --cov=farm.analysis --cov-report=html
+```
+
+### Migration from Old System
+
+The old `base_module.py` system is deprecated. To migrate:
+
+**Old way:**
+```python
+class MyModule(AnalysisModule):
+    def register_analysis(self):  # Old method name
+        self._analysis_functions = {...}
+```
+
+**New way:**
+```python
+class MyModule(BaseAnalysisModule):
+    def register_functions(self):  # New method name
+        self._functions = {...}
+```
+
+Key changes:
+- `AnalysisModule` → `BaseAnalysisModule`
+- `register_analysis()` → `register_functions()`
+- `_analysis_functions` → `_functions`
+- `_analysis_groups` → `_groups`
+- All functions now use standard `(df, ctx, **kwargs)` signature
+- Use `make_analysis_function()` to wrap legacy functions
+
+### Best Practices
+
+1. **Use type hints everywhere**
+   ```python
+   def my_function(df: pd.DataFrame, ctx: AnalysisContext) -> None:
+       ...
+   ```
+
+2. **Validate input data**
+   ```python
+   validator = ColumnValidator(required_columns=['col1', 'col2'])
+   self.set_validator(validator)
+   ```
+
+3. **Report progress for long operations**
+   ```python
+   ctx.report_progress("Processing step 1", 0.25)
+   ctx.report_progress("Processing step 2", 0.50)
+   ```
+
+4. **Use context for file paths**
+   ```python
+   output_file = ctx.get_output_file("results.csv", subdir="metrics")
+   ```
+
+5. **Log important events**
+   ```python
+   ctx.logger.info("Starting analysis")
+   ctx.logger.warning("Low data quality detected")
+   ```
+
+6. **Handle errors gracefully**
+   ```python
+   from farm.analysis.exceptions import DataValidationError
+   
+   try:
+       process_data(df)
+   except DataValidationError as e:
+       ctx.logger.error(f"Validation failed: {e}")
+       raise
+   ```
+
+### Available Modules
+
+List all registered modules:
 
 ```python
-from typing import Callable, Dict, List, Optional
+from farm.analysis.registry import list_modules
 
-from farm.analysis.base_module import AnalysisModule
-from farm.analysis.your_module_name.analyze import process_your_data
-from farm.analysis.your_module_name.plot import (
-    plot_function1,
-    plot_function2,
-)
-
-
-class YourModule(AnalysisModule):
-    def __init__(self):
-        super().__init__(
-            name="your_module_name",
-            description="Description of your module",
-        )
-    
-    def register_analysis(self) -> None:
-        # Register all functions
-        self._analysis_functions.update({
-            "plot_function1": plot_function1,
-            "plot_function2": plot_function2,
-        })
-        
-        # Define function groups
-        self._analysis_groups = {
-            "all": list(self._analysis_functions.values()),
-            "basic": [plot_function1],
-            "advanced": [plot_function2],
-        }
-    
-    def get_data_processor(self) -> Callable:
-        return process_your_data
-    
-    def get_db_loader(self) -> Optional[Callable]:
-        # Return None if not using a database
-        return None
-    
-    def get_db_filename(self) -> Optional[str]:
-        # Return None if not using a database
-        return None
-
-
-# Create a singleton instance
-your_module = YourModule()
+print(list_modules())
 ```
 
-### Registering Your Module
-
-Add your module to the registry in `farm/analysis/registry.py`:
+Get module info:
 
 ```python
-def register_modules():
-    # Import modules
-    from farm.analysis.dominance.module import dominance_module
-    from farm.analysis.your_module_name.module import your_module
-    
-    # Register modules
-    registry.register_module(dominance_module)
-    registry.register_module(your_module)
+from farm.analysis.registry import get_module
+
+module = get_module("dominance")
+info = module.get_info()
+
+print(f"Name: {info['name']}")
+print(f"Description: {info['description']}")
+print(f"Function groups: {info['function_groups']}")
+print(f"Functions: {info['functions']}")
 ```
 
-## Running Analysis
+### Contributing
 
-To run analysis using the module system, create a script in the `scripts/` directory:
+When adding a new module:
 
-```python
-import logging
-from analysis_config import run_analysis
+1. Follow the structure in `template/module.py`
+2. Add comprehensive docstrings
+3. Include type hints
+4. Write tests in `tests/analysis/test_{module}.py`
+5. Update this README with usage examples
 
-def main():
-    # Run the analysis using the module system
-    output_path, df = run_analysis(
-        analysis_type="your_module_name",
-        function_group="all",  # Or specify a specific group
-    )
-    
-    if df is not None and not df.empty:
-        logging.info(f"Analysis complete. Processed {len(df)} simulations.")
+### License
 
-if __name__ == "__main__":
-    main()
-```
-
-## Function Groups
-
-Function groups allow you to run specific subsets of analysis functions. Common groups include:
-
-- `all`: All analysis functions
-- `basic`: Basic analysis functions
-- `advanced`: Advanced analysis functions
-
-You can define your own groups in your module's `register_analysis` method.
-
-## Module Interface
-
-Each module provides the following methods:
-
-- `get_analysis_function(name)`: Get a specific analysis function by name
-- `get_analysis_functions(group)`: Get a list of analysis functions by group
-- `get_function_groups()`: Get a list of available function groups
-- `get_function_names()`: Get a list of all available function names
-- `get_module_info()`: Get information about the module
-- `run_analysis(...)`: Run analysis functions for this module
-
-## Benefits of the Module System
-
-1. **Standardization**: All analysis modules follow the same structure and interface
-2. **Discoverability**: Easy to discover available modules and functions
-3. **Flexibility**: Run specific groups of functions or individual functions
-4. **Maintainability**: Each module is self-contained and can be developed independently
-5. **Extensibility**: Easy to add new modules without modifying existing code 
+See project LICENSE file.
