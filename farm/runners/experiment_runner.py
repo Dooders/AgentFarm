@@ -8,7 +8,6 @@ This module provides functionality to:
 - Generate summary reports
 """
 
-import logging
 import os
 from datetime import datetime
 from pathlib import Path
@@ -21,6 +20,8 @@ from farm.charts.chart_analyzer import ChartAnalyzer
 from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
 from farm.database.database import SimulationDatabase
+from farm.utils.logging_config import get_logger
+from farm.utils.logging_utils import log_experiment
 from scripts.significant_events import SignificantEventAnalyzer
 
 DEFAULT_NUM_STEPS = 1000
@@ -73,18 +74,11 @@ class ExperimentRunner:
 
     def _setup_logging(self):
         """Configure experiment-specific logging."""
-        log_file = os.path.join(self.experiment_dir, f"{self.experiment_name}.log")
-
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        # Use structured logging with experiment context
+        self.logger = get_logger(f"experiment.{self.experiment_name}").bind(
+            experiment_name=self.experiment_name,
+            experiment_dir=self.experiment_dir,
         )
-
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setFormatter(formatter)
-
-        self.logger = logging.getLogger(f"experiment.{self.experiment_name}")
-        self.logger.setLevel(logging.INFO)
-        self.logger.addHandler(file_handler)
 
     def run_iterations(
         self,
@@ -109,21 +103,23 @@ class ExperimentRunner:
         run_analysis : bool
             Whether to run analysis after each iteration
         """
-        self.logger.info(f"Starting experiment with {num_iterations} iterations")
+        self.logger.info(
+            "experiment_starting",
+            num_iterations=num_iterations,
+            num_steps=num_steps,
+            run_analysis=run_analysis,
+        )
 
         # Check if in-memory database is enabled in base config
         using_in_memory = getattr(self.base_config, "use_in_memory_db", False)
         if using_in_memory:
-            self.logger.info("Using in-memory database for improved performance")
-
-            # Log memory limit if configured
             memory_limit = getattr(
                 self.base_config, "in_memory_db_memory_limit_mb", None
             )
-            if memory_limit:
-                self.logger.info(
-                    f"Memory limit for in-memory database: {memory_limit} MB"
-                )
+            self.logger.info(
+                "using_in_memory_database",
+                memory_limit_mb=memory_limit,
+            )
 
         # Ensure path is a Path object
         if path and not isinstance(path, Path):
@@ -138,7 +134,11 @@ class ExperimentRunner:
 
         for i in progress_bar:
             progress_bar.set_description(f"Running iteration {i+1}/{num_iterations}")
-            self.logger.info(f"Starting iteration {i+1}/{num_iterations}")
+            self.logger.info(
+                "iteration_starting",
+                iteration=i+1,
+                total_iterations=num_iterations,
+            )
             iteration_config = self._create_iteration_config(i, config_variations)
             iteration_path = path / f"iteration_{i+1}" if path else None
 
@@ -157,7 +157,7 @@ class ExperimentRunner:
                 if env.db:
                     env.db.logger.flush_all_buffers()
 
-                self.logger.info(f"Completed iteration {i+1}")
+                self.logger.info("iteration_completed", iteration=i+1)
 
                 if run_analysis and iteration_path:
                     # Create a new database connection for analysis
@@ -168,15 +168,19 @@ class ExperimentRunner:
                         iteration_config, "persist_db_on_completion", True
                     ):
                         self.logger.warning(
-                            "Skipping analysis for iteration {i+1} - "
-                            "in-memory database without persistence enabled"
+                            "analysis_skipped",
+                            iteration=i+1,
+                            reason="in_memory_db_without_persistence",
                         )
                         continue
 
                     # Ensure database file exists before analysis
                     if not os.path.exists(db_path):
                         self.logger.warning(
-                            f"Database file not found at {db_path}, skipping analysis"
+                            "analysis_skipped",
+                            iteration=i+1,
+                            reason="database_file_not_found",
+                            db_path=str(db_path),
                         )
                         continue
 
@@ -201,7 +205,12 @@ class ExperimentRunner:
                         analysis_db.close()
 
             except Exception as e:
-                self.logger.error(f"Error in iteration {i+1}: {str(e)}")
+                self.logger.error(
+                    "iteration_failed",
+                    iteration=i+1,
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                )
                 continue
 
     def _create_iteration_config(
