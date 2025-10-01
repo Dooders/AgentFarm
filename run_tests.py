@@ -27,7 +27,7 @@ def run_analysis_tests():
     # Run all test files
     suite = loader.discover(start_dir, pattern='test_*.py')
     
-    print(f"\nFound test files:")
+    print("\nFound test files:")
     for test_file in start_dir.glob('test_*.py'):
         print(f"  ✓ {test_file.name}")
     

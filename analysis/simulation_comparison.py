@@ -16,16 +16,17 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from scipy import stats
-from simulation_analysis import SimulationAnalyzer
 from sklearn.cluster import KMeans
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.metrics import classification_report, silhouette_score
-from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.model_selection import cross_val_score, train_test_split
 from sklearn.preprocessing import StandardScaler
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from farm.database.models import Simulation
+
+from .simulation_analysis import SimulationAnalyzer
 
 # Configure logging
 logging.basicConfig(
@@ -349,7 +350,7 @@ class SimulationComparator:
             "feature_importance": feature_importance,
             "performance_summary": performance_summary,
             "model_type": "GradientBoostingClassifier",
-            "target_column": target_column
+            "target_column": target_column,
         }
 
     def compare_resource_patterns(self, df: pd.DataFrame) -> Dict[str, Any]:
@@ -499,7 +500,7 @@ class SimulationComparator:
         results_file = output_dir / "comparative_analysis.json"
         import json
 
-        with open(results_file, "w") as f:
+        with open(results_file, "w", encoding="utf-8") as f:
             json.dump(results, f, indent=2)
 
         logger.info(f"Comparative analysis complete. Results saved to {results_file}")
