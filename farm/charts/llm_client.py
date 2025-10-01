@@ -1,6 +1,5 @@
 import base64
 import json
-import logging
 import os
 from typing import Optional
 
@@ -8,8 +7,9 @@ import numpy as np
 import pandas as pd
 from openai import OpenAI
 from farm.core.services import IConfigService, EnvConfigService
+from farm.utils.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class LLMClient:
@@ -87,7 +87,11 @@ class LLMClient:
 
             return analysis
         except Exception as e:
-            logger.error(f"Error analyzing chart: {e}")
+            logger.error(
+                "chart_analysis_failed",
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             return f"Error analyzing chart: {e}"
 
     def _analyze_action_distribution(self) -> str:

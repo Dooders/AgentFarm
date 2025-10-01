@@ -30,7 +30,6 @@ ResearchProject : class
 
 import errno
 import json
-import logging
 import os
 import shutil
 import time
@@ -41,6 +40,9 @@ from typing import Dict, List, Optional, Union
 
 from farm.config import SimulationConfig
 from farm.runners.experiment_runner import ExperimentRunner
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -229,18 +231,11 @@ class ResearchProject:
         """Configure project-specific logging."""
         log_path = self.project_path / "research.log"
 
-        logger = logging.getLogger(f"research.{self.name}")
-        logger.setLevel(logging.INFO)
-
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        self.logger = get_logger(f"research.{self.name}").bind(
+            project_name=self.name,
+            project_dir=str(self.base_path),
         )
-
-        file_handler = logging.FileHandler(log_path)
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-
-        return logger
+        return self.logger
 
     def _save_metadata(self) -> None:
         """Save project metadata to JSON file."""
@@ -297,7 +292,7 @@ class ResearchProject:
         # with open(design_path, "w") as f:
         #     f.write(f"# {name}\n\n## Description\n{description}\n\n## Methodology\n")
 
-        self.logger.info(f"Created experiment: {exp_id}")
+        self.logger.info("experiment_created", experiment_id=exp_id, experiment_name=name)
         return str(exp_path)
 
     def run_experiment(
@@ -345,10 +340,15 @@ class ResearchProject:
             # Note: generate_report method is not implemented in ExperimentRunner
             # runner.generate_report()
 
-            self.logger.info(f"Completed experiment: {experiment_id}")
+            self.logger.info("experiment_completed", experiment_id=experiment_id)
 
         except Exception as e:
-            self.logger.error(f"Error running experiment {experiment_id}: {str(e)}")
+            self.logger.error(
+                "experiment_run_failed",
+                experiment_id=experiment_id,
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             raise
 
     def add_literature_reference(
