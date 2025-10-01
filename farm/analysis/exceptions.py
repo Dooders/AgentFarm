@@ -4,7 +4,7 @@ Custom exceptions for the analysis module system.
 Provides specific exception types for better error handling and debugging.
 """
 
-from typing import List, Set, Optional
+from typing import List, Set, Optional, Dict
 
 
 class AnalysisError(Exception):

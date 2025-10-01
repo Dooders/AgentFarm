@@ -390,9 +390,11 @@ def make_analysis_function(
         elif "context" in params:
             return func(df=df, context=ctx, **kwargs)
         elif "output_path" in params:
-            return func(df=df, output_path=ctx.output_path, **kwargs)
-        elif len(params) >= 2 and params[0] == "df":
-            return func(df, ctx.output_path, **kwargs)
+            # Ensure legacy output_path receives a string path
+            return func(df=df, output_path=str(ctx.output_path), **kwargs)
+        elif len(params) >= 2 and params[0] == "df" and params[1] == "output_path":
+            # Legacy positional signature: (df, output_path, ...)
+            return func(df, str(ctx.output_path), **kwargs)
         else:
             return func(df, **kwargs)
     

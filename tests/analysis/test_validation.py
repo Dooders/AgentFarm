@@ -38,7 +38,7 @@ class TestColumnValidator:
         with pytest.raises(DataValidationError) as exc_info:
             validator.validate(sample_simulation_data)
         
-        assert 'nonexistent_column' in str(exc_info.value.missing_columns)
+        assert 'nonexistent_column' in exc_info.value.missing_columns
     
     def test_wrong_column_type(self):
         """Test detection of wrong column types."""
