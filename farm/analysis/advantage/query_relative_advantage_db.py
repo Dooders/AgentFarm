@@ -7,7 +7,9 @@ and export results to CSV files.
 """
 
 import argparse
-import logging
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 import os
 import sys
 from typing import Any, Dict, List, Optional
@@ -57,7 +59,7 @@ def query_resource_advantages(
     pandas.DataFrame
         DataFrame containing query results
     """
-    logging.info("Querying resource acquisition advantages")
+    logger.info("Querying resource acquisition advantages")
 
     query = (
         session.query(
@@ -83,7 +85,7 @@ def query_resource_advantages(
     # Save to CSV if output file is provided
     if output_file:
         df.to_csv(output_file, index=False)
-        logging.info(f"Saved resource acquisition query results to {output_file}")
+        logger.info(f"Saved resource acquisition query results to {output_file}")
 
     return df
 
@@ -106,7 +108,7 @@ def query_reproduction_advantages(
     pandas.DataFrame
         DataFrame containing query results
     """
-    logging.info("Querying reproduction advantages")
+    logger.info("Querying reproduction advantages")
 
     query = (
         session.query(
@@ -139,7 +141,7 @@ def query_reproduction_advantages(
     # Save to CSV if output file is provided
     if output_file:
         df.to_csv(output_file, index=False)
-        logging.info(f"Saved reproduction advantages query results to {output_file}")
+        logger.info(f"Saved reproduction advantages query results to {output_file}")
 
     return df
 
@@ -162,7 +164,7 @@ def query_survival_advantages(
     pandas.DataFrame
         DataFrame containing query results
     """
-    logging.info("Querying survival advantages")
+    logger.info("Querying survival advantages")
 
     query = (
         session.query(
@@ -190,7 +192,7 @@ def query_survival_advantages(
     # Save to CSV if output file is provided
     if output_file:
         df.to_csv(output_file, index=False)
-        logging.info(f"Saved survival advantages query results to {output_file}")
+        logger.info(f"Saved survival advantages query results to {output_file}")
 
     return df
 
@@ -213,7 +215,7 @@ def query_population_growth(
     pandas.DataFrame
         DataFrame containing query results
     """
-    logging.info("Querying population growth advantages")
+    logger.info("Querying population growth advantages")
 
     query = (
         session.query(
@@ -241,7 +243,7 @@ def query_population_growth(
     # Save to CSV if output file is provided
     if output_file:
         df.to_csv(output_file, index=False)
-        logging.info(f"Saved population growth query results to {output_file}")
+        logger.info(f"Saved population growth query results to {output_file}")
 
     return df
 
@@ -264,7 +266,7 @@ def query_composite_advantages(
     pandas.DataFrame
         DataFrame containing query results
     """
-    logging.info("Querying composite advantages")
+    logger.info("Querying composite advantages")
 
     query = (
         session.query(
@@ -292,7 +294,7 @@ def query_composite_advantages(
     # Save to CSV if output file is provided
     if output_file:
         df.to_csv(output_file, index=False)
-        logging.info(f"Saved composite advantages query results to {output_file}")
+        logger.info(f"Saved composite advantages query results to {output_file}")
 
     return df
 
@@ -315,7 +317,7 @@ def query_advantage_dominance_correlations(
     pandas.DataFrame
         DataFrame containing query results
     """
-    logging.info("Querying advantage-dominance correlations")
+    logger.info("Querying advantage-dominance correlations")
 
     query = (
         session.query(
@@ -342,7 +344,7 @@ def query_advantage_dominance_correlations(
     # Save to CSV if output file is provided
     if output_file:
         df.to_csv(output_file, index=False)
-        logging.info(
+        logger.info(
             f"Saved advantage-dominance correlations query results to {output_file}"
         )
 
@@ -369,7 +371,7 @@ def run_custom_query(
     pandas.DataFrame
         DataFrame containing query results
     """
-    logging.info("Running custom query")
+    logger.info("Running custom query")
 
     try:
         # Execute the query
@@ -383,11 +385,11 @@ def run_custom_query(
         # Save to CSV if output file is provided
         if output_file and not df.empty:
             df.to_csv(output_file, index=False)
-            logging.info(f"Saved custom query results to {output_file}")
+            logger.info(f"Saved custom query results to {output_file}")
 
         return df
     except Exception as e:
-        logging.error(f"Error executing custom query: {e}")
+        logger.error(f"Error executing custom query: {e}")
         return pd.DataFrame()
 
 
@@ -446,9 +448,9 @@ def main():
             )
             df = run_custom_query(session, args.custom_query, output_file)
             if df.empty:
-                logging.warning("Custom query returned no results")
+                logger.warning("Custom query returned no results")
             else:
-                logging.info(f"Custom query returned {len(df)} rows")
+                logger.info(f"Custom query returned {len(df)} rows")
                 print(df.head(10))
         else:
             if args.query_type in ["resource", "all"]:
@@ -492,7 +494,7 @@ def main():
                 print(df.head(10))
 
     except Exception as e:
-        logging.error(f"Error querying database: {e}")
+        logger.error(f"Error querying database: {e}")
         sys.exit(1)
     finally:
         session.close()

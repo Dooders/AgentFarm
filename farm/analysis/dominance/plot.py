@@ -1,4 +1,6 @@
-import logging
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 import os
 from typing import Optional, Union
 
@@ -61,7 +63,7 @@ def plot_dominance_distribution(
         percentages = (counts / total) * 100
 
         # Log the percentages for debugging
-        logging.info(f"Percentages for {measure}: {percentages}")
+        logger.info(f"Percentages for {measure}: {percentages}")
 
         # Create a consistent DataFrame with all agent types
         # This ensures the same order and includes all agent types even if some have 0%
@@ -75,14 +77,14 @@ def plot_dominance_distribution(
             if standard_agent_type in agent_types:
                 ordered_percentages[standard_agent_type] = percentages[agent]
             else:
-                logging.warning(f"Unknown agent type in {measure}: {agent}")
+                logger.warning(f"Unknown agent type in {measure}: {agent}")
 
         # Log the ordered percentages for debugging
-        logging.info(f"Ordered percentages for {measure}: {ordered_percentages}")
+        logger.info(f"Ordered percentages for {measure}: {ordered_percentages}")
 
         # For survival dominance, ensure we have data
         if measure == "survival_dominance" and ordered_percentages.sum() == 0:
-            logging.warning(f"No data for survival_dominance, using placeholder data")
+            logger.warning(f"No data for survival_dominance, using placeholder data")
             # If there's no data, check if we can derive it from the DataFrame
             if "survival_rate" in df.columns:
                 # Try to derive dominance from survival rates
@@ -97,7 +99,7 @@ def plot_dominance_distribution(
                     ordered_percentages = (
                         ordered_percentages / ordered_percentages.sum()
                     ) * 100
-                    logging.info(f"Derived survival dominance: {ordered_percentages}")
+                    logger.info(f"Derived survival dominance: {ordered_percentages}")
 
         # Plot percentages with consistent colors
         bars = axes[i].bar(
@@ -138,7 +140,7 @@ def plot_dominance_distribution(
         output_dir = output_path or ""
     output_file = os.path.join(output_dir, "dominance_distribution.png")
     plt.savefig(output_file)
-    logging.info(f"Saved dominance distribution plot to {output_file}")
+    logger.info(f"Saved dominance distribution plot to {output_file}")
     plt.close()
 
 
@@ -197,7 +199,7 @@ def plot_feature_importance(
         raise ValueError("output_path is required")
     output_file = os.path.join(output_dir, f"{label_name}_feature_importance.png")
     plt.savefig(output_file)
-    logging.info(f"Saved feature importance plot to {output_file}")
+    logger.info(f"Saved feature importance plot to {output_file}")
     plt.close()
 
 
@@ -243,7 +245,7 @@ def plot_resource_proximity_vs_dominance(
     output_dir = ctx.output_path if (ctx and ctx.output_path) else (output_path or "")
     output_file = os.path.join(output_dir, "resource_proximity_vs_dominance.png")
     plt.savefig(output_file)
-    logging.info(f"Saved resource proximity plot to {output_file}")
+    logger.info(f"Saved resource proximity plot to {output_file}")
     plt.close()
 
 
@@ -293,7 +295,7 @@ def plot_reproduction_vs_dominance(
     # Limit to at most 10 metrics
     reproduction_metrics = important_metrics[:10]
 
-    logging.info(
+    logger.info(
         f"Plotting {len(reproduction_metrics)} out of {len(all_reproduction_metrics)} reproduction metrics"
     )
 
@@ -319,7 +321,7 @@ def plot_reproduction_vs_dominance(
                         axes[i].set_xlabel("Dominant Agent Type")
                         axes[i].set_ylabel(metric)
                     else:
-                        logging.warning(
+                        logger.warning(
                             f"Some categories in population_dominance have no data for {metric}"
                         )
                         axes[i].text(
@@ -331,7 +333,7 @@ def plot_reproduction_vs_dominance(
                             transform=axes[i].transAxes,
                         )
                 except Exception as e:
-                    logging.warning(f"Error creating boxplot for {metric}: {str(e)}")
+                    logger.warning(f"Error creating boxplot for {metric}: {str(e)}")
                     axes[i].text(
                         0.5,
                         0.5,
@@ -341,7 +343,7 @@ def plot_reproduction_vs_dominance(
                         transform=axes[i].transAxes,
                     )
             else:
-                logging.warning(f"Insufficient data for {metric} boxplot")
+                logger.warning(f"Insufficient data for {metric} boxplot")
                 axes[i].text(
                     0.5,
                     0.5,
@@ -367,7 +369,7 @@ def plot_reproduction_vs_dominance(
         raise ValueError("output_path is required")
     output_file = os.path.join(output_path, "reproduction_metrics_boxplots.png")
     plt.savefig(output_file)
-    logging.info(f"Saved key reproduction metrics boxplots to {output_file}")
+    logger.info(f"Saved key reproduction metrics boxplots to {output_file}")
     plt.close()
 
 
@@ -418,7 +420,7 @@ def plot_correlation_matrix(
     numeric_features = numeric_features[valid_columns]
 
     if numeric_features.empty:
-        logging.warning(
+        logger.warning(
             f"No valid numeric features with non-zero standard deviation for {label_name}"
         )
         return
@@ -434,7 +436,7 @@ def plot_correlation_matrix(
             )
 
     if not correlations:
-        logging.warning(f"Could not calculate correlations for {label_name}")
+        logger.warning(f"Could not calculate correlations for {label_name}")
         return
 
     # Combine correlations into a single DataFrame
@@ -449,7 +451,7 @@ def plot_correlation_matrix(
     # Plot top correlations
     top_n = min(20, len(corr_df))  # Ensure we don't try to plot more rows than we have
     if top_n == 0:
-        logging.warning(f"No correlations to plot for {label_name}")
+        logger.warning(f"No correlations to plot for {label_name}")
         return
 
     top_corr = corr_df.head(top_n)
@@ -471,7 +473,7 @@ def plot_correlation_matrix(
     plt.tight_layout(rect=(0, 0.05, 1, 0.95))
     output_file = os.path.join(output_path, f"{label_name}_correlation_matrix.png")
     plt.savefig(output_file)
-    logging.info(f"Saved correlation matrix plot to {output_file}")
+    logger.info(f"Saved correlation matrix plot to {output_file}")
     plt.close()
 
 
@@ -526,7 +528,7 @@ def plot_dominance_comparison(
             total = counts.sum()
 
             # Log the raw counts for debugging
-            logging.info(f"Raw counts for {measure}: {counts}")
+            logger.info(f"Raw counts for {measure}: {counts}")
 
             # Ensure all agent types are represented, even if they have 0%
             for agent_type in agent_types:
@@ -552,7 +554,7 @@ def plot_dominance_comparison(
         comparison_df = pd.DataFrame(comparison_data)
 
         # Log the processed data for debugging
-        logging.info(f"Processed comparison data: {comparison_df}")
+        logger.info(f"Processed comparison data: {comparison_df}")
 
         sns.barplot(
             x="Agent Type",
@@ -644,7 +646,7 @@ def plot_dominance_comparison(
         raise ValueError("output_path is required")
     output_file = os.path.join(output_path, "dominance_comparison.png")
     plt.savefig(output_file, dpi=300)
-    logging.info(f"Saved dominance comparison plot to {output_file}")
+    logger.info(f"Saved dominance comparison plot to {output_file}")
     plt.close()
 
 
@@ -662,7 +664,7 @@ def plot_dominance_switches(
         Path to the directory where output files will be saved
     """
     if df.empty or "total_switches" not in df.columns:
-        logging.warning("No dominance switch data available for plotting")
+        logger.warning("No dominance switch data available for plotting")
         return
 
     # 1. Distribution of total switches
@@ -846,7 +848,7 @@ def plot_dominance_stability(
         Path to the saved plot file
     """
     if df.empty or "switches_per_step" not in df.columns:
-        logging.warning("No dominance stability data available for plotting")
+        logger.warning("No dominance stability data available for plotting")
         return
 
     plt.figure(figsize=(10, 6))
@@ -875,7 +877,7 @@ def plot_dominance_stability(
     output_file = os.path.join(output_path, "dominance_stability_analysis.png")
     plt.savefig(output_file)
     plt.close()
-    logging.info(f"Saved dominance stability analysis to {output_file}")
+    logger.info(f"Saved dominance stability analysis to {output_file}")
 
     return output_file
 
@@ -906,7 +908,7 @@ def plot_reproduction_advantage_vs_stability(
         Path to the saved plot file
     """
     if df.empty or "switches_per_step" not in df.columns:
-        logging.warning("No dominance stability data available for plotting")
+        logger.warning("No dominance stability data available for plotting")
         return None
 
     # Find reproduction advantage columns
@@ -918,7 +920,7 @@ def plot_reproduction_advantage_vs_stability(
     ]
 
     if not advantage_cols:
-        logging.warning("No reproduction advantage data available for plotting")
+        logger.warning("No reproduction advantage data available for plotting")
         return None
 
     # Calculate stability metric if not already present
@@ -936,7 +938,7 @@ def plot_reproduction_advantage_vs_stability(
             valid_advantage_cols.append(col)
 
     if not valid_advantage_cols:
-        logging.warning("No valid advantage columns for plotting")
+        logger.warning("No valid advantage columns for plotting")
         plt.close()
         return None
 
@@ -953,7 +955,7 @@ def plot_reproduction_advantage_vs_stability(
                 valid_data = df[df[col].notna() & df["dominance_stability"].notna()]
 
                 if len(valid_data) < 5:  # Skip if not enough valid data
-                    logging.warning(
+                    logger.warning(
                         f"Not enough valid data points for {col} visualization"
                     )
                     continue
@@ -979,7 +981,7 @@ def plot_reproduction_advantage_vs_stability(
 
                             # Double-check for NaN values
                             if np.isnan(X).any() or np.isnan(y).any():
-                                logging.warning(
+                                logger.warning(
                                     f"Data for {col} still contains NaN values after filtering"
                                 )
                                 # Fallback to horizontal line at mean
@@ -1000,7 +1002,7 @@ def plot_reproduction_advantage_vs_stability(
                                 # Plot the trend line
                                 plt.plot(x_sorted, y_pred, "--", alpha=0.6)
                         else:
-                            logging.info(
+                            logger.info(
                                 f"Not enough variation in {col} for trend line"
                             )
                             # Fallback to horizontal line at mean
@@ -1010,7 +1012,7 @@ def plot_reproduction_advantage_vs_stability(
                                 alpha=0.3,
                             )
                     except Exception as e:
-                        logging.warning(f"Error creating trend line for {col}: {e}")
+                        logger.warning(f"Error creating trend line for {col}: {e}")
                         # Fallback to horizontal line at mean
                         plt.axhline(
                             y=valid_data["dominance_stability"].mean(),
@@ -1018,7 +1020,7 @@ def plot_reproduction_advantage_vs_stability(
                             alpha=0.3,
                         )
         except Exception as e:
-            logging.warning(f"Error creating plot for {col}: {e}")
+            logger.warning(f"Error creating plot for {col}: {e}")
 
     plt.xlabel("Reproduction Advantage")
     plt.ylabel("Dominance Stability")
@@ -1044,7 +1046,7 @@ def plot_reproduction_advantage_vs_stability(
     output_file = os.path.join(output_path, "reproduction_advantage_stability.png")
     plt.savefig(output_file)
     plt.close()
-    logging.info(
+    logger.info(
         f"Saved reproduction advantage vs. stability analysis to {output_file}"
     )
 
@@ -1070,7 +1072,7 @@ def plot_comprehensive_score_breakdown(
     output_path : str
         Path to the directory where output files will be saved
     """
-    logging.info("Generating comprehensive score breakdown chart...")
+    logger.info("Generating comprehensive score breakdown chart...")
 
     # Extract the components of the comprehensive dominance score for each agent type
     agent_types = ["system", "independent", "control"]
@@ -1109,7 +1111,7 @@ def plot_comprehensive_score_breakdown(
                 # Calculate the average
                 avg_scores.loc[agent_type, component] = values.mean()
             else:
-                logging.warning(f"Column {col_name} not found in DataFrame")
+                logger.warning(f"Column {col_name} not found in DataFrame")
                 avg_scores.loc[agent_type, component] = 0
 
     # Normalize the components for each metric across agent types
@@ -1199,12 +1201,12 @@ def plot_comprehensive_score_breakdown(
         raise ValueError("output_path is required")
     output_file = os.path.join(output_path, "comprehensive_score_breakdown.png")
     plt.savefig(output_file, dpi=300, bbox_inches="tight")
-    logging.info(f"Comprehensive score breakdown chart saved to {output_file}")
+    logger.info(f"Comprehensive score breakdown chart saved to {output_file}")
 
     # Also save the data to a CSV file
     csv_path = os.path.join(output_path, "comprehensive_score_breakdown.csv")
     weighted_scores.to_csv(csv_path)
-    logging.info(f"Comprehensive score breakdown data saved to {csv_path}")
+    logger.info(f"Comprehensive score breakdown data saved to {csv_path}")
 
     return weighted_scores
 
@@ -1235,7 +1237,7 @@ def plot_reproduction_success_vs_switching(
     """
     # Check if we have the necessary data
     if df.empty or "total_switches" not in df.columns:
-        logging.warning("No dominance switch data available for visualization")
+        logger.warning("No dominance switch data available for visualization")
         return None
 
     # Find reproduction success rate columns
@@ -1244,7 +1246,7 @@ def plot_reproduction_success_vs_switching(
     ]
 
     if not success_rate_cols:
-        logging.warning("No reproduction success rate data available for visualization")
+        logger.warning("No reproduction success rate data available for visualization")
         return None
 
     plt.figure(figsize=(12, 8))
@@ -1257,7 +1259,7 @@ def plot_reproduction_success_vs_switching(
             valid_data = df.dropna(subset=[col, "total_switches"])
 
             if len(valid_data) < 5:  # Skip if not enough valid data
-                logging.warning(f"Not enough valid data points for {col} visualization")
+                logger.warning(f"Not enough valid data points for {col} visualization")
                 continue
 
             plt.subplot(1, len(success_rate_cols), i + 1)
@@ -1287,7 +1289,7 @@ def plot_reproduction_success_vs_switching(
 
                         # Make sure there are no NaN values
                         if np.isnan(X).any() or np.isnan(y).any():
-                            logging.warning(
+                            logger.warning(
                                 f"Data for {col} still contains NaN values after filtering"
                             )
                             # Fallback to simple mean line
@@ -1313,7 +1315,7 @@ def plot_reproduction_success_vs_switching(
                             # Plot the trend line
                             plt.plot(x_plot, y_plot, f"C{i}--", alpha=0.8)
                     else:
-                        logging.info(f"Not enough variation in {col} for trend line")
+                        logger.info(f"Not enough variation in {col} for trend line")
                         # Fallback to simple mean line
                         plt.axhline(
                             y=valid_data["total_switches"].mean(),
@@ -1322,7 +1324,7 @@ def plot_reproduction_success_vs_switching(
                             alpha=0.5,
                         )
                 except Exception as e:
-                    logging.warning(f"Error creating trend line for {col}: {e}")
+                    logger.warning(f"Error creating trend line for {col}: {e}")
                     # Fallback to simple mean line if trend calculation fails
                     plt.axhline(
                         y=valid_data["total_switches"].mean(),
@@ -1335,7 +1337,7 @@ def plot_reproduction_success_vs_switching(
             plt.ylabel("Total Dominance Switches")
             plt.title(f"{agent_type.capitalize()} Reproduction vs. Switching")
         except Exception as e:
-            logging.warning(f"Error creating plot for {col}: {e}")
+            logger.warning(f"Error creating plot for {col}: {e}")
 
     # Add caption
     caption = (
@@ -1354,6 +1356,6 @@ def plot_reproduction_success_vs_switching(
     output_file = os.path.join(output_path, "reproduction_vs_switching.png")
     plt.savefig(output_file)
     plt.close()
-    logging.info(f"Saved reproduction vs. switching analysis to {output_file}")
+    logger.info(f"Saved reproduction vs. switching analysis to {output_file}")
 
     return output_file

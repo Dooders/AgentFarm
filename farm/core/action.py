@@ -19,7 +19,9 @@ Technical Details:
     - Automatic tensor-numpy conversion for state handling
 """
 
-import logging
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 import math
 from enum import IntEnum
 from typing import TYPE_CHECKING, Callable, List
@@ -1289,7 +1291,9 @@ def defend_action(agent: "BaseAgent") -> dict:
 
         # Calculate simple reward for defensive action
         # Use config value if available, otherwise fall back to default
-        reward = getattr(getattr(agent.config, 'action_rewards', None), 'defend_success_reward', 0.02)
+        reward = getattr(
+            getattr(agent.config, "action_rewards", None), "defend_success_reward", 0.02
+        )
         agent.total_reward += reward
 
         # Log the defend action using helper function
@@ -1365,7 +1369,9 @@ def pass_action(agent: "BaseAgent") -> dict:
     try:
         # Calculate small reward for strategic inaction
         # Use config value if available, otherwise fall back to default
-        reward = getattr(getattr(agent.config, 'action_rewards', None), 'pass_action_reward', 0.01)
+        reward = getattr(
+            getattr(agent.config, "action_rewards", None), "pass_action_reward", 0.01
+        )
         agent.total_reward += reward
 
         # Log the pass action using helper function

@@ -1,7 +1,6 @@
 # Add the project root to the Python path
 import glob
 import json
-import logging
 import os
 import shutil
 import sys
@@ -15,6 +14,10 @@ from sqlalchemy.orm import sessionmaker
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(project_root)
+
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 EXPERIMENT_PATH = "results/ultra_pensions_50x10000/"
@@ -36,7 +39,7 @@ def find_latest_experiment_path():
         d for d in glob.glob(os.path.join(DATA_PATH, "*")) if os.path.isdir(d)
     ]
     if not experiment_folders:
-        logging.error(f"No experiment folders found in {DATA_PATH}")
+        logger.error("no_experiment_folders", path=DATA_PATH)
         return None
 
     # Sort by modification time (most recent first)
@@ -54,18 +57,18 @@ def find_latest_experiment_path():
             # Sort by modification time (most recent first)
             subdirs.sort(key=os.path.getmtime, reverse=True)
             experiment_path = subdirs[0]
-            logging.info(f"Using subdirectory as experiment path: {experiment_path}")
+            logger.info("using_subdirectory", experiment_path=experiment_path)
 
             # Verify that this subdirectory contains iteration folders
             iteration_folders = glob.glob(os.path.join(experiment_path, "iteration_*"))
             if not iteration_folders:
-                logging.error(f"No iteration folders found in {experiment_path}")
+                logger.error("no_iteration_folders", experiment_path=experiment_path)
                 return None
         else:
-            logging.error(f"No subdirectories found in {experiment_path}")
+            logger.error("no_subdirectories", experiment_path=experiment_path)
             return None
 
-    logging.info(f"Using experiment path: {experiment_path}")
+    logger.info("using_experiment_path", experiment_path=experiment_path)
     return experiment_path
 
 
@@ -93,7 +96,7 @@ def save_analysis_data(df, output_path, filename):
 
     output_csv = os.path.join(output_path, filename)
     df.to_csv(output_csv, index=False)
-    logging.info(f"Saved analysis data to {output_csv}")
+    logger.info("analysis_data_saved", output_csv=output_csv)
 
     return output_csv
 
@@ -118,8 +121,10 @@ def setup_analysis_directory(analysis_type):
 
     # Clear the directory if it exists
     if os.path.exists(analysis_output_path):
-        logging.info(
-            f"Clearing existing {analysis_type} directory: {analysis_output_path}"
+        logger.info(
+            "clearing_existing_directory",
+            analysis_type=analysis_type,
+            path=analysis_output_path,
         )
         if not safe_remove_directory(analysis_output_path):
             # If we couldn't remove the directory after retries, create a new one with timestamp
@@ -127,7 +132,7 @@ def setup_analysis_directory(analysis_type):
             analysis_output_path = os.path.join(
                 OUTPUT_PATH, f"{analysis_type}_{timestamp}"
             )
-            logging.info(f"Using alternative directory: {analysis_output_path}")
+            logger.info("using_alternative_directory", path=analysis_output_path)
 
     # Create the directory
     os.makedirs(analysis_output_path, exist_ok=True)
@@ -135,7 +140,11 @@ def setup_analysis_directory(analysis_type):
     # Set up logging to the analysis directory
     log_file = setup_logging(analysis_output_path)
 
-    logging.info(f"Saving {analysis_type} analysis results to {analysis_output_path}")
+    logger.info(
+        "saving_analysis_results",
+        analysis_type=analysis_type,
+        path=analysis_output_path,
+    )
 
     return analysis_output_path, log_file
 
@@ -158,31 +167,13 @@ def setup_logging(output_dir):
     log_file = os.path.join(output_dir, f"analysis_log.txt")
 
     # Configure logging
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
+    from farm.utils.logging_config import configure_logging
 
-    # Remove any existing handlers to avoid duplicate logs
-    if logger.hasHandlers():
-        logger.handlers.clear()
+    configure_logging(
+        environment="development", log_dir=os.path.dirname(log_file), log_level="INFO"
+    )
 
-    # Create file handler
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setLevel(logging.INFO)
-
-    # Create console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-
-    # Create formatter and add it to the handlers
-    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
-    file_handler.setFormatter(formatter)
-    console_handler.setFormatter(formatter)
-
-    # Add the handlers to the logger
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
-
-    logging.info(f"Logging to {log_file}")
+    logger.info("logging_configured", log_file=log_file)
     return log_file
 
 
@@ -210,11 +201,14 @@ def safe_remove_directory(directory_path, max_retries=3, retry_delay=1):
                 shutil.rmtree(directory_path)
             return True
         except (PermissionError, OSError) as e:
-            logging.warning(
-                f"Attempt {attempt+1}/{max_retries} to remove directory failed: {e}"
+            logger.warning(
+                "directory_removal_failed",
+                attempt=attempt + 1,
+                max_retries=max_retries,
+                error=str(e),
             )
             if attempt < max_retries - 1:
-                logging.info(f"Waiting {retry_delay} seconds before retrying...")
+                logger.info("waiting_before_retry", retry_delay=retry_delay)
                 time.sleep(retry_delay)
 
     return False
@@ -369,7 +363,7 @@ def check_db_schema(engine, table_name):
 #             logging.error(f"Error checking reproduction events in {folder}: {e}")
 #             import traceback
 
-#             logging.error(traceback.format_exc())
+#             logger.error("traceback", traceback=traceback.format_exc())
 
 #     if checked_dbs > 0:
 #         logging.info(
@@ -435,7 +429,7 @@ def run_analysis(
     """
     # Set up the analysis directory
     output_path, log_file = setup_analysis_directory(analysis_type)
-    logging.info(f"Saving results to {output_path}")
+    logger.info("saving_results", output_path=output_path)
 
     # Try to use the module system first
     try:
@@ -449,12 +443,12 @@ def run_analysis(
         module = get_module(analysis_type)
 
         if module:
-            logging.info(f"Using module system for {analysis_type} analysis")
+            logger.info("using_module_system", analysis_type=analysis_type)
 
             # Use the module's run_analysis method
             experiment_path = find_latest_experiment_path()
             if experiment_path is None:
-                logging.error("No experiment path found")
+                logger.error("no_experiment_path")
                 return output_path, None
             return module.run_analysis(
                 experiment_path=experiment_path,
@@ -464,13 +458,13 @@ def run_analysis(
                 analysis_kwargs=analysis_kwargs,
             )
     except ImportError:
-        logging.warning("Module system not available, falling back to legacy mode")
+        logger.warning("module_system_unavailable", fallback="legacy_mode")
     except Exception as e:
-        logging.error(f"Error using module system: {e}")
+        logger.error("module_system_error", error=str(e))
         import traceback
 
-        logging.error(traceback.format_exc())
-        logging.warning("Falling back to legacy mode")
+        logger.error("traceback", traceback=traceback.format_exc())
+        logger.warning("falling_back_to_legacy_mode")
 
     # Legacy mode - use the provided functions
     # Find the most recent experiment folder
@@ -478,7 +472,7 @@ def run_analysis(
     if not experiment_path:
         return output_path, None
 
-    logging.info(f"Analyzing simulations in {experiment_path}...")
+    logger.info("analyzing_simulations", experiment_path=experiment_path)
 
     # Initialize default kwargs if not provided
     if processor_kwargs is None:
@@ -492,7 +486,7 @@ def run_analysis(
         # If using a database, set up the database path
         db_path = os.path.join(output_path, db_filename)
         db_uri = f"sqlite:///{db_path}"
-        logging.info(f"Processing data and inserting directly into {db_uri}")
+        logger.info("processing_data_to_db", db_uri=db_uri)
 
         # Add database parameters to processor kwargs
         db_processor_kwargs = {
@@ -503,29 +497,29 @@ def run_analysis(
 
         # Process data and save to database
         if data_processor is None:
-            logging.error("No data processor function provided")
+            logger.error("no_data_processor")
             return output_path, None
         df = data_processor(experiment_path, **db_processor_kwargs)
 
         # Load data from database if processor doesn't return it
         if df is None and load_data_function:
-            logging.info("Loading data from database for visualization...")
+            logger.info("loading_data_from_db")
             df = load_data_function(db_uri)
     else:
         # Process data without database
         if data_processor is None:
-            logging.error("No data processor function provided")
+            logger.error("no_data_processor")
             return output_path, None
         df = data_processor(experiment_path, **processor_kwargs)
 
     if df is None or df.empty:
-        logging.warning("No simulation data found.")
+        logger.warning("no_simulation_data")
         return output_path, None
 
     # Log summary statistics
-    logging.info(f"Analyzed {len(df)} simulations.")
-    logging.info("\nSummary statistics:")
-    logging.info(df.describe().to_string())
+    logger.info("simulations_analyzed", count=len(df))
+    logger.info("summary_statistics")
+    logger.info("dataframe_summary", summary=df.describe().to_string())
 
     # Run each analysis function
     if analysis_functions:
@@ -537,20 +531,20 @@ def run_analysis(
                 # Get kwargs for this function if available
                 func_kwargs = analysis_kwargs.get(func_name, {})
 
-                logging.info(f"Running {func_name}...")
+                logger.info("running_function", function=func_name)
                 func(df, output_path, **func_kwargs)
             except Exception as e:
-                logging.error(f"Error running {func.__name__}: {e}")
+                logger.error("function_error", function=func.__name__, error=str(e))
                 import traceback
 
-                logging.error(traceback.format_exc())
+                logger.error("traceback", traceback=traceback.format_exc())
 
     # Log completion
-    logging.info("\nAnalysis complete. Results saved.")
+    logger.info("analysis_complete")
     if db_filename:
-        logging.info(f"Database saved to: {db_path}")
-    logging.info(f"Log file saved to: {log_file}")
-    logging.info(f"All analysis files saved to: {output_path}")
+        logger.info("database_saved", db_path=db_path)
+    logger.info("log_file_saved", log_file=log_file)
+    logger.info("analysis_files_saved", output_path=output_path)
 
     return output_path, df
 
@@ -596,7 +590,7 @@ def setup_and_process_simulations(
     # Find all simulation folders
     sim_folders = glob.glob(os.path.join(experiment_path, "iteration_*"))
     total_simulations = len(sim_folders)
-    logging.info(f"Found {total_simulations} simulation folders to analyze")
+    logger.info("simulation_folders_found", count=total_simulations)
 
     # Track progress
     processed_count = 0
@@ -622,11 +616,13 @@ def setup_and_process_simulations(
                 total_simulations - processed_count
             )
 
-            logging.info(
-                f"Processing simulation {processed_count}/{total_simulations} "
-                f"({(processed_count/total_simulations)*100:.1f}%) - "
-                f"Elapsed: {elapsed_time:.1f}s, "
-                f"Est. remaining: {estimated_remaining:.1f}s"
+            logger.info(
+                "processing_progress",
+                processed=processed_count,
+                total=total_simulations,
+                percentage=(processed_count / total_simulations) * 100,
+                elapsed_time=elapsed_time,
+                estimated_remaining=estimated_remaining,
             )
 
         # Check if this is a simulation folder with a database
@@ -634,7 +630,7 @@ def setup_and_process_simulations(
         config_path = os.path.join(folder, "config.json")
 
         if not (os.path.exists(db_path) and os.path.exists(config_path)):
-            logging.warning(f"Skipping {folder}: Missing database or config file")
+            logger.warning("skipping_folder", folder=folder, reason="missing_files")
             error_count += 1
             continue
 
@@ -644,9 +640,11 @@ def setup_and_process_simulations(
             if folder_name.startswith("iteration_"):
                 iteration = int(folder_name.split("_")[1])
                 if show_progress:
-                    logging.debug(f"Processing iteration {iteration}")
+                    logger.debug("processing_iteration", iteration=iteration)
             else:
-                logging.warning(f"Skipping {folder}: Invalid folder name format")
+                logger.warning(
+                    "skipping_folder", folder=folder, reason="invalid_format"
+                )
                 error_count += 1
                 continue
 
@@ -656,7 +654,7 @@ def setup_and_process_simulations(
 
             # Connect to the database
             if show_progress:
-                logging.debug(f"Connecting to database: {db_path}")
+                logger.debug("connecting_to_database", db_path=db_path)
             engine = sqlalchemy.create_engine(f"sqlite:///{db_path}")
             Session = sessionmaker(bind=engine)
             session = Session()
@@ -674,7 +672,7 @@ def setup_and_process_simulations(
                     data.append(sim_data)
                     successful_count += 1
                 else:
-                    logging.warning(f"No data returned for iteration {iteration}")
+                    logger.warning("no_data_returned", iteration=iteration)
                     error_count += 1
             finally:
                 # Ensure session is closed even if processing fails
@@ -683,21 +681,25 @@ def setup_and_process_simulations(
             # Log time taken for this simulation
             if show_progress:
                 sim_duration = time.time() - folder_start_time
-                logging.debug(f"Completed iteration {iteration} in {sim_duration:.2f}s")
+                logger.debug(
+                    "iteration_completed", iteration=iteration, duration=sim_duration
+                )
 
         except Exception as e:
-            logging.error(f"Error processing {folder}: {e}")
+            logger.error("processing_error", folder=folder, error=str(e))
             import traceback
 
-            logging.error(traceback.format_exc())
+            logger.error("traceback", traceback=traceback.format_exc())
             error_count += 1
 
     # Log final results
     total_duration = time.time() - start_time
-    logging.info(
-        f"Completed analysis of {successful_count} simulations "
-        f"({error_count} errors) in {total_duration:.2f}s "
-        f"(avg: {total_duration/max(successful_count, 1):.2f}s per simulation)"
+    logger.info(
+        "analysis_completed",
+        successful_count=successful_count,
+        error_count=error_count,
+        total_duration=total_duration,
+        avg_duration=total_duration / max(successful_count, 1),
     )
 
     return data

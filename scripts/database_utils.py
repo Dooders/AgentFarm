@@ -7,7 +7,9 @@ Contains common database connection patterns, session management, and data retri
 """
 
 import glob
-import logging
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 import os
 from typing import Dict, List, Optional, Tuple
 
@@ -280,7 +282,7 @@ def safe_close_session(session: sqlalchemy.orm.Session) -> None:
         if session:
             session.close()
     except Exception as e:
-        logging.warning(f"Error closing database session: {e}")
+        logger.warning(f"Error closing database session: {e}")
 
 
 def check_database_schema(engine: sqlalchemy.engine.Engine, table_name: str) -> Dict:

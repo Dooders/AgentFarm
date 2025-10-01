@@ -1,5 +1,7 @@
 import argparse
-import logging
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 import pandas as pd
 from sqlalchemy import create_engine, desc, func, text
@@ -32,7 +34,7 @@ def get_session(db_path="sqlite:///dominance.db"):
 
 def query_dominance_metrics(session):
     """Query and display basic dominance metrics"""
-    logging.info("Querying basic dominance metrics...")
+    logger.info("Querying basic dominance metrics...")
 
     # Get counts of each dominance type
     dominance_counts = (
@@ -83,7 +85,7 @@ def query_dominance_metrics(session):
 
 def query_agent_populations(session):
     """Query and display agent population statistics"""
-    logging.info("Querying agent population statistics...")
+    logger.info("Querying agent population statistics...")
 
     # Get average population counts
     avg_counts = session.query(
@@ -116,7 +118,7 @@ def query_agent_populations(session):
 
 def query_reproduction_stats(session):
     """Query and display reproduction statistics"""
-    logging.info("Querying reproduction statistics...")
+    logger.info("Querying reproduction statistics...")
 
     # Get average reproduction success rates
     avg_success_rates = session.query(
@@ -171,7 +173,7 @@ def query_reproduction_stats(session):
 
 def query_dominance_switching(session):
     """Query and display dominance switching statistics"""
-    logging.info("Querying dominance switching statistics...")
+    logger.info("Querying dominance switching statistics...")
 
     # Get average switching metrics
     avg_switching = session.query(
@@ -219,7 +221,7 @@ def query_dominance_switching(session):
 
 def query_resource_distribution(session):
     """Query and display resource distribution statistics"""
-    logging.info("Querying resource distribution statistics...")
+    logger.info("Querying resource distribution statistics...")
 
     # Get average resource distances
     avg_distances = session.query(
@@ -260,7 +262,7 @@ def query_resource_distribution(session):
 
 def query_high_low_switching(session):
     """Query and display high vs low switching comparison statistics"""
-    logging.info("Querying high vs low switching comparison statistics...")
+    logger.info("Querying high vs low switching comparison statistics...")
 
     # Get average reproduction success rates for high vs low switching
     avg_success_rates = session.query(
@@ -295,7 +297,7 @@ def query_high_low_switching(session):
 
 def query_correlation_analysis(session):
     """Query and display correlation analysis statistics"""
-    logging.info("Querying correlation analysis statistics...")
+    logger.info("Querying correlation analysis statistics...")
 
     # Get average reproduction correlations
     avg_repro_corr = session.query(
@@ -332,7 +334,7 @@ def query_correlation_analysis(session):
 
 def export_query_to_csv(session, query, output_file):
     """Execute a custom SQL query and export results to CSV"""
-    logging.info(f"Executing custom query and exporting to {output_file}...")
+    logger.info(f"Executing custom query and exporting to {output_file}...")
 
     try:
         # Execute the query
@@ -345,13 +347,13 @@ def export_query_to_csv(session, query, output_file):
 
         # Export to CSV
         df.to_csv(output_file, index=False)
-        logging.info(f"Successfully exported query results to {output_file}")
+        logger.info(f"Successfully exported query results to {output_file}")
         print(f"\nExported query results to {output_file}")
         print(f"Result shape: {df.shape}")
 
         return True
     except Exception as e:
-        logging.error(f"Error executing query: {e}")
+        logger.error(f"Error executing query: {e}")
         return False
 
 
@@ -369,7 +371,7 @@ def load_data_from_db(db_path="sqlite:///dominance.db"):
     pandas.DataFrame
         Combined DataFrame with all data from the database
     """
-    logging.info(f"Loading data from database: {db_path}")
+    logger.info(f"Loading data from database: {db_path}")
 
     try:
         # Initialize database connection
@@ -531,11 +533,11 @@ def load_data_from_db(db_path="sqlite:///dominance.db"):
         # Execute query and load into DataFrame
         df = pd.read_sql(text(query), engine)
 
-        logging.info(f"Loaded {len(df)} rows from database")
+        logger.info(f"Loaded {len(df)} rows from database")
         return df
 
     except Exception as e:
-        logging.error(f"Error loading data from database: {e}")
+        logger.error(f"Error loading data from database: {e}")
         return pd.DataFrame()  # Return empty DataFrame on error
     finally:
         if "session" in locals():

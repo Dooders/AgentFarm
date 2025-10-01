@@ -1,5 +1,8 @@
-import logging
 from typing import Dict, List, Optional, Union
+
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -315,7 +318,7 @@ def validate_dataframe(df: pd.DataFrame) -> List[Union[DominanceDataModel, Dict]
             model_instance = DominanceDataModel(**row_dict)
             validated_data.append(model_instance)
         except ValidationError as e:
-            logging.warning(f"Validation error for row: {e}")
+            logger.warning("validation_error", error=str(e))
             # Include the original data if validation fails
             validated_data.append(row_dict)
 
@@ -348,11 +351,13 @@ def dataframe_to_models(df: pd.DataFrame) -> List[DominanceDataModel]:
             validated_models.append(model_instance)
         except ValidationError as e:
             validation_errors += 1
-            logging.warning(f"Validation error: {e}")
+            logger.warning("validation_error", error=str(e))
 
     if validation_errors > 0:
-        logging.warning(
-            f"Encountered {validation_errors} validation errors out of {len(df)} rows"
+        logger.warning(
+            "validation_errors_encountered",
+            error_count=validation_errors,
+            total_rows=len(df),
         )
 
     return validated_models

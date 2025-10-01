@@ -378,7 +378,7 @@ def compute_dominance_switch_factors(df):
     import pandas as pd
 
     if df.empty or "total_switches" not in df.columns:
-        logging.warning("No dominance switch data available for analysis")
+        logger.warning("No dominance switch data available for analysis")
         return None
 
     results = {}
@@ -405,15 +405,15 @@ def compute_dominance_switch_factors(df):
         results["top_positive_correlations"] = top_positive.to_dict()
         results["top_negative_correlations"] = top_negative.to_dict()
 
-        logging.info("\nFactors associated with MORE dominance switching:")
+        logger.info("\nFactors associated with MORE dominance switching:")
         for factor, corr in top_positive.items():
             if abs(corr) > 0.1:  # Only report meaningful correlations
-                logging.info(f"  {factor}: {corr:.3f}")
+                logger.info(f"  {factor}: {corr:.3f}")
 
-        logging.info("\nFactors associated with LESS dominance switching:")
+        logger.info("\nFactors associated with LESS dominance switching:")
         for factor, corr in top_negative.items():
             if abs(corr) > 0.1:  # Only report meaningful correlations
-                logging.info(f"  {factor}: {corr:.3f}")
+                logger.info(f"  {factor}: {corr:.3f}")
 
     # 2. Relationship between switching and final dominance
     if "comprehensive_dominance" in df.columns:
@@ -423,9 +423,9 @@ def compute_dominance_switch_factors(df):
         ].mean()
         results["switches_by_dominant_type"] = switches_by_dominant.to_dict()
 
-        logging.info("\nAverage dominance switches by final dominant type:")
+        logger.info("\nAverage dominance switches by final dominant type:")
         for agent_type, avg_switches in switches_by_dominant.items():
-            logging.info(f"  {agent_type}: {avg_switches:.2f}")
+            logger.info(f"  {agent_type}: {avg_switches:.2f}")
 
     # 3. Relationship between switching and reproduction metrics
     reproduction_cols = [col for col in df.columns if "reproduction" in col]
@@ -443,11 +443,11 @@ def compute_dominance_switch_factors(df):
 
         results["reproduction_correlations"] = top_repro_factors.to_dict()
 
-        logging.info("\nReproduction factors most associated with dominance switching:")
+        logger.info("\nReproduction factors most associated with dominance switching:")
         for factor, corr in top_repro_factors.items():
             if abs(corr) > 0.1:  # Only report meaningful correlations
                 direction = "more" if corr > 0 else "fewer"
-                logging.info(f"  {factor}: {corr:.3f} ({direction} switches)")
+                logger.info(f"  {factor}: {corr:.3f} ({direction} switches)")
 
     return results
 
@@ -482,7 +482,7 @@ def aggregate_reproduction_analysis_results(df, numeric_repro_cols):
 
     # Check if df is a DataFrame
     if not isinstance(df, pd.DataFrame):
-        logging.warning(
+        logger.warning(
             "Input to aggregate_reproduction_analysis_results is not a DataFrame"
         )
         return {}

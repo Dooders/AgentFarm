@@ -1,5 +1,7 @@
 import glob
-import logging
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 import os
 from datetime import datetime
 
@@ -424,7 +426,7 @@ def analyze_reproduction_strategies(sim_path):
         )
 
         if not final_step:
-            logging.warning(f"No simulation steps found in {sim_path}")
+            logger.warning(f"No simulation steps found in {sim_path}")
             session.close()
             return None
 
@@ -508,10 +510,10 @@ def analyze_reproduction_strategies(sim_path):
         return results
 
     except Exception as e:
-        logging.error(f"Error analyzing reproduction strategies in {sim_path}: {e}")
+        logger.error(f"Error analyzing reproduction strategies in {sim_path}: {e}")
         import traceback
 
-        logging.error(traceback.format_exc())
+        logger.error(traceback.format_exc())
         return None
 
 
@@ -531,7 +533,7 @@ def analyze_simulations(experiment_path):
     """
     # Find all simulation folders
     sim_folders = glob.glob(os.path.join(experiment_path, "iteration_*"))
-    logging.info(f"Found {len(sim_folders)} simulation folders")
+    logger.info(f"Found {len(sim_folders)} simulation folders")
 
     # Initialize list to store results
     results = []
@@ -541,10 +543,10 @@ def analyze_simulations(experiment_path):
         db_path = os.path.join(folder, "simulation.db")
 
         if not os.path.exists(db_path):
-            logging.warning(f"No database found in {folder}")
+            logger.warning(f"No database found in {folder}")
             continue
 
-        logging.info(
+        logger.info(
             f"Analyzing reproduction strategies in {os.path.basename(folder)}..."
         )
 
@@ -614,7 +616,7 @@ def analyze_simulations(experiment_path):
         df = pd.DataFrame(results)
         return df
     else:
-        logging.warning("No valid simulation results found")
+        logger.warning("No valid simulation results found")
         return pd.DataFrame()
 
 
@@ -742,7 +744,7 @@ def plot_reproduction_correlation(df, output_path):
     ]
 
     if not repro_cols or not other_cols:
-        logging.warning("Not enough columns for correlation analysis")
+        logger.warning("Not enough columns for correlation analysis")
         return
 
     # Calculate correlation matrix
@@ -788,61 +790,61 @@ def main():
     # For now, assume they exist and continue
     has_reproduction_events = True
     if not has_reproduction_events:
-        logging.error(
+        logger.error(
             "No reproduction events found in databases. Cannot perform reproduction analysis."
         )
         return
 
-    logging.info(f"Analyzing reproduction strategies in {experiment_path}...")
+    logger.info(f"Analyzing reproduction strategies in {experiment_path}...")
     df = analyze_simulations(experiment_path)
 
     if df.empty:
-        logging.warning("No simulation data found.")
+        logger.warning("No simulation data found.")
         return
 
     # Save the raw data
     output_csv = os.path.join(reproduction_output_path, "reproduction_analysis.csv")
     df.to_csv(output_csv, index=False)
-    logging.info(f"Saved analysis data to {output_csv}")
+    logger.info(f"Saved analysis data to {output_csv}")
 
     # Log summary statistics
-    logging.info(f"Analyzed {len(df)} simulations.")
-    logging.info("\nSummary statistics:")
-    logging.info(df.describe().to_string())
+    logger.info(f"Analyzed {len(df)} simulations.")
+    logger.info("\nSummary statistics:")
+    logger.info(df.describe().to_string())
 
     # Log reproduction event counts
-    logging.info("\nAverage reproduction events by agent type:")
+    logger.info("\nAverage reproduction events by agent type:")
     for agent_type in ["SystemAgent", "IndependentAgent", "ControlAgent"]:
         avg_events = df[f"{agent_type}_reproduction_events"].mean()
-        logging.info(f"  {agent_type}: {avg_events:.2f}")
+        logger.info(f"  {agent_type}: {avg_events:.2f}")
 
     # Log success rates
-    logging.info("\nAverage reproduction success rates by agent type:")
+    logger.info("\nAverage reproduction success rates by agent type:")
     for agent_type in ["SystemAgent", "IndependentAgent", "ControlAgent"]:
         avg_rate = df[f"{agent_type}_success_rate"].mean()
-        logging.info(f"  {agent_type}: {avg_rate:.2f}%")
+        logger.info(f"  {agent_type}: {avg_rate:.2f}%")
 
     # Log strategy changes
-    logging.info("\nAverage strategy changes by agent type:")
+    logger.info("\nAverage strategy changes by agent type:")
     for agent_type in ["SystemAgent", "IndependentAgent", "ControlAgent"]:
         avg_changes = df[f"{agent_type}_strategy_changes"].mean()
-        logging.info(f"  {agent_type}: {avg_changes:.2f}")
+        logger.info(f"  {agent_type}: {avg_changes:.2f}")
 
     # Log strategy volatility
-    logging.info("\nAverage reproduction strategy volatility by agent type:")
+    logger.info("\nAverage reproduction strategy volatility by agent type:")
     for agent_type in ["SystemAgent", "IndependentAgent", "ControlAgent"]:
         avg_volatility = df[f"{agent_type}_repro_volatility"].mean()
-        logging.info(f"  {agent_type}: {avg_volatility:.4f}")
+        logger.info(f"  {agent_type}: {avg_volatility:.4f}")
 
     # Generate plots
-    logging.info("\nGenerating plots...")
+    logger.info("\nGenerating plots...")
     plot_reproduction_rates(df, reproduction_output_path)
     plot_strategy_changes(df, reproduction_output_path)
     plot_reproduction_correlation(df, reproduction_output_path)
 
-    logging.info("\nAnalysis complete. Results saved to CSV and PNG files.")
-    logging.info(f"Log file saved to: {log_file}")
-    logging.info(f"All analysis files saved to: {reproduction_output_path}")
+    logger.info("\nAnalysis complete. Results saved to CSV and PNG files.")
+    logger.info(f"Log file saved to: {log_file}")
+    logger.info(f"All analysis files saved to: {reproduction_output_path}")
 
 
 if __name__ == "__main__":

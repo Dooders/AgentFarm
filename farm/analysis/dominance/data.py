@@ -1,4 +1,6 @@
-import logging
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 import sqlalchemy
 from scipy.spatial.distance import euclidean
@@ -37,9 +39,9 @@ def get_agent_survival_stats(sim_session):
     Get detailed survival statistics for each agent type.
     """
     try:
-        logging.info("Calculating agent survival statistics...")
+        logger.info("Calculating agent survival statistics...")
         agents = sim_session.query(AgentModel).all()
-        logging.info(f"Found {len(agents)} agents")
+        logger.info(f"Found {len(agents)} agents")
 
         # Initialize counters and accumulators
         stats = {
@@ -62,7 +64,7 @@ def get_agent_survival_stats(sim_session):
             .first()
         )
         final_step_number = final_step.step_number if final_step else 0
-        logging.info(f"Final step number: {final_step_number}")
+        logger.info(f"Final step number: {final_step_number}")
 
         for agent in agents:
             # Map the agent type from the database to our internal type
@@ -72,7 +74,7 @@ def get_agent_survival_stats(sim_session):
                 agent_type = agent.agent_type.lower()
 
             if agent_type not in stats:
-                logging.warning(f"Unknown agent type: {agent.agent_type}")
+                logger.warning(f"Unknown agent type: {agent.agent_type}")
                 continue
 
             stats[agent_type]["count"] += 1
@@ -102,10 +104,10 @@ def get_agent_survival_stats(sim_session):
                 else:
                     result[f"{agent_type}_dead_ratio"] = 0
 
-        logging.info(f"Agent survival statistics: {result}")
+        logger.info(f"Agent survival statistics: {result}")
         return result
     except Exception as e:
-        logging.error(f"Error calculating agent survival statistics: {e}")
+        logger.error(f"Error calculating agent survival statistics: {e}")
         return {}
 
 
@@ -242,21 +244,21 @@ def get_reproduction_stats(sim_session):
         # Check if ReproductionEventModel table exists
         inspector = sqlalchemy.inspect(sim_session.bind)
         if "reproduction_events" not in inspector.get_table_names():
-            logging.warning("No reproduction_events table found in database")
+            logger.warning("No reproduction_events table found in database")
             return {}
 
         # Query reproduction events
         try:
             reproduction_events = sim_session.query(ReproductionEventModel).all()
-            logging.info(
+            logger.info(
                 f"Found {len(reproduction_events)} reproduction events in database"
             )
         except Exception as e:
-            logging.error(f"Error querying reproduction events: {e}")
+            logger.error(f"Error querying reproduction events: {e}")
             return {}
 
         if not reproduction_events:
-            logging.warning("No reproduction events found in the database")
+            logger.warning("No reproduction events found in the database")
             return {}
 
         # Get all agents to determine their types
@@ -285,18 +287,18 @@ def get_reproduction_stats(sim_session):
 
                 agents[agent_id] = normalized_type
 
-            logging.info(f"Found {len(agents)} agents in database")
+            logger.info(f"Found {len(agents)} agents in database")
 
             # Log the agent type mapping for debugging
             agent_types_found = set(agents_raw.values())
             normalized_types = set(agents.values())
-            logging.info(
+            logger.info(
                 f"Original agent types in database: {', '.join(agent_types_found)}"
             )
-            logging.info(f"Normalized to: {', '.join(normalized_types)}")
+            logger.info(f"Normalized to: {', '.join(normalized_types)}")
 
         except Exception as e:
-            logging.error(f"Error querying agents: {e}")
+            logger.error(f"Error querying agents: {e}")
             return {}
 
         # Initialize counters
@@ -339,7 +341,7 @@ def get_reproduction_stats(sim_session):
                 if parent_type not in stats:
                     if parent_type not in unknown_agent_types:
                         unknown_agent_types.add(parent_type)
-                        logging.warning(
+                        logger.warning(
                             f"Unknown agent type: {parent_type} for agent {parent_id}"
                         )
                     continue
@@ -373,16 +375,16 @@ def get_reproduction_stats(sim_session):
                 else:
                     stats[parent_type]["failures"] += 1
             except Exception as e:
-                logging.error(f"Error processing reproduction event: {e}")
+                logger.error(f"Error processing reproduction event: {e}")
                 continue
 
         if missing_resource_data > 0:
-            logging.warning(
+            logger.warning(
                 f"Missing resource data for {missing_resource_data} reproduction events"
             )
 
         if unknown_agent_types:
-            logging.warning(
+            logger.warning(
                 f"Found unknown agent types: {', '.join(unknown_agent_types)}"
             )
 
@@ -458,29 +460,29 @@ def get_reproduction_stats(sim_session):
 
         # Log summary of reproduction stats
         if result:
-            logging.info("\nReproduction statistics summary:")
+            logger.info("\nReproduction statistics summary:")
             for agent_type in agent_types:
                 attempts_key = f"{agent_type}_reproduction_attempts"
                 success_rate_key = f"{agent_type}_reproduction_success_rate"
                 if attempts_key in result:
                     attempts = result[attempts_key]
                     success_rate = result.get(success_rate_key, 0) * 100
-                    logging.info(
+                    logger.info(
                         f"  {agent_type}: {attempts} attempts, {success_rate:.1f}% success rate"
                     )
 
             # Log all calculated metrics for debugging
-            logging.info(f"Calculated {len(result)} reproduction metrics:")
+            logger.info(f"Calculated {len(result)} reproduction metrics:")
             for key in sorted(result.keys())[:10]:  # Show first 10
-                logging.info(f"  {key}: {result[key]}")
+                logger.info(f"  {key}: {result[key]}")
         else:
-            logging.warning("No reproduction statistics could be calculated")
+            logger.warning("No reproduction statistics could be calculated")
 
         return result
 
     except Exception as e:
-        logging.error(f"Error in get_reproduction_stats: {e}")
+        logger.error(f"Error in get_reproduction_stats: {e}")
         import traceback
 
-        logging.error(traceback.format_exc())
+        logger.error(traceback.format_exc())
         return {}

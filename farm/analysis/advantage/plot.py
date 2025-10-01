@@ -5,7 +5,9 @@ This module provides functions to visualize advantage data and analysis results,
 helping to understand the relationships between different types of advantages and dominance.
 """
 
-import logging
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 import os
 from typing import Any, Dict, List, Optional
 
@@ -100,7 +102,7 @@ def plot_advantage_correlation_matrix(
         Flag indicating whether the data has been cleaned of NaN and infinity values
     """
     if df.empty:
-        logging.warning("Empty DataFrame, skipping correlation matrix plot")
+        logger.warning("Empty DataFrame, skipping correlation matrix plot")
         return
 
     # Find relevant columns for correlation analysis
@@ -138,7 +140,7 @@ def plot_advantage_correlation_matrix(
         advantage_cols = list(top_cols.intersection(advantage_cols))[:15]
 
     if not advantage_cols or not all(col in df.columns for col in dominance_cols):
-        logging.warning("No suitable columns for correlation matrix")
+        logger.warning("No suitable columns for correlation matrix")
         return
 
     # Calculate correlation matrix
@@ -195,7 +197,7 @@ def plot_advantage_correlation_matrix(
     output_file = os.path.join(out_dir, "advantage_correlation_matrix.png")
     plt.savefig(output_file, dpi=300, bbox_inches="tight")
     plt.close()
-    logging.info(f"Saved advantage correlation matrix to {output_file}")
+    logger.info(f"Saved advantage correlation matrix to {output_file}")
 
 
 def plot_advantage_category_importance(
@@ -217,7 +219,7 @@ def plot_advantage_category_importance(
         Flag indicating whether the data has been cleaned of NaN and infinity values
     """
     if not analysis_results or "advantage_category_importance" not in analysis_results:
-        logging.warning("No category importance data to plot")
+        logger.warning("No category importance data to plot")
         return
 
     category_data = analysis_results["advantage_category_importance"]["by_category"]
@@ -277,7 +279,7 @@ def plot_advantage_category_importance(
     output_file = os.path.join(out_dir, "advantage_category_importance.png")
     plt.savefig(output_file, dpi=300, bbox_inches="tight")
     plt.close()
-    logging.info(f"Saved advantage category importance to {output_file}")
+    logger.info(f"Saved advantage category importance to {output_file}")
 
 
 def plot_top_dominance_predictors(
@@ -299,7 +301,7 @@ def plot_top_dominance_predictors(
         Flag indicating whether the data has been cleaned of NaN and infinity values
     """
     if not analysis_results or "agent_type_specific_analysis" not in analysis_results:
-        logging.warning("No agent-specific analysis data to plot")
+        logger.warning("No agent-specific analysis data to plot")
         return
 
     agent_type_data = analysis_results["agent_type_specific_analysis"]
@@ -378,7 +380,7 @@ def plot_top_dominance_predictors(
         output_file = os.path.join(out_dir, f"{agent_type}_dominance_predictors.png")
         plt.savefig(output_file, dpi=300, bbox_inches="tight")
         plt.close()
-        logging.info(f"Saved {agent_type} dominance predictors to {output_file}")
+        logger.info(f"Saved {agent_type} dominance predictors to {output_file}")
 
 
 def plot_advantage_thresholds(
@@ -400,7 +402,7 @@ def plot_advantage_thresholds(
         Flag indicating whether the data has been cleaned of NaN and infinity values
     """
     if not analysis_results or "advantage_threshold_analysis" not in analysis_results:
-        logging.warning("No threshold analysis data to plot")
+        logger.warning("No threshold analysis data to plot")
         return
 
     threshold_data = analysis_results["advantage_threshold_analysis"]
@@ -493,7 +495,7 @@ def plot_advantage_thresholds(
         output_file = os.path.join(out_dir, f"{agent_type}_advantage_thresholds.png")
         plt.savefig(output_file, dpi=300, bbox_inches="tight")
         plt.close()
-        logging.info(f"Saved {agent_type} advantage thresholds to {output_file}")
+        logger.info(f"Saved {agent_type} advantage thresholds to {output_file}")
 
 
 def plot_advantage_timing(
@@ -515,7 +517,7 @@ def plot_advantage_timing(
         Flag indicating whether the data has been cleaned of NaN and infinity values
     """
     if not analysis_results or "advantage_timing_analysis" not in analysis_results:
-        logging.warning("No timing analysis data to plot")
+        logger.warning("No timing analysis data to plot")
         return
 
     timing_data = analysis_results["advantage_timing_analysis"]
@@ -572,7 +574,7 @@ def plot_advantage_timing(
     output_file = os.path.join(out_dir, "advantage_timing_analysis.png")
     plt.savefig(output_file, dpi=300, bbox_inches="tight")
     plt.close()
-    logging.info(f"Saved advantage timing analysis to {output_file}")
+    logger.info(f"Saved advantage timing analysis to {output_file}")
 
 
 def plot_composite_advantage_breakdown(
@@ -594,14 +596,14 @@ def plot_composite_advantage_breakdown(
         Flag indicating whether the data has been cleaned of NaN and infinity values
     """
     if df.empty:
-        logging.warning("Empty DataFrame, skipping composite advantage breakdown")
+        logger.warning("Empty DataFrame, skipping composite advantage breakdown")
         return
 
     # Find columns with composite advantage component contributions
     contribution_cols = [col for col in df.columns if "contribution" in col]
 
     if not contribution_cols:
-        logging.warning("No composite advantage component contributions found")
+        logger.warning("No composite advantage component contributions found")
         return
 
     # Group contribution columns by agent pair
@@ -678,7 +680,7 @@ def plot_composite_advantage_breakdown(
         output_file = os.path.join(out_dir, f"{pair}_advantage_breakdown.png")
         plt.savefig(output_file, dpi=300, bbox_inches="tight")
         plt.close()
-        logging.info(f"Saved {pair} advantage breakdown to {output_file}")
+        logger.info(f"Saved {pair} advantage breakdown to {output_file}")
 
 
 def plot_advantage_trajectories(
@@ -700,14 +702,14 @@ def plot_advantage_trajectories(
         Flag indicating whether the data has been cleaned of NaN and infinity values
     """
     if df.empty:
-        logging.warning("Empty DataFrame, skipping advantage trajectories plot")
+        logger.warning("Empty DataFrame, skipping advantage trajectories plot")
         return
 
     # Find trajectory columns
     trajectory_cols = [col for col in df.columns if "trajectory" in col]
 
     if not trajectory_cols:
-        logging.warning("No advantage trajectory data found")
+        logger.warning("No advantage trajectory data found")
         return
 
     # Group trajectory columns by category
@@ -811,4 +813,4 @@ def plot_advantage_trajectories(
         output_file = os.path.join(out_dir, f"{category}_advantage_trajectory.png")
         plt.savefig(output_file, dpi=300, bbox_inches="tight")
         plt.close()
-        logging.info(f"Saved {category} advantage trajectory to {output_file}")
+        logger.info(f"Saved {category} advantage trajectory to {output_file}")

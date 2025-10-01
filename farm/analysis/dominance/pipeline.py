@@ -1,34 +1,36 @@
-from farm.utils.logging_config import get_logger
 import pandas as pd
 
 from farm.analysis.common.metrics import get_valid_numeric_columns
 from farm.analysis.dominance.compute import (
-    compute_population_dominance,
-    compute_survival_dominance,
     compute_comprehensive_dominance,
     compute_dominance_switches,
+    compute_population_dominance,
+    compute_survival_dominance,
 )
 from farm.analysis.dominance.data import (
-    get_initial_positions_and_resources,
-    get_final_population_counts,
     get_agent_survival_stats,
+    get_final_population_counts,
+    get_initial_positions_and_resources,
     get_reproduction_stats,
 )
 from farm.analysis.dominance.features import (
-    analyze_dominance_switch_factors,
-    analyze_reproduction_dominance_switching,
-    analyze_high_vs_low_switching,
-    analyze_reproduction_timing,
-    analyze_reproduction_efficiency,
-    analyze_reproduction_advantage,
     analyze_by_agent_type,
+    analyze_dominance_switch_factors,
+    analyze_high_vs_low_switching,
+    analyze_reproduction_advantage,
+    analyze_reproduction_dominance_switching,
+    analyze_reproduction_efficiency,
+    analyze_reproduction_timing,
 )
+from farm.utils.logging_config import get_logger
 from scripts.analysis_config import setup_and_process_simulations
+
+logger = get_logger(__name__)
 
 
 def process_single_simulation(session, iteration, config, **_):
     try:
-        logging.info(f"Processing iteration {iteration}")
+        logger.info("processing_iteration", iteration=iteration)
 
         population_dominance = compute_population_dominance(session)
         survival_dominance = compute_survival_dominance(session)
@@ -89,9 +91,9 @@ def process_single_simulation(session, iteration, config, **_):
                     "avg_dominance_periods"
                 ][agent_type]
             for phase in ["early", "middle", "late"]:
-                sim_data[f"{phase}_phase_switches"] = dominance_switches["phase_switches"][
-                    phase
-                ]
+                sim_data[f"{phase}_phase_switches"] = dominance_switches[
+                    "phase_switches"
+                ][phase]
             for from_type in ["system", "independent", "control"]:
                 for to_type in ["system", "independent", "control"]:
                     sim_data[f"{from_type}_to_{to_type}"] = dominance_switches[
@@ -109,11 +111,13 @@ def process_single_simulation(session, iteration, config, **_):
 
         return sim_data
     except Exception as exc:
-        logging.error(f"Error processing iteration {iteration}: {exc}")
+        logger.error("iteration_processing_failed", iteration=iteration, error=str(exc))
         return None
 
 
-def process_dominance_data(experiment_path, save_to_db=False, db_path="sqlite:///dominance.db"):
+def process_dominance_data(
+    experiment_path, save_to_db=False, db_path="sqlite:///dominance.db"
+):
     data = setup_and_process_simulations(
         experiment_path=experiment_path,
         process_simulation_func=process_single_simulation,
@@ -142,4 +146,3 @@ def process_dominance_data(experiment_path, save_to_db=False, db_path="sqlite://
         save_dominance_data_to_db(df, db_path)
         return None
     return df
-

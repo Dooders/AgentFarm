@@ -20,7 +20,9 @@ Usage:
 
 import glob
 import json
-import logging
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 import os
 import sqlite3
 from pathlib import Path
@@ -1253,11 +1255,11 @@ def main():
         create_component_breakdown_visualization(df, output_dir)
 
         print(f"Visualizations saved to {output_dir}")
-        logging.info(f"Visualizations saved to {output_dir}")
-        logging.info(f"Log file saved to: {log_file_path}")
+        logger.info(f"Visualizations saved to {output_dir}")
+        logger.info(f"Log file saved to: {log_file_path}")
     else:
         print("No data available for visualization")
-        logging.warning("No data available for visualization")
+        logger.warning("No data available for visualization")
 
 
 if __name__ == "__main__":

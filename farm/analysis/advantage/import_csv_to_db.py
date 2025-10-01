@@ -7,7 +7,9 @@ and imports them into a structured SQLite database using SQLAlchemy models.
 """
 
 import argparse
-import logging
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 import sys
 from typing import Dict
 
@@ -49,13 +51,13 @@ def read_csv_data(csv_path: str) -> pd.DataFrame:
     pandas.DataFrame
         DataFrame containing the CSV data
     """
-    logging.info(f"Reading CSV data from {csv_path}")
+    logger.info(f"Reading CSV data from {csv_path}")
     try:
         df = pd.read_csv(csv_path)
-        logging.info(f"Successfully read {len(df)} rows from CSV")
+        logger.info(f"Successfully read {len(df)} rows from CSV")
         return df
     except Exception as e:
-        logging.error(f"Error reading CSV file: {e}")
+        logger.error(f"Error reading CSV file: {e}")
         sys.exit(1)
 
 
@@ -75,7 +77,7 @@ def import_simulation_data(df: pd.DataFrame, session) -> Dict[int, int]:
     dict
         Mapping of iteration numbers to simulation IDs
     """
-    logging.info("Importing simulation data")
+    logger.info("Importing simulation data")
     iteration_to_id = {}
 
     for _, row in df.iterrows():
@@ -84,7 +86,7 @@ def import_simulation_data(df: pd.DataFrame, session) -> Dict[int, int]:
         # Check if simulation already exists
         existing = session.query(Simulation).filter_by(iteration=iteration).first()
         if existing:
-            logging.debug(f"Simulation {iteration} already exists, skipping")
+            logger.debug(f"Simulation {iteration} already exists, skipping")
             iteration_to_id[iteration] = existing.id
             continue
 
@@ -95,13 +97,13 @@ def import_simulation_data(df: pd.DataFrame, session) -> Dict[int, int]:
         try:
             session.flush()
             iteration_to_id[iteration] = sim.id
-            logging.debug(f"Added simulation {iteration} with ID {sim.id}")
+            logger.debug(f"Added simulation {iteration} with ID {sim.id}")
         except SQLAlchemyError as e:
-            logging.error(f"Error adding simulation {iteration}: {e}")
+            logger.error(f"Error adding simulation {iteration}: {e}")
             session.rollback()
 
     session.commit()
-    logging.info(f"Imported {len(iteration_to_id)} simulations")
+    logger.info(f"Imported {len(iteration_to_id)} simulations")
     return iteration_to_id
 
 
@@ -120,14 +122,14 @@ def import_resource_acquisition_data(
     session : SQLAlchemy session
         Database session
     """
-    logging.info("Importing resource acquisition data")
+    logger.info("Importing resource acquisition data")
     count = 0
 
     for _, row in df.iterrows():
         iteration = int(row["iteration"])
         sim_id = iteration_to_id.get(iteration)
         if not sim_id:
-            logging.warning(
+            logger.warning(
                 f"No simulation ID found for iteration {iteration}, skipping"
             )
             continue
@@ -137,7 +139,7 @@ def import_resource_acquisition_data(
             session.query(ResourceAcquisition).filter_by(simulation_id=sim_id).first()
         )
         if existing:
-            logging.debug(
+            logger.debug(
                 f"Resource acquisition data for simulation {iteration} already exists, skipping"
             )
             continue
@@ -205,10 +207,10 @@ def import_resource_acquisition_data(
 
         if count % 100 == 0:
             session.commit()
-            logging.debug(f"Committed {count} resource acquisition records")
+            logger.debug(f"Committed {count} resource acquisition records")
 
     session.commit()
-    logging.info(f"Imported {count} resource acquisition records")
+    logger.info(f"Imported {count} resource acquisition records")
 
 
 def import_reproduction_advantage_data(
@@ -226,14 +228,14 @@ def import_reproduction_advantage_data(
     session : SQLAlchemy session
         Database session
     """
-    logging.info("Importing reproduction advantage data")
+    logger.info("Importing reproduction advantage data")
     count = 0
 
     for _, row in df.iterrows():
         iteration = int(row["iteration"])
         sim_id = iteration_to_id.get(iteration)
         if not sim_id:
-            logging.warning(
+            logger.warning(
                 f"No simulation ID found for iteration {iteration}, skipping"
             )
             continue
@@ -243,7 +245,7 @@ def import_reproduction_advantage_data(
             session.query(ReproductionAdvantage).filter_by(simulation_id=sim_id).first()
         )
         if existing:
-            logging.debug(
+            logger.debug(
                 f"Reproduction advantage data for simulation {iteration} already exists, skipping"
             )
             continue
@@ -324,10 +326,10 @@ def import_reproduction_advantage_data(
 
         if count % 100 == 0:
             session.commit()
-            logging.debug(f"Committed {count} reproduction advantage records")
+            logger.debug(f"Committed {count} reproduction advantage records")
 
     session.commit()
-    logging.info(f"Imported {count} reproduction advantage records")
+    logger.info(f"Imported {count} reproduction advantage records")
 
 
 def import_composite_advantage_data(
@@ -345,14 +347,14 @@ def import_composite_advantage_data(
     session : SQLAlchemy session
         Database session
     """
-    logging.info("Importing composite advantage data")
+    logger.info("Importing composite advantage data")
     count = 0
 
     for _, row in df.iterrows():
         iteration = int(row["iteration"])
         sim_id = iteration_to_id.get(iteration)
         if not sim_id:
-            logging.warning(
+            logger.warning(
                 f"No simulation ID found for iteration {iteration}, skipping"
             )
             continue
@@ -362,7 +364,7 @@ def import_composite_advantage_data(
             session.query(CompositeAdvantage).filter_by(simulation_id=sim_id).first()
         )
         if existing:
-            logging.debug(
+            logger.debug(
                 f"Composite advantage data for simulation {iteration} already exists, skipping"
             )
             continue
@@ -443,10 +445,10 @@ def import_composite_advantage_data(
 
         if count % 100 == 0:
             session.commit()
-            logging.debug(f"Committed {count} composite advantage records")
+            logger.debug(f"Committed {count} composite advantage records")
 
     session.commit()
-    logging.info(f"Imported {count} composite advantage records")
+    logger.info(f"Imported {count} composite advantage records")
 
 
 def import_advantage_dominance_correlation_data(
@@ -464,14 +466,14 @@ def import_advantage_dominance_correlation_data(
     session : SQLAlchemy session
         Database session
     """
-    logging.info("Importing advantage-dominance correlation data")
+    logger.info("Importing advantage-dominance correlation data")
     count = 0
 
     for _, row in df.iterrows():
         iteration = int(row["iteration"])
         sim_id = iteration_to_id.get(iteration)
         if not sim_id:
-            logging.warning(
+            logger.warning(
                 f"No simulation ID found for iteration {iteration}, skipping"
             )
             continue
@@ -483,7 +485,7 @@ def import_advantage_dominance_correlation_data(
             .first()
         )
         if existing:
-            logging.debug(
+            logger.debug(
                 f"Advantage-dominance correlation data for simulation {iteration} already exists, skipping"
             )
             continue
@@ -552,10 +554,10 @@ def import_advantage_dominance_correlation_data(
 
         if count % 100 == 0:
             session.commit()
-            logging.debug(f"Committed {count} advantage-dominance correlation records")
+            logger.debug(f"Committed {count} advantage-dominance correlation records")
 
     session.commit()
-    logging.info(f"Imported {count} advantage-dominance correlation records")
+    logger.info(f"Imported {count} advantage-dominance correlation records")
 
 
 def main():
@@ -597,9 +599,9 @@ def main():
 
         # Add other import functions as needed
 
-        logging.info("Data import completed successfully")
+        logger.info("Data import completed successfully")
     except Exception as e:
-        logging.error(f"Error importing data: {e}")
+        logger.error(f"Error importing data: {e}")
         session.rollback()
         sys.exit(1)
     finally:

@@ -1,27 +1,24 @@
-import logging
-
 from farm.analysis.dominance.sqlalchemy_models import (
     AgentPopulation,
-    CorrelationAnalysis,
     DominanceMetrics,
-    DominanceSwitching,
-    HighLowSwitchingComparison,
     ReproductionStats,
-    ResourceDistribution,
     Simulation,
     get_session,
     init_db,
 )
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def save_dominance_data_to_db(df, db_path="sqlite:///dominance.db"):
     if df.empty:
-        logging.warning("No data to save to database")
+        logger.warning("no_data_to_save")
         return False
     try:
         engine = init_db(db_path)
         session = get_session(engine)
-        logging.info(f"Importing {len(df)} simulations into database...")
+        logger.info("importing_simulations", count=len(df))
         for _, row in df.iterrows():
             sim = Simulation(iteration=row["iteration"])
             session.add(sim)
@@ -39,10 +36,14 @@ def save_dominance_data_to_db(df, db_path="sqlite:///dominance.db"):
                 independent_auc=row.get("independent_auc"),
                 control_auc=row.get("control_auc"),
                 system_recency_weighted_auc=row.get("system_recency_weighted_auc"),
-                independent_recency_weighted_auc=row.get("independent_recency_weighted_auc"),
+                independent_recency_weighted_auc=row.get(
+                    "independent_recency_weighted_auc"
+                ),
                 control_recency_weighted_auc=row.get("control_recency_weighted_auc"),
                 system_dominance_duration=row.get("system_dominance_duration"),
-                independent_dominance_duration=row.get("independent_dominance_duration"),
+                independent_dominance_duration=row.get(
+                    "independent_dominance_duration"
+                ),
                 control_dominance_duration=row.get("control_dominance_duration"),
                 system_growth_trend=row.get("system_growth_trend"),
                 independent_growth_trend=row.get("independent_growth_trend"),
@@ -88,27 +89,65 @@ def save_dominance_data_to_db(df, db_path="sqlite:///dominance.db"):
                 system_reproduction_attempts=row.get("system_reproduction_attempts"),
                 system_reproduction_successes=row.get("system_reproduction_successes"),
                 system_reproduction_failures=row.get("system_reproduction_failures"),
-                system_reproduction_success_rate=row.get("system_reproduction_success_rate"),
-                system_first_reproduction_time=row.get("system_first_reproduction_time"),
-                system_reproduction_efficiency=row.get("system_reproduction_efficiency"),
-                system_avg_resources_per_reproduction=row.get("system_avg_resources_per_reproduction"),
-                system_avg_offspring_resources=row.get("system_avg_offspring_resources"),
-                independent_reproduction_attempts=row.get("independent_reproduction_attempts"),
-                independent_reproduction_successes=row.get("independent_reproduction_successes"),
-                independent_reproduction_failures=row.get("independent_reproduction_failures"),
-                independent_reproduction_success_rate=row.get("independent_reproduction_success_rate"),
-                independent_first_reproduction_time=row.get("independent_first_reproduction_time"),
-                independent_reproduction_efficiency=row.get("independent_reproduction_efficiency"),
-                independent_avg_resources_per_reproduction=row.get("independent_avg_resources_per_reproduction"),
-                independent_avg_offspring_resources=row.get("independent_avg_offspring_resources"),
+                system_reproduction_success_rate=row.get(
+                    "system_reproduction_success_rate"
+                ),
+                system_first_reproduction_time=row.get(
+                    "system_first_reproduction_time"
+                ),
+                system_reproduction_efficiency=row.get(
+                    "system_reproduction_efficiency"
+                ),
+                system_avg_resources_per_reproduction=row.get(
+                    "system_avg_resources_per_reproduction"
+                ),
+                system_avg_offspring_resources=row.get(
+                    "system_avg_offspring_resources"
+                ),
+                independent_reproduction_attempts=row.get(
+                    "independent_reproduction_attempts"
+                ),
+                independent_reproduction_successes=row.get(
+                    "independent_reproduction_successes"
+                ),
+                independent_reproduction_failures=row.get(
+                    "independent_reproduction_failures"
+                ),
+                independent_reproduction_success_rate=row.get(
+                    "independent_reproduction_success_rate"
+                ),
+                independent_first_reproduction_time=row.get(
+                    "independent_first_reproduction_time"
+                ),
+                independent_reproduction_efficiency=row.get(
+                    "independent_reproduction_efficiency"
+                ),
+                independent_avg_resources_per_reproduction=row.get(
+                    "independent_avg_resources_per_reproduction"
+                ),
+                independent_avg_offspring_resources=row.get(
+                    "independent_avg_offspring_resources"
+                ),
                 control_reproduction_attempts=row.get("control_reproduction_attempts"),
-                control_reproduction_successes=row.get("control_reproduction_successes"),
+                control_reproduction_successes=row.get(
+                    "control_reproduction_successes"
+                ),
                 control_reproduction_failures=row.get("control_reproduction_failures"),
-                control_reproduction_success_rate=row.get("control_reproduction_success_rate"),
-                control_first_reproduction_time=row.get("control_first_reproduction_time"),
-                control_reproduction_efficiency=row.get("control_reproduction_efficiency"),
-                control_avg_resources_per_reproduction=row.get("control_avg_resources_per_reproduction"),
-                control_avg_offspring_resources=row.get("control_avg_offspring_resources"),
+                control_reproduction_success_rate=row.get(
+                    "control_reproduction_success_rate"
+                ),
+                control_first_reproduction_time=row.get(
+                    "control_first_reproduction_time"
+                ),
+                control_reproduction_efficiency=row.get(
+                    "control_reproduction_efficiency"
+                ),
+                control_avg_resources_per_reproduction=row.get(
+                    "control_avg_resources_per_reproduction"
+                ),
+                control_avg_offspring_resources=row.get(
+                    "control_avg_offspring_resources"
+                ),
             )
             session.add(reproduction_stats)
 
@@ -116,14 +155,13 @@ def save_dominance_data_to_db(df, db_path="sqlite:///dominance.db"):
             # can be populated here similarly if needed.
 
         session.commit()
-        logging.info("Successfully imported simulations into the database")
+        logger.info("simulations_imported_successfully")
         return True
     except Exception as exc:
         if "session" in locals():
             session.rollback()
-        logging.error(f"Error importing data to database: {exc}")
+        logger.error("database_import_failed", error=str(exc))
         return False
     finally:
         if "session" in locals():
             session.close()
-

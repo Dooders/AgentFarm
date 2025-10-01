@@ -11,13 +11,11 @@ Choose from different benchmark levels:
 import sys
 import os
 import warnings
-import logging
 import json
 from datetime import datetime
 
 # Suppress warnings and logging
 warnings.filterwarnings("ignore")
-logging.getLogger().setLevel(logging.ERROR)
 
 # Add the project root to the Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

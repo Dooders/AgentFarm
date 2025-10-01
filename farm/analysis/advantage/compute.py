@@ -6,7 +6,9 @@ throughout the simulation history. It analyzes multiple dimensions of advantage 
 resource acquisition, reproduction, survival, population growth, and combat.
 """
 
-import logging
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -32,7 +34,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
         Dictionary containing advantage metrics
     """
     start_time = time.time()
-    logging.debug("Starting compute_advantages")
+    logger.debug("Starting compute_advantages")
 
     from farm.database.models import (
         ActionModel,
@@ -56,33 +58,33 @@ def compute_advantages(sim_session, focus_agent_type=None):
             (t1, t2) for i, t1 in enumerate(agent_types) for t2 in agent_types[i + 1 :]
         ]
 
-    logging.debug(f"Calculating advantages for {len(comparison_pairs)} agent pairs")
+    logger.debug(f"Calculating advantages for {len(comparison_pairs)} agent pairs")
 
     # Get data needed for analysis
-    logging.debug("Getting simulation step data")
+    logger.debug("Getting simulation step data")
     max_step_result = sim_session.query(
         func.max(SimulationStepModel.step_number)
     ).scalar()
     max_step = 0 if max_step_result is None else max_step_result
     early_phase_end = max_step // 3
     mid_phase_end = 2 * max_step // 3
-    logging.debug(
+    logger.debug(
         f"Simulation phases: early (1-{early_phase_end}), mid ({early_phase_end+1}-{mid_phase_end}), late ({mid_phase_end+1}-{max_step})"
     )
 
     # 1. Resource Acquisition Advantage
     # ---------------------------------
-    logging.debug("Calculating resource acquisition advantages")
+    logger.debug("Calculating resource acquisition advantages")
     category_start_time = time.time()
     results["resource_acquisition"] = {}
 
     # Check if there are any agent states in the database
     agent_state_count = sim_session.query(func.count(AgentStateModel.id)).scalar()
-    logging.debug(f"Total agent states in database: {agent_state_count}")
+    logger.debug(f"Total agent states in database: {agent_state_count}")
 
     # Check if there are any agents in the database
     agent_count = sim_session.query(func.count(AgentModel.agent_id)).scalar()
-    logging.debug(f"Total agents in database: {agent_count}")
+    logger.debug(f"Total agents in database: {agent_count}")
 
     # Check if there are agents of each type
     for agent_type in agent_types:
@@ -91,7 +93,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
             .filter(AgentModel.agent_type == agent_type)
             .scalar()
         )
-        logging.debug(f"Total {agent_type} agents in database: {type_count}")
+        logger.debug(f"Total {agent_type} agents in database: {type_count}")
 
     # Check if resource_level is populated in AgentStateModel
     resource_level_check = sim_session.query(
@@ -101,7 +103,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
         func.max(AgentStateModel.resource_level),
     ).first()
 
-    logging.debug(
+    logger.debug(
         f"Resource level stats: count={resource_level_check[0]}, avg={resource_level_check[1]}, min={resource_level_check[2]}, max={resource_level_check[3]}"
     )
 
@@ -112,7 +114,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
         .scalar()
     )
 
-    logging.debug(
+    logger.debug(
         f"Join between AgentStateModel and AgentModel returns {join_check} records"
     )
 
@@ -130,7 +132,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
             )
 
             # Debug the SQL query
-            logging.debug(
+            logger.debug(
                 f"Early phase query for {agent_type}: {str(early_avg_resource_query)}"
             )
 
@@ -145,7 +147,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
                 .scalar()
             )
 
-            logging.debug(
+            logger.debug(
                 f"Early phase query for {agent_type} matches {early_record_count} records"
             )
 
@@ -154,7 +156,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
             # Handle None values properly
             early_avg_resource = 0 if early_avg_resource is None else early_avg_resource
 
-            logging.debug(
+            logger.debug(
                 f"{agent_type} early phase avg resource: {early_avg_resource}"
             )
 
@@ -170,7 +172,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
             )
 
             # Debug the SQL query
-            logging.debug(
+            logger.debug(
                 f"Mid phase query for {agent_type}: {str(mid_avg_resource_query)}"
             )
 
@@ -186,7 +188,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
                 .scalar()
             )
 
-            logging.debug(
+            logger.debug(
                 f"Mid phase query for {agent_type} matches {mid_record_count} records"
             )
 
@@ -195,7 +197,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
             # Handle None values properly
             mid_avg_resource = 0 if mid_avg_resource is None else mid_avg_resource
 
-            logging.debug(f"{agent_type} mid phase avg resource: {mid_avg_resource}")
+            logger.debug(f"{agent_type} mid phase avg resource: {mid_avg_resource}")
 
             # Late phase average resource level
             late_avg_resource_query = (
@@ -208,7 +210,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
             )
 
             # Debug the SQL query
-            logging.debug(
+            logger.debug(
                 f"Late phase query for {agent_type}: {str(late_avg_resource_query)}"
             )
 
@@ -223,7 +225,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
                 .scalar()
             )
 
-            logging.debug(
+            logger.debug(
                 f"Late phase query for {agent_type} matches {late_record_count} records"
             )
 
@@ -232,10 +234,10 @@ def compute_advantages(sim_session, focus_agent_type=None):
             # Handle None values properly
             late_avg_resource = 0 if late_avg_resource is None else late_avg_resource
 
-            logging.debug(f"{agent_type} late phase avg resource: {late_avg_resource}")
+            logger.debug(f"{agent_type} late phase avg resource: {late_avg_resource}")
 
         except Exception as e:
-            logging.warning(f"Error calculating resource metrics for {agent_type}: {e}")
+            logger.warning(f"Error calculating resource metrics for {agent_type}: {e}")
             # If direct calculation fails, try an alternative approach using average_agent_resources
             # and population proportions from SimulationStepModel
             try:
@@ -348,21 +350,21 @@ def compute_advantages(sim_session, focus_agent_type=None):
                     late_avg_resources * late_proportion * advantage_factor
                 )
 
-                logging.info(
+                logger.info(
                     f"Using estimated resources for {agent_type} based on population proportion"
                 )
-                logging.debug(
+                logger.debug(
                     f"{agent_type} early phase estimated avg resource: {early_avg_resource}"
                 )
-                logging.debug(
+                logger.debug(
                     f"{agent_type} mid phase estimated avg resource: {mid_avg_resource}"
                 )
-                logging.debug(
+                logger.debug(
                     f"{agent_type} late phase estimated avg resource: {late_avg_resource}"
                 )
 
             except Exception as e2:
-                logging.warning(
+                logger.warning(
                     f"Alternative resource calculation also failed for {agent_type}: {e2}"
                 )
                 # If all else fails, use population as a proxy for resources
@@ -406,12 +408,12 @@ def compute_advantages(sim_session, focus_agent_type=None):
                         or 0
                     )
 
-                    logging.info(
+                    logger.info(
                         f"Using population as proxy for resources for {agent_type}"
                     )
 
                 except Exception as e3:
-                    logging.error(
+                    logger.error(
                         f"All resource calculation methods failed for {agent_type}: {e3}"
                     )
                     early_avg_resource = 0
@@ -455,18 +457,18 @@ def compute_advantages(sim_session, focus_agent_type=None):
             "advantage_trajectory": advantage_trajectory,
         }
 
-        logging.debug(
+        logger.debug(
             f"Resource acquisition advantage for {key}: early={early_adv}, mid={mid_adv}, late={late_adv}, trajectory={advantage_trajectory}"
         )
 
     category_duration = time.time() - category_start_time
-    logging.debug(
+    logger.debug(
         f"Completed resource acquisition advantages in {category_duration:.2f}s"
     )
 
     # 2. Reproduction Advantage
     # ------------------------
-    logging.debug("Calculating reproduction advantages")
+    logger.debug("Calculating reproduction advantages")
     category_start_time = time.time()
     results["reproduction"] = {}
 
@@ -579,11 +581,11 @@ def compute_advantages(sim_session, focus_agent_type=None):
         }
 
     category_duration = time.time() - category_start_time
-    logging.debug(f"Completed reproduction advantages in {category_duration:.2f}s")
+    logger.debug(f"Completed reproduction advantages in {category_duration:.2f}s")
 
     # 3. Survival Advantage
     # --------------------
-    logging.debug("Calculating survival advantages")
+    logger.debug("Calculating survival advantages")
     category_start_time = time.time()
     results["survival"] = {}
 
@@ -646,11 +648,11 @@ def compute_advantages(sim_session, focus_agent_type=None):
         }
 
     category_duration = time.time() - category_start_time
-    logging.debug(f"Completed survival advantages in {category_duration:.2f}s")
+    logger.debug(f"Completed survival advantages in {category_duration:.2f}s")
 
     # 4. Population Growth Advantage
     # -----------------------------
-    logging.debug("Calculating population growth advantages")
+    logger.debug("Calculating population growth advantages")
     category_start_time = time.time()
     results["population_growth"] = {}
 
@@ -745,12 +747,12 @@ def compute_advantages(sim_session, focus_agent_type=None):
         }
 
     category_duration = time.time() - category_start_time
-    logging.debug(f"Completed population growth advantages in {category_duration:.2f}s")
+    logger.debug(f"Completed population growth advantages in {category_duration:.2f}s")
 
     # 5. Combat and Competition Advantage
     # ----------------------------------
     if hasattr(ActionModel, "action_type"):  # Make sure the schema has this field
-        logging.debug("Calculating combat advantages")
+        logger.debug("Calculating combat advantages")
         category_start_time = time.time()
         results["combat"] = {}
 
@@ -883,7 +885,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
 
                 direct_combat_success_rate = t1_vs_t2_success / max(t1_vs_t2_attacks, 1)
             except Exception as e:
-                logging.warning(f"Error calculating direct combat stats: {e}")
+                logger.warning(f"Error calculating direct combat stats: {e}")
                 direct_combat_success_rate = 0.5  # Neutral value
 
             key = f"{type1}_vs_{type2}"
@@ -894,14 +896,14 @@ def compute_advantages(sim_session, focus_agent_type=None):
             }
 
         category_duration = time.time() - category_start_time
-        logging.debug(f"Completed combat advantages in {category_duration:.2f}s")
+        logger.debug(f"Completed combat advantages in {category_duration:.2f}s")
     else:
-        logging.debug("Skipping combat advantages (action_type field not found)")
+        logger.debug("Skipping combat advantages (action_type field not found)")
 
     # 6. Initial Positioning Advantage
     # -------------------------------
     # This is a special case - we need to get data from the beginning of the simulation
-    logging.debug("Calculating initial positioning advantages")
+    logger.debug("Calculating initial positioning advantages")
     category_start_time = time.time()
     results["initial_positioning"] = {}
 
@@ -941,13 +943,13 @@ def compute_advantages(sim_session, focus_agent_type=None):
                 results["initial_positioning"][key][result_field] = 0
 
     category_duration = time.time() - category_start_time
-    logging.debug(
+    logger.debug(
         f"Completed initial positioning advantages in {category_duration:.2f}s"
     )
 
     # 7. Composite Advantage Score
     # ------------------------------------
-    logging.debug("Calculating composite advantage scores")
+    logger.debug("Calculating composite advantage scores")
     category_start_time = time.time()
 
     # Define weights for different advantage categories
@@ -1065,12 +1067,12 @@ def compute_advantages(sim_session, focus_agent_type=None):
         }
 
     category_duration = time.time() - category_start_time
-    logging.debug(
+    logger.debug(
         f"Completed composite advantage calculation in {category_duration:.2f}s"
     )
 
     total_duration = time.time() - start_time
-    logging.debug(f"Completed compute_advantages in {total_duration:.2f}s")
+    logger.debug(f"Completed compute_advantages in {total_duration:.2f}s")
 
     return results
 
@@ -1095,25 +1097,25 @@ def compute_advantage_dominance_correlation(sim_session):
     import time
 
     start_time = time.time()
-    logging.debug("Starting compute_advantage_dominance_correlation")
+    logger.debug("Starting compute_advantage_dominance_correlation")
 
     from farm.analysis.dominance.compute import compute_comprehensive_dominance
     from farm.database.models import SimulationStepModel
 
     # First, calculate comprehensive dominance
-    logging.debug("Computing comprehensive dominance")
+    logger.debug("Computing comprehensive dominance")
     dominance_result = compute_comprehensive_dominance(sim_session)
     if not dominance_result or "dominant_type" not in dominance_result:
-        logging.warning(
+        logger.warning(
             "No dominant type found, skipping advantage-dominance correlation"
         )
         return None
 
     dominant_type = dominance_result["dominant_type"]
-    logging.debug(f"Dominant type: {dominant_type}")
+    logger.debug(f"Dominant type: {dominant_type}")
 
     # Calculate advantages
-    logging.debug("Computing advantages for correlation analysis")
+    logger.debug("Computing advantages for correlation analysis")
     advantages = compute_advantages(sim_session, focus_agent_type=dominant_type)
 
     # Initialize results
@@ -1121,7 +1123,7 @@ def compute_advantage_dominance_correlation(sim_session):
 
     # For each advantage category, determine if the dominant type had an advantage
     # and how strong that advantage was
-    logging.debug("Analyzing advantage correlations with dominance")
+    logger.debug("Analyzing advantage correlations with dominance")
     for category in advantages:
         if category == "composite_advantage":
             continue  # Skip the composite score
@@ -1154,7 +1156,7 @@ def compute_advantage_dominance_correlation(sim_session):
         results["advantage_correlations"][category] = category_results
 
     # Calculate summary statistics
-    logging.debug("Calculating advantage summary statistics")
+    logger.debug("Calculating advantage summary statistics")
     summary = {
         "total_advantages": 0,
         "advantages_favoring_dominant": 0,
@@ -1175,6 +1177,6 @@ def compute_advantage_dominance_correlation(sim_session):
     results["summary"] = summary
 
     total_duration = time.time() - start_time
-    logging.debug(f"Completed advantage-dominance correlation in {total_duration:.2f}s")
+    logger.debug(f"Completed advantage-dominance correlation in {total_duration:.2f}s")
 
     return results
