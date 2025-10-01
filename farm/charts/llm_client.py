@@ -6,7 +6,8 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 from openai import OpenAI
-from farm.core.services import IConfigService, EnvConfigService
+
+from farm.core.services import EnvConfigService, IConfigService
 from farm.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -22,7 +23,9 @@ class LLMClient:
         self._config = config_service
         self.api_key = api_key or self._config.get_openai_api_key()
         if not self.api_key:
-            raise ValueError("OpenAI API key must be provided via IConfigService or explicitly")
+            raise ValueError(
+                "OpenAI API key must be provided via IConfigService or explicitly"
+            )
         self.client = OpenAI(api_key=self.api_key)
         self.analyses = {}
         self.actions_df = None
@@ -371,11 +374,11 @@ Reproduction Success Analysis:
     def _save_analyses(self, output_dir: str):
         """Save all analyses to both JSON and text files."""
         json_path = os.path.join(output_dir, "chart_analyses.json")
-        with open(json_path, "w") as f:
+        with open(json_path, "w", encoding="utf-8") as f:
             json.dump(self.analyses, f, indent=4)
 
         text_path = os.path.join(output_dir, "chart_analyses.txt")
-        with open(text_path, "w") as f:
+        with open(text_path, "w", encoding="utf-8") as f:
             f.write("SIMULATION ANALYSIS SUMMARY\n\n")
             for chart_name, analysis in self.analyses.items():
                 f.write(f"\n{'='*30}\n")

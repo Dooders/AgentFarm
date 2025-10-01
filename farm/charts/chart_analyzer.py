@@ -210,7 +210,7 @@ class ChartAnalyzer:
             # Save analyses to text file if saving is enabled
             if self.save_charts:
                 text_path = self.output_dir / "chart_analysis.txt"
-                with open(text_path, "w") as f:
+                with open(text_path, "w", encoding="utf-8") as f:
                     f.write("SIMULATION ANALYSIS SUMMARY\n\n")
                     for chart_name, analysis in analyses.items():
                         f.write(f"\n{'='*30}\n")

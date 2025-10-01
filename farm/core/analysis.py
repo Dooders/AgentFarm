@@ -17,11 +17,13 @@ class SimulationAnalyzer:
             query = (
                 session.query(
                     SimulationStepModel.step_number,
-                    func.count(case((AgentModel.agent_type == "SystemAgent", 1))).label(
-                        "system_alive"
-                    ),
                     func.count(
-                        case((AgentModel.agent_type == "IndependentAgent", 1))
+                        case((AgentModel.agent_type == "SystemAgent", 1), else_=None)
+                    ).label("system_alive"),
+                    func.count(
+                        case(
+                            (AgentModel.agent_type == "IndependentAgent", 1), else_=None
+                        )
                     ).label("independent_alive"),
                 )
                 .join(
@@ -139,7 +141,7 @@ class SimulationAnalyzer:
         </html>
         """
 
-        with open(output_file, "w") as f:
+        with open(output_file, "w", encoding="utf-8") as f:
             f.write(html)
 
 

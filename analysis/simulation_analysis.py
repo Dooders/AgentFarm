@@ -2841,7 +2841,7 @@ class SimulationAnalyzer:
                         return obj.to_dict()
                     return super(NumpyEncoder, self).default(obj)
 
-            with open(results_file, "w") as f:
+            with open(results_file, "w", encoding="utf-8") as f:
                 json.dump(results, f, cls=NumpyEncoder, indent=2)
 
             # Validate results if validator is available

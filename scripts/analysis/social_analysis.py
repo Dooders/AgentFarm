@@ -36,12 +36,12 @@ from farm.database.models import (
 )
 
 # Import our utility modules
-from ..data_extraction import (
+from scripts.data_extraction import (
     extract_time_series,
     get_initial_positions,
     get_simulation_steps_range,
 )
-from ..database_utils import (
+from scripts.database_utils import (
     create_database_session,
     find_action_type,
     get_action_types,
@@ -54,7 +54,7 @@ from ..database_utils import (
     safe_close_session,
     validate_simulation_folder,
 )
-from ..visualization_utils import (
+from scripts.visualization_utils import (
     create_box_plot,
     create_histogram,
     create_time_series_plot,
@@ -889,7 +889,7 @@ def analyze_social_dynamics(
 
     # Save results
     results_path = os.path.join(output_dir, "social_dynamics_analysis.json")
-    with open(results_path, "w") as f:
+    with open(results_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, default=str)
 
     return results

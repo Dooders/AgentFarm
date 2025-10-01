@@ -6,9 +6,9 @@ width: 50
 height: 50
 
 # Fewer agents for quicker testing
-system_agents: 5
-independent_agents: 5
-control_agents: 5
+system_agents: 10
+independent_agents: 10
+control_agents: 10
 max_population: 50
 
 # Enable debugging features

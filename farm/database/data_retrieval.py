@@ -40,6 +40,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from sqlalchemy import and_, exists, func, not_
 from sqlalchemy.orm import aliased
+from sqlalchemy.sql.functions import Function
 
 from farm.database.repositories import (
     ActionRepository,
@@ -75,6 +76,9 @@ from .data_types import (
 from .models import ActionModel, AgentModel
 
 logger = get_logger(__name__)
+
+# Type hint to help linter understand func object
+_func: Function = func
 
 
 class DataRetriever:
