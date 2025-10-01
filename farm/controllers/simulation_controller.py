@@ -7,7 +7,6 @@ This module provides a centralized controller for:
 - Handling simulation events and updates
 """
 
-import logging
 import os
 import threading
 import time
@@ -18,8 +17,9 @@ from farm.config import SimulationConfig
 from farm.core.environment import Environment
 from farm.database.database import SimulationDatabase
 from farm.database.models import Simulation
+from farm.utils.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SimulationController:
@@ -143,11 +143,16 @@ class SimulationController:
             self.is_paused = False
             self._stop_requested = False
 
-            logger.info("Simulation initialized successfully")
+            logger.info("simulation_initialized", simulation_id=self.simulation_id)
             self._notify_status_change("initialized")
 
         except Exception as e:
-            logger.error(f"Error initializing simulation: {e}")
+            logger.error(
+                "simulation_initialization_failed",
+                simulation_id=self.simulation_id,
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             raise
 
     def start(self) -> None:
@@ -170,7 +175,7 @@ class SimulationController:
         if self._simulation_thread and self._simulation_thread.is_alive():
             if self.is_paused:
                 self.is_paused = False
-                logger.info("Resuming simulation")
+                logger.info("simulation_resumed", simulation_id=self.simulation_id, step=self.current_step)
                 self._notify_status_change("resumed")
             return
 
@@ -182,7 +187,7 @@ class SimulationController:
         self._simulation_thread = threading.Thread(target=self._run_simulation)
         self._simulation_thread.start()
 
-        logger.info("Simulation started")
+        logger.info("simulation_started", simulation_id=self.simulation_id)
         self._notify_status_change("started")
 
     def pause(self) -> None:
@@ -202,7 +207,7 @@ class SimulationController:
             ```
         """
         self.is_paused = True
-        logger.info("Simulation paused")
+        logger.info("simulation_paused", simulation_id=self.simulation_id, step=self.current_step)
         self._notify_status_change("paused")
 
     def stop(self) -> None:
@@ -227,7 +232,7 @@ class SimulationController:
         if self._simulation_thread:
             self._simulation_thread.join()
 
-        logger.info("Simulation stopped")
+        logger.info("simulation_stopped", simulation_id=self.simulation_id, final_step=self.current_step)
         self._notify_status_change("stopped")
 
     def step(self) -> None:
@@ -265,7 +270,13 @@ class SimulationController:
                 self._notify_step_complete()
 
         except Exception as e:
-            logger.error(f"Error executing simulation step: {e}")
+            logger.error(
+                "simulation_step_error",
+                simulation_id=self.simulation_id,
+                step=self.current_step,
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             self.stop()
             raise
 
@@ -278,7 +289,11 @@ class SimulationController:
                     continue
 
                 if self.current_step >= self.config.simulation_steps:
-                    logger.info("Simulation completed")
+                    logger.info(
+                        "simulation_completed",
+                        simulation_id=self.simulation_id,
+                        total_steps=self.current_step,
+                    )
                     self.stop()
                     self._notify_status_change("completed")
                     break
@@ -286,7 +301,13 @@ class SimulationController:
                 self.step()
 
         except Exception as e:
-            logger.error(f"Error in simulation loop: {e}")
+            logger.error(
+                "simulation_loop_error",
+                simulation_id=self.simulation_id,
+                step=self.current_step,
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             self.stop()
             self._notify_status_change("error")
             raise

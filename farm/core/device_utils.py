@@ -6,13 +6,14 @@ with support for configurable device preferences, automatic fallbacks, and tenso
 compatibility validation.
 """
 
-import logging
 import warnings
 from typing import Optional, Union
 
 import torch
 
-logger = logging.getLogger(__name__)
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class DeviceManager:
@@ -88,19 +89,23 @@ class DeviceManager:
                 test_tensor = torch.tensor([1.0], device="cuda:0")
                 del test_tensor
                 torch.cuda.empty_cache()
-                logger.info("CUDA device detected and working")
+                logger.info("cuda_device_available", status="working")
                 return torch.device("cuda:0")
             except Exception as e:
-                logger.warning(f"CUDA device detected but not working: {e}")
+                logger.warning(
+                    "cuda_device_not_working",
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                )
                 if self.fallback:
-                    logger.info("Falling back to CPU")
+                    logger.info("fallback_to_cpu", reason="cuda_not_working")
                     return torch.device("cpu")
                 else:
                     raise RuntimeError(
                         f"CUDA device not working and fallback disabled: {e}"
                     ) from e
         else:
-            logger.info("CUDA not available, using CPU")
+            logger.info("using_cpu", reason="cuda_not_available")
             return torch.device("cpu")
 
     def _resolve_cuda_device(self) -> torch.device:
@@ -169,19 +174,28 @@ class DeviceManager:
                     try:
                         torch.cuda.set_per_process_memory_fraction(self.memory_fraction)
                         logger.info(
-                            f"Set CUDA memory fraction to {self.memory_fraction}"
+                            "cuda_memory_fraction_set",
+                            memory_fraction=self.memory_fraction,
                         )
                     except Exception as e:
-                        logger.warning(f"Failed to set CUDA memory fraction: {e}")
+                        logger.warning(
+                            "cuda_memory_fraction_failed",
+                            error_type=type(e).__name__,
+                            error_message=str(e),
+                        )
                 else:
                     logger.warning(
-                        f"Invalid memory fraction {self.memory_fraction}, ignoring"
+                        "invalid_memory_fraction",
+                        memory_fraction=self.memory_fraction,
                     )
 
             # Log device information
             device_props = torch.cuda.get_device_properties(self._device)
-            logger.info(f"Using CUDA device: {device_props.name}")
-            logger.info(f"CUDA memory: {device_props.total_memory // (1024**3)} GB")
+            logger.info(
+                "cuda_device_configured",
+                device_name=device_props.name,
+                memory_gb=device_props.total_memory // (1024**3),
+            )
 
     def validate_tensor_compatibility(
         self, tensor: torch.Tensor, target_device: torch.device

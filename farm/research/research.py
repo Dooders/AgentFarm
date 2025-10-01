@@ -28,10 +28,7 @@ ResearchProject : class
     Main class for managing research projects and experiments
 """
 
-import errno
 import json
-import logging
-import os
 import shutil
 import time
 from dataclasses import dataclass
@@ -39,8 +36,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
+import structlog
+
 from farm.config import SimulationConfig
 from farm.runners.experiment_runner import ExperimentRunner
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -155,9 +157,9 @@ class ResearchProject:
                     break
                 except PermissionError as e:
                     if attempt == max_attempts - 1:  # Last attempt
-                        raise Exception(
+                        raise OSError(
                             f"Unable to delete directory after {max_attempts} attempts: {e}"
-                        )
+                        ) from e
                     time.sleep(1)  # Wait a second before retrying
 
         self._setup_directory_structure()
@@ -209,7 +211,7 @@ class ResearchProject:
         # Create hypothesis.md
         hypothesis_path = self.project_path / "hypothesis.md"
         if not hypothesis_path.exists():
-            with open(hypothesis_path, "w") as f:
+            with open(hypothesis_path, "w", encoding="utf-8") as f:
                 f.write(
                     "# Research Hypotheses\n\n## Primary Hypothesis\n\n## Secondary Hypotheses\n"
                 )
@@ -225,27 +227,20 @@ class ResearchProject:
         #     if not protocol_path.exists():
         #         protocol_path.touch()
 
-    def _setup_logging(self) -> logging.Logger:
+    def _setup_logging(self) -> structlog.stdlib.BoundLogger:
         """Configure project-specific logging."""
         log_path = self.project_path / "research.log"
 
-        logger = logging.getLogger(f"research.{self.name}")
-        logger.setLevel(logging.INFO)
-
-        formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        self.logger = get_logger(f"research.{self.name}").bind(
+            project_name=self.name,
+            project_dir=str(self.base_path),
         )
-
-        file_handler = logging.FileHandler(log_path)
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-
-        return logger
+        return self.logger
 
     def _save_metadata(self) -> None:
         """Save project metadata to JSON file."""
         metadata_path = self.project_path / "metadata.json"
-        with open(metadata_path, "w") as f:
+        with open(metadata_path, "w", encoding="utf-8") as f:
             json.dump(vars(self.metadata), f, indent=2)
 
     def create_experiment(
@@ -289,7 +284,7 @@ class ResearchProject:
 
         # Save experiment configuration
         config_path = exp_path / "experiment-config.json"
-        with open(config_path, "w") as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             json.dump(config.to_dict(), f, indent=2)
 
         # Create experiment design document
@@ -297,7 +292,9 @@ class ResearchProject:
         # with open(design_path, "w") as f:
         #     f.write(f"# {name}\n\n## Description\n{description}\n\n## Methodology\n")
 
-        self.logger.info(f"Created experiment: {exp_id}")
+        self.logger.info(
+            "experiment_created", experiment_id=exp_id, experiment_name=name
+        )
         return str(exp_path)
 
     def run_experiment(
@@ -331,7 +328,7 @@ class ResearchProject:
 
         # Load experiment config
         config_path = exp_path / "experiment-config.json"
-        with open(config_path) as f:
+        with open(config_path, encoding="utf-8") as f:
             config_dict = json.load(f)
         config = SimulationConfig.from_dict(config_dict)
 
@@ -345,10 +342,15 @@ class ResearchProject:
             # Note: generate_report method is not implemented in ExperimentRunner
             # runner.generate_report()
 
-            self.logger.info(f"Completed experiment: {experiment_id}")
+            self.logger.info("experiment_completed", experiment_id=experiment_id)
 
         except Exception as e:
-            self.logger.error(f"Error running experiment {experiment_id}: {str(e)}")
+            self.logger.error(
+                "experiment_run_failed",
+                experiment_id=experiment_id,
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             raise
 
     def add_literature_reference(
@@ -402,7 +404,7 @@ class ResearchProject:
 
         # Append to bibliography
         bib_path = self.project_path / "literature" / "bibliography.bib"
-        with open(bib_path, "a") as f:
+        with open(bib_path, "a", encoding="utf-8") as f:
             f.write(bib_entry)
 
         # Copy PDF if provided
@@ -415,7 +417,7 @@ class ResearchProject:
             notes_path = (
                 self.project_path / "literature" / "papers" / f"{citation_key}_notes.md"
             )
-            with open(notes_path, "w") as f:
+            with open(notes_path, "w", encoding="utf-8") as f:
                 f.write(f"# Notes on {title}\n\n{notes}")
 
         self.logger.info(f"Added literature reference: {citation_key}")
@@ -434,7 +436,7 @@ class ResearchProject:
             Protocol category (analysis, validation, etc)
         """
         protocol_path = self.project_path / "protocols" / f"{name}.md"
-        with open(protocol_path, "w") as f:
+        with open(protocol_path, "w", encoding="utf-8") as f:
             f.write(content)
 
         self.logger.info(f"Added {category} protocol: {name}")

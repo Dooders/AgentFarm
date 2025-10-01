@@ -7,7 +7,6 @@ key performance indicators. It separates tracking concerns from the main
 Environment class and provides a clean interface for metric collection.
 """
 
-import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Dict
@@ -15,8 +14,9 @@ from typing import Any, Dict
 import numpy as np
 
 from farm.core.agent import BaseAgent
+from farm.utils.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -73,7 +73,9 @@ class StepMetrics:
     reproduction_attempts: int = 0
     reproduction_successes: int = 0
     resource_consumption: float = 0.0
-    spatial_performance: SpatialPerformanceMetrics = field(default_factory=SpatialPerformanceMetrics)
+    spatial_performance: SpatialPerformanceMetrics = field(
+        default_factory=SpatialPerformanceMetrics
+    )
 
     def reset(self) -> None:
         """Reset all step-specific metrics to zero."""
@@ -167,27 +169,57 @@ class MetricsTracker:
             return
 
         # Update batch update metrics
-        if 'batch_updates' in spatial_stats:
-            batch_stats = spatial_stats['batch_updates']
-            self.step_metrics.spatial_performance.total_batch_updates = batch_stats.get('total_batch_updates', 0)
-            self.step_metrics.spatial_performance.total_individual_updates = batch_stats.get('total_individual_updates', 0)
-            self.step_metrics.spatial_performance.total_regions_processed = batch_stats.get('total_regions_processed', 0)
-            self.step_metrics.spatial_performance.average_batch_size = batch_stats.get('average_batch_size', 0.0)
-            self.step_metrics.spatial_performance.last_batch_time = batch_stats.get('last_batch_time', 0.0)
-            self.step_metrics.spatial_performance.total_dirty_regions = batch_stats.get('total_dirty_regions', 0)
-            self.step_metrics.spatial_performance.regions_by_type = batch_stats.get('regions_by_type', {})
-            self.step_metrics.spatial_performance.total_regions_marked = batch_stats.get('total_regions_marked', 0)
-            self.step_metrics.spatial_performance.total_regions_updated = batch_stats.get('total_regions_updated', 0)
-            self.step_metrics.spatial_performance.batch_count = batch_stats.get('batch_count', 0)
+        if "batch_updates" in spatial_stats:
+            batch_stats = spatial_stats["batch_updates"]
+            self.step_metrics.spatial_performance.total_batch_updates = batch_stats.get(
+                "total_batch_updates", 0
+            )
+            self.step_metrics.spatial_performance.total_individual_updates = (
+                batch_stats.get("total_individual_updates", 0)
+            )
+            self.step_metrics.spatial_performance.total_regions_processed = (
+                batch_stats.get("total_regions_processed", 0)
+            )
+            self.step_metrics.spatial_performance.average_batch_size = batch_stats.get(
+                "average_batch_size", 0.0
+            )
+            self.step_metrics.spatial_performance.last_batch_time = batch_stats.get(
+                "last_batch_time", 0.0
+            )
+            self.step_metrics.spatial_performance.total_dirty_regions = batch_stats.get(
+                "total_dirty_regions", 0
+            )
+            self.step_metrics.spatial_performance.regions_by_type = batch_stats.get(
+                "regions_by_type", {}
+            )
+            self.step_metrics.spatial_performance.total_regions_marked = (
+                batch_stats.get("total_regions_marked", 0)
+            )
+            self.step_metrics.spatial_performance.total_regions_updated = (
+                batch_stats.get("total_regions_updated", 0)
+            )
+            self.step_metrics.spatial_performance.batch_count = batch_stats.get(
+                "batch_count", 0
+            )
 
         # Update perception performance metrics
-        if 'perception' in spatial_stats:
-            perception_stats = spatial_stats['perception']
-            self.step_metrics.spatial_performance.spatial_query_time = perception_stats.get('spatial_query_time_s', 0.0)
-            self.step_metrics.spatial_performance.bilinear_time = perception_stats.get('bilinear_time_s', 0.0)
-            self.step_metrics.spatial_performance.nearest_time = perception_stats.get('nearest_time_s', 0.0)
-            self.step_metrics.spatial_performance.bilinear_points = perception_stats.get('bilinear_points', 0)
-            self.step_metrics.spatial_performance.nearest_points = perception_stats.get('nearest_points', 0)
+        if "perception" in spatial_stats:
+            perception_stats = spatial_stats["perception"]
+            self.step_metrics.spatial_performance.spatial_query_time = (
+                perception_stats.get("spatial_query_time_s", 0.0)
+            )
+            self.step_metrics.spatial_performance.bilinear_time = perception_stats.get(
+                "bilinear_time_s", 0.0
+            )
+            self.step_metrics.spatial_performance.nearest_time = perception_stats.get(
+                "nearest_time_s", 0.0
+            )
+            self.step_metrics.spatial_performance.bilinear_points = (
+                perception_stats.get("bilinear_points", 0)
+            )
+            self.step_metrics.spatial_performance.nearest_points = perception_stats.get(
+                "nearest_points", 0
+            )
 
     def record_reproduction_attempt(self) -> None:
         """Record a reproduction attempt."""
@@ -322,7 +354,7 @@ class MetricsTracker:
                     metrics=metrics,
                 )
         except (ValueError, TypeError, AttributeError, IndexError) as e:
-            logging.error("Error updating metrics: %s", e)
+            logger.error("error_updating_metrics", error=str(e), exc_info=True)
 
     def _prepare_agent_state(self, agent, time):
         """Prepare agent state for database logging."""
@@ -412,7 +444,10 @@ class MetricsTracker:
             )
             resource_efficiency = (
                 total_resources
-                / (len(resources) * (config.resources.max_resource_amount if config else 30))
+                / (
+                    len(resources)
+                    * (config.resources.max_resource_amount if config else 30)
+                )
                 if resources
                 else 0
             )
@@ -436,7 +471,9 @@ class MetricsTracker:
             resources_shared = tracker_metrics["resources_shared"]
             resources_shared_this_step = tracker_metrics["resources_shared_this_step"]
             combat_encounters_this_step = tracker_metrics["combat_encounters_this_step"]
-            successful_attacks_this_step = tracker_metrics["successful_attacks_this_step"]
+            successful_attacks_this_step = tracker_metrics[
+                "successful_attacks_this_step"
+            ]
 
             # Calculate resource distribution entropy
             resource_amounts = [r.amount for r in resources]
@@ -488,5 +525,5 @@ class MetricsTracker:
 
             return metrics
         except (ValueError, TypeError, AttributeError, IndexError) as e:
-            logging.error("Error calculating metrics: %s", e)
+            logger.error("error_calculating_metrics", error=str(e), exc_info=True)
             return {}  # Return empty metrics on error

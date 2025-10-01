@@ -15,7 +15,6 @@ The script will:
 """
 
 import glob
-import logging
 import os
 import time
 from datetime import datetime
@@ -31,11 +30,14 @@ from farm.analysis.advantage.analyze import (
     get_advantage_recommendations,
 )
 from farm.analysis.advantage.plot import plot_advantage_results
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def main():
     start_time = time.time()
-    logging.info("Starting advantage analysis script")
+    logger.info("Starting advantage analysis script")
 
     try:
         # Create advantage output directory
@@ -43,12 +45,12 @@ def main():
 
         # Clear the advantage directory if it exists
         if os.path.exists(adv_output_path):
-            logging.info(f"Clearing existing advantage directory: {adv_output_path}")
+            logger.info(f"Clearing existing advantage directory: {adv_output_path}")
             if not safe_remove_directory(adv_output_path):
                 # If we couldn't remove the directory after retries, create a new one with timestamp
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 adv_output_path = os.path.join(OUTPUT_PATH, f"advantage_{timestamp}")
-                logging.info(f"Using alternative directory: {adv_output_path}")
+                logger.info(f"Using alternative directory: {adv_output_path}")
 
         # Create the directory
         os.makedirs(adv_output_path, exist_ok=True)
@@ -56,28 +58,28 @@ def main():
         # Set up logging to the advantage directory
         log_file = setup_logging(adv_output_path)
 
-        logging.info(f"Saving results to {adv_output_path}")
+        logger.info(f"Saving results to {adv_output_path}")
 
         # Find the most recent experiment folder in DATA_PATH
-        logging.info(f"Searching for experiment folders in {DATA_PATH}")
+        logger.info(f"Searching for experiment folders in {DATA_PATH}")
         experiment_folders = [
             d for d in glob.glob(os.path.join(DATA_PATH, "*")) if os.path.isdir(d)
         ]
         if not experiment_folders:
-            logging.error(f"No experiment folders found in {DATA_PATH}")
+            logger.error(f"No experiment folders found in {DATA_PATH}")
             return
 
         # Sort by modification time (most recent first)
         experiment_folders.sort(key=os.path.getmtime, reverse=True)
         experiment_path = experiment_folders[0]
-        logging.info(f"Found most recent experiment folder: {experiment_path}")
+        logger.info(f"Found most recent experiment folder: {experiment_path}")
 
         # Check if experiment_path contains iteration folders directly
-        logging.info(f"Checking for iteration folders in {experiment_path}")
+        logger.info(f"Checking for iteration folders in {experiment_path}")
         iteration_folders = glob.glob(os.path.join(experiment_path, "iteration_*"))
         if not iteration_folders:
             # If no iteration folders found directly, look for subdirectories that might contain them
-            logging.info("No iteration folders found directly, checking subdirectories")
+            logger.info("No iteration folders found directly, checking subdirectories")
             subdirs = [
                 d
                 for d in glob.glob(os.path.join(experiment_path, "*"))
@@ -87,72 +89,70 @@ def main():
                 # Sort by modification time (most recent first)
                 subdirs.sort(key=os.path.getmtime, reverse=True)
                 experiment_path = subdirs[0]
-                logging.info(
-                    f"Using subdirectory as experiment path: {experiment_path}"
-                )
+                logger.info(f"Using subdirectory as experiment path: {experiment_path}")
 
                 # Verify that this subdirectory contains iteration folders
                 iteration_folders = glob.glob(
                     os.path.join(experiment_path, "iteration_*")
                 )
                 if not iteration_folders:
-                    logging.error(f"No iteration folders found in {experiment_path}")
+                    logger.error(f"No iteration folders found in {experiment_path}")
                     return
             else:
-                logging.error(f"No subdirectories found in {experiment_path}")
+                logger.error(f"No subdirectories found in {experiment_path}")
                 return
 
-        logging.info(f"Found {len(iteration_folders)} iteration folders")
+        logger.info(f"Found {len(iteration_folders)} iteration folders")
 
         # Step 1: Collect advantage data from all simulations
         try:
-            logging.info("Starting advantage data collection")
+            logger.info("Starting advantage data collection")
             analysis_start_time = time.time()
 
             # First collect the advantage data from simulations
             df_original = analyze_advantages(experiment_path)
 
             analysis_duration = time.time() - analysis_start_time
-            logging.info(
+            logger.info(
                 f"Completed advantage data collection in {analysis_duration:.2f} seconds"
             )
 
             if df_original.empty:
-                logging.warning("No simulation data found.")
+                logger.warning("No simulation data found.")
                 return
 
-            logging.info(f"Collected data from {len(df_original)} simulations")
+            logger.info(f"Collected data from {len(df_original)} simulations")
 
             # Save the raw data
-            logging.info("Saving raw analysis data to CSV")
+            logger.info("Saving raw analysis data to CSV")
             output_csv = os.path.join(adv_output_path, "advantage_analysis.csv")
             df_original.to_csv(output_csv, index=False)
-            logging.info(f"Saved analysis data to {output_csv}")
+            logger.info(f"Saved analysis data to {output_csv}")
 
         except Exception as e:
-            logging.error(f"Error in data collection step: {e}")
+            logger.error(f"Error in data collection step: {e}")
             import traceback
 
-            logging.error(traceback.format_exc())
+            logger.error(traceback.format_exc())
             return
 
         # Step 2: Analyze patterns in advantages
         try:
-            logging.info("Starting to analyze patterns in advantages...")
+            logger.info("Starting to analyze patterns in advantages...")
             patterns_start_time = time.time()
 
             # Now analyze patterns in the collected data
             analysis_results = analyze_advantage_patterns(df_original)
 
             patterns_duration = time.time() - patterns_start_time
-            logging.info(
+            logger.info(
                 f"Completed advantage pattern analysis in {patterns_duration:.2f} seconds"
             )
         except Exception as e:
-            logging.error(f"Error in pattern analysis step: {e}")
+            logger.error(f"Error in pattern analysis step: {e}")
             import traceback
 
-            logging.error(traceback.format_exc())
+            logger.error(traceback.format_exc())
             analysis_results = (
                 {}
             )  # Use empty dict to continue with limited functionality
@@ -203,19 +203,21 @@ def main():
             else:
                 return convert_for_json(d)
 
-        logging.info("Processing analysis results for JSON serialization")
+        logger.info("Processing analysis results for JSON serialization")
         serializable_results = process_dict(analysis_results)
 
-        logging.info("Saving advantage patterns to JSON")
-        output_json = os.path.join(adv_output_path, "advantage_patterns.json")
+        logger.info("Saving advantage patterns to JSON")
+        output_json = os.path.join(
+            adv_output_path, "advantage_patterns.json", encoding="utf-8"
+        )
         try:
-            with open(output_json, "w") as f:
+            with open(output_json, "w", encoding="utf-8") as f:
                 json.dump(serializable_results, f, indent=2)
-            logging.info(f"Saved advantage patterns analysis to {output_json}")
+            logger.info(f"Saved advantage patterns analysis to {output_json}")
         except TypeError as e:
-            logging.error(f"JSON serialization error: {e}")
+            logger.error(f"JSON serialization error: {e}")
             # Try to identify the problematic value
-            logging.error("Attempting to identify problematic values...")
+            logger.error("Attempting to identify problematic values...")
 
             def find_non_serializable(obj, path="root"):
                 """Recursively find non-serializable values in a nested structure"""
@@ -229,14 +231,14 @@ def main():
                     try:
                         json.dumps(obj)
                     except TypeError:
-                        logging.error(
+                        logger.error(
                             f"Non-serializable value at {path}: {type(obj)} - {obj}"
                         )
 
             find_non_serializable(serializable_results)
 
             # Save a simplified version without the problematic values
-            logging.info("Attempting to save a simplified version...")
+            logger.info("Attempting to save a simplified version...")
             try:
                 # Convert to JSON string with error handling for each value
                 class SafeEncoder(json.JSONEncoder):
@@ -246,19 +248,19 @@ def main():
                         except TypeError:
                             return str(obj)
 
-                with open(output_json, "w") as f:
+                with open(output_json, "w", encoding="utf-8") as f:
                     json.dump(serializable_results, f, indent=2, cls=SafeEncoder)
-                logging.info(
+                logger.info(
                     f"Saved simplified advantage patterns analysis to {output_json}"
                 )
             except Exception as e2:
-                logging.error(f"Failed to save simplified version: {e2}")
+                logger.error(f"Failed to save simplified version: {e2}")
         except Exception as e:
-            logging.error(f"Error saving advantage patterns: {e}")
+            logger.error(f"Error saving advantage patterns: {e}")
 
         # Step 3: Generate visualizations
         try:
-            logging.info("Starting to generate visualizations...")
+            logger.info("Starting to generate visualizations...")
             viz_start_time = time.time()
 
             # Modify the plot function call to include a flag indicating data has been cleaned
@@ -267,101 +269,101 @@ def main():
             )
 
             viz_duration = time.time() - viz_start_time
-            logging.info(
+            logger.info(
                 f"Completed visualization generation in {viz_duration:.2f} seconds"
             )
         except Exception as e:
-            logging.error(f"Error in visualization generation: {e}")
+            logger.error(f"Error in visualization generation: {e}")
             import traceback
 
-            logging.error(traceback.format_exc())
+            logger.error(traceback.format_exc())
 
         # Step 4: Generate recommendations
         try:
-            logging.info(
+            logger.info(
                 "Starting to generate recommendations based on advantage analysis..."
             )
             rec_start_time = time.time()
             recommendations = get_advantage_recommendations(analysis_results)
 
             rec_duration = time.time() - rec_start_time
-            logging.info(
+            logger.info(
                 f"Completed recommendation generation in {rec_duration:.2f} seconds"
             )
         except Exception as e:
-            logging.error(f"Error in recommendation generation: {e}")
+            logger.error(f"Error in recommendation generation: {e}")
             import traceback
 
-            logging.error(traceback.format_exc())
+            logger.error(traceback.format_exc())
             recommendations = (
                 {}
             )  # Use empty dict to continue with limited functionality
 
         # Save recommendations
-        logging.info("Saving recommendations to JSON")
+        logger.info("Saving recommendations to JSON")
         recommendations_json = os.path.join(
-            adv_output_path, "advantage_recommendations.json"
+            adv_output_path, "advantage_recommendations.json", encoding="utf-8"
         )
         try:
-            with open(recommendations_json, "w") as f:
+            with open(recommendations_json, "w", encoding="utf-8") as f:
                 json.dump(process_dict(recommendations), f, indent=2)
-            logging.info(f"Saved advantage recommendations to {recommendations_json}")
+            logger.info(f"Saved advantage recommendations to {recommendations_json}")
         except TypeError as e:
-            logging.error(f"JSON serialization error for recommendations: {e}")
+            logger.error(f"JSON serialization error for recommendations: {e}")
             # Try to save with the SafeEncoder
             try:
-                with open(recommendations_json, "w") as f:
+                with open(recommendations_json, "w", encoding="utf-8") as f:
                     json.dump(
                         process_dict(recommendations), f, indent=2, cls=SafeEncoder
                     )
-                logging.info(
+                logger.info(
                     f"Saved simplified recommendations to {recommendations_json}"
                 )
             except Exception as e2:
-                logging.error(f"Failed to save simplified recommendations: {e2}")
+                logger.error(f"Failed to save simplified recommendations: {e2}")
         except Exception as e:
-            logging.error(f"Error saving recommendations: {e}")
+            logger.error(f"Error saving recommendations: {e}")
 
         # Generate a summary report
         try:
-            logging.info("Generating summary report")
+            logger.info("Generating summary report")
             report_start_time = time.time()
             generate_summary_report(
                 df_original, analysis_results, recommendations, adv_output_path
             )
             report_duration = time.time() - report_start_time
-            logging.info(
+            logger.info(
                 f"Completed summary report generation in {report_duration:.2f} seconds"
             )
         except Exception as e:
-            logging.error(f"Error in summary report generation: {e}")
+            logger.error(f"Error in summary report generation: {e}")
             import traceback
 
-            logging.error(traceback.format_exc())
+            logger.error(traceback.format_exc())
 
         total_duration = time.time() - start_time
-        logging.info(
+        logger.info(
             f"\nAnalysis complete. Total execution time: {total_duration:.2f} seconds"
         )
-        logging.info(f"Results saved to CSV, JSON, and PNG files.")
-        logging.info(f"Log file saved to: {log_file}")
-        logging.info(f"All analysis files saved to: {adv_output_path}")
+        logger.info("Results saved to CSV, JSON, and PNG files.")
+        logger.info(f"Log file saved to: {log_file}")
+        logger.info(f"All analysis files saved to: {adv_output_path}")
 
     except Exception as e:
-        logging.error(f"Unhandled exception in main function: {e}")
+        logger.error(f"Unhandled exception in main function: {e}")
         import traceback
 
-        logging.error(traceback.format_exc())
+        logger.error(traceback.format_exc())
 
 
 def generate_summary_report(df, analysis_results, recommendations, output_path):
     """Generate a summary report of the advantage analysis."""
-    logging.info("Starting summary report generation")
-    report_path = os.path.join(output_path, "advantage_report.md")
+    logger.info("Starting summary report generation")
+    report_path = os.path.join(output_path, "advantage_report.md", encoding="utf-8")
 
     # Ensure recommendations is a dictionary
     if recommendations is None:
-        logging.warning("Recommendations is None, using empty dictionary instead")
+        logger.warning("Recommendations is None, using empty dictionary instead")
         recommendations = {}
 
     # Open file with UTF-8 encoding
@@ -383,7 +385,7 @@ def generate_summary_report(df, analysis_results, recommendations, output_path):
         f.write("the precision of some insights.\n\n")
 
         # 1. Overview
-        logging.info("Writing overview section")
+        logger.info("Writing overview section")
         f.write("## 1. Overview\n\n")
         f.write(
             f"This report analyzes data from {len(df)} simulations to understand how advantages between agent types influence dominance patterns.\n\n"
@@ -404,7 +406,7 @@ def generate_summary_report(df, analysis_results, recommendations, output_path):
             f.write("\n")
 
         # 2. Key Findings
-        logging.info("Writing key findings section")
+        logger.info("Writing key findings section")
         f.write("## 2. Key Findings\n\n")
 
         # Category importance
@@ -430,7 +432,7 @@ def generate_summary_report(df, analysis_results, recommendations, output_path):
             f.write("\n")
 
         # 3. Agent-Specific Insights
-        logging.info("Writing agent-specific insights section")
+        logger.info("Writing agent-specific insights section")
         f.write("## 3. Agent-Specific Insights\n\n")
 
         for agent_type in ["system", "independent", "control"]:
@@ -516,7 +518,7 @@ def generate_summary_report(df, analysis_results, recommendations, output_path):
                     f.write("\n")
 
         # 4. Comparative Analysis
-        logging.info("Writing comparative analysis section")
+        logger.info("Writing comparative analysis section")
         f.write("## 4. Comparative Analysis\n\n")
 
         # Show overall composite advantages
@@ -539,7 +541,7 @@ def generate_summary_report(df, analysis_results, recommendations, output_path):
             f.write("\n")
 
         # 5. Conclusions and Recommendations
-        logging.info("Writing conclusions and recommendations section")
+        logger.info("Writing conclusions and recommendations section")
         f.write("## 5. Conclusions and Recommendations\n\n")
 
         # Generate overall conclusions
@@ -637,7 +639,7 @@ def generate_summary_report(df, analysis_results, recommendations, output_path):
             f.write("No specific recommendations available from the analysis.\n\n")
             f.write("Please refer to the visualizations and raw data for insights.\n")
 
-    logging.info(f"Generated summary report at {report_path}")
+    logger.info(f"Generated summary report at {report_path}")
 
 
 if __name__ == "__main__":

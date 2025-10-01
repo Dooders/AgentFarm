@@ -1,4 +1,3 @@
-import logging
 from pathlib import Path
 
 from farm.research.analysis.analysis import (
@@ -13,6 +12,7 @@ from farm.research.analysis.analysis import (
     process_experiment_rewards_by_generation,
 )
 from farm.research.analysis.database import find_simulation_databases
+from farm.utils.logging_config import get_logger
 
 # import results.one_of_a_kind.scripts.generational_fitness_analysis as generational_fitness_analysis  # Module not found
 from farm.research.analysis.plotting import (
@@ -30,12 +30,9 @@ from farm.research.analysis.plotting import (
 EXPERIMENT_DATA_PATH = "results/one_of_a_kind_v1/experiments/data"
 EXPERIMENT_ANALYSIS_PATH = "results/one_of_a_kind_v1/experiments/analysis"
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+from farm.utils.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def main():

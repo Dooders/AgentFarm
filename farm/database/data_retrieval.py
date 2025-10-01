@@ -35,7 +35,6 @@ All database operations are executed within transactions to ensure data consiste
 Query optimization is implemented for handling large datasets efficiently.
 """
 
-import logging
 import math
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -52,6 +51,7 @@ from farm.database.repositories import (
     SimulationRepository,
 )
 from farm.database.session_manager import SessionManager
+from farm.utils.logging_config import get_logger
 
 from .data_types import (
     ActionMetrics,
@@ -61,27 +61,20 @@ from .data_types import (
     AgentDistribution,
     AgentLifespanStats,
     DecisionPatterns,
-    DecisionPatternStats,
-    DecisionSummary,
     InteractionPattern,
-    InteractionStats,
     LearningStatistics,
     PopulationMetrics,
     PopulationStatistics,
     PopulationVariance,
     ResourceAnalysis,
-    ResourceImpact,
     ResourceMetrics,
-    SequencePattern,
     SimulationResults,
     StepActionData,
     StepSummary,
-    SurvivalMetrics,
-    TimePattern,
 )
 from .models import ActionModel, AgentModel
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class DataRetriever:
@@ -277,7 +270,7 @@ class DataRetriever:
                 base_query.with_entities(
                     ActionModel.step_number,
                     ActionModel.action_type,
-                    func.count().label("action_count"),
+                    func.count(ActionModel.id).label("action_count"),
                     func.avg(ActionModel.reward).label("avg_reward"),
                 )
                 .group_by(ActionModel.step_number, ActionModel.action_type)
@@ -291,7 +284,7 @@ class DataRetriever:
                 .with_entities(
                     AgentModel.agent_type,
                     ActionModel.action_type,
-                    func.count().label("action_count"),
+                    func.count(ActionModel.id).label("action_count"),
                     func.avg(ActionModel.reward).label("avg_reward"),
                     func.stddev(ActionModel.reward).label("reward_stddev"),
                 )
@@ -304,7 +297,7 @@ class DataRetriever:
                 base_query.filter(ActionModel.action_target_id.isnot(None))
                 .with_entities(
                     ActionModel.action_type,
-                    func.count().label("interaction_count"),
+                    func.count(ActionModel.id).label("interaction_count"),
                     func.avg(ActionModel.reward).label("avg_interaction_reward"),
                 )
                 .group_by(ActionModel.action_type)
@@ -322,7 +315,7 @@ class DataRetriever:
                     func.avg(
                         ActionModel.resources_after - ActionModel.resources_before
                     ).label("avg_resource_change"),
-                    func.count().label("resource_action_count"),
+                    func.count(ActionModel.id).label("resource_action_count"),
                 )
                 .group_by(ActionModel.action_type)
                 .all()
@@ -671,7 +664,7 @@ class DataRetriever:
             base_query.with_entities(
                 ActionModel.action_type,
                 ActionModel.action_target_id.isnot(None).label("is_interaction"),
-                func.count().label("count"),
+                func.count(ActionModel.id).label("count"),
                 func.avg(ActionModel.reward).label("avg_reward"),
             )
             .group_by(
@@ -701,7 +694,7 @@ class DataRetriever:
         return (
             base_query.with_entities(
                 ActionModel.action_type,
-                func.count().label("count"),
+                func.count(ActionModel.id).label("count"),
                 func.avg(ActionModel.reward).label("avg_reward"),
             )
             .group_by(
@@ -735,7 +728,7 @@ class DataRetriever:
                 func.avg(
                     ActionModel.resources_after - ActionModel.resources_before
                 ).label("avg_resource_change"),
-                func.count().label("count"),
+                func.count(ActionModel.id).label("count"),
             )
             .filter(
                 ActionModel.resources_before.isnot(None),
@@ -776,7 +769,7 @@ class DataRetriever:
             base_query.session.query(
                 subq.c.action_type,
                 next_action.c.action_type.label("next_action"),
-                func.count().label("sequence_count"),
+                func.count(ActionModel.id).label("sequence_count"),
             )
             .join(
                 next_action,

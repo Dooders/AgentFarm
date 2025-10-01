@@ -32,6 +32,10 @@ colorama>=0.4.4  # Terminal colors
 python-dotenv>=0.19.0  # Environment variables
 psutil>=5.8.0  # System and process utilities (CPU, memory monitoring)
 
+# Logging
+structlog>=24.1.0  # Structured logging
+python-json-logger>=2.0.0  # JSON log formatting
+
 # Machine Learning
 # For PyTorch, choose one of:
 torch>=2.0.0  # Default PyTorch with CUDA support if available

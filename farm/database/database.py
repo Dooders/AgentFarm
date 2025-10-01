@@ -44,13 +44,14 @@ Notes
 """
 
 import json
-import logging
 import os
 import queue
 import threading
 import time
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
+
+from farm.utils.logging_config import get_logger
 
 import pandas as pd
 from sqlalchemy import create_engine, event, text
@@ -84,7 +85,7 @@ from .utilities import (
     validate_export_format,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SimulationDatabase:

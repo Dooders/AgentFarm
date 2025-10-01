@@ -12,6 +12,9 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from .config import SimulationConfig
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -48,7 +51,8 @@ class ConfigMonitor:
         Args:
             logger: Logger instance to use (creates default if None)
         """
-        self.logger = logger or logging.getLogger("config_monitor")
+        from farm.utils.logging_config import get_logger
+        self.logger = logger or get_logger("config_monitor")
         self.metrics: List[ConfigMetrics] = []
         self.max_metrics_history = 1000
 
@@ -104,14 +108,20 @@ class ConfigMonitor:
                 )
             else:
                 self.logger.info(
-                    f"Config {operation} successful: env={environment}, profile={profile}, "
-                    f"duration={duration:.3f}s"
+                    "config_operation_success",
+                    operation=operation,
+                    environment=environment,
+                    profile=profile,
+                    duration_seconds=round(duration, 3),
                 )
         else:
             self.logger.error(
-                f"Config {operation} failed: env={environment}, profile={profile}, "
-                f"error={type(error).__name__ if error else 'Unknown'}, "
-                f"duration={duration:.3f}s"
+                "config_operation_failed",
+                operation=operation,
+                environment=environment,
+                profile=profile,
+                error_type=type(error).__name__ if error else "Unknown",
+                duration_seconds=round(duration, 3),
             )
             if error:
                 self.logger.debug(

@@ -1,4 +1,3 @@
-import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Union
@@ -10,12 +9,9 @@ import pandas as pd
 
 from farm.research.analysis.dataframes import create_population_df
 from farm.research.analysis.util import calculate_statistics
+from farm.utils.logging_config import get_logger
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def plot_mean_and_ci(ax, steps, mean, ci, color, label):

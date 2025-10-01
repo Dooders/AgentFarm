@@ -5,7 +5,7 @@ This module provides functions to visualize analysis results from the Genesis mo
 including initial state comparisons, critical period analysis, and overall simulation trends.
 """
 
-import logging
+from farm.utils.logging_config import get_logger
 import os
 from typing import Any, Dict, List, Optional
 
@@ -17,7 +17,7 @@ from matplotlib.gridspec import GridSpec
 
 from farm.analysis.common.context import AnalysisContext
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Set the style globally for all plots
 plt.style.use("seaborn-v0_8")  # Using a valid style name

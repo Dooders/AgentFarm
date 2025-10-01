@@ -34,7 +34,6 @@ Integration Points:
     - Spatial Index: Efficient queries for nearby entities
 """
 
-import logging
 import math
 import random
 from typing import TYPE_CHECKING, Optional
@@ -60,6 +59,8 @@ from farm.core.services.interfaces import (
 from farm.core.state import AgentState
 from farm.database.data_types import GenomeId
 from farm.utils.config_utils import get_nested_then_flat
+from farm.utils.logging_config import get_logger
+from farm.utils.logging_utils import AgentLogger
 
 try:
     from farm.memory.redis_memory import AgentMemoryManager, RedisMemoryConfig
@@ -70,7 +71,7 @@ except Exception:  # pragma: no cover - optional at runtime
 if TYPE_CHECKING:
     from farm.core.environment import Environment
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class BaseAgent:
@@ -1274,7 +1275,12 @@ class BaseAgent:
                     parent_position=self.position,
                 )
 
-            logger.error(f"Reproduction failed for agent {self.agent_id}: {e}")
+            logger.error(
+                "reproduction_failed",
+                agent_id=self.agent_id,
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             return False
 
     def _create_offspring(self):
@@ -1290,7 +1296,12 @@ class BaseAgent:
                 else self.agent_id + "_child"
             )
         except Exception as e:
-            logger.error(f"Failed to get next agent ID for offspring creation: {e}")
+            logger.error(
+                "offspring_id_generation_failed",
+                parent_agent_id=self.agent_id,
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             raise RuntimeError(f"Failed to obtain agent ID for offspring: {e}") from e
 
         generation = self.generation + 1
@@ -1318,7 +1329,13 @@ class BaseAgent:
                 generation=generation,
             )
         except Exception as e:
-            logger.error(f"Failed to create offspring agent instance: {e}")
+            logger.error(
+                "offspring_creation_failed",
+                parent_agent_id=self.agent_id,
+                offspring_id=new_id,
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             raise RuntimeError(f"Failed to instantiate offspring agent: {e}") from e
 
         # Add new agent to environment
@@ -1326,7 +1343,13 @@ class BaseAgent:
             try:
                 self.lifecycle_service.add_agent(new_agent)
             except Exception as e:
-                logger.error(f"Failed to add offspring agent to lifecycle service: {e}")
+                logger.error(
+                    "offspring_registration_failed",
+                    parent_agent_id=self.agent_id,
+                    offspring_id=new_agent.agent_id,
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                )
                 # Agent was created but not added to lifecycle service
                 # This is a critical failure that should prevent reproduction
                 raise RuntimeError(f"Failed to register offspring agent: {e}") from e
@@ -1344,14 +1367,23 @@ class BaseAgent:
             self.resource_level -= offspring_cost
         except Exception as e:
             logger.error(
-                f"Failed to update parent resources after offspring creation: {e}"
+                "parent_resource_update_failed",
+                parent_agent_id=self.agent_id,
+                error_type=type(e).__name__,
+                error_message=str(e),
             )
             # Don't raise here as the offspring is already created and registered
             # Just log the issue
 
         # Log creation
         logger.info(
-            f"Agent {new_id} created at {self.position} during step {self.time_service.current_time() if self.time_service else 0} of type {agent_class.__name__}"
+            "offspring_created",
+            offspring_id=new_id,
+            parent_id=self.agent_id,
+            position=self.position,
+            step=self.time_service.current_time() if self.time_service else 0,
+            agent_type=agent_class.__name__,
+            generation=generation,
         )
 
         return new_agent
@@ -1372,17 +1404,33 @@ class BaseAgent:
                         self.agent_id, self.death_time
                     )
                 except Exception as e:
-                    logger.error(f"Failed to log agent death for {self.agent_id}: {e}")
+                    logger.error(
+                        "agent_death_logging_failed",
+                        agent_id=self.agent_id,
+                        error_type=type(e).__name__,
+                        error_message=str(e),
+                    )
 
             logger.info(
-                f"Agent {self.agent_id} died at {self.position} during step {self.time_service.current_time() if self.time_service else 0}"
+                "agent_died",
+                agent_id=self.agent_id,
+                position=self.position,
+                step=self.time_service.current_time() if self.time_service else 0,
+                lifetime_steps=(
+                    self.death_time - self.birth_time
+                    if hasattr(self, "birth_time")
+                    else None
+                ),
             )
             if self.lifecycle_service:
                 try:
                     self.lifecycle_service.remove_agent(self)
                 except Exception as e:
                     logger.error(
-                        f"Failed to remove agent {self.agent_id} from lifecycle service: {e}"
+                        "agent_removal_failed",
+                        agent_id=self.agent_id,
+                        error_type=type(e).__name__,
+                        error_message=str(e),
                     )
 
     def update_position(self, new_position):
@@ -1555,11 +1603,19 @@ class BaseAgent:
 
             # Get this agent's memory
             self.memory = memory_manager.get_memory(self.agent_id)
-            logger.info(f"Initialized Redis memory for agent {self.agent_id}")
+            logger.info(
+                "redis_memory_initialized",
+                agent_id=self.agent_id,
+                host=redis_config.host,
+                port=redis_config.port,
+            )
 
         except Exception as e:
             logger.error(
-                f"Failed to initialize Redis memory for agent {self.agent_id}: {e}"
+                "redis_memory_init_failed",
+                agent_id=self.agent_id,
+                error_type=type(e).__name__,
+                error_message=str(e),
             )
             # Memory remains None, agent will function without memory
 
@@ -1628,6 +1684,10 @@ class BaseAgent:
 
         except Exception as e:
             logger.error(
-                f"Failed to remember experience for agent {self.agent_id}: {e}"
+                "experience_memory_failed",
+                agent_id=self.agent_id,
+                action=action_name,
+                error_type=type(e).__name__,
+                error_message=str(e),
             )
             return False

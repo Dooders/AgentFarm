@@ -1,6 +1,5 @@
 import argparse
 import json
-import logging
 import os
 import tkinter as tk
 from datetime import datetime
@@ -9,21 +8,9 @@ from farm.core.analysis import SimulationAnalyzer
 from farm.config import SimulationConfig
 from farm.core.visualization import SimulationVisualizer
 from farm.runners.experiment_runner import ExperimentRunner
+from farm.utils.logging_config import configure_logging, get_logger
 
-
-def setup_logging(log_dir="logs"):
-    """Setup logging configuration."""
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file = os.path.join(log_dir, f"simulation_{timestamp}.log")
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-        handlers=[logging.FileHandler(log_file), logging.StreamHandler()],
-    )
+logger = get_logger(__name__)
 
 
 def run_experiment(args):
@@ -110,7 +97,8 @@ def main():
 
     args = parser.parse_args()
 
-    setup_logging()
+    # Configure structured logging
+    configure_logging(environment="development", log_level="INFO")
 
     if args.mode == "simulate":
         # Load configuration
@@ -147,7 +135,7 @@ def main():
     elif args.mode == "visualize":
         # Open visualization for existing simulation
         if not os.path.exists(args.db_path):
-            logging.error(f"Database file not found: {args.db_path}")
+            logger.error("database_file_not_found", db_path=args.db_path)
             return
 
         root = tk.Tk()
@@ -157,17 +145,17 @@ def main():
     elif args.mode == "analyze":
         # Generate analysis report
         if not os.path.exists(args.db_path):
-            logging.error(f"Database file not found: {args.db_path}")
+            logger.error("database_file_not_found", db_path=args.db_path)
             return
 
         analyzer = SimulationAnalyzer(db_path=args.db_path)
         analyzer.generate_report(output_file=args.report_path)
-        logging.info(f"Analysis report generated: {args.report_path}")
+        logger.info("analysis_report_generated", report_path=args.report_path)
 
         # Export data if requested
         if args.export_path:
             analyzer.db.export_data(args.export_path)
-            logging.info(f"Data exported to: {args.export_path}")
+            logger.info("data_exported", export_path=args.export_path)
 
     elif args.mode == "experiment":
         run_experiment(args)

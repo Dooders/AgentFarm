@@ -13,7 +13,6 @@ Features:
 """
 
 import json
-import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union, cast
@@ -22,8 +21,9 @@ import redis
 
 from farm.core.perception import PerceptionData
 from farm.core.state import AgentState
+from farm.utils.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -642,6 +642,7 @@ class AgentMemoryManager:
 # Example integration with BaseAgent
 def integrate_with_agent():
     """Example code showing how to integrate memory with BaseAgent class."""
+    pass  # This function contains example code in docstrings
 
     # Add this to BaseAgent.__init__
     """

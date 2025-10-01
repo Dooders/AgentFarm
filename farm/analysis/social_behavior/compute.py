@@ -5,7 +5,7 @@ This module provides functions to compute metrics related to social behaviors
 between agents, including cooperation, competition, and group dynamics.
 """
 
-import logging
+from farm.utils.logging_config import get_logger
 import math
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
@@ -24,7 +24,7 @@ from farm.database.models import (
     SocialInteractionModel,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def compute_social_network_metrics(session: Session) -> Dict[str, Any]:

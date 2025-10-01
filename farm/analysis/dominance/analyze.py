@@ -6,16 +6,20 @@ This file contains legacy dominance analysis functions. For new code, use:
  - farm.analysis.dominance.pipeline - Orchestration
  - farm.analysis.dominance.features - Feature engineering
  - farm.analysis.dominance.db_io - Persistence
- 
+
 The DominanceAnalysis class at the bottom uses the old BaseAnalysisModule
 and is kept for backwards compatibility. New code should use the module system.
 """
 
-import logging
 import traceback
 
 import pandas as pd
 
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
+
+from farm.analysis.base_module import BaseAnalysisModule
 from farm.analysis.common.metrics import (
     analyze_correlations,
     get_valid_numeric_columns,
@@ -88,7 +92,7 @@ def process_single_simulation(session, iteration, config, **kwargs):
         or None if processing failed
     """
     try:
-        logging.info(f"Processing iteration {iteration}")
+        logger.info("processing_iteration", iteration=iteration)
 
         # Compute dominance metrics
         population_dominance = compute_population_dominance(session)
@@ -106,7 +110,11 @@ def process_single_simulation(session, iteration, config, **kwargs):
 
         # Get agent survival statistics
         survival_stats = get_agent_survival_stats(session)
-        logging.info(f"Survival stats for iteration {iteration}: {survival_stats}")
+        logger.info(
+            "survival_stats_for_iteration",
+            iteration=iteration,
+            survival_stats=survival_stats,
+        )
 
         # Get reproduction statistics
         reproduction_stats = get_reproduction_stats(session)
@@ -199,23 +207,30 @@ def process_single_simulation(session, iteration, config, **kwargs):
         ]
         missing_keys = [key for key in survival_keys if key not in sim_data]
         if missing_keys:
-            logging.warning(
-                f"Missing survival stats keys for iteration {iteration}: {missing_keys}"
+            logger.warning(
+                "missing_survival_stats_keys",
+                iteration=iteration,
+                missing_keys=missing_keys,
             )
 
         # Validate data with Pydantic model
         try:
             validated_data = DominanceDataModel(**sim_data).dict()
-            logging.debug(f"Successfully validated data for iteration {iteration}")
+            logger.debug("successfully_validated_data", iteration=iteration)
             return validated_data
         except Exception as e:
-            logging.warning(f"Data validation failed for iteration {iteration}: {e}")
+            logger.warning("data_validation_failed", iteration=iteration, error=str(e))
             # Still return the data even if validation fails
             return sim_data
 
     except Exception as e:
-        logging.error(f"Error processing iteration {iteration}: {e}")
-        logging.error(traceback.format_exc())
+        logger.error(
+            "error_processing_iteration",
+            iteration=iteration,
+            error=str(e),
+            exc_info=True,
+        )
+        logger.error("traceback_details", traceback=traceback.format_exc())
         return None
 
 
@@ -302,7 +317,7 @@ def save_dominance_data_to_db(df, db_path="sqlite:///dominance.db"):
         True if the data was successfully saved, False otherwise
     """
     if df.empty:
-        logging.warning("No data to save to database")
+        logger.warning("no_data_to_save_to_database")
         return False
 
     try:
@@ -310,12 +325,12 @@ def save_dominance_data_to_db(df, db_path="sqlite:///dominance.db"):
         engine = init_db(db_path)
         session = get_session(engine)
 
-        logging.info(f"DataFrame columns: {df.columns.tolist()}")
-        logging.info(f"Sample data: {df.iloc[0].to_dict()}")
+        logger.info("dataframe_columns", columns=df.columns.tolist())
+        logger.info("sample_data", sample=df.iloc[0].to_dict())
         print(df.head())
 
         # Import data row by row
-        logging.info(f"Importing {len(df)} simulations into database...")
+        logger.info("importing_simulations_to_database", count=len(df))
         for idx, row in df.iterrows():
             # Create Simulation record
             sim = Simulation(iteration=row["iteration"])
@@ -331,8 +346,10 @@ def save_dominance_data_to_db(df, db_path="sqlite:///dominance.db"):
                 "system_dead_ratio",
             ]
             survival_values = {key: row.get(key) for key in survival_keys}
-            logging.info(
-                f"Survival stats for iteration {row['iteration']}: {survival_values}"
+            logger.info(
+                "survival_stats_for_iteration",
+                iteration=row["iteration"],
+                survival_values=survival_values,
             )
 
             # Create DominanceMetrics record
@@ -683,13 +700,13 @@ def save_dominance_data_to_db(df, db_path="sqlite:///dominance.db"):
 
         # Commit all changes
         session.commit()
-        logging.info(f"Successfully imported {len(df)} simulations into the database")
+        logger.info("successfully_imported_simulations", count=len(df))
         return True
 
     except Exception as e:
         if "session" in locals():
             session.rollback()
-        logging.error(f"Error importing data to database: {e}")
+        logger.error("error_importing_data_to_database", error=str(e), exc_info=True)
         return False
     finally:
         if "session" in locals():
@@ -719,11 +736,13 @@ def analyze_dominance_switch_factors(df):
     """
     # Check if df is a DataFrame
     if not isinstance(df, pd.DataFrame):
-        logging.warning("Input to analyze_dominance_switch_factors is not a DataFrame")
+        logger.warning(
+            "input_not_dataframe", function="analyze_dominance_switch_factors"
+        )
         return df
 
     if df.empty or "total_switches" not in df.columns:
-        logging.warning("No dominance switch data available for analysis")
+        logger.warning("no_dominance_switch_data_available")
         return df
 
     # Calculate dominance switch factors
@@ -756,7 +775,7 @@ def analyze_dominance_switch_factors(df):
             for factor, corr in results["reproduction_correlations"].items():
                 df[f"repro_corr_{factor}"] = corr
 
-        logging.info("Added dominance switch factor analysis to the DataFrame")
+        logger.info("added_dominance_switch_factor_analysis")
 
     return df
 
@@ -778,15 +797,13 @@ def analyze_reproduction_dominance_switching(df):
     """
     # Check if df is a DataFrame
     if not isinstance(df, pd.DataFrame):
-        logging.warning(
-            "Input to analyze_reproduction_dominance_switching is not a DataFrame"
+        logger.warning(
+            "input_not_dataframe", function="analyze_reproduction_dominance_switching"
         )
         return df
 
     if df.empty or "total_switches" not in df.columns:
-        logging.warning(
-            "No dominance switch data available for reproduction-switching analysis"
-        )
+        logger.warning("no_dominance_switch_data_for_reproduction_switching")
         return df
 
     reproduction_cols = [col for col in df.columns if "reproduction" in col]
@@ -795,7 +812,7 @@ def analyze_reproduction_dominance_switching(df):
     numeric_repro_cols = get_valid_numeric_columns(df, reproduction_cols)
 
     if not numeric_repro_cols:
-        logging.warning("No numeric reproduction data columns found")
+        logger.warning("no_numeric_reproduction_data_columns")
         return df
 
     # Use the aggregation function from compute.py to collect all results
@@ -818,9 +835,7 @@ def analyze_reproduction_dominance_switching(df):
                     col_name = f"{category}_{key}"
                     df[col_name] = value
 
-    logging.info(
-        f"Added {len(results)} reproduction analysis categories to the DataFrame"
-    )
+    logger.info("added_reproduction_analysis_categories", count=len(results))
 
     return df
 
@@ -843,13 +858,11 @@ def analyze_high_vs_low_switching(df, numeric_repro_cols):
     """
     # Check if df is a DataFrame
     if not isinstance(df, pd.DataFrame):
-        logging.warning("Input to analyze_high_vs_low_switching is not a DataFrame")
+        logger.warning("input_not_dataframe", function="analyze_high_vs_low_switching")
         return df
 
     if df.empty or "total_switches" not in df.columns:
-        logging.warning(
-            "No dominance switch data available for high vs low switching analysis"
-        )
+        logger.warning("no_dominance_switch_data_for_high_vs_low_switching")
         return df
 
     # Use the utility function to split and compare groups
@@ -872,9 +885,7 @@ def analyze_high_vs_low_switching(df, numeric_repro_cols):
             df[f"{col}_percent_difference"] = stats["percent_difference"]
 
         # Log the most significant differences
-        logging.info(
-            "\nReproduction differences between high and low switching simulations:"
-        )
+        logger.info("reproduction_differences_high_vs_low_switching")
         sorted_diffs = sorted(
             repro_comparison.items(),
             key=lambda x: abs(x[1]["percent_difference"]),
@@ -886,9 +897,13 @@ def analyze_high_vs_low_switching(df, numeric_repro_cols):
                 abs(stats["percent_difference"]) > 10
             ):  # Only report meaningful differences
                 direction = "higher" if stats["difference"] > 0 else "lower"
-                logging.info(
-                    f"  {col}: {stats['high_group_mean']:.3f} vs {stats['low_group_mean']:.3f} "
-                    f"({abs(stats['percent_difference']):.1f}% {direction} in high-switching simulations)"
+                logger.info(
+                    "reproduction_difference_detail",
+                    column=col,
+                    high_mean=stats["high_group_mean"],
+                    low_mean=stats["low_group_mean"],
+                    percent_difference=abs(stats["percent_difference"]),
+                    direction=direction,
                 )
 
     return df
@@ -912,7 +927,7 @@ def analyze_reproduction_timing(df, numeric_repro_cols):
     """
     # Check if df is a DataFrame
     if not isinstance(df, pd.DataFrame):
-        logging.warning("Input to analyze_reproduction_timing is not a DataFrame")
+        logger.warning("input_not_dataframe", function="analyze_reproduction_timing")
         return df
 
     # Filter to get only first reproduction columns
@@ -954,18 +969,19 @@ def analyze_reproduction_timing(df, numeric_repro_cols):
                 first_repro_corr[col] = correlations[col]
 
         # Log the results
-        logging.info(
-            "\nCorrelation between first reproduction timing and dominance switches:"
-        )
+        logger.info("correlation_reproduction_timing_dominance_switches")
         for col, corr in first_repro_corr.items():
             agent_type = col.split("_first_reproduction")[0]
             if abs(corr) > 0.1:  # Only report meaningful correlations
                 direction = "more" if corr > 0 else "fewer"
-                logging.info(
-                    f"  Earlier {agent_type} reproduction → {direction} dominance switches (r={corr:.3f})"
+                logger.info(
+                    "reproduction_timing_correlation",
+                    agent_type=agent_type,
+                    direction=direction,
+                    correlation=corr,
                 )
     else:
-        logging.info("No first reproduction timing data available for analysis")
+        logger.info("no_first_reproduction_timing_data_available")
 
     return df
 
@@ -988,7 +1004,9 @@ def analyze_reproduction_efficiency(df, numeric_repro_cols):
     """
     # Check if df is a DataFrame
     if not isinstance(df, pd.DataFrame):
-        logging.warning("Input to analyze_reproduction_efficiency is not a DataFrame")
+        logger.warning(
+            "input_not_dataframe", function="analyze_reproduction_efficiency"
+        )
         return df
 
     efficiency_cols = [
@@ -1014,15 +1032,16 @@ def analyze_reproduction_efficiency(df, numeric_repro_cols):
         )
 
         # Log the results
-        logging.info(
-            "\nCorrelation between reproduction efficiency and dominance stability:"
-        )
+        logger.info("correlation_reproduction_efficiency_dominance_stability")
         for col, corr in efficiency_stability_corr.items():
             if abs(corr) > 0.1:  # Only report meaningful correlations
                 agent_type = col.split("_reproduction")[0]
                 direction = "more" if corr > 0 else "less"
-                logging.info(
-                    f"  Higher {agent_type} reproduction efficiency → {direction} stable dominance (r={corr:.3f})"
+                logger.info(
+                    "reproduction_efficiency_correlation",
+                    agent_type=agent_type,
+                    direction=direction,
+                    correlation=corr,
                 )
 
     return df
@@ -1046,7 +1065,7 @@ def analyze_reproduction_advantage(df, numeric_repro_cols):
     """
     # Check if df is a DataFrame
     if not isinstance(df, pd.DataFrame):
-        logging.warning("Input to analyze_reproduction_advantage is not a DataFrame")
+        logger.warning("input_not_dataframe", function="analyze_reproduction_advantage")
         return df
 
     advantage_cols = [
@@ -1075,9 +1094,7 @@ def analyze_reproduction_advantage(df, numeric_repro_cols):
         )
 
         # Log the results
-        logging.info(
-            "\nCorrelation between reproduction advantage and dominance stability:"
-        )
+        logger.info("correlation_reproduction_advantage_dominance_stability")
         for col, corr in advantage_stability_corr.items():
             if abs(corr) > 0.1:  # Only report meaningful correlations
                 if "_vs_" in col:
@@ -1086,8 +1103,12 @@ def analyze_reproduction_advantage(df, numeric_repro_cols):
                         col.split("_vs_")[1].split("_reproduction")[0],
                     )
                     direction = "more" if corr > 0 else "less"
-                    logging.info(
-                        f"  {types[0]} advantage over {types[1]} → {direction} stable dominance (r={corr:.3f})"
+                    logger.info(
+                        "reproduction_advantage_correlation",
+                        advantage_type=types[0],
+                        over_type=types[1],
+                        direction=direction,
+                        correlation=corr,
                     )
 
     return df
@@ -1111,7 +1132,7 @@ def analyze_by_agent_type(df, numeric_repro_cols):
     """
     # Check if df is a DataFrame
     if not isinstance(df, pd.DataFrame):
-        logging.warning("Input to analyze_by_agent_type is not a DataFrame")
+        logger.warning("input_not_dataframe", function="analyze_by_agent_type")
         return df
 
     results = {}
@@ -1145,8 +1166,9 @@ def analyze_by_agent_type(df, numeric_repro_cols):
         # Log top correlations for each agent type
         for agent_type, type_correlations in type_results.items():
             if type_correlations:
-                logging.info(
-                    f"\nTop reproduction factors affecting switching in {agent_type}-dominant simulations:"
+                logger.info(
+                    "top_reproduction_factors_affecting_switching",
+                    agent_type=agent_type,
                 )
                 sorted_corrs = sorted(
                     type_correlations.items(), key=lambda x: abs(x[1]), reverse=True
@@ -1154,7 +1176,12 @@ def analyze_by_agent_type(df, numeric_repro_cols):
                 for col, corr in sorted_corrs[:3]:  # Top 3
                     if abs(corr) > 0.2:  # Only report stronger correlations
                         direction = "more" if corr > 0 else "fewer"
-                        logging.info(f"  {col}: {corr:.3f} ({direction} switches)")
+                        logger.info(
+                            "reproduction_factor_correlation",
+                            column=col,
+                            correlation=corr,
+                            direction=direction,
+                        )
 
     return df
 

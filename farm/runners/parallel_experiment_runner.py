@@ -6,7 +6,6 @@ can execute multiple simulations across multiple processes, taking advantage
 of multi-core systems for improved performance.
 """
 
-import logging
 import os
 import time
 import traceback
@@ -21,6 +20,9 @@ from tqdm.auto import tqdm
 from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
 from farm.database.database import SimulationDatabase
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class ParallelExperimentRunner:
@@ -78,8 +80,8 @@ class ParallelExperimentRunner:
         self.in_memory_db_memory_limit_mb = in_memory_db_memory_limit_mb
 
         # Set up logging
-        self.logger = logging.getLogger(f"parallel_experiment.{experiment_name}")
-        self.logger.setLevel(logging.INFO)
+        from farm.utils.logging_config import get_logger
+        self.logger = get_logger(f"parallel_experiment.{experiment_name}")
 
         # Ensure base_config has in-memory DB settings
         if hasattr(base_config, "use_in_memory_db"):

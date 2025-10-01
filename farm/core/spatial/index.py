@@ -23,11 +23,14 @@ Higher priority updates are processed first within each batch.
 
 import hashlib
 import heapq
-import logging
 import math
 import time
 from collections import defaultdict
 from typing import Any, Callable, Dict, List, Optional, Tuple
+
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 import numpy as np
 from scipy.spatial import cKDTree
@@ -35,8 +38,6 @@ from scipy.spatial import cKDTree
 from .dirty_regions import DirtyRegionTracker
 from .hash_grid import SpatialHashGrid
 from .quadtree import Quadtree, QuadtreeNode
-
-logger = logging.getLogger(__name__)
 
 
 # Priority constants for position updates
@@ -188,8 +189,8 @@ class SpatialIndex:
         try:
             if any(isinstance(a, (str, bytes)) for a in agents):
                 logger.warning(
-                    "SpatialIndex.set_references received agent IDs (strings) instead of agent objects. "
-                    "This may cause empty agent indices. Ensure agent objects are passed."
+                    "spatial_index_invalid_references",
+                    message="Received agent IDs instead of agent objects",
                 )
         except (TypeError, AttributeError):
             pass
@@ -526,7 +527,7 @@ class SpatialIndex:
                     all_regions.append(region_coords)
             if all_regions:
                 self._dirty_region_tracker.clear_regions(all_regions)
-        logger.warning("Cleared %d pending position updates", count)
+        logger.warning("pending_updates_cleared", count=count)
         return count
 
     def enable_batch_updates(
@@ -567,7 +568,11 @@ class SpatialIndex:
                 )
             except MemoryError as e:
                 logger.error(
-                    "Failed to enable batch updates due to memory constraints: %s", e
+                    "batch_updates_memory_error",
+                    region_size=region_size,
+                    max_batch_size=max_batch_size,
+                    error_type=type(e).__name__,
+                    error_message=str(e),
                 )
                 raise
 

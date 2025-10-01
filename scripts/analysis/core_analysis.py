@@ -43,7 +43,9 @@ from scripts.database_utils import (
 )
 from scripts.visualization_utils import create_time_series_plot, save_figure
 
-logger = logging.getLogger(__name__)
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class UnifiedExperimentAnalyzer:

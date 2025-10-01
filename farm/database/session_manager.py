@@ -5,7 +5,6 @@ and transaction management in a thread-safe way. It includes context manager sup
 for automatic session cleanup and error handling.
 """
 
-import logging
 from contextlib import contextmanager
 from typing import Generator, Optional
 
@@ -14,7 +13,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, scoped_session, sessionmaker
 from sqlalchemy.pool import QueuePool
 
-logger = logging.getLogger(__name__)
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class SessionManager:
@@ -90,7 +91,11 @@ class SessionManager:
         try:
             session.close()
         except Exception as e:
-            logger.error(f"Error closing session: {e}")
+            logger.error(
+                "session_close_error",
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
         finally:
             self.remove_session()
 
@@ -123,11 +128,19 @@ class SessionManager:
             session.commit()
         except SQLAlchemyError as e:
             session.rollback()
-            logger.error(f"Database error in session: {e}")
+            logger.error(
+                "database_transaction_error",
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             raise
         except Exception as e:
             session.rollback()
-            logger.error(f"Unexpected error in session: {e}")
+            logger.error(
+                "session_unexpected_error",
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             raise
         finally:
             self.close_session(session)
@@ -157,10 +170,19 @@ class SessionManager:
                 last_error = e
                 retries += 1
                 logger.warning(
-                    f"Database operation failed (attempt {retries}/{max_retries}): {e}"
+                    "database_operation_retry",
+                    attempt=retries,
+                    max_retries=max_retries,
+                    error_type=type(e).__name__,
+                    error_message=str(e),
                 )
 
-        logger.error(f"Operation failed after {max_retries} retries: {last_error}")
+        logger.error(
+            "operation_failed_after_retries",
+            max_retries=max_retries,
+            error_type=type(last_error).__name__ if last_error else "Unknown",
+            error_message=str(last_error) if last_error else "No error details",
+        )
         if last_error is not None:
             raise last_error
         else:
@@ -199,4 +221,9 @@ class SessionManager:
                 delattr(self, "engine")
 
         except Exception as e:
-            logging.error(f"Error during session cleanup: {e}", exc_info=True)
+            logger.error(
+                "session_cleanup_error",
+                error_type=type(e).__name__,
+                error_message=str(e),
+                exc_info=True
+            )

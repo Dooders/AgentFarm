@@ -9,6 +9,10 @@ from typing import Any, Callable, Dict, List, Optional
 
 import pandas as pd
 
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 
 def get_valid_numeric_columns(df: pd.DataFrame, column_list: List[str]) -> List[str]:
     """
@@ -41,10 +45,8 @@ def split_and_compare_groups(
 
     Returns a dictionary with comparison results for each metric.
     """
-    import logging
-
     if df.empty or split_column not in df.columns:
-        logging.warning(f"Cannot perform group comparison: missing {split_column}")
+        logger.warning("cannot_perform_group_comparison", missing_column=split_column)
         return {}
 
     if split_value is None:
@@ -58,7 +60,7 @@ def split_and_compare_groups(
     high_group = df[df[split_column] > split_value]
     low_group = df[df[split_column] <= split_value]
 
-    logging.info(
+    logger.info(
         f"Analyzing {len(high_group)} high-{split_column} and {len(low_group)} low-{split_column} groups"
     )
 
@@ -84,7 +86,7 @@ def split_and_compare_groups(
                 "percent_difference": percent_diff,
             }
         except Exception as exc:
-            logging.warning(f"Error comparing metric {metric}: {exc}")
+            logger.warning(f"Error comparing metric {metric}: {exc}")
 
     return {"comparison_results": comparison}
 
@@ -99,10 +101,10 @@ def analyze_correlations(
     """
     Analyze correlations between a target column and multiple metric columns.
     """
-    import logging
-
     if df.empty or target_column not in df.columns:
-        logging.warning(f"Cannot perform correlation analysis: missing {target_column}")
+        logger.warning(
+            "cannot_perform_correlation_analysis", missing_column=target_column
+        )
         return {}
 
     if metric_columns is None:
@@ -123,7 +125,7 @@ def analyze_correlations(
                 if not pd.isna(corr):
                     correlations[col] = pd.to_numeric(corr, errors="coerce")
         except Exception as exc:
-            logging.warning(f"Error calculating correlation for {col}: {exc}")
+            logger.warning(f"Error calculating correlation for {col}: {exc}")
 
     return correlations
 

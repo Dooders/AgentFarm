@@ -8,7 +8,6 @@ including random seed management, environment tracking, and result validation.
 
 import hashlib
 import json
-import logging
 import os
 import platform
 import random
@@ -20,7 +19,9 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-logger = logging.getLogger(__name__)
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class ReproducibilityManager:
@@ -69,7 +70,7 @@ class ReproducibilityManager:
         except ImportError:
             pass
 
-        logger.info(f"Random seeds set to {self.seed}")
+        logger.info("random_seeds_set", seed=self.seed)
 
     def get_environment_info(self) -> Dict[str, Any]:
         """Get captured environment information."""
@@ -605,5 +606,5 @@ def create_reproducibility_report(
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2, default=str)
 
-    logger.info(f"Reproducibility report saved to {output_path}")
+    logger.info("reproducibility_report_saved", output_path=str(output_path))
     return output_path

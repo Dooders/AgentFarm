@@ -35,7 +35,6 @@ Usage:
 """
 
 import json
-import logging
 import os
 import random
 import time
@@ -50,37 +49,13 @@ from farm.config import SimulationConfig
 from farm.core.agent import BaseAgent
 from farm.core.environment import Environment
 from farm.utils.identity import Identity
+from farm.utils.logging_config import get_logger
+from farm.utils.logging_utils import log_simulation, log_step
 
 # Shared Identity instance for efficiency
 _shared_identity = Identity()
 
-
-def setup_logging(log_dir: str = "logs") -> None:
-    """
-    Configure the logging system for the simulation.
-
-    Parameters
-    ----------
-    log_dir : str
-        Directory to store log files
-    """
-    # Create absolute path for log directory
-    log_dir = os.path.abspath(log_dir)
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-
-    log_file = os.path.join(log_dir, "simulation.log")
-
-    # Add more detailed logging format and ensure file is writable
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
-        handlers=[logging.FileHandler(log_file, mode="w")],
-        force=True,  # This ensures logging config is reset
-    )
-
-    # Test log file creation
-    logging.info(f"Logging initialized. Log file: {log_file}")
+logger = get_logger(__name__)
 
 
 def create_initial_agents(
@@ -107,8 +82,11 @@ def create_initial_agents(
         List of initial agent positions
     """
     positions = []
-    logging.info(
-        f"Creating initial agents - System: {num_system_agents}, Independent: {num_independent_agents}, Control: {num_control_agents}"
+    logger.info(
+        "creating_initial_agents",
+        num_system_agents=num_system_agents,
+        num_independent_agents=num_independent_agents,
+        num_control_agents=num_control_agents,
     )
 
     # Use a seeded random number generator for deterministic agent creation
@@ -139,7 +117,7 @@ def create_initial_agents(
         environment.add_agent(agent)
         positions.append(position)
 
-    logging.info(f"Created {num_system_agents} BaseAgents (system type)")
+    logger.info("agents_created", agent_type="system", count=num_system_agents)
 
     # Create independent agents (now using BaseAgent)
     for _ in range(num_independent_agents):
@@ -156,7 +134,9 @@ def create_initial_agents(
         environment.add_agent(agent)
         positions.append(position)
 
-    logging.info(f"Created {num_independent_agents} BaseAgents (independent type)")
+    logger.info(
+        "agents_created", agent_type="independent", count=num_independent_agents
+    )
 
     # Create control agents (now using BaseAgent)
     for _ in range(num_control_agents):
@@ -173,8 +153,8 @@ def create_initial_agents(
         environment.add_agent(agent)
         positions.append(position)
 
-    logging.info(f"Created {num_control_agents} BaseAgents (control type)")
-    logging.info(f"Total initial agents: {len(environment.agents)}")
+    logger.info("agents_created", agent_type="control", count=num_control_agents)
+    logger.info("initial_agents_complete", total_agents=len(environment.agents))
 
     return positions
 
@@ -205,9 +185,11 @@ def init_random_seeds(seed=None):
                 # torch.backends.cudnn.deterministic = True
                 # torch.backends.cudnn.benchmark = False
         except ImportError:
-            logging.info("PyTorch not available, skipping torch seed initialization")
+            logger.info(
+                "pytorch_unavailable", message="Skipping torch seed initialization"
+            )
 
-        logging.info(f"Random seeds initialized with seed {seed}")
+        logger.info("random_seeds_initialized", seed=seed, deterministic=True)
 
 
 def run_simulation(
@@ -257,12 +239,14 @@ def run_simulation(
         # Initialize all random seeds
         init_random_seeds(seed)
 
-    # Setup logging
-    setup_logging()
-    logging.info(f"Starting simulation with ID: {simulation_id}")
-    logging.info(f"Configuration: {config}")
-    if seed is not None:
-        logging.info(f"Using random seed: {seed}")
+    # Log simulation start
+    logger.info(
+        "simulation_starting",
+        simulation_id=simulation_id,
+        seed=seed,
+        num_steps=num_steps,
+        environment_size=(config.environment.width, config.environment.height),
+    )
 
     # Initialize start_time here so it's available in both code paths
     start_time = datetime.now()
@@ -277,7 +261,10 @@ def run_simulation(
 
         # Handle in-memory database configuration
         if config.database.use_in_memory_db:
-            logging.info("Using in-memory database for improved performance")
+            logger.info(
+                "using_in_memory_database",
+                memory_limit_mb=config.database.in_memory_db_memory_limit_mb,
+            )
             from farm.database.database import InMemorySimulationDatabase
 
             # Create environment with in-memory database
@@ -313,9 +300,16 @@ def run_simulation(
                     os.remove(db_path)
                 except PermissionError:
                     # If can't remove, create unique filename
+                    original_db_path = (
+                        db_path  # Store original path before modification
+                    )
                     base, ext = os.path.splitext(db_path)
                     db_path = f"{base}_{int(time.time())}{ext}"
-                    logging.warning(f"Using alternative database path: {db_path}")
+                    logger.warning(
+                        "database_path_changed",
+                        original_path=original_db_path,
+                        new_path=db_path,
+                    )
 
             # Create parent directory if it doesn't exist
             if db_path is not None:
@@ -342,7 +336,7 @@ def run_simulation(
             config_path = f"{path}/config.json"
             with open(config_path, "w", encoding="utf-8") as f:
                 json.dump(config.to_dict(), f, indent=4)
-            logging.info(f"Saved configuration to {config_path}")
+            logger.info("configuration_saved", config_path=config_path)
 
         # Ensure simulation record exists before saving configuration
         if environment.db is not None:
@@ -373,23 +367,34 @@ def run_simulation(
 
         # Main simulation loop
         # Disable tqdm progress bar in CI environments to avoid output interference
-        disable_tqdm = os.environ.get("CI", "").lower() in ("true", "1") or os.environ.get("GITHUB_ACTIONS", "").lower() == "true"
-        for step in tqdm(range(num_steps), desc="Simulation progress", unit="step", disable=disable_tqdm):
-            logging.info(f"Starting step {step}/{num_steps}")
+        disable_tqdm = (
+            os.environ.get("CI", "").lower() in ("true", "1")
+            or os.environ.get("GITHUB_ACTIONS", "").lower() == "true"
+        )
+        for step in tqdm(
+            range(num_steps),
+            desc="Simulation progress",
+            unit="step",
+            disable=disable_tqdm,
+        ):
+            logger.debug("step_starting", step=step, total_steps=num_steps)
 
             # Process agents in batches
             alive_agents = [agent for agent in environment.agent_objects if agent.alive]
 
             # Stop if no agents are alive
             if len(alive_agents) < 1:
-                logging.info(
-                    f"Simulation stopped early at step {step} - no agents remaining"
+                logger.info(
+                    "simulation_stopped_early",
+                    step=step,
+                    total_steps=num_steps,
+                    reason="no_agents_remaining",
                 )
                 break
 
             # Get batch size from config, with fallback to default
-            perf_cfg = getattr(config, 'performance', None)
-            batch_size = getattr(perf_cfg, 'agent_processing_batch_size', 32)
+            perf_cfg = getattr(config, "performance", None)
+            batch_size = getattr(perf_cfg, "agent_processing_batch_size", 32)
 
             # Process batches without a nested progress bar
             batch_ranges = list(range(0, len(alive_agents), batch_size))
@@ -417,7 +422,7 @@ def run_simulation(
                         os.path.dirname(os.path.abspath(db_path)), exist_ok=True
                     )
 
-                    logging.info(f"Persisting in-memory database to {db_path}")
+                    logger.info("persisting_in_memory_database", db_path=db_path)
                     # Persist with selected tables or all tables
                     from farm.database.database import InMemorySimulationDatabase
 
@@ -427,26 +432,46 @@ def run_simulation(
                             tables=config.database.in_memory_tables_to_persist,
                             show_progress=True,
                         )
-                        logging.info(
-                            f"Database persistence completed: {stats['rows_copied']} rows in {stats['duration']:.2f} seconds"
+                        logger.info(
+                            "database_persisted",
+                            rows_copied=stats["rows_copied"],
+                            duration_seconds=round(stats["duration"], 2),
+                            db_path=db_path,
                         )
                     else:
-                        logging.warning(
-                            "Database is not an InMemorySimulationDatabase, skipping persistence"
+                        logger.warning(
+                            "database_persistence_skipped",
+                            reason="not_in_memory_database",
+                            db_type=type(environment.db).__name__,
                         )
                 except Exception as e:
-                    logging.error(f"Failed to persist in-memory database: {e}")
+                    logger.error(
+                        "database_persistence_failed",
+                        error_type=type(e).__name__,
+                        error_message=str(e),
+                        exc_info=True,
+                    )
 
             # Close database connection
             environment.db.close()
 
     except Exception as e:
-        logging.error(f"Simulation failed: {str(e)}", exc_info=True)
+        logger.error(
+            "simulation_failed",
+            simulation_id=simulation_id,
+            error_type=type(e).__name__,
+            error_message=str(e),
+            exc_info=True,
+        )
         if "environment" in locals():
             try:
                 environment.cleanup()
             except Exception as cleanup_error:
-                logging.error(f"Cleanup error: {cleanup_error}")
+                logger.error(
+                    "cleanup_error",
+                    error_type=type(cleanup_error).__name__,
+                    error_message=str(cleanup_error),
+                )
         raise
     finally:
         if "environment" in locals():
@@ -455,10 +480,19 @@ def run_simulation(
                     environment.db.close()
                 environment.cleanup()
             except Exception as e:
-                logging.error(f"Final cleanup error: {e}")
+                logger.error(
+                    "final_cleanup_error",
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                )
 
     elapsed_time = datetime.now() - start_time
-    logging.info(f"Simulation completed in {elapsed_time.total_seconds():.2f} seconds")
+    logger.info(
+        "simulation_completed",
+        simulation_id=simulation_id,
+        duration_seconds=round(elapsed_time.total_seconds(), 2),
+        total_steps=num_steps,
+    )
     return environment
 
 

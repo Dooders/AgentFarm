@@ -6,7 +6,7 @@ identify trends, and generate insights.
 """
 
 import json
-import logging
+from farm.utils.logging_config import get_logger
 import os
 from typing import Any, Dict, List, Optional
 
@@ -23,7 +23,7 @@ from farm.analysis.social_behavior.compute import (
     compute_spatial_clustering,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def analyze_social_behaviors(session: Session) -> Dict[str, Any]:

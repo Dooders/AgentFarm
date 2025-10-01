@@ -10,7 +10,6 @@ resource dynamics, and simulation outcomes.
 This module provides statistically rigorous analysis methods with proper
 validation, confidence intervals, and significance testing.
 """
-import logging
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
@@ -19,6 +18,10 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from scipy import stats
+
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 from scipy.signal import find_peaks, periodogram
 from scipy.stats import chi2_contingency, kruskal, mannwhitneyu, pearsonr, spearmanr
 
@@ -78,11 +81,7 @@ except ImportError:
     AnalysisValidator = None
     create_reproducibility_report = None
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+# Logging already configured via get_logger import above
 
 
 class SimulationAnalyzer:
@@ -107,7 +106,7 @@ class SimulationAnalyzer:
         else:
             self.repro_manager = None
             self.validator = None
-            logger.warning("Reproducibility features not available")
+            logger.warning("reproducibility_features_unavailable")
 
     def analyze_population_dynamics(self, simulation_id: int) -> Dict[str, Any]:
         """Analyze how agent populations change throughout the simulation with statistical validation.
@@ -118,7 +117,7 @@ class SimulationAnalyzer:
         Returns:
             Dictionary containing population dynamics data and statistical analysis
         """
-        logger.info(f"Analyzing population dynamics for simulation {simulation_id}")
+        logger.info("analyzing_population_dynamics", simulation_id=simulation_id)
 
         steps = (
             self.session.query(SimulationStepModel)
@@ -2924,7 +2923,8 @@ def main():
 
     # Configure logging level
     if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
+        # Note: Logging level is configured via structlog in the main entry points
+        pass
 
     try:
         # Validate inputs

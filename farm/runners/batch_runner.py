@@ -1,5 +1,4 @@
 import itertools
-import logging
 import os
 from datetime import datetime
 from multiprocessing import Pool
@@ -8,7 +7,10 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 
 from farm.config import SimulationConfig
-from farm.core.simulation import run_simulation, setup_logging
+from farm.core.simulation import run_simulation
+from farm.utils.logging_config import configure_logging, get_logger
+
+logger = get_logger(__name__)
 
 
 class BatchRunner:
@@ -67,14 +69,25 @@ class BatchRunner:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         batch_dir = f"batch_results/{experiment_name}_{timestamp}"
         os.makedirs(batch_dir, exist_ok=True)
-        setup_logging(f"{batch_dir}/batch.log")
+        configure_logging(
+            environment="development",
+            log_dir=batch_dir,
+            log_level="INFO",
+            json_logs=True,
+            include_process_info=True,
+        )
 
         # Generate all parameter combinations
         param_names = list(self.parameter_variations.keys())
         param_values = list(self.parameter_variations.values())
         combinations = list(itertools.product(*param_values))
 
-        logging.info(f"Starting batch run with {len(combinations)} combinations")
+        logger.info(
+            "batch_run_starting",
+            num_combinations=len(combinations),
+            num_steps=num_steps,
+            parallel=True,
+        )
 
         # Prepare arguments for parallel processing
         args = [
@@ -122,8 +135,7 @@ class BatchRunner:
                 environment = parts[1] if len(parts) > 1 and parts[1] else "development"
                 profile = parts[2] if len(parts) > 2 and parts[2] else None
                 config = SimulationConfig.from_centralized_config(
-                    environment=environment,
-                    profile=profile
+                    environment=environment, profile=profile
                 )
             else:
                 config = SimulationConfig.from_yaml(self.config_file_path)
@@ -168,7 +180,11 @@ class BatchRunner:
         """
         results_df = pd.DataFrame(self.results)
         results_df.to_csv(f"{batch_dir}/results.csv", index=False)
-        logging.info(f"Results saved to {batch_dir}/results.csv")
+        logger.info(
+            "batch_results_saved",
+            results_file=f"{batch_dir}/results.csv",
+            num_results=len(self.results),
+        )
 
 
 def run_simulation_wrapper(args):
@@ -182,8 +198,7 @@ def run_simulation_wrapper(args):
                 environment = parts[1] if len(parts) > 1 and parts[1] else "development"
                 profile = parts[2] if len(parts) > 2 and parts[2] else None
                 config_copy = SimulationConfig.from_centralized_config(
-                    environment=environment,
-                    profile=profile
+                    environment=environment, profile=profile
                 )
             else:
                 config_copy = SimulationConfig.from_yaml(config_file_path)
@@ -194,5 +209,10 @@ def run_simulation_wrapper(args):
             setattr(config_copy, param, value)
         return run_simulation(num_steps, config_copy, path)
     except Exception as e:
-        logging.error(f"Simulation failed with params {params}: {str(e)}")
+        logger.error(
+            "batch_simulation_failed",
+            params=params,
+            error_type=type(e).__name__,
+            error_message=str(e),
+        )
         return None

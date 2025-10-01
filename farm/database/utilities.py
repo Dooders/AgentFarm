@@ -23,7 +23,9 @@ from typing import Any, Callable, Dict, Optional, Tuple
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-logger = logging.getLogger(__name__)
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def safe_json_loads(data: str) -> Optional[Dict]:

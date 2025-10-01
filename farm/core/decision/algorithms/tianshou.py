@@ -7,7 +7,6 @@ Windows-compatible alternative to other RL libraries.
 
 from __future__ import annotations
 
-import logging
 from typing import Any, Dict, Optional, Tuple, Union
 
 import numpy as np
@@ -15,7 +14,9 @@ import gymnasium
 
 from .rl_base import RLAlgorithm, SimpleReplayBuffer
 
-logger = logging.getLogger(__name__)
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class TianshouWrapper(RLAlgorithm):

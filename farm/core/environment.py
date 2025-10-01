@@ -34,27 +34,25 @@ Notes
 - In-memory DB mode is supported for tests or ephemeral runs
 """
 
-import logging
 import math
 import random
-from collections import defaultdict
-from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import time as _time
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 from gymnasium import spaces
 from pettingzoo import AECEnv
 
+from farm.config import ResourceConfig, SimulationConfig
+
 # Use action registry for cleaner action management
 from farm.core.action import ActionType, action_registry
 from farm.core.channels import NUM_CHANNELS
-from farm.config import SimulationConfig, ResourceConfig
+from farm.core.geometry import discretize_position_continuous
 from farm.core.metrics_tracker import MetricsTracker
 from farm.core.observations import AgentObservation, ObservationConfig
 from farm.core.resource_manager import ResourceManager
-from farm.core.geometry import discretize_position_continuous
 from farm.core.services.implementations import (
     EnvironmentAgentLifecycleService,
     EnvironmentLoggingService,
@@ -67,11 +65,9 @@ from farm.core.spatial import SpatialIndex
 from farm.core.state import EnvironmentState
 from farm.database.utilities import setup_db
 from farm.utils.identity import Identity, IdentityConfig
+from farm.utils.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
-
-
- 
+logger = get_logger(__name__)
 
 
 def bilinear_distribute_value(
@@ -242,7 +238,9 @@ class Environment(AECEnv):
         self.simulation_id = simulation_id or self.identity.simulation_id()
 
         # Setup database and get initialized database instance
-        db_result = setup_db(db_path, self.simulation_id, config.to_dict() if config else None)
+        db_result = setup_db(
+            db_path, self.simulation_id, config.to_dict() if config else None
+        )
         if isinstance(db_result, tuple):
             self.db = db_result[0]  # Extract database object from tuple
         else:
@@ -274,18 +272,21 @@ class Environment(AECEnv):
 
         # Initialize spatial index for efficient spatial queries with batch updates
         from farm.utils.config_utils import resolve_spatial_index_config
+
         spatial_config = resolve_spatial_index_config(config)
-        
+
         if spatial_config:
             self.spatial_index = SpatialIndex(
-                self.width, 
+                self.width,
                 self.height,
                 enable_batch_updates=spatial_config.enable_batch_updates,
                 region_size=spatial_config.region_size,
                 max_batch_size=spatial_config.max_batch_size,
-                dirty_region_batch_size=getattr(spatial_config, "dirty_region_batch_size", 10),
+                dirty_region_batch_size=getattr(
+                    spatial_config, "dirty_region_batch_size", 10
+                ),
             )
-            
+
             # Enable additional index types if configured
             if spatial_config.enable_quadtree_indices:
                 self.enable_quadtree_indices()
@@ -294,14 +295,14 @@ class Environment(AECEnv):
         else:
             # Default configuration with batch updates enabled
             self.spatial_index = SpatialIndex(
-                self.width, 
+                self.width,
                 self.height,
                 enable_batch_updates=True,
                 region_size=50.0,
                 max_batch_size=100,
                 dirty_region_batch_size=10,
             )
-        
+
         # Provide spatial service via adapter around spatial_index
         self.spatial_service = SpatialIndexAdapter(self.spatial_index)
 
@@ -415,7 +416,9 @@ class Environment(AECEnv):
                 missing_actions.append(action_name)
 
         if missing_actions:
-            logging.warning("Missing actions in registry: %s", missing_actions)
+            logger.warning(
+                "missing_actions_in_registry", missing_actions=missing_actions
+            )
             # Remove missing actions from mapping
             self._action_mapping = {
                 k: v
@@ -425,10 +428,10 @@ class Environment(AECEnv):
 
         # Log the final action mapping
         available_actions = list(self._action_mapping.values())
-        logging.info(
-            "Initialized action mapping with %s actions: %s",
-            len(available_actions),
-            available_actions,
+        logger.info(
+            "action_mapping_initialized",
+            action_count=len(available_actions),
+            available_actions=available_actions,
         )
 
     @property
@@ -443,43 +446,45 @@ class Environment(AECEnv):
     def process_batch_spatial_updates(self, force: bool = False) -> None:
         """
         Process any pending batch spatial updates.
-        
+
         Parameters
         ----------
         force : bool
             Force processing even if batch is not full
         """
-        if hasattr(self.spatial_index, 'process_batch_updates'):
+        if hasattr(self.spatial_index, "process_batch_updates"):
             self.spatial_index.process_batch_updates(force=force)
 
     def get_spatial_performance_stats(self) -> Dict[str, Any]:
         """Get performance statistics for spatial indexing and batch updates."""
         stats = {}
-        
+
         # Get basic spatial index stats
-        if hasattr(self.spatial_index, 'get_stats'):
+        if hasattr(self.spatial_index, "get_stats"):
             stats.update(self.spatial_index.get_stats())
-        
+
         # Get batch update stats if available
-        if hasattr(self.spatial_index, 'get_batch_update_stats'):
+        if hasattr(self.spatial_index, "get_batch_update_stats"):
             batch_stats = self.spatial_index.get_batch_update_stats()
-            stats['batch_updates'] = batch_stats
-        
+            stats["batch_updates"] = batch_stats
+
         # Get perception profile stats
-        if hasattr(self, 'get_perception_profile'):
+        if hasattr(self, "get_perception_profile"):
             perception_stats = self.get_perception_profile()
-            stats['perception'] = perception_stats
-        
+            stats["perception"] = perception_stats
+
         return stats
 
-    def enable_batch_spatial_updates(self, region_size: float = 50.0, max_batch_size: int = 100) -> None:
+    def enable_batch_spatial_updates(
+        self, region_size: float = 50.0, max_batch_size: int = 100
+    ) -> None:
         """Enable batch spatial updates with the specified configuration."""
-        if hasattr(self.spatial_index, 'enable_batch_updates'):
+        if hasattr(self.spatial_index, "enable_batch_updates"):
             self.spatial_index.enable_batch_updates(region_size, max_batch_size)
 
     def disable_batch_spatial_updates(self) -> None:
         """Disable batch spatial updates and process any pending updates."""
-        if hasattr(self.spatial_index, 'disable_batch_updates'):
+        if hasattr(self.spatial_index, "disable_batch_updates"):
             self.spatial_index.disable_batch_updates()
 
     def get_nearby_agents(
@@ -606,7 +611,9 @@ class Environment(AECEnv):
         )
 
         self._spatial_hash_enabled = True
-        logger.info("Spatial hash indices enabled for spatial queries (cell_size=%s)", cell_size)
+        logger.info(
+            "Spatial hash indices enabled for spatial queries (cell_size=%s)", cell_size
+        )
 
     # Resource IDs are managed by ResourceManager
 
@@ -763,7 +770,11 @@ class Environment(AECEnv):
                 details=details,
             )
         except (ValueError, TypeError, AttributeError) as e:
-            logger.error("Failed to log interaction edge: %s", e)
+            logger.error(
+                "interaction_logging_failed",
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
 
     def log_reproduction_event(
         self,
@@ -832,7 +843,11 @@ class Environment(AECEnv):
                 offspring_generation=offspring_generation,
             )
         except (ValueError, TypeError, AttributeError) as e:
-            logger.error("Failed to log reproduction event: %s", e)
+            logger.error(
+                "reproduction_logging_failed",
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
 
     def update(self) -> None:
         """Update environment state for current time step.
@@ -902,7 +917,7 @@ class Environment(AECEnv):
             self.time += 1
 
         except (RuntimeError, ValueError, AttributeError) as e:
-            logging.error("Error in environment update: %s", e)
+            logger.error("environment_update_error", error=str(e), exc_info=True)
             raise
 
     def _calculate_metrics(self) -> Dict[str, Any]:
@@ -1060,11 +1075,18 @@ class Environment(AECEnv):
         """
         if hasattr(self, "resource_manager") and self.resource_manager is not None:
             # Ensure memmap file is flushed; delete based on config (default: keep for reuse)
-            delete_memmap = getattr(self.config, "resources", ResourceConfig()).memmap_delete_on_close
+            delete_memmap = getattr(
+                self.config, "resources", ResourceConfig()
+            ).memmap_delete_on_close
             try:
                 self.resource_manager.cleanup_memmap(delete_file=delete_memmap)
             except Exception as e:
-                logger.exception("Error during memmap cleanup in Environment.close(): %s", e)
+                logger.error(
+                    "memmap_cleanup_failed",
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                    exc_info=True,
+                )
         if hasattr(self, "db") and self.db is not None:
             self.db.close()
 
@@ -1133,9 +1155,10 @@ class Environment(AECEnv):
                 )
         except (AttributeError, ValueError, TypeError) as e:
             logger.error(
-                "Failed to inject services for agent %s: %s",
-                getattr(agent, "agent_id", "?"),
-                e,
+                "service_injection_failed",
+                agent_id=getattr(agent, "agent_id", "unknown"),
+                error_type=type(e).__name__,
+                error_message=str(e),
             )
             raise
 
@@ -1205,7 +1228,11 @@ class Environment(AECEnv):
                     self.db.logger.flush_all_buffers()
                 self.db.close()
         except (OSError, AttributeError, ValueError) as e:
-            logger.error("Error during environment cleanup: %s", e)
+            logger.error(
+                "environment_cleanup_error",
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
 
     def __del__(self) -> None:
         """Ensure cleanup on deletion.
@@ -1397,10 +1424,10 @@ class Environment(AECEnv):
 
         # Log the update
         available_actions = list(self._action_mapping.values())
-        logging.info(
-            "Action space updated: %s actions available: %s",
-            len(available_actions),
-            available_actions,
+        logger.info(
+            "action_space_updated",
+            action_count=len(available_actions),
+            available_actions=available_actions,
         )
 
     def get_initial_agent_count(self) -> int:
@@ -1544,7 +1571,9 @@ class Environment(AECEnv):
                 y1 = ay + R + 1
                 x0 = ax - R
                 x1 = ax + R + 1
-                window_np = self.resource_manager.get_resource_window(y0, y1, x0, x1, normalize=True)
+                window_np = self.resource_manager.get_resource_window(
+                    y0, y1, x0, x1, normalize=True
+                )
                 # Convert to torch tensor of correct dtype/device with minimal copies
                 if (
                     self.observation_config.device == "cpu"
@@ -1561,18 +1590,35 @@ class Environment(AECEnv):
                     )
             else:
                 _tq0 = _time.perf_counter()
-                nearby = self.spatial_index.get_nearby(agent.position, R + 1, ["resources"])
+                nearby = self.spatial_index.get_nearby(
+                    agent.position, R + 1, ["resources"]
+                )
                 nearby_resources = nearby.get("resources", [])
                 _tq1 = _time.perf_counter()
-                self._perception_profile["spatial_query_time_s"] += max(0.0, _tq1 - _tq0)
+                self._perception_profile["spatial_query_time_s"] += max(
+                    0.0, _tq1 - _tq0
+                )
         except AttributeError as e:
-            logger.warning("Spatial or resource manager not properly initialized: %s", e)
+            logger.warning(
+                "spatial_resource_init_issue",
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             nearby_resources = []
         except (ValueError, TypeError) as e:
-            logger.warning("Invalid parameters during observation: %s", e)
+            logger.warning(
+                "invalid_observation_parameters",
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             nearby_resources = []
-        except Exception:
-            logger.exception("Unexpected error building resource layer")
+        except Exception as e:
+            logger.error(
+                "resource_layer_build_error",
+                error_type=type(e).__name__,
+                error_message=str(e),
+                exc_info=True,
+            )
             nearby_resources = []
 
         if not used_memmap and use_bilinear:
@@ -1678,10 +1724,10 @@ class Environment(AECEnv):
 
         # Validate action is within enabled action space bounds
         if action < 0 or action >= len(self._enabled_action_types):
-            logging.debug(
-                "Action %s is out of bounds for enabled action space (size: %s)",
-                action,
-                len(self._enabled_action_types),
+            logger.debug(
+                "action_out_of_bounds",
+                action=action,
+                action_space_size=len(self._enabled_action_types),
             )
             return
 
@@ -1709,14 +1755,26 @@ class Environment(AECEnv):
                             resources_before=resources_before,
                             resources_after=agent.resource_level,
                             reward=0,  # Reward will be calculated later
-                            details=action_result.get("details", {}) if isinstance(action_result, dict) else {}
+                            details=(
+                                action_result.get("details", {})
+                                if isinstance(action_result, dict)
+                                else {}
+                            ),
                         )
                     except Exception as e:
-                        logging.warning(f"Failed to log agent action {action_name}: {e}")
+                        logger.warning(
+                            "failed_to_log_agent_action",
+                            action_name=action_name,
+                            error=str(e),
+                            exc_info=True,
+                        )
+                        logger.warning(f"Failed to log agent action {action_name}: {e}")
             else:
-                logging.warning("Action '%s' not found in action registry", action_name)
+                logger.warning(
+                    "action_not_found_in_action_registry", action_name=action_name
+                )
         else:
-            logging.debug(
+            logger.debug(
                 "Action %s (mapped to %s) not available in current simulation configuration",
                 action,
                 action_type,

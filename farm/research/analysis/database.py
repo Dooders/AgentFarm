@@ -1,4 +1,3 @@
-import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -17,12 +16,9 @@ from farm.research.analysis.util import (
     validate_population_data,
     validate_resource_level_data,
 )
+from farm.utils.logging_config import get_logger
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def find_simulation_databases(base_path: str) -> List[str]:

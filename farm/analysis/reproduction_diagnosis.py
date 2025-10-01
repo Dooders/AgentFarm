@@ -1,6 +1,5 @@
 """Script to diagnose reproduction issues in the simulation."""
 
-import logging
 from typing import Dict, List, Tuple
 
 import matplotlib.pyplot as plt
@@ -8,8 +7,9 @@ import numpy as np
 import pandas as pd
 from sqlalchemy import create_engine
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 class ReproductionDiagnostics:
     def __init__(self, db_path: str):

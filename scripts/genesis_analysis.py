@@ -14,7 +14,9 @@ defined in analysis_config.py and saves results to the OUTPUT_PATH.
 
 import glob
 import json
-import logging
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 import os
 import sys
 import traceback
@@ -64,7 +66,7 @@ def check_database_schema(engine) -> bool:
     """
     inspector = inspect(engine)
     table_names = inspector.get_table_names()
-    logging.info(f"Found tables in database: {', '.join(table_names)}")
+    logger.info(f"Found tables in database: {', '.join(table_names)}")
 
     # Define required tables with possible alternative names
     required_tables = {
@@ -79,10 +81,10 @@ def check_database_schema(engine) -> bool:
         for name in possible_names:
             if name in table_names:
                 found = True
-                logging.info(f"Found required table '{table_type}' as '{name}'")
+                logger.info(f"Found required table '{table_type}' as '{name}'")
                 break
         if not found:
-            logging.error(
+            logger.error(
                 f"Missing required table '{table_type}'. Expected one of: {', '.join(possible_names)}"
             )
             return False
@@ -90,7 +92,7 @@ def check_database_schema(engine) -> bool:
     # Additional schema validation
     for table_name in table_names:
         columns = inspector.get_columns(table_name)
-        logging.info(
+        logger.info(
             f"Table '{table_name}' has {len(columns)} columns: {', '.join(col['name'] for col in columns)}"
         )
 
@@ -136,13 +138,13 @@ def analyze_single_simulation(
     Dict[str, Any]
         Analysis results
     """
-    logging.info(f"Analyzing simulation at {sim_path}")
+    logger.info(f"Analyzing simulation at {sim_path}")
 
     # Create database connection
     db_path = os.path.join(sim_path, "simulation.db")
 
     if not os.path.exists(db_path):
-        logging.error(f"Database not found at {db_path}")
+        logger.error(f"Database not found at {db_path}")
         return {"error": f"Database not found at {db_path}"}
 
     try:
@@ -150,17 +152,17 @@ def analyze_single_simulation(
 
         # Check if the database has the required schema
         if not check_database_schema(engine):
-            logging.error(f"Database at {db_path} does not have the required tables")
+            logger.error(f"Database at {db_path} does not have the required tables")
             return {"error": f"Database schema mismatch at {db_path}"}
 
         # Check if action_weights column exists
         has_action_weights = check_action_weights_column(engine)
         if has_action_weights:
-            logging.info(
+            logger.info(
                 f"Database at {db_path} has action_weights column. Full agent analysis will be performed."
             )
         else:
-            logging.warning(
+            logger.warning(
                 f"Database at {db_path} does not have the action_weights column. "
                 "Action weights analysis will be skipped."
             )
@@ -170,11 +172,11 @@ def analyze_single_simulation(
 
         try:
             # Analyze genesis factors
-            logging.info("Computing genesis factors...")
+            logger.info("Computing genesis factors...")
             genesis_results = analyze_genesis_factors(session)
 
             # Analyze critical period
-            logging.info(
+            logger.info(
                 f"Analyzing critical period (first {critical_period} steps)..."
             )
             critical_period_results = analyze_critical_period(session, critical_period)
@@ -192,12 +194,12 @@ def analyze_single_simulation(
             os.makedirs(sim_output_path, exist_ok=True)
 
             # Generate visualizations
-            logging.info("Generating visualizations...")
+            logger.info("Generating visualizations...")
             try:
                 plot_genesis_analysis_results(genesis_results, sim_output_path)
             except Exception as e:
-                logging.error(f"Error generating visualizations: {e}")
-                logging.debug(traceback.format_exc())
+                logger.error(f"Error generating visualizations: {e}")
+                logger.debug(traceback.format_exc())
 
             # Save results as JSON
             try:
@@ -206,24 +208,24 @@ def analyze_single_simulation(
                 ) as f:
                     json.dump(results, f, indent=2, default=str)
             except Exception as e:
-                logging.error(f"Error saving results to JSON: {e}")
-                logging.debug(traceback.format_exc())
+                logger.error(f"Error saving results to JSON: {e}")
+                logger.debug(traceback.format_exc())
 
-            logging.info(f"Analysis complete. Results saved to {sim_output_path}")
+            logger.info(f"Analysis complete. Results saved to {sim_output_path}")
 
             return results
 
         except Exception as e:
-            logging.error(f"Error analyzing simulation: {e}")
-            logging.debug(traceback.format_exc())
+            logger.error(f"Error analyzing simulation: {e}")
+            logger.debug(traceback.format_exc())
             return {"error": str(e)}
 
         finally:
             session.close()
 
     except Exception as e:
-        logging.error(f"Error connecting to database: {e}")
-        logging.debug(traceback.format_exc())
+        logger.error(f"Error connecting to database: {e}")
+        logger.debug(traceback.format_exc())
         return {"error": f"Database connection error: {str(e)}"}
 
 
@@ -247,7 +249,7 @@ def analyze_experiment(
     Dict[str, Any]
         Analysis results
     """
-    logging.info(f"Analyzing experiment at {experiment_path}")
+    logger.info(f"Analyzing experiment at {experiment_path}")
 
     # Create output directory
     os.makedirs(output_path, exist_ok=True)
@@ -262,15 +264,15 @@ def analyze_experiment(
                 if check_database_schema(engine):
                     sim_dbs.append(db_path)
                 else:
-                    logging.warning(f"Skipping {db_path} due to invalid schema")
+                    logger.warning(f"Skipping {db_path} due to invalid schema")
 
         if not sim_dbs:
             raise ValueError("No valid simulation databases found")
 
-        logging.info(f"Found {len(sim_dbs)} valid simulation databases")
+        logger.info(f"Found {len(sim_dbs)} valid simulation databases")
 
         # Analyze across simulations
-        logging.info("Performing cross-simulation analysis...")
+        logger.info("Performing cross-simulation analysis...")
         cross_sim_results = analyze_genesis_across_simulations(experiment_path)
 
         # Enhance cross-simulation results with additional metrics
@@ -282,7 +284,7 @@ def analyze_experiment(
         }
 
         # Aggregate critical period data across all simulations
-        logging.info("Aggregating critical period data...")
+        logger.info("Aggregating critical period data...")
         critical_period_data = []
         for db_path in sim_dbs:
             engine = create_engine(f"sqlite:///{db_path}")
@@ -292,7 +294,7 @@ def analyze_experiment(
                 period_results = analyze_critical_period(session, critical_period)
                 critical_period_data.append(period_results)
             except Exception as e:
-                logging.warning(f"Error analyzing critical period for {db_path}: {e}")
+                logger.warning(f"Error analyzing critical period for {db_path}: {e}")
             finally:
                 session.close()
 
@@ -313,7 +315,7 @@ def analyze_experiment(
             }
 
         # Generate all visualizations with proper error handling
-        logging.info("Generating comprehensive visualizations...")
+        logger.info("Generating comprehensive visualizations...")
 
         visualization_functions = [
             (
@@ -335,17 +337,17 @@ def analyze_experiment(
 
         for viz_name, viz_func, viz_args in visualization_functions:
             try:
-                logging.info(f"Generating {viz_name} visualization...")
+                logger.info(f"Generating {viz_name} visualization...")
                 viz_func(*viz_args)
-                logging.info(f"Successfully generated {viz_name} visualization")
+                logger.info(f"Successfully generated {viz_name} visualization")
             except Exception as e:
-                logging.error(f"Error generating {viz_name} visualization: {e}")
-                logging.debug(traceback.format_exc())
+                logger.error(f"Error generating {viz_name} visualization: {e}")
+                logger.debug(traceback.format_exc())
 
         # Additional visualization for critical period trends
         if critical_period_data:
             try:
-                logging.info("Generating Critical Period Trends visualization...")
+                logger.info("Generating Critical Period Trends visualization...")
                 plt.figure(figsize=(12, 6))
                 metrics = ["survival_rate", "reproduction_rate", "resource_efficiency"]
                 for metric in metrics:
@@ -360,21 +362,21 @@ def analyze_experiment(
                     os.path.join(output_path, "critical_period_trends.png"), dpi=150
                 )
                 plt.close()
-                logging.info(
+                logger.info(
                     "Successfully generated Critical Period Trends visualization"
                 )
             except Exception as e:
-                logging.error(
+                logger.error(
                     f"Error generating Critical Period Trends visualization: {e}"
                 )
-                logging.debug(traceback.format_exc())
+                logger.debug(traceback.format_exc())
 
         # Save comprehensive cross-simulation results
         try:
             results_file = os.path.join(output_path, "cross_simulation_analysis.json")
             with open(results_file, "w") as f:
                 json.dump(cross_sim_results, f, indent=2, default=str)
-            logging.info(f"Saved comprehensive analysis results to {results_file}")
+            logger.info(f"Saved comprehensive analysis results to {results_file}")
 
             # Generate summary report
             summary_file = os.path.join(output_path, "analysis_summary.txt")
@@ -419,21 +421,21 @@ def analyze_experiment(
                     for metric, value in summary.items():
                         f.write(f"{metric.replace('_', ' ').title()}: {value:.3f}\n")
 
-            logging.info(f"Generated analysis summary at {summary_file}")
+            logger.info(f"Generated analysis summary at {summary_file}")
 
         except Exception as e:
-            logging.error(f"Error saving analysis results: {e}")
-            logging.debug(traceback.format_exc())
+            logger.error(f"Error saving analysis results: {e}")
+            logger.debug(traceback.format_exc())
 
-        logging.info(
+        logger.info(
             f"Cross-simulation analysis complete. Results saved to {output_path}"
         )
 
         return cross_sim_results
 
     except Exception as e:
-        logging.error(f"Error in cross-simulation analysis: {e}")
-        logging.debug(traceback.format_exc())
+        logger.error(f"Error in cross-simulation analysis: {e}")
+        logger.debug(traceback.format_exc())
         return {"error": str(e)}
 
 
@@ -445,12 +447,12 @@ def main():
 
         # Clear the genesis directory if it exists
         if os.path.exists(genesis_output_path):
-            logging.info(f"Clearing existing genesis directory: {genesis_output_path}")
+            logger.info(f"Clearing existing genesis directory: {genesis_output_path}")
             if not safe_remove_directory(genesis_output_path):
                 # If we couldn't remove the directory after retries, create a new one with timestamp
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 genesis_output_path = os.path.join(OUTPUT_PATH, f"genesis_{timestamp}")
-                logging.info(f"Using alternative directory: {genesis_output_path}")
+                logger.info(f"Using alternative directory: {genesis_output_path}")
 
         # Create the directory
         os.makedirs(genesis_output_path, exist_ok=True)
@@ -458,18 +460,18 @@ def main():
         # Set up logging to the genesis directory
         log_file = setup_logging(genesis_output_path)
 
-        logging.info(f"Saving results to {genesis_output_path}")
+        logger.info(f"Saving results to {genesis_output_path}")
 
         # Find the most recent experiment folder in DATA_PATH
         if not os.path.exists(DATA_PATH):
-            logging.error(f"DATA_PATH does not exist: {DATA_PATH}")
+            logger.error(f"DATA_PATH does not exist: {DATA_PATH}")
             return
 
         experiment_folders = [
             d for d in glob.glob(os.path.join(DATA_PATH, "*")) if os.path.isdir(d)
         ]
         if not experiment_folders:
-            logging.error(f"No experiment folders found in {DATA_PATH}")
+            logger.error(f"No experiment folders found in {DATA_PATH}")
             return
 
         # Sort by modification time (most recent first)
@@ -489,7 +491,7 @@ def main():
                 # Sort by modification time (most recent first)
                 subdirs.sort(key=os.path.getmtime, reverse=True)
                 experiment_path = subdirs[0]
-                logging.info(
+                logger.info(
                     f"Using subdirectory as experiment path: {experiment_path}"
                 )
 
@@ -498,17 +500,17 @@ def main():
                     os.path.join(experiment_path, "iteration_*")
                 )
                 if not iteration_folders:
-                    logging.error(f"No iteration folders found in {experiment_path}")
+                    logger.error(f"No iteration folders found in {experiment_path}")
                     return
             else:
-                logging.error(f"No subdirectories found in {experiment_path}")
+                logger.error(f"No subdirectories found in {experiment_path}")
                 return
 
         # Check if reproduction events exist in the databases
         # For now, assume they exist and continue
         has_reproduction_events = True
         if not has_reproduction_events:
-            logging.warning(
+            logger.warning(
                 "No reproduction events found in databases. Reproduction analysis may be limited."
             )
 
@@ -516,14 +518,14 @@ def main():
         critical_period = 100  # Default value, can be adjusted if needed
 
         # Log analysis parameters
-        logging.info(f"Genesis Analysis started")
-        logging.info(f"Experiment path: {experiment_path}")
-        logging.info(f"Output path: {genesis_output_path}")
-        logging.info(f"Critical period: {critical_period} steps")
-        logging.info(f"Number of simulations to analyze: {len(iteration_folders)}")
+        logger.info(f"Genesis Analysis started")
+        logger.info(f"Experiment path: {experiment_path}")
+        logger.info(f"Output path: {genesis_output_path}")
+        logger.info(f"Critical period: {critical_period} steps")
+        logger.info(f"Number of simulations to analyze: {len(iteration_folders)}")
 
         # Analyze experiment as a whole
-        logging.info("Performing experiment-wide analysis...")
+        logger.info("Performing experiment-wide analysis...")
         cross_sim_results = analyze_experiment(
             experiment_path, genesis_output_path, critical_period
         )
@@ -531,46 +533,46 @@ def main():
         # Log summary of findings
         if "simulations" in cross_sim_results:
             sim_count = len(cross_sim_results["simulations"])
-            logging.info(f"Cross-simulation analysis included {sim_count} simulations.")
+            logger.info(f"Cross-simulation analysis included {sim_count} simulations.")
 
             # Log determinism analysis if available
             if "determinism_analysis" in cross_sim_results:
                 determinism = cross_sim_results["determinism_analysis"]
                 if "determinism_level" in determinism:
-                    logging.info(
+                    logger.info(
                         f"Determinism level: {determinism['determinism_level']}"
                     )
                 if "initial_advantage_realization_rate" in determinism:
                     rate = determinism["initial_advantage_realization_rate"]
-                    logging.info(f"Initial advantage realization rate: {rate:.2f}")
+                    logger.info(f"Initial advantage realization rate: {rate:.2f}")
 
             # Log predictive model performance if available
             if "predictive_models" in cross_sim_results:
                 models = cross_sim_results["predictive_models"]
                 if "dominance_prediction" in models:
                     accuracy = models["dominance_prediction"].get("accuracy", 0)
-                    logging.info(f"Dominance prediction accuracy: {accuracy:.2f}")
+                    logger.info(f"Dominance prediction accuracy: {accuracy:.2f}")
                 if "survival_prediction" in models:
                     r2 = models["survival_prediction"].get("r2_score", 0)
-                    logging.info(f"Survival prediction R² score: {r2:.2f}")
+                    logger.info(f"Survival prediction R² score: {r2:.2f}")
 
             # Log cross-simulation patterns if available
             if "cross_simulation_patterns" in cross_sim_results:
                 patterns = cross_sim_results["cross_simulation_patterns"]
                 if "advantage_consistency" in patterns:
                     consistency = patterns["advantage_consistency"]
-                    logging.info("\nAdvantage consistency across simulations:")
+                    logger.info("\nAdvantage consistency across simulations:")
                     for agent_type, value in consistency.items():
-                        logging.info(f"  {agent_type}: {value:.2f}")
+                        logger.info(f"  {agent_type}: {value:.2f}")
 
-        logging.info(
+        logger.info(
             f"\nGenesis Analysis completed. All results saved to {genesis_output_path}"
         )
-        logging.info(f"Log file saved to: {log_file}")
+        logger.info(f"Log file saved to: {log_file}")
 
     except Exception as e:
-        logging.error(f"Unhandled exception in main: {e}")
-        logging.debug(traceback.format_exc())
+        logger.error(f"Unhandled exception in main: {e}")
+        logger.debug(traceback.format_exc())
 
 
 if __name__ == "__main__":

@@ -1,4 +1,3 @@
-import logging
 import os
 from dataclasses import replace
 from datetime import datetime
@@ -13,14 +12,16 @@ from farm.core.analysis import analyze_simulation
 from farm.core.services import EnvConfigService
 from farm.core.simulation import run_simulation
 from farm.database.database import SimulationDatabase
+from farm.utils.logging_config import configure_logging, get_logger
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler("logs/api.log"), logging.StreamHandler()],
+# Configure structured logging
+configure_logging(
+    environment="production",
+    log_dir="logs",
+    log_level="INFO",
+    json_logs=True,
 )
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 app = Flask(__name__)
 CORS(app)
@@ -35,10 +36,15 @@ def create_simulation():
     """Create a new simulation with provided configuration."""
     try:
         config_data = request.json or {}
-        logger.info(f"Creating new simulation with config: {config_data}")
-
+        
         # Generate unique simulation ID
         sim_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        logger.info(
+            "api_simulation_create_request",
+            simulation_id=sim_id,
+            config_keys=list(config_data.keys()),
+        )
         db_path = f"results/simulation_{sim_id}.db"
 
         # Load and update config
@@ -88,7 +94,13 @@ def create_simulation():
         )
 
     except Exception as e:
-        logger.error(f"Error creating simulation: {str(e)}", exc_info=True)
+        logger.error(
+            "api_simulation_create_failed",
+            simulation_id=sim_id if 'sim_id' in locals() else "unknown",
+            error_type=type(e).__name__,
+            error_message=str(e),
+            exc_info=True,
+        )
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
@@ -105,7 +117,13 @@ def get_step(sim_id, step):
         return jsonify({"status": "success", "data": data})
 
     except Exception as e:
-        logger.error(f"Error getting step {step}: {str(e)}")
+        logger.error(
+            "api_get_step_failed",
+            simulation_id=sim_id,
+            step=step,
+            error_type=type(e).__name__,
+            error_message=str(e),
+        )
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
@@ -122,7 +140,12 @@ def get_analysis(sim_id):
         return jsonify({"status": "success", "data": analysis_results})
 
     except Exception as e:
-        logger.error(f"Error analyzing simulation: {str(e)}")
+        logger.error(
+            "api_analysis_failed",
+            simulation_id=sim_id,
+            error_type=type(e).__name__,
+            error_message=str(e),
+        )
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
@@ -154,7 +177,13 @@ def run_analysis_module(module_name):
             }
         )
     except Exception as e:
-        logger.error(f"Error running analysis module: {str(e)}", exc_info=True)
+        logger.error(
+            "api_analysis_module_failed",
+            module_name=module_name,
+            error_type=type(e).__name__,
+            error_message=str(e),
+            exc_info=True,
+        )
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
@@ -184,26 +213,36 @@ def export_simulation(sim_id):
         )
 
     except Exception as e:
-        logger.error(f"Error exporting data: {str(e)}")
+        logger.error(
+            "api_export_failed",
+            simulation_id=sim_id,
+            format=format,
+            error_type=type(e).__name__,
+            error_message=str(e),
+        )
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
 # WebSocket events
 @socketio.on("connect")
 def handle_connect():
-    logger.info("Client connected")
+    logger.info("websocket_client_connected", client_id=request.sid)
 
 
 @socketio.on("disconnect")
 def handle_disconnect():
-    logger.info("Client disconnected")
+    logger.info("websocket_client_disconnected", client_id=request.sid)
 
 
 @socketio.on("subscribe_simulation")
 def handle_subscribe(sim_id):
     """Subscribe to simulation updates."""
     if sim_id in active_simulations:
-        logger.info(f"Client subscribed to simulation {sim_id}")
+        logger.info(
+            "client_subscribed_to_simulation",
+            client_id=request.sid,
+            simulation_id=sim_id,
+        )
         emit("subscription_success", {"sim_id": sim_id})
     else:
         emit("subscription_error", {"message": f"Simulation {sim_id} not found"})
