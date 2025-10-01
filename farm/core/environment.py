@@ -34,7 +34,6 @@ Notes
 - In-memory DB mode is supported for tests or ephemeral runs
 """
 
-import logging
 import math
 import random
 from collections import defaultdict
@@ -67,8 +66,9 @@ from farm.core.spatial import SpatialIndex
 from farm.core.state import EnvironmentState
 from farm.database.utilities import setup_db
 from farm.utils.identity import Identity, IdentityConfig
+from farm.utils.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
  
@@ -763,7 +763,11 @@ class Environment(AECEnv):
                 details=details,
             )
         except (ValueError, TypeError, AttributeError) as e:
-            logger.error("Failed to log interaction edge: %s", e)
+            logger.error(
+                "interaction_logging_failed",
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
 
     def log_reproduction_event(
         self,
@@ -832,7 +836,11 @@ class Environment(AECEnv):
                 offspring_generation=offspring_generation,
             )
         except (ValueError, TypeError, AttributeError) as e:
-            logger.error("Failed to log reproduction event: %s", e)
+            logger.error(
+                "reproduction_logging_failed",
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
 
     def update(self) -> None:
         """Update environment state for current time step.
@@ -1064,7 +1072,12 @@ class Environment(AECEnv):
             try:
                 self.resource_manager.cleanup_memmap(delete_file=delete_memmap)
             except Exception as e:
-                logger.exception("Error during memmap cleanup in Environment.close(): %s", e)
+                logger.error(
+                    "memmap_cleanup_failed",
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                    exc_info=True,
+                )
         if hasattr(self, "db") and self.db is not None:
             self.db.close()
 
@@ -1133,9 +1146,10 @@ class Environment(AECEnv):
                 )
         except (AttributeError, ValueError, TypeError) as e:
             logger.error(
-                "Failed to inject services for agent %s: %s",
-                getattr(agent, "agent_id", "?"),
-                e,
+                "service_injection_failed",
+                agent_id=getattr(agent, "agent_id", "unknown"),
+                error_type=type(e).__name__,
+                error_message=str(e),
             )
             raise
 
@@ -1205,7 +1219,11 @@ class Environment(AECEnv):
                     self.db.logger.flush_all_buffers()
                 self.db.close()
         except (OSError, AttributeError, ValueError) as e:
-            logger.error("Error during environment cleanup: %s", e)
+            logger.error(
+                "environment_cleanup_error",
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
 
     def __del__(self) -> None:
         """Ensure cleanup on deletion.
@@ -1566,13 +1584,25 @@ class Environment(AECEnv):
                 _tq1 = _time.perf_counter()
                 self._perception_profile["spatial_query_time_s"] += max(0.0, _tq1 - _tq0)
         except AttributeError as e:
-            logger.warning("Spatial or resource manager not properly initialized: %s", e)
+            logger.warning(
+                "spatial_resource_init_issue",
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             nearby_resources = []
         except (ValueError, TypeError) as e:
-            logger.warning("Invalid parameters during observation: %s", e)
+            logger.warning(
+                "invalid_observation_parameters",
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             nearby_resources = []
         except Exception:
-            logger.exception("Unexpected error building resource layer")
+            logger.error(
+                "resource_layer_build_error",
+                error_type=type(e).__name__ if 'e' in locals() else "Unknown",
+                exc_info=True,
+            )
             nearby_resources = []
 
         if not used_memmap and use_bilinear:

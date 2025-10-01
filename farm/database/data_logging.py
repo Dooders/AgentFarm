@@ -13,7 +13,6 @@ Features:
 """
 
 import json
-import logging
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
@@ -31,11 +30,12 @@ from farm.database.models import (
     ResourceModel,
     SimulationStepModel,
 )
+from farm.utils.logging_config import get_logger
 
 if TYPE_CHECKING:
     from farm.database.database import SimulationDatabase
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -132,13 +132,25 @@ class DataLogger:
                 self.flush_action_buffer()
 
         except ValueError as e:
-            logger.error(f"Invalid input for agent action: {e}")
+            logger.error(
+                "invalid_agent_action_input",
+                error_type="ValueError",
+                error_message=str(e),
+            )
             raise
         except TypeError as e:
-            logger.error(f"Type error in agent action data: {e}")
+            logger.error(
+                "agent_action_type_error",
+                error_type="TypeError",
+                error_message=str(e),
+            )
             raise
         except Exception as e:
-            logger.error(f"Unexpected error logging agent action: {e}")
+            logger.error(
+                "agent_action_logging_error",
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             raise
 
     def log_interaction_edge(
@@ -178,7 +190,11 @@ class DataLogger:
                 self.flush_interaction_buffer()
 
         except Exception as e:
-            logger.error(f"Error logging interaction edge: {e}")
+            logger.error(
+                "interaction_edge_logging_error",
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             raise
 
     def log_learning_experience(
@@ -210,7 +226,11 @@ class DataLogger:
                 self.flush_learning_buffer()
 
         except Exception as e:
-            logger.error(f"Error logging learning experience: {e}")
+            logger.error(
+                "learning_experience_logging_error",
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             raise
 
     def log_health_incident(
@@ -240,7 +260,11 @@ class DataLogger:
                 self.flush_health_buffer()
 
         except Exception as e:
-            logger.error(f"Error logging health incident: {e}")
+            logger.error(
+                "health_incident_logging_error",
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             raise
 
     def log_reproduction_event(
@@ -292,7 +316,12 @@ class DataLogger:
             self.db._execute_in_transaction(_insert)
             self._action_buffer.clear()
         except SQLAlchemyError as e:
-            logger.error(f"Failed to flush action buffer: {e}")
+            logger.error(
+                "action_buffer_flush_failed",
+                buffer_size=len(self._action_buffer),
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             raise
 
     def flush_interaction_buffer(self) -> None:
@@ -309,7 +338,12 @@ class DataLogger:
             self.db._execute_in_transaction(_insert)
             self._interaction_buffer.clear()
         except SQLAlchemyError as e:
-            logger.error(f"Failed to flush interaction buffer: {e}")
+            logger.error(
+                "interaction_buffer_flush_failed",
+                buffer_size=len(self._interaction_buffer),
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             raise
 
     def flush_learning_buffer(self) -> None:
@@ -326,7 +360,12 @@ class DataLogger:
             self.db._execute_in_transaction(_insert)
             self._learning_exp_buffer.clear()
         except SQLAlchemyError as e:
-            logger.error(f"Failed to flush learning buffer: {e}")
+            logger.error(
+                "learning_buffer_flush_failed",
+                buffer_size=len(self._learning_exp_buffer),
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             raise
 
     def flush_health_buffer(self) -> None:

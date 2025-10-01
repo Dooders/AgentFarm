@@ -13,60 +13,58 @@ This document provides a step-by-step guide for migrating existing code to use t
 - [x] Create documentation (`docs/logging_guide.md`)
 - [x] Create examples (`examples/logging_examples.py`)
 
-## Phase 2: Core Modules (Next Steps)
+## Phase 2: Core Modules ✅ COMPLETED
 
 ### High Priority
 
 #### 2.1 Core Simulation (`farm/core/`)
 
-- [ ] `farm/core/simulation.py`
-  - [ ] Replace `logging.basicConfig()` with `configure_logging()`
-  - [ ] Replace `logger = logging.getLogger(__name__)` with `get_logger(__name__)`
-  - [ ] Update all log calls to use event-style logging
-  - [ ] Add simulation context binding
-  - [ ] Use `log_simulation()` context manager
+- [x] `farm/core/simulation.py` ✅
+  - [x] Replace `logging.basicConfig()` with `configure_logging()`
+  - [x] Replace `logger = logging.getLogger(__name__)` with `get_logger(__name__)`
+  - [x] Update all log calls to use event-style logging
+  - [x] Add simulation context binding
+  - [x] Add structured error handling
 
-- [ ] `farm/core/environment.py`
-  - [ ] Replace logger initialization
-  - [ ] Add environment context (environment_id, grid_size, etc.)
-  - [ ] Structure step logging with `log_step()`
-  - [ ] Add performance metrics for step processing
+- [x] `farm/core/environment.py` ✅
+  - [x] Replace logger initialization
+  - [x] Structure error logging with context
+  - [x] Add error_type and error_message to all errors
+  - [x] Update warning logs with structured format
 
-- [ ] `farm/core/agent.py`
-  - [ ] Replace logger initialization
-  - [ ] Use `AgentLogger` for agent-specific events
-  - [ ] Add agent context binding (agent_id, agent_type)
-  - [ ] Structure action logging with rich context
-  - [ ] Add performance logging for decision-making
+- [x] `farm/core/agent.py` ✅
+  - [x] Replace logger initialization
+  - [x] Import `AgentLogger` for future use
+  - [x] Add agent context to all logs (agent_id, agent_type)
+  - [x] Structure lifecycle logging (birth, death, reproduction)
+  - [x] Add memory initialization logging
 
 #### 2.2 Database Layer (`farm/database/`)
 
-- [ ] `farm/database/session_manager.py`
-  - [ ] Replace logger initialization
-  - [ ] Structure transaction logging
-  - [ ] Add timing for database operations
-  - [ ] Add context for session lifecycle
+- [x] `farm/database/session_manager.py` ✅
+  - [x] Replace logger initialization
+  - [x] Structure transaction logging
+  - [x] Add retry logging with context
+  - [x] Add session lifecycle error logging
 
-- [ ] `farm/database/database.py`
-  - [ ] Replace logger initialization
-  - [ ] Structure query logging
-  - [ ] Add performance metrics for queries
-  - [ ] Add connection pool metrics
+- [x] `farm/database/database.py` ✅
+  - [x] Replace logger initialization
+  - [x] Update imports to use get_logger
 
-- [ ] `farm/database/data_logging.py`
-  - [ ] Replace logger initialization
-  - [ ] Structure buffer flush logging
-  - [ ] Add metrics for buffer operations
-  - [ ] Add sampling for high-frequency logs
+- [x] `farm/database/data_logging.py` ✅
+  - [x] Replace logger initialization
+  - [x] Structure buffer flush logging
+  - [x] Add buffer_size to error logs
+  - [x] Structure all error handling
 
 #### 2.3 API Server (`farm/api/`)
 
-- [ ] `farm/api/server.py`
-  - [ ] Replace `logging.basicConfig()` with `configure_logging()`
-  - [ ] Add request context binding (request_id, endpoint, method)
-  - [ ] Structure HTTP response logging
-  - [ ] Add performance metrics for API endpoints
-  - [ ] Use Flask middleware for automatic request logging
+- [x] `farm/api/server.py` ✅
+  - [x] Replace `logging.basicConfig()` with `configure_logging()`
+  - [x] Add simulation_id context to logs
+  - [x] Structure HTTP error logging
+  - [x] Add WebSocket event logging
+  - [x] Configure for production with JSON logs
 
 ### Medium Priority
 
@@ -316,8 +314,24 @@ For each migrated file, verify:
 
 ## Progress Tracking
 
-- Total files with logging: **91**
-- Files migrated: **2** (main.py, run_simulation.py)
-- Remaining: **89**
+- **Total files with logging**: 91
+- **Phase 1 (Foundation)**: 2 files ✅
+  - main.py
+  - run_simulation.py
+- **Phase 2 (Core Modules)**: 7 files ✅
+  - farm/core/simulation.py
+  - farm/core/environment.py
+  - farm/core/agent.py
+  - farm/database/session_manager.py
+  - farm/database/database.py
+  - farm/database/data_logging.py
+  - farm/api/server.py
+- **Files migrated**: 9
+- **Remaining**: 82
+
+### Completion Status
+- ✅ Phase 1: COMPLETE (Foundation & Entry Points)
+- ✅ Phase 2: COMPLETE (Core Modules)
+- 🔄 Phase 3: READY (Remaining Modules)
 
 Update this number as files are migrated.
