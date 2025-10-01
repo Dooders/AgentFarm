@@ -1,4 +1,3 @@
-import logging
 import math
 import os
 import random
@@ -9,8 +8,9 @@ import numpy as np
 
 from farm.core.geometry import discretize_position_continuous
 from farm.core.resources import Resource
+from farm.utils.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ResourceManager:
@@ -134,9 +134,13 @@ class ResourceManager:
             # Initialize zeros for deterministic start
             self._memmap[:] = 0
             self._memmap.flush()
-            logger.info("Resource memmap initialized at %s", path)
+            logger.info("resource_memmap_initialized", path=path)
         except Exception as e:
-            logger.error("Failed to initialize resource memmap: %s", e)
+            logger.error(
+                "resource_memmap_init_failed",
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             self._memmap = None
             self._memmap_path = None
             self._use_memmap = False
@@ -174,7 +178,11 @@ class ResourceManager:
                 mm[y, x] = min(max_amount, float(mm[y, x]) + float(r.amount))
             mm.flush()
         except Exception as e:
-            logger.error("Failed to rebuild resource memmap: %s", e)
+            logger.error(
+                "resource_memmap_rebuild_failed",
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
 
     def get_resource_window(
         self, y0: int, y1: int, x0: int, x1: int, normalize: bool = True
@@ -270,7 +278,11 @@ class ResourceManager:
                 else 20
             )
 
-        logger.info(f"Initializing {amount} resources using original Environment logic")
+        logger.info(
+            "resources_initializing",
+            amount=amount,
+            distribution_type=distribution.get("type", "random"),
+        )
 
         # Clear existing resources
         self.resources.clear()

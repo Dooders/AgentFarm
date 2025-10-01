@@ -7,6 +7,7 @@ import argparse
 import cProfile
 import os
 import pstats
+import sys
 import time
 import warnings
 from io import StringIO
@@ -14,6 +15,8 @@ from io import StringIO
 # Local imports
 from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
+from farm.utils.logging_config import configure_logging, get_logger
+from farm.utils.logging_utils import log_simulation
 
 # Suppress warnings that might interfere with CI output parsing
 warnings.filterwarnings("ignore", category=RuntimeWarning)
@@ -35,6 +38,18 @@ def main():
     """
     # Set up command line arguments
     parser = argparse.ArgumentParser(description="Run a single farm simulation")
+    parser.add_argument(
+        "--log-level",
+        type=str,
+        default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        help="Logging level",
+    )
+    parser.add_argument(
+        "--json-logs",
+        action="store_true",
+        help="Output logs in JSON format",
+    )
     parser.add_argument(
         "--environment",
         type=str,
@@ -90,13 +105,25 @@ def main():
     output_dir = "simulations"
     os.makedirs(output_dir, exist_ok=True)
 
+    # Configure logging
+    configure_logging(
+        environment=args.environment,
+        log_dir="logs",
+        log_level=args.log_level,
+        json_logs=args.json_logs,
+        enable_colors=not args.json_logs,
+    )
+    logger = get_logger(__name__)
+
     # Load configuration
     try:
         config = SimulationConfig.from_centralized_config(
             environment=args.environment, profile=args.profile
         )
-        print(
-            f"Loaded configuration (environment: {args.environment}, profile: {args.profile or 'none'})"
+        logger.info(
+            "configuration_loaded",
+            environment=args.environment,
+            profile=args.profile or "none",
         )
 
         # Apply in-memory database settings if requested
@@ -106,35 +133,49 @@ def main():
                 args.memory_limit if args.memory_limit else 1000
             )
             config.persist_db_on_completion = not args.no_persist
-            print("Using in-memory database for improved performance")
-            if args.memory_limit:
-                print(f"Memory limit: {args.memory_limit} MB")
+            logger.info(
+                "in_memory_db_configured",
+                memory_limit_mb=config.in_memory_db_memory_limit_mb,
+                persist=config.persist_db_on_completion,
+            )
             if args.no_persist:
-                print("Warning: In-memory database will not be persisted to disk")
+                logger.warning("in_memory_db_no_persist", message="Database will not be persisted to disk")
+        
         # Apply seed override if provided
         if args.seed is not None:
             try:
-                # SimulationConfig should accept seed directly
                 config.seed = args.seed
-                print(f"Using deterministic seed: {args.seed}")
+                logger.info("seed_configured", seed=args.seed, deterministic=True)
             except Exception as e:
-                print(f"Warning: Failed to set seed on config: {e}")
+                logger.warning(
+                    "seed_configuration_failed",
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                )
     except Exception as e:
-        print(f"Failed to load configuration: {e}")
-        exit(1)
+        logger.error(
+            "configuration_load_failed",
+            error_type=type(e).__name__,
+            error_message=str(e),
+            exc_info=True,
+        )
+        sys.exit(1)
 
     # Run simulation
-    print(f"Starting simulation with {args.steps} steps")
-    print(f"Output will be saved to {output_dir}")
-    print(
-        f"Agent configuration - System: {config.population.system_agents}, Independent: {config.population.independent_agents}, Control: {config.population.control_agents}"
+    logger.info(
+        "simulation_starting",
+        num_steps=args.steps,
+        output_dir=output_dir,
+        system_agents=config.population.system_agents,
+        independent_agents=config.population.independent_agents,
+        control_agents=config.population.control_agents,
     )
 
     try:
         start_time = time.time()
 
         if args.perf_profile:
-            print("Profiling enabled - collecting performance data...")
+            logger.info("profiling_enabled", profiler="cProfile")
             # Run with profiling
             profiler = cProfile.Profile()
             profiler.enable()
@@ -165,22 +206,24 @@ def main():
                 stats = pstats.Stats(profiler, stream=f).sort_stats("cumulative")
                 stats.print_stats(50)  # Save top 50 functions to file
 
-            print(f"Full profiling stats saved to {profile_path}")
-            print(f"Binary profile data saved to {profile_binary_path}")
+            logger.info(
+                "profiling_results_saved",
+                profile_text=profile_path,
+                profile_binary=profile_binary_path,
+            )
 
             # Open with snakeviz by default unless disabled
             if not args.no_snakeviz:
                 try:
-                    print("\nLaunching SnakeViz for interactive visualization...")
+                    logger.info("launching_snakeviz", profile_file=profile_binary_path)
                     import subprocess
 
                     subprocess.Popen(["snakeviz", profile_binary_path])
                 except (ImportError, FileNotFoundError):
-                    print(
-                        "\nError: SnakeViz not found. Install with 'pip install snakeviz'"
-                    )
-                    print(
-                        f"Once installed, you can view the profile with: snakeviz {profile_binary_path}"
+                    logger.warning(
+                        "snakeviz_not_found",
+                        message="Install with 'pip install snakeviz'",
+                        command=f"snakeviz {profile_binary_path}",
                     )
         else:
             # Run without profiling
@@ -189,30 +232,44 @@ def main():
             )
 
         elapsed_time = time.time() - start_time
-        # Ensure output is flushed for reliable CI detection
-        import sys
-
-        print("\n=== SIMULATION COMPLETED SUCCESSFULLY ===", flush=True)
-        print(f"Simulation completed in {elapsed_time:.2f} seconds", flush=True)
-        print(f"Final agent count: {len(environment.agents)}", flush=True)
+        
+        # Log completion
+        logger.info(
+            "simulation_completed",
+            duration_seconds=round(elapsed_time, 2),
+            final_agent_count=len(environment.agents),
+            output_dir=output_dir,
+        )
+        
+        # Check for empty simulation
         if len(environment.agents) == 0:
-            print(
-                "WARNING: No agents were created or all agents died during simulation",
-                flush=True,
+            logger.warning(
+                "simulation_no_agents",
+                message="No agents were created or all agents died during simulation",
             )
         else:
+            # Count agent types
             agent_types = {}
             for agent in environment.agent_objects:
                 agent_type = agent.__class__.__name__
-                if agent_type in agent_types:
-                    agent_types[agent_type] += 1
-                else:
-                    agent_types[agent_type] = 1
-            print(f"Agent types: {agent_types}", flush=True)
+                agent_types[agent_type] = agent_types.get(agent_type, 0) + 1
+            
+            logger.info("simulation_agent_distribution", agent_types=agent_types)
+        
+        # Print summary for CI/console (keeping print for backward compatibility)
+        print("\n=== SIMULATION COMPLETED SUCCESSFULLY ===", flush=True)
+        print(f"Simulation completed in {elapsed_time:.2f} seconds", flush=True)
+        print(f"Final agent count: {len(environment.agents)}", flush=True)
         print(f"Results saved to {output_dir}", flush=True)
+        
     except Exception as e:
-        print(f"Simulation failed: {e}")
-        exit(1)
+        logger.error(
+            "simulation_failed",
+            error_type=type(e).__name__,
+            error_message=str(e),
+            exc_info=True,
+        )
+        sys.exit(1)
 
 
 if __name__ == "__main__":

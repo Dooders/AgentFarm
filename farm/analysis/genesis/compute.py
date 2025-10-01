@@ -5,7 +5,7 @@ This module provides functions to compute metrics related to initial states and 
 in simulations, and analyze how these genesis factors impact simulation outcomes.
 """
 
-import logging
+from farm.utils.logging_config import get_logger
 import math
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
@@ -29,7 +29,7 @@ from farm.database.models import (
     SocialInteractionModel,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def transform_metrics_for_plotting(metrics: Dict[str, Any]) -> Dict[str, Any]:

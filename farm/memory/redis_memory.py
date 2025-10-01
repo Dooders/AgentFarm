@@ -13,7 +13,6 @@ Features:
 """
 
 import json
-import logging
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -23,8 +22,9 @@ import redis
 
 from farm.core.perception import PerceptionData
 from farm.core.state import AgentState
+from farm.utils.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -103,9 +103,21 @@ class AgentMemory:
         # Check Redis connection
         try:
             self.redis_client.ping()
-            logger.info(f"Agent {agent_id} memory connected to Redis")
+            logger.info(
+                "redis_memory_connected",
+                agent_id=agent_id,
+                host=self.config.host,
+                port=self.config.port,
+            )
         except redis.ConnectionError as e:
-            logger.error(f"Failed to connect to Redis: {e}")
+            logger.error(
+                "redis_connection_failed",
+                agent_id=agent_id,
+                host=self.config.host,
+                port=self.config.port,
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             raise
 
     def _safe_serialize(self, obj: Any) -> Dict[str, Any]:
@@ -211,7 +223,13 @@ class AgentMemory:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to store memory for agent {self.agent_id}: {e}")
+            logger.error(
+                "memory_storage_failed",
+                agent_id=self.agent_id,
+                step=step,
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             return False
 
     def retrieve_state(self, step: int) -> Optional[Dict[str, Any]]:
@@ -232,7 +250,13 @@ class AgentMemory:
             return None
 
         except Exception as e:
-            logger.error(f"Failed to retrieve state for agent {self.agent_id}: {e}")
+            logger.error(
+                "memory_retrieval_failed",
+                agent_id=self.agent_id,
+                step=step,
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             return None
 
     def retrieve_recent_states(self, count: int = 10) -> List[Dict[str, Any]]:
@@ -261,7 +285,11 @@ class AgentMemory:
 
         except Exception as e:
             logger.error(
-                f"Failed to retrieve recent states for agent {self.agent_id}: {e}"
+                "recent_states_retrieval_failed",
+                agent_id=self.agent_id,
+                count=count,
+                error_type=type(e).__name__,
+                error_message=str(e),
             )
             return []
 
@@ -335,7 +363,12 @@ class AgentMemory:
             return results
 
         except Exception as e:
-            logger.error(f"Failed to search metadata for agent {self.agent_id}: {e}")
+            logger.error(
+                "metadata_search_failed",
+                agent_id=self.agent_id,
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             return []
 
     def search_by_state_value(
@@ -424,7 +457,12 @@ class AgentMemory:
             return results
 
         except Exception as e:
-            logger.error(f"Failed to search by position for agent {self.agent_id}: {e}")
+            logger.error(
+                "position_search_failed",
+                agent_id=self.agent_id,
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             return []
 
     def retrieve_action_history(self, limit: int = 20) -> List[str]:
@@ -497,11 +535,16 @@ class AgentMemory:
             if keys:
                 self.redis_client.delete(*list(keys))  # type: ignore
 
-            logger.info(f"Cleared memory for agent {self.agent_id}")
+            logger.info("memory_cleared", agent_id=self.agent_id)
             return True
 
         except Exception as e:
-            logger.error(f"Failed to clear memory for agent {self.agent_id}: {e}")
+            logger.error(
+                "memory_clear_failed",
+                agent_id=self.agent_id,
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             return False
 
     def _cleanup_old_memories(self) -> None:
@@ -540,7 +583,12 @@ class AgentMemory:
             )
 
         except Exception as e:
-            logger.error(f"Failed to clean up memories for agent {self.agent_id}: {e}")
+            logger.error(
+                "memory_cleanup_failed",
+                agent_id=self.agent_id,
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
 
 
 class AgentMemoryManager:
@@ -577,9 +625,19 @@ class AgentMemoryManager:
         # Check Redis connection
         try:
             self.redis.ping()
-            logger.info("AgentMemoryManager connected to Redis")
+            logger.info(
+                "memory_manager_connected",
+                host=config.host,
+                port=config.port,
+            )
         except redis.ConnectionError as e:
-            logger.error(f"Failed to connect to Redis: {e}")
+            logger.error(
+                "redis_manager_connection_failed",
+                host=config.host,
+                port=config.port,
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             raise
 
     def get_memory(self, agent_id: str) -> AgentMemory:
@@ -615,9 +673,13 @@ class AgentMemoryManager:
             # Reset local cache
             self.memories = {}
 
-            logger.info("Cleared all agent memories")
+            logger.info("all_memories_cleared", num_agents=len(self.memories))
             return True
 
         except Exception as e:
-            logger.error(f"Failed to clear all memories: {e}")
+            logger.error(
+                "clear_all_memories_failed",
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             return False

@@ -3,7 +3,7 @@ Base module for analysis modules.
 This provides a common interface for all analysis modules.
 """
 
-import logging
+from farm.utils.logging_config import get_logger
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 

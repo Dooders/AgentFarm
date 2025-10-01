@@ -7,7 +7,6 @@ key performance indicators. It separates tracking concerns from the main
 Environment class and provides a clean interface for metric collection.
 """
 
-import logging
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Dict
@@ -15,8 +14,9 @@ from typing import Any, Dict
 import numpy as np
 
 from farm.core.agent import BaseAgent
+from farm.utils.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass

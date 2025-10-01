@@ -7,7 +7,6 @@ A script for comparing results across multiple simulations and performing
 cross-simulation analysis to identify patterns and trends.
 """
 
-import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -25,14 +24,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from farm.database.models import Simulation
+from farm.utils.logging_config import get_logger
 
 from simulation_analysis import SimulationAnalyzer
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SimulationComparator:
@@ -58,7 +54,7 @@ class SimulationComparator:
         Returns:
             DataFrame containing combined simulation data
         """
-        logger.info(f"Loading data for simulations: {simulation_ids}")
+        logger.info("loading_simulation_data", simulation_ids=simulation_ids)
 
         simulations = []
         for sim_id in simulation_ids:
@@ -85,10 +81,10 @@ class SimulationComparator:
         Returns:
             Dictionary containing clustering results with validation metrics
         """
-        logger.info("Clustering simulations with statistical validation")
+        logger.info("clustering_simulations", n_clusters=n_clusters)
 
         if len(df) < 4:
-            logger.warning(f"Insufficient data for clustering: {len(df)} samples")
+            logger.warning("insufficient_clustering_data", num_samples=len(df))
             return {
                 "error": "Insufficient data for clustering",
                 "min_samples_required": 4,
@@ -266,10 +262,10 @@ class SimulationComparator:
         Returns:
             Dictionary containing model evaluation results with cross-validation
         """
-        logger.info(f"Building predictive model for {target_column}")
+        logger.info("building_predictive_model", target_column=target_column)
 
         if target_column not in df.columns:
-            logger.error(f"Target column '{target_column}' not found in data")
+            logger.error("target_column_not_found", target_column=target_column)
             return {"error": f"Target column '{target_column}' not found"}
 
         # Prepare features and target

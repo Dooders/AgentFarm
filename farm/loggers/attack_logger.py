@@ -4,14 +4,15 @@ This module handles logging of attack-related actions and outcomes in the simula
 including attacks, defenses, and their results.
 """
 
-import logging
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+
+from farm.utils.logging_config import get_logger
 
 if TYPE_CHECKING:
     from farm.core.agent import BaseAgent
     from farm.database.database import SimulationDatabase
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class AttackLogger:
@@ -55,7 +56,7 @@ class AttackLogger:
             action_type="defend",
             details={},  # Minimal details - full data already in ActionModel
         )
-        logger.debug(f"Agent {agent.agent_id} took defensive stance")
+        logger.debug("agent_defensive_stance", agent_id=agent.agent_id)
 
     def log_attack_attempt(
         self,
@@ -114,11 +115,16 @@ class AttackLogger:
 
         if success:
             logger.debug(
-                f"Agent {agent.agent_id} successful attack at {target_position}"
-                f" dealing {damage_dealt} damage to {targets_found} targets"
+                "attack_successful",
+                agent_id=agent.agent_id,
+                target_position=target_position,
+                damage_dealt=damage_dealt,
+                targets_found=targets_found,
             )
         else:
             logger.debug(
-                f"Agent {agent.agent_id} failed attack at {target_position}."
-                f" Reason: {reason}"
+                "attack_failed",
+                agent_id=agent.agent_id,
+                target_position=target_position,
+                reason=reason,
             )

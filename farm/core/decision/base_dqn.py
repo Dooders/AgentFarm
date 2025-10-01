@@ -41,7 +41,6 @@ Example:
     ```
 """
 
-import logging
 import random
 from collections import deque
 from typing import TYPE_CHECKING, Any, Deque, Optional
@@ -53,10 +52,11 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from farm.core.device_utils import get_device
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 from .config import BaseDQNConfig
-
-logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from farm.database.database import SimulationDatabase
@@ -554,11 +554,16 @@ class BaseDQNModule:
                 # Note: batch_log_learning_experiences method doesn't exist on SimulationDatabase
                 # This would need to be implemented if batch logging is required
                 logger.warning(
-                    "batch_log_learning_experiences not implemented - skipping cleanup"
+                    "batch_logging_not_implemented",
+                    message="Skipping cleanup",
                 )
                 self.pending_experiences = []
             except Exception as e:
-                logger.error(f"Error cleaning up DQN module experiences: {e}")
+                logger.error(
+                    "dqn_cleanup_error",
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                )
 
     def __del__(self):
         """Ensure cleanup on deletion.

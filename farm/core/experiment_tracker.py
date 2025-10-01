@@ -21,7 +21,6 @@ Typical usage:
 
 import csv
 import json
-import logging
 import os
 import sqlite3
 from datetime import datetime, timezone
@@ -30,14 +29,12 @@ from typing import Any, Dict, List
 from jinja2 import Environment, FileSystemLoader
 
 from farm.utils.identity import Identity
+from farm.utils.logging_config import get_logger
 
 # Shared Identity instance for efficiency
 _shared_identity = Identity()
 
-# Add logging configuration at the module level
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
+logger = get_logger(__name__)
 
 
 class ExperimentTracker:

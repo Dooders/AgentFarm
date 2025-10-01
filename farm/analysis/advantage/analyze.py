@@ -5,7 +5,7 @@ This module provides functions to analyze advantages across multiple simulations
 identifying patterns and correlations between advantages and dominance outcomes.
 """
 
-import logging
+from farm.utils.logging_config import get_logger
 import time
 from typing import Any, Dict, cast
 

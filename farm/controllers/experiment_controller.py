@@ -7,7 +7,6 @@ This module provides a controller for:
 - Organizing experiment files and data
 """
 
-import logging
 import os
 import time
 from datetime import datetime
@@ -20,8 +19,9 @@ from farm.controllers.simulation_controller import SimulationController
 from farm.config import SimulationConfig
 from farm.database.database import SimulationDatabase
 from farm.research.research import ResearchProject
+from farm.utils.logging_config import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class ExperimentController:
     """Controls and manages simulation experiments.
@@ -132,14 +132,24 @@ class ExperimentController:
             num_steps: Number of steps per iteration
             run_analysis: Whether to run analysis after each iteration
         """
-        self.logger.info(f"Starting experiment '{self.name}' with {num_iterations} iterations")
+        self.logger.info(
+            "experiment_starting",
+            experiment_name=self.name,
+            num_iterations=num_iterations,
+            num_steps=num_steps,
+            run_analysis=run_analysis,
+        )
         self.is_running = True
         self.total_iterations = num_iterations
         
         try:
             for i in range(num_iterations):
                 self.current_iteration = i + 1
-                self.logger.info(f"Starting iteration {self.current_iteration}/{num_iterations}")
+                self.logger.info(
+                    "iteration_starting",
+                    iteration=self.current_iteration,
+                    total_iterations=num_iterations,
+                )
                 
                 # Create iteration directory
                 iteration_dir = self.output_dir / f"iteration_{self.current_iteration}"
@@ -155,12 +165,22 @@ class ExperimentController:
                 if run_analysis:
                     self._analyze_iteration(iteration_dir)
                     
-                self.logger.info(f"Completed iteration {self.current_iteration}")
+                self.logger.info("iteration_completed", iteration=self.current_iteration)
                 
-            self.logger.info("Experiment completed successfully")
+            self.logger.info(
+                "experiment_completed",
+                experiment_name=self.name,
+                total_iterations=num_iterations,
+            )
             
         except Exception as e:
-            self.logger.error(f"Error running experiment: {str(e)}")
+            self.logger.error(
+                "experiment_error",
+                experiment_name=self.name,
+                iteration=self.current_iteration,
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             raise
         finally:
             self.is_running = False

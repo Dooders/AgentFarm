@@ -8,7 +8,7 @@ and eventual dominance.
 
 import glob
 import json
-import logging
+from farm.utils.logging_config import get_logger
 import os
 import time
 from typing import Any, Dict, List, Optional, Tuple
@@ -30,7 +30,7 @@ from farm.analysis.genesis.compute import (
     transform_metrics_for_plotting,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def analyze_genesis_factors(session) -> Dict[str, Any]:

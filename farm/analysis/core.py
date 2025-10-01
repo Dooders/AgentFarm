@@ -9,7 +9,7 @@ can be extended by specific analysis modules.
 from typing import List, Dict, Any, Optional, Callable, Iterator
 from pathlib import Path
 import pandas as pd
-import logging
+from farm.utils.logging_config import get_logger
 
 from farm.analysis.protocols import (
     DataProcessor,
@@ -26,7 +26,7 @@ from farm.analysis.exceptions import (
 from farm.analysis.validation import CompositeValidator
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class BaseAnalysisModule:

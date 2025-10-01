@@ -8,7 +8,7 @@ common execution details without requiring ad-hoc parameters.
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Callable
 from pathlib import Path
-import logging
+from farm.utils.logging_config import get_logger
 
 
 @dataclass

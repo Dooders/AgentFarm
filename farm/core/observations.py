@@ -72,7 +72,6 @@ Usage:
 # observations.py
 from __future__ import annotations
 
-import logging
 import math
 from typing import Dict, List, Optional, Tuple, Set
 from enum import Enum
@@ -80,13 +79,15 @@ import time as _time
 
 import torch
 import torch.nn.functional as F
+
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 from pydantic import BaseModel, Field, field_validator
 
 from farm.core.channels import ChannelBehavior, get_channel_registry
 from farm.core.observation_render import ObservationRenderer
 from farm.core.spatial import SpatialIndex
-
-logger = logging.getLogger(__name__)
 
 
 class SparsePoints:
@@ -1630,7 +1631,12 @@ class AgentObservation:
                 try:
                     sparse_points += int((channel_data != 0).sum().item())
                 except (AttributeError, TypeError, RuntimeError) as e:
-                    logger.warning(f"Failed to count sparse points for channel: {e}")
+                    logger.warning(
+                        "sparse_points_count_failed",
+                        channel=channel,
+                        error_type=type(e).__name__,
+                        error_message=str(e),
+                    )
                     continue
         # Include points counted during dense baseline writes
         if self._dense_storage:
