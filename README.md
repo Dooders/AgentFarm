@@ -54,13 +54,7 @@ This repository is being developed to support research in the [Dooders](https://
 - **Performance Monitoring**: Comprehensive metrics and statistics for spatial query optimization
 - **Scalable Architecture**: Efficiently handles thousands of agents with minimal performance degradation
 
-### Accessibility & User Experience
-- **Comprehensive Accessibility Support**: WCAG 2.1 AA compliant interface
-- **Keyboard Navigation**: Full keyboard support with arrow keys, tab navigation, and shortcuts
-- **Screen Reader Compatibility**: Proper ARIA labels, roles, and live regions
-- **High Contrast Mode**: Enhanced visibility for users with visual impairments
-- **Focus Management**: Proper focus trapping and restoration for modals and dynamic content
-- **Skip Navigation Links**: Quick access to main content, validation errors, and comparison tools
+ 
 
 ### Additional Tools
 - **Interactive Notebooks**: Jupyter notebooks for data exploration and analysis
@@ -69,15 +63,7 @@ This repository is being developed to support research in the [Dooders](https://
 - **Research Tools**: Advanced analysis modules for academic research
 - **Genome Embeddings**: Machine learning tools for agent evolution analysis
 
-### IPC Service Layer
-- **Comprehensive IPC Communication**: Full TypeScript implementation with type safety
-- **Configuration Management**: Load, save, export, and import simulation configurations
-- **File System Operations**: Complete file and directory operations with backup support
-- **Template Management**: Save, load, and manage configuration templates
-- **Settings Persistence**: Application settings and UI state management
-- **Error Handling**: Robust error handling with retry logic and graceful fallbacks
-- **Performance Monitoring**: Built-in metrics tracking and optimization
-- **Cross-Platform Support**: Works in both Electron and browser environments
+ 
 
 ## Quick Start
 
@@ -101,9 +87,6 @@ source venv/bin/activate  # On Windows use `venv\Scripts\activate`
 # Install dependencies
 pip install -r requirements.txt
 
-# Install Node.js dependencies for the Live Simulation Config Explorer
-npm install
-
 # Optional: Install Redis for enhanced memory management
 # Note: Redis is used for agent memory storage and can improve performance
 # On Ubuntu/Debian: sudo apt-get install redis-server
@@ -121,13 +104,10 @@ AgentFarm provides multiple ways to run simulations:
 python run_simulation.py --environment development --steps 1000
 ```
 
-**Command Line Interface (Advanced)**
+**Experiments and Tools**
 ```bash
-# Run simulation with various options
-python farm/core/cli.py --mode simulate --environment development --steps 1000
-
 # Run experiments with parameter variations
-python farm/core/cli.py --mode experiment --environment production --experiment-name test --iterations 3
+python farm/core/cli.py --mode experiment --environment development --experiment-name test --iterations 3
 
 # Visualize existing simulation results
 python farm/core/cli.py --mode visualize --db-path simulations/simulation.db
@@ -144,96 +124,45 @@ python main.py
 **Results**
 All simulation results are saved in the `simulations` directory with database files, logs, and analysis reports.
 
-### Live Simulation Config Explorer
+### API Server
 
-The project includes a modern React-based configuration explorer built with Electron for cross-platform desktop deployment:
+Run the REST/WebSocket API for managing simulations and analysis:
 
-**Hierarchical Configuration Interface:**
-- **Environment**: World settings, population parameters, resource management
-- **Agent Behavior**: Movement, gathering, combat, and sharing parameters
-- **Learning & AI**: General and module-specific learning configurations
-- **Visualization**: Display settings, animation controls, and metrics display
-
-The interface features a complete hierarchical folder structure with collapsible sections for intuitive parameter organization and real-time configuration editing with live validation.
-
-**Greyscale Theme**
-
-- Professional greyscale palette via CSS variables in `src/styles/index.css`
-- Leva greyscale overrides in `src/styles/leva-theme.css` with `data-theme="custom"`
-- Typography: Albertus for labels (12px), JetBrains Mono for numbers (11-12px)
-- Compact controls: exactly 28px height; subtle borders; monochrome focus rings
-- Optional full-UI grayscale filter: `localStorage.setItem('ui:grayscale','true')`
-
-**📋 Issue #9: Complete Leva Folder Structure - COMPLETED**
-- ✅ All configuration sections organized in logical Leva folders
-- ✅ Folder hierarchy matches design specification
-- ✅ Folders can be collapsed/expanded
-- ✅ Configuration values properly bound to folders
-- ✅ No missing parameters or orphaned controls
-- ✅ Comprehensive path mapping system implemented
-- ✅ Complete test coverage for all functionality
-- ✅ Updated documentation and Storybook stories
-
-**Development**
 ```bash
-# Start the development server
-npm run dev
-
-# Start Electron development mode with HMR
-npm run electron:dev
-
-# Build for production
-npm run build:prod
-
-# Package Electron app for distribution
-npm run electron:pack
-
-# Run tests
-npm run test:all
-
-# Generate documentation
-npm run docs
+# From repository root
+python -m farm.api.server
+# or
+python farm/api/server.py
 ```
 
-**Key Scripts:**
-- `npm run dev` - Start Vite development server
-- `npm run dev:electron` - Start Vite with Electron environment variables
-- `npm run electron:dev` - Run Electron in development mode with HMR
-- `npm run build:prod` - Build optimized production bundle
-- `npm run electron:pack` - Package Electron app for distribution
-- `npm run test:all` - Run both Vitest and Jest test suites
-- `npm run lint` - Lint TypeScript/React code
-- `npm run format` - Format code with Prettier
+Defaults:
+- Binds to port 5000
+- Writes logs to `logs/api.log`
 
-**Features:**
-- Modern React 18 + TypeScript interface
-- Real-time configuration editing with Zod validation
-- **Complete hierarchical folder structure** with 4 main sections and 12 sub-folders
-- **Validation Display System (Issue #12)**: Inline errors/warnings with section scoping and a summary panel
-- Hot Module Replacement (HMR) for rapid development
-- Cross-platform packaging (Windows, macOS, Linux)
-- Zustand state management with persistence
-- Advanced Leva controls integration with path mapping system
-- Comprehensive testing with Vitest and Jest
-- TypeScript path mapping with `@/` aliases
+Key endpoints:
+- `POST /api/simulation/new` — create and run a simulation
+- `GET /api/simulation/<sim_id>/step/<step>` — fetch a specific step
+- `GET /api/simulation/<sim_id>/analysis` — run analysis
+- `GET /api/simulation/<sim_id>/export` — export data
 
-### Validation UI and Integration
+### Benchmarks
 
-- Components:
-  - `src/components/Validation/ValidationDisplay.tsx`: Show errors/warnings for exact paths or prefixed sections.
-  - `src/components/Validation/ValidationSummary.tsx`: Form-level overview with counts and top issues.
+```bash
+python -m benchmarks.run_benchmarks
+# or a specific benchmark
+python -m benchmarks.run_benchmarks --benchmark memory_db
+```
+See `benchmarks/README.md` for details and recommended configurations.
 
-- Where used:
-  - `src/components/ConfigExplorer/RightPanel.tsx`: Renders `ValidationSummary` in the Validation Status section.
-  - `src/components/ConfigExplorer/LeftPanel.tsx`: Renders section-scoped `ValidationDisplay` blocks.
-  - `src/components/LevaControls/LevaControls.tsx`: Debounced field validation on change updates the validation store.
+### Testing
 
-- Validation service:
-  - `src/services/validationService.ts` integrates Zod results and classifies extra rules: capacity=error; performance/memory=warnings.
+```bash
+# Using pytest
+pytest -q
 
-- Tests:
-  - `src/components/__tests__/ValidationDisplay.test.tsx`
-  - `src/components/__tests__/ValidationSummary.test.tsx`
+# Or using the bundled test runner
+python run_tests.py
+```
 
 ## Documentation
 
