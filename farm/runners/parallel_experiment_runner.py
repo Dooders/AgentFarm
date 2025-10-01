@@ -215,7 +215,7 @@ class ParallelExperimentRunner:
             # Save error details to file
             os.makedirs(output_path, exist_ok=True)
             error_path = output_path / "error.log"
-            with open(error_path, "w") as f:
+            with open(error_path, "w", encoding="utf-8") as f:
                 f.write(f"Error: {str(e)}\n\n")
                 f.write(traceback.format_exc())
 
@@ -327,7 +327,7 @@ class ParallelExperimentRunner:
 
         # Save summary to file
         summary_path = output_dir / "experiment_summary.json"
-        with open(summary_path, "w") as f:
+        with open(summary_path, "w", encoding="utf-8") as f:
             json.dump(summary, f, indent=2)
 
         self.logger.info(f"Experiment summary saved to {summary_path}")

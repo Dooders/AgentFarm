@@ -146,7 +146,7 @@ class AnalysisResult:
         
         path.parent.mkdir(parents=True, exist_ok=True)
         
-        with open(path, 'w') as f:
+        with open(path, 'w', encoding='utf-8') as f:
             json.dump(self.to_dict(), f, indent=2)
         
         return path

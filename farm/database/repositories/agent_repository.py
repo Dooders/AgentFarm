@@ -600,8 +600,12 @@ class AgentRepository(BaseRepository[AgentModel]):
         """
 
         def query_random_agent(session: Session) -> Optional[str]:
-            # Use func.random() for database-agnostic random selection
-            random_agent = session.query(AgentModel.agent_id).order_by(func.random()).first()
-            return random_agent[0] if random_agent else None
+            # Get all agent IDs and select one randomly
+            import random
+            all_agents = session.query(AgentModel.agent_id).all()
+            if not all_agents:
+                return None
+            random_agent = random.choice(all_agents)
+            return random_agent[0]
 
         return self.session_manager.execute_with_retry(query_random_agent)

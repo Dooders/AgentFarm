@@ -119,7 +119,7 @@ class AgentLifespanAnalysis:
                 AgentModel.generation,
                 func.count(case((AgentModel.death_time.is_(None), 1)))
                 * 100.0
-                / func.count(),
+                / func.count(AgentModel.agent_id),
             )
             .group_by(AgentModel.generation)
             .all()

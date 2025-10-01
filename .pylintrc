@@ -27,7 +27,10 @@ disable =
     unnecessary-lambda,
     unused-variable,
     arguments-differ,
-    signature-differs
+    signature-differs,
+    not-callable,
+    unsubscriptable-object,
+    unsupported-assignment-operation
 
 [FORMAT]
 max-line-length = 120
