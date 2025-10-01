@@ -26,7 +26,7 @@ from sqlalchemy.orm import sessionmaker
 
 from farm.database.models import Simulation
 
-from .simulation_analysis import SimulationAnalyzer
+from simulation_analysis import SimulationAnalyzer
 
 # Configure logging
 logging.basicConfig(
@@ -73,7 +73,9 @@ class SimulationComparator:
 
         return pd.DataFrame(simulations)
 
-    def cluster_simulations(self, df: pd.DataFrame, max_clusters: Optional[int] = None) -> Dict[str, Any]:
+    def cluster_simulations(
+        self, df: pd.DataFrame, max_clusters: Optional[int] = None
+    ) -> Dict[str, Any]:
         """Cluster simulations based on their features and outcomes with statistical validation.
 
         Args:
@@ -87,7 +89,10 @@ class SimulationComparator:
 
         if len(df) < 4:
             logger.warning(f"Insufficient data for clustering: {len(df)} samples")
-            return {"error": "Insufficient data for clustering", "min_samples_required": 4}
+            return {
+                "error": "Insufficient data for clustering",
+                "min_samples_required": 4,
+            }
 
         # Select features for clustering
         feature_cols = [
@@ -96,11 +101,11 @@ class SimulationComparator:
             if col
             not in ["simulation_id", "population_dominance", "survival_dominance"]
         ]
-        
+
         if not feature_cols:
             logger.warning("No features available for clustering")
             return {"error": "No features available for clustering"}
-        
+
         features = df[feature_cols]
 
         # Check for missing values
@@ -115,16 +120,16 @@ class SimulationComparator:
         # Find optimal number of clusters using multiple methods
         max_clusters = max_clusters or min(10, len(df) // 2)
         k_range = range(2, max_clusters + 1)
-        
+
         # Elbow method
         wcss = []
         silhouette_scores = []
-        
+
         for k in k_range:
             kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
             cluster_labels = kmeans.fit_predict(scaled_features)
             wcss.append(kmeans.inertia_)
-            
+
             # Calculate silhouette score
             if k > 1:
                 sil_score = silhouette_score(scaled_features, cluster_labels)
@@ -135,8 +140,10 @@ class SimulationComparator:
         # Find optimal k using silhouette score (more reliable than elbow)
         optimal_k = k_range[np.argmax(silhouette_scores)]
         best_silhouette_score = max(silhouette_scores)
-        
-        logger.info(f"Optimal number of clusters: {optimal_k} (silhouette score: {best_silhouette_score:.3f})")
+
+        logger.info(
+            f"Optimal number of clusters: {optimal_k} (silhouette score: {best_silhouette_score:.3f})"
+        )
 
         # Apply clustering with optimal k
         kmeans = KMeans(n_clusters=optimal_k, random_state=42, n_init=10)
@@ -145,22 +152,24 @@ class SimulationComparator:
 
         # Validate clustering quality
         final_silhouette_score = silhouette_score(scaled_features, cluster_labels)
-        
+
         # Calculate cluster separation (between-cluster sum of squares / within-cluster sum of squares)
         cluster_centers = kmeans.cluster_centers_
         within_cluster_ss = 0
         between_cluster_ss = 0
-        
+
         for i in range(optimal_k):
             cluster_points = scaled_features[cluster_labels == i]
             if len(cluster_points) > 0:
-                within_cluster_ss += np.sum((cluster_points - cluster_centers[i])**2)
-        
+                within_cluster_ss += np.sum((cluster_points - cluster_centers[i]) ** 2)
+
         overall_mean = np.mean(scaled_features, axis=0)
         for i in range(optimal_k):
             cluster_size = np.sum(cluster_labels == i)
-            between_cluster_ss += cluster_size * np.sum((cluster_centers[i] - overall_mean)**2)
-        
+            between_cluster_ss += cluster_size * np.sum(
+                (cluster_centers[i] - overall_mean) ** 2
+            )
+
         separation_ratio = between_cluster_ss / (within_cluster_ss + 1e-10)
 
         # Analyze clusters
@@ -170,33 +179,53 @@ class SimulationComparator:
             cluster_analysis[f"cluster_{cluster_id}"] = {
                 "size": len(cluster_data),
                 "percentage": len(cluster_data) / len(df) * 100,
-                "dominant_population": cluster_data["population_dominance"].mode().iloc[0] if "population_dominance" in cluster_data.columns else "unknown",
-                "dominant_survival": cluster_data["survival_dominance"].mode().iloc[0] if "survival_dominance" in cluster_data.columns else "unknown"
+                "dominant_population": (
+                    cluster_data["population_dominance"].mode().iloc[0]
+                    if "population_dominance" in cluster_data.columns
+                    else "unknown"
+                ),
+                "dominant_survival": (
+                    cluster_data["survival_dominance"].mode().iloc[0]
+                    if "survival_dominance" in cluster_data.columns
+                    else "unknown"
+                ),
             }
 
         # Create enhanced elbow curve plot with silhouette scores
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
-        
+
         # Elbow curve
-        ax1.plot(k_range, wcss, 'bo-', linewidth=2, markersize=8)
-        ax1.axvline(x=optimal_k, color='red', linestyle='--', alpha=0.7, label=f'Optimal k={optimal_k}')
+        ax1.plot(k_range, wcss, "bo-", linewidth=2, markersize=8)
+        ax1.axvline(
+            x=optimal_k,
+            color="red",
+            linestyle="--",
+            alpha=0.7,
+            label=f"Optimal k={optimal_k}",
+        )
         ax1.set_xlabel("Number of clusters")
         ax1.set_ylabel("Within-Cluster Sum of Squares (WCSS)")
         ax1.set_title("Elbow Method for Optimal k")
         ax1.legend()
         ax1.grid(True, alpha=0.3)
-        
+
         # Silhouette scores
-        ax2.plot(k_range, silhouette_scores, 'go-', linewidth=2, markersize=8)
-        ax2.axvline(x=optimal_k, color='red', linestyle='--', alpha=0.7, label=f'Optimal k={optimal_k}')
+        ax2.plot(k_range, silhouette_scores, "go-", linewidth=2, markersize=8)
+        ax2.axvline(
+            x=optimal_k,
+            color="red",
+            linestyle="--",
+            alpha=0.7,
+            label=f"Optimal k={optimal_k}",
+        )
         ax2.set_xlabel("Number of clusters")
         ax2.set_ylabel("Silhouette Score")
         ax2.set_title("Silhouette Analysis")
         ax2.legend()
         ax2.grid(True, alpha=0.3)
-        
+
         plt.tight_layout()
-        plt.savefig("clustering_validation.png", dpi=300, bbox_inches='tight')
+        plt.savefig("clustering_validation.png", dpi=300, bbox_inches="tight")
         plt.close()
 
         return {
@@ -208,15 +237,27 @@ class SimulationComparator:
                 "separation_ratio": separation_ratio,
                 "wcss_values": wcss,
                 "silhouette_scores": silhouette_scores,
-                "clustering_quality": "good" if final_silhouette_score > 0.5 else "fair" if final_silhouette_score > 0.3 else "poor"
+                "clustering_quality": (
+                    "good"
+                    if final_silhouette_score > 0.5
+                    else "fair" if final_silhouette_score > 0.3 else "poor"
+                ),
             },
             "feature_importance": dict(
                 zip(feature_cols, np.abs(kmeans.cluster_centers_).mean(axis=0))
             ),
         }
 
-    def build_predictive_model(self, df: pd.DataFrame, target_column: str = "population_dominance") -> Dict[str, Any]:
+    def build_predictive_model(
+        self, df: pd.DataFrame, target_column: str = "population_dominance"
+    ) -> Dict[str, Any]:
         """Build and evaluate a predictive model for simulation outcomes with proper validation.
+
+        The target_column parameter enhances API flexibility by allowing users to specify different
+        target variables for prediction beyond the default population_dominance. This enables the
+        same method to be used for predicting various simulation outcomes (e.g., agent survival rates,
+        resource utilization patterns, or behavioral metrics) without code duplication, following
+        the DRY principle and Open-Closed Principle for extensibility.
 
         Args:
             df: DataFrame containing simulation data
@@ -232,8 +273,10 @@ class SimulationComparator:
             return {"error": f"Target column '{target_column}' not found"}
 
         # Prepare features and target
-        feature_cols = [col for col in df.columns if col not in ["simulation_id", target_column]]
-        
+        feature_cols = [
+            col for col in df.columns if col not in ["simulation_id", target_column]
+        ]
+
         if not feature_cols:
             logger.error("No features available for modeling")
             return {"error": "No features available for modeling"}
@@ -254,13 +297,19 @@ class SimulationComparator:
 
         if len(X) < 10:
             logger.error(f"Insufficient data for modeling: {len(X)} samples")
-            return {"error": f"Insufficient data for modeling: {len(X)} samples (minimum: 10)"}
+            return {
+                "error": f"Insufficient data for modeling: {len(X)} samples (minimum: 10)"
+            }
 
         # Check if target has enough variation
         unique_targets = y.nunique()
         if unique_targets < 2:
-            logger.error(f"Target variable has insufficient variation: {unique_targets} unique values")
-            return {"error": f"Target variable has insufficient variation: {unique_targets} unique values"}
+            logger.error(
+                f"Target variable has insufficient variation: {unique_targets} unique values"
+            )
+            return {
+                "error": f"Target variable has insufficient variation: {unique_targets} unique values"
+            }
 
         # Split data with stratification if possible
         try:
@@ -284,7 +333,7 @@ class SimulationComparator:
 
         # Cross-validation
         try:
-            cv_scores = cross_val_score(model, X, y, cv=5, scoring='accuracy')
+            cv_scores = cross_val_score(model, X, y, cv=5, scoring="accuracy")
             cv_mean = cv_scores.mean()
             cv_std = cv_scores.std()
         except Exception as e:
@@ -302,32 +351,45 @@ class SimulationComparator:
             # Wilson score interval for accuracy
             p = test_accuracy
             z = 1.96  # 95% confidence
-            ci_lower = (p + z*z/(2*n_test) - z * np.sqrt((p*(1-p) + z*z/(4*n_test))/n_test)) / (1 + z*z/n_test)
-            ci_upper = (p + z*z/(2*n_test) + z * np.sqrt((p*(1-p) + z*z/(4*n_test))/n_test)) / (1 + z*z/n_test)
+            ci_lower = (
+                p
+                + z * z / (2 * n_test)
+                - z * np.sqrt((p * (1 - p) + z * z / (4 * n_test)) / n_test)
+            ) / (1 + z * z / n_test)
+            ci_upper = (
+                p
+                + z * z / (2 * n_test)
+                + z * np.sqrt((p * (1 - p) + z * z / (4 * n_test)) / n_test)
+            ) / (1 + z * z / n_test)
         else:
             ci_lower = ci_upper = 0
 
         # Plot feature importance with confidence intervals
         plt.figure(figsize=(12, 8))
-        
+
         # Feature importance plot
         importance_df = pd.DataFrame(
             feature_importance.items(), columns=["feature", "importance"]
         )
         importance_df = importance_df.sort_values("importance", ascending=True)
-        
+
         bars = plt.barh(importance_df["feature"], importance_df["importance"])
         plt.title(f"Feature Importance for Predicting {target_column}")
         plt.xlabel("Feature Importance")
-        
+
         # Add value labels
         for bar in bars:
             width = bar.get_width()
-            plt.text(width + 0.001, bar.get_y() + bar.get_height()/2, 
-                    f'{width:.3f}', ha='left', va='center')
-        
+            plt.text(
+                width + 0.001,
+                bar.get_y() + bar.get_height() / 2,
+                f"{width:.3f}",
+                ha="left",
+                va="center",
+            )
+
         plt.tight_layout()
-        plt.savefig("feature_importance.png", dpi=300, bbox_inches='tight')
+        plt.savefig("feature_importance.png", dpi=300, bbox_inches="tight")
         plt.close()
 
         # Model performance summary
@@ -337,10 +399,14 @@ class SimulationComparator:
             "cv_accuracy_mean": cv_mean,
             "cv_accuracy_std": cv_std,
             "cv_scores": cv_scores.tolist() if len(cv_scores) > 0 else [],
-            "model_quality": "good" if test_accuracy > 0.8 else "fair" if test_accuracy > 0.6 else "poor",
+            "model_quality": (
+                "good"
+                if test_accuracy > 0.8
+                else "fair" if test_accuracy > 0.6 else "poor"
+            ),
             "n_features": len(feature_cols),
             "n_samples": len(X),
-            "n_test_samples": len(X_test)
+            "n_test_samples": len(X_test),
         }
 
         return {
