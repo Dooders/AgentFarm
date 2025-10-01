@@ -27,7 +27,7 @@ from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.vector_ar.var_model import VAR
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 from statsmodels.stats.power import ttest_power
-from statsmodels.stats.effect_size import cohens_d, cohens_f
+# Note: cohens_d and cohens_f are calculated manually in _calculate_effect_sizes method
 from sklearn.cluster import KMeans
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier, VotingClassifier, BaggingClassifier
 from sklearn.feature_selection import SelectKBest, f_classif, RFE, SelectFromModel
@@ -1388,7 +1388,7 @@ class SimulationAnalyzer:
                 # Fit VAR model
                 var_model = VAR(var_data)
                 lag_order = var_model.select_order(maxlags=10)
-                best_lag = lag_order.aic
+                best_lag = lag_order['aic']
                 
                 fitted_var = var_model.fit(best_lag)
                 
