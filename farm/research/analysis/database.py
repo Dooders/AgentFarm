@@ -1,4 +1,3 @@
-import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -16,11 +15,6 @@ from farm.database.models import (
 from farm.research.analysis.util import (
     validate_population_data,
     validate_resource_level_data,
-)
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 from farm.utils.logging_config import get_logger
 

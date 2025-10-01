@@ -7,7 +7,6 @@ benchmarking their performance, and tracking training metrics over time.
 from __future__ import annotations
 
 import json
-import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -18,7 +17,6 @@ import pandas as pd
 
 from .base import ActionAlgorithm, AlgorithmRegistry
 from .rl_base import RLAlgorithm
-
 from farm.utils.logging_config import get_logger
 
 logger = get_logger(__name__)

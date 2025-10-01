@@ -1,4 +1,3 @@
-import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Union
@@ -10,11 +9,6 @@ import pandas as pd
 
 from farm.research.analysis.dataframes import create_population_df
 from farm.research.analysis.util import calculate_statistics
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
 from farm.utils.logging_config import get_logger
 
 logger = get_logger(__name__)

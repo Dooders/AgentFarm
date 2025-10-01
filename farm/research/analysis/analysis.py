@@ -1,4 +1,3 @@
-import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -19,10 +18,9 @@ from farm.research.analysis.util import (
     validate_population_data,
     validate_resource_level_data,
 )
+from farm.utils.logging_config import get_logger
 
 # EXPERIMENT_DATA_PATH = "results/one_of_a_kind_v1/experiments/data"
-
-from farm.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 

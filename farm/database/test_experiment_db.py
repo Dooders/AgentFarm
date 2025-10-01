@@ -4,18 +4,12 @@ This script demonstrates how to use the ExperimentDatabase class to manage
 multiple simulations in a single database file.
 """
 
-import logging
 import os
 import random
 import time
 from typing import Dict, List, Tuple
 
 from farm.database.experiment_database import ExperimentDatabase, SimulationContext
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
 from farm.utils.logging_config import get_logger
 
 logger = get_logger(__name__)

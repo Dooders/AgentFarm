@@ -3,19 +3,28 @@ Base module for analysis modules.
 This provides a common interface for all analysis modules.
 """
 
-from farm.utils.logging_config import get_logger
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
+
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 from farm.analysis.common.context import AnalysisContext
 from farm.analysis.common.metrics import (
-    get_valid_numeric_columns as _common_get_valid_numeric_columns,
-    split_and_compare_groups as _common_split_and_compare_groups,
     analyze_correlations as _common_analyze_correlations,
-    group_and_analyze as _common_group_and_analyze,
+)
+from farm.analysis.common.metrics import (
     find_top_correlations as _common_find_top_correlations,
+)
+from farm.analysis.common.metrics import (
+    get_valid_numeric_columns as _common_get_valid_numeric_columns,
+)
+from farm.analysis.common.metrics import group_and_analyze as _common_group_and_analyze
+from farm.analysis.common.metrics import (
+    split_and_compare_groups as _common_split_and_compare_groups,
 )
 
 
@@ -225,7 +234,7 @@ class AnalysisModule(ABC):
         analysis_functions = self.get_analysis_functions(group)
 
         if not analysis_functions:
-            logging.warning(f"No analysis functions found for group '{group}'")
+            logger.warning("no_analysis_functions_found", group=group)
             return output_path, None
 
         # Process data
@@ -234,7 +243,7 @@ class AnalysisModule(ABC):
             # If using a database, set up the database path
             db_path = os.path.join(output_path, db_filename)
             db_uri = f"sqlite:///{db_path}"
-            logging.info(f"Processing data and inserting directly into {db_uri}")
+            logger.info("processing_data_inserting_directly", db_uri=db_uri)
 
             # Add database parameters to processor kwargs
             db_processor_kwargs = {
@@ -250,20 +259,19 @@ class AnalysisModule(ABC):
             if df is None:
                 db_loader = self.get_db_loader()
                 if db_loader:
-                    logging.info("Loading data from database for visualization...")
+                    logger.info("loading_data_from_database_for_visualization")
                     df = db_loader(db_uri)
         else:
             # Process data without database
             df = data_processor(experiment_path, **processor_kwargs)
 
         if df is None or df.empty:
-            logging.warning("No simulation data found.")
+            logger.warning("no_simulation_data_found")
             return output_path, None
 
         # Log summary statistics
-        logging.info(f"Analyzed {len(df)} simulations.")
-        logging.info("\nSummary statistics:")
-        logging.info(df.describe().to_string())
+        logger.info("analyzed_simulations", count=len(df))
+        logger.info("summary_statistics", statistics=df.describe().to_string())
 
         # Prepare analysis context for standardized function calls
         ctx = AnalysisContext(output_path=output_path)
@@ -283,7 +291,7 @@ class AnalysisModule(ABC):
                 sig = inspect.signature(func)
                 params = list(sig.parameters.keys())
 
-                logging.info(f"Running {func_name}...")
+                logger.info("running_analysis_function", function_name=func_name)
 
                 # Handle different function signatures properly
                 if "ctx" in params:
@@ -302,16 +310,21 @@ class AnalysisModule(ABC):
                     # Function only expects df
                     func(df, **func_kwargs)
             except Exception as e:
-                logging.error(f"Error running {func.__name__}: {e}")
+                logger.error(
+                    "error_running_analysis_function",
+                    function_name=func.__name__,
+                    error=str(e),
+                    exc_info=True,
+                )
                 import traceback
 
-                logging.error(traceback.format_exc())
+                logger.error("traceback_details", traceback=traceback.format_exc())
 
         # Log completion
-        logging.info("\nAnalysis complete. Results saved.")
+        logger.info("analysis_complete_results_saved")
         if db_filename:
-            logging.info(f"Database saved to: {db_path}")
-        logging.info(f"All analysis files saved to: {output_path}")
+            logger.info("database_saved", db_path=db_path)
+        logger.info("all_analysis_files_saved", output_path=output_path)
 
         return output_path, df
 
@@ -354,7 +367,7 @@ def split_and_compare_groups(
         Dictionary with comparison results for each metric
     """
     if df.empty or split_column not in df.columns:
-        logging.warning(f"Cannot perform group comparison: missing {split_column}")
+        logger.warning("cannot_perform_group_comparison", missing_column=split_column)
         return {}
 
     # Determine the split value if not provided
@@ -370,8 +383,11 @@ def split_and_compare_groups(
     high_group = df[df[split_column] > split_value]
     low_group = df[df[split_column] <= split_value]
 
-    logging.info(
-        f"Analyzing {len(high_group)} high-{split_column} and {len(low_group)} low-{split_column} groups"
+    logger.info(
+        "analyzing_groups",
+        high_group_count=len(high_group),
+        low_group_count=len(low_group),
+        split_column=split_column,
     )
 
     # Determine which metrics to compare
@@ -399,7 +415,7 @@ def split_and_compare_groups(
                 "percent_difference": percent_diff,
             }
         except Exception as e:
-            logging.warning(f"Error comparing metric {metric}: {e}")
+            logger.warning("error_comparing_metric", metric=metric, error=str(e))
 
     return {"comparison_results": comparison}
 

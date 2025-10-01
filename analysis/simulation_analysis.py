@@ -2923,7 +2923,8 @@ def main():
 
     # Configure logging level
     if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
+        # Note: Logging level is configured via structlog in the main entry points
+        pass
 
     try:
         # Validate inputs

@@ -5,7 +5,6 @@ This module provides functions to analyze advantages across multiple simulations
 identifying patterns and correlations between advantages and dominance outcomes.
 """
 
-from farm.utils.logging_config import get_logger
 import time
 from typing import Any, Dict, cast
 
@@ -13,10 +12,15 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 from farm.analysis.advantage.compute import (
     compute_advantage_dominance_correlation,
     compute_advantages,
 )
+
 # Note: BaseAnalysisModule is from the old system - kept for backwards compatibility
 # For new modules, use: from farm.analysis.core import BaseAnalysisModule
 from farm.analysis.base_module import BaseAnalysisModule
@@ -46,20 +50,20 @@ def process_single_simulation(session, iteration, config, **kwargs):
         or None if processing failed
     """
     try:
-        logging.debug(f"Computing dominance for iteration {iteration}")
+        logger.debug("computing_dominance_for_iteration", iteration=iteration)
         dominance_result = compute_comprehensive_dominance(session)
 
         if not dominance_result:
-            logging.warning(
-                f"Skipping iteration {iteration}: Failed to compute dominance"
-            )
+            logger.warning("skipping_iteration_failed_dominance", iteration=iteration)
             return None
 
         dominant_type = dominance_result["dominant_type"]
-        logging.debug(f"Iteration {iteration} dominant type: {dominant_type}")
+        logger.debug(
+            "iteration_dominant_type", iteration=iteration, dominant_type=dominant_type
+        )
 
         # Compute advantages
-        logging.debug(f"Computing advantages for iteration {iteration}")
+        logger.debug("computing_advantages_for_iteration", iteration=iteration)
         advantages = compute_advantages(session)
 
         # Create a row of data for this simulation
@@ -90,9 +94,7 @@ def process_single_simulation(session, iteration, config, **kwargs):
                             sim_data[f"{pair}_{category}_{metric}"] = value
 
         # Add advantage to dominance correlation
-        logging.debug(
-            f"Computing advantage-dominance correlation for iteration {iteration}"
-        )
+        logger.debug("computing_advantage_dominance_correlation", iteration=iteration)
         advantage_correlation = compute_advantage_dominance_correlation(session)
         if advantage_correlation:
             sim_data["advantage_ratio"] = advantage_correlation["summary"][
@@ -110,7 +112,12 @@ def process_single_simulation(session, iteration, config, **kwargs):
         return sim_data
 
     except Exception as e:
-        logging.error(f"Error processing iteration {iteration}: {e}")
+        logger.error(
+            "error_processing_iteration",
+            iteration=iteration,
+            error=str(e),
+            exc_info=True,
+        )
         return None
 
 
@@ -150,7 +157,7 @@ def analyze_advantages(
 
     # Handle the save_to_db option if implemented
     if save_to_db and not df.empty:
-        logging.info(f"Saving analysis data to database: {db_path}")
+        logger.info("saving_analysis_data_to_database", db_path=db_path)
         # Return empty DataFrame when saving to database
         return pd.DataFrame()
 
@@ -181,7 +188,7 @@ def analyze_advantage_patterns(df: pd.DataFrame) -> Dict[str, Any]:
 
     # Skip if no data
     if df.empty:
-        logging.warning("No data to analyze")
+        logger.warning("no_data_to_analyze")
         return results
 
     # 1. Analyze statistical significance of advantages
@@ -221,7 +228,7 @@ def analyze_advantage_patterns(df: pd.DataFrame) -> Dict[str, Any]:
                 "significant": significance,
             }
         except Exception as e:
-            logging.warning(f"Error analyzing significance for {col}: {e}")
+            logger.warning("error_analyzing_significance", column=col, error=str(e))
 
     # 2. Analyze correlations between advantages and dominance outcomes
     # For each agent type, find correlations with its dominance score
@@ -257,7 +264,9 @@ def analyze_advantage_patterns(df: pd.DataFrame) -> Dict[str, Any]:
 
                         correlations[col] = corr
                     except Exception as e:
-                        logging.warning(f"Error calculating correlation for {col}: {e}")
+                        logger.warning(
+                            "error_calculating_correlation", column=col, error=str(e)
+                        )
 
             # Sort by absolute correlation strength
             sorted_corrs = sorted(
@@ -377,7 +386,9 @@ def analyze_advantage_patterns(df: pd.DataFrame) -> Dict[str, Any]:
                         "strength": strength,
                     }
                 except Exception as e:
-                    logging.warning(f"Error analyzing phase advantage for {col}: {e}")
+                    logger.warning(
+                        "error_analyzing_phase_advantage", column=col, error=str(e)
+                    )
 
         timing_analysis[agent_type] = phase_advantages
 
@@ -471,7 +482,9 @@ def analyze_advantage_patterns(df: pd.DataFrame) -> Dict[str, Any]:
                         "effect_size": effect_size,
                     }
                 except Exception as e:
-                    logging.warning(f"Error analyzing advantage predictor {col}: {e}")
+                    logger.warning(
+                        "error_analyzing_advantage_predictor", column=col, error=str(e)
+                    )
 
         # Sort predictors by effect size
         sorted_predictors = sorted(
@@ -572,7 +585,11 @@ def analyze_advantage_patterns(df: pd.DataFrame) -> Dict[str, Any]:
                         "all_thresholds": thresholds,
                     }
                 except Exception as e:
-                    logging.warning(f"Error analyzing thresholds for {adv_col}: {e}")
+                    logger.warning(
+                        "error_analyzing_thresholds",
+                        advantage_column=adv_col,
+                        error=str(e),
+                    )
 
             threshold_analysis[agent_type] = advantage_thresholds
 
@@ -621,14 +638,12 @@ def get_advantage_recommendations(
 
     # Check if analysis_results is empty or None
     if not analysis_results:
-        logging.warning("No analysis results available for generating recommendations")
+        logger.warning("no_analysis_results_for_recommendations")
         return recommendations
 
     # Check if required data is available
     if "agent_type_specific_analysis" not in analysis_results:
-        logging.warning(
-            "No agent-specific analysis available for generating recommendations"
-        )
+        logger.warning("no_agent_specific_analysis_for_recommendations")
         return recommendations
 
     # Generate agent-specific recommendations

@@ -10,37 +10,40 @@ This script validates:
 5. Performance & Correctness: Memory efficiency and error handling
 """
 
-import sys
-import os
-import torch
-import numpy as np
-from typing import Dict, List, Any
 import logging
+import os
+import sys
+from typing import Any, Dict, List
+
+import numpy as np
+import torch
 
 # Add the farm module to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'farm'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "farm"))
 
-from farm.core.channels import get_channel_registry, NUM_CHANNELS
-from farm.core.observations import ObservationConfig, AgentObservation
-from farm.core.decision.decision import DecisionModule
-from farm.core.decision.config import DecisionConfig
 from farm.core.agent import BaseAgent
+from farm.core.channels import NUM_CHANNELS, get_channel_registry
+from farm.core.decision.config import DecisionConfig
+from farm.core.decision.decision import DecisionModule
+from farm.core.observations import AgentObservation, ObservationConfig
 from farm.core.services.factory import AgentServiceFactory
+from farm.utils.logging_config import get_logger
+
 # from farm.core.services.spatial.mock_spatial_service import MockSpatialService
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-from farm.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
+
 class MockSpatialService:
     """Mock spatial service for testing."""
+
     def get_nearby(self, position, radius, index_names=None):
         return {"resources": [], "agents": []}
 
     def get_nearest(self, position, index_names=None):
         return {"resources": None, "agents": None}
+
 
 class PipelineValidator:
     """Comprehensive validator for the observation-to-decision pipeline."""
@@ -71,15 +74,25 @@ class PipelineValidator:
             if num_channels != 13:
                 self.log_failure(
                     "Channel Registry Count",
-                    f"Expected 13 channels, got {num_channels}"
+                    f"Expected 13 channels, got {num_channels}",
                 )
                 return False
 
             # Check that all expected channels are registered
             expected_channels = [
-                "SELF_HP", "ALLIES_HP", "ENEMIES_HP", "RESOURCES", "OBSTACLES",
-                "TERRAIN_COST", "VISIBILITY", "KNOWN_EMPTY", "DAMAGE_HEAT",
-                "TRAILS", "ALLY_SIGNAL", "GOAL", "LANDMARKS"
+                "SELF_HP",
+                "ALLIES_HP",
+                "ENEMIES_HP",
+                "RESOURCES",
+                "OBSTACLES",
+                "TERRAIN_COST",
+                "VISIBILITY",
+                "KNOWN_EMPTY",
+                "DAMAGE_HEAT",
+                "TRAILS",
+                "ALLY_SIGNAL",
+                "GOAL",
+                "LANDMARKS",
             ]
 
             missing_channels = []
@@ -91,14 +104,13 @@ class PipelineValidator:
 
             if missing_channels:
                 self.log_failure(
-                    "Channel Registry Content",
-                    f"Missing channels: {missing_channels}"
+                    "Channel Registry Content", f"Missing channels: {missing_channels}"
                 )
                 return False
 
             self.log_success(
                 "Channel Registry",
-                f"Successfully registered {num_channels} channels: {expected_channels}"
+                f"Successfully registered {num_channels} channels: {expected_channels}",
             )
             return True
 
@@ -114,8 +126,7 @@ class PipelineValidator:
 
             if expected_size != 13:
                 self.log_failure(
-                    "Observation Config Size",
-                    f"Expected size 13, got {expected_size}"
+                    "Observation Config Size", f"Expected size 13, got {expected_size}"
                 )
                 return False
 
@@ -127,13 +138,13 @@ class PipelineValidator:
             if tensor.shape != expected_shape:
                 self.log_failure(
                     "Observation Tensor Shape",
-                    f"Expected shape {expected_shape}, got {tensor.shape}"
+                    f"Expected shape {expected_shape}, got {tensor.shape}",
                 )
                 return False
 
             self.log_success(
                 "Observation Config",
-                f"Observation size: {expected_size}x{expected_size}, channels: {NUM_CHANNELS}"
+                f"Observation size: {expected_size}x{expected_size}, channels: {NUM_CHANNELS}",
             )
             return True
 
@@ -166,43 +177,51 @@ class PipelineValidator:
                     # Create decision module
                     decision_module = DecisionModule(
                         agent=mock_agent,
-                        action_space=type('MockSpace', (), {'n': num_actions, 'shape': (num_actions,)})(),
-                        observation_space=type('MockSpace', (), {'shape': observation_shape})(),
-                        config=config
+                        action_space=type(
+                            "MockSpace", (), {"n": num_actions, "shape": (num_actions,)}
+                        )(),
+                        observation_space=type(
+                            "MockSpace", (), {"shape": observation_shape}
+                        )(),
+                        config=config,
                     )
 
                     # Check if CNN networks were created properly
-                    if hasattr(decision_module.algorithm, 'policy'):
+                    if hasattr(decision_module.algorithm, "policy"):
                         policy = decision_module.algorithm.policy
 
                         # Check for CNN layers in the network
                         has_conv = False
-                        if hasattr(policy, 'actor') and hasattr(policy.actor, 'conv_layers'):
+                        if hasattr(policy, "actor") and hasattr(
+                            policy.actor, "conv_layers"
+                        ):
                             has_conv = True
-                        elif hasattr(policy, 'model') and hasattr(policy.model, 'conv_layers'):
+                        elif hasattr(policy, "model") and hasattr(
+                            policy.model, "conv_layers"
+                        ):
                             has_conv = True
 
                         if not has_conv:
                             self.log_failure(
                                 f"{algorithm.upper()} CNN Architecture",
-                                f"No convolutional layers found in {algorithm} network"
+                                f"No convolutional layers found in {algorithm} network",
                             )
                             continue
 
                         self.log_success(
                             f"{algorithm.upper()} CNN Architecture",
-                            "Successfully created CNN network with convolutional layers"
+                            "Successfully created CNN network with convolutional layers",
                         )
                     else:
                         self.log_failure(
                             f"{algorithm.upper()} Policy Creation",
-                            "Failed to create policy object"
+                            "Failed to create policy object",
                         )
 
                 except Exception as e:
                     self.log_failure(
                         f"{algorithm.upper()} Network Creation",
-                        f"Failed to create {algorithm} network: {str(e)}"
+                        f"Failed to create {algorithm} network: {str(e)}",
                     )
 
             return True
@@ -228,22 +247,21 @@ class PipelineValidator:
                 if batched_obs.shape[0] != 1:
                     self.log_failure(
                         "Batch Dimension Handling",
-                        f"Expected batch size 1, got {batched_obs.shape[0]}"
+                        f"Expected batch size 1, got {batched_obs.shape[0]}",
                     )
                     return False
 
             # Test tensor device handling
-            device_obs = test_state.to('cpu')  # Ensure on CPU for testing
-            if device_obs.device.type != 'cpu':
+            device_obs = test_state.to("cpu")  # Ensure on CPU for testing
+            if device_obs.device.type != "cpu":
                 self.log_failure(
-                    "Device Handling",
-                    f"Expected CPU device, got {device_obs.device}"
+                    "Device Handling", f"Expected CPU device, got {device_obs.device}"
                 )
                 return False
 
             self.log_success(
                 "Observation Processing",
-                f"Successfully processed 3D tensor: shape {test_state.shape}, device {device_obs.device}"
+                f"Successfully processed 3D tensor: shape {test_state.shape}, device {device_obs.device}",
             )
             return True
 
@@ -266,9 +284,9 @@ class PipelineValidator:
             # Create decision module
             decision_module = DecisionModule(
                 agent=mock_agent,
-                action_space=type('MockSpace', (), {'n': 8, 'shape': (8,)})(),
-                observation_space=type('MockSpace', (), {'shape': (13, 13, 13)})(),
-                config=config
+                action_space=type("MockSpace", (), {"n": 8, "shape": (8,)})(),
+                observation_space=type("MockSpace", (), {"shape": (13, 13, 13)})(),
+                config=config,
             )
 
             # Test action masking
@@ -281,7 +299,7 @@ class PipelineValidator:
             if action not in enabled_actions:
                 self.log_failure(
                     "Action Masking",
-                    f"Selected action {action} not in enabled actions {enabled_actions}"
+                    f"Selected action {action} not in enabled actions {enabled_actions}",
                 )
                 return False
 
@@ -291,13 +309,13 @@ class PipelineValidator:
             if action_no_mask < 0 or action_no_mask >= 8:
                 self.log_failure(
                     "Action Selection (No Mask)",
-                    f"Selected action {action_no_mask} out of valid range [0, 7]"
+                    f"Selected action {action_no_mask} out of valid range [0, 7]",
                 )
                 return False
 
             self.log_success(
                 "Action Masking",
-                f"Successfully masked actions: selected {action} from {enabled_actions}"
+                f"Successfully masked actions: selected {action} from {enabled_actions}",
             )
             return True
 
@@ -323,9 +341,9 @@ class PipelineValidator:
             decision_config = DecisionConfig(algorithm_type="ppo")
             decision_module = DecisionModule(
                 agent=mock_agent,
-                action_space=type('MockSpace', (), {'n': 8, 'shape': (8,)})(),
-                observation_space=type('MockSpace', (), {'shape': (13, 13, 13)})(),
-                config=decision_config
+                action_space=type("MockSpace", (), {"n": 8, "shape": (8,)})(),
+                observation_space=type("MockSpace", (), {"shape": (13, 13, 13)})(),
+                config=decision_config,
             )
 
             # Step 1: Create observation tensor
@@ -333,7 +351,7 @@ class PipelineValidator:
             if observation_tensor.shape != (13, 13, 13):
                 self.log_failure(
                     "Integration Step 1",
-                    f"Observation tensor shape mismatch: {observation_tensor.shape}"
+                    f"Observation tensor shape mismatch: {observation_tensor.shape}",
                 )
                 return False
 
@@ -342,7 +360,7 @@ class PipelineValidator:
             if not isinstance(decision_state, torch.Tensor):
                 self.log_failure(
                     "Integration Step 2",
-                    f"Decision state is not a torch tensor: {type(decision_state)}"
+                    f"Decision state is not a torch tensor: {type(decision_state)}",
                 )
                 return False
 
@@ -351,14 +369,13 @@ class PipelineValidator:
 
             if not isinstance(action, int) or action < 0 or action >= 8:
                 self.log_failure(
-                    "Integration Step 3",
-                    f"Invalid action selected: {action}"
+                    "Integration Step 3", f"Invalid action selected: {action}"
                 )
                 return False
 
             self.log_success(
                 "Integration Pipeline",
-                f"Complete pipeline successful: obs {observation_tensor.shape} → decision → action {action}"
+                f"Complete pipeline successful: obs {observation_tensor.shape} → decision → action {action}",
             )
             return True
 
@@ -391,24 +408,20 @@ class PipelineValidator:
 
             # Test should complete within reasonable time
             if duration > 5.0:  # 5 seconds max
-                self.log_failure(
-                    "Performance Timing",
-                    ".2f"
-                )
+                self.log_failure("Performance Timing", ".2f")
                 return False
 
             # Test tensor device consistency
             test_tensor = torch.randn(13, 13, 13)
-            if test_tensor.device.type not in ['cpu', 'cuda']:
+            if test_tensor.device.type not in ["cpu", "cuda"]:
                 self.log_failure(
                     "Tensor Device Consistency",
-                    f"Unexpected device: {test_tensor.device}"
+                    f"Unexpected device: {test_tensor.device}",
                 )
                 return False
 
             self.log_success(
-                "Performance",
-                f"Performance test completed in {duration:.2f}s"
+                "Performance", f"Performance test completed in {duration:.2f}s"
             )
             return True
 
@@ -424,7 +437,7 @@ class PipelineValidator:
                 config = ObservationConfig(R=-1)  # Invalid radius
                 self.log_failure(
                     "Error Handling - Invalid Config",
-                    "Should have failed with invalid radius"
+                    "Should have failed with invalid radius",
                 )
                 return False
             except Exception:
@@ -443,29 +456,28 @@ class PipelineValidator:
 
                 decision_module = DecisionModule(
                     agent=mock_agent,
-                    action_space=type('MockSpace', (), {'n': 8, 'shape': (8,)})(),
-                    observation_space=type('MockSpace', (), {'shape': (13, 13, 13)})(),
-                    config=config
+                    action_space=type("MockSpace", (), {"n": 8, "shape": (8,)})(),
+                    observation_space=type("MockSpace", (), {"shape": (13, 13, 13)})(),
+                    config=config,
                 )
 
                 # Should fall back to valid algorithm
-                if not hasattr(decision_module, 'algorithm'):
+                if not hasattr(decision_module, "algorithm"):
                     self.log_failure(
                         "Error Handling - Invalid Algorithm",
-                        "No fallback algorithm created"
+                        "No fallback algorithm created",
                     )
                     return False
 
             except Exception as e:
                 self.log_failure(
-                    "Error Handling - Invalid Algorithm",
-                    f"Unexpected error: {str(e)}"
+                    "Error Handling - Invalid Algorithm", f"Unexpected error: {str(e)}"
                 )
                 return False
 
             self.log_success(
                 "Error Handling",
-                "Successfully handled invalid configurations with fallbacks"
+                "Successfully handled invalid configurations with fallbacks",
             )
             return True
 
@@ -521,6 +533,7 @@ class PipelineValidator:
             logger.info(f"\n⚠️  {total - passed} validation(s) failed")
             return False
 
+
 def main():
     """Main validation entry point."""
     validator = PipelineValidator()
@@ -538,6 +551,7 @@ def main():
         else:
             print(f"❌ {test_name:.<50} FAIL")
     return 0 if success else 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

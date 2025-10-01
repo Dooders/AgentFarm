@@ -34,7 +34,6 @@ Notes
 - In-memory DB mode is supported for tests or ephemeral runs
 """
 
-import logging
 import math
 import random
 import time as _time
@@ -417,7 +416,9 @@ class Environment(AECEnv):
                 missing_actions.append(action_name)
 
         if missing_actions:
-            logging.warning("Missing actions in registry: %s", missing_actions)
+            logger.warning(
+                "missing_actions_in_registry", missing_actions=missing_actions
+            )
             # Remove missing actions from mapping
             self._action_mapping = {
                 k: v
@@ -427,10 +428,10 @@ class Environment(AECEnv):
 
         # Log the final action mapping
         available_actions = list(self._action_mapping.values())
-        logging.info(
-            "Initialized action mapping with %s actions: %s",
-            len(available_actions),
-            available_actions,
+        logger.info(
+            "action_mapping_initialized",
+            action_count=len(available_actions),
+            available_actions=available_actions,
         )
 
     @property
@@ -916,7 +917,7 @@ class Environment(AECEnv):
             self.time += 1
 
         except (RuntimeError, ValueError, AttributeError) as e:
-            logging.error("Error in environment update: %s", e)
+            logger.error("environment_update_error", error=str(e), exc_info=True)
             raise
 
     def _calculate_metrics(self) -> Dict[str, Any]:
@@ -1423,10 +1424,10 @@ class Environment(AECEnv):
 
         # Log the update
         available_actions = list(self._action_mapping.values())
-        logging.info(
-            "Action space updated: %s actions available: %s",
-            len(available_actions),
-            available_actions,
+        logger.info(
+            "action_space_updated",
+            action_count=len(available_actions),
+            available_actions=available_actions,
         )
 
     def get_initial_agent_count(self) -> int:
@@ -1723,10 +1724,10 @@ class Environment(AECEnv):
 
         # Validate action is within enabled action space bounds
         if action < 0 or action >= len(self._enabled_action_types):
-            logging.debug(
-                "Action %s is out of bounds for enabled action space (size: %s)",
-                action,
-                len(self._enabled_action_types),
+            logger.debug(
+                "action_out_of_bounds",
+                action=action,
+                action_space_size=len(self._enabled_action_types),
             )
             return
 
@@ -1761,13 +1762,19 @@ class Environment(AECEnv):
                             ),
                         )
                     except Exception as e:
-                        logging.warning(
-                            f"Failed to log agent action {action_name}: {e}"
+                        logger.warning(
+                            "failed_to_log_agent_action",
+                            action_name=action_name,
+                            error=str(e),
+                            exc_info=True,
                         )
+                        logger.warning(f"Failed to log agent action {action_name}: {e}")
             else:
-                logging.warning("Action '%s' not found in action registry", action_name)
+                logger.warning(
+                    "action_not_found_in_action_registry", action_name=action_name
+                )
         else:
-            logging.debug(
+            logger.debug(
                 "Action %s (mapped to %s) not available in current simulation configuration",
                 action,
                 action_type,

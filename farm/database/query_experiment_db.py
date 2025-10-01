@@ -4,14 +4,9 @@ This script shows how to query the experiment database to get statistics
 about multiple simulations.
 """
 
-import logging
 import os
 import sqlite3
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
 from farm.utils.logging_config import get_logger
 
 logger = get_logger(__name__)

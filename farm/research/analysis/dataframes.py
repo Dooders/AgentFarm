@@ -1,4 +1,3 @@
-import logging
 from typing import List
 
 import numpy as np
@@ -8,7 +7,6 @@ from farm.research.analysis.util import (
     validate_population_data,
     validate_resource_level_data,
 )
-
 from farm.utils.logging_config import get_logger
 
 logger = get_logger(__name__)

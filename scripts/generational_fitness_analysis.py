@@ -38,10 +38,6 @@ from farm.database.models import (
     SimulationStepModel,
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
 from farm.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
