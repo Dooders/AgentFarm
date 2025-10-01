@@ -210,6 +210,38 @@ for series_name, comparison in advanced_results["model_comparison"].items():
     print(f"  Comparison: {comparison['comparison']}")
 ```
 
+## Integration with Other Analysis Methods
+
+The time series analysis methods integrate seamlessly with other analysis capabilities:
+
+### Population Dynamics Analysis
+```python
+# Run population dynamics analysis with time series components
+pop_results = analyzer.analyze_population_dynamics(simulation_id=1)
+# Includes temporal patterns in population changes
+```
+
+### Resource Distribution Analysis
+```python
+# Run resource distribution analysis
+res_results = analyzer.analyze_resource_distribution(simulation_id=1)
+# Includes temporal patterns in resource allocation
+```
+
+### Agent Interaction Analysis
+```python
+# Run agent interaction analysis
+int_results = analyzer.analyze_agent_interactions(simulation_id=1)
+# Includes temporal patterns in interaction frequencies
+```
+
+### Advanced Machine Learning Analysis
+```python
+# Run advanced ML analysis with temporal features
+ml_results = analyzer.analyze_with_advanced_ml(simulation_id=1)
+# Includes time series features in ML models
+```
+
 ## Usage Examples
 
 ### Complete Analysis Workflow
