@@ -1,9 +1,14 @@
 """
-This file has been refactored. Use the following modules instead:
- - farm.analysis.dominance.pipeline for orchestration
- - farm.analysis.dominance.features for feature engineering
- - farm.analysis.dominance.db_io for persistence
- - farm.analysis.dominance.validation for data validation
+Dominance Analysis Functions and Utilities
+
+This file contains legacy dominance analysis functions. For new code, use:
+ - farm.analysis.dominance.module - Modern module implementation
+ - farm.analysis.dominance.pipeline - Orchestration
+ - farm.analysis.dominance.features - Feature engineering
+ - farm.analysis.dominance.db_io - Persistence
+ 
+The DominanceAnalysis class at the bottom uses the old BaseAnalysisModule
+and is kept for backwards compatibility. New code should use the module system.
 """
 
 import logging
@@ -11,8 +16,7 @@ import traceback
 
 import pandas as pd
 
-from farm.analysis.base_module import (
-    BaseAnalysisModule,
+from farm.analysis.common.metrics import (
     analyze_correlations,
     get_valid_numeric_columns,
     group_and_analyze,

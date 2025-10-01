@@ -17,6 +17,8 @@ from farm.analysis.advantage.compute import (
     compute_advantage_dominance_correlation,
     compute_advantages,
 )
+# Note: BaseAnalysisModule is from the old system - kept for backwards compatibility
+# For new modules, use: from farm.analysis.core import BaseAnalysisModule
 from farm.analysis.base_module import BaseAnalysisModule
 from farm.analysis.dominance.compute import compute_comprehensive_dominance
 from scripts.analysis_config import setup_and_process_simulations
