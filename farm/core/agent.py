@@ -1416,7 +1416,11 @@ class BaseAgent:
                 agent_id=self.agent_id,
                 position=self.position,
                 step=self.time_service.current_time() if self.time_service else 0,
-                lifetime_steps=self.death_time - self.birth_time if hasattr(self, 'birth_time') else None,
+                lifetime_steps=(
+                    self.death_time - self.birth_time
+                    if hasattr(self, "birth_time")
+                    else None
+                ),
             )
             if self.lifecycle_service:
                 try:
@@ -1602,8 +1606,8 @@ class BaseAgent:
             logger.info(
                 "redis_memory_initialized",
                 agent_id=self.agent_id,
-                host=memory_config_obj.host,
-                port=memory_config_obj.port,
+                host=redis_config.host,
+                port=redis_config.port,
             )
 
         except Exception as e:

@@ -642,6 +642,7 @@ class AgentMemoryManager:
 # Example integration with BaseAgent
 def integrate_with_agent():
     """Example code showing how to integrate memory with BaseAgent class."""
+    pass  # This function contains example code in docstrings
 
     # Add this to BaseAgent.__init__
     """
