@@ -19,13 +19,22 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from scipy import stats
-from scipy.stats import mannwhitneyu, kruskal, chi2_contingency
+from scipy.stats import mannwhitneyu, kruskal, chi2_contingency, pearsonr, spearmanr
+from scipy.signal import find_peaks, periodogram
+from statsmodels.tsa.seasonal import seasonal_decompose
+from statsmodels.tsa.stattools import adfuller, kpss, coint
+from statsmodels.stats.power import ttest_power
+from statsmodels.stats.effect_size import cohens_d, cohens_f
 from sklearn.cluster import KMeans
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier, VotingClassifier, BaggingClassifier
+from sklearn.feature_selection import SelectKBest, f_classif, RFE, SelectFromModel
 from sklearn.inspection import permutation_importance
-from sklearn.metrics import classification_report
-from sklearn.model_selection import cross_val_score, train_test_split
-from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report, roc_auc_score, precision_recall_curve, roc_curve
+from sklearn.model_selection import cross_val_score, train_test_split, GridSearchCV, StratifiedKFold
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -37,6 +46,15 @@ from farm.database.models import (
     SimulationStepModel,
 )
 
+# Import reproducibility utilities
+try:
+    from .reproducibility import ReproducibilityManager, AnalysisValidator, create_reproducibility_report
+except ImportError:
+    # Fallback if reproducibility module is not available
+    ReproducibilityManager = None
+    AnalysisValidator = None
+    create_reproducibility_report = None
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -45,17 +63,28 @@ logger = logging.getLogger(__name__)
 
 
 class SimulationAnalyzer:
-    """Class for analyzing simulation results."""
+    """Class for analyzing simulation results with reproducibility features."""
 
-    def __init__(self, db_path: str):
-        """Initialize the analyzer with database connection.
+    def __init__(self, db_path: str, random_seed: int = 42):
+        """Initialize the analyzer with database connection and reproducibility features.
 
         Args:
             db_path: Path to the SQLite database file
+            random_seed: Random seed for reproducible results
         """
         self.engine = create_engine(f"sqlite:///{db_path}")
         Session = sessionmaker(bind=self.engine)
         self.session = Session()
+        
+        # Initialize reproducibility features
+        self.random_seed = random_seed
+        if ReproducibilityManager is not None:
+            self.repro_manager = ReproducibilityManager(random_seed)
+            self.validator = AnalysisValidator()
+        else:
+            self.repro_manager = None
+            self.validator = None
+            logger.warning("Reproducibility features not available")
 
     def analyze_population_dynamics(self, simulation_id: int) -> Dict[str, Any]:
         """Analyze how agent populations change throughout the simulation with statistical validation.
@@ -116,19 +145,47 @@ class SimulationAnalyzer:
                 logger.warning(f"Kruskal-Wallis test failed: {e}")
                 statistical_results["kruskal_wallis"] = {"error": str(e)}
         
-        # Pairwise comparisons using Mann-Whitney U test
+        # Pairwise comparisons using Mann-Whitney U test with effect sizes
         pairwise_results = {}
         for i, type1 in enumerate(agent_types):
             for j, type2 in enumerate(agent_types):
                 if i < j and type1 in df.columns and type2 in df.columns:
                     try:
+                        data1 = df[type1].dropna()
+                        data2 = df[type2].dropna()
+                        
+                        # Mann-Whitney U test
                         statistic, p_value = mannwhitneyu(
-                            df[type1], df[type2], alternative='two-sided'
+                            data1, data2, alternative='two-sided'
                         )
+                        
+                        # Effect size calculations
+                        effect_sizes = self._calculate_effect_sizes(data1, data2)
+                        
+                        # Power analysis
+                        power_analysis = self._calculate_power_analysis(data1, data2, p_value)
+                        
                         pairwise_results[f"{type1}_vs_{type2}"] = {
                             "statistic": statistic,
                             "p_value": p_value,
-                            "significant_difference": p_value < 0.05
+                            "significant_difference": p_value < 0.05,
+                            "effect_sizes": effect_sizes,
+                            "power_analysis": power_analysis,
+                            "sample_sizes": {"group1": len(data1), "group2": len(data2)},
+                            "descriptive_stats": {
+                                "group1": {
+                                    "mean": data1.mean(),
+                                    "median": data1.median(),
+                                    "std": data1.std(),
+                                    "iqr": data1.quantile(0.75) - data1.quantile(0.25)
+                                },
+                                "group2": {
+                                    "mean": data2.mean(),
+                                    "median": data2.median(),
+                                    "std": data2.std(),
+                                    "iqr": data2.quantile(0.75) - data2.quantile(0.25)
+                                }
+                            }
                         }
                     except Exception as e:
                         logger.warning(f"Mann-Whitney U test failed for {type1} vs {type2}: {e}")
@@ -639,6 +696,561 @@ class SimulationAnalyzer:
         
         return critical_steps
 
+    def _calculate_effect_sizes(self, data1: pd.Series, data2: pd.Series) -> Dict[str, float]:
+        """Calculate various effect size measures for comparing two groups.
+        
+        Args:
+            data1: First group data
+            data2: Second group data
+            
+        Returns:
+            Dictionary containing different effect size measures
+        """
+        effect_sizes = {}
+        
+        try:
+            # Cohen's d (standardized mean difference)
+            n1, n2 = len(data1), len(data2)
+            mean1, mean2 = data1.mean(), data2.mean()
+            std1, std2 = data1.std(), data2.std()
+            
+            # Pooled standard deviation
+            pooled_std = np.sqrt(((n1 - 1) * std1**2 + (n2 - 1) * std2**2) / (n1 + n2 - 2))
+            
+            if pooled_std > 0:
+                cohens_d = (mean1 - mean2) / pooled_std
+                effect_sizes["cohens_d"] = cohens_d
+                
+                # Interpret Cohen's d
+                if abs(cohens_d) < 0.2:
+                    effect_sizes["cohens_d_interpretation"] = "negligible"
+                elif abs(cohens_d) < 0.5:
+                    effect_sizes["cohens_d_interpretation"] = "small"
+                elif abs(cohens_d) < 0.8:
+                    effect_sizes["cohens_d_interpretation"] = "medium"
+                else:
+                    effect_sizes["cohens_d_interpretation"] = "large"
+            
+            # Glass's delta (using control group standard deviation)
+            if std2 > 0:
+                glass_delta = (mean1 - mean2) / std2
+                effect_sizes["glass_delta"] = glass_delta
+            
+            # Hedges' g (bias-corrected Cohen's d)
+            if pooled_std > 0:
+                # Correction factor
+                correction = 1 - (3 / (4 * (n1 + n2) - 9))
+                hedges_g = cohens_d * correction
+                effect_sizes["hedges_g"] = hedges_g
+            
+            # Common Language Effect Size (CLES)
+            # Probability that a randomly selected value from group 1 is greater than group 2
+            try:
+                from scipy.stats import norm
+                if pooled_std > 0:
+                    z_score = (mean1 - mean2) / pooled_std
+                    cles = norm.cdf(z_score / np.sqrt(2))
+                    effect_sizes["cles"] = cles
+                    effect_sizes["cles_interpretation"] = f"Probability that group 1 > group 2: {cles:.1%}"
+            except ImportError:
+                pass
+            
+            # Point-biserial correlation (for binary vs continuous)
+            # This would be applicable if one group was binary
+            
+            # Eta-squared (proportion of variance explained)
+            ss_between = n1 * (mean1 - (n1 * mean1 + n2 * mean2) / (n1 + n2))**2 + \
+                        n2 * (mean2 - (n1 * mean1 + n2 * mean2) / (n1 + n2))**2
+            ss_total = ((data1 - data1.mean())**2).sum() + ((data2 - data2.mean())**2).sum()
+            
+            if ss_total > 0:
+                eta_squared = ss_between / ss_total
+                effect_sizes["eta_squared"] = eta_squared
+                
+                # Interpret eta-squared
+                if eta_squared < 0.01:
+                    effect_sizes["eta_squared_interpretation"] = "negligible"
+                elif eta_squared < 0.06:
+                    effect_sizes["eta_squared_interpretation"] = "small"
+                elif eta_squared < 0.14:
+                    effect_sizes["eta_squared_interpretation"] = "medium"
+                else:
+                    effect_sizes["eta_squared_interpretation"] = "large"
+            
+        except Exception as e:
+            logger.warning(f"Effect size calculation failed: {e}")
+            effect_sizes["error"] = str(e)
+        
+        return effect_sizes
+
+    def _calculate_power_analysis(self, data1: pd.Series, data2: pd.Series, p_value: float) -> Dict[str, Any]:
+        """Calculate statistical power and related metrics.
+        
+        Args:
+            data1: First group data
+            data2: Second group data
+            p_value: P-value from the statistical test
+            
+        Returns:
+            Dictionary containing power analysis results
+        """
+        power_results = {}
+        
+        try:
+            n1, n2 = len(data1), len(data2)
+            mean1, mean2 = data1.mean(), data2.mean()
+            std1, std2 = data1.std(), data2.std()
+            
+            # Effect size (Cohen's d)
+            pooled_std = np.sqrt(((n1 - 1) * std1**2 + (n2 - 1) * std2**2) / (n1 + n2 - 2))
+            if pooled_std > 0:
+                effect_size = abs(mean1 - mean2) / pooled_std
+            else:
+                effect_size = 0
+            
+            # Statistical power using t-test power
+            try:
+                from statsmodels.stats.power import ttest_power
+                
+                # Calculate power for different effect sizes
+                power_results["observed_power"] = ttest_power(
+                    effect_size, n1 + n2, alpha=0.05, alternative='two-sided'
+                )
+                
+                # Power for different effect sizes
+                effect_sizes = [0.2, 0.5, 0.8]  # Small, medium, large
+                power_for_effects = {}
+                for es in effect_sizes:
+                    power_for_effects[f"power_for_d_{es}"] = ttest_power(
+                        es, n1 + n2, alpha=0.05, alternative='two-sided'
+                    )
+                power_results["power_for_effects"] = power_for_effects
+                
+                # Sample size needed for 80% power
+                try:
+                    from statsmodels.stats.power import ttest_power
+                    # This is a simplified calculation
+                    if effect_size > 0:
+                        # Approximate sample size for 80% power
+                        # This is a rough estimate
+                        n_needed = int(16 / (effect_size**2))  # Rough approximation
+                        power_results["sample_size_for_80_power"] = n_needed
+                except:
+                    pass
+                
+            except ImportError:
+                power_results["error"] = "statsmodels not available for power analysis"
+            
+            # Post-hoc power interpretation
+            if "observed_power" in power_results:
+                observed_power = power_results["observed_power"]
+                if observed_power < 0.5:
+                    power_results["power_interpretation"] = "low power - results may not be reliable"
+                elif observed_power < 0.8:
+                    power_results["power_interpretation"] = "moderate power - results should be interpreted cautiously"
+                else:
+                    power_results["power_interpretation"] = "adequate power - results are reliable"
+            
+            # Type II error rate
+            if "observed_power" in power_results:
+                power_results["type_ii_error_rate"] = 1 - power_results["observed_power"]
+            
+            # Effect size interpretation
+            power_results["effect_size"] = effect_size
+            if effect_size < 0.2:
+                power_results["effect_size_interpretation"] = "negligible effect"
+            elif effect_size < 0.5:
+                power_results["effect_size_interpretation"] = "small effect"
+            elif effect_size < 0.8:
+                power_results["effect_size_interpretation"] = "medium effect"
+            else:
+                power_results["effect_size_interpretation"] = "large effect"
+            
+        except Exception as e:
+            logger.warning(f"Power analysis failed: {e}")
+            power_results["error"] = str(e)
+        
+        return power_results
+
+    def analyze_temporal_patterns(self, simulation_id: int) -> Dict[str, Any]:
+        """Analyze temporal patterns in simulation data using advanced time series methods.
+
+        Args:
+            simulation_id: ID of the simulation to analyze
+
+        Returns:
+            Dictionary containing comprehensive temporal analysis results
+        """
+        logger.info(f"Analyzing temporal patterns for simulation {simulation_id}")
+
+        steps = (
+            self.session.query(SimulationStepModel)
+            .filter(SimulationStepModel.simulation_id == simulation_id)
+            .order_by(SimulationStepModel.step_number)
+            .all()
+        )
+
+        if len(steps) < 20:
+            logger.warning(f"Insufficient data points ({len(steps)}) for reliable time series analysis")
+            return {"error": "Insufficient data for time series analysis", "min_points_required": 20}
+
+        # Convert to DataFrame
+        step_data = []
+        for step in steps:
+            step_data.append({
+                "step": step.step_number,
+                "system_agents": step.system_agents or 0,
+                "independent_agents": step.independent_agents or 0,
+                "control_agents": step.control_agents or 0,
+                "total_agents": step.total_agents or 0,
+                "resource_efficiency": step.resource_efficiency or 0,
+                "average_agent_health": step.average_agent_health or 0,
+                "average_reward": step.average_reward or 0,
+            })
+        
+        df = pd.DataFrame(step_data)
+        df.set_index('step', inplace=True)
+
+        temporal_results = {}
+        
+        # Analyze each time series
+        time_series_columns = ['system_agents', 'independent_agents', 'control_agents', 
+                              'total_agents', 'resource_efficiency', 'average_agent_health', 'average_reward']
+        
+        for column in time_series_columns:
+            if column not in df.columns:
+                continue
+                
+            series = df[column].dropna()
+            if len(series) < 10:
+                continue
+                
+            logger.info(f"Analyzing temporal patterns for {column}")
+            
+            # 1. Stationarity Tests
+            stationarity_results = {}
+            
+            # Augmented Dickey-Fuller test
+            try:
+                adf_stat, adf_pvalue, adf_used_lag, adf_nobs, adf_critical, adf_icbest = adfuller(series)
+                stationarity_results["adf_test"] = {
+                    "statistic": adf_stat,
+                    "p_value": adf_pvalue,
+                    "is_stationary": adf_pvalue < 0.05,
+                    "critical_values": adf_critical
+                }
+            except Exception as e:
+                logger.warning(f"ADF test failed for {column}: {e}")
+                stationarity_results["adf_test"] = {"error": str(e)}
+            
+            # KPSS test
+            try:
+                kpss_stat, kpss_pvalue, kpss_lags, kpss_critical = kpss(series, regression='c')
+                stationarity_results["kpss_test"] = {
+                    "statistic": kpss_stat,
+                    "p_value": kpss_pvalue,
+                    "is_stationary": kpss_pvalue > 0.05,
+                    "critical_values": kpss_critical
+                }
+            except Exception as e:
+                logger.warning(f"KPSS test failed for {column}: {e}")
+                stationarity_results["kpss_test"] = {"error": str(e)}
+            
+            # 2. Trend Analysis
+            trend_results = {}
+            
+            # Linear trend
+            x = np.arange(len(series))
+            slope, intercept, r_value, p_value, std_err = stats.linregress(x, series)
+            trend_results["linear_trend"] = {
+                "slope": slope,
+                "intercept": intercept,
+                "r_squared": r_value**2,
+                "p_value": p_value,
+                "significant_trend": p_value < 0.05,
+                "trend_direction": "increasing" if slope > 0 else "decreasing" if slope < 0 else "stable"
+            }
+            
+            # 3. Seasonality Analysis
+            seasonality_results = {}
+            
+            if len(series) >= 24:  # Need at least 2 cycles for meaningful seasonality
+                try:
+                    # Seasonal decomposition
+                    decomposition = seasonal_decompose(series, model='additive', period=min(12, len(series)//2))
+                    
+                    # Calculate seasonality strength
+                    seasonal_strength = np.var(decomposition.seasonal) / np.var(series)
+                    trend_strength = np.var(decomposition.trend.dropna()) / np.var(series)
+                    
+                    seasonality_results["decomposition"] = {
+                        "seasonal_strength": seasonal_strength,
+                        "trend_strength": trend_strength,
+                        "residual_strength": 1 - seasonal_strength - trend_strength,
+                        "has_seasonality": seasonal_strength > 0.1
+                    }
+                    
+                    # Periodogram analysis
+                    freqs, psd = periodogram(series)
+                    dominant_freq_idx = np.argmax(psd[1:]) + 1  # Skip DC component
+                    dominant_period = 1 / freqs[dominant_freq_idx] if freqs[dominant_freq_idx] > 0 else np.inf
+                    
+                    seasonality_results["periodogram"] = {
+                        "dominant_frequency": freqs[dominant_freq_idx],
+                        "dominant_period": dominant_period,
+                        "max_power": psd[dominant_freq_idx]
+                    }
+                    
+                except Exception as e:
+                    logger.warning(f"Seasonality analysis failed for {column}: {e}")
+                    seasonality_results["error"] = str(e)
+            
+            # 4. Change Point Detection
+            change_points = []
+            
+            # Find peaks and troughs
+            try:
+                peaks, peak_properties = find_peaks(series, height=np.mean(series), distance=5)
+                troughs, trough_properties = find_peaks(-series, height=-np.mean(series), distance=5)
+                
+                change_points = {
+                    "peaks": {
+                        "indices": peaks.tolist(),
+                        "values": series.iloc[peaks].tolist() if len(peaks) > 0 else [],
+                        "count": len(peaks)
+                    },
+                    "troughs": {
+                        "indices": troughs.tolist(),
+                        "values": series.iloc[troughs].tolist() if len(troughs) > 0 else [],
+                        "count": len(troughs)
+                    }
+                }
+            except Exception as e:
+                logger.warning(f"Change point detection failed for {column}: {e}")
+                change_points = {"error": str(e)}
+            
+            # 5. Autocorrelation Analysis
+            autocorr_results = {}
+            
+            try:
+                # Calculate autocorrelation for different lags
+                max_lag = min(20, len(series) // 4)
+                autocorrs = [series.autocorr(lag=i) for i in range(1, max_lag + 1)]
+                
+                # Find significant autocorrelations
+                significant_lags = []
+                for i, ac in enumerate(autocorrs):
+                    if not np.isnan(ac) and abs(ac) > 0.2:  # Threshold for significance
+                        significant_lags.append(i + 1)
+                
+                autocorr_results = {
+                    "autocorrelations": autocorrs,
+                    "significant_lags": significant_lags,
+                    "max_autocorr": max(autocorrs) if autocorrs else 0,
+                    "has_autocorrelation": len(significant_lags) > 0
+                }
+            except Exception as e:
+                logger.warning(f"Autocorrelation analysis failed for {column}: {e}")
+                autocorr_results = {"error": str(e)}
+            
+            # Compile results for this time series
+            temporal_results[column] = {
+                "stationarity": stationarity_results,
+                "trend": trend_results,
+                "seasonality": seasonality_results,
+                "change_points": change_points,
+                "autocorrelation": autocorr_results,
+                "summary": {
+                    "length": len(series),
+                    "mean": series.mean(),
+                    "std": series.std(),
+                    "min": series.min(),
+                    "max": series.max(),
+                    "range": series.max() - series.min()
+                }
+            }
+        
+        # 6. Cross-correlation Analysis
+        cross_corr_results = {}
+        
+        try:
+            # Calculate cross-correlations between agent types
+            agent_columns = ['system_agents', 'independent_agents', 'control_agents']
+            available_agents = [col for col in agent_columns if col in df.columns]
+            
+            if len(available_agents) >= 2:
+                cross_corr_matrix = {}
+                for i, col1 in enumerate(available_agents):
+                    for j, col2 in enumerate(available_agents):
+                        if i < j:  # Avoid duplicates
+                            corr, p_value = pearsonr(df[col1].dropna(), df[col2].dropna())
+                            cross_corr_matrix[f"{col1}_vs_{col2}"] = {
+                                "correlation": corr,
+                                "p_value": p_value,
+                                "significant": p_value < 0.05,
+                                "strength": "strong" if abs(corr) > 0.7 else "moderate" if abs(corr) > 0.3 else "weak"
+                            }
+                
+                cross_corr_results = cross_corr_matrix
+        except Exception as e:
+            logger.warning(f"Cross-correlation analysis failed: {e}")
+            cross_corr_results = {"error": str(e)}
+        
+        # Create comprehensive temporal visualization
+        self._create_temporal_visualization(df, temporal_results, simulation_id)
+        
+        return {
+            "time_series_analysis": temporal_results,
+            "cross_correlations": cross_corr_results,
+            "metadata": {
+                "analysis_timestamp": pd.Timestamp.now().isoformat(),
+                "total_steps": len(df),
+                "time_series_analyzed": len([col for col in time_series_columns if col in df.columns]),
+                "methods_used": [
+                    "Augmented Dickey-Fuller test",
+                    "KPSS test", 
+                    "Linear trend analysis",
+                    "Seasonal decomposition",
+                    "Periodogram analysis",
+                    "Change point detection",
+                    "Autocorrelation analysis",
+                    "Cross-correlation analysis"
+                ]
+            }
+        }
+
+    def _create_temporal_visualization(self, df: pd.DataFrame, temporal_results: Dict[str, Any], simulation_id: int) -> None:
+        """Create comprehensive temporal analysis visualization."""
+        
+        # Create a large figure with multiple subplots
+        fig = plt.figure(figsize=(20, 16))
+        
+        # Main time series plot
+        ax1 = plt.subplot(3, 3, (1, 3))
+        
+        agent_columns = ['system_agents', 'independent_agents', 'control_agents']
+        colors = ['#1f77b4', '#ff7f0e', '#2ca02c']
+        
+        for i, col in enumerate(agent_columns):
+            if col in df.columns:
+                ax1.plot(df.index, df[col], label=col.replace('_agents', ''), 
+                        color=colors[i], linewidth=2, alpha=0.8)
+        
+        ax1.set_title(f"Temporal Analysis - Simulation {simulation_id}", fontsize=16, fontweight='bold')
+        ax1.set_xlabel("Simulation Step")
+        ax1.set_ylabel("Number of Agents")
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+        
+        # Trend analysis subplot
+        ax2 = plt.subplot(3, 3, 4)
+        if 'total_agents' in temporal_results:
+            trend_data = temporal_results['total_agents']['trend']['linear_trend']
+            x = np.arange(len(df))
+            y = df['total_agents'] if 'total_agents' in df.columns else df.iloc[:, 0]
+            ax2.plot(x, y, 'b-', alpha=0.6, label='Data')
+            
+            # Plot trend line
+            trend_line = trend_data['slope'] * x + trend_data['intercept']
+            ax2.plot(x, trend_line, 'r--', linewidth=2, 
+                    label=f"Trend (R²={trend_data['r_squared']:.3f})")
+            
+            ax2.set_title("Trend Analysis")
+            ax2.set_xlabel("Step")
+            ax2.set_ylabel("Value")
+            ax2.legend()
+            ax2.grid(True, alpha=0.3)
+        
+        # Stationarity test results
+        ax3 = plt.subplot(3, 3, 5)
+        stationarity_data = []
+        labels = []
+        
+        for col, results in temporal_results.items():
+            if 'stationarity' in results and 'adf_test' in results['stationarity']:
+                adf_test = results['stationarity']['adf_test']
+                if 'p_value' in adf_test:
+                    stationarity_data.append(adf_test['p_value'])
+                    labels.append(col.replace('_agents', '').replace('_', ' '))
+        
+        if stationarity_data:
+            bars = ax3.bar(labels, stationarity_data, color=['green' if p < 0.05 else 'red' for p in stationarity_data])
+            ax3.axhline(y=0.05, color='black', linestyle='--', alpha=0.7, label='α=0.05')
+            ax3.set_title("Stationarity Tests (ADF p-values)")
+            ax3.set_ylabel("p-value")
+            ax3.legend()
+            ax3.tick_params(axis='x', rotation=45)
+            
+            # Add significance annotations
+            for bar, p_val in zip(bars, stationarity_data):
+                height = bar.get_height()
+                significance = "Stationary" if p_val < 0.05 else "Non-stationary"
+                ax3.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                        significance, ha='center', va='bottom', fontsize=8)
+        
+        # Autocorrelation plot
+        ax4 = plt.subplot(3, 3, 6)
+        if 'total_agents' in temporal_results and 'autocorrelation' in temporal_results['total_agents']:
+            autocorr_data = temporal_results['total_agents']['autocorrelation']
+            if 'autocorrelations' in autocorr_data:
+                lags = range(1, len(autocorr_data['autocorrelations']) + 1)
+                ax4.bar(lags, autocorr_data['autocorrelations'], alpha=0.7)
+                ax4.axhline(y=0.2, color='red', linestyle='--', alpha=0.7, label='Significance threshold')
+                ax4.axhline(y=-0.2, color='red', linestyle='--', alpha=0.7)
+                ax4.set_title("Autocorrelation Function")
+                ax4.set_xlabel("Lag")
+                ax4.set_ylabel("Autocorrelation")
+                ax4.legend()
+                ax4.grid(True, alpha=0.3)
+        
+        # Cross-correlation heatmap
+        ax5 = plt.subplot(3, 3, 7)
+        # This would be implemented if cross-correlation data is available
+        
+        # Seasonality plot
+        ax6 = plt.subplot(3, 3, 8)
+        if 'total_agents' in temporal_results and 'seasonality' in temporal_results['total_agents']:
+            seasonality_data = temporal_results['total_agents']['seasonality']
+            if 'decomposition' in seasonality_data:
+                decomp = seasonality_data['decomposition']
+                strengths = [decomp['trend_strength'], decomp['seasonal_strength'], decomp['residual_strength']]
+                labels = ['Trend', 'Seasonal', 'Residual']
+                colors = ['blue', 'orange', 'green']
+                
+                wedges, texts, autotexts = ax6.pie(strengths, labels=labels, colors=colors, autopct='%1.1f%%')
+                ax6.set_title("Variance Decomposition")
+        
+        # Summary statistics
+        ax7 = plt.subplot(3, 3, 9)
+        ax7.axis('off')
+        
+        # Create summary text
+        summary_text = f"Temporal Analysis Summary\n\n"
+        summary_text += f"Total Steps: {len(df)}\n"
+        summary_text += f"Time Series Analyzed: {len(temporal_results)}\n\n"
+        
+        # Add key findings
+        if 'total_agents' in temporal_results:
+            trend_info = temporal_results['total_agents']['trend']['linear_trend']
+            summary_text += f"Overall Trend: {trend_info['trend_direction']}\n"
+            summary_text += f"Trend Significance: {'Yes' if trend_info['significant_trend'] else 'No'}\n"
+            summary_text += f"R²: {trend_info['r_squared']:.3f}\n\n"
+        
+        summary_text += "Statistical Tests Applied:\n"
+        summary_text += "• Augmented Dickey-Fuller\n"
+        summary_text += "• KPSS Stationarity\n"
+        summary_text += "• Linear Trend Analysis\n"
+        summary_text += "• Seasonal Decomposition\n"
+        summary_text += "• Autocorrelation Analysis"
+        
+        ax7.text(0.05, 0.95, summary_text, transform=ax7.transAxes, fontsize=10,
+                verticalalignment='top', fontfamily='monospace',
+                bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))
+        
+        plt.tight_layout()
+        plt.savefig(f"temporal_analysis_sim_{simulation_id}.png", dpi=300, bbox_inches='tight')
+        plt.close()
+
     def analyze_agent_decisions(self, simulation_id: int) -> pd.DataFrame:
         """Analyze patterns in agent decision-making.
 
@@ -689,6 +1301,498 @@ class SimulationAnalyzer:
 
         return action_df
 
+    def analyze_with_advanced_ml(self, simulation_id: int, target_variable: str = "population_dominance") -> Dict[str, Any]:
+        """Perform advanced machine learning analysis with ensemble methods and feature selection.
+
+        Args:
+            simulation_id: ID of the simulation to analyze
+            target_variable: Variable to predict (default: "population_dominance")
+
+        Returns:
+            Dictionary containing comprehensive ML analysis results
+        """
+        logger.info(f"Performing advanced ML analysis for simulation {simulation_id}")
+
+        # Load comprehensive simulation data
+        steps = (
+            self.session.query(SimulationStepModel)
+            .filter(SimulationStepModel.simulation_id == simulation_id)
+            .order_by(SimulationStepModel.step_number)
+            .all()
+        )
+
+        if len(steps) < 50:
+            logger.warning(f"Insufficient data points ({len(steps)}) for reliable ML analysis")
+            return {"error": "Insufficient data for ML analysis", "min_points_required": 50}
+
+        # Create comprehensive feature matrix
+        feature_data = []
+        for i, step in enumerate(steps):
+            # Basic features
+            features = {
+                "step": step.step_number,
+                "system_agents": step.system_agents or 0,
+                "independent_agents": step.independent_agents or 0,
+                "control_agents": step.control_agents or 0,
+                "total_agents": step.total_agents or 0,
+                "resource_efficiency": step.resource_efficiency or 0,
+                "average_agent_health": step.average_agent_health or 0,
+                "average_reward": step.average_reward or 0,
+            }
+            
+            # Derived features
+            if i > 0:
+                prev_step = steps[i-1]
+                features.update({
+                    "system_change": (step.system_agents or 0) - (prev_step.system_agents or 0),
+                    "independent_change": (step.independent_agents or 0) - (prev_step.independent_agents or 0),
+                    "control_change": (step.control_agents or 0) - (prev_step.control_agents or 0),
+                    "total_change": (step.total_agents or 0) - (prev_step.total_agents or 0),
+                    "efficiency_change": (step.resource_efficiency or 0) - (prev_step.resource_efficiency or 0),
+                })
+            else:
+                features.update({
+                    "system_change": 0, "independent_change": 0, "control_change": 0,
+                    "total_change": 0, "efficiency_change": 0
+                })
+            
+            # Rolling window features (if enough data)
+            if i >= 5:
+                recent_steps = steps[max(0, i-5):i+1]
+                features.update({
+                    "system_rolling_mean": np.mean([s.system_agents or 0 for s in recent_steps]),
+                    "system_rolling_std": np.std([s.system_agents or 0 for s in recent_steps]),
+                    "total_rolling_mean": np.mean([s.total_agents or 0 for s in recent_steps]),
+                    "total_rolling_std": np.std([s.total_agents or 0 for s in recent_steps]),
+                })
+            else:
+                features.update({
+                    "system_rolling_mean": features["system_agents"],
+                    "system_rolling_std": 0,
+                    "total_rolling_mean": features["total_agents"],
+                    "total_rolling_std": 0,
+                })
+            
+            # Target variable (population dominance)
+            if target_variable == "population_dominance":
+                agent_counts = [features["system_agents"], features["independent_agents"], features["control_agents"]]
+                max_count = max(agent_counts)
+                if max_count > 0:
+                    features["population_dominance"] = ["system", "independent", "control"][agent_counts.index(max_count)]
+                else:
+                    features["population_dominance"] = "none"
+            
+            feature_data.append(features)
+
+        df = pd.DataFrame(feature_data)
+        
+        # Prepare features and target
+        feature_columns = [col for col in df.columns if col not in ["step", target_variable]]
+        X = df[feature_columns]
+        y = df[target_variable]
+        
+        # Handle missing values
+        X = X.fillna(X.median())
+        
+        # Encode target variable if categorical
+        if y.dtype == 'object':
+            le = LabelEncoder()
+            y_encoded = le.fit_transform(y)
+            target_classes = le.classes_
+        else:
+            y_encoded = y
+            target_classes = None
+        
+        # Feature Selection
+        feature_selection_results = {}
+        
+        # 1. Univariate feature selection
+        try:
+            selector_univariate = SelectKBest(score_func=f_classif, k=min(10, len(feature_columns)))
+            X_selected_univariate = selector_univariate.fit_transform(X, y_encoded)
+            selected_features_univariate = [feature_columns[i] for i in selector_univariate.get_support(indices=True)]
+            
+            feature_selection_results["univariate"] = {
+                "selected_features": selected_features_univariate,
+                "scores": dict(zip(feature_columns, selector_univariate.scores_)),
+                "n_features": len(selected_features_univariate)
+            }
+        except Exception as e:
+            logger.warning(f"Univariate feature selection failed: {e}")
+            feature_selection_results["univariate"] = {"error": str(e)}
+            selected_features_univariate = feature_columns
+            X_selected_univariate = X
+        
+        # 2. Recursive feature elimination
+        try:
+            estimator = RandomForestClassifier(n_estimators=50, random_state=42)
+            selector_rfe = RFE(estimator, n_features_to_select=min(8, len(feature_columns)))
+            X_selected_rfe = selector_rfe.fit_transform(X, y_encoded)
+            selected_features_rfe = [feature_columns[i] for i in selector_rfe.get_support(indices=True)]
+            
+            feature_selection_results["rfe"] = {
+                "selected_features": selected_features_rfe,
+                "feature_ranking": dict(zip(feature_columns, selector_rfe.ranking_)),
+                "n_features": len(selected_features_rfe)
+            }
+        except Exception as e:
+            logger.warning(f"RFE feature selection failed: {e}")
+            feature_selection_results["rfe"] = {"error": str(e)}
+            selected_features_rfe = feature_columns
+            X_selected_rfe = X
+        
+        # 3. Model-based feature selection
+        try:
+            selector_model = SelectFromModel(RandomForestClassifier(n_estimators=50, random_state=42))
+            X_selected_model = selector_model.fit_transform(X, y_encoded)
+            selected_features_model = [feature_columns[i] for i in selector_model.get_support(indices=True)]
+            
+            feature_selection_results["model_based"] = {
+                "selected_features": selected_features_model,
+                "feature_importance": dict(zip(feature_columns, selector_model.estimator_.feature_importances_)),
+                "n_features": len(selected_features_model)
+            }
+        except Exception as e:
+            logger.warning(f"Model-based feature selection failed: {e}")
+            feature_selection_results["model_based"] = {"error": str(e)}
+            selected_features_model = feature_columns
+            X_selected_model = X
+        
+        # Ensemble Model Building
+        ensemble_results = {}
+        
+        # Split data
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y_encoded, test_size=0.2, random_state=42, stratify=y_encoded
+        )
+        
+        # Standardize features
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
+        
+        # 1. Individual Models
+        models = {
+            "Random Forest": RandomForestClassifier(n_estimators=100, random_state=42),
+            "Gradient Boosting": GradientBoostingClassifier(n_estimators=100, random_state=42),
+            "Logistic Regression": LogisticRegression(random_state=42, max_iter=1000),
+            "SVM": SVC(random_state=42, probability=True),
+            "Decision Tree": DecisionTreeClassifier(random_state=42)
+        }
+        
+        individual_results = {}
+        for name, model in models.items():
+            try:
+                # Train model
+                model.fit(X_train_scaled, y_train)
+                
+                # Predictions
+                y_pred = model.predict(X_test_scaled)
+                y_pred_proba = model.predict_proba(X_test_scaled) if hasattr(model, 'predict_proba') else None
+                
+                # Cross-validation
+                cv_scores = cross_val_score(model, X_train_scaled, y_train, cv=5, scoring='accuracy')
+                
+                # Metrics
+                test_accuracy = model.score(X_test_scaled, y_test)
+                
+                # Feature importance (if available)
+                feature_importance = None
+                if hasattr(model, 'feature_importances_'):
+                    feature_importance = dict(zip(feature_columns, model.feature_importances_))
+                elif hasattr(model, 'coef_'):
+                    feature_importance = dict(zip(feature_columns, abs(model.coef_[0])))
+                
+                individual_results[name] = {
+                    "test_accuracy": test_accuracy,
+                    "cv_mean": cv_scores.mean(),
+                    "cv_std": cv_scores.std(),
+                    "cv_scores": cv_scores.tolist(),
+                    "feature_importance": feature_importance,
+                    "predictions": y_pred.tolist(),
+                    "probabilities": y_pred_proba.tolist() if y_pred_proba is not None else None
+                }
+                
+            except Exception as e:
+                logger.warning(f"Model {name} failed: {e}")
+                individual_results[name] = {"error": str(e)}
+        
+        # 2. Ensemble Models
+        try:
+            # Voting Classifier
+            voting_models = [
+                ('rf', RandomForestClassifier(n_estimators=50, random_state=42)),
+                ('gb', GradientBoostingClassifier(n_estimators=50, random_state=42)),
+                ('lr', LogisticRegression(random_state=42, max_iter=1000))
+            ]
+            
+            voting_clf = VotingClassifier(estimators=voting_models, voting='soft')
+            voting_clf.fit(X_train_scaled, y_train)
+            
+            voting_accuracy = voting_clf.score(X_test_scaled, y_test)
+            voting_cv_scores = cross_val_score(voting_clf, X_train_scaled, y_train, cv=5, scoring='accuracy')
+            
+            ensemble_results["voting"] = {
+                "test_accuracy": voting_accuracy,
+                "cv_mean": voting_cv_scores.mean(),
+                "cv_std": voting_cv_scores.std(),
+                "cv_scores": voting_cv_scores.tolist()
+            }
+            
+        except Exception as e:
+            logger.warning(f"Voting ensemble failed: {e}")
+            ensemble_results["voting"] = {"error": str(e)}
+        
+        try:
+            # Bagging Classifier
+            bagging_clf = BaggingClassifier(
+                base_estimator=DecisionTreeClassifier(random_state=42),
+                n_estimators=50,
+                random_state=42
+            )
+            bagging_clf.fit(X_train_scaled, y_train)
+            
+            bagging_accuracy = bagging_clf.score(X_test_scaled, y_test)
+            bagging_cv_scores = cross_val_score(bagging_clf, X_train_scaled, y_train, cv=5, scoring='accuracy')
+            
+            ensemble_results["bagging"] = {
+                "test_accuracy": bagging_accuracy,
+                "cv_mean": bagging_cv_scores.mean(),
+                "cv_std": bagging_cv_scores.std(),
+                "cv_scores": bagging_cv_scores.tolist()
+            }
+            
+        except Exception as e:
+            logger.warning(f"Bagging ensemble failed: {e}")
+            ensemble_results["bagging"] = {"error": str(e)}
+        
+        # 3. Hyperparameter Tuning (for best individual model)
+        best_model_name = max(individual_results.keys(), 
+                            key=lambda k: individual_results[k].get("test_accuracy", 0) if "error" not in individual_results[k] else 0)
+        
+        hyperparameter_results = {}
+        if "error" not in individual_results[best_model_name]:
+            try:
+                if best_model_name == "Random Forest":
+                    param_grid = {
+                        'n_estimators': [50, 100, 200],
+                        'max_depth': [None, 10, 20],
+                        'min_samples_split': [2, 5, 10]
+                    }
+                    base_model = RandomForestClassifier(random_state=42)
+                elif best_model_name == "Gradient Boosting":
+                    param_grid = {
+                        'n_estimators': [50, 100, 200],
+                        'learning_rate': [0.01, 0.1, 0.2],
+                        'max_depth': [3, 5, 7]
+                    }
+                    base_model = GradientBoostingClassifier(random_state=42)
+                else:
+                    param_grid = {}
+                    base_model = models[best_model_name]
+                
+                if param_grid:
+                    grid_search = GridSearchCV(
+                        base_model, param_grid, cv=3, scoring='accuracy', n_jobs=-1
+                    )
+                    grid_search.fit(X_train_scaled, y_train)
+                    
+                    hyperparameter_results = {
+                        "best_params": grid_search.best_params_,
+                        "best_score": grid_search.best_score_,
+                        "test_accuracy": grid_search.score(X_test_scaled, y_test)
+                    }
+                else:
+                    hyperparameter_results = {"message": "No hyperparameter tuning for this model type"}
+                    
+            except Exception as e:
+                logger.warning(f"Hyperparameter tuning failed: {e}")
+                hyperparameter_results = {"error": str(e)}
+        
+        # Model Performance Comparison
+        performance_comparison = {}
+        all_models = {**individual_results, **ensemble_results}
+        
+        for model_name, results in all_models.items():
+            if "error" not in results:
+                performance_comparison[model_name] = {
+                    "test_accuracy": results.get("test_accuracy", 0),
+                    "cv_mean": results.get("cv_mean", 0),
+                    "cv_std": results.get("cv_std", 0)
+                }
+        
+        # Create ML visualization
+        self._create_ml_visualization(individual_results, ensemble_results, feature_selection_results, simulation_id)
+        
+        return {
+            "feature_selection": feature_selection_results,
+            "individual_models": individual_results,
+            "ensemble_models": ensemble_results,
+            "hyperparameter_tuning": hyperparameter_results,
+            "performance_comparison": performance_comparison,
+            "best_model": best_model_name,
+            "target_variable": target_variable,
+            "target_classes": target_classes.tolist() if target_classes is not None else None,
+            "metadata": {
+                "analysis_timestamp": pd.Timestamp.now().isoformat(),
+                "n_samples": len(df),
+                "n_features": len(feature_columns),
+                "methods_used": [
+                    "Univariate feature selection",
+                    "Recursive feature elimination",
+                    "Model-based feature selection",
+                    "Individual model training",
+                    "Ensemble methods (Voting, Bagging)",
+                    "Hyperparameter tuning",
+                    "Cross-validation"
+                ]
+            }
+        }
+
+    def _create_ml_visualization(self, individual_results: Dict, ensemble_results: Dict, 
+                               feature_selection_results: Dict, simulation_id: int) -> None:
+        """Create comprehensive ML analysis visualization."""
+        
+        fig = plt.figure(figsize=(20, 12))
+        
+        # 1. Model Performance Comparison
+        ax1 = plt.subplot(2, 3, 1)
+        model_names = []
+        test_accuracies = []
+        cv_means = []
+        cv_stds = []
+        
+        all_results = {**individual_results, **ensemble_results}
+        for name, results in all_results.items():
+            if "error" not in results:
+                model_names.append(name)
+                test_accuracies.append(results.get("test_accuracy", 0))
+                cv_means.append(results.get("cv_mean", 0))
+                cv_stds.append(results.get("cv_std", 0))
+        
+        if model_names:
+            x = np.arange(len(model_names))
+            width = 0.35
+            
+            bars1 = ax1.bar(x - width/2, test_accuracies, width, label='Test Accuracy', alpha=0.8)
+            bars2 = ax1.bar(x + width/2, cv_means, width, label='CV Mean', alpha=0.8, yerr=cv_stds, capsize=5)
+            
+            ax1.set_xlabel('Models')
+            ax1.set_ylabel('Accuracy')
+            ax1.set_title('Model Performance Comparison')
+            ax1.set_xticks(x)
+            ax1.set_xticklabels(model_names, rotation=45, ha='right')
+            ax1.legend()
+            ax1.grid(True, alpha=0.3)
+            
+            # Add value labels
+            for bar in bars1:
+                height = bar.get_height()
+                ax1.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                        f'{height:.3f}', ha='center', va='bottom', fontsize=8)
+        
+        # 2. Feature Importance (from best model)
+        ax2 = plt.subplot(2, 3, 2)
+        best_model_name = max(individual_results.keys(), 
+                            key=lambda k: individual_results[k].get("test_accuracy", 0) if "error" not in individual_results[k] else 0)
+        
+        if "error" not in individual_results[best_model_name]:
+            feature_importance = individual_results[best_model_name].get("feature_importance")
+            if feature_importance:
+                features = list(feature_importance.keys())
+                importances = list(feature_importance.values())
+                
+                # Sort by importance
+                sorted_data = sorted(zip(features, importances), key=lambda x: x[1], reverse=True)
+                top_features = [x[0] for x in sorted_data[:10]]
+                top_importances = [x[1] for x in sorted_data[:10]]
+                
+                bars = ax2.barh(top_features, top_importances)
+                ax2.set_xlabel('Feature Importance')
+                ax2.set_title(f'Top 10 Features - {best_model_name}')
+                ax2.grid(True, alpha=0.3)
+        
+        # 3. Feature Selection Comparison
+        ax3 = plt.subplot(2, 3, 3)
+        selection_methods = []
+        n_features = []
+        
+        for method, results in feature_selection_results.items():
+            if "error" not in results:
+                selection_methods.append(method.replace("_", " ").title())
+                n_features.append(results.get("n_features", 0))
+        
+        if selection_methods:
+            bars = ax3.bar(selection_methods, n_features, alpha=0.7)
+            ax3.set_ylabel('Number of Selected Features')
+            ax3.set_title('Feature Selection Comparison')
+            ax3.tick_params(axis='x', rotation=45)
+            
+            for bar in bars:
+                height = bar.get_height()
+                ax3.text(bar.get_x() + bar.get_width()/2., height + 0.1,
+                        f'{int(height)}', ha='center', va='bottom')
+        
+        # 4. Cross-Validation Scores Distribution
+        ax4 = plt.subplot(2, 3, 4)
+        cv_data = []
+        cv_labels = []
+        
+        for name, results in individual_results.items():
+            if "error" not in results and "cv_scores" in results:
+                cv_data.extend(results["cv_scores"])
+                cv_labels.extend([name] * len(results["cv_scores"]))
+        
+        if cv_data:
+            # Create box plot
+            unique_labels = list(set(cv_labels))
+            box_data = []
+            for label in unique_labels:
+                scores = [cv_data[i] for i, l in enumerate(cv_labels) if l == label]
+                box_data.append(scores)
+            
+            ax4.boxplot(box_data, labels=unique_labels)
+            ax4.set_ylabel('CV Accuracy')
+            ax4.set_title('Cross-Validation Score Distribution')
+            ax4.tick_params(axis='x', rotation=45)
+            ax4.grid(True, alpha=0.3)
+        
+        # 5. Model Complexity vs Performance
+        ax5 = plt.subplot(2, 3, 5)
+        # This would show model complexity vs performance trade-off
+        
+        # 6. Summary Statistics
+        ax6 = plt.subplot(2, 3, 6)
+        ax6.axis('off')
+        
+        # Create summary text
+        summary_text = f"Advanced ML Analysis Summary\n\n"
+        summary_text += f"Simulation ID: {simulation_id}\n"
+        summary_text += f"Models Tested: {len([k for k, v in all_results.items() if 'error' not in v])}\n"
+        summary_text += f"Best Model: {best_model_name}\n\n"
+        
+        if best_model_name in individual_results and "error" not in individual_results[best_model_name]:
+            best_results = individual_results[best_model_name]
+            summary_text += f"Best Performance:\n"
+            summary_text += f"• Test Accuracy: {best_results.get('test_accuracy', 0):.3f}\n"
+            summary_text += f"• CV Mean: {best_results.get('cv_mean', 0):.3f}\n"
+            summary_text += f"• CV Std: {best_results.get('cv_std', 0):.3f}\n\n"
+        
+        summary_text += "Methods Applied:\n"
+        summary_text += "• Feature Selection (3 methods)\n"
+        summary_text += "• Individual Models (5 types)\n"
+        summary_text += "• Ensemble Methods (2 types)\n"
+        summary_text += "• Hyperparameter Tuning\n"
+        summary_text += "• Cross-Validation"
+        
+        ax6.text(0.05, 0.95, summary_text, transform=ax6.transAxes, fontsize=10,
+                verticalalignment='top', fontfamily='monospace',
+                bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))
+        
+        plt.tight_layout()
+        plt.savefig(f"advanced_ml_analysis_sim_{simulation_id}.png", dpi=300, bbox_inches='tight')
+        plt.close()
+
     def run_complete_analysis(self, simulation_id: int, significance_level: float = 0.05) -> Dict[str, Any]:
         """Run all analysis methods for a given simulation with statistical validation.
 
@@ -711,6 +1815,8 @@ class SimulationAnalyzer:
                 "generational_survival": self.analyze_generational_survival(simulation_id),
                 "critical_events": self.identify_critical_events(simulation_id, significance_level),
                 "agent_decisions": self.analyze_agent_decisions(simulation_id),
+                "temporal_patterns": self.analyze_temporal_patterns(simulation_id),
+                "advanced_ml": self.analyze_with_advanced_ml(simulation_id),
             }
 
             # Add analysis metadata
@@ -721,10 +1827,16 @@ class SimulationAnalyzer:
                     "Mann-Whitney U test", 
                     "Z-score change detection",
                     "Confidence intervals (95%)",
-                    "Chi-square test for independence"
+                    "Chi-square test for independence",
+                    "Effect size calculations (Cohen's d, Hedges' g, eta-squared)",
+                    "Statistical power analysis",
+                    "Time series analysis (ADF, KPSS, seasonal decomposition)",
+                    "Advanced ML (ensemble methods, feature selection)",
+                    "Cross-validation and hyperparameter tuning"
                 ],
                 "significance_level": significance_level,
-                "data_quality_checks": "Passed"
+                "data_quality_checks": "Passed",
+                "analysis_version": "Phase 2 - Statistical Enhancement"
             }
 
             # Save results to file
@@ -749,6 +1861,34 @@ class SimulationAnalyzer:
 
             with open(results_file, "w") as f:
                 json.dump(results, f, cls=NumpyEncoder, indent=2)
+
+            # Validate results if validator is available
+            if self.validator is not None:
+                validation_results = self.validator.validate_complete_analysis(results)
+                results["validation_report"] = validation_results
+                
+                # Log validation summary
+                if validation_results["overall_valid"]:
+                    logger.info("✓ Analysis validation passed")
+                else:
+                    logger.warning("⚠ Analysis validation found issues")
+                    for analysis_type, validation in validation_results["analysis_validations"].items():
+                        if not validation["valid"]:
+                            logger.warning(f"  - {analysis_type}: {len(validation['errors'])} errors")
+            
+            # Create reproducibility report if available
+            if self.repro_manager is not None and create_reproducibility_report is not None:
+                analysis_params = {
+                    "simulation_id": simulation_id,
+                    "significance_level": significance_level,
+                    "random_seed": self.random_seed
+                }
+                
+                repro_report_path = create_reproducibility_report(
+                    analysis_params, results, 
+                    output_path=output_dir / f"reproducibility_report_sim_{simulation_id}.json"
+                )
+                logger.info(f"Reproducibility report saved to {repro_report_path}")
 
             logger.info(f"Analysis complete. Results saved to {results_file}")
             return results
