@@ -1,20 +1,20 @@
 {
-  "timestamp": "2025-10-02T03:43:49.910891",
+  "timestamp": "2025-10-02T03:46:10.084582",
   "profiling_runs": [
     {
       "type": "cprofile",
       "name": "baseline_small",
       "steps": 500,
       "agents": 50,
-      "duration": 10.445758819580078,
-      "success": false,
+      "duration": 284.5147840976715,
+      "success": true,
       "output_file": "profiling_results/phase1/cprofile_baseline_small.log"
     }
   ],
   "analysis": {
     "total_runs": 1,
-    "successful_runs": 0,
-    "failed_runs": 1,
-    "total_profiling_time": 10.445758819580078
+    "successful_runs": 1,
+    "failed_runs": 0,
+    "total_profiling_time": 284.5147840976715
   }
 }

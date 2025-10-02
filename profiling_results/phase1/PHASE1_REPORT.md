@@ -1,21 +1,21 @@
 # Phase 1 Profiling Report
 
-**Generated:** 2025-10-02T03:43:49.910891
+**Generated:** 2025-10-02T03:46:10.084582
 
 ## Summary
 
 - **Total Runs:** 1
-- **Successful:** 0
-- **Failed:** 1
-- **Total Time:** 10.4s
+- **Successful:** 1
+- **Failed:** 0
+- **Total Time:** 284.5s
 
 ## Profiling Runs
 
-### ✗ baseline_small (cprofile)
+### ✓ baseline_small (cprofile)
 
 - **Steps:** 500
 - **Agents:** 50
-- **Duration:** 10.45s
+- **Duration:** 284.51s
 - **Log:** `profiling_results/phase1/cprofile_baseline_small.log`
 
 ## Next Steps
