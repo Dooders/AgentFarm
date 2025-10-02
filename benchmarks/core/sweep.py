@@ -6,6 +6,7 @@ SweepRunner: expands parameter sweeps and runs multiple experiments.
 
 import itertools
 import os
+import random
 from typing import Any, Dict, Iterable, List, Tuple
 
 from benchmarks.core.registry import REGISTRY
@@ -42,7 +43,15 @@ class SweepRunner:
         self.notes = notes
         self.instruments = instruments
 
+    def _validate_keys(self, sweep: Dict[str, List[Any]]) -> None:
+        info = REGISTRY.get(self.experiment_slug)
+        props = set((info.param_schema or {}).get("properties", {}).keys())
+        for k in sweep.keys():
+            if props and k not in props:
+                raise ValueError(f"Sweep key '{k}' not in parameter schema for {self.experiment_slug}")
+
     def run_cartesian(self, sweep: Dict[str, List[Any]]) -> List[RunResult]:
+        self._validate_keys(sweep)
         REGISTRY.discover_package("benchmarks.implementations")
         params_list = _expand_cartesian(self.base_params, sweep)
         results: List[RunResult] = []
@@ -64,6 +73,39 @@ class SweepRunner:
         # Write sweep report to top-level output dir
         try:
             write_sweep_report(results, self.output_dir, title=f"{self.experiment_slug} Sweep Summary")
+        except Exception:
+            pass
+        return results
+
+    def run_random(self, sweep_space: Dict[str, List[Any]], samples: int) -> List[RunResult]:
+        self._validate_keys(sweep_space)
+        REGISTRY.discover_package("benchmarks.implementations")
+        keys = list(sweep_space.keys())
+        results: List[RunResult] = []
+        rng = random.Random(self.seed)
+        for _ in range(max(1, int(samples))):
+            params = dict(self.base_params)
+            for k in keys:
+                vals = sweep_space[k]
+                if not vals:
+                    continue
+                params[k] = rng.choice(vals)
+            experiment = REGISTRY.create(self.experiment_slug, params)
+            runner = Runner(
+                name=self.experiment_slug,
+                experiment=experiment,
+                output_dir=self.output_dir,
+                iterations_warmup=self.iterations_warmup,
+                iterations_measured=self.iterations_measured,
+                seed=self.seed,
+                tags=self.tags,
+                notes=self.notes,
+                instruments=self.instruments,
+            )
+            result = runner.run()
+            results.append(result)
+        try:
+            write_sweep_report(results, self.output_dir, title=f"{self.experiment_slug} Random Sweep Summary")
         except Exception:
             pass
         return results

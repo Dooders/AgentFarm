@@ -23,13 +23,27 @@ def _safe_git(cmd: List[str]) -> Optional[str]:
 
 
 def capture_environment() -> Dict[str, Any]:
-    return {
+    env = {
         "os": platform.platform(),
         "python": platform.python_version(),
         "machine": platform.machine(),
         "processor": platform.processor(),
         "hostname": socket.gethostname(),
     }
+    # GPU info (best-effort)
+    try:
+        import subprocess
+        out = subprocess.check_output(["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"], stderr=subprocess.DEVNULL).decode().strip()
+        gpus = []
+        for line in out.splitlines():
+            parts = [p.strip() for p in line.split(",")]
+            if len(parts) >= 2:
+                gpus.append({"name": parts[0], "memory_total": parts[1]})
+        if gpus:
+            env["gpus"] = gpus
+    except Exception:
+        pass
+    return env
 
 
 def capture_vcs() -> Dict[str, Any]:

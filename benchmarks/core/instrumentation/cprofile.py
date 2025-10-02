@@ -7,28 +7,17 @@ Instrumentation for capturing cProfile data and a lightweight JSON summary.
 import cProfile
 import json
 import os
+import pstats
 from contextlib import contextmanager
 from typing import Any, Dict, List, Tuple
 
 
-def _summarize_stats(profile: cProfile.Profile, top_n: int = 30) -> Dict[str, Any]:
-    # stats.stats: dict[(filename, line, funcname) -> (cc, nc, tt, ct, callers)]
-    stats_items: List[Tuple[Tuple[str, int, str], Tuple[int, int, float, float, Dict]]]
-    stats_items = list(profile.getstats())  # type: ignore[attr-defined]
-    # For Python's cProfile.Profile, .getstats() may not include callers; fallback to .getstats only
-    # However, getstats provides (func_std_string, cc, nc, tt, ct, callers) in older versions
-    # To be robust, try profile.stats when available
-    try:
-        # type: ignore[attr-defined]
-        stats_dict = profile.stats  # type: ignore
-        stats_items = list(stats_dict.items())  # type: ignore
-        def _row(item):
-            (filename, line, funcname), (cc, nc, tt, ct, callers) = item  # type: ignore[misc]
-            return filename, line, funcname, cc, nc, tt, ct
-        rows = [_row(it) for it in stats_items]  # (file, line, func, cc, nc, tt, ct)
-    except Exception:
-        # Fallback path: best-effort empty summary
-        rows = []
+def _summarize_stats_from_file(prof_path: str, top_n: int = 30) -> Dict[str, Any]:
+    stats = pstats.Stats(prof_path)
+    # Build list of rows (file, line, func, cc, nc, tt, ct)
+    rows: List[Tuple[str, int, str, int, int, float, float]] = []
+    for (filename, line, funcname), (cc, nc, tt, ct, callers) in stats.stats.items():  # type: ignore[attr-defined]
+        rows.append((filename, line, funcname, cc, nc, tt, ct))
 
     def _fmt(row):
         file, line, func, cc, nc, tt, ct = row
@@ -67,16 +56,13 @@ def cprofile_capture(run_dir: str, name: str, iteration_index: int, metrics: Dic
         try:
             profiler.dump_stats(prof_path)
             metrics["cprofile_artifact"] = prof_path
-        except Exception:
-            pass
-
-        try:
-            summary = _summarize_stats(profiler, top_n=top_n)
+            # Summarize using pstats on dumped file for consistency
+            summary = _summarize_stats_from_file(prof_path, top_n=top_n)
             summary_path = os.path.join(run_dir, f"{prefix}_cprofile_summary.json")
             with open(summary_path, "w") as f:
                 json.dump(summary, f, indent=2)
             metrics["cprofile_summary_path"] = summary_path
         except Exception:
-            # Summary is best-effort
+            # Best-effort; ignore failures gracefully
             pass
 

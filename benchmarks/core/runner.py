@@ -17,6 +17,7 @@ from contextlib import ExitStack
 from benchmarks.core.instrumentation.cprofile import cprofile_capture
 from benchmarks.core.instrumentation.psutil_monitor import psutil_sampling
 from benchmarks.core.reporting.markdown import write_run_report
+import shutil
 
 
 def _random_run_id(n: int = 8) -> str:
@@ -91,14 +92,39 @@ class Runner:
                 # Timing always on if instrumented
                 stack.enter_context(time_block(metrics, key="duration_s"))
                 # Optional instruments
-                if "cprofile" in self.instruments:
-                    stack.enter_context(cprofile_capture(self.run_dir, self.name, i, metrics))
-                if "psutil" in self.instruments:
-                    stack.enter_context(psutil_sampling(self.run_dir, self.name, i, metrics))
+                for inst in self.instruments:
+                    # Support simple names or config dicts {name: ..., ...}
+                    if isinstance(inst, str):
+                        name = inst
+                        cfg: Dict[str, Any] = {}
+                    elif isinstance(inst, dict):
+                        name = str(inst.get("name"))
+                        cfg = {k: v for k, v in inst.items() if k != "name"}
+                    else:
+                        continue
+                    if name == "cprofile":
+                        top_n = int(cfg.get("top_n", 30))
+                        stack.enter_context(cprofile_capture(self.run_dir, self.name, i, metrics, top_n=top_n))
+                    elif name == "psutil":
+                        interval_ms = int(cfg.get("interval_ms", 200))
+                        max_samples = int(cfg.get("max_samples", 1000))
+                        stack.enter_context(psutil_sampling(self.run_dir, self.name, i, metrics, interval_ms=interval_ms, max_samples=max_samples))
+                    elif name == "timing":
+                        # already added above
+                        pass
+                    else:
+                        raise ValueError(f"Unknown instrument: {name}")
                 iter_metrics = self.experiment.execute_once(context)
             # Merge inner metrics into metrics namespace
             for k, v in (iter_metrics or {}).items():
                 metrics[k] = v
+            # Register artifacts from metrics, if present
+            if "cprofile_artifact" in metrics:
+                result.add_artifact(name=f"cprofile_iter_{i}", type="profile", path=str(metrics["cprofile_artifact"]))
+            if "cprofile_summary_path" in metrics:
+                result.add_artifact(name=f"cprofile_summary_iter_{i}", type="json", path=str(metrics["cprofile_summary_path"]))
+            if "psutil_artifact" in metrics:
+                result.add_artifact(name=f"psutil_iter_{i}", type="jsonl", path=str(metrics["psutil_artifact"]))
             result.add_iteration(index=i, duration_s=float(metrics.get("duration_s", 0.0)), metrics=metrics)
 
         # Aggregate simple summary metrics if present
@@ -106,9 +132,16 @@ class Runner:
             durations = [it.duration_s for it in result.iteration_metrics]
             mean = sum(durations) / len(durations)
             durations_sorted = sorted(durations)
-            p50 = durations_sorted[int(0.5 * (len(durations_sorted) - 1))]
-            p95 = durations_sorted[int(0.95 * (len(durations_sorted) - 1))]
-            result.metrics["duration_s"] = {"mean": mean, "p50": p50, "p95": p95}
+            def _pct(p: float) -> float:
+                if not durations_sorted:
+                    return 0.0
+                # nearest-rank method
+                idx = max(0, min(len(durations_sorted) - 1, int(round(p * (len(durations_sorted) - 1)))))
+                return float(durations_sorted[idx])
+            p50 = _pct(0.50)
+            p95 = _pct(0.95)
+            p99 = _pct(0.99) if len(durations_sorted) >= 3 else p95
+            result.metrics["duration_s"] = {"mean": mean, "p50": p50, "p95": p95, "p99": p99}
 
         # Teardown
         try:
@@ -117,6 +150,13 @@ class Runner:
             path = result.save(self.run_dir)
             # Expose saved path in notes for convenience
             result.notes = (result.notes or "") + f"\nSaved to: {path}"
+            # Save spec if provided via context.extras
+            try:
+                spec_path = context.extras.get("spec_path") if isinstance(context.extras, dict) else None
+                if spec_path and os.path.exists(spec_path):
+                    shutil.copy2(spec_path, os.path.join(self.run_dir, os.path.basename(spec_path)))
+            except Exception:
+                pass
             try:
                 write_run_report(result, self.run_dir)
             except Exception:

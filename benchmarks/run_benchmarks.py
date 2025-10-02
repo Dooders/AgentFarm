@@ -61,7 +61,16 @@ def main() -> int:
             notes=spec.notes,
             instruments=spec.instrumentation,
         )
-        results = sweeper.run_cartesian(spec.sweep)
+        if spec.strategy == "cartesian":
+            results = sweeper.run_cartesian(spec.sweep)
+        elif spec.strategy == "random":
+            if not spec.samples:
+                print("Error: 'samples' required for strategy=random")
+                return 2
+            results = sweeper.run_random(spec.sweep, samples=spec.samples)
+        else:
+            print(f"Error: unknown sweep strategy '{spec.strategy}'")
+            return 2
         print(f"\nSweep complete: {len(results)} runs")
         for r in results:
             line = f"  {r.run_id}"

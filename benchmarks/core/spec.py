@@ -19,8 +19,10 @@ except Exception:  # pragma: no cover - optional dependency
 
 SPEC_DEFAULTS = {
     "iterations": {"warmup": 0, "measured": 1},
-    "instrumentation": ["timing"],
+    "instrumentation": ["timing"],  # may be list[str] or list[dict]
     "output_dir": "benchmarks/results",
+    "strategy": "cartesian",
+    "parallelism": 1,
 }
 
 
@@ -29,7 +31,7 @@ class RunSpec:
     experiment: str
     params: Dict[str, Any]
     iterations: Dict[str, int]
-    instrumentation: List[str]
+    instrumentation: List[Any]
     output_dir: str
     tags: List[str]
     notes: str
@@ -78,8 +80,8 @@ def load_spec(path: str) -> RunSpec:
         notes=str(data.get("notes", "")),
         seed=(int(data["seed"]) if "seed" in data and data["seed"] is not None else None),
         sweep=(data.get("sweep") if data.get("sweep") else None),
-        parallelism=int(data.get("parallelism", 1)),
-        strategy=str(data.get("strategy", "cartesian")),
+        parallelism=int(data.get("parallelism", SPEC_DEFAULTS["parallelism"])),
+        strategy=str(data.get("strategy", SPEC_DEFAULTS["strategy"])),
         samples=(int(data.get("samples")) if data.get("samples") is not None else None),
     )
 
