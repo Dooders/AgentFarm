@@ -30,21 +30,22 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Store active simulations
 active_simulations = {}
+_active_simulations_lock = threading.Lock()
 
 
 def _run_simulation_background(sim_id, config, db_path):
     try:
-        active_simulations[sim_id]["status"] = "running"
+        with _active_simulations_lock:
+            if sim_id in active_simulations:
+                active_simulations[sim_id]["status"] = "running"
 
         # Run simulation
-        run_simulation(
-            num_steps=config.simulation_steps,
-            config=config,
-            path=os.path.dirname(db_path),
-        )
+        run_simulation(num_steps=config.simulation_steps, config=config, path=os.path.dirname(db_path))
 
-        active_simulations[sim_id]["status"] = "completed"
-        active_simulations[sim_id]["ended_at"] = datetime.now().isoformat()
+        with _active_simulations_lock:
+            if sim_id in active_simulations:
+                active_simulations[sim_id]["status"] = "completed"
+                active_simulations[sim_id]["ended_at"] = datetime.now().isoformat()
     except Exception as e:
         logger.error(
             "background_simulation_failed",
@@ -53,8 +54,10 @@ def _run_simulation_background(sim_id, config, db_path):
             error_message=str(e),
             exc_info=True,
         )
-        active_simulations[sim_id]["status"] = "error"
-        active_simulations[sim_id]["error_message"] = str(e)
+        with _active_simulations_lock:
+            if sim_id in active_simulations:
+                active_simulations[sim_id]["status"] = "error"
+                active_simulations[sim_id]["error_message"] = str(e)
 
 
 @app.route("/api/simulation/new", methods=["POST"])
@@ -80,31 +83,21 @@ def create_simulation():
         # Create database
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
-        # Store simulation info
-        active_simulations[sim_id] = {
-            "db_path": db_path,
-            "config": config_data,
-            "created_at": datetime.now().isoformat(),
-            "status": "pending",
-        }
+        # Store simulation info (pending)
+        with _active_simulations_lock:
+            active_simulations[sim_id] = {
+                "db_path": db_path,
+                "config": config_data,
+                "created_at": datetime.now().isoformat(),
+                "status": "pending",
+            }
 
         # Start background thread
-        thread = threading.Thread(
-            target=_run_simulation_background, args=(sim_id, config, db_path)
-        )
+        thread = threading.Thread(target=_run_simulation_background, args=(sim_id, config, db_path))
         thread.daemon = True
         thread.start()
 
-        return (
-            jsonify(
-                {
-                    "status": "accepted",
-                    "sim_id": sim_id,
-                    "message": "Simulation started",
-                }
-            ),
-            202,
-        )
+        return (jsonify({"status": "accepted", "sim_id": sim_id, "message": "Simulation started"}), 202)
 
     except Exception as e:
         logger.error(
@@ -121,10 +114,12 @@ def create_simulation():
 def get_step(sim_id, step):
     """Get simulation state for a specific step."""
     try:
-        if sim_id not in active_simulations:
-            raise ValueError(f"Simulation {sim_id} not found")
+        with _active_simulations_lock:
+            if sim_id not in active_simulations:
+                raise ValueError(f"Simulation {sim_id} not found")
+            db_path = active_simulations[sim_id]["db_path"]
 
-        db = SimulationDatabase(active_simulations[sim_id]["db_path"])
+        db = SimulationDatabase(db_path)
         data = db.query.gui_repository.get_simulation_data(step)
 
         return jsonify({"status": "success", "data": data})
@@ -144,10 +139,12 @@ def get_step(sim_id, step):
 def get_analysis(sim_id):
     """Get detailed simulation analysis."""
     try:
-        if sim_id not in active_simulations:
-            raise ValueError(f"Simulation {sim_id} not found")
+        with _active_simulations_lock:
+            if sim_id not in active_simulations:
+                raise ValueError(f"Simulation {sim_id} not found")
+            db_path = active_simulations[sim_id]["db_path"]
 
-        db = SimulationDatabase(active_simulations[sim_id]["db_path"])
+        db = SimulationDatabase(db_path)
         analysis_results = analyze_simulation(db)
 
         return jsonify({"status": "success", "data": analysis_results})
@@ -155,23 +152,6 @@ def get_analysis(sim_id):
     except Exception as e:
         logger.error(
             "api_analysis_failed",
-            simulation_id=sim_id,
-            error_type=type(e).__name__,
-            error_message=str(e),
-        )
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route("/api/simulation/<sim_id>/status", methods=["GET"])
-def get_simulation_status(sim_id):
-    try:
-        if sim_id not in active_simulations:
-            raise ValueError(f"Simulation {sim_id} not found")
-
-        return jsonify({"status": "success", "data": active_simulations[sim_id]})
-    except Exception as e:
-        logger.error(
-            "api_get_simulation_status_failed",
             simulation_id=sim_id,
             error_type=type(e).__name__,
             error_message=str(e),
@@ -203,11 +183,7 @@ def run_analysis_module(module_name):
             {
                 "status": "success",
                 "output_path": str(result.output_path),
-                "rows": (
-                    int(result.dataframe.shape[0])
-                    if result.dataframe is not None
-                    else 0
-                ),
+                "rows": (int(result.dataframe.shape[0]) if result.dataframe is not None else 0),
             }
         )
     except Exception as e:
@@ -224,17 +200,21 @@ def run_analysis_module(module_name):
 @app.route("/api/simulations", methods=["GET"])
 def list_simulations():
     """Get list of active simulations."""
-    return jsonify({"status": "success", "data": active_simulations})
+    with _active_simulations_lock:
+        data = dict(active_simulations)
+    return jsonify({"status": "success", "data": data})
 
 
 @app.route("/api/simulation/<sim_id>/export", methods=["GET"])
 def export_simulation(sim_id):
     """Export simulation data."""
     try:
-        if sim_id not in active_simulations:
-            raise ValueError(f"Simulation {sim_id} not found")
+        with _active_simulations_lock:
+            if sim_id not in active_simulations:
+                raise ValueError(f"Simulation {sim_id} not found")
+            db_path = active_simulations[sim_id]["db_path"]
 
-        db = SimulationDatabase(active_simulations[sim_id]["db_path"])
+        db = SimulationDatabase(db_path)
         export_path = f"results/export_{sim_id}.csv"
         db.export_data(export_path)
 
@@ -250,7 +230,7 @@ def export_simulation(sim_id):
         logger.error(
             "api_export_failed",
             simulation_id=sim_id,
-            export_path=export_path,
+            export_path=export_path if "export_path" in locals() else None,
             error_type=type(e).__name__,
             error_message=str(e),
         )
@@ -271,15 +251,31 @@ def handle_disconnect():
 @socketio.on("subscribe_simulation")
 def handle_subscribe(sim_id):
     """Subscribe to simulation updates."""
-    if sim_id in active_simulations:
-        logger.info(
-            "client_subscribed_to_simulation",
-            client_id=request.sid,
-            simulation_id=sim_id,
-        )
+    with _active_simulations_lock:
+        exists = sim_id in active_simulations
+    if exists:
+        logger.info("client_subscribed_to_simulation", client_id=request.sid, simulation_id=sim_id)
         emit("subscription_success", {"sim_id": sim_id})
     else:
         emit("subscription_error", {"message": f"Simulation {sim_id} not found"})
+
+
+@app.route("/api/simulation/<sim_id>/status", methods=["GET"])
+def get_simulation_status(sim_id):
+    try:
+        with _active_simulations_lock:
+            if sim_id not in active_simulations:
+                raise ValueError(f"Simulation {sim_id} not found")
+            data = dict(active_simulations[sim_id])
+        return jsonify({"status": "success", "data": data})
+    except Exception as e:
+        logger.error(
+            "api_get_simulation_status_failed",
+            simulation_id=sim_id,
+            error_type=type(e).__name__,
+            error_message=str(e),
+        )
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 if __name__ == "__main__":

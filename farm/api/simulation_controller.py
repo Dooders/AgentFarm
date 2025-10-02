@@ -232,7 +232,14 @@ class SimulationController:
         self.is_paused = False
 
         if self._simulation_thread and threading.current_thread() is not self._simulation_thread:
-            self._simulation_thread.join()
+            self._simulation_thread.join(timeout=5.0)
+            if self._simulation_thread.is_alive():
+                logger.warning(
+                    "simulation_thread_timeout",
+                    simulation_id=self.simulation_id,
+                    final_step=self.current_step,
+                    message="Simulation thread did not terminate within timeout.",
+                )
 
         logger.info("simulation_stopped", simulation_id=self.simulation_id, final_step=self.current_step)
         self._notify_status_change("stopped")

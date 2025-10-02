@@ -55,6 +55,17 @@ class UnifiedAdapter:
         self._event_history: List[Event] = []
         self._event_lock = threading.Lock()
 
+        # Status mapping from controller status strings to enum
+        self._status_map = {
+            "initialized": SimulationStatus.CREATED,
+            "started": SimulationStatus.RUNNING,
+            "resumed": SimulationStatus.RUNNING,
+            "paused": SimulationStatus.PAUSED,
+            "stopped": SimulationStatus.STOPPED,
+            "completed": SimulationStatus.COMPLETED,
+            "error": SimulationStatus.ERROR,
+        }
+
     def create_simulation(self, config: Dict[str, Any]) -> str:
         """Create a new simulation.
 
@@ -132,16 +143,9 @@ class UnifiedAdapter:
                 )
 
             def on_status(status):
-                status_map = {
-                    "initialized": SimulationStatus.CREATED,
-                    "started": SimulationStatus.RUNNING,
-                    "resumed": SimulationStatus.RUNNING,
-                    "paused": SimulationStatus.PAUSED,
-                    "stopped": SimulationStatus.STOPPED,
-                    "completed": SimulationStatus.COMPLETED,
-                    "error": SimulationStatus.ERROR,
-                }
-                sim_info["status"] = status_map.get(str(status).lower(), SimulationStatus.ERROR)
+                sim_info["status"] = self._status_map.get(
+                    str(status).lower(), SimulationStatus.ERROR
+                )
                 self._emit_event(
                     "simulation_status_change",
                     simulation_id=simulation_id,
