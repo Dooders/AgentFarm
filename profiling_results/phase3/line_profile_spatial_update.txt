@@ -1,0 +1,22 @@
+Command: python3 -m kernprof -l -v profiling_results/phase3/profile_spatial_update.py
+Duration: 0.81s
+Exit Code: 0
+
+=== STDOUT ===
+Profiling spatial index updates...
+Profiling complete!
+Wrote profile results to 'profile_spatial_update.py.lprof'
+Timer unit: 1e-06 s
+
+Total time: 0.00459844 s
+File: profiling_results/phase3/profile_spatial_update.py
+Function: profiled_update at line 18
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    18                                           @profile
+    19                                           def profiled_update(self):
+    20        10       4598.4    459.8    100.0      return original_update(self)
+
+
+=== STDERR ===

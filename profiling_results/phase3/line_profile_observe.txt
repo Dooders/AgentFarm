@@ -1,0 +1,111 @@
+Command: python3 -m kernprof -l -v profiling_results/phase3/profile_observe.py
+Duration: 26.85s
+Exit Code: 0
+
+=== STDOUT ===
+2025-10-02 04:06:43 [info     ] action_mapping_initialized     action_count=7 available_actions=['defend', 'attack', 'gather', 'share', 'move', 'reproduce', 'pass']
+2025-10-02 04:06:43 [info     ] resources_initializing         amount=100 distribution_type=random
+2025-10-02 04:06:43 [info     ] Successfully initialized 100 resources
+2025-10-02 04:06:50 [info     ] Initialized DQN policy with Tianshou
+2025-10-02 04:06:50 [info     ] algorithm_initialized          agent_id=agent_a50861755e algorithm=dqn
+2025-10-02 04:06:50 [info     ] Initialized DecisionModule for agent agent_a50861755e with dqn
+2025-10-02 04:06:50 [debug    ] Inserting 1 agents into database
+2025-10-02 04:06:50 [info     ] Initialized DQN policy with Tianshou
+2025-10-02 04:06:50 [info     ] algorithm_initialized          agent_id=agent_9618ac0c84 algorithm=dqn
+2025-10-02 04:06:50 [info     ] Initialized DecisionModule for agent agent_9618ac0c84 with dqn
+2025-10-02 04:06:50 [debug    ] Inserting 1 agents into database
+2025-10-02 04:06:50 [info     ] Initialized DQN policy with Tianshou
+2025-10-02 04:06:50 [info     ] algorithm_initialized          agent_id=agent_d8d8e1f7cd algorithm=dqn
+2025-10-02 04:06:50 [info     ] Initialized DecisionModule for agent agent_d8d8e1f7cd with dqn
+2025-10-02 04:06:50 [debug    ] Inserting 1 agents into database
+2025-10-02 04:06:50 [info     ] Initialized DQN policy with Tianshou
+2025-10-02 04:06:50 [info     ] algorithm_initialized          agent_id=agent_211aea9a6f algorithm=dqn
+2025-10-02 04:06:50 [info     ] Initialized DecisionModule for agent agent_211aea9a6f with dqn
+2025-10-02 04:06:50 [debug    ] Inserting 1 agents into database
+2025-10-02 04:06:50 [info     ] Initialized DQN policy with Tianshou
+2025-10-02 04:06:50 [info     ] algorithm_initialized          agent_id=agent_22531531c0 algorithm=dqn
+2025-10-02 04:06:50 [info     ] Initialized DecisionModule for agent agent_22531531c0 with dqn
+2025-10-02 04:06:50 [debug    ] Inserting 1 agents into database
+2025-10-02 04:06:51 [info     ] Initialized DQN policy with Tianshou
+2025-10-02 04:06:51 [info     ] algorithm_initialized          agent_id=agent_85da439342 algorithm=dqn
+2025-10-02 04:06:51 [info     ] Initialized DecisionModule for agent agent_85da439342 with dqn
+2025-10-02 04:06:51 [debug    ] Inserting 1 agents into database
+2025-10-02 04:06:51 [info     ] Initialized DQN policy with Tianshou
+2025-10-02 04:06:51 [info     ] algorithm_initialized          agent_id=agent_9506a91c22 algorithm=dqn
+2025-10-02 04:06:51 [info     ] Initialized DecisionModule for agent agent_9506a91c22 with dqn
+2025-10-02 04:06:51 [debug    ] Inserting 1 agents into database
+2025-10-02 04:06:51 [info     ] Initialized DQN policy with Tianshou
+2025-10-02 04:06:51 [info     ] algorithm_initialized          agent_id=agent_7ad6b2306b algorithm=dqn
+2025-10-02 04:06:51 [info     ] Initialized DecisionModule for agent agent_7ad6b2306b with dqn
+2025-10-02 04:06:51 [debug    ] Inserting 1 agents into database
+2025-10-02 04:06:51 [info     ] Initialized DQN policy with Tianshou
+2025-10-02 04:06:51 [info     ] algorithm_initialized          agent_id=agent_149c55292d algorithm=dqn
+2025-10-02 04:06:51 [info     ] Initialized DecisionModule for agent agent_149c55292d with dqn
+2025-10-02 04:06:51 [debug    ] Inserting 1 agents into database
+2025-10-02 04:06:51 [info     ] Initialized DQN policy with Tianshou
+2025-10-02 04:06:51 [info     ] algorithm_initialized          agent_id=agent_876fcebdf7 algorithm=dqn
+2025-10-02 04:06:51 [info     ] Initialized DecisionModule for agent agent_876fcebdf7 with dqn
+2025-10-02 04:06:51 [debug    ] Inserting 1 agents into database
+2025-10-02 04:06:51 [info     ] Initialized DQN policy with Tianshou
+2025-10-02 04:06:51 [info     ] algorithm_initialized          agent_id=agent_6ac33ea39c algorithm=dqn
+2025-10-02 04:06:51 [info     ] Initialized DecisionModule for agent agent_6ac33ea39c with dqn
+2025-10-02 04:06:51 [debug    ] Inserting 1 agents into database
+2025-10-02 04:06:51 [info     ] Initialized DQN policy with Tianshou
+2025-10-02 04:06:51 [info     ] algorithm_initialized          agent_id=agent_ff8d2eeb99 algorithm=dqn
+2025-10-02 04:06:51 [info     ] Initialized DecisionModule for agent agent_ff8d2eeb99 with dqn
+2025-10-02 04:06:51 [debug    ] Inserting 1 agents into database
+2025-10-02 04:06:51 [info     ] Initialized DQN policy with Tianshou
+2025-10-02 04:06:51 [info     ] algorithm_initialized          agent_id=agent_315a8538c6 algorithm=dqn
+2025-10-02 04:06:51 [info     ] Initialized DecisionModule for agent agent_315a8538c6 with dqn
+2025-10-02 04:06:51 [debug    ] Inserting 1 agents into database
+2025-10-02 04:06:51 [info     ] Initialized DQN policy with Tianshou
+2025-10-02 04:06:51 [info     ] algorithm_initialized          agent_id=agent_8f4d307d77 algorithm=dqn
+2025-10-02 04:06:51 [info     ] Initialized DecisionModule for agent agent_8f4d307d77 with dqn
+2025-10-02 04:06:51 [debug    ] Inserting 1 agents into database
+2025-10-02 04:06:51 [info     ] Initialized DQN policy with Tianshou
+2025-10-02 04:06:51 [info     ] algorithm_initialized          agent_id=agent_7445121d22 algorithm=dqn
+2025-10-02 04:06:51 [info     ] Initialized DecisionModule for agent agent_7445121d22 with dqn
+2025-10-02 04:06:51 [debug    ] Inserting 1 agents into database
+2025-10-02 04:06:51 [info     ] Initialized DQN policy with Tianshou
+2025-10-02 04:06:51 [info     ] algorithm_initialized          agent_id=agent_a3c7d79ba1 algorithm=dqn
+2025-10-02 04:06:51 [info     ] Initialized DecisionModule for agent agent_a3c7d79ba1 with dqn
+2025-10-02 04:06:51 [debug    ] Inserting 1 agents into database
+2025-10-02 04:06:52 [info     ] Initialized DQN policy with Tianshou
+2025-10-02 04:06:52 [info     ] algorithm_initialized          agent_id=agent_d1fc985e18 algorithm=dqn
+2025-10-02 04:06:52 [info     ] Initialized DecisionModule for agent agent_d1fc985e18 with dqn
+2025-10-02 04:06:52 [debug    ] Inserting 1 agents into database
+2025-10-02 04:06:52 [info     ] Initialized DQN policy with Tianshou
+2025-10-02 04:06:52 [info     ] algorithm_initialized          agent_id=agent_71009500b1 algorithm=dqn
+2025-10-02 04:06:52 [info     ] Initialized DecisionModule for agent agent_71009500b1 with dqn
+2025-10-02 04:06:52 [debug    ] Inserting 1 agents into database
+2025-10-02 04:06:52 [info     ] Initialized DQN policy with Tianshou
+2025-10-02 04:06:52 [info     ] algorithm_initialized          agent_id=agent_f48471b854 algorithm=dqn
+2025-10-02 04:06:52 [info     ] Initialized DecisionModule for agent agent_f48471b854 with dqn
+2025-10-02 04:06:52 [debug    ] Inserting 1 agents into database
+2025-10-02 04:06:52 [info     ] Initialized DQN policy with Tianshou
+2025-10-02 04:06:52 [info     ] algorithm_initialized          agent_id=agent_49e8b41b10 algorithm=dqn
+2025-10-02 04:06:52 [info     ] Initialized DecisionModule for agent agent_49e8b41b10 with dqn
+2025-10-02 04:06:52 [debug    ] Inserting 1 agents into database
+Generating observations for profiling...
+2025-10-02 04:06:52 [debug    ] Database engine disposed
+Profiling complete!
+Wrote profile results to 'profile_observe.py.lprof'
+Timer unit: 1e-06 s
+
+Total time: 0.235862 s
+File: profiling_results/phase3/profile_observe.py
+Function: profiled_get_observation at line 21
+
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+    21                                           @profile
+    22                                           def profiled_get_observation(self, agent_id):
+    23       100     235862.3   2358.6    100.0      return original_get_observation(self, agent_id)
+
+2025-10-02 04:06:53 [debug    ] Database engine disposed
+
+=== STDERR ===
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+Users of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
