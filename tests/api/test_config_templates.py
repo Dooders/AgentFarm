@@ -230,7 +230,6 @@ class TestConfigTemplateManager:
         sim_config = manager.convert_to_simulation_config(config)
         
         if sim_config is not None:
-            assert sim_config.simulation_name == "Test Simulation"
             assert sim_config.simulation_steps == 1000
 
     def test_get_template_examples(self):

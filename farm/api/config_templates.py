@@ -244,9 +244,31 @@ class ConfigTemplateManager:
         Returns:
             ValidationResult with validation status and messages
         """
+        logger = get_logger(__name__)
+        logger.debug("Validating configuration", config_type=type(config).__name__)
+
         errors = []
         warnings = []
         suggestions = []
+
+        # Handle None or invalid config types
+        if config is None:
+            errors.append("Configuration cannot be None")
+            return ValidationResult(
+                is_valid=False,
+                errors=errors,
+                warnings=warnings,
+                suggestions=suggestions,
+            )
+
+        if not isinstance(config, dict):
+            errors.append("Configuration must be a dictionary")
+            return ValidationResult(
+                is_valid=False,
+                errors=errors,
+                warnings=warnings,
+                suggestions=suggestions,
+            )
 
         # Check required fields
         if "name" not in config:
@@ -304,7 +326,8 @@ class ConfigTemplateManager:
                     )
 
         # Performance suggestions
-        if config.get("steps", 0) > 10000:
+        steps = config.get("steps", 0)
+        if isinstance(steps, int) and steps > 10000:
             suggestions.append(
                 "Consider using in-memory database for large simulations"
             )
@@ -338,6 +361,11 @@ class ConfigTemplateManager:
             SimulationConfig object if conversion successful, None otherwise
         """
         try:
+            # Validate the config first
+            validation_result = self.validate_config(config)
+            if not validation_result.is_valid:
+                return None
+
             # Start with default config
             sim_config = SimulationConfig.from_centralized_config()
 
@@ -377,3 +405,172 @@ class ConfigTemplateManager:
         except Exception as e:
             logger.error(f"Error converting config to SimulationConfig: {e}")
             return None
+
+    def convert_to_experiment_config(
+        self, config: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """Convert a configuration dictionary to an experiment configuration.
+
+        Args:
+            config: Configuration dictionary
+
+        Returns:
+            Experiment configuration dictionary if conversion successful, None otherwise
+        """
+        try:
+            # Validate the config first
+            validation_result = self.validate_config(config)
+            if not validation_result.is_valid:
+                return None
+
+            # Convert to experiment format
+            exp_config = {
+                "name": config.get("name", "experiment"),
+                "iterations": config.get("steps", 1000),
+                "variations": config.get("variations", []),
+                "environment": config.get("environment", {}),
+                "agents": config.get("agents", {}),
+                "learning": config.get("learning", {}),
+            }
+
+            return exp_config
+
+        except Exception as e:
+            logger.error(f"Error converting config to experiment config: {e}")
+            return None
+
+    def get_template_examples(
+        self, template_name: str
+    ) -> Optional[List[Dict[str, Any]]]:
+        """Get examples for a specific template.
+
+        Args:
+            template_name: Name of the template
+
+        Returns:
+            List of example configurations, or None if template doesn't exist
+        """
+        template = self.get_template(template_name)
+        if template:
+            return template.examples
+        return None
+
+    def get_required_fields(self, template_name: str) -> Optional[List[str]]:
+        """Get required fields for a specific template.
+
+        Args:
+            template_name: Name of the template
+
+        Returns:
+            List of required field names, or None if template doesn't exist
+        """
+        template = self.get_template(template_name)
+        if template:
+            return template.required_fields
+        return None
+
+    def get_optional_fields(self, template_name: str) -> Optional[List[str]]:
+        """Get optional fields for a specific template.
+
+        Args:
+            template_name: Name of the template
+
+        Returns:
+            List of optional field names, or None if template doesn't exist
+        """
+        template = self.get_template(template_name)
+        if template:
+            return template.optional_fields
+        return None
+
+    def validate_against_template(
+        self, template_name: str, config: Dict[str, Any]
+    ) -> Optional[ValidationResult]:
+        """Validate a configuration against a specific template.
+
+        Args:
+            template_name: Name of the template to validate against
+            config: Configuration to validate
+
+        Returns:
+            ValidationResult if template exists, None otherwise
+        """
+        template = self.get_template(template_name)
+        if not template:
+            return None
+
+        # Get basic validation result
+        result = self.validate_config(config)
+
+        # Check required fields specific to template
+        for field in template.required_fields:
+            if field not in config:
+                result.errors.append(f"Required field '{field}' is missing")
+
+        # Check for unknown fields
+        allowed_fields = set(template.required_fields + template.optional_fields)
+        for field in config.keys():
+            if field not in allowed_fields:
+                result.warnings.append(f"Unknown field '{field}' in configuration")
+
+        result.is_valid = len(result.errors) == 0
+        return result
+
+    def get_template_categories(self) -> List[ConfigCategory]:
+        """Get all available template categories.
+
+        Returns:
+            List of ConfigCategory values
+        """
+        return list(ConfigCategory)
+
+    def list_templates_by_category(
+        self, category: ConfigCategory
+    ) -> List[ConfigTemplate]:
+        """List templates by category.
+
+        Args:
+            category: Category to filter by
+
+        Returns:
+            List of templates in the category
+        """
+        templates = []
+        for name, template in self._templates.items():
+            if template.category == category:
+                templates.append(template)
+        return templates
+
+    def add_template(self, template: ConfigTemplate) -> bool:
+        """Add a custom template.
+
+        Args:
+            template: Template to add
+
+        Returns:
+            True if added successfully, False if template already exists
+        """
+        if template.name in self._templates:
+            return False
+
+        self._templates[template.name] = template
+        return True
+
+    def remove_template(self, template_name: str) -> bool:
+        """Remove a custom template.
+
+        Args:
+            template_name: Name of template to remove
+
+        Returns:
+            True if removed successfully, False if template is protected or doesn't exist
+        """
+        if template_name not in self._templates:
+            return False
+
+        # Check if it's a default template (protected)
+        if template_name in self._create_default_templates():
+            return False
+
+        del self._templates[template_name]
+        return True

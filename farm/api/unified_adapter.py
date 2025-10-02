@@ -22,8 +22,10 @@ from farm.api.models import (
     EventSubscription,
     ExperimentResults,
     ExperimentStatus,
+    ExperimentStatusInfo,
     SimulationResults,
     SimulationStatus,
+    SimulationStatusInfo,
 )
 from farm.api.simulation_controller import SimulationController
 from farm.core.analysis import SimulationAnalyzer
@@ -224,14 +226,14 @@ class UnifiedAdapter:
 
         return self.get_simulation_status(simulation_id)
 
-    def get_simulation_status(self, simulation_id: str) -> SimulationStatus:
+    def get_simulation_status(self, simulation_id: str) -> SimulationStatusInfo:
         """Get simulation status.
 
         Args:
             simulation_id: Simulation identifier
 
         Returns:
-            SimulationStatus object
+            SimulationStatusInfo object
         """
         if simulation_id not in self._simulations:
             raise ValueError(f"Simulation {simulation_id} not found")
@@ -249,15 +251,15 @@ class UnifiedAdapter:
             else 0
         )
 
-        return SimulationStatus(
+        return SimulationStatusInfo(
             simulation_id=simulation_id,
             status=sim_info["status"],
             current_step=sim_info["current_step"],
             total_steps=sim_info["total_steps"],
             progress_percentage=progress,
-            start_time=sim_info["start_time"],
-            end_time=sim_info["end_time"],
-            error_message=sim_info["error_message"],
+            start_time=sim_info.get("start_time"),
+            end_time=sim_info.get("end_time"),
+            error_message=sim_info.get("error_message"),
             metadata={
                 "agent_count": state.get("agent_count", 0),
                 "resource_count": state.get("resource_count", 0),
@@ -284,8 +286,8 @@ class UnifiedAdapter:
 
         # Collect data files
         data_files = []
-        sim_dir = sim_info["directory"]
-        if sim_dir.exists():
+        sim_dir = sim_info.get("directory")
+        if sim_dir and sim_dir.exists():
             for file_path in sim_dir.rglob("*"):
                 if file_path.is_file() and file_path.suffix in [
                     ".db",
@@ -386,6 +388,10 @@ class UnifiedAdapter:
         controller = exp_info["controller"]
 
         try:
+            # Set status to running immediately
+            exp_info["status"] = ExperimentStatus.RUNNING
+            exp_info["start_time"] = datetime.now()
+
             # Get variations from config
             variations = exp_info["config"].get("variations", [])
             num_steps = exp_info["config"].get("base_config", {}).get("steps", 1000)
@@ -393,8 +399,6 @@ class UnifiedAdapter:
             # Start experiment in background thread
             def run_experiment():
                 try:
-                    exp_info["status"] = ExperimentStatus.RUNNING
-                    exp_info["start_time"] = datetime.now()
 
                     self._emit_event("experiment_started", experiment_id=experiment_id)
 
@@ -436,14 +440,14 @@ class UnifiedAdapter:
 
         return self.get_experiment_status(experiment_id)
 
-    def get_experiment_status(self, experiment_id: str) -> ExperimentStatus:
+    def get_experiment_status(self, experiment_id: str) -> ExperimentStatusInfo:
         """Get experiment status.
 
         Args:
             experiment_id: Experiment identifier
 
         Returns:
-            ExperimentStatus object
+            ExperimentStatusInfo object
         """
         if experiment_id not in self._experiments:
             raise ValueError(f"Experiment {experiment_id} not found")
@@ -455,21 +459,21 @@ class UnifiedAdapter:
         state = controller.get_state()
 
         # Calculate progress
+        current_iteration = exp_info.get("current_iteration", 0)
+        total_iterations = exp_info.get("total_iterations", 0)
         progress = (
-            (state["current_iteration"] / exp_info["total_iterations"]) * 100
-            if exp_info["total_iterations"] > 0
-            else 0
+            (current_iteration / total_iterations) * 100 if total_iterations > 0 else 0
         )
 
-        return ExperimentStatus(
+        return ExperimentStatusInfo(
             experiment_id=experiment_id,
             status=exp_info["status"],
-            current_iteration=state["current_iteration"],
-            total_iterations=exp_info["total_iterations"],
+            current_iteration=current_iteration,
+            total_iterations=total_iterations,
             progress_percentage=progress,
-            start_time=exp_info["start_time"],
-            end_time=exp_info["end_time"],
-            error_message=exp_info["error_message"],
+            start_time=exp_info.get("start_time"),
+            end_time=exp_info.get("end_time"),
+            error_message=exp_info.get("error_message"),
         )
 
     def get_experiment_results(self, experiment_id: str) -> ExperimentResults:
@@ -492,8 +496,8 @@ class UnifiedAdapter:
 
         # Collect data files
         data_files = []
-        exp_dir = exp_info["directory"]
-        if exp_dir.exists():
+        exp_dir = exp_info.get("directory")
+        if exp_dir and exp_dir.exists():
             for file_path in exp_dir.rglob("*"):
                 if file_path.is_file() and file_path.suffix in [
                     ".db",
@@ -533,7 +537,10 @@ class UnifiedAdapter:
             raise ValueError(f"Simulation {simulation_id} not found")
 
         sim_info = self._simulations[simulation_id]
-        db_path = sim_info["db_path"]
+        db_path = sim_info.get("db_path")
+
+        if not db_path:
+            raise ValueError(f"No database path found for simulation {simulation_id}")
 
         if not os.path.exists(db_path):
             raise ValueError(f"Simulation database not found: {db_path}")
