@@ -33,7 +33,19 @@ def capture_environment() -> Dict[str, Any]:
     # GPU info (best-effort)
     try:
         import subprocess
-        out = subprocess.check_output(["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"], stderr=subprocess.DEVNULL).decode().strip()
+
+        out = (
+            subprocess.check_output(
+                [
+                    "nvidia-smi",
+                    "--query-gpu=name,memory.total",
+                    "--format=csv,noheader",
+                ],
+                stderr=subprocess.DEVNULL,
+            )
+            .decode()
+            .strip()
+        )
         gpus = []
         for line in out.splitlines():
             parts = [p.strip() for p in line.split(",")]
@@ -82,11 +94,33 @@ class RunResult:
     notes: str = ""
     status: str = "success"
 
-    def add_iteration(self, index: int, duration_s: float, metrics: Dict[str, Any]) -> None:
-        self.iteration_metrics.append(IterationResult(index=index, duration_s=duration_s, metrics=metrics))
+    def add_iteration(
+        self, index: int, duration_s: float, metrics: Dict[str, Any]
+    ) -> None:
+        self.iteration_metrics.append(
+            IterationResult(index=index, duration_s=duration_s, metrics=metrics)
+        )
 
     def add_artifact(self, name: str, type: str, path: str) -> None:
         self.artifacts.append(Artifact(name=name, type=type, path=path))
+
+    def get_mean_duration(self) -> float:
+        """Get the mean duration of all iterations."""
+        if not self.iteration_metrics:
+            return 0.0
+        durations = [it.duration_s for it in self.iteration_metrics]
+        return sum(durations) / len(durations)
+
+    def get_median_duration(self) -> float:
+        """Get the median duration of all iterations."""
+        if not self.iteration_metrics:
+            return 0.0
+        durations = sorted([it.duration_s for it in self.iteration_metrics])
+        n = len(durations)
+        if n % 2 == 0:
+            return (durations[n // 2 - 1] + durations[n // 2]) / 2
+        else:
+            return durations[n // 2]
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -114,7 +148,6 @@ class RunResult:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{self.name}_{timestamp}_{self.run_id}.json"
         path = os.path.join(output_dir, filename)
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump(self.to_dict(), f, indent=2)
         return path
-

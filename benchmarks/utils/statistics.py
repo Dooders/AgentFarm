@@ -78,9 +78,7 @@ def calculate_statistics(results: RunResult) -> Dict[str, float]:
     }
 
 
-def compare_statistics(
-    results1: RunResult, results2: RunResult
-) -> Dict[str, float]:
+def compare_statistics(results1: RunResult, results2: RunResult) -> Dict[str, float]:
     """
     Compare statistics between two benchmark results.
 
