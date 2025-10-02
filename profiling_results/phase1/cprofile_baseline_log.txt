@@ -1,0 +1,13 @@
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+Users of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+usage: run_simulation.py [-h]
+                         [--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}]
+                         [--json-logs]
+                         [--environment {development,production,testing}]
+                         [--profile {benchmark,simulation,research}]
+                         [--steps STEPS] [--seed SEED] [--perf-profile]
+                         [--no-snakeviz] [--in-memory]
+                         [--memory-limit MEMORY_LIMIT] [--no-persist]
+run_simulation.py: error: argument --environment: invalid choice: 'benchmark' (choose from development, production, testing)

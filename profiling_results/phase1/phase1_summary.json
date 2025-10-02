@@ -1,0 +1,20 @@
+{
+  "timestamp": "2025-10-02T03:43:49.910891",
+  "profiling_runs": [
+    {
+      "type": "cprofile",
+      "name": "baseline_small",
+      "steps": 500,
+      "agents": 50,
+      "duration": 10.445758819580078,
+      "success": false,
+      "output_file": "profiling_results/phase1/cprofile_baseline_small.log"
+    }
+  ],
+  "analysis": {
+    "total_runs": 1,
+    "successful_runs": 0,
+    "failed_runs": 1,
+    "total_profiling_time": 10.445758819580078
+  }
+}
