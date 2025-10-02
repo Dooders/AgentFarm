@@ -14,7 +14,7 @@ from pathlib import Path
 
 def analyze_profile(profile_path: Path, top_n: int = 20):
     """Analyze a cProfile .prof file and extract bottlenecks."""
-    
+
     if not profile_path.exists():
         print(f"Error: Profile file not found: {profile_path}")
         sys.exit(1)
@@ -52,61 +52,69 @@ def analyze_profile(profile_path: Path, top_n: int = 20):
 
     # Extract key bottlenecks for structured output
     stats.sort_stats("cumulative")
-    
+
     bottlenecks = []
     for func, (cc, nc, tt, ct, callers) in list(stats.stats.items())[:top_n]:
         filename, line, func_name = func
-        bottlenecks.append({
-            "function": func_name,
-            "file": filename,
-            "line": line,
-            "cumulative_time": ct,
-            "internal_time": tt,
-            "calls": nc,
-            "time_per_call": ct / nc if nc > 0 else 0,
-        })
+        bottlenecks.append(
+            {
+                "function": func_name,
+                "file": filename,
+                "line": line,
+                "cumulative_time": ct,
+                "internal_time": tt,
+                "calls": nc,
+                "time_per_call": ct / nc if nc > 0 else 0,
+            }
+        )
 
     # Print summary
     print("## Summary of Key Bottlenecks\n")
-    print(f"{'Rank':<6} {'Function':<40} {'Cumulative':<12} {'Internal':<12} {'Calls':<10}")
+    print(
+        f"{'Rank':<6} {'Function':<40} {'Cumulative':<12} {'Internal':<12} {'Calls':<10}"
+    )
     print("-" * 80)
-    
+
     for i, bottleneck in enumerate(bottlenecks[:10], 1):
-        func_display = bottleneck['function'][:38]
-        print(f"{i:<6} {func_display:<40} {bottleneck['cumulative_time']:>10.3f}s  "
-              f"{bottleneck['internal_time']:>10.3f}s  {bottleneck['calls']:>8}")
+        func_display = bottleneck["function"][:38]
+        print(
+            f"{i:<6} {func_display:<40} {bottleneck['cumulative_time']:>10.3f}s  "
+            f"{bottleneck['internal_time']:>10.3f}s  {bottleneck['calls']:>8}"
+        )
 
     print(f"\n{'='*80}\n")
 
     # Generate recommendations
     print("## Optimization Recommendations\n")
-    
+
     hot_functions = [b for b in bottlenecks[:5]]
-    
+
     for i, func in enumerate(hot_functions, 1):
         print(f"{i}. **{func['function']}**")
         print(f"   - File: `{func['file']}:{func['line']}`")
         print(f"   - Cumulative time: {func['cumulative_time']:.3f}s")
-        print(f"   - Called {func['calls']} times ({func['time_per_call']*1000:.2f}ms per call)")
-        
+        print(
+            f"   - Called {func['calls']} times ({func['time_per_call']*1000:.2f}ms per call)"
+        )
+
         # Provide context-specific recommendations
-        func_name = func['function'].lower()
-        if 'observation' in func_name or 'perceive' in func_name:
-            print(f"   - 💡 Consider caching observations for stationary agents")
-            print(f"   - 💡 Profile bilinear interpolation overhead")
-        elif 'spatial' in func_name or 'kdtree' in func_name or 'query' in func_name:
-            print(f"   - 💡 Tune batch update parameters")
-            print(f"   - 💡 Consider alternative index types for this workload")
-        elif 'log' in func_name or 'database' in func_name or 'db' in func_name:
-            print(f"   - 💡 Increase batch buffer sizes")
-            print(f"   - 💡 Consider async logging")
-        elif 'update' in func_name:
-            print(f"   - 💡 Profile individual update components")
-            print(f"   - 💡 Check for unnecessary computations")
-        elif 'act' in func_name or 'decide' in func_name:
-            print(f"   - 💡 Consider batching agent decisions")
-            print(f"   - 💡 Profile RL algorithm overhead")
-        
+        func_name = func["function"].lower()
+        if "observation" in func_name or "perceive" in func_name:
+            print("   - 💡 Consider caching observations for stationary agents")
+            print("   - 💡 Profile bilinear interpolation overhead")
+        elif "spatial" in func_name or "kdtree" in func_name or "query" in func_name:
+            print("   - 💡 Tune batch update parameters")
+            print("   - 💡 Consider alternative index types for this workload")
+        elif "log" in func_name or "database" in func_name or "db" in func_name:
+            print("   - 💡 Increase batch buffer sizes")
+            print("   - 💡 Consider async logging")
+        elif "update" in func_name:
+            print("   - 💡 Profile individual update components")
+            print("   - 💡 Check for unnecessary computations")
+        elif "act" in func_name or "decide" in func_name:
+            print("   - 💡 Consider batching agent decisions")
+            print("   - 💡 Profile RL algorithm overhead")
+
         print()
 
     print(f"{'='*80}\n")
@@ -127,9 +135,9 @@ def main():
         default=20,
         help="Number of top functions to display (default: 20)",
     )
-    
+
     args = parser.parse_args()
-    
+
     analyze_profile(args.profile_file, args.top)
 
 
