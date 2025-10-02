@@ -135,9 +135,11 @@ class SpatialIndexProfiler:
                 "queries_per_second": num_queries / query_time if query_time > 0 else 0,
             }
             
+            us_per_query = (query_time*1000000/num_queries) if num_queries > 0 else 0
+            qps = (num_queries/query_time) if query_time > 0 else 0
             print(f"  {num_queries} queries: {query_time*1000:.2f}ms "
-                  f"({query_time*1000000/num_queries:.2f}μs per query, "
-                  f"{num_queries/query_time:.0f} qps)")
+                  f"({us_per_query:.2f}μs per query, "
+                  f"{qps:.0f} qps)")
         
         # Test get_nearest queries
         print("\nTesting get_nearest queries...")
@@ -157,9 +159,11 @@ class SpatialIndexProfiler:
                 "queries_per_second": num_queries / query_time if query_time > 0 else 0,
             }
             
+            us_per_query = (query_time*1000000/num_queries) if num_queries > 0 else 0
+            qps = (num_queries/query_time) if query_time > 0 else 0
             print(f"  {num_queries} queries: {query_time*1000:.2f}ms "
-                  f"({query_time*1000000/num_queries:.2f}μs per query, "
-                  f"{num_queries/query_time:.0f} qps)")
+                  f"({us_per_query:.2f}μs per query, "
+                  f"{qps:.0f} qps)")
         
         self.results["queries"] = results
         return results
@@ -211,8 +215,9 @@ class SpatialIndexProfiler:
                 "time_per_move": update_time / num_moves if num_moves > 0 else 0,
             }
             
+            us_per_move = (update_time*1000000/num_moves) if num_moves > 0 else 0
             print(f"  Update time: {update_time*1000:.2f}ms "
-                  f"({update_time*1000000/num_moves:.2f}μs per moved entity)")
+                  f"({us_per_move:.2f}μs per moved entity)")
         
         self.results["batch_updates"] = results
         return results
@@ -248,9 +253,17 @@ class SpatialIndexProfiler:
             
             # Enable additional indices
             if enable_quadtree:
-                spatial_index.enable_quadtree_indices()
+                if hasattr(spatial_index, "enable_quadtree_indices"):
+                    spatial_index.enable_quadtree_indices()
+                else:
+                    print(f"  Warning: SpatialIndex does not have enable_quadtree_indices(), skipping")
+                    continue
             if enable_hash:
-                spatial_index.enable_spatial_hash_indices(cell_size=50.0)
+                if hasattr(spatial_index, "enable_spatial_hash_indices"):
+                    spatial_index.enable_spatial_hash_indices(cell_size=50.0)
+                else:
+                    print(f"  Warning: SpatialIndex does not have enable_spatial_hash_indices(), skipping")
+                    continue
             
             spatial_index.set_references(agents, resources)
             

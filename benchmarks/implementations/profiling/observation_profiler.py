@@ -110,9 +110,11 @@ class ObservationProfiler:
                 "observations_per_second": num_agents / total_time if total_time > 0 else 0,
             }
             
+            per_obs_ms = (total_time*1000/num_agents) if num_agents > 0 else 0
+            rate = (num_agents/total_time) if total_time > 0 else 0
             print(f"  Total: {total_time*1000:.2f}ms, "
-                  f"Per obs: {total_time*1000/num_agents:.2f}ms, "
-                  f"Rate: {num_agents/total_time:.0f} obs/s")
+                  f"Per obs: {per_obs_ms:.2f}ms, "
+                  f"Rate: {rate:.0f} obs/s")
             
             # Clean up
             env.cleanup()
@@ -153,9 +155,10 @@ class ObservationProfiler:
                 "observation_cells": obs_size * obs_size,
             }
             
+            per_obs_ms = (total_time*1000/num_agents) if num_agents > 0 else 0
             print(f"  Size: {obs_size}x{obs_size} ({obs_size*obs_size} cells), "
                   f"Time: {total_time*1000:.2f}ms, "
-                  f"Per obs: {total_time*1000/num_agents:.2f}ms")
+                  f"Per obs: {per_obs_ms:.2f}ms")
             
             # Clean up
             env.cleanup()
@@ -191,8 +194,9 @@ class ObservationProfiler:
             "time_per_observation": spatial_time / num_agents,
         }
         
+        per_obs_ms = (spatial_time*1000/num_agents) if num_agents > 0 else 0
         print(f"  Time: {spatial_time*1000:.2f}ms, "
-              f"Per obs: {spatial_time*1000/num_agents:.2f}ms")
+              f"Per obs: {per_obs_ms:.2f}ms")
         
         env_spatial.cleanup()
         
@@ -215,8 +219,9 @@ class ObservationProfiler:
             "time_per_observation": memmap_time / num_agents,
         }
         
+        per_obs_ms = (memmap_time*1000/num_agents) if num_agents > 0 else 0
         print(f"  Time: {memmap_time*1000:.2f}ms, "
-              f"Per obs: {memmap_time*1000/num_agents:.2f}ms")
+              f"Per obs: {per_obs_ms:.2f}ms")
         
         # Calculate speedup
         speedup = spatial_time / memmap_time if memmap_time > 0 else 0
@@ -241,14 +246,19 @@ class ObservationProfiler:
             obs_radius=5,
         )
         
-        # Get perception profile (accumulated during observation generation)
-        env._perception_profile = {
-            "spatial_query_time_s": 0.0,
-            "bilinear_time_s": 0.0,
-            "nearest_time_s": 0.0,
-            "bilinear_points": 0,
-            "nearest_points": 0,
-        }
+        # Reset perception profile (accumulated during observation generation) in a robust way
+        if hasattr(env, "reset_perception_profile") and callable(getattr(env, "reset_perception_profile")):
+            env.reset_perception_profile()
+        elif hasattr(env, "_perception_profile"):
+            env._perception_profile = {
+                "spatial_query_time_s": 0.0,
+                "bilinear_time_s": 0.0,
+                "nearest_time_s": 0.0,
+                "bilinear_points": 0,
+                "nearest_points": 0,
+            }
+        else:
+            print("Warning: Environment does not support perception profile reset. Profiling may be inaccurate.")
         
         # Generate observations (accumulates profile data)
         total_start = time.perf_counter()
@@ -257,7 +267,12 @@ class ObservationProfiler:
         total_time = time.perf_counter() - total_start
         
         # Get accumulated profile
-        profile = env.get_perception_profile(reset=False)
+        if hasattr(env, "get_perception_profile") and callable(getattr(env, "get_perception_profile")):
+            profile = env.get_perception_profile(reset=False)
+        elif hasattr(env, "_perception_profile"):
+            profile = env._perception_profile
+        else:
+            profile = {}
         
         results = {
             "total_time": total_time,

@@ -36,10 +36,12 @@ class SystemProfiler:
     def __init__(self):
         self.results = {}
         self.process = psutil.Process()
+        # Prime cpu_percent measurement to avoid initial 0.0 value
+        self.process.cpu_percent(interval=None)
 
     def sample_system_metrics(self) -> Dict:
         """Sample current system metrics."""
-        cpu_percent = self.process.cpu_percent(interval=0.1)
+        cpu_percent = self.process.cpu_percent(interval=None)
         memory_info = self.process.memory_info()
         
         try:

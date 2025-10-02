@@ -81,9 +81,11 @@ class DatabaseProfiler:
                     "time_per_insert": insert_time / num_records if num_records > 0 else 0,
                 }
                 
+                inserts_per_sec = (num_records/insert_time) if insert_time > 0 else 0
+                us_per_insert = (insert_time*1000000/num_records) if num_records > 0 else 0
                 print(f"  Batch {batch_size:>4}: {insert_time*1000:.2f}ms, "
-                      f"{num_records/insert_time:.0f} inserts/s, "
-                      f"{insert_time*1000000/num_records:.2f}μs per insert")
+                      f"{inserts_per_sec:.0f} inserts/s, "
+                      f"{us_per_insert:.2f}μs per insert")
                 
                 # Clean up
                 db.close()
@@ -133,8 +135,9 @@ class DatabaseProfiler:
                 "time_per_insert": total_time / num_records if num_records > 0 else 0,
             }
             
+            inserts_per_sec = (num_records/total_time) if total_time > 0 else 0
             print(f"  Buffer {buffer_size:>5}: {total_time*1000:.2f}ms, "
-                  f"{num_records/total_time:.0f} inserts/s")
+                  f"{inserts_per_sec:.0f} inserts/s")
             
             # Clean up
             db.close()
@@ -175,7 +178,8 @@ class DatabaseProfiler:
             "inserts_per_second": num_records / disk_time if disk_time > 0 else 0,
         }
         
-        print(f"  Disk: {disk_time*1000:.2f}ms, {num_records/disk_time:.0f} inserts/s")
+        inserts_per_sec = (num_records/disk_time) if disk_time > 0 else 0
+        print(f"  Disk: {disk_time*1000:.2f}ms, {inserts_per_sec:.0f} inserts/s")
         
         db_disk.close()
         os.remove(db_path)
@@ -203,7 +207,8 @@ class DatabaseProfiler:
             "inserts_per_second": num_records / memory_time if memory_time > 0 else 0,
         }
         
-        print(f"  Memory: {memory_time*1000:.2f}ms, {num_records/memory_time:.0f} inserts/s")
+        inserts_per_sec = (num_records/memory_time) if memory_time > 0 else 0
+        print(f"  Memory: {memory_time*1000:.2f}ms, {inserts_per_sec:.0f} inserts/s")
         
         # Calculate speedup
         speedup = disk_time / memory_time if memory_time > 0 else 0
@@ -261,8 +266,9 @@ class DatabaseProfiler:
                 "time_per_flush": total_time / flush_count if flush_count > 0 else 0,
             }
             
+            inserts_per_sec = (num_records/total_time) if total_time > 0 else 0
             print(f"  Flush every {flush_interval:>5}: {total_time*1000:.2f}ms, "
-                  f"{flush_count} flushes, {num_records/total_time:.0f} inserts/s")
+                  f"{flush_count} flushes, {inserts_per_sec:.0f} inserts/s")
             
             db.close()
             os.remove(db_path)
