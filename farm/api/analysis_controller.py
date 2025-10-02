@@ -503,6 +503,36 @@ class AnalysisController:
 
         return state
 
+    def wait_for_completion(self, timeout: Optional[float] = None) -> bool:
+        """Wait for analysis to complete.
+
+        This is the recommended way to wait for an analysis to finish, rather than
+        polling is_running or accessing private thread members.
+
+        Args:
+            timeout: Maximum time to wait in seconds. None means wait indefinitely.
+
+        Returns:
+            True if analysis completed within timeout, False otherwise
+
+        Thread Safety:
+            Safe to call from any thread except the analysis thread itself.
+
+        Example:
+            ```python
+            controller.start()
+            if controller.wait_for_completion(timeout=300):
+                result = controller.get_result()
+                print("Analysis completed!")
+            else:
+                print("Analysis timed out")
+            ```
+        """
+        if self._analysis_thread and self._analysis_thread.is_alive():
+            self._analysis_thread.join(timeout=timeout)
+            return not self._analysis_thread.is_alive()
+        return True
+
     def get_result(self) -> Optional[AnalysisResult]:
         """Get analysis result.
 
@@ -518,7 +548,7 @@ class AnalysisController:
         Example:
             ```python
             controller.start()
-            # ... wait for completion ...
+            controller.wait_for_completion()
             result = controller.get_result()
             if result and result.success:
                 print(f"Analysis saved to {result.output_path}")

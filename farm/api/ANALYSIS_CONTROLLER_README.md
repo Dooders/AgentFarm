@@ -186,6 +186,52 @@ GET /api/analysis/modules/{module_name}
 }
 ```
 
+### Cleanup Old Analyses
+
+```http
+POST /api/analyses/cleanup
+```
+
+Manually trigger cleanup of completed analyses older than retention period.
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Cleaned up 5 old analyses",
+  "removed_count": 5,
+  "remaining_count": 15
+}
+```
+
+### Get Analysis Statistics
+
+```http
+GET /api/analyses/stats
+```
+
+Get system-level statistics about analysis resource usage.
+
+**Response:**
+```json
+{
+  "status": "success",
+  "data": {
+    "total_analyses": 20,
+    "by_status": {
+      "completed": 15,
+      "running": 3,
+      "error": 2
+    },
+    "concurrent_limit": 10,
+    "running_count": 3,
+    "available_slots": 7,
+    "retention_hours": 24,
+    "max_completed_retention": 100
+  }
+}
+```
+
 ## Usage Examples
 
 ### With Callbacks
@@ -214,11 +260,12 @@ with AnalysisController(config_service) as controller:
     controller.initialize_analysis(request)
     controller.start()
     
-    while controller.is_running:
-        time.sleep(0.5)
-    
-    result = controller.get_result()
-    print(f"Complete! {result.output_path}")
+    # Use wait_for_completion instead of polling
+    if controller.wait_for_completion(timeout=300):
+        result = controller.get_result()
+        print(f"Complete! {result.output_path}")
+    else:
+        print("Analysis timed out")
 # Cleanup happens automatically
 ```
 
@@ -392,6 +439,28 @@ The controller is designed to be thread-safe:
 3. **Batch processing**: Use `AnalysisService.run_batch()` for multiple analyses
 4. **Database mode**: Use database for large datasets
 5. **Progress callbacks**: Don't spam updates (< 10 Hz recommended)
+6. **Resource management**: System automatically cleans up analyses older than 24 hours
+7. **Concurrency limits**: Default limit of 10 concurrent analyses prevents resource exhaustion
+
+## Resource Management
+
+The system automatically manages resources to prevent memory leaks:
+
+- **Automatic Cleanup**: Completed analyses older than `ANALYSIS_RETENTION_HOURS` (default: 24) are automatically removed
+- **Max Retention**: Maximum of `MAX_COMPLETED_ANALYSES` (default: 100) completed analyses are kept
+- **Concurrency Limiting**: Maximum of `MAX_CONCURRENT_ANALYSES` (default: 10) can run simultaneously
+- **Manual Cleanup**: Use `POST /api/analyses/cleanup` to manually trigger cleanup
+- **Monitoring**: Use `GET /api/analyses/stats` to check resource usage
+
+### Configuration
+
+Configure resource limits in `server.py`:
+
+```python
+MAX_COMPLETED_ANALYSES = 100      # Max completed analyses to retain
+ANALYSIS_RETENTION_HOURS = 24     # Hours to keep completed analyses
+MAX_CONCURRENT_ANALYSES = 10      # Max concurrent running analyses
+```
 
 ## Troubleshooting
 

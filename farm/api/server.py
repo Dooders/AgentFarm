@@ -84,6 +84,12 @@ _active_simulations_lock = threading.Lock()
 active_analyses = {}
 _active_analyses_lock = threading.Lock()
 
+# Configuration for analysis resource management
+MAX_COMPLETED_ANALYSES = 100
+ANALYSIS_RETENTION_HOURS = 24
+MAX_CONCURRENT_ANALYSES = 10
+_analysis_semaphore = threading.Semaphore(MAX_CONCURRENT_ANALYSES)
+
 
 # WebSocket connection manager
 class ConnectionManager:
@@ -258,36 +264,90 @@ async def get_analysis(sim_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _cleanup_old_analyses():
+    """Remove completed analyses older than retention period to prevent memory leaks."""
+    with _active_analyses_lock:
+        now = datetime.now()
+        to_remove = []
+        
+        # Find old completed analyses
+        for aid, info in active_analyses.items():
+            if info.get("status") in ["completed", "error", "stopped"]:
+                ended_at_str = info.get("ended_at")
+                if ended_at_str:
+                    try:
+                        ended = datetime.fromisoformat(ended_at_str)
+                        age_hours = (now - ended).total_seconds() / 3600
+                        if age_hours > ANALYSIS_RETENTION_HOURS:
+                            to_remove.append(aid)
+                    except (ValueError, TypeError):
+                        pass
+        
+        # Limit total completed analyses
+        completed = [
+            (aid, info.get("ended_at", ""))
+            for aid, info in active_analyses.items()
+            if info.get("status") in ["completed", "error", "stopped"]
+        ]
+        
+        if len(completed) > MAX_COMPLETED_ANALYSES:
+            # Sort by ended_at and remove oldest
+            completed.sort(key=lambda x: x[1])
+            excess_count = len(completed) - MAX_COMPLETED_ANALYSES
+            for aid, _ in completed[:excess_count]:
+                if aid not in to_remove:
+                    to_remove.append(aid)
+        
+        # Remove analyses and cleanup controllers
+        for aid in to_remove:
+            info = active_analyses.get(aid)
+            if info:
+                controller = info.get("controller")
+                if controller:
+                    try:
+                        controller.cleanup()
+                    except Exception as e:
+                        logger.warning(f"Error cleaning up controller {aid}: {e}")
+                del active_analyses[aid]
+        
+        if to_remove:
+            logger.info(f"Cleaned up {len(to_remove)} old analyses")
+
+
 def _run_analysis_background(analysis_id: str, controller: AnalysisController):
     """Run analysis in background and update state."""
     try:
-        with _active_analyses_lock:
-            if analysis_id in active_analyses:
-                active_analyses[analysis_id]["status"] = "running"
+        # Acquire semaphore to limit concurrent analyses
+        with _analysis_semaphore:
+            with _active_analyses_lock:
+                if analysis_id in active_analyses:
+                    active_analyses[analysis_id]["status"] = "running"
 
-        # Start the analysis
-        controller.start()
+            # Start the analysis
+            controller.start()
 
-        # Wait for the analysis thread to complete
-        if controller._analysis_thread:
-            controller._analysis_thread.join()
+            # Wait for the analysis to complete
+            controller.wait_for_completion()
 
-        # Update final state
-        result = controller.get_result()
-        with _active_analyses_lock:
-            if analysis_id in active_analyses:
-                if result and result.success:
-                    active_analyses[analysis_id]["status"] = "completed"
-                    active_analyses[analysis_id]["output_path"] = str(result.output_path)
-                    active_analyses[analysis_id]["execution_time"] = result.execution_time
-                    active_analyses[analysis_id]["cache_hit"] = result.cache_hit
-                    active_analyses[analysis_id]["rows"] = (
-                        len(result.dataframe) if result.dataframe is not None else 0
-                    )
-                else:
-                    active_analyses[analysis_id]["status"] = "error"
-                    active_analyses[analysis_id]["error"] = result.error if result else "Unknown error"
-                active_analyses[analysis_id]["ended_at"] = datetime.now().isoformat()
+            # Update final state
+            result = controller.get_result()
+            with _active_analyses_lock:
+                if analysis_id in active_analyses:
+                    if result and result.success:
+                        active_analyses[analysis_id]["status"] = "completed"
+                        active_analyses[analysis_id]["output_path"] = str(result.output_path)
+                        active_analyses[analysis_id]["execution_time"] = result.execution_time
+                        active_analyses[analysis_id]["cache_hit"] = result.cache_hit
+                        active_analyses[analysis_id]["rows"] = (
+                            len(result.dataframe) if result.dataframe is not None else 0
+                        )
+                    else:
+                        active_analyses[analysis_id]["status"] = "error"
+                        active_analyses[analysis_id]["error"] = result.error if result else "Unknown error"
+                        active_analyses[analysis_id]["error_type"] = (
+                            type(result.error).__name__ if result and result.error else "UnknownError"
+                        )
+                    active_analyses[analysis_id]["ended_at"] = datetime.now().isoformat()
 
     except Exception as e:
         logger.error(
@@ -301,6 +361,20 @@ def _run_analysis_background(analysis_id: str, controller: AnalysisController):
             if analysis_id in active_analyses:
                 active_analyses[analysis_id]["status"] = "error"
                 active_analyses[analysis_id]["error"] = str(e)
+                active_analyses[analysis_id]["error_type"] = type(e).__name__
+                active_analyses[analysis_id]["ended_at"] = datetime.now().isoformat()
+                
+                # Ensure controller is properly cleaned up on error
+                try:
+                    controller.cleanup()
+                except Exception as cleanup_error:
+                    logger.warning(f"Error during controller cleanup: {cleanup_error}")
+    finally:
+        # Periodically cleanup old analyses
+        try:
+            _cleanup_old_analyses()
+        except Exception as cleanup_error:
+            logger.warning(f"Error during analysis cleanup: {cleanup_error}")
 
 
 @app.post("/api/analysis/{module_name}", response_model=AnalysisResponse)
@@ -549,6 +623,70 @@ async def get_module_info_endpoint(module_name: str):
         logger.error(
             "api_get_module_info_failed",
             module_name=module_name,
+            error_type=type(e).__name__,
+            error_message=str(e),
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/analyses/cleanup")
+async def cleanup_old_analyses_endpoint():
+    """Manually trigger cleanup of old completed analyses."""
+    try:
+        initial_count = len(active_analyses)
+        _cleanup_old_analyses()
+        final_count = len(active_analyses)
+        removed = initial_count - final_count
+        
+        return {
+            "status": "success",
+            "message": f"Cleaned up {removed} old analyses",
+            "removed_count": removed,
+            "remaining_count": final_count
+        }
+    
+    except Exception as e:
+        logger.error(
+            "api_cleanup_analyses_failed",
+            error_type=type(e).__name__,
+            error_message=str(e),
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/analyses/stats")
+async def get_analysis_statistics():
+    """Get statistics about analysis system resource usage."""
+    try:
+        with _active_analyses_lock:
+            total = len(active_analyses)
+            by_status = {}
+            running_count = 0
+            
+            for info in active_analyses.values():
+                status = info.get("status", "unknown")
+                by_status[status] = by_status.get(status, 0) + 1
+                if status == "running":
+                    running_count += 1
+            
+            available_slots = MAX_CONCURRENT_ANALYSES - running_count
+        
+        return {
+            "status": "success",
+            "data": {
+                "total_analyses": total,
+                "by_status": by_status,
+                "concurrent_limit": MAX_CONCURRENT_ANALYSES,
+                "running_count": running_count,
+                "available_slots": available_slots,
+                "retention_hours": ANALYSIS_RETENTION_HOURS,
+                "max_completed_retention": MAX_COMPLETED_ANALYSES
+            }
+        }
+    
+    except Exception as e:
+        logger.error(
+            "api_get_analysis_stats_failed",
             error_type=type(e).__name__,
             error_message=str(e),
         )
