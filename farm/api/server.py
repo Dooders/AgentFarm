@@ -94,7 +94,6 @@ def create_simulation():
 
         # Start background thread
         thread = threading.Thread(target=_run_simulation_background, args=(sim_id, config, db_path))
-        thread.daemon = True
         thread.start()
 
         return (jsonify({"status": "accepted", "sim_id": sim_id, "message": "Simulation started"}), 202)
