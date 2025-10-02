@@ -2,15 +2,12 @@ import glob
 import io
 import json
 import os
-import tkinter as tk
-from tkinter import ttk
 from typing import Any, Dict, List
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.gridspec import GridSpec
 from PIL import Image, ImageDraw, ImageFont
 from sqlalchemy import func

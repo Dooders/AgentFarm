@@ -244,7 +244,9 @@ class ConfigTemplateManager:
         Returns:
             ValidationResult with validation status and messages
         """
-        logger.debug("Validating configuration", config_type=type(config).__name__)
+        # Acquire logger at call time to support patching in tests
+        local_logger = get_logger(__name__)
+        local_logger.debug("Validating configuration", config_type=type(config).__name__)
 
         errors = []
         warnings = []
@@ -402,7 +404,8 @@ class ConfigTemplateManager:
             return sim_config
 
         except Exception as e:
-            logger.error(f"Error converting config to SimulationConfig: {e}")
+            # Log via freshly acquired logger to support patching
+            get_logger(__name__).error(f"Error converting config to SimulationConfig: {e}")
             return None
 
     def convert_to_experiment_config(
@@ -435,7 +438,7 @@ class ConfigTemplateManager:
             return exp_config
 
         except Exception as e:
-            logger.error(f"Error converting config to experiment config: {e}")
+            get_logger(__name__).error(f"Error converting config to experiment config: {e}")
             return None
 
     def get_template_examples(
