@@ -8,7 +8,7 @@ and experiments.
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 
 class SessionStatus(str, Enum):

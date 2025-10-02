@@ -16,15 +16,15 @@ logger = get_logger(__name__)
 
 class ConfigTemplateManager:
     """Manages configuration templates and validation."""
-    
+
     def __init__(self):
         """Initialize the template manager."""
         self._templates = self._create_default_templates()
-    
+
     def _create_default_templates(self) -> Dict[str, ConfigTemplate]:
         """Create default configuration templates."""
         templates = {}
-        
+
         # Basic simulation template
         templates["basic_simulation"] = ConfigTemplate(
             name="basic_simulation",
@@ -33,20 +33,13 @@ class ConfigTemplateManager:
             parameters={
                 "name": "Basic Simulation",
                 "steps": 1000,
-                "environment": {
-                    "width": 100,
-                    "height": 100,
-                    "resources": 50
-                },
+                "environment": {"width": 100, "height": 100, "resources": 50},
                 "agents": {
                     "system_agents": 10,
                     "independent_agents": 10,
-                    "control_agents": 0
+                    "control_agents": 0,
                 },
-                "learning": {
-                    "enabled": True,
-                    "algorithm": "dqn"
-                }
+                "learning": {"enabled": True, "algorithm": "dqn"},
             },
             required_fields=["name", "steps"],
             optional_fields=["environment", "agents", "learning"],
@@ -54,16 +47,16 @@ class ConfigTemplateManager:
                 {
                     "name": "Quick Test",
                     "steps": 100,
-                    "agents": {"system_agents": 5, "independent_agents": 5}
+                    "agents": {"system_agents": 5, "independent_agents": 5},
                 },
                 {
                     "name": "Long Run",
                     "steps": 5000,
-                    "environment": {"width": 200, "height": 200}
-                }
-            ]
+                    "environment": {"width": 200, "height": 200},
+                },
+            ],
         )
-        
+
         # Combat simulation template
         templates["combat_simulation"] = ConfigTemplate(
             name="combat_simulation",
@@ -72,25 +65,18 @@ class ConfigTemplateManager:
             parameters={
                 "name": "Combat Simulation",
                 "steps": 2000,
-                "environment": {
-                    "width": 150,
-                    "height": 150,
-                    "resources": 30
-                },
+                "environment": {"width": 150, "height": 150, "resources": 30},
                 "agents": {
                     "system_agents": 15,
                     "independent_agents": 15,
-                    "control_agents": 0
+                    "control_agents": 0,
                 },
                 "combat": {
                     "enabled": True,
                     "damage_multiplier": 1.0,
-                    "defense_strength": 0.5
+                    "defense_strength": 0.5,
                 },
-                "learning": {
-                    "enabled": True,
-                    "algorithm": "dqn"
-                }
+                "learning": {"enabled": True, "algorithm": "dqn"},
             },
             required_fields=["name", "steps"],
             optional_fields=["environment", "agents", "combat", "learning"],
@@ -98,11 +84,11 @@ class ConfigTemplateManager:
                 {
                     "name": "High Combat",
                     "steps": 1000,
-                    "combat": {"damage_multiplier": 2.0}
+                    "combat": {"damage_multiplier": 2.0},
                 }
-            ]
+            ],
         )
-        
+
         # Research simulation template
         templates["research_simulation"] = ConfigTemplate(
             name="research_simulation",
@@ -111,25 +97,18 @@ class ConfigTemplateManager:
             parameters={
                 "name": "Research Simulation",
                 "steps": 5000,
-                "environment": {
-                    "width": 200,
-                    "height": 200,
-                    "resources": 100
-                },
+                "environment": {"width": 200, "height": 200, "resources": 100},
                 "agents": {
                     "system_agents": 25,
                     "independent_agents": 25,
-                    "control_agents": 0
+                    "control_agents": 0,
                 },
                 "logging": {
                     "detailed_logging": True,
                     "save_observations": True,
-                    "save_actions": True
+                    "save_actions": True,
                 },
-                "learning": {
-                    "enabled": True,
-                    "algorithm": "ppo"
-                }
+                "learning": {"enabled": True, "algorithm": "ppo"},
             },
             required_fields=["name", "steps"],
             optional_fields=["environment", "agents", "logging", "learning"],
@@ -137,11 +116,11 @@ class ConfigTemplateManager:
                 {
                     "name": "Behavior Study",
                     "steps": 10000,
-                    "logging": {"save_observations": True}
+                    "logging": {"save_observations": True},
                 }
-            ]
+            ],
         )
-        
+
         # Basic experiment template
         templates["basic_experiment"] = ConfigTemplate(
             name="basic_experiment",
@@ -153,17 +132,13 @@ class ConfigTemplateManager:
                 "iterations": 5,
                 "base_config": {
                     "steps": 1000,
-                    "environment": {
-                        "width": 100,
-                        "height": 100,
-                        "resources": 50
-                    }
+                    "environment": {"width": 100, "height": 100, "resources": 50},
                 },
                 "variations": [
                     {"agents": {"system_agents": 5, "independent_agents": 15}},
                     {"agents": {"system_agents": 10, "independent_agents": 10}},
-                    {"agents": {"system_agents": 15, "independent_agents": 5}}
-                ]
+                    {"agents": {"system_agents": 15, "independent_agents": 5}},
+                ],
             },
             required_fields=["name", "iterations", "base_config"],
             optional_fields=["description", "variations"],
@@ -171,11 +146,11 @@ class ConfigTemplateManager:
                 {
                     "name": "Population Test",
                     "iterations": 3,
-                    "base_config": {"steps": 500}
+                    "base_config": {"steps": 500},
                 }
-            ]
+            ],
         )
-        
+
         # Parameter sweep experiment template
         templates["parameter_sweep"] = ConfigTemplate(
             name="parameter_sweep",
@@ -187,20 +162,13 @@ class ConfigTemplateManager:
                 "iterations": 10,
                 "base_config": {
                     "steps": 2000,
-                    "environment": {
-                        "width": 150,
-                        "height": 150,
-                        "resources": 75
-                    },
-                    "agents": {
-                        "system_agents": 20,
-                        "independent_agents": 20
-                    }
+                    "environment": {"width": 150, "height": 150, "resources": 75},
+                    "agents": {"system_agents": 20, "independent_agents": 20},
                 },
                 "parameter_ranges": {
                     "learning_rate": [0.001, 0.01, 0.1],
-                    "exploration_rate": [0.1, 0.3, 0.5]
-                }
+                    "exploration_rate": [0.1, 0.3, 0.5],
+                },
             },
             required_fields=["name", "iterations", "base_config"],
             optional_fields=["description", "parameter_ranges"],
@@ -208,30 +176,32 @@ class ConfigTemplateManager:
                 {
                     "name": "Learning Rate Study",
                     "iterations": 5,
-                    "parameter_ranges": {"learning_rate": [0.001, 0.01]}
+                    "parameter_ranges": {"learning_rate": [0.001, 0.01]},
                 }
-            ]
+            ],
         )
-        
+
         return templates
-    
+
     def get_template(self, name: str) -> Optional[ConfigTemplate]:
         """Get a configuration template by name.
-        
+
         Args:
             name: Template name
-            
+
         Returns:
             ConfigTemplate if found, None otherwise
         """
         return self._templates.get(name)
-    
-    def list_templates(self, category: Optional[ConfigCategory] = None) -> List[ConfigTemplate]:
+
+    def list_templates(
+        self, category: Optional[ConfigCategory] = None
+    ) -> List[ConfigTemplate]:
         """List available templates, optionally filtered by category.
-        
+
         Args:
             category: Optional category filter
-            
+
         Returns:
             List of ConfigTemplate objects
         """
@@ -239,66 +209,70 @@ class ConfigTemplateManager:
         if category:
             templates = [t for t in templates if t.category == category]
         return templates
-    
+
     def create_config_from_template(
-        self, 
-        template_name: str, 
-        overrides: Optional[Dict[str, Any]] = None
+        self, template_name: str, overrides: Optional[Dict[str, Any]] = None
     ) -> Optional[Dict[str, Any]]:
         """Create a configuration from a template.
-        
+
         Args:
             template_name: Name of the template to use
             overrides: Optional parameter overrides
-            
+
         Returns:
             Configuration dictionary if template found, None otherwise
         """
         template = self.get_template(template_name)
         if not template:
             return None
-        
+
         # Start with template parameters
         config = template.parameters.copy()
-        
+
         # Apply overrides
         if overrides:
             config.update(overrides)
-        
+
         return config
-    
+
     def validate_config(self, config: Dict[str, Any]) -> ValidationResult:
         """Validate a configuration.
-        
+
         Args:
             config: Configuration to validate
-            
+
         Returns:
             ValidationResult with validation status and messages
         """
         errors = []
         warnings = []
         suggestions = []
-        
+
         # Check required fields
         if "name" not in config:
             errors.append("Configuration must have a 'name' field")
-        
+
         if "steps" not in config:
             errors.append("Configuration must have a 'steps' field")
         elif not isinstance(config["steps"], int) or config["steps"] <= 0:
             errors.append("'steps' must be a positive integer")
-        
+
         # Validate environment settings
         if "environment" in config:
             env = config["environment"]
-            if "width" in env and (not isinstance(env["width"], int) or env["width"] <= 0):
+            if "width" in env and (
+                not isinstance(env["width"], int) or env["width"] <= 0
+            ):
                 errors.append("Environment width must be a positive integer")
-            if "height" in env and (not isinstance(env["height"], int) or env["height"] <= 0):
+            if "height" in env and (
+                not isinstance(env["height"], int) or env["height"] <= 0
+            ):
                 errors.append("Environment height must be a positive integer")
-            if "resources" in env and (not isinstance(env["resources"], int) or env["resources"] < 0):
+            if "resources" in env and (
+                not isinstance(env["resources"], int) or env["resources"] < 0
+            ):
                 errors.append("Environment resources must be a non-negative integer")
-        
+
         # Validate agent settings
         if "agents" in config:
             agents = config["agents"]
@@ -310,12 +284,14 @@ class ConfigTemplateManager:
                         errors.append(f"{agent_type} must be a non-negative integer")
                     else:
                         total_agents += count
-            
+
             if total_agents == 0:
                 warnings.append("No agents configured - simulation will be empty")
             elif total_agents > 100:
-                warnings.append(f"Large agent population ({total_agents}) may impact performance")
-        
+                warnings.append(
+                    f"Large agent population ({total_agents}) may impact performance"
+                )
+
         # Validate learning settings
         if "learning" in config:
             learning = config["learning"]
@@ -323,42 +299,52 @@ class ConfigTemplateManager:
                 algorithm = learning.get("algorithm", "dqn")
                 valid_algorithms = ["dqn", "ppo", "sac", "a2c", "td3"]
                 if algorithm not in valid_algorithms:
-                    suggestions.append(f"Consider using a supported algorithm: {valid_algorithms}")
-        
+                    suggestions.append(
+                        f"Consider using a supported algorithm: {valid_algorithms}"
+                    )
+
         # Performance suggestions
         if config.get("steps", 0) > 10000:
-            suggestions.append("Consider using in-memory database for large simulations")
-        
-        if config.get("environment", {}).get("width", 100) * config.get("environment", {}).get("height", 100) > 40000:
+            suggestions.append(
+                "Consider using in-memory database for large simulations"
+            )
+
+        if (
+            config.get("environment", {}).get("width", 100)
+            * config.get("environment", {}).get("height", 100)
+            > 40000
+        ):
             suggestions.append("Large environment size may impact performance")
-        
+
         is_valid = len(errors) == 0
-        
+
         return ValidationResult(
             is_valid=is_valid,
             errors=errors,
             warnings=warnings,
             suggestions=suggestions,
-            validated_config=config if is_valid else None
+            validated_config=config if is_valid else None,
         )
-    
-    def convert_to_simulation_config(self, config: Dict[str, Any]) -> Optional[SimulationConfig]:
+
+    def convert_to_simulation_config(
+        self, config: Dict[str, Any]
+    ) -> Optional[SimulationConfig]:
         """Convert a configuration dictionary to a SimulationConfig object.
-        
+
         Args:
             config: Configuration dictionary
-            
+
         Returns:
             SimulationConfig object if conversion successful, None otherwise
         """
         try:
             # Start with default config
             sim_config = SimulationConfig.from_centralized_config()
-            
+
             # Apply configuration overrides
             if "steps" in config:
                 sim_config.simulation_steps = config["steps"]
-            
+
             if "environment" in config:
                 env = config["environment"]
                 if "width" in env:
@@ -367,25 +353,27 @@ class ConfigTemplateManager:
                     sim_config.height = env["height"]
                 if "resources" in env:
                     sim_config.initial_resources = env["resources"]
-            
+
             if "agents" in config:
                 agents = config["agents"]
                 if "system_agents" in agents:
                     sim_config.population.system_agents = agents["system_agents"]
                 if "independent_agents" in agents:
-                    sim_config.population.independent_agents = agents["independent_agents"]
+                    sim_config.population.independent_agents = agents[
+                        "independent_agents"
+                    ]
                 if "control_agents" in agents:
                     sim_config.population.control_agents = agents["control_agents"]
-            
+
             if "learning" in config:
                 learning = config["learning"]
                 if "enabled" in learning:
                     sim_config.learning.enabled = learning["enabled"]
                 if "algorithm" in learning:
                     sim_config.learning.algorithm = learning["algorithm"]
-            
+
             return sim_config
-            
+
         except Exception as e:
             logger.error(f"Error converting config to SimulationConfig: {e}")
             return None

@@ -22,8 +22,8 @@ class AnalysisScope(str, Enum):
         """Convert string to AnalysisScope, case-insensitive."""
         try:
             return cls(scope_str.lower())
-        except ValueError:
+        except ValueError as exc:
             valid_scopes = [s.value for s in cls]
             raise ValueError(
                 f"Invalid scope '{scope_str}'. Must be one of: {valid_scopes}"
-            )
+            ) from exc
