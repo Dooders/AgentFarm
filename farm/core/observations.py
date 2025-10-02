@@ -73,9 +73,9 @@ Usage:
 from __future__ import annotations
 
 import math
-from typing import Dict, List, Optional, Tuple, Set
-from enum import Enum
 import time as _time
+from enum import Enum
+from typing import Dict, List, Optional, Set, Tuple
 
 import torch
 import torch.nn.functional as F
@@ -121,7 +121,9 @@ class SparsePoints:
             return
         ys = torch.tensor([p[0] for p in points], dtype=torch.long, device=self.device)
         xs = torch.tensor([p[1] for p in points], dtype=torch.long, device=self.device)
-        vals = torch.tensor([float(p[2]) for p in points], dtype=self.dtype, device=self.device)
+        vals = torch.tensor(
+            [float(p[2]) for p in points], dtype=self.dtype, device=self.device
+        )
 
         self.indices = torch.cat([self.indices, torch.stack([ys, xs], dim=0)], dim=1)
         self.values = torch.cat([self.values, vals], dim=0)
@@ -200,7 +202,11 @@ class SparsePoints:
             try:
                 # Build sparse COO (coalescing sums duplicates by sum)
                 coo = torch.sparse_coo_tensor(
-                    torch.stack([ys, xs], dim=0), vals, size=(S, S), device=dense_plane.device, dtype=dense_plane.dtype
+                    torch.stack([ys, xs], dim=0),
+                    vals,
+                    size=(S, S),
+                    device=dense_plane.device,
+                    dtype=dense_plane.dtype,
                 )
                 coo = coo.coalesce()
                 if reduction == "sum":
@@ -211,7 +217,9 @@ class SparsePoints:
                     # compute per-index max via scatter-reduce then materialize
                     tmp = torch.zeros_like(flat)
                     if hasattr(torch.Tensor, "scatter_reduce_"):
-                        tmp.scatter_reduce_(0, flat_idx, vals, reduce="amax", include_self=False)
+                        tmp.scatter_reduce_(
+                            0, flat_idx, vals, reduce="amax", include_self=False
+                        )
                     else:
                         self._segment_max_(tmp, flat_idx, vals)
                     dense_plane.copy_(tmp.view(S, S))
@@ -225,7 +233,9 @@ class SparsePoints:
         # Scatter backend (default)
         if reduction == "max":
             if hasattr(torch.Tensor, "scatter_reduce_"):
-                flat.scatter_reduce_(0, flat_idx, vals, reduce="amax", include_self=False)
+                flat.scatter_reduce_(
+                    0, flat_idx, vals, reduce="amax", include_self=False
+                )
             else:
                 # Fallback: segment max
                 self._segment_max_(flat, flat_idx, vals)
@@ -245,7 +255,9 @@ class SparsePoints:
         self._apply_time_s_total += max(0.0, _time.perf_counter() - t0)
 
     @staticmethod
-    def _segment_max_(flat: torch.Tensor, flat_idx: torch.Tensor, vals: torch.Tensor) -> None:
+    def _segment_max_(
+        flat: torch.Tensor, flat_idx: torch.Tensor, vals: torch.Tensor
+    ) -> None:
         """Compute segment-wise max over flat indices and write into flat tensor in-place.
 
         This CPU-friendly fallback sorts indices, finds contiguous segments of identical
@@ -257,11 +269,18 @@ class SparsePoints:
         is_new = torch.ones_like(flat_idx_sorted, dtype=torch.bool)
         is_new[1:] = flat_idx_sorted[1:] != flat_idx_sorted[:-1]
         start_positions = torch.nonzero(is_new, as_tuple=False).flatten()
-        end_positions = torch.cat([start_positions[1:], torch.tensor([len(vals_sorted)], device=start_positions.device)])
+        end_positions = torch.cat(
+            [
+                start_positions[1:],
+                torch.tensor([len(vals_sorted)], device=start_positions.device),
+            ]
+        )
         for start, end in zip(start_positions.tolist(), end_positions.tolist()):
             t_idx = int(flat_idx_sorted[start].item())
             segment_max = torch.max(vals_sorted[start:end])
             flat[t_idx] = torch.maximum(flat[t_idx], segment_max)
+
+
 def create_observation_tensor(
     num_channels: int,
     size: int,
@@ -319,27 +338,28 @@ def create_observation_tensor(
 class StorageMode(Enum):
     """
     Enum specifying storage modes for observation tensors.
-    
+
     The storage mode determines how observation data is managed internally,
     balancing memory efficiency with computational performance.
-    
+
     HYBRID: Uses a combination of sparse and dense storage to optimize memory usage and performance.
       - Stores only non-zero values in sparse format until needed
       - Builds full dense tensors on-demand for neural network processing
       - Uses lazy evaluation with caching to avoid unnecessary reconstruction
       - Ideal for large observation spaces with sparse updates
       - Provides O(active_entities) memory complexity for sparse storage
-    
+
     DENSE: Uses a fully dense tensor for storage throughout the observation lifecycle.
       - Allocates full dense tensor upfront and writes directly to it
       - No sparse storage or lazy construction overhead
       - May be faster for small or fully populated observation spaces
       - Can consume more memory for large, mostly empty spaces
       - Provides O(total_observation_space) memory complexity
-    
+
     Use HYBRID when working with large observation spaces with sparse updates.
     Use DENSE when the observation space is small or densely populated.
     """
+
     HYBRID = "hybrid"
     DENSE = "dense"
 
@@ -700,19 +720,24 @@ def rotate_local_grid(
     if pad_val != 0.0:
         # Create a mask of out-of-bounds (padded) regions by sampling ones
         ones_inp = torch.ones_like(grid, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
-        mask_out = F.grid_sample(
-            ones_inp,
-            sample_grid,
-            mode="bilinear",
-            padding_mode="zeros",
-            align_corners=True,
-        ).squeeze(0).squeeze(0)
+        mask_out = (
+            F.grid_sample(
+                ones_inp,
+                sample_grid,
+                mode="bilinear",
+                padding_mode="zeros",
+                align_corners=True,
+            )
+            .squeeze(0)
+            .squeeze(0)
+        )
         mask = mask_out < 1e-6
         rot = rot.clone()
         rot[mask] = pad_val
     if dtype != torch.float32:
         rot = rot.to(dtype=dtype)
     return rot
+
 
 def make_disk_mask(
     size: int, R: int, device="cpu", dtype=torch.float32
@@ -816,7 +841,9 @@ class AgentObservation:
         S = 2 * config.R + 1
 
         # Sparse storage: only allocate when needed
-        self.sparse_channels = {}  # {channel_idx: SparsePoints for point-sparse data, torch.Tensor for dense grids}
+        self.sparse_channels = (
+            {}
+        )  # {channel_idx: SparsePoints for point-sparse data, torch.Tensor for dense grids}
         self.dense_cache = None  # Lazy dense tensor
         self.cache_dirty = True  # Whether we need to rebuild dense
 
@@ -857,7 +884,11 @@ class AgentObservation:
         )
         if self._dense_storage and self.dense_cache is None:
             self.dense_cache = torch.zeros(
-                self.registry.num_channels, S, S, device=self.config.device, dtype=self.config.torch_dtype
+                self.registry.num_channels,
+                S,
+                S,
+                device=self.config.device,
+                dtype=self.config.torch_dtype,
             )
             self.cache_dirty = False
 
@@ -885,15 +916,21 @@ class AgentObservation:
         if self.dense_cache is None:
             # Initialize without toggling cache_dirty; callers control rebuild semantics
             self.dense_cache = torch.zeros(
-                expected_shape[0], expected_shape[1], expected_shape[2],
-                device=self.config.device, dtype=self.config.torch_dtype
+                expected_shape[0],
+                expected_shape[1],
+                expected_shape[2],
+                device=self.config.device,
+                dtype=self.config.torch_dtype,
             )
             return
         current_shape = tuple(int(d) for d in self.dense_cache.shape)
         if current_shape != expected_shape:
             self.dense_cache = torch.zeros(
-                expected_shape[0], expected_shape[1], expected_shape[2],
-                device=self.config.device, dtype=self.config.torch_dtype
+                expected_shape[0],
+                expected_shape[1],
+                expected_shape[2],
+                device=self.config.device,
+                dtype=self.config.torch_dtype,
             )
             # Only mark dirty when we actually changed size
             self.cache_dirty = True
@@ -946,7 +983,9 @@ class AgentObservation:
 
         # Ensure SparsePoints backend for point storage
         if not isinstance(existing, SparsePoints):
-            self.sparse_channels[channel_idx] = SparsePoints(self.config.device, self.config.torch_dtype)
+            self.sparse_channels[channel_idx] = SparsePoints(
+                self.config.device, self.config.torch_dtype
+            )
         sp: SparsePoints = self.sparse_channels[channel_idx]
         sp.add_point(y, x, float(value))
         self.cache_dirty = True
@@ -969,7 +1008,8 @@ class AgentObservation:
                 if 0 <= y < H and 0 <= x < W:
                     if accumulate:
                         self.dense_cache[channel_idx, y, x] = max(
-                            float(self.dense_cache[channel_idx, y, x].item()), float(value)
+                            float(self.dense_cache[channel_idx, y, x].item()),
+                            float(value),
                         )
                     else:
                         self.dense_cache[channel_idx, y, x] = value
@@ -991,7 +1031,9 @@ class AgentObservation:
                 ys, xs, vals = zip(*points)
                 ys_t = torch.as_tensor(ys, device=self.config.device, dtype=torch.long)
                 xs_t = torch.as_tensor(xs, device=self.config.device, dtype=torch.long)
-                vals_t = torch.as_tensor(vals, device=self.config.device, dtype=self.config.torch_dtype)
+                vals_t = torch.as_tensor(
+                    vals, device=self.config.device, dtype=self.config.torch_dtype
+                )
                 # Clamp valid indices
                 mask = (ys_t >= 0) & (ys_t < S) & (xs_t >= 0) & (xs_t < S)
                 if mask.any().item():
@@ -1023,7 +1065,9 @@ class AgentObservation:
                 ys, xs, vals = zip(*points)
                 ys_t = torch.as_tensor(ys, device=self.config.device, dtype=torch.long)
                 xs_t = torch.as_tensor(xs, device=self.config.device, dtype=torch.long)
-                vals_t = torch.as_tensor(vals, device=self.config.device, dtype=self.config.torch_dtype)
+                vals_t = torch.as_tensor(
+                    vals, device=self.config.device, dtype=self.config.torch_dtype
+                )
                 mask = (ys_t >= 0) & (ys_t < S) & (xs_t >= 0) & (xs_t < S)
                 if mask.any().item():
                     ys_t = ys_t[mask]
@@ -1045,7 +1089,9 @@ class AgentObservation:
 
         # Ensure SparsePoints backend for point storage
         if not isinstance(existing, SparsePoints):
-            self.sparse_channels[channel_idx] = SparsePoints(self.config.device, self.config.torch_dtype)
+            self.sparse_channels[channel_idx] = SparsePoints(
+                self.config.device, self.config.torch_dtype
+            )
         sp: SparsePoints = self.sparse_channels[channel_idx]
         sp.add_points(points)
 
@@ -1073,7 +1119,9 @@ class AgentObservation:
 
         if channel_idx in self._high_freq_indices:
             # Maintain prebuilt slice
-            self._prebuilt_dense[channel_idx] = grid.to(device=self.config.device, dtype=self.config.torch_dtype)
+            self._prebuilt_dense[channel_idx] = grid.to(
+                device=self.config.device, dtype=self.config.torch_dtype
+            )
             # Remove sparse mirror to avoid duplicate work
             self.sparse_channels.pop(channel_idx, None)
         else:
@@ -1093,13 +1141,17 @@ class AgentObservation:
                     nz_idx = torch.nonzero(grid.abs() > eps, as_tuple=False)
                     sp = SparsePoints(self.config.device, self.config.torch_dtype)
                     # Ensure correct device/dtype
-                    sp.indices = nz_idx.t().to(device=self.config.device, dtype=torch.long)
+                    sp.indices = nz_idx.t().to(
+                        device=self.config.device, dtype=torch.long
+                    )
                     sp.values = grid[nz_idx[:, 0], nz_idx[:, 1]].to(
                         device=self.config.device, dtype=self.config.torch_dtype
                     )
                     # Tag sparsified grids with reduction hint from config
                     try:
-                        sp._reduction = str(getattr(self.config, "grid_sparse_reduction", "overwrite"))
+                        sp._reduction = str(
+                            getattr(self.config, "grid_sparse_reduction", "overwrite")
+                        )
                     except Exception:
                         sp._reduction = "overwrite"
                     store_obj = sp
@@ -1192,7 +1244,10 @@ class AgentObservation:
         for channel_idx, channel_data in self.sparse_channels.items():
 
             # Skip if this channel is handled by prebuilt
-            if channel_idx in self._high_freq_indices and channel_idx in self._prebuilt_dense:
+            if (
+                channel_idx in self._high_freq_indices
+                and channel_idx in self._prebuilt_dense
+            ):
                 continue
             if isinstance(channel_data, dict):
                 # Vectorized sparse points assignment
@@ -1201,9 +1256,17 @@ class AgentObservation:
                     if coords:
                         ys, xs = zip(*coords)
                         vals = [channel_data[(y, x)] for (y, x) in coords]
-                        ys_t = torch.as_tensor(ys, device=self.config.device, dtype=torch.long)
-                        xs_t = torch.as_tensor(xs, device=self.config.device, dtype=torch.long)
-                        vals_t = torch.as_tensor(vals, device=self.config.device, dtype=self.config.torch_dtype)
+                        ys_t = torch.as_tensor(
+                            ys, device=self.config.device, dtype=torch.long
+                        )
+                        xs_t = torch.as_tensor(
+                            xs, device=self.config.device, dtype=torch.long
+                        )
+                        vals_t = torch.as_tensor(
+                            vals,
+                            device=self.config.device,
+                            dtype=self.config.torch_dtype,
+                        )
                         # Clamp valid indices
                         mask = (ys_t >= 0) & (ys_t < S) & (xs_t >= 0) & (xs_t < S)
                         if mask.any().item():
@@ -1213,7 +1276,7 @@ class AgentObservation:
                             self.dense_cache[channel_idx, ys_t, xs_t] = vals_t
                             if self.config.enable_metrics:
                                 self._metrics["vectorized_point_assign_ops"] += 1
-                                
+
             elif isinstance(channel_data, SparsePoints):
                 # Sparse points
                 channel_plane = self.dense_cache[channel_idx]
@@ -1233,16 +1296,26 @@ class AgentObservation:
                 backend = self.config.sparse_backend
                 before_calls = channel_data._apply_calls
                 before_time = channel_data._apply_time_s_total
-                channel_data.apply_to_dense(channel_plane, reduction=reduction, backend=backend)
+                channel_data.apply_to_dense(
+                    channel_plane, reduction=reduction, backend=backend
+                )
                 # accumulate metrics
                 delta_calls = channel_data._apply_calls - before_calls
                 delta_time = channel_data._apply_time_s_total - before_time
                 self._metrics["sparse_apply_calls"] += int(delta_calls)
                 self._metrics["sparse_apply_time_s_total"] += float(delta_time)
-                self._metrics["sparse_apply_calls_per_channel"].setdefault(channel_idx, 0)
-                self._metrics["sparse_apply_time_s_total_per_channel"].setdefault(channel_idx, 0.0)
-                self._metrics["sparse_apply_calls_per_channel"][channel_idx] += int(delta_calls)
-                self._metrics["sparse_apply_time_s_total_per_channel"][channel_idx] += float(delta_time)
+                self._metrics["sparse_apply_calls_per_channel"].setdefault(
+                    channel_idx, 0
+                )
+                self._metrics["sparse_apply_time_s_total_per_channel"].setdefault(
+                    channel_idx, 0.0
+                )
+                self._metrics["sparse_apply_calls_per_channel"][channel_idx] += int(
+                    delta_calls
+                )
+                self._metrics["sparse_apply_time_s_total_per_channel"][
+                    channel_idx
+                ] += float(delta_time)
 
             else:
                 # Dense grid (VISIBILITY, RESOURCES, etc.)
@@ -1624,7 +1697,7 @@ class AgentObservation:
 
         # Count sparse logical points
         sparse_points = 0
-        for _, channel_data in self.sparse_channels.items():
+        for channel_idx, channel_data in self.sparse_channels.items():
             if isinstance(channel_data, SparsePoints):
                 sparse_points += len(channel_data)
             else:
@@ -1633,14 +1706,16 @@ class AgentObservation:
                 except (AttributeError, TypeError, RuntimeError) as e:
                     logger.warning(
                         "sparse_points_count_failed",
-                        channel=channel,
+                        channel=channel_idx,
                         error_type=type(e).__name__,
                         error_message=str(e),
                     )
                     continue
         # Include points counted during dense baseline writes
         if self._dense_storage:
-            sparse_points = max(sparse_points, int(self._metrics.get("sparse_points_count", 0)))
+            sparse_points = max(
+                sparse_points, int(self._metrics.get("sparse_points_count", 0))
+            )
 
         # Approximate sparse logical memory: value + y + x (floatsize + 2*int32)
         sparse_logical_bytes = int(sparse_points * (dtype_size + 4 + 4))
@@ -1649,7 +1724,9 @@ class AgentObservation:
         cache_misses = int(self._metrics.get("cache_misses", 0))
         total = cache_hits + cache_misses
         hit_rate = (cache_hits / total) if total > 0 else 1.0
-        reduction = 1.0 - (sparse_logical_bytes / dense_bytes) if dense_bytes > 0 else 0.0
+        reduction = (
+            1.0 - (sparse_logical_bytes / dense_bytes) if dense_bytes > 0 else 0.0
+        )
 
         return {
             "dense_bytes": dense_bytes,
@@ -1660,11 +1737,21 @@ class AgentObservation:
             "cache_misses": cache_misses,
             "cache_hit_rate": hit_rate,
             "dense_rebuilds": int(self._metrics.get("dense_rebuilds", 0)),
-            "dense_rebuild_time_s_total": float(self._metrics.get("dense_rebuild_time_s_total", 0.0)),
+            "dense_rebuild_time_s_total": float(
+                self._metrics.get("dense_rebuild_time_s_total", 0.0)
+            ),
             "grid_population_ops": int(self._metrics.get("grid_population_ops", 0)),
-            "vectorized_point_assign_ops": int(self._metrics.get("vectorized_point_assign_ops", 0)),
-            "prebuilt_channel_copies": int(self._metrics.get("prebuilt_channel_copies", 0)),
-            "prebuilt_channels_active": int(self._metrics.get("prebuilt_channels_active", 0)),
+            "vectorized_point_assign_ops": int(
+                self._metrics.get("vectorized_point_assign_ops", 0)
+            ),
+            "prebuilt_channel_copies": int(
+                self._metrics.get("prebuilt_channel_copies", 0)
+            ),
+            "prebuilt_channels_active": int(
+                self._metrics.get("prebuilt_channels_active", 0)
+            ),
             "sparse_apply_calls": int(self._metrics.get("sparse_apply_calls", 0)),
-            "sparse_apply_time_s_total": float(self._metrics.get("sparse_apply_time_s_total", 0.0)),
+            "sparse_apply_time_s_total": float(
+                self._metrics.get("sparse_apply_time_s_total", 0.0)
+            ),
         }

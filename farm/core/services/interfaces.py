@@ -205,12 +205,13 @@ class IAgentLifecycleService(ABC):
     """
 
     @abstractmethod
-    def add_agent(self, agent: Any) -> None:
+    def add_agent(self, agent: Any, flush_immediately: bool = False) -> None:
         """Add a new agent to the simulation environment.
 
         Args:
             agent: The agent object to add to the environment. The agent should
                 be properly initialized with valid state before being added.
+            flush_immediately: If True, immediately flush the agent buffer to the database.
 
         Note:
             The agent should have a valid ID assigned before or during this call.

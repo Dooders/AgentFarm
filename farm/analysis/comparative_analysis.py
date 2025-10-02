@@ -2,15 +2,12 @@ import glob
 import io
 import json
 import os
-import tkinter as tk
-from tkinter import ttk
 from typing import Any, Dict, List
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.gridspec import GridSpec
 from PIL import Image, ImageDraw, ImageFont
 from sqlalchemy import func
@@ -754,7 +751,7 @@ def plot_population_trends_by_type_across_simulations(
     print(f"Saving temporary file to: {temp_path}")
     try:
         plt.savefig(temp_path, dpi=300, bbox_inches="tight")
-        print(f"Temporary file saved successfully")
+        print("Temporary file saved successfully")
         print(f"File size: {os.path.getsize(temp_path)} bytes")
     except Exception as e:
         print(f"Error saving temporary file: {str(e)}")
@@ -867,7 +864,7 @@ def add_note_to_image(figure_path, note_text):
             final_path = figure_path.replace("temp_", "")
             print(f"Saving annotated image to: {final_path}")
             new_img.save(final_path, format="PNG")
-            print(f"Image saved successfully")
+            print("Image saved successfully")
 
             # Verify the file was created
             if os.path.exists(final_path):
@@ -1661,7 +1658,7 @@ def create_dashboard_summary(results_df: pd.DataFrame, analysis_path: str) -> No
     </html>
     """
 
-    with open(summary_path, "w") as f:
+    with open(summary_path, "w", encoding="utf-8") as f:
         f.write(html_content)
 
     print(f"Saved dashboard summary to: {summary_path}")
@@ -1772,7 +1769,7 @@ def create_experiment_analysis(results_df: pd.DataFrame, analysis_path: str) -> 
 
     # Save JSON analysis
     json_path = os.path.join(analysis_path, "experiment_analysis.json")
-    with open(json_path, "w") as f:
+    with open(json_path, "w", encoding="utf-8") as f:
         json.dump(analysis_dict, f, indent=2)
 
     print(f"Saved experiment analysis to {json_path}")
@@ -1818,7 +1815,7 @@ Analysis Date: {analysis_dict['timestamp']}
 
     # Save markdown analysis
     markdown_path = os.path.join(analysis_path, "experiment_analysis.md")
-    with open(markdown_path, "w") as f:
+    with open(markdown_path, "w", encoding="utf-8") as f:
         f.write(markdown_content)
 
     print(f"Saved experiment analysis to {json_path} and {markdown_path}")

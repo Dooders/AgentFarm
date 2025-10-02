@@ -1090,7 +1090,7 @@ class Environment(AECEnv):
         if hasattr(self, "db") and self.db is not None:
             self.db.close()
 
-    def add_agent(self, agent: Any) -> None:
+    def add_agent(self, agent: Any, flush_immediately: bool = False) -> None:
         """Add an agent to the environment with efficient database logging.
 
         Registers a new agent in the environment, adding it to internal tracking
@@ -1103,6 +1103,11 @@ class Environment(AECEnv):
             The agent object to add. Must have attributes like agent_id, position,
             resource_level, etc. The agent should be properly initialized before
             being added to the environment.
+        flush_immediately : bool, optional
+            If True, immediately flush the agent buffer to the database to ensure
+            the agent is committed before any actions are processed. This is useful
+            for agents created during simulation (e.g., through reproduction) to
+            prevent foreign key constraint violations. Default is False.
 
         Notes
         -----
@@ -1112,6 +1117,7 @@ class Environment(AECEnv):
         - Marks spatial index as dirty for next update
         - Batch logs agent data to database if available
         - Creates observation tracking for the agent
+        - Optionally flushes agent buffer immediately if flush_immediately=True
 
         The agent data logged includes birth time, position, resources, health,
         genome information (if applicable), and action weights.
@@ -1199,6 +1205,10 @@ class Environment(AECEnv):
         # Batch log to database using SQLAlchemy
         if self.db is not None:
             self.db.logger.log_agents_batch(agent_data)
+
+            # Optionally flush immediately to ensure agent is committed before actions
+            if flush_immediately:
+                self.db.logger.flush_all_buffers()
 
         self.agent_observations[agent.agent_id] = AgentObservation(
             self.observation_config

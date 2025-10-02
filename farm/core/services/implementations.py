@@ -94,13 +94,14 @@ class EnvironmentAgentLifecycleService(IAgentLifecycleService):
         """
         self._env = environment
 
-    def add_agent(self, agent: Any) -> None:
+    def add_agent(self, agent: Any, flush_immediately: bool = False) -> None:
         """Add an agent to the environment.
 
         Args:
             agent: The agent object to add to the simulation.
+            flush_immediately: If True, immediately flush the agent buffer to the database.
         """
-        self._env.add_agent(agent)
+        self._env.add_agent(agent, flush_immediately=flush_immediately)
 
     def remove_agent(self, agent: Any) -> None:
         """Remove an agent from the environment.

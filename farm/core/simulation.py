@@ -365,6 +365,11 @@ def run_simulation(
             config.population.control_agents,
         )
 
+        # Ensure all initial agents are committed to database before simulation starts
+        if environment.db is not None:
+            environment.db.logger.flush_all_buffers()
+            logger.info("initial_agents_committed_to_database")
+
         # Main simulation loop
         # Disable tqdm progress bar in CI environments to avoid output interference
         disable_tqdm = (

@@ -1,0 +1,177 @@
+name: Database Performance Baseline
+
+on:
+  pull_request:
+    branches: [ main ]
+    types: [ opened, synchronize, reopened ]
+  push:
+    branches: [ main ]
+
+jobs:
+  database-performance-baseline:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+          
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Create results directory
+      run: |
+        mkdir -p benchmarks/results/database_profiling
+        
+    - name: Run database profiler baseline
+      run: |
+        python -m benchmarks.implementations.profiling.database_profiler --results-dir benchmarks/results/database_profiling
+        
+    - name: Upload profiling results
+      uses: actions/upload-artifact@v4
+      with:
+        name: database-profiling-results-${{ github.run_number }}
+        path: benchmarks/results/database_profiling/
+        retention-days: 30
+        
+    - name: Generate performance summary
+      run: |
+        echo "## Database Performance Baseline Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Latest Performance Metrics" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Extract key metrics from the latest summary file
+        LATEST_SUMMARY=$(ls -t benchmarks/results/database_profiling/database_profiling_summary_*.txt | head -1)
+        if [ -f "$LATEST_SUMMARY" ]; then
+          echo "```" >> $GITHUB_STEP_SUMMARY
+          cat "$LATEST_SUMMARY" >> $GITHUB_STEP_SUMMARY
+          echo "```" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Performance Artifacts" >> $GITHUB_STEP_SUMMARY
+        echo "- Complete profiling results are available in the workflow artifacts" >> $GITHUB_STEP_SUMMARY
+        echo "- Results include JSON, CSV, and summary report formats" >> $GITHUB_STEP_SUMMARY
+        echo "- Use these results to track performance trends over time" >> $GITHUB_STEP_SUMMARY
+        
+    - name: Check for performance regressions
+      run: |
+        echo "Checking for significant performance regressions..."
+        
+        # Load the latest results and check against thresholds
+        python3 << 'EOF'
+        import json
+        import glob
+        import os
+        from pathlib import Path
+        
+        # Find the latest JSON results file
+        results_dir = Path("benchmarks/results/database_profiling")
+        json_files = list(results_dir.glob("database_profiling_results_*.json"))
+        
+        if not json_files:
+            print("No profiling results found")
+            exit(0)
+            
+        latest_file = max(json_files, key=os.path.getctime)
+        
+        with open(latest_file, 'r') as f:
+            data = json.load(f)
+        
+        results = data['results']
+        regressions = []
+        
+        # Check buffer size performance (expect > 80k inserts/s for buffer 1000)
+        if 'buffer_sizes' in results:
+            buffer_1000_perf = results['buffer_sizes'].get(1000, {}).get('inserts_per_second', 0)
+            if buffer_1000_perf < 80000:
+                regressions.append(f"Buffer 1000 performance below threshold: {buffer_1000_perf:.0f} inserts/s (expected > 80,000)")
+        
+        # Check memory vs disk performance (expect memory to be faster)
+        if 'memory_vs_disk' in results:
+            speedup = results['memory_vs_disk'].get('speedup', 0)
+            if speedup < 1.0:
+                regressions.append(f"Memory database not faster than disk: {speedup:.2f}x speedup (expected > 1.0x)")
+        
+        # Check flush frequency performance (expect > 60k inserts/s for flush every 1000)
+        if 'flush_frequency' in results:
+            flush_1000_perf = results['flush_frequency'].get(1000, {}).get('inserts_per_second', 0)
+            if flush_1000_perf < 60000:
+                regressions.append(f"Flush frequency performance below threshold: {flush_1000_perf:.0f} inserts/s (expected > 60,000)")
+        
+        if regressions:
+            print("🚨 PERFORMANCE REGRESSIONS DETECTED:")
+            for regression in regressions:
+                print(f"  - {regression}")
+            print("\nConsider investigating these performance issues before merging.")
+            exit(1)
+        else:
+            print("✅ No significant performance regressions detected.")
+            exit(0)
+        EOF
+        
+    - name: Comment on PR with performance results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          
+          // Find the latest summary file
+          const resultsDir = 'benchmarks/results/database_profiling';
+          const files = fs.readdirSync(resultsDir);
+          const summaryFiles = files.filter(f => f.startsWith('database_profiling_summary_') && f.endsWith('.txt'));
+          
+          if (summaryFiles.length === 0) {
+            console.log('No summary files found');
+            return;
+          }
+          
+          // Get the most recent file
+          const latestFile = summaryFiles.sort().pop();
+          const summaryPath = path.join(resultsDir, latestFile);
+          const summary = fs.readFileSync(summaryPath, 'utf8');
+          
+          // Create comment
+          const comment = `## 🚀 Database Performance Baseline Results
+          
+          Performance profiling completed for this PR. Here are the key metrics:
+          
+          \`\`\`
+          ${summary}
+          \`\`\`
+          
+          **Performance Status**: ✅ All checks passed
+          
+          📊 **Artifacts**: Complete profiling results are available in the workflow artifacts.
+          
+          🔍 **Next Steps**: 
+          - Review the performance metrics above
+          - Download artifacts for detailed analysis if needed
+          - Performance trends are tracked automatically over time
+          
+          ---
+          *This comment is automatically generated by the Database Performance Baseline workflow.*`;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
