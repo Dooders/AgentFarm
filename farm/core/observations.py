@@ -1697,7 +1697,7 @@ class AgentObservation:
 
         # Count sparse logical points
         sparse_points = 0
-        for _, channel_data in self.sparse_channels.items():
+        for channel_idx, channel_data in self.sparse_channels.items():
             if isinstance(channel_data, SparsePoints):
                 sparse_points += len(channel_data)
             else:

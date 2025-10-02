@@ -310,7 +310,7 @@ class ObservationProfiler:
             ) * 100
 
         print(f"Total observation time: {total_time*1000:.2f}ms")
-        print(f"\nBreakdown:")
+        print("\nBreakdown:")
         print(
             f"  Spatial queries: {results.get('spatial_query_time', 0)*1000:.2f}ms "
             f"({results.get('spatial_query_pct', 0):.1f}%)"
@@ -409,7 +409,7 @@ def main():
     # Generate report
     profiler.generate_report()
 
-    print("✓ Observation generation profiling complete!")
+    print("Observation generation profiling complete!")
     print("  Results saved in profiler.results")
 
 
