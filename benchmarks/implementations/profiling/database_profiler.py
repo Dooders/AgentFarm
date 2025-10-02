@@ -18,13 +18,15 @@ import os
 import sys
 import tempfile
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from farm.database.database import SimulationDatabase, InMemorySimulationDatabase
+from farm.database.database import (InMemorySimulationDatabase,
+                                    SimulationDatabase)
 
 
 class DatabaseProfiler:
@@ -52,9 +54,35 @@ class DatabaseProfiler:
                 # Create database
                 db = SimulationDatabase(db_path=db_path, simulation_id="test_sim")
                 
+                # Create simulation record (required for foreign key constraints)
+                db.add_simulation_record(
+                    simulation_id="test_sim",
+                    start_time=datetime.now(),
+                    status="running",
+                    parameters={}
+                )
+                
                 # Configure buffer size
                 db.logger.agent_buffer_size = batch_size
                 db.logger.step_buffer_size = batch_size
+                
+                # Create agent records first (required for foreign key constraint)
+                for i in range(100):  # Create 100 unique agents
+                    db.logger.log_agent(
+                        agent_id=f"agent_{i}",
+                        birth_time=0,
+                        agent_type="test",
+                        position=(0.0, 0.0),
+                        initial_resources=10.0,
+                        starting_health=100.0,
+                        starvation_counter=0,
+                        genome_id=f"genome_{i}",
+                        generation=0,
+                        action_weights={}
+                    )
+                
+                # Flush agent records
+                db.logger.flush_all_buffers()
                 
                 # Profile inserts
                 start = time.perf_counter()
@@ -85,11 +113,17 @@ class DatabaseProfiler:
                 us_per_insert = (insert_time*1000000/num_records) if num_records > 0 else 0
                 print(f"  Batch {batch_size:>4}: {insert_time*1000:.2f}ms, "
                       f"{inserts_per_sec:.0f} inserts/s, "
-                      f"{us_per_insert:.2f}μs per insert")
+                      f"{us_per_insert:.2f}us per insert")
                 
                 # Clean up
                 db.close()
-                os.remove(db_path)
+                # Wait a moment for file handles to be released
+                time.sleep(0.1)
+                try:
+                    os.remove(db_path)
+                except PermissionError:
+                    # File might still be locked, skip removal
+                    pass
             
             results[num_records] = record_results
         
@@ -110,7 +144,34 @@ class DatabaseProfiler:
             
             # Create database
             db = SimulationDatabase(db_path=db_path, simulation_id="test_sim")
+            
+            # Create simulation record (required for foreign key constraints)
+            db.add_simulation_record(
+                simulation_id="test_sim",
+                start_time=datetime.now(),
+                status="running",
+                parameters={}
+            )
+            
             db.logger.agent_buffer_size = buffer_size
+            
+            # Create agent records first (required for foreign key constraint)
+            for i in range(100):  # Create 100 unique agents
+                db.logger.log_agent(
+                    agent_id=f"agent_{i}",
+                    birth_time=0,
+                    agent_type="test",
+                    position=(0.0, 0.0),
+                    initial_resources=10.0,
+                    starting_health=100.0,
+                    starvation_counter=0,
+                    genome_id=f"genome_{i}",
+                    generation=0,
+                    action_weights={}
+                )
+            
+            # Flush agent records
+            db.logger.flush_all_buffers()
             
             # Profile with this buffer size
             start = time.perf_counter()
@@ -141,7 +202,13 @@ class DatabaseProfiler:
             
             # Clean up
             db.close()
-            os.remove(db_path)
+            # Wait a moment for file handles to be released
+            time.sleep(0.1)
+            try:
+                os.remove(db_path)
+            except PermissionError:
+                # File might still be locked, skip removal
+                pass
         
         self.results["buffer_sizes"] = results
         return results
@@ -158,6 +225,32 @@ class DatabaseProfiler:
         print("Testing disk database...")
         db_path = os.path.join(self.temp_dir, "test_disk.db")
         db_disk = SimulationDatabase(db_path=db_path, simulation_id="test_sim")
+        
+        # Create simulation record (required for foreign key constraints)
+        db_disk.add_simulation_record(
+            simulation_id="test_sim",
+            start_time=datetime.now(),
+            status="running",
+            parameters={}
+        )
+        
+        # Create agent records first (required for foreign key constraint)
+        for i in range(100):  # Create 100 unique agents
+            db_disk.logger.log_agent(
+                agent_id=f"agent_{i}",
+                birth_time=0,
+                agent_type="test",
+                position=(0.0, 0.0),
+                initial_resources=10.0,
+                starting_health=100.0,
+                starvation_counter=0,
+                genome_id=f"genome_{i}",
+                generation=0,
+                action_weights={}
+            )
+        
+        # Flush agent records
+        db_disk.logger.flush_all_buffers()
         
         start = time.perf_counter()
         for i in range(num_records):
@@ -182,11 +275,43 @@ class DatabaseProfiler:
         print(f"  Disk: {disk_time*1000:.2f}ms, {inserts_per_sec:.0f} inserts/s")
         
         db_disk.close()
-        os.remove(db_path)
+        # Wait a moment for file handles to be released
+        time.sleep(0.1)
+        try:
+            os.remove(db_path)
+        except PermissionError:
+            # File might still be locked, skip removal
+            pass
         
         # Test in-memory database
         print("\nTesting in-memory database...")
         db_memory = InMemorySimulationDatabase(memory_limit_mb=100, simulation_id="test_sim")
+        
+        # Create simulation record (required for foreign key constraints)
+        db_memory.add_simulation_record(
+            simulation_id="test_sim",
+            start_time=datetime.now(),
+            status="running",
+            parameters={}
+        )
+        
+        # Create agent records first (required for foreign key constraint)
+        for i in range(100):  # Create 100 unique agents
+            db_memory.logger.log_agent(
+                agent_id=f"agent_{i}",
+                birth_time=0,
+                agent_type="test",
+                position=(0.0, 0.0),
+                initial_resources=10.0,
+                starting_health=100.0,
+                starvation_counter=0,
+                genome_id=f"genome_{i}",
+                generation=0,
+                action_weights={}
+            )
+        
+        # Flush agent records
+        db_memory.logger.flush_all_buffers()
         
         start = time.perf_counter()
         for i in range(num_records):
@@ -233,8 +358,34 @@ class DatabaseProfiler:
             db_path = os.path.join(self.temp_dir, f"test_flush_{flush_interval}.db")
             db = SimulationDatabase(db_path=db_path, simulation_id="test_sim")
             
+            # Create simulation record (required for foreign key constraints)
+            db.add_simulation_record(
+                simulation_id="test_sim",
+                start_time=datetime.now(),
+                status="running",
+                parameters={}
+            )
+            
             # Very large buffer to control flush frequency
             db.logger.agent_buffer_size = 100000
+            
+            # Create agent records first (required for foreign key constraint)
+            for i in range(100):  # Create 100 unique agents
+                db.logger.log_agent(
+                    agent_id=f"agent_{i}",
+                    birth_time=0,
+                    agent_type="test",
+                    position=(0.0, 0.0),
+                    initial_resources=10.0,
+                    starting_health=100.0,
+                    starvation_counter=0,
+                    genome_id=f"genome_{i}",
+                    generation=0,
+                    action_weights={}
+                )
+            
+            # Flush agent records
+            db.logger.flush_all_buffers()
             
             flush_count = 0
             start = time.perf_counter()
@@ -271,7 +422,13 @@ class DatabaseProfiler:
                   f"{flush_count} flushes, {inserts_per_sec:.0f} inserts/s")
             
             db.close()
-            os.remove(db_path)
+            # Wait a moment for file handles to be released
+            time.sleep(0.1)
+            try:
+                os.remove(db_path)
+            except PermissionError:
+                # File might still be locked, skip removal
+                pass
         
         self.results["flush_frequency"] = results
         return results
@@ -321,7 +478,25 @@ class DatabaseProfiler:
         """Clean up temporary files."""
         import shutil
         if os.path.exists(self.temp_dir):
-            shutil.rmtree(self.temp_dir)
+            try:
+                shutil.rmtree(self.temp_dir)
+            except PermissionError:
+                # Some files might still be locked, try to remove individual files
+                for root, dirs, files in os.walk(self.temp_dir, topdown=False):
+                    for file in files:
+                        try:
+                            os.remove(os.path.join(root, file))
+                        except PermissionError:
+                            pass
+                    for dir in dirs:
+                        try:
+                            os.rmdir(os.path.join(root, dir))
+                        except (PermissionError, OSError):
+                            pass
+                try:
+                    os.rmdir(self.temp_dir)
+                except (PermissionError, OSError):
+                    pass
 
 
 def main():
@@ -354,7 +529,7 @@ def main():
         # Generate report
         profiler.generate_report()
         
-        print("✓ Database profiling complete!")
+        print("Database profiling complete!")
         print("  Results saved in profiler.results")
     
     finally:

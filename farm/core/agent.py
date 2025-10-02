@@ -1341,7 +1341,7 @@ class BaseAgent:
         # Add new agent to environment
         if self.lifecycle_service:
             try:
-                self.lifecycle_service.add_agent(new_agent)
+                self.lifecycle_service.add_agent(new_agent, flush_immediately=True)
             except Exception as e:
                 logger.error(
                     "offspring_registration_failed",
