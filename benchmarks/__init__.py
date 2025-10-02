@@ -2,11 +2,12 @@
 Benchmarks package for AgentFarm.
 
 This package provides a framework for creating, running, and analyzing benchmarks
-for the AgentFarm system.
+for the AgentFarm system using the new spec-driven architecture.
 """
 
-from benchmarks.base.benchmark import Benchmark
-from benchmarks.base.runner import BenchmarkRunner
-from benchmarks.base.results import BenchmarkResults
+from benchmarks.core.experiments import Experiment, ExperimentContext
+from benchmarks.core.runner import Runner
+from benchmarks.core.results import RunResult
+from benchmarks.core.registry import REGISTRY
 
-__all__ = ["Benchmark", "BenchmarkRunner", "BenchmarkResults"] 
+__all__ = ["Experiment", "ExperimentContext", "Runner", "RunResult", "REGISTRY"] 

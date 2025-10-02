@@ -8,7 +8,8 @@ try:
 except Exception:  # pragma: no cover
     np = None
 
-from benchmarks.base.benchmark import Benchmark
+from benchmarks.core.experiments import Experiment, ExperimentContext
+from benchmarks.core.registry import register_experiment
 from farm.config import EnvironmentConfig, SimulationConfig
 from farm.config.config import DatabaseConfig
 from farm.core.agent import BaseAgent
@@ -17,7 +18,8 @@ from farm.core.observations import ObservationConfig
 from farm.core.services.implementations import SpatialIndexAdapter
 
 
-class ObservationFlowBenchmark(Benchmark):
+@register_experiment("observation_flow")
+class ObservationFlowBenchmark(Experiment):
     """Benchmark observation generation throughput and latency.
 
     Measures:
@@ -46,11 +48,7 @@ class ObservationFlowBenchmark(Benchmark):
             "fov_radius": fov_radius,
             "device": device,
         }
-        super().__init__(
-            name="observation_flow",
-            description="Measure Environment.observe() throughput and per-agent latency",
-            parameters=params,
-        )
+        super().__init__(params)
         self._env: Optional[Environment] = None
         self._agents: list[BaseAgent] = []
         self._agent_ids: list[str] = []
@@ -122,13 +120,13 @@ class ObservationFlowBenchmark(Benchmark):
         )
         env.spatial_index.update()
 
-    def setup(self) -> None:
+    def setup(self, context: ExperimentContext) -> None:
         env = self._make_env()
         self._env = env
         self._spatial = env.spatial_service
         self._spawn_agents(env)
 
-    def run(self) -> Dict[str, Any]:
+    def execute_once(self, context: ExperimentContext) -> Dict[str, Any]:
         assert self._env is not None
         env = self._env
 
@@ -221,7 +219,7 @@ class ObservationFlowBenchmark(Benchmark):
             "perception_profile": perc_profile,
         }
 
-    def cleanup(self) -> None:
+    def teardown(self, context: ExperimentContext) -> None:
         try:
             if self._env is not None:
                 self._env.close()

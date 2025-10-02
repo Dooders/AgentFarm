@@ -17,8 +17,8 @@ from typing import Any, Dict, List
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from benchmarks.base.runner import BenchmarkRunner
-from benchmarks.implementations.redis_memory_benchmark import RedisMemoryBenchmark
+from benchmarks.core.registry import REGISTRY
+from benchmarks.core.runner import Runner
 
 
 def parse_args():
@@ -80,31 +80,42 @@ def parse_args():
 
 
 def run_agent_count_comparison(
-    runner: BenchmarkRunner,
+    output_dir: str,
     iterations: int,
     memory_entries: int,
     agent_counts: List[int],
 ) -> Dict[str, Any]:
     """Run benchmarks with different agent counts."""
     results = {}
+    
+    # Discover experiments
+    REGISTRY.discover_package("benchmarks.implementations")
 
     for agent_count in agent_counts:
         benchmark_name = f"redis_memory_agents_{agent_count}"
 
-        benchmark = RedisMemoryBenchmark(
-            num_agents=agent_count,
-            memory_entries=memory_entries,
-        )
+        # Create experiment with parameters
+        experiment = REGISTRY.create("redis_memory", {
+            "num_agents": agent_count,
+            "memory_entries": memory_entries,
+        })
 
-        runner.register_benchmark(benchmark)
-        result = runner.run_benchmark(benchmark_name, iterations=iterations)
+        # Create runner
+        runner = Runner(
+            name=benchmark_name,
+            experiment=experiment,
+            output_dir=output_dir,
+            iterations_measured=iterations,
+        )
+        
+        result = runner.run()
         results[benchmark_name] = result
 
     return results
 
 
 def run_batch_size_comparison(
-    runner: BenchmarkRunner,
+    output_dir: str,
     iterations: int,
     memory_entries: int,
     batch_sizes: List[int],
@@ -115,20 +126,28 @@ def run_batch_size_comparison(
     for batch_size in batch_sizes:
         benchmark_name = f"redis_memory_batch_{batch_size}"
 
-        benchmark = RedisMemoryBenchmark(
-            batch_size=batch_size,
-            memory_entries=memory_entries,
-        )
+        # Create experiment with parameters
+        experiment = REGISTRY.create("redis_memory", {
+            "batch_size": batch_size,
+            "memory_entries": memory_entries,
+        })
 
-        runner.register_benchmark(benchmark)
-        result = runner.run_benchmark(benchmark_name, iterations=iterations)
+        # Create runner
+        runner = Runner(
+            name=benchmark_name,
+            experiment=experiment,
+            output_dir=output_dir,
+            iterations_measured=iterations,
+        )
+        
+        result = runner.run()
         results[benchmark_name] = result
 
     return results
 
 
 def run_memory_limit_comparison(
-    runner: BenchmarkRunner,
+    output_dir: str,
     iterations: int,
     memory_entries: int,
     memory_limits: List[int],
@@ -139,15 +158,23 @@ def run_memory_limit_comparison(
     for memory_limit in memory_limits:
         benchmark_name = f"redis_memory_limit_{memory_limit}"
 
-        benchmark = RedisMemoryBenchmark(
-            memory_limit=memory_limit,
-            memory_entries=min(
+        # Create experiment with parameters
+        experiment = REGISTRY.create("redis_memory", {
+            "memory_limit": memory_limit,
+            "memory_entries": min(
                 memory_entries, memory_limit * 2
             ),  # Ensure we hit the limit
-        )
+        })
 
-        runner.register_benchmark(benchmark)
-        result = runner.run_benchmark(benchmark_name, iterations=iterations)
+        # Create runner
+        runner = Runner(
+            name=benchmark_name,
+            experiment=experiment,
+            output_dir=output_dir,
+            iterations_measured=iterations,
+        )
+        
+        result = runner.run()
         results[benchmark_name] = result
 
     return results
@@ -162,13 +189,12 @@ def plot_comparison_results(
     values = []
 
     for name, result in results.items():
-        summary = result.get_summary()
-        overall = summary.get("overall", {})
-        if overall and metric_key in overall:
+        # Access metrics from the new result structure
+        if hasattr(result, 'metrics') and metric_key in result.metrics:
             names.append(
                 name.split("_")[-1]
             )  # Get just the variable part (e.g., agent count, batch size)
-            values.append(overall[metric_key])
+            values.append(result.metrics[metric_key])
 
     # Create plot
     plt.figure(figsize=(10, 6))
@@ -193,25 +219,22 @@ def main():
     output_dir = f"{args.output}_{timestamp}"
     os.makedirs(output_dir, exist_ok=True)
 
-    # Create benchmark runner
-    runner = BenchmarkRunner(output_dir=output_dir)
-
     # Run comparisons
     print("Running Redis configuration comparisons...")
 
     print("\n1. Agent Count Comparison:")
     agent_results = run_agent_count_comparison(
-        runner, args.iterations, args.memory_entries, args.agents
+        output_dir, args.iterations, args.memory_entries, args.agents
     )
 
     print("\n2. Batch Size Comparison:")
     batch_results = run_batch_size_comparison(
-        runner, args.iterations, args.memory_entries, args.batch_sizes
+        output_dir, args.iterations, args.memory_entries, args.batch_sizes
     )
 
     print("\n3. Memory Limit Comparison:")
     limit_results = run_memory_limit_comparison(
-        runner, args.iterations, args.memory_entries, args.memory_limits
+        output_dir, args.iterations, args.memory_entries, args.memory_limits
     )
 
     # Generate plots if requested
@@ -252,16 +275,16 @@ def main():
 
     # Extract key metrics
     for name, result in agent_results.items():
-        summary["agent_count_comparison"][name] = result.get_summary()["overall"]
+        summary["agent_count_comparison"][name] = result.metrics
 
     for name, result in batch_results.items():
-        summary["batch_size_comparison"][name] = result.get_summary()["overall"]
+        summary["batch_size_comparison"][name] = result.metrics
 
     for name, result in limit_results.items():
-        summary["memory_limit_comparison"][name] = result.get_summary()["overall"]
+        summary["memory_limit_comparison"][name] = result.metrics
 
     # Save summary
-    with open(os.path.join(output_dir, "summary.json"), "w") as f:
+    with open(os.path.join(output_dir, "summary.json"), "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
 
     print(f"\nComparison complete. Results saved to {output_dir}")

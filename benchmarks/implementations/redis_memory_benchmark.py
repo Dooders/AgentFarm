@@ -11,13 +11,15 @@ from typing import Any, Dict, List, Optional
 
 import redis
 
-from benchmarks.base.benchmark import Benchmark
+from benchmarks.core.experiments import Experiment, ExperimentContext
+from benchmarks.core.registry import register_experiment
 from farm.core.perception import PerceptionData
 from farm.core.state import AgentState
 from farm.memory.redis_memory import AgentMemory, AgentMemoryManager, RedisMemoryConfig
 
 
-class RedisMemoryBenchmark(Benchmark):
+@register_experiment("redis_memory")
+class RedisMemoryBenchmark(Experiment):
     """
     Benchmark for the Redis-backed agent memory system.
 
@@ -64,11 +66,7 @@ class RedisMemoryBenchmark(Benchmark):
         parameters : Dict[str, Any], optional
             Additional parameters for the benchmark
         """
-        super().__init__(
-            name="redis_memory",
-            description="Benchmark for Redis-backed agent memory system",
-            parameters=parameters or {},
-        )
+        super().__init__(parameters or {})
 
         # Set benchmark-specific parameters
         self.parameters.update(
@@ -90,7 +88,7 @@ class RedisMemoryBenchmark(Benchmark):
         self.redis_client = None
         self.test_data = []
 
-    def setup(self) -> None:
+    def setup(self, context: ExperimentContext) -> None:
         """
         Set up the benchmark environment.
         """
@@ -191,7 +189,7 @@ class RedisMemoryBenchmark(Benchmark):
                 }
             )
 
-    def run(self) -> Dict[str, Any]:
+    def execute_once(self, context: ExperimentContext) -> Dict[str, Any]:
         """
         Run the benchmark.
 
@@ -596,7 +594,7 @@ class RedisMemoryBenchmark(Benchmark):
             "memory_limit": self.parameters["memory_limit"],
         }
 
-    def cleanup(self) -> None:
+    def teardown(self, context: ExperimentContext) -> None:
         """
         Clean up after the benchmark.
         """

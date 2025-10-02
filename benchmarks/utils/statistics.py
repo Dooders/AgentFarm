@@ -7,16 +7,16 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from benchmarks.base.results import BenchmarkResults
+from benchmarks.core.results import RunResult
 
 
-def calculate_statistics(results: BenchmarkResults) -> Dict[str, float]:
+def calculate_statistics(results: RunResult) -> Dict[str, float]:
     """
     Calculate various statistics for benchmark results.
 
     Parameters
     ----------
-    results : BenchmarkResults
+    results : RunResult
         Benchmark results to analyze
 
     Returns
@@ -24,7 +24,10 @@ def calculate_statistics(results: BenchmarkResults) -> Dict[str, float]:
     Dict[str, float]
         Dictionary of statistics
     """
-    durations = results.get_durations()
+    # Extract durations from the new result structure
+    durations = []
+    if results.iteration_metrics:
+        durations = [iteration.duration_s for iteration in results.iteration_metrics]
 
     if not durations:
         return {
@@ -76,16 +79,16 @@ def calculate_statistics(results: BenchmarkResults) -> Dict[str, float]:
 
 
 def compare_statistics(
-    results1: BenchmarkResults, results2: BenchmarkResults
+    results1: RunResult, results2: RunResult
 ) -> Dict[str, float]:
     """
     Compare statistics between two benchmark results.
 
     Parameters
     ----------
-    results1 : BenchmarkResults
+    results1 : RunResult
         First benchmark results
-    results2 : BenchmarkResults
+    results2 : RunResult
         Second benchmark results
 
     Returns
@@ -128,14 +131,14 @@ def compare_statistics(
 
 
 def analyze_parameter_impact(
-    results_dict: Dict[Any, BenchmarkResults], metric: str = "mean_duration"
+    results_dict: Dict[Any, RunResult], metric: str = "mean_duration"
 ) -> Dict[str, Any]:
     """
     Analyze the impact of a parameter on benchmark results.
 
     Parameters
     ----------
-    results_dict : Dict[Any, BenchmarkResults]
+    results_dict : Dict[Any, RunResult]
         Dictionary mapping parameter values to benchmark results
     metric : str
         Metric to analyze (e.g., "mean_duration", "median_duration")

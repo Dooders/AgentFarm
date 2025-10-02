@@ -5,7 +5,8 @@ from typing import Any, Dict, List, Tuple, Union, Optional
 
 import numpy as np
 
-from benchmarks.base.benchmark import Benchmark
+from benchmarks.core.experiments import Experiment, ExperimentContext
+from benchmarks.core.registry import register_experiment
 from farm.config import EnvironmentConfig, SimulationConfig
 from farm.config.config import DatabaseConfig
 from farm.core.agent import BaseAgent
@@ -18,7 +19,8 @@ DEFAULT_CHANNEL_COUNT = 13
 OPERATIONS_PER_CELL_ESTIMATE = 2.0
 
 
-class PerceptionMetricsBenchmark(Benchmark):
+@register_experiment("perception_metrics")
+class PerceptionMetricsBenchmark(Experiment):
     """Benchmark perception metrics across agent counts, radii, and storage modes.
 
     Measures:
@@ -48,18 +50,14 @@ class PerceptionMetricsBenchmark(Benchmark):
         if use_bilinear_list is None:
             use_bilinear_list = [True, False]
 
-        super().__init__(
-            name="perception_metrics",
-            description="Profile perception memory/latency across scales and modes",
-            parameters={
-                "agent_counts": agent_counts,
-                "radii": radii,
-                "storage_modes": storage_modes,
-                "use_bilinear_list": use_bilinear_list,
-                "steps": steps,
-                "device": device,
-            },
-        )
+        super().__init__({
+            "agent_counts": agent_counts,
+            "radii": radii,
+            "storage_modes": storage_modes,
+            "use_bilinear_list": use_bilinear_list,
+            "steps": steps,
+            "device": device,
+        })
         self._agent_counts = agent_counts
         self._radii = radii
         self._storage_modes = storage_modes
@@ -125,7 +123,7 @@ class PerceptionMetricsBenchmark(Benchmark):
         env.spatial_index.update()
         return agent_ids
 
-    def setup(self) -> None:
+    def setup(self, context: ExperimentContext) -> None:
         # Environment is created per configuration inside run()
         pass
 
@@ -208,7 +206,7 @@ class PerceptionMetricsBenchmark(Benchmark):
             "perception_profile": perc_profile,
         }
 
-    def run(self) -> Dict[str, Any]:
+    def execute_once(self, context: ExperimentContext) -> Dict[str, Any]:
         results: List[Dict[str, Any]] = []
         for n in self._agent_counts:
             for r in self._radii:
@@ -217,7 +215,7 @@ class PerceptionMetricsBenchmark(Benchmark):
                         results.append(self._run_once(n, r, mode, bilinear))
         return {"runs": results}
 
-    def cleanup(self) -> None:
+    def teardown(self, context: ExperimentContext) -> None:
         if self._env is not None:
             self._env.close()
         self._env = None

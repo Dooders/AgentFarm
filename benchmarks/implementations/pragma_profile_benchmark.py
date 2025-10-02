@@ -12,7 +12,8 @@ import tempfile
 import time
 from typing import Any, Dict, Optional
 
-from benchmarks.base.benchmark import Benchmark
+from benchmarks.core.experiments import Experiment, ExperimentContext
+from benchmarks.core.registry import register_experiment
 from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
 from farm.database import InMemorySimulationDatabase, SimulationDatabase
@@ -23,7 +24,8 @@ from farm.utils.identity import Identity
 _shared_identity = Identity()
 
 
-class PragmaProfileBenchmark(Benchmark):
+@register_experiment("pragma_profile")
+class PragmaProfileBenchmark(Experiment):
     """
     Benchmark for comparing different SQLite pragma profiles.
 
@@ -58,11 +60,7 @@ class PragmaProfileBenchmark(Benchmark):
         parameters : Dict[str, Any], optional
             Additional parameters for the benchmark
         """
-        super().__init__(
-            name="pragma_profile",
-            description="Benchmark comparing different SQLite pragma profiles",
-            parameters=parameters or {},
-        )
+        super().__init__(parameters or {})
 
         # Set benchmark-specific parameters
         self.parameters.update(
@@ -84,7 +82,7 @@ class PragmaProfileBenchmark(Benchmark):
         # Generate a unique run ID for this benchmark run
         self.run_id = _shared_identity.run_id(8)
 
-    def setup(self) -> None:
+    def setup(self, context: ExperimentContext) -> None:
         """
         Set up the benchmark environment.
         """
@@ -96,7 +94,7 @@ class PragmaProfileBenchmark(Benchmark):
         self.open_dbs = []
         self.open_connections = []
 
-    def run(self) -> Dict[str, Any]:
+    def execute_once(self, context: ExperimentContext) -> Dict[str, Any]:
         """
         Run the benchmark.
 
@@ -535,7 +533,7 @@ class PragmaProfileBenchmark(Benchmark):
                 if db in self.open_dbs:
                     self.open_dbs.remove(db)
 
-    def cleanup(self) -> None:
+    def teardown(self, context: ExperimentContext) -> None:
         """
         Clean up after the benchmark.
         """
