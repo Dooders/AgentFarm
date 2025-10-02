@@ -132,7 +132,16 @@ class UnifiedAdapter:
                 )
 
             def on_status(status):
-                sim_info["status"] = SimulationStatus(status)
+                status_map = {
+                    "initialized": SimulationStatus.CREATED,
+                    "started": SimulationStatus.RUNNING,
+                    "resumed": SimulationStatus.RUNNING,
+                    "paused": SimulationStatus.PAUSED,
+                    "stopped": SimulationStatus.STOPPED,
+                    "completed": SimulationStatus.COMPLETED,
+                    "error": SimulationStatus.ERROR,
+                }
+                sim_info["status"] = status_map.get(str(status).lower(), SimulationStatus.ERROR)
                 self._emit_event(
                     "simulation_status_change",
                     simulation_id=simulation_id,
