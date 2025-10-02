@@ -268,9 +268,9 @@ def _run_analysis_background(analysis_id: str, controller: AnalysisController):
         # Start the analysis
         controller.start()
 
-        # Wait for completion
-        while controller.is_running:
-            time.sleep(0.5)
+        # Wait for the analysis thread to complete
+        if controller._analysis_thread:
+            controller._analysis_thread.join()
 
         # Update final state
         result = controller.get_result()
@@ -359,7 +359,7 @@ async def run_analysis_module(
     except Exception as e:
         logger.error(
             "api_analysis_module_failed",
-            analysis_id=analysis_id if "analysis_id" in locals() else "unknown",
+            analysis_id=analysis_id,
             module_name=module_name,
             error_type=type(e).__name__,
             error_message=str(e),

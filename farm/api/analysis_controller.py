@@ -294,9 +294,11 @@ class AnalysisController:
             if not self.request:
                 raise RuntimeError("No analysis request available")
 
-            # Run the analysis
+            # Run the analysis (no lock held to avoid deadlock with _progress_handler)
+            result = self.service.run(self.request)
+            
+            # Update result with lock
             with self._thread_lock:
-                result = self.service.run(self.request)
                 self.result = result
 
             if result.success:
@@ -601,11 +603,17 @@ class AnalysisController:
             raise
 
     def __del__(self):
-        """Ensure cleanup on deletion."""
+        """Ensure cleanup on deletion.
+        
+        Note: __del__ is not guaranteed to be called in Python, and the context
+        manager pattern (__enter__/__exit__) is the preferred cleanup method.
+        This method is provided as a safety net for cases where the context
+        manager is not used, but should not be relied upon for critical cleanup.
+        """
         try:
             self.cleanup()
         except Exception:
-            pass  # Suppress exceptions in __del__
+            pass  # Suppress exceptions in __del__ to avoid issues during interpreter shutdown
 
     def __enter__(self):
         """Enter context manager."""
