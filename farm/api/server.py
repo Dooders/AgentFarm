@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from farm.analysis.service import AnalysisRequest, AnalysisService
+from farm.api.analysis_controller import AnalysisController
 from farm.config import SimulationConfig
 from farm.core.analysis import analyze_simulation
 from farm.core.services import EnvConfigService
@@ -78,6 +79,10 @@ class SimulationStatus(BaseModel):
 # Store active simulations
 active_simulations = {}
 _active_simulations_lock = threading.Lock()
+
+# Store active analyses
+active_analyses = {}
+_active_analyses_lock = threading.Lock()
 
 
 # WebSocket connection manager
@@ -253,31 +258,299 @@ async def get_analysis(sim_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/analysis/{module_name}", response_model=AnalysisResponse)
-async def run_analysis_module(module_name: str, request_data: AnalysisRequestModel):
+def _run_analysis_background(analysis_id: str, controller: AnalysisController):
+    """Run analysis in background and update state."""
     try:
-        service = AnalysisService(config_service=EnvConfigService())
+        with _active_analyses_lock:
+            if analysis_id in active_analyses:
+                active_analyses[analysis_id]["status"] = "running"
+
+        # Start the analysis
+        controller.start()
+
+        # Wait for completion
+        while controller.is_running:
+            time.sleep(0.5)
+
+        # Update final state
+        result = controller.get_result()
+        with _active_analyses_lock:
+            if analysis_id in active_analyses:
+                if result and result.success:
+                    active_analyses[analysis_id]["status"] = "completed"
+                    active_analyses[analysis_id]["output_path"] = str(result.output_path)
+                    active_analyses[analysis_id]["execution_time"] = result.execution_time
+                    active_analyses[analysis_id]["cache_hit"] = result.cache_hit
+                    active_analyses[analysis_id]["rows"] = (
+                        len(result.dataframe) if result.dataframe is not None else 0
+                    )
+                else:
+                    active_analyses[analysis_id]["status"] = "error"
+                    active_analyses[analysis_id]["error"] = result.error if result else "Unknown error"
+                active_analyses[analysis_id]["ended_at"] = datetime.now().isoformat()
+
+    except Exception as e:
+        logger.error(
+            "background_analysis_failed",
+            analysis_id=analysis_id,
+            error_type=type(e).__name__,
+            error_message=str(e),
+            exc_info=True,
+        )
+        with _active_analyses_lock:
+            if analysis_id in active_analyses:
+                active_analyses[analysis_id]["status"] = "error"
+                active_analyses[analysis_id]["error"] = str(e)
+
+
+@app.post("/api/analysis/{module_name}", response_model=AnalysisResponse)
+async def run_analysis_module(
+    module_name: str,
+    request_data: AnalysisRequestModel,
+    background_tasks: BackgroundTasks
+):
+    """Run analysis module with controller (async execution)."""
+    try:
+        # Generate analysis ID
+        analysis_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        logger.info(
+            "api_analysis_create_request",
+            analysis_id=analysis_id,
+            module_name=module_name,
+            experiment_path=request_data.experiment_path,
+        )
+
+        # Create controller
+        controller = AnalysisController(config_service=EnvConfigService())
+
+        # Create request
         req = AnalysisRequest(
             module_name=module_name,
             experiment_path=request_data.experiment_path,
             output_path=request_data.output_path,
             group=request_data.group,
-            processor_kwargs=request_data.processor_kwargs,
-            analysis_kwargs=request_data.analysis_kwargs,
+            processor_kwargs=request_data.processor_kwargs or {},
+            analysis_kwargs=request_data.analysis_kwargs or {},
         )
-        result = service.run(req)
+
+        # Initialize analysis
+        controller.initialize_analysis(req)
+
+        # Store analysis info
+        with _active_analyses_lock:
+            active_analyses[analysis_id] = {
+                "controller": controller,
+                "module_name": module_name,
+                "experiment_path": request_data.experiment_path,
+                "output_path": request_data.output_path,
+                "created_at": datetime.now().isoformat(),
+                "status": "pending",
+            }
+
+        # Start background task
+        background_tasks.add_task(_run_analysis_background, analysis_id, controller)
+
         return AnalysisResponse(
-            status="success",
-            output_path=str(result.output_path),
-            rows=int(result.dataframe.shape[0]) if result.dataframe is not None else 0,
+            status="accepted",
+            message=f"Analysis started with ID: {analysis_id}",
         )
+
     except Exception as e:
         logger.error(
             "api_analysis_module_failed",
+            analysis_id=analysis_id if "analysis_id" in locals() else "unknown",
             module_name=module_name,
             error_type=type(e).__name__,
             error_message=str(e),
             exc_info=True,
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/analysis/{analysis_id}/status")
+async def get_analysis_status(analysis_id: str):
+    """Get status of a specific analysis job."""
+    try:
+        with _active_analyses_lock:
+            if analysis_id not in active_analyses:
+                raise HTTPException(
+                    status_code=404, detail=f"Analysis {analysis_id} not found"
+                )
+            analysis_info = dict(active_analyses[analysis_id])
+            
+            # Get live state from controller if available
+            controller = analysis_info.pop("controller", None)
+            if controller:
+                state = controller.get_state()
+                analysis_info.update(state)
+        
+        return {"status": "success", "data": analysis_info}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "api_get_analysis_status_failed",
+            analysis_id=analysis_id,
+            error_type=type(e).__name__,
+            error_message=str(e),
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/analysis/{analysis_id}/pause")
+async def pause_analysis(analysis_id: str):
+    """Pause a running analysis."""
+    try:
+        with _active_analyses_lock:
+            if analysis_id not in active_analyses:
+                raise HTTPException(
+                    status_code=404, detail=f"Analysis {analysis_id} not found"
+                )
+            controller = active_analyses[analysis_id].get("controller")
+        
+        if not controller:
+            raise HTTPException(status_code=400, detail="Analysis controller not available")
+        
+        controller.pause()
+        return {"status": "success", "message": "Analysis paused"}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "api_pause_analysis_failed",
+            analysis_id=analysis_id,
+            error_type=type(e).__name__,
+            error_message=str(e),
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/analysis/{analysis_id}/resume")
+async def resume_analysis(analysis_id: str):
+    """Resume a paused analysis."""
+    try:
+        with _active_analyses_lock:
+            if analysis_id not in active_analyses:
+                raise HTTPException(
+                    status_code=404, detail=f"Analysis {analysis_id} not found"
+                )
+            controller = active_analyses[analysis_id].get("controller")
+        
+        if not controller:
+            raise HTTPException(status_code=400, detail="Analysis controller not available")
+        
+        controller.start()
+        return {"status": "success", "message": "Analysis resumed"}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "api_resume_analysis_failed",
+            analysis_id=analysis_id,
+            error_type=type(e).__name__,
+            error_message=str(e),
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/analysis/{analysis_id}/stop")
+async def stop_analysis(analysis_id: str):
+    """Stop a running analysis."""
+    try:
+        with _active_analyses_lock:
+            if analysis_id not in active_analyses:
+                raise HTTPException(
+                    status_code=404, detail=f"Analysis {analysis_id} not found"
+                )
+            controller = active_analyses[analysis_id].get("controller")
+        
+        if not controller:
+            raise HTTPException(status_code=400, detail="Analysis controller not available")
+        
+        controller.stop()
+        
+        with _active_analyses_lock:
+            if analysis_id in active_analyses:
+                active_analyses[analysis_id]["status"] = "stopped"
+        
+        return {"status": "success", "message": "Analysis stopped"}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "api_stop_analysis_failed",
+            analysis_id=analysis_id,
+            error_type=type(e).__name__,
+            error_message=str(e),
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/analyses")
+async def list_analyses():
+    """Get list of all analysis jobs."""
+    try:
+        with _active_analyses_lock:
+            # Create safe copy without controller objects
+            analyses_data = {}
+            for analysis_id, info in active_analyses.items():
+                safe_info = {k: v for k, v in info.items() if k != "controller"}
+                
+                # Add live state if controller available
+                controller = info.get("controller")
+                if controller:
+                    state = controller.get_state()
+                    safe_info.update(state)
+                
+                analyses_data[analysis_id] = safe_info
+        
+        return {"status": "success", "data": analyses_data}
+    
+    except Exception as e:
+        logger.error(
+            "api_list_analyses_failed",
+            error_type=type(e).__name__,
+            error_message=str(e),
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/analysis/modules")
+async def list_analysis_modules():
+    """List all available analysis modules."""
+    try:
+        controller = AnalysisController(config_service=EnvConfigService())
+        modules = controller.list_available_modules()
+        return {"status": "success", "data": modules}
+    
+    except Exception as e:
+        logger.error(
+            "api_list_modules_failed",
+            error_type=type(e).__name__,
+            error_message=str(e),
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/analysis/modules/{module_name}")
+async def get_module_info_endpoint(module_name: str):
+    """Get detailed information about a specific analysis module."""
+    try:
+        controller = AnalysisController(config_service=EnvConfigService())
+        info = controller.get_module_info(module_name)
+        return {"status": "success", "data": info}
+    
+    except Exception as e:
+        logger.error(
+            "api_get_module_info_failed",
+            module_name=module_name,
+            error_type=type(e).__name__,
+            error_message=str(e),
         )
         raise HTTPException(status_code=500, detail=str(e))
 
