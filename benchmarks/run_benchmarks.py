@@ -11,12 +11,14 @@ from benchmarks.core.registry import REGISTRY
 from benchmarks.core.runner import Runner
 from benchmarks.core.spec import load_spec
 from benchmarks.core.sweep import SweepRunner
+from benchmarks.core.compare import compare_results
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run benchmark/profile experiments")
     parser.add_argument("--spec", type=str, help="Path to YAML/JSON spec file")
     parser.add_argument("--list", action="store_true", help="List available experiments and exit")
+    parser.add_argument("--compare", nargs=2, metavar=("A.json", "B.json"), help="Compare two run result JSON files and print Markdown")
     return parser.parse_args()
 
 
@@ -34,6 +36,12 @@ def main() -> int:
     args = parse_args()
     if args.list:
         return cmd_list()
+
+    if args.compare:
+        a_path, b_path = args.compare
+        md = compare_results(a_path, b_path)
+        print(md)
+        return 0
 
     if not args.spec:
         print("Error: --spec is required (or use --list)")

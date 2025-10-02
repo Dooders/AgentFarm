@@ -1,23 +1,21 @@
-# AgentFarm Benchmarks
+# AgentFarm Benchmarks (Spec-driven)
 
-This directory contains a framework for creating, running, and analyzing benchmarks for the AgentFarm system.
+This directory contains a spec-driven framework for creating, running, and analyzing benchmarks and profiles for the AgentFarm system.
 
 ## Directory Structure
 
-- `base/`: Base classes for benchmarks
-  - `benchmark.py`: Abstract base class for all benchmarks
-  - `runner.py`: Class for running benchmarks
-  - `results.py`: Class for storing and analyzing benchmark results
-- `implementations/`: Concrete benchmark implementations
-  - `memory_db_benchmark.py`: Benchmark for comparing disk-based and in-memory databases
-- `results/`: Directory for storing benchmark results
-- `utils/`: Utility functions for benchmarks
-  - `visualization.py`: Functions for visualizing benchmark results
-  - `statistics.py`: Functions for statistical analysis of benchmark results
-  - `config_helper.py`: Helper functions for configuring simulations
-- `examples/`: Example scripts for using the benchmark framework
-  - `run_with_recommended_config.py`: Example of running a simulation with the recommended configuration
-- `run_benchmarks.py`: Main script for running benchmarks
+- `core/`: Core framework
+  - `experiments.py`: Experiment API and context
+  - `registry.py`: Experiment registry and discovery
+  - `runner.py`: Runner orchestration (iterations, instruments, reports)
+  - `results.py`: Result schema with env/VCS capture
+  - `spec.py`: YAML/JSON spec loader
+  - `sweep.py`: SweepRunner for parameter grids
+  - `reporting/markdown.py`: Markdown report generators
+  - `instrumentation/`: timing, cProfile, psutil
+- `implementations/`: Concrete experiments (e.g., `observation_flow_experiment.py`)
+- `run_benchmarks.py`: Spec-driven CLI
+- `specs/`: Example specs (single-run, sweep)
 
 ## Recommended Configuration for Post-Simulation Analysis
 
@@ -48,24 +46,22 @@ config = get_recommended_config(num_agents=30, num_steps=100)
 
 ## Usage
 
-### Running Benchmarks
-
-To run all available benchmarks with default parameters:
+### List available experiments
 
 ```bash
-python -m benchmarks.run_benchmarks
+python -m benchmarks.run_benchmarks --list
 ```
 
-To run a specific benchmark:
+### Run a single experiment (from spec)
 
 ```bash
-python -m benchmarks.run_benchmarks --benchmark memory_db
+python -m benchmarks.run_benchmarks --spec benchmarks/specs/observation_baseline.yaml
 ```
 
-To customize benchmark parameters:
+### Run a sweep (cartesian)
 
 ```bash
-python -m benchmarks.run_benchmarks --benchmark memory_db --steps 200 --agents 50 --iterations 5
+python -m benchmarks.run_benchmarks --spec benchmarks/specs/observation_sweep.yaml
 ```
 
 ### Running a Simulation with Recommended Configuration
@@ -82,77 +78,23 @@ You can customize the simulation parameters:
 python -m benchmarks.examples.run_with_recommended_config --steps 200 --agents 50 --output my_simulation_results
 ```
 
-### Creating a New Benchmark
+### Creating a New Experiment
 
-To create a new benchmark, follow these steps:
+1. Create a new file in `benchmarks/implementations/`, subclass `Experiment`, implement `setup/execute_once/teardown`.
+2. Register with a slug using `@register_experiment("your_slug")`.
+3. Provide a simple `param_schema` for defaults/validation.
+4. Add a spec in `benchmarks/specs/` to run it.
 
-1. Create a new Python file in the `implementations/` directory
-2. Define a class that inherits from `Benchmark`
-3. Implement the required methods: `setup()`, `run()`, and `cleanup()`
-4. Register the benchmark in `run_benchmarks.py`
+### Comparing two runs (A/B)
 
-Example:
-
-```python
-from benchmarks.base.benchmark import Benchmark
-
-class MyBenchmark(Benchmark):
-    def __init__(self, param1=10, param2=20, parameters=None):
-        super().__init__(
-            name="my_benchmark",
-            description="My custom benchmark",
-            parameters=parameters or {},
-        )
-        
-        self.parameters.update({
-            "param1": param1,
-            "param2": param2,
-        })
-    
-    def setup(self):
-        # Set up the benchmark environment
-        pass
-    
-    def run(self):
-        # Run the benchmark
-        # Return a dictionary of results
-        return {"result1": 1.0, "result2": 2.0}
-    
-    def cleanup(self):
-        # Clean up after the benchmark
-        pass
-```
-
-### Analyzing Benchmark Results
-
-The `BenchmarkResults` class provides methods for analyzing benchmark results:
-
-```python
-from benchmarks.base.runner import BenchmarkRunner
-
-# Load results from a file
-runner = BenchmarkRunner()
-results = runner.load_results("benchmarks/results/my_benchmark_20250101_120000.json")
-
-# Get summary statistics
-summary = results.get_summary()
-print(f"Mean duration: {summary['mean_duration']:.2f} seconds")
-
-# Plot durations
-results.plot_durations()
-
-# Compare with another benchmark
-other_results = runner.load_results("benchmarks/results/other_benchmark_20250101_120000.json")
-results.compare_with(other_results)
+```bash
+python -m benchmarks.run_benchmarks --compare path/to/A.json path/to/B.json
 ```
 
 ## Extending the Framework
 
-The benchmark framework is designed to be extensible. You can add new functionality by:
-
-1. Adding new methods to the base classes
-2. Creating new utility functions
-3. Implementing new benchmark types
+- Add new instruments by implementing a context manager and wiring it in `Runner`.
+- Add new reporters by consuming `RunResult` and generating artifacts.
 
 ## License
 
