@@ -11,13 +11,15 @@ from typing import Any, Dict, List, Optional
 
 import redis
 
-from benchmarks.base.benchmark import Benchmark
+from benchmarks.core.experiments import Experiment, ExperimentContext
+from benchmarks.core.registry import register_experiment
 from farm.core.perception import PerceptionData
 from farm.core.state import AgentState
 from farm.memory.redis_memory import AgentMemory, AgentMemoryManager, RedisMemoryConfig
 
 
-class RedisMemoryBenchmark(Benchmark):
+@register_experiment("redis_memory")
+class RedisMemoryBenchmark(Experiment):
     """
     Benchmark for the Redis-backed agent memory system.
 
@@ -64,11 +66,7 @@ class RedisMemoryBenchmark(Benchmark):
         parameters : Dict[str, Any], optional
             Additional parameters for the benchmark
         """
-        super().__init__(
-            name="redis_memory",
-            description="Benchmark for Redis-backed agent memory system",
-            parameters=parameters or {},
-        )
+        super().__init__(parameters or {})
 
         # Set benchmark-specific parameters
         self.parameters.update(
@@ -90,11 +88,11 @@ class RedisMemoryBenchmark(Benchmark):
         self.redis_client = None
         self.test_data = []
 
-    def setup(self) -> None:
+    def setup(self, context: ExperimentContext) -> None:
         """
         Set up the benchmark environment.
         """
-        # Create Redis configuration
+        # Create Redis configuration with benchmark-specific settings
         redis_config = RedisMemoryConfig(
             host="localhost",
             port=6379,
@@ -102,31 +100,31 @@ class RedisMemoryBenchmark(Benchmark):
             memory_limit=self.parameters["memory_limit"],
             ttl=self.parameters["ttl"],
             cleanup_interval=self.parameters["cleanup_interval"],
-            namespace=f"agent_memory_benchmark_{int(time.time())}",
+            namespace=f"agent_memory_benchmark_{int(time.time())}",  # Unique namespace per run
         )
 
-        # Initialize Redis client (force synchronous mode)
+        # Initialize Redis client with synchronous mode for consistent benchmarking
         redis_config.connection_params["decode_responses"] = True
         self.redis_client = redis.Redis(**redis_config.connection_params)
 
         try:
-            # Test connection
+            # Verify Redis connection is available
             self.redis_client.ping()
         except redis.ConnectionError:
             print("WARNING: Could not connect to Redis server. Is it running?")
             print("Starting a local Redis server for benchmarking...")
-            # For real implementation, you might want to handle this differently
+            # Note: In production, you might want to start Redis automatically or fail gracefully
 
-        # Create memory manager
+        # Initialize memory manager singleton
         self.memory_manager = AgentMemoryManager.get_instance(redis_config)
 
-        # Create agent IDs and memories
+        # Create agent IDs and corresponding memory instances
         self.agent_ids = [f"agent_{i}" for i in range(self.parameters["num_agents"])]
         self.memories = [
             self.memory_manager.get_memory(agent_id) for agent_id in self.agent_ids
         ]
 
-        # Generate test data
+        # Generate synthetic test data for benchmarking
         self._generate_test_data()
 
     def _generate_test_data(self) -> None:
@@ -135,7 +133,7 @@ class RedisMemoryBenchmark(Benchmark):
 
         self.test_data = []
         for step in range(num_entries):
-            # Create a test state with all required parameters
+            # Create realistic agent state with randomized values
             state = AgentState(
                 agent_id=f"agent_{step}",
                 step_number=step,
@@ -149,13 +147,15 @@ class RedisMemoryBenchmark(Benchmark):
                 age=random.randint(0, 100),
             )
 
-            # Create test perception data with numpy array
+            # Create synthetic perception data (11x11 observation grid)
             import numpy as np
 
-            perception_grid = np.zeros((11, 11), dtype=np.int8)  # 11x11 grid
+            perception_grid = np.zeros(
+                (11, 11), dtype=np.int8
+            )  # Standard observation size
             perception = PerceptionData(grid=perception_grid)
 
-            # Create test metadata
+            # Create realistic metadata for memory entries
             metadata = {
                 "test_id": "".join(
                     random.choice(string.ascii_letters) for _ in range(10)
@@ -163,7 +163,7 @@ class RedisMemoryBenchmark(Benchmark):
                 "importance": random.uniform(0, 1),
             }
 
-            # Create test action
+            # Select random action from common agent behaviors
             actions = [
                 "move",
                 "eat",
@@ -176,7 +176,7 @@ class RedisMemoryBenchmark(Benchmark):
             ]
             action = random.choice(actions)
 
-            # Create test reward
+            # Generate reward value (can be positive or negative)
             reward = random.uniform(-1, 1)
 
             self.test_data.append(
@@ -191,7 +191,7 @@ class RedisMemoryBenchmark(Benchmark):
                 }
             )
 
-    def run(self) -> Dict[str, Any]:
+    def execute_once(self, context: ExperimentContext) -> Dict[str, Any]:
         """
         Run the benchmark.
 
@@ -233,7 +233,25 @@ class RedisMemoryBenchmark(Benchmark):
         return results
 
     def _benchmark_writes(self) -> Dict[str, Any]:
-        """Benchmark memory write operations."""
+        """
+        Benchmark memory write operations performance.
+
+        Measures the throughput and latency of individual memory write operations
+        by timing remember_state() calls. Includes warmup iterations and calculates
+        comprehensive statistics including percentiles.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing:
+            - total_operations: Number of write operations performed
+            - total_time: Total time for all operations (seconds)
+            - iterations_per_second: Write throughput (ops/sec)
+            - avg_operation_time: Average time per operation (seconds)
+            - min/max_operation_time: Min/max operation times (seconds)
+            - std_operation_time: Standard deviation of operation times
+            - percentiles: Dictionary with p50, p90, p95, p99 percentiles
+        """
         print("Benchmarking memory writes...")
 
         durations = []
@@ -403,7 +421,27 @@ class RedisMemoryBenchmark(Benchmark):
         }
 
     def _benchmark_batch_operations(self) -> Dict[str, Any]:
-        """Benchmark batch operations."""
+        """
+        Benchmark Redis pipeline batch operations performance.
+
+        Tests the performance of batched Redis operations using pipelines,
+        which can significantly improve throughput by reducing network round-trips.
+        Compares batch performance against individual operations.
+
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary containing:
+            - total_operations: Total number of operations in all batches
+            - total_batches: Number of batches processed
+            - batch_size: Size of each batch
+            - operations_per_second: Overall throughput (ops/sec)
+            - batches_per_second: Batch processing rate (batches/sec)
+            - avg_batch_time: Average time per batch (seconds)
+            - min/max_batch_time: Min/max batch processing times
+            - std_batch_time: Standard deviation of batch times
+            - percentiles: Performance percentiles for batch times
+        """
         print("Benchmarking batch operations...")
 
         batch_size = self.parameters["batch_size"]
@@ -596,7 +634,7 @@ class RedisMemoryBenchmark(Benchmark):
             "memory_limit": self.parameters["memory_limit"],
         }
 
-    def cleanup(self) -> None:
+    def teardown(self, context: ExperimentContext) -> None:
         """
         Clean up after the benchmark.
         """

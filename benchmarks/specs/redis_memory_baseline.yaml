@@ -1,0 +1,22 @@
+experiment: redis_memory
+params:
+  # Test different Redis configurations
+  redis_configs: ["default", "optimized", "persistent"]
+  # Test different data sizes
+  data_sizes: [1000, 5000, 10000]
+  # Test different operation types
+  operations: ["read", "write", "mixed"]
+  # Number of simulation steps
+  steps: 50
+  # Number of agents
+  num_agents: 100
+iterations:
+  warmup: 1
+  measured: 3
+instrumentation:
+  - timing
+  - psutil
+output_dir: benchmarks/results/redis_memory
+tags: [redis, memory, baseline]
+notes: "Baseline Redis memory system performance"
+seed: 42

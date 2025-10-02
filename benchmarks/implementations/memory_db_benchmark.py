@@ -8,12 +8,14 @@ import tempfile
 import time
 from typing import Any, Dict, Optional
 
-from benchmarks.base.benchmark import Benchmark
+from benchmarks.core.experiments import Experiment, ExperimentContext
+from benchmarks.core.registry import register_experiment
 from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
 
 
-class MemoryDBBenchmark(Benchmark):
+@register_experiment("memory_db")
+class MemoryDBBenchmark(Experiment):
     """
     Benchmark for comparing disk-based and in-memory databases.
 
@@ -43,14 +45,10 @@ class MemoryDBBenchmark(Benchmark):
         parameters : Dict[str, Any], optional
             Additional parameters for the benchmark
         """
-        super().__init__(
-            name="memory_db",
-            description="Benchmark comparing disk-based and in-memory databases",
-            parameters=parameters or {},
-        )
+        super().__init__(parameters or {})
 
         # Set benchmark-specific parameters
-        self.parameters.update(
+        self.params.update(
             {
                 "num_steps": num_steps,
                 "num_agents": num_agents,
@@ -61,7 +59,7 @@ class MemoryDBBenchmark(Benchmark):
         self.temp_dir: Optional[str] = None
         self.config: Optional[SimulationConfig] = None
 
-    def setup(self) -> None:
+    def setup(self, context: ExperimentContext) -> None:
         """
         Set up the benchmark environment.
         """
@@ -75,7 +73,7 @@ class MemoryDBBenchmark(Benchmark):
         self.config.width = 100
         self.config.height = 100
 
-        num_agents = self.parameters["num_agents"]
+        num_agents = self.params["num_agents"]
         self.config.system_agents = num_agents // 3
         self.config.independent_agents = num_agents // 3
         self.config.control_agents = num_agents - (
@@ -83,9 +81,9 @@ class MemoryDBBenchmark(Benchmark):
         )  # Ensure total is num_agents
 
         self.config.initial_resources = 20
-        self.config.simulation_steps = self.parameters["num_steps"]
+        self.config.simulation_steps = self.params["num_steps"]
 
-    def run(self) -> Dict[str, Any]:
+    def execute_once(self, context: ExperimentContext) -> Dict[str, Any]:
         """
         Run the benchmark.
 
@@ -94,7 +92,7 @@ class MemoryDBBenchmark(Benchmark):
         Dict[str, Any]
             Raw results from the benchmark run
         """
-        num_steps = self.parameters["num_steps"]
+        num_steps = self.params["num_steps"]
 
         # Results storage
         disk_times = []
@@ -206,7 +204,7 @@ class MemoryDBBenchmark(Benchmark):
             "disk_to_memory_persist_speedup": disk_to_memory_persist_speedup,
         }
 
-    def cleanup(self) -> None:
+    def teardown(self, context: ExperimentContext) -> None:
         """
         Clean up after the benchmark.
         """

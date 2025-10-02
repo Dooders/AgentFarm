@@ -1,0 +1,29 @@
+experiment: spatial_performance_analyzer
+params:
+  # Test different spatial indexing algorithms
+  algorithms: ["quadtree", "spatial_hash", "kd_tree"]
+  # Test different agent counts
+  agent_counts: [100, 500, 1000, 2000, 5000]
+  # Test different world sizes
+  world_sizes: [100, 200, 500, 1000]
+  # Test different query patterns
+  query_patterns: ["uniform", "clustered", "linear", "random"]
+  # Test different query radii
+  query_radii: [10, 20, 50, 100]
+  # Number of simulation steps
+  steps: 200
+  # Performance analysis options
+  analyze_complexity: true
+  analyze_scalability: true
+  analyze_memory_efficiency: true
+iterations:
+  warmup: 1
+  measured: 3
+instrumentation:
+  - timing
+  - psutil
+  - cprofile
+output_dir: benchmarks/results/spatial_performance_analysis
+tags: [spatial, performance, analysis, baseline]
+notes: "Comprehensive spatial indexing performance analysis baseline"
+seed: 42

@@ -1,0 +1,25 @@
+experiment: system_profiler
+params:
+  # Test different system resource monitoring
+  monitor_cpu: true
+  monitor_memory: true
+  monitor_disk: true
+  monitor_network: false
+  # Test different sampling intervals
+  sampling_interval: 1.0
+  # Test different simulation configurations
+  num_agents: 200
+  steps: 150
+  # Test different database configurations
+  use_in_memory_db: true
+  persist_db_on_completion: false
+iterations:
+  warmup: 1
+  measured: 2
+instrumentation:
+  - timing
+  - psutil
+output_dir: benchmarks/results/system_profiling
+tags: [system, profiling, baseline]
+notes: "System resource profiling baseline"
+seed: 42

@@ -1,0 +1,21 @@
+experiment: observation_flow
+params:
+  width: 200
+  height: 200
+  steps: 50
+  num_agents: 100
+  radius: 6
+  fov_radius: 6
+  device: cpu
+iterations:
+  warmup: 1
+  measured: 2
+instrumentation:
+  - timing
+  - cprofile
+  - psutil
+output_dir: benchmarks/results
+tags: [perception, baseline]
+notes: "Baseline CPU observation throughput"
+seed: 42
+

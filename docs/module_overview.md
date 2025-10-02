@@ -379,9 +379,16 @@ Simulation data is stored in SQLite with tables for:
 - Configurable observation radii
 
 ### Benchmarking
-AgentFarm includes benchmarking tools to measure performance:
+AgentFarm includes a spec-driven benchmarking suite:
 ```bash
-python benchmarks/run_benchmarks.py --environment production --profile benchmark
+# List available experiments
+python -m benchmarks.run_benchmarks --list
+
+# Run a single experiment from spec
+python -m benchmarks.run_benchmarks --spec benchmarks/specs/observation_baseline.yaml
+
+# Run a sweep
+python -m benchmarks.run_benchmarks --spec benchmarks/specs/observation_sweep.yaml
 ```
 
 ## Integration with Reinforcement Learning

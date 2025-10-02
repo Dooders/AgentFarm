@@ -25,8 +25,6 @@ import seaborn as sns
 from matplotlib.patches import Rectangle
 from matplotlib.colors import LinearSegmentedColormap
 
-# Add project root to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 # Set style for better-looking plots
 try:
