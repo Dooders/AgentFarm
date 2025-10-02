@@ -8,7 +8,7 @@ echo ""
 
 # Check for running profiling processes
 echo "## Running Processes"
-PROCS=$(ps aux | grep -E 'python[0-9\.]* .*run_simulation\.py|python[0-9\.]* .*profiling\.py' | grep -v grep)
+PROCS=$(ps aux | grep -E 'python([0-9]+(\.[0-9]+)*)? .*run_simulation\.py|python([0-9]+(\.[0-9]+)*)? .*profiling\.py' | grep -v grep)
 if [ -z "$PROCS" ]; then
     echo "✓ No active profiling processes"
 else

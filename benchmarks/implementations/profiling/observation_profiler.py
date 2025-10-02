@@ -258,7 +258,7 @@ class ObservationProfiler:
                 "nearest_points": 0,
             }
         else:
-            print("Warning: Environment does not support perception profile reset. Profiling may be inaccurate.")
+            print("Warning: Environment does not support perception profile reset. Accumulated timing data may include results from previous profiling runs.")
         
         # Generate observations (accumulates profile data)
         total_start = time.perf_counter()

@@ -131,7 +131,7 @@ class SpatialIndexProfiler:
             
             results[f"nearby_{num_queries}"] = {
                 "total_time": query_time,
-                "per_query": query_time / num_queries,
+                "per_query": (query_time / num_queries) if num_queries > 0 else 0,
                 "queries_per_second": num_queries / query_time if query_time > 0 else 0,
             }
             
@@ -155,7 +155,7 @@ class SpatialIndexProfiler:
             
             results[f"nearest_{num_queries}"] = {
                 "total_time": query_time,
-                "per_query": query_time / num_queries,
+                "per_query": (query_time / num_queries) if num_queries > 0 else 0,
                 "queries_per_second": num_queries / query_time if query_time > 0 else 0,
             }
             
@@ -256,13 +256,13 @@ class SpatialIndexProfiler:
                 if hasattr(spatial_index, "enable_quadtree_indices"):
                     spatial_index.enable_quadtree_indices()
                 else:
-                    print(f"  Warning: SpatialIndex does not have enable_quadtree_indices(), skipping")
+                    print(f"  Warning: SpatialIndex does not have enable_quadtree_indices, skipping")
                     continue
             if enable_hash:
                 if hasattr(spatial_index, "enable_spatial_hash_indices"):
                     spatial_index.enable_spatial_hash_indices(cell_size=50.0)
                 else:
-                    print(f"  Warning: SpatialIndex does not have enable_spatial_hash_indices(), skipping")
+                    print(f"  Warning: SpatialIndex does not have enable_spatial_hash_indices, skipping")
                     continue
             
             spatial_index.set_references(agents, resources)
