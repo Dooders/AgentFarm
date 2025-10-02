@@ -36,10 +36,10 @@ def create_simulation():
     """Create a new simulation with provided configuration."""
     try:
         config_data = request.json or {}
-        
+
         # Generate unique simulation ID
         sim_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
+
         logger.info(
             "api_simulation_create_request",
             simulation_id=sim_id,
@@ -53,18 +53,6 @@ def create_simulation():
 
         # Create database
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
-
-        # Run simulation with progress updates
-        def progress_callback(step, total_steps):
-            socketio.emit(
-                "simulation_progress",
-                {
-                    "sim_id": sim_id,
-                    "step": step,
-                    "total_steps": total_steps,
-                    "percentage": (step / total_steps) * 100,
-                },
-            )
 
         # Run simulation
         run_simulation(
@@ -96,7 +84,7 @@ def create_simulation():
     except Exception as e:
         logger.error(
             "api_simulation_create_failed",
-            simulation_id=sim_id if 'sim_id' in locals() else "unknown",
+            simulation_id=sim_id if "sim_id" in locals() else "unknown",
             error_type=type(e).__name__,
             error_message=str(e),
             exc_info=True,
@@ -168,12 +156,16 @@ def run_analysis_module(module_name):
             processor_kwargs=processor_kwargs,
             analysis_kwargs=analysis_kwargs,
         )
-        output_dir, df = service.run(req)
+        result = service.run(req)
         return jsonify(
             {
                 "status": "success",
-                "output_path": output_dir,
-                "rows": int(df.shape[0]) if df is not None else 0,
+                "output_path": str(result.output_path),
+                "rows": (
+                    int(result.dataframe.shape[0])
+                    if result.dataframe is not None
+                    else 0
+                ),
             }
         )
     except Exception as e:
