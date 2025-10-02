@@ -524,7 +524,7 @@ class DatabaseProfiler:
         # Prepare data for JSON serialization
         json_data = {"timestamp": self.timestamp.isoformat(), "results": self.results}
 
-        with open(filepath, "w") as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             json.dump(json_data, f, indent=2)
 
         print(f"Results saved to JSON: {filepath}")
@@ -540,7 +540,7 @@ class DatabaseProfiler:
             filename = f"insert_patterns_{timestamp_str}.csv"
             filepath = self.results_dir / filename
 
-            with open(filepath, "w", newline="") as f:
+            with open(filepath, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
                 writer.writerow(
                     [
@@ -575,7 +575,7 @@ class DatabaseProfiler:
             filename = f"buffer_sizes_{timestamp_str}.csv"
             filepath = self.results_dir / filename
 
-            with open(filepath, "w", newline="") as f:
+            with open(filepath, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
                 writer.writerow(
                     [
@@ -605,7 +605,7 @@ class DatabaseProfiler:
             filename = f"memory_vs_disk_{timestamp_str}.csv"
             filepath = self.results_dir / filename
 
-            with open(filepath, "w", newline="") as f:
+            with open(filepath, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
                 writer.writerow(
                     ["database_type", "total_time_ms", "inserts_per_second", "speedup"]
@@ -637,7 +637,7 @@ class DatabaseProfiler:
             filename = f"flush_frequency_{timestamp_str}.csv"
             filepath = self.results_dir / filename
 
-            with open(filepath, "w", newline="") as f:
+            with open(filepath, "w", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
                 writer.writerow(
                     [
@@ -671,7 +671,7 @@ class DatabaseProfiler:
         filename = f"database_profiling_summary_{timestamp_str}.txt"
         filepath = self.results_dir / filename
 
-        with open(filepath, "w") as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             f.write("=" * 60 + "\n")
             f.write("Database Logging Profiling Report\n")
             f.write(f"Generated: {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}\n")
@@ -757,7 +757,7 @@ class DatabaseProfiler:
         recent_results = []
         for json_file in json_files[:num_recent]:
             try:
-                with open(json_file, "r") as f:
+                with open(json_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     recent_results.append(
                         {
@@ -779,7 +779,7 @@ class DatabaseProfiler:
             / f"comparison_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
         )
 
-        with open(comparison_file, "w") as f:
+        with open(comparison_file, "w", encoding="utf-8") as f:
             f.write("=" * 80 + "\n")
             f.write("Database Profiling Results Comparison\n")
             f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
@@ -938,7 +938,7 @@ def main():
         summary_file = profiler.save_summary_report()
 
         print("\nDatabase profiling complete!")
-        print(f"  Results saved in profiler.results")
+        print("  Results saved in profiler.results")
         print(f"  JSON file: {json_file}")
         print(f"  CSV files: {len(csv_files)} files")
         print(f"  Summary: {summary_file}")
