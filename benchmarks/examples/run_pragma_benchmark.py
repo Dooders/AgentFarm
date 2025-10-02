@@ -55,23 +55,33 @@ def parse_args():
     return parser.parse_args()
 
 
-def visualize_results(results):
+def visualize_results(results, output_dir: str = "figures"):
     """
     Visualize benchmark results.
 
     Parameters
     ----------
-    results : BenchmarkResults
+    results : RunResult or legacy BenchmarkResults
         Benchmark results to visualize
+    output_dir : str
+        Directory to save visualization figures
     """
     try:
-        # Get raw results from the last iteration
-        if not results.iteration_results:
-            print("No results to visualize")
-            return
-
-        # Get the raw results from the last iteration
-        raw_data = results.iteration_results[-1]["results"]
+        # Handle both new RunResult and legacy BenchmarkResults structures
+        if hasattr(results, 'iteration_metrics'):
+            # New RunResult structure
+            if not results.iteration_metrics:
+                print("No results to visualize")
+                return
+            # Get the raw results from the last iteration
+            raw_data = results.iteration_metrics[-1].metrics
+        else:
+            # Legacy BenchmarkResults structure
+            if not results.iteration_results:
+                print("No results to visualize")
+                return
+            # Get the raw results from the last iteration
+            raw_data = results.iteration_results[-1]["results"]
 
         if not raw_data or not raw_data.get("raw_results"):
             print("No results to visualize")
@@ -290,11 +300,11 @@ def visualize_results(results):
         plt.tight_layout(rect=(0, 0.03, 1, 0.95))
 
         # Save figure
-        output_dir = os.path.join(args.output, "figures")
-        os.makedirs(output_dir, exist_ok=True)
+        figures_dir = os.path.join(output_dir, "figures")
+        os.makedirs(figures_dir, exist_ok=True)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = os.path.join(output_dir, f"pragma_benchmark_{timestamp}.png")
+        filename = os.path.join(figures_dir, f"pragma_benchmark_{timestamp}.png")
         plt.savefig(filename, dpi=300)
 
         print(f"Visualization saved to {filename}")
@@ -311,7 +321,6 @@ def visualize_results(results):
 
 def main():
     """Run the pragma profile benchmark with visualization."""
-    global args
     args = parse_args()
 
     # Create output directory
@@ -346,13 +355,8 @@ def main():
 
     # Check if we have valid results before visualizing
     if run_result.iteration_metrics:
-        # Visualize results
-        # Adapt: visualization expects legacy structure; best-effort using last metrics
-        class _Legacy:
-            def __init__(self, parameters, iteration_results):
-                self.parameters = parameters
-                self.iteration_results = [{"results": iteration_results[-1].metrics}] if iteration_results else []
-        visualize_results(_Legacy(run_result.parameters, run_result.iteration_metrics))
+        # Visualize results using the new RunResult structure directly
+        visualize_results(run_result, args.output)
     else:
         print("No valid benchmark results to visualize.")
 

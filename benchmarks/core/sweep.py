@@ -5,6 +5,7 @@ SweepRunner: expands parameter sweeps and runs multiple experiments.
 """
 
 import itertools
+import logging
 import os
 import random
 from typing import Any, Dict, Iterable, List, Tuple
@@ -73,8 +74,10 @@ class SweepRunner:
         # Write sweep report to top-level output dir
         try:
             write_sweep_report(results, self.output_dir, title=f"{self.experiment_slug} Sweep Summary")
-        except Exception:
-            pass
+        except (OSError, IOError) as e:
+            logging.warning(f"Failed to write sweep report: {e}")
+        except Exception as e:
+            logging.error(f"Unexpected error writing sweep report: {e}")
         return results
 
     def run_random(self, sweep_space: Dict[str, List[Any]], samples: int) -> List[RunResult]:

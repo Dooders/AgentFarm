@@ -4,6 +4,7 @@ from __future__ import annotations
 Runner implementation orchestrating experiment execution.
 """
 
+import logging
 import os
 import random
 import string
@@ -155,11 +156,15 @@ class Runner:
                 spec_path = context.extras.get("spec_path") if isinstance(context.extras, dict) else None
                 if spec_path and os.path.exists(spec_path):
                     shutil.copy2(spec_path, os.path.join(self.run_dir, os.path.basename(spec_path)))
-            except Exception:
-                pass
+            except (OSError, IOError, PermissionError) as e:
+                logging.warning(f"Failed to copy spec file: {e}")
+            except Exception as e:
+                logging.error(f"Unexpected error copying spec file: {e}")
             try:
                 write_run_report(result, self.run_dir)
-            except Exception:
-                pass
+            except (OSError, IOError) as e:
+                logging.warning(f"Failed to write run report: {e}")
+            except Exception as e:
+                logging.error(f"Unexpected error writing run report: {e}")
         return result
 

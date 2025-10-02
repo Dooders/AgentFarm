@@ -9,9 +9,10 @@ helper methods for listing and instantiation with parameter validation.
 """
 
 import importlib
+import importlib.util
 import inspect
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Type
 
 from benchmarks.core.experiments import Experiment
@@ -22,8 +23,8 @@ class ExperimentInfo:
     slug: str
     cls: Type[Experiment]
     summary: str = ""
-    tags: List[str] = None  # type: ignore[assignment]
-    param_schema: Dict[str, Any] = None  # type: ignore[assignment]
+    tags: List[str] = field(default_factory=list)
+    param_schema: Dict[str, Any] = field(default_factory=dict)
 
 
 class ExperimentRegistry:
