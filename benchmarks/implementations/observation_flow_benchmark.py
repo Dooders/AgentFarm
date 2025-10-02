@@ -20,12 +20,37 @@ from farm.core.services.implementations import SpatialIndexAdapter
 
 @register_experiment("observation_flow")
 class ObservationFlowBenchmark(Experiment):
-    """Benchmark observation generation throughput and latency.
+    """
+    Benchmark observation generation throughput and latency.
 
-    Measures:
-    - observe() calls per second
-    - per-agent observation latency
-    - end-to-end step loop observation cost (optional)
+    This benchmark measures the performance of the AgentFarm observation system
+    by testing observation generation across multiple agents and simulation steps.
+    It provides comprehensive metrics on observation throughput, latency, and
+    memory efficiency.
+
+    Key Metrics Measured:
+    - observe() calls per second (overall throughput)
+    - per-step observation latency (mean and p95)
+    - Observation memory usage and efficiency
+    - Cache hit rates and rebuild statistics
+    - Estimated computational load (GFLOPs)
+
+    Parameters
+    ----------
+    width : int, default=200
+        Environment width in grid cells
+    height : int, default=200
+        Environment height in grid cells
+    num_agents : int, default=200
+        Number of agents to spawn for testing
+    steps : int, default=100
+        Number of simulation steps to run
+    radius : int, default=6
+        Observation radius for each agent
+    fov_radius : int, default=6
+        Field of view radius for observations
+    device : str, default="cpu"
+        Device for observation computation ("cpu" or "cuda")
     """
 
     def __init__(
@@ -87,18 +112,22 @@ class ObservationFlowBenchmark(Experiment):
         return env
 
     def _spawn_agents(self, env: Environment) -> None:
-        # Simple uniform random placement
-        # Lightweight RNG fallback if numpy is missing
+        """Spawn agents with uniform random placement across the environment."""
+        # Use numpy for better random number generation if available, fallback to standard random
         if np is not None:
-            rng = np.random.default_rng(123)
+            rng = np.random.default_rng(123)  # Fixed seed for reproducibility
             rand_int = lambda low, high: int(rng.integers(low, high))
         else:
             import random
 
-            random.seed(123)
+            random.seed(123)  # Fixed seed for reproducibility
             rand_int = lambda low, high: random.randint(low, high - 1)
+
+        # Clear any existing agents
         self._agents.clear()
         self._agent_ids.clear()
+
+        # Create agents with random positions
         for i in range(self._num_agents):
             x = float(rand_int(0, self._width))
             y = float(rand_int(0, self._height))
@@ -114,7 +143,7 @@ class ObservationFlowBenchmark(Experiment):
             self._agents.append(agent)
             self._agent_ids.append(agent.agent_id)
 
-        # Ensure spatial index reflects new agents
+        # Update spatial index to include all new agents
         env.spatial_index.set_references(
             list(env._agent_objects.values()), env.resources
         )
@@ -130,17 +159,18 @@ class ObservationFlowBenchmark(Experiment):
         assert self._env is not None
         env = self._env
 
-        # Warmup a single observe per agent to populate any lazy caches
+        # Warmup: perform one observation per agent to populate caches and initialize systems
         for agent_id in self._agent_ids:
             _ = env.observe(agent_id)
 
-        # Measure per-step observation for all agents for N steps
+        # Measure observation performance across multiple simulation steps
         total_observes = 0
         t0 = _time.perf_counter()
         per_step_times: list[float] = []
 
         for _ in range(self._steps):
             step_start = _time.perf_counter()
+            # Observe all agents in this step
             for agent_id in self._agent_ids:
                 _ = env.observe(agent_id)
                 total_observes += 1
@@ -165,7 +195,7 @@ class ObservationFlowBenchmark(Experiment):
             else:
                 p95_step = 0.0
 
-        # Collect observation metrics from a sample agent if available
+        # Collect detailed observation metrics from a sample agent
         obs_metrics = {}
         try:
             if self._agent_ids:
@@ -176,7 +206,7 @@ class ObservationFlowBenchmark(Experiment):
         except Exception:
             obs_metrics = {}
 
-        # Collect perception profiling from environment
+        # Collect perception system profiling data
         perc_profile = {}
         try:
             if hasattr(env, "get_perception_profile"):
@@ -184,11 +214,13 @@ class ObservationFlowBenchmark(Experiment):
         except Exception:
             perc_profile = {}
 
-        # Rough GFLOPs estimate for observation tensor construction
-        # Assume ~k operations per cell when rebuilding dense from sparse
-        S = 2 * self._radius + 1
-        C = 13  # default channels
-        k_ops_per_cell = 2.0
+        # Estimate computational load (GFLOPs) for observation tensor construction
+        # This provides insight into the computational complexity of observations
+        S = 2 * self._radius + 1  # Observation grid size (e.g., 13x13 for radius=6)
+        C = 13  # Number of observation channels
+        k_ops_per_cell = (
+            2.0  # Estimated operations per cell during dense reconstruction
+        )
         total_cells = float(C * S * S)
         dense_rebuilds = float(obs_metrics.get("dense_rebuilds", 0))
         gflops_est = (

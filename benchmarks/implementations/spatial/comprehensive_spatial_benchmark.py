@@ -90,7 +90,26 @@ class SpatialBenchmarkConfig:
 
 
 class SpatialBenchmark:
-    """Comprehensive spatial indexing benchmark suite."""
+    """
+    Comprehensive spatial indexing benchmark suite.
+
+    This benchmark suite provides thorough performance testing of spatial indexing
+    implementations, comparing AgentFarm's spatial systems against industry-standard
+    libraries like SciPy and scikit-learn. It tests various scenarios including
+    different entity distributions, query patterns, and scaling characteristics.
+
+    Features:
+    - Multiple spatial indexing strategies (KD-tree, Quadtree, Spatial Hash)
+    - Performance comparison with scipy.spatial, sklearn.neighbors
+    - Memory usage profiling and analysis
+    - Scalability testing with different entity counts
+    - Query pattern analysis (radius, nearest neighbor, range queries)
+    - Batch update performance testing
+    - Distribution pattern impact analysis
+
+    The benchmark generates comprehensive reports with performance recommendations
+    and scaling analysis to help optimize spatial indexing usage.
+    """
 
     def __init__(self, config: SpatialBenchmarkConfig = None):
         self.config = config or SpatialBenchmarkConfig()
@@ -109,22 +128,24 @@ class SpatialBenchmark:
                 entities.append(MockEntity(f"entity_{i}", (x, y)))
 
         elif distribution == "clustered":
-            # Create 5 clusters with 80% of entities
+            # Create 5 clusters to simulate realistic spatial clustering patterns
             cluster_count = max(1, count // 5)
             for cluster in range(5):
+                # Random cluster center (avoiding edges)
                 center_x = random.uniform(100, self.config.world_width - 100)
                 center_y = random.uniform(100, self.config.world_height - 100)
-                cluster_size = random.uniform(50, 150)
+                cluster_size = random.uniform(50, 150)  # Cluster spread radius
 
                 for i in range(cluster_count):
-                    # Gaussian distribution around cluster center
+                    # Generate entities using Gaussian distribution around cluster center
                     x = np.random.normal(center_x, cluster_size)
                     y = np.random.normal(center_y, cluster_size)
+                    # Clamp to world boundaries
                     x = max(0, min(self.config.world_width, x))
                     y = max(0, min(self.config.world_height, y))
                     entities.append(MockEntity(f"entity_{len(entities)}", (x, y)))
 
-            # Add remaining entities uniformly
+            # Fill remaining slots with uniformly distributed entities
             remaining = count - len(entities)
             for i in range(remaining):
                 x = random.uniform(0, self.config.world_width)
@@ -132,28 +153,29 @@ class SpatialBenchmark:
                 entities.append(MockEntity(f"entity_{len(entities)}", (x, y)))
 
         elif distribution == "linear":
-            # Entities along diagonal lines
+            # Create entities along diagonal lines to test linear spatial patterns
             for i in range(count):
                 if i % 2 == 0:
-                    # Main diagonal
+                    # Main diagonal (top-left to bottom-right)
                     t = i / count
                     x = t * self.config.world_width
                     y = t * self.config.world_height
                 else:
-                    # Anti-diagonal
+                    # Anti-diagonal (top-right to bottom-left)
                     t = i / count
                     x = t * self.config.world_width
                     y = (1 - t) * self.config.world_height
                 entities.append(MockEntity(f"entity_{i}", (x, y)))
 
         elif distribution == "sparse":
-            # Very sparse distribution with large gaps
+            # Create very sparse distribution with large gaps between entities
             for i in range(count):
                 x = random.uniform(0, self.config.world_width)
                 y = random.uniform(0, self.config.world_height)
-                # Add some randomness to avoid perfect grid
+                # Add random offset to avoid perfect grid alignment
                 x += random.uniform(-20, 20)
                 y += random.uniform(-20, 20)
+                # Ensure entities stay within world boundaries
                 x = max(0, min(self.config.world_width, x))
                 y = max(0, min(self.config.world_height, y))
                 entities.append(MockEntity(f"entity_{i}", (x, y)))

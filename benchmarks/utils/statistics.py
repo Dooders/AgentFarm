@@ -42,27 +42,27 @@ def calculate_statistics(results: RunResult) -> Dict[str, float]:
             "cv": 0.0,  # coefficient of variation
         }
 
-    # Calculate basic statistics
+    # Calculate basic descriptive statistics
     mean = statistics.mean(durations)
     median = statistics.median(durations)
     min_val = min(durations)
     max_val = max(durations)
 
-    # Calculate more advanced statistics
+    # Calculate measures of variability
     std = statistics.stdev(durations) if len(durations) > 1 else 0.0
     variance = statistics.variance(durations) if len(durations) > 1 else 0.0
     range_val = max_val - min_val
 
-    # Calculate interquartile range (IQR)
+    # Calculate interquartile range (IQR) - measure of statistical dispersion
     if len(durations) >= 4:
         sorted_durations = sorted(durations)
-        q1 = float(np.percentile(sorted_durations, 25))
-        q3 = float(np.percentile(sorted_durations, 75))
+        q1 = float(np.percentile(sorted_durations, 25))  # First quartile
+        q3 = float(np.percentile(sorted_durations, 75))  # Third quartile
         iqr = q3 - q1
     else:
         iqr = 0.0
 
-    # Calculate coefficient of variation (CV)
+    # Calculate coefficient of variation (CV) - relative variability measure
     cv = (std / mean) * 100 if mean > 0 else 0.0
 
     return {
@@ -97,24 +97,24 @@ def compare_statistics(results1: RunResult, results2: RunResult) -> Dict[str, fl
     stats1 = calculate_statistics(results1)
     stats2 = calculate_statistics(results2)
 
-    # Calculate percentage differences
+    # Calculate percentage differences between the two result sets
     comparison = {}
 
     for key in stats1:
         if stats1[key] == 0 and stats2[key] == 0:
             comparison[f"{key}_diff_pct"] = 0.0
         elif stats1[key] == 0:
-            comparison[f"{key}_diff_pct"] = float("inf")
+            comparison[f"{key}_diff_pct"] = float("inf")  # Infinite improvement
         else:
             comparison[f"{key}_diff_pct"] = (
                 (stats2[key] - stats1[key]) / stats1[key]
             ) * 100
 
-    # Add absolute differences
+    # Calculate absolute differences for each metric
     for key in stats1:
         comparison[f"{key}_diff_abs"] = stats2[key] - stats1[key]
 
-    # Add speedup/slowdown factor for mean and median
+    # Calculate speedup/slowdown factors (higher is better for performance)
     if stats1["mean"] > 0:
         comparison["mean_speedup"] = stats1["mean"] / stats2["mean"]
     else:
@@ -134,24 +134,37 @@ def analyze_parameter_impact(
     """
     Analyze the impact of a parameter on benchmark results.
 
+    This function helps identify how different parameter values affect benchmark
+    performance by calculating correlations, finding optimal values, and measuring
+    the improvement potential.
+
     Parameters
     ----------
     results_dict : Dict[Any, RunResult]
         Dictionary mapping parameter values to benchmark results
-    metric : str
-        Metric to analyze (e.g., "mean_duration", "median_duration")
+    metric : str, default="mean_duration"
+        Metric to analyze. Supported values:
+        - "mean_duration": Average execution time across iterations
+        - "median_duration": Median execution time across iterations
 
     Returns
     -------
     Dict[str, Any]
-        Dictionary of analysis results
+        Dictionary containing:
+        - correlation: Pearson correlation coefficient (if parameters are numeric)
+        - min_value: Best (lowest) metric value achieved
+        - max_value: Worst (highest) metric value achieved
+        - min_param: Parameter value that achieved best performance
+        - max_param: Parameter value that achieved worst performance
+        - improvement_pct: Percentage improvement from worst to best
     """
     if not results_dict:
         return {}
 
-    # Extract parameter values and corresponding metric values
+    # Extract parameter values and their corresponding performance metrics
     param_values = list(results_dict.keys())
 
+    # Map metric names to result extraction methods
     if metric == "mean_duration":
         values = [result.get_mean_duration() for result in results_dict.values()]
     elif metric == "median_duration":
@@ -159,19 +172,19 @@ def analyze_parameter_impact(
     else:
         raise ValueError(f"Unknown metric: {metric}")
 
-    # Calculate correlation if parameter values are numeric
+    # Calculate Pearson correlation coefficient if parameters are numeric
     correlation = None
     if all(isinstance(p, (int, float)) for p in param_values):
         if len(param_values) > 1:
             correlation = np.corrcoef(param_values, values)[0, 1]
 
-    # Find minimum and maximum values
+    # Identify optimal parameter values (best and worst performance)
     min_value = min(values)
     max_value = max(values)
-    min_param = param_values[values.index(min_value)]
-    max_param = param_values[values.index(max_value)]
+    min_param = param_values[values.index(min_value)]  # Best parameter value
+    max_param = param_values[values.index(max_value)]  # Worst parameter value
 
-    # Calculate improvement from worst to best
+    # Calculate performance improvement potential
     improvement_pct = (
         ((max_value - min_value) / max_value) * 100 if max_value > 0 else 0.0
     )
