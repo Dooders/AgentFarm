@@ -16,6 +16,7 @@ from benchmarks.core.instrumentation.timing import time_block
 from contextlib import ExitStack
 from benchmarks.core.instrumentation.cprofile import cprofile_capture
 from benchmarks.core.instrumentation.psutil_monitor import psutil_sampling
+from benchmarks.core.reporting.markdown import write_run_report
 
 
 def _random_run_id(n: int = 8) -> str:
@@ -116,5 +117,9 @@ class Runner:
             path = result.save(self.run_dir)
             # Expose saved path in notes for convenience
             result.notes = (result.notes or "") + f"\nSaved to: {path}"
+            try:
+                write_run_report(result, self.run_dir)
+            except Exception:
+                pass
         return result
 

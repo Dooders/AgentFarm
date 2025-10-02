@@ -10,6 +10,7 @@ from typing import Any
 from benchmarks.core.registry import REGISTRY
 from benchmarks.core.runner import Runner
 from benchmarks.core.spec import load_spec
+from benchmarks.core.sweep import SweepRunner
 
 
 def parse_args():
@@ -40,36 +41,55 @@ def main() -> int:
 
     # Load spec and create experiment
     spec = load_spec(args.spec)
-    REGISTRY.discover_package("benchmarks.implementations")
-    experiment = REGISTRY.create(spec.experiment, spec.params)
-
-    runner = Runner(
-        name=spec.experiment,
-        experiment=experiment,
-        output_dir=spec.output_dir,
-        iterations_warmup=spec.iterations["warmup"],
-        iterations_measured=spec.iterations["measured"],
-        seed=spec.seed,
-        tags=spec.tags,
-        notes=spec.notes,
-        instruments=spec.instrumentation,
-    )
-
-    result = runner.run()
-
-    # Print concise summary
-    print("\nRun complete:")
-    print(f"  Experiment: {result.name}")
-    print(f"  Run ID: {result.run_id}")
-    if "duration_s" in result.metrics:
-        m = result.metrics["duration_s"]
-        print(f"  Duration (s): mean={m.get('mean', 0):.4f}, p50={m.get('p50', 0):.4f}, p95={m.get('p95', 0):.4f}")
-    if result.iteration_metrics:
-        last = result.iteration_metrics[-1].metrics
-        if "observes_per_sec" in last:
-            print(f"  Observes/sec (last): {float(last['observes_per_sec']):.1f}")
-    print(f"  Output dir: {runner.run_dir}")
-    return 0
+    if spec.sweep:
+        sweeper = SweepRunner(
+            experiment_slug=spec.experiment,
+            base_params=spec.params,
+            output_dir=spec.output_dir,
+            iterations_warmup=spec.iterations["warmup"],
+            iterations_measured=spec.iterations["measured"],
+            seed=spec.seed,
+            tags=spec.tags,
+            notes=spec.notes,
+            instruments=spec.instrumentation,
+        )
+        results = sweeper.run_cartesian(spec.sweep)
+        print(f"\nSweep complete: {len(results)} runs")
+        for r in results:
+            line = f"  {r.run_id}"
+            if "duration_s" in r.metrics:
+                m = r.metrics["duration_s"]
+                line += f"  mean={m.get('mean', 0):.4f}s p95={m.get('p95', 0):.4f}s"
+            print(line)
+        print(f"  Output dir: {spec.output_dir}")
+        return 0
+    else:
+        REGISTRY.discover_package("benchmarks.implementations")
+        experiment = REGISTRY.create(spec.experiment, spec.params)
+        runner = Runner(
+            name=spec.experiment,
+            experiment=experiment,
+            output_dir=spec.output_dir,
+            iterations_warmup=spec.iterations["warmup"],
+            iterations_measured=spec.iterations["measured"],
+            seed=spec.seed,
+            tags=spec.tags,
+            notes=spec.notes,
+            instruments=spec.instrumentation,
+        )
+        result = runner.run()
+        print("\nRun complete:")
+        print(f"  Experiment: {result.name}")
+        print(f"  Run ID: {result.run_id}")
+        if "duration_s" in result.metrics:
+            m = result.metrics["duration_s"]
+            print(f"  Duration (s): mean={m.get('mean', 0):.4f}, p50={m.get('p50', 0):.4f}, p95={m.get('p95', 0):.4f}")
+        if result.iteration_metrics:
+            last = result.iteration_metrics[-1].metrics
+            if "observes_per_sec" in last:
+                print(f"  Observes/sec (last): {float(last['observes_per_sec']):.1f}")
+        print(f"  Output dir: {runner.run_dir}")
+        return 0
 
 
 if __name__ == "__main__":
