@@ -1,0 +1,23 @@
+experiment: spatial_comprehensive
+params:
+  # Test different spatial indexing algorithms
+  algorithms: ["quadtree", "spatial_hash", "kd_tree"]
+  # Test different agent counts
+  agent_counts: [100, 500, 1000, 2000]
+  # Test different world sizes
+  world_sizes: [100, 200, 500]
+  # Test different query radii
+  query_radii: [10, 20, 50]
+  # Number of simulation steps
+  steps: 100
+iterations:
+  warmup: 1
+  measured: 3
+instrumentation:
+  - timing
+  - psutil
+  - cprofile
+output_dir: benchmarks/results/spatial_comprehensive
+tags: [spatial, indexing, baseline]
+notes: "Comprehensive spatial indexing performance baseline"
+seed: 42

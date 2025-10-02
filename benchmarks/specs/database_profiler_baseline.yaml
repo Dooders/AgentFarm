@@ -1,0 +1,24 @@
+experiment: database_profiler
+params:
+  # Test different database operations
+  operations: ["insert", "query", "update", "delete", "mixed"]
+  # Test different batch sizes
+  batch_sizes: [100, 500, 1000, 5000]
+  # Test different database configurations
+  use_in_memory_db: true
+  persist_db_on_completion: false
+  # Test different pragma profiles
+  pragma_profile: "balanced"
+  # Number of records to test with
+  num_records: 10000
+iterations:
+  warmup: 1
+  measured: 3
+instrumentation:
+  - timing
+  - psutil
+  - cprofile
+output_dir: benchmarks/results/database_profiling
+tags: [database, profiling, baseline]
+notes: "Database operation profiling baseline"
+seed: 42

@@ -1,0 +1,26 @@
+experiment: spatial_memory_profiler
+params:
+  # Test different spatial indexing algorithms
+  algorithms: ["quadtree", "spatial_hash", "kd_tree"]
+  # Test different agent counts
+  agent_counts: [100, 500, 1000, 2000]
+  # Test different world sizes
+  world_sizes: [100, 200, 500]
+  # Test different data structures
+  data_structures: ["list", "dict", "numpy_array"]
+  # Number of simulation steps
+  steps: 100
+  # Memory profiling options
+  track_memory_usage: true
+  track_garbage_collection: true
+iterations:
+  warmup: 1
+  measured: 3
+instrumentation:
+  - timing
+  - psutil
+  - cprofile
+output_dir: benchmarks/results/spatial_memory_profiling
+tags: [spatial, memory, profiling, baseline]
+notes: "Spatial indexing memory usage profiling baseline"
+seed: 42

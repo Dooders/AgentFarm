@@ -1,0 +1,24 @@
+experiment: perception_metrics
+params:
+  # Test different agent counts
+  agent_counts: [100, 500, 1000]
+  # Test different observation radii
+  radii: [5, 8, 10]
+  # Test different storage modes
+  storage_modes: ["hybrid", "dense"]
+  # Test bilinear vs nearest neighbor interpolation
+  use_bilinear_list: [true, false]
+  # Simulation steps
+  steps: 20
+  # Device (cpu/gpu)
+  device: "cpu"
+iterations:
+  warmup: 1
+  measured: 3
+instrumentation:
+  - timing
+  - psutil
+output_dir: benchmarks/results/perception_metrics
+tags: [perception, observations, baseline]
+notes: "Baseline perception metrics performance across different configurations"
+seed: 42
