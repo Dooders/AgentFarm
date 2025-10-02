@@ -12,6 +12,8 @@ iterations:
   measured: 2
 instrumentation:
   - timing
+  - cprofile
+  - psutil
 output_dir: benchmarks/results
 tags: [perception, baseline]
 notes: "Baseline CPU observation throughput"

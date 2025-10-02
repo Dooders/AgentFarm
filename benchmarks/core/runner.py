@@ -13,6 +13,9 @@ from typing import Any, Dict, List, Optional
 from benchmarks.core.experiments import Experiment, ExperimentContext
 from benchmarks.core.results import RunResult
 from benchmarks.core.instrumentation.timing import time_block
+from contextlib import ExitStack
+from benchmarks.core.instrumentation.cprofile import cprofile_capture
+from benchmarks.core.instrumentation.psutil_monitor import psutil_sampling
 
 
 def _random_run_id(n: int = 8) -> str:
@@ -83,7 +86,14 @@ class Runner:
         for i in range(self.iterations_measured):
             context.iteration_index = i
             metrics: Dict[str, Any] = {}
-            with time_block(metrics, key="duration_s"):
+            with ExitStack() as stack:
+                # Timing always on if instrumented
+                stack.enter_context(time_block(metrics, key="duration_s"))
+                # Optional instruments
+                if "cprofile" in self.instruments:
+                    stack.enter_context(cprofile_capture(self.run_dir, self.name, i, metrics))
+                if "psutil" in self.instruments:
+                    stack.enter_context(psutil_sampling(self.run_dir, self.name, i, metrics))
                 iter_metrics = self.experiment.execute_once(context)
             # Merge inner metrics into metrics namespace
             for k, v in (iter_metrics or {}).items():
