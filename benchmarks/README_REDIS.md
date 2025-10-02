@@ -21,12 +21,31 @@ The Redis memory benchmark suite measures:
 
 ## Basic Usage
 
-### Single Benchmark Run
+### Single Benchmark Run (spec)
 
-To run the Redis memory benchmark:
+To run the Redis memory experiment, create a spec (example):
+
+```yaml
+experiment: redis_memory
+params:
+  num_agents: 10
+  memory_entries: 1000
+  batch_size: 100
+  search_radius: 10.0
+  memory_limit: 5000
+  ttl: 3600
+  cleanup_interval: 100
+iterations:
+  warmup: 0
+  measured: 3
+instrumentation: [timing]
+output_dir: benchmarks/results
+```
+
+Run it:
 
 ```bash
-python -m benchmarks.run_benchmarks --benchmark redis_memory
+python -m benchmarks.run_benchmarks --spec path/to/redis_memory.yaml
 ```
 
 ### Comparing Redis Configurations
@@ -65,9 +84,7 @@ python -m benchmarks.compare_redis_configs --plot
 
 ### Basic Benchmark
 
-```bash
-python -m benchmarks.run_benchmarks --benchmark redis_memory --agents 50 --memory-entries 2000
-```
+Adjust the `params` in the spec to change agent counts or entries.
 
 ### Configuration Comparison
 
@@ -77,9 +94,7 @@ python -m benchmarks.compare_redis_configs --plot --agents 10 20 50 100 --batch-
 
 ### Quick Single-Config Test
 
-```bash
-python -m benchmarks.run_benchmarks --benchmark redis_memory --iterations 1 --memory-entries 100
-```
+Use `iterations.measured: 1` in the spec and reduce `memory_entries`.
 
 ## Understanding Results
 

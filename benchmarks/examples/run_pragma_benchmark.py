@@ -14,8 +14,8 @@ import numpy as np
 # Add parent directory to path to allow imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from benchmarks.base.runner import BenchmarkRunner
-from benchmarks.implementations.pragma_profile_benchmark import PragmaProfileBenchmark
+from benchmarks.core.registry import REGISTRY
+from benchmarks.core.runner import Runner
 
 
 def parse_args():
@@ -317,33 +317,42 @@ def main():
     # Create output directory
     os.makedirs(args.output, exist_ok=True)
 
-    # Create benchmark
-    benchmark = PragmaProfileBenchmark(
-        num_records=args.num_records,
-        db_size_mb=args.db_size_mb,
+    # Create experiment and runner via registry
+    REGISTRY.discover_package("benchmarks.implementations")
+    experiment = REGISTRY.create("pragma_profile", {
+        "num_records": args.num_records,
+        "db_size_mb": args.db_size_mb,
+    })
+    runner = Runner(
+        name="pragma_profile",
+        experiment=experiment,
+        output_dir=args.output,
+        iterations_warmup=0,
+        iterations_measured=args.iterations,
+        seed=None,
+        tags=["database", "pragma"],
+        notes="example script",
+        instruments=["timing"],
     )
-
-    # Create runner
-    runner = BenchmarkRunner(output_dir=args.output)
-    runner.register_benchmark(benchmark)
-
-    # Run benchmark
-    print(f"Running pragma profile benchmark with {args.iterations} iterations...")
-    results = runner.run_benchmark("pragma_profile", iterations=args.iterations)
+    print(f"Running pragma profile with {args.iterations} iterations...")
+    run_result = runner.run()
 
     # Print summary
-    summary = results.get_summary()
-    print("\nBenchmark Summary:")
+    print("\nRun Summary:")
     print("=================")
-    print(f"Description: {summary['metadata']['description']}")
-    print(f"Parameters: {summary['parameters']}")
-    print(f"Iterations: {summary['iterations']}")
-    print(f"Mean Duration: {summary['mean_duration']:.2f} seconds")
+    if "duration_s" in run_result.metrics:
+        m = run_result.metrics["duration_s"]
+        print(f"Duration (s): mean={m.get('mean', 0):.4f}, p50={m.get('p50', 0):.4f}, p95={m.get('p95', 0):.4f}")
 
     # Check if we have valid results before visualizing
-    if results.iteration_results and len(results.iteration_results) > 0:
+    if run_result.iteration_metrics:
         # Visualize results
-        visualize_results(results)
+        # Adapt: visualization expects legacy structure; best-effort using last metrics
+        class _Legacy:
+            def __init__(self, parameters, iteration_results):
+                self.parameters = parameters
+                self.iteration_results = [{"results": iteration_results[-1].metrics}] if iteration_results else []
+        visualize_results(_Legacy(run_result.parameters, run_result.iteration_metrics))
     else:
         print("No valid benchmark results to visualize.")
 
