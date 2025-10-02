@@ -311,8 +311,12 @@ class TestRunner(unittest.TestCase):
     @patch('benchmarks.core.instrumentation.timing.time_block')
     def test_run_teardown_called_on_exception(self, mock_time_block):
         """Test that teardown is called even when exception occurs."""
-        # Make experiment teardown raise an exception
+        # Store original teardown method
+        original_teardown = self.experiment.teardown
+        
+        # Create a failing teardown that still tracks the call
         def failing_teardown(context):
+            self.experiment.teardown_called = True  # Track that teardown was called
             raise ValueError("Teardown failed")
         
         self.experiment.teardown = failing_teardown

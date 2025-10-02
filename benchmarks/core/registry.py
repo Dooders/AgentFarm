@@ -83,23 +83,21 @@ class ExperimentRegistry:
     def create(self, slug: str, params: Optional[Dict[str, Any]] = None) -> Experiment:
         info = self.get(slug)
 
-        # Apply parameter defaults from JSON schema if available
-        effective_params: Dict[str, Any] = {}
+        # Start with provided parameters
+        effective_params: Dict[str, Any] = params or {}
         schema = info.param_schema or {}
-        for key, field in schema.get("properties", {}).items():
-            if "default" in field:
-                effective_params[key] = field["default"]
 
-        # Override defaults with provided parameters
-        if params:
-            effective_params.update(params)
-
-        # Validate that all required parameters are present
+        # Validate that all required parameters are present in the input
         for req in schema.get("required", []):
             if req not in effective_params:
                 raise ValueError(
                     f"Missing required param '{req}' for experiment '{slug}'"
                 )
+
+        # Apply parameter defaults from JSON schema for missing parameters
+        for key, field in schema.get("properties", {}).items():
+            if key not in effective_params and "default" in field:
+                effective_params[key] = field["default"]
 
         # Instantiate experiment with validated parameters
         return info.cls(**effective_params)
