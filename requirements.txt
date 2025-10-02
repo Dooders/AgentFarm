@@ -59,9 +59,13 @@ shimmy>=1.0.0  # Environment wrappers for compatibility
 stable-baselines3>=2.0.0  # Reinforcement learning algorithms
 
 # Web API
-Flask>=2.0.0
-Flask-CORS>=3.0.0
-Flask-SocketIO>=5.0.0
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+websockets>=12.0
+httpx>=0.24.0  # Required for FastAPI test client
+
+# LLM Integration
+openai>=1.0.0  # OpenAI API client for chart analysis
 
 # Optional dependencies
 moviepy>=1.0.3  # For video generation and processing

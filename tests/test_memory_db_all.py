@@ -61,7 +61,7 @@ def run_tests(test_type="all", verbose=False):
     end_time = time.time()
     
     # Print summary
-    print(f"\nTest Summary:")
+    print("\nTest Summary:")
     print(f"Ran {result.testsRun} tests in {end_time - start_time:.2f} seconds")
     print(f"Failures: {len(result.failures)}")
     print(f"Errors: {len(result.errors)}")

@@ -7,16 +7,15 @@ This module provides a controller for:
 - Organizing experiment files and data
 """
 
-import os
 import time
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
 from farm.analysis.comparative_analysis import compare_simulations
+from farm.api.simulation_controller import SimulationController
 from farm.charts.chart_analyzer import ChartAnalyzer
 from farm.config import SimulationConfig
-from farm.controllers.simulation_controller import SimulationController
 from farm.database.database import SimulationDatabase
 from farm.research.research import ResearchProject
 from farm.utils.logging_config import get_logger

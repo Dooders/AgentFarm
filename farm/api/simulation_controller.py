@@ -86,6 +86,7 @@ class SimulationController:
 
         # Simulation state
         self.environment: Optional[Environment] = None
+        self.simulation_id: Optional[str] = None
         self.current_step = 0
         self.is_running = False
         self.is_paused = False
@@ -119,6 +120,7 @@ class SimulationController:
         try:
             # Create simulation record
             simulation_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.simulation_id = simulation_id
             self.db.add_simulation_record(
                 simulation_id=simulation_id,
                 start_time=datetime.now(),
@@ -149,7 +151,7 @@ class SimulationController:
         except Exception as e:
             logger.error(
                 "simulation_initialization_failed",
-                simulation_id=self.simulation_id,
+                simulation_id=simulation_id if 'simulation_id' in locals() else "unknown",
                 error_type=type(e).__name__,
                 error_message=str(e),
             )
@@ -229,8 +231,15 @@ class SimulationController:
         self.is_running = False
         self.is_paused = False
 
-        if self._simulation_thread:
-            self._simulation_thread.join()
+        if self._simulation_thread and threading.current_thread() is not self._simulation_thread:
+            self._simulation_thread.join(timeout=5.0)
+            if self._simulation_thread.is_alive():
+                logger.warning(
+                    "simulation_thread_timeout",
+                    simulation_id=self.simulation_id,
+                    final_step=self.current_step,
+                    message="Simulation thread did not terminate within timeout.",
+                )
 
         logger.info("simulation_stopped", simulation_id=self.simulation_id, final_step=self.current_step)
         self._notify_status_change("stopped")
