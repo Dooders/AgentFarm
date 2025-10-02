@@ -563,6 +563,9 @@ class ExperimentDatabase(SimulationDatabase):
             Summary of simulation results, by default None
         """
 
+        # Preserve prior semantics: normalize None to {}
+        results_summary = results_summary or {}
+
         def _update(session):
             simulation = (
                 session.query(Simulation)
@@ -609,6 +612,9 @@ class ExperimentDatabase(SimulationDatabase):
         results_summary : Dict, optional
             Summary of experiment results, by default None
         """
+
+        # Preserve prior semantics: normalize None to {}
+        results_summary = results_summary or {}
 
         def _update(session):
             experiment = (

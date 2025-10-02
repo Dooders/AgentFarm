@@ -114,7 +114,7 @@ class UnifiedAdapter:
         logger.info(f"Created simulation: {simulation_id}")
         return simulation_id
 
-    def start_simulation(self, simulation_id: str) -> SimulationStatus:
+    def start_simulation(self, simulation_id: str) -> SimulationStatusInfo:
         """Start a simulation.
 
         Args:
@@ -172,7 +172,7 @@ class UnifiedAdapter:
 
         return self.get_simulation_status(simulation_id)
 
-    def pause_simulation(self, simulation_id: str) -> SimulationStatus:
+    def pause_simulation(self, simulation_id: str) -> SimulationStatusInfo:
         """Pause a simulation.
 
         Args:
@@ -194,7 +194,7 @@ class UnifiedAdapter:
 
         return self.get_simulation_status(simulation_id)
 
-    def resume_simulation(self, simulation_id: str) -> SimulationStatus:
+    def resume_simulation(self, simulation_id: str) -> SimulationStatusInfo:
         """Resume a paused simulation.
 
         Args:
@@ -216,7 +216,7 @@ class UnifiedAdapter:
 
         return self.get_simulation_status(simulation_id)
 
-    def stop_simulation(self, simulation_id: str) -> SimulationStatus:
+    def stop_simulation(self, simulation_id: str) -> SimulationStatusInfo:
         """Stop a simulation.
 
         Args:
@@ -385,7 +385,7 @@ class UnifiedAdapter:
         logger.info(f"Created experiment: {experiment_id}")
         return experiment_id
 
-    def start_experiment(self, experiment_id: str) -> ExperimentStatus:
+    def start_experiment(self, experiment_id: str) -> ExperimentStatusInfo:
         """Start an experiment.
 
         Args:
@@ -468,8 +468,16 @@ class UnifiedAdapter:
         exp_info = self._experiments[experiment_id]
         controller = exp_info["controller"]
 
-        # Get current state from controller
+        # Get current state from controller (guard against non-dict mocks)
         state = controller.get_state()
+        if isinstance(state, dict):
+            # Derive iteration counters from controller state when available
+            derived_current = state.get("current_iteration")
+            derived_total = state.get("total_iterations")
+            if isinstance(derived_current, int):
+                exp_info["current_iteration"] = derived_current
+            if isinstance(derived_total, int):
+                exp_info["total_iterations"] = derived_total
 
         # Calculate progress
         current_iteration = exp_info.get("current_iteration", 0)

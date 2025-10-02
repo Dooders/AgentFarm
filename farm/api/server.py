@@ -1,7 +1,5 @@
-import asyncio
 import os
 import threading
-from dataclasses import replace
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -99,11 +97,13 @@ class ConnectionManager:
         await websocket.send_text(message)
 
     async def broadcast(self, message: str):
-        for connection in self.active_connections.values():
+        # Iterate over a snapshot to allow mutation during iteration
+        for client_id, connection in list(self.active_connections.items()):
             try:
                 await connection.send_text(message)
             except Exception:
-                pass
+                # Remove failed/stale connections to avoid resource leaks
+                self.disconnect(client_id)
 
 
 manager = ConnectionManager()
@@ -160,7 +160,11 @@ async def create_simulation(
 
         # Load and update config
         base_config = SimulationConfig.from_centralized_config()
-        config = replace(base_config, **config_data)
+        # Apply overrides without dataclasses.replace to avoid unused import
+        for key, value in config_data.items():
+            if hasattr(base_config, key):
+                setattr(base_config, key, value)
+        config = base_config
 
         # Create database
         os.makedirs(os.path.dirname(db_path), exist_ok=True)

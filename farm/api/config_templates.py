@@ -244,7 +244,6 @@ class ConfigTemplateManager:
         Returns:
             ValidationResult with validation status and messages
         """
-        logger = get_logger(__name__)
         logger.debug("Validating configuration", config_type=type(config).__name__)
 
         errors = []

@@ -16,9 +16,11 @@ from farm.api.models import (
     Event,
     ExperimentResults,
     ExperimentStatus,
+    ExperimentStatusInfo,
     SessionInfo,
     SimulationResults,
     SimulationStatus,
+    SimulationStatusInfo,
     ValidationResult,
 )
 from farm.api.session_manager import SessionManager
@@ -154,7 +156,7 @@ class AgentFarmController:
         logger.info(f"Created simulation {simulation_id} in session {session_id}")
         return simulation_id
 
-    def start_simulation(self, session_id: str, simulation_id: str) -> SimulationStatus:
+    def start_simulation(self, session_id: str, simulation_id: str) -> SimulationStatusInfo:
         """Start a simulation.
 
         Args:
@@ -167,7 +169,7 @@ class AgentFarmController:
         adapter = self._get_adapter(session_id)
         return adapter.start_simulation(simulation_id)
 
-    def pause_simulation(self, session_id: str, simulation_id: str) -> SimulationStatus:
+    def pause_simulation(self, session_id: str, simulation_id: str) -> SimulationStatusInfo:
         """Pause a running simulation.
 
         Args:
@@ -182,7 +184,7 @@ class AgentFarmController:
 
     def resume_simulation(
         self, session_id: str, simulation_id: str
-    ) -> SimulationStatus:
+    ) -> SimulationStatusInfo:
         """Resume a paused simulation.
 
         Args:
@@ -195,7 +197,7 @@ class AgentFarmController:
         adapter = self._get_adapter(session_id)
         return adapter.resume_simulation(simulation_id)
 
-    def stop_simulation(self, session_id: str, simulation_id: str) -> SimulationStatus:
+    def stop_simulation(self, session_id: str, simulation_id: str) -> SimulationStatusInfo:
         """Stop a simulation.
 
         Args:
@@ -210,7 +212,7 @@ class AgentFarmController:
 
     def get_simulation_status(
         self, session_id: str, simulation_id: str
-    ) -> SimulationStatus:
+    ) -> SimulationStatusInfo:
         """Get current status of a simulation.
 
         Args:
@@ -265,7 +267,7 @@ class AgentFarmController:
         logger.info(f"Created experiment {experiment_id} in session {session_id}")
         return experiment_id
 
-    def start_experiment(self, session_id: str, experiment_id: str) -> ExperimentStatus:
+    def start_experiment(self, session_id: str, experiment_id: str) -> ExperimentStatusInfo:
         """Start an experiment.
 
         Args:
@@ -280,7 +282,7 @@ class AgentFarmController:
 
     def get_experiment_status(
         self, session_id: str, experiment_id: str
-    ) -> ExperimentStatus:
+    ) -> ExperimentStatusInfo:
         """Get current status of an experiment.
 
         Args:
