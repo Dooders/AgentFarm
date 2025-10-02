@@ -21,7 +21,7 @@ Features
 
 import logging
 from datetime import datetime
-from typing import Dict
+from typing import Dict, Optional
 
 from sqlalchemy import Index
 
@@ -487,7 +487,7 @@ class ExperimentDatabase(SimulationDatabase):
     def create_simulation_context(
         self,
         simulation_id: str,
-        parameters: Dict = None,
+        parameters: Optional[Dict] = None,
         logging_config: DataLoggingConfig = DataLoggingConfig(),
     ):
         """Create a simulation-specific context.
@@ -511,14 +511,12 @@ class ExperimentDatabase(SimulationDatabase):
             A context for the specific simulation
         """
         # Create the simulation record
-        if parameters is None:
-            parameters = {}
-        self._create_simulation_record(simulation_id, parameters)
+        self._create_simulation_record(simulation_id, parameters or {})
 
         # Return a context for this simulation
         return SimulationContext(self, simulation_id, logging_config)
 
-    def _create_simulation_record(self, simulation_id: str, parameters: Dict = None):
+    def _create_simulation_record(self, simulation_id: str, parameters: Optional[Dict] = None):
         """Create a simulation record in the database.
 
         Parameters
@@ -551,7 +549,7 @@ class ExperimentDatabase(SimulationDatabase):
         self._execute_in_transaction(_create)
 
     def update_simulation_status(
-        self, simulation_id: str, status: str, results_summary: Dict = None
+        self, simulation_id: str, status: str, results_summary: Optional[Dict] = None
     ):
         """Update the status of a simulation.
 
@@ -601,7 +599,7 @@ class ExperimentDatabase(SimulationDatabase):
 
         return self._execute_in_transaction(_query)
 
-    def update_experiment_status(self, status: str, results_summary: Dict = None):
+    def update_experiment_status(self, status: str, results_summary: Optional[Dict] = None):
         """Update the status of the experiment.
 
         Parameters
