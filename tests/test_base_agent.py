@@ -775,7 +775,7 @@ class TestBaseAgentLifeCycle:
             assert offspring.position == (5.0, 5.0)  # Same position as parent
             assert offspring.resource_level == 10  # offspring_initial_resources
             assert offspring.generation == 1  # Parent generation + 1
-            mock_lifecycle_service.add_agent.assert_called_once_with(offspring)
+            mock_lifecycle_service.add_agent.assert_called_once_with(offspring, flush_immediately=True)
 
 
 class TestBaseAgentCombatSystem:
