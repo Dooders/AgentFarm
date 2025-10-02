@@ -23,7 +23,7 @@ Based on benchmark results, the recommended configuration for simulations that r
 
 ```python
 config.use_in_memory_db = True
-config.persist_in_memory_db = True
+config.persist_db_on_completion = True
 ```
 
 This configuration provides:

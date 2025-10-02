@@ -48,7 +48,7 @@ class MemoryDBBenchmark(Experiment):
         super().__init__(parameters or {})
 
         # Set benchmark-specific parameters
-        self.parameters.update(
+        self.params.update(
             {
                 "num_steps": num_steps,
                 "num_agents": num_agents,
@@ -73,7 +73,7 @@ class MemoryDBBenchmark(Experiment):
         self.config.width = 100
         self.config.height = 100
 
-        num_agents = self.parameters["num_agents"]
+        num_agents = self.params["num_agents"]
         self.config.system_agents = num_agents // 3
         self.config.independent_agents = num_agents // 3
         self.config.control_agents = num_agents - (
@@ -81,7 +81,7 @@ class MemoryDBBenchmark(Experiment):
         )  # Ensure total is num_agents
 
         self.config.initial_resources = 20
-        self.config.simulation_steps = self.parameters["num_steps"]
+        self.config.simulation_steps = self.params["num_steps"]
 
     def execute_once(self, context: ExperimentContext) -> Dict[str, Any]:
         """
@@ -92,7 +92,7 @@ class MemoryDBBenchmark(Experiment):
         Dict[str, Any]
             Raw results from the benchmark run
         """
-        num_steps = self.parameters["num_steps"]
+        num_steps = self.params["num_steps"]
 
         # Results storage
         disk_times = []

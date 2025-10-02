@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 SweepRunner: expands parameter sweeps and runs multiple experiments.
 """
@@ -11,12 +9,14 @@ import random
 from typing import Any, Dict, Iterable, List, Tuple
 
 from benchmarks.core.registry import REGISTRY
-from benchmarks.core.runner import Runner
-from benchmarks.core.results import RunResult
 from benchmarks.core.reporting.markdown import write_sweep_report
+from benchmarks.core.results import RunResult
+from benchmarks.core.runner import Runner
 
 
-def _expand_cartesian(base_params: Dict[str, Any], sweep: Dict[str, List[Any]]) -> List[Dict[str, Any]]:
+def _expand_cartesian(
+    base_params: Dict[str, Any], sweep: Dict[str, List[Any]]
+) -> List[Dict[str, Any]]:
     if not sweep:
         return [base_params]
     keys = sorted(sweep.keys())
@@ -31,9 +31,19 @@ def _expand_cartesian(base_params: Dict[str, Any], sweep: Dict[str, List[Any]]) 
 
 
 class SweepRunner:
-    def __init__(self, *, experiment_slug: str, base_params: Dict[str, Any], output_dir: str,
-                 iterations_warmup: int, iterations_measured: int, seed: int | None,
-                 tags: List[str], notes: str, instruments: List[str]) -> None:
+    def __init__(
+        self,
+        *,
+        experiment_slug: str,
+        base_params: Dict[str, Any],
+        output_dir: str,
+        iterations_warmup: int,
+        iterations_measured: int,
+        seed: int | None,
+        tags: List[str],
+        notes: str,
+        instruments: List[str],
+    ) -> None:
         self.experiment_slug = experiment_slug
         self.base_params = base_params
         self.output_dir = output_dir
@@ -49,11 +59,13 @@ class SweepRunner:
         props = set((info.param_schema or {}).get("properties", {}).keys())
         for k in sweep.keys():
             if props and k not in props:
-                raise ValueError(f"Sweep key '{k}' not in parameter schema for {self.experiment_slug}")
+                raise ValueError(
+                    f"Sweep key '{k}' not in parameter schema for {self.experiment_slug}"
+                )
 
     def run_cartesian(self, sweep: Dict[str, List[Any]]) -> List[RunResult]:
-        self._validate_keys(sweep)
         REGISTRY.discover_package("benchmarks.implementations")
+        self._validate_keys(sweep)
         params_list = _expand_cartesian(self.base_params, sweep)
         results: List[RunResult] = []
         for params in params_list:
@@ -73,16 +85,20 @@ class SweepRunner:
             results.append(result)
         # Write sweep report to top-level output dir
         try:
-            write_sweep_report(results, self.output_dir, title=f"{self.experiment_slug} Sweep Summary")
+            write_sweep_report(
+                results, self.output_dir, title=f"{self.experiment_slug} Sweep Summary"
+            )
         except (OSError, IOError) as e:
             logging.warning(f"Failed to write sweep report: {e}")
         except Exception as e:
             logging.error(f"Unexpected error writing sweep report: {e}")
         return results
 
-    def run_random(self, sweep_space: Dict[str, List[Any]], samples: int) -> List[RunResult]:
-        self._validate_keys(sweep_space)
+    def run_random(
+        self, sweep_space: Dict[str, List[Any]], samples: int
+    ) -> List[RunResult]:
         REGISTRY.discover_package("benchmarks.implementations")
+        self._validate_keys(sweep_space)
         keys = list(sweep_space.keys())
         results: List[RunResult] = []
         rng = random.Random(self.seed)
@@ -108,8 +124,11 @@ class SweepRunner:
             result = runner.run()
             results.append(result)
         try:
-            write_sweep_report(results, self.output_dir, title=f"{self.experiment_slug} Random Sweep Summary")
+            write_sweep_report(
+                results,
+                self.output_dir,
+                title=f"{self.experiment_slug} Random Sweep Summary",
+            )
         except Exception:
             pass
         return results
-

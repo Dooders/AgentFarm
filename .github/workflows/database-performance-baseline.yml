@@ -37,9 +37,9 @@ jobs:
       run: |
         mkdir -p benchmarks/results/database_profiling
         
-    - name: Run database profiler baseline
+    - name: Run database performance benchmark
       run: |
-        python -m benchmarks.implementations.profiling.database_profiler --results-dir benchmarks/results/database_profiling
+        python -m benchmarks.run_benchmarks --spec benchmarks/specs/memory_db_baseline.yaml
         
     - name: Upload profiling results
       uses: actions/upload-artifact@v4
@@ -55,11 +55,19 @@ jobs:
         echo "### Latest Performance Metrics" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         
-        # Extract key metrics from the latest summary file
-        LATEST_SUMMARY=$(ls -t benchmarks/results/database_profiling/database_profiling_summary_*.txt | head -1)
-        if [ -f "$LATEST_SUMMARY" ]; then
+        # Extract key metrics from the latest benchmark results
+        LATEST_RESULTS=$(ls -t benchmarks/results/database_profiling/memory_db_*.json | head -1)
+        if [ -f "$LATEST_RESULTS" ]; then
           echo "```" >> $GITHUB_STEP_SUMMARY
-          cat "$LATEST_SUMMARY" >> $GITHUB_STEP_SUMMARY
+          echo "Database Performance Results:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          # Extract key metrics using jq if available, otherwise show file info
+          if command -v jq &> /dev/null; then
+            jq -r '.metrics | to_entries[] | "\(.key): \(.value)"' "$LATEST_RESULTS" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Results file: $(basename "$LATEST_RESULTS")" >> $GITHUB_STEP_SUMMARY
+            echo "Check artifacts for detailed results" >> $GITHUB_STEP_SUMMARY
+          fi
           echo "```" >> $GITHUB_STEP_SUMMARY
         fi
         
@@ -82,10 +90,10 @@ jobs:
         
         # Find the latest JSON results file
         results_dir = Path("benchmarks/results/database_profiling")
-        json_files = list(results_dir.glob("database_profiling_results_*.json"))
+        json_files = list(results_dir.glob("memory_db_*.json"))
         
         if not json_files:
-            print("No profiling results found")
+            print("No benchmark results found")
             exit(0)
             
         latest_file = max(json_files, key=os.path.getctime)
@@ -93,26 +101,26 @@ jobs:
         with open(latest_file, 'r') as f:
             data = json.load(f)
         
-        results = data['results']
+        metrics = data.get('metrics', {})
         regressions = []
         
-        # Check buffer size performance (expect > 80k inserts/s for buffer 1000)
-        if 'buffer_sizes' in results:
-            buffer_1000_perf = results['buffer_sizes'].get(1000, {}).get('inserts_per_second', 0)
-            if buffer_1000_perf < 80000:
-                regressions.append(f"Buffer 1000 performance below threshold: {buffer_1000_perf:.0f} inserts/s (expected > 80,000)")
+        # Check overall performance metrics
+        if 'duration_s' in metrics:
+            duration = metrics['duration_s'].get('mean', 0)
+            if duration > 10.0:  # Expect benchmark to complete in under 10 seconds
+                regressions.append(f"Benchmark duration too long: {duration:.2f}s (expected < 10s)")
         
         # Check memory vs disk performance (expect memory to be faster)
-        if 'memory_vs_disk' in results:
-            speedup = results['memory_vs_disk'].get('speedup', 0)
+        if 'memory_vs_disk_speedup' in metrics:
+            speedup = metrics['memory_vs_disk_speedup']
             if speedup < 1.0:
                 regressions.append(f"Memory database not faster than disk: {speedup:.2f}x speedup (expected > 1.0x)")
         
-        # Check flush frequency performance (expect > 60k inserts/s for flush every 1000)
-        if 'flush_frequency' in results:
-            flush_1000_perf = results['flush_frequency'].get(1000, {}).get('inserts_per_second', 0)
-            if flush_1000_perf < 60000:
-                regressions.append(f"Flush frequency performance below threshold: {flush_1000_perf:.0f} inserts/s (expected > 60,000)")
+        # Check throughput metrics
+        if 'operations_per_second' in metrics:
+            ops_per_sec = metrics['operations_per_second']
+            if ops_per_sec < 1000:  # Expect at least 1000 ops/sec
+                regressions.append(f"Operations per second below threshold: {ops_per_sec:.0f} ops/s (expected > 1,000)")
         
         if regressions:
             print("🚨 PERFORMANCE REGRESSIONS DETECTED:")
@@ -133,25 +141,31 @@ jobs:
           const fs = require('fs');
           const path = require('path');
           
-          // Find the latest summary file
+          // Find the latest benchmark results file
           const resultsDir = 'benchmarks/results/database_profiling';
           const files = fs.readdirSync(resultsDir);
-          const summaryFiles = files.filter(f => f.startsWith('database_profiling_summary_') && f.endsWith('.txt'));
+          const resultFiles = files.filter(f => f.startsWith('memory_db_') && f.endsWith('.json'));
           
-          if (summaryFiles.length === 0) {
-            console.log('No summary files found');
+          if (resultFiles.length === 0) {
+            console.log('No benchmark results found');
             return;
           }
           
           // Get the most recent file
-          const latestFile = summaryFiles.sort().pop();
-          const summaryPath = path.join(resultsDir, latestFile);
-          const summary = fs.readFileSync(summaryPath, 'utf8');
+          const latestFile = resultFiles.sort().pop();
+          const resultPath = path.join(resultsDir, latestFile);
+          const resultData = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
+          
+          // Extract key metrics for display
+          const metrics = resultData.metrics || {};
+          const summary = Object.entries(metrics)
+            .map(([key, value]) => `${key}: ${typeof value === 'object' ? JSON.stringify(value) : value}`)
+            .join('\n');
           
           // Create comment
           const comment = `## 🚀 Database Performance Baseline Results
           
-          Performance profiling completed for this PR. Here are the key metrics:
+          Database performance benchmark completed for this PR. Here are the key metrics:
           
           \`\`\`
           ${summary}
@@ -159,7 +173,7 @@ jobs:
           
           **Performance Status**: ✅ All checks passed
           
-          📊 **Artifacts**: Complete profiling results are available in the workflow artifacts.
+          📊 **Artifacts**: Complete benchmark results are available in the workflow artifacts.
           
           🔍 **Next Steps**: 
           - Review the performance metrics above

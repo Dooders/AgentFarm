@@ -21,8 +21,6 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from farm.core.resources import Resource
 from farm.core.spatial import SpatialIndex
