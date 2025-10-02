@@ -275,5 +275,154 @@ def test_status_callbacks_called(controller, mock_analysis_service):
     assert "initialized" in status_changes
 
 
+def test_wait_for_completion_no_thread(controller):
+    """Test wait_for_completion returns immediately when no thread exists."""
+    result = controller.wait_for_completion(timeout=1.0)
+    assert result is True
+
+
+def test_wait_for_completion_with_timeout(controller, mock_analysis_service):
+    """Test wait_for_completion respects timeout."""
+    mock_analysis_service.validate_request = Mock()
+    
+    # Create a mock thread that never completes
+    mock_thread = Mock()
+    mock_thread.is_alive.return_value = True
+    controller._analysis_thread = mock_thread
+    
+    # Should timeout and return False
+    result = controller.wait_for_completion(timeout=0.1)
+    
+    # Thread join should have been called with timeout
+    mock_thread.join.assert_called_once_with(timeout=0.1)
+    assert result is False
+
+
+def test_wait_for_completion_success(controller, mock_analysis_service):
+    """Test wait_for_completion returns True when thread completes."""
+    mock_analysis_service.validate_request = Mock()
+    
+    # Create a mock thread that completes
+    mock_thread = Mock()
+    mock_thread.is_alive.return_value = False
+    controller._analysis_thread = mock_thread
+    
+    result = controller.wait_for_completion(timeout=1.0)
+    
+    mock_thread.join.assert_called_once()
+    assert result is True
+
+
+def test_get_state_with_completed_result(controller, mock_analysis_service):
+    """Test get_state includes result info when completed."""
+    from farm.analysis.service import AnalysisResult
+    
+    mock_analysis_service.validate_request = Mock()
+    
+    request = AnalysisRequest(
+        module_name="test",
+        experiment_path=Path("/fake"),
+        output_path=Path("/fake/out")
+    )
+    
+    controller.initialize_analysis(request)
+    
+    # Set a completed result
+    controller.result = AnalysisResult(
+        success=True,
+        module_name="test",
+        output_path=Path("/fake/out"),
+        execution_time=1.5,
+        cache_hit=False
+    )
+    
+    state = controller.get_state()
+    
+    assert state["status"] == "completed"
+    assert state["cache_hit"] is False
+    assert state["execution_time"] == 1.5
+
+
+def test_get_state_with_error_result(controller, mock_analysis_service):
+    """Test get_state includes error info when failed."""
+    from farm.analysis.service import AnalysisResult
+    
+    mock_analysis_service.validate_request = Mock()
+    
+    request = AnalysisRequest(
+        module_name="test",
+        experiment_path=Path("/fake"),
+        output_path=Path("/fake/out")
+    )
+    
+    controller.initialize_analysis(request)
+    
+    # Set a failed result
+    controller.result = AnalysisResult(
+        success=False,
+        module_name="test",
+        output_path=Path("/fake/out"),
+        error="Test error message"
+    )
+    
+    state = controller.get_state()
+    
+    assert state["status"] == "error"
+    assert state["error"] == "Test error message"
+
+
+def test_cleanup_multiple_times(controller):
+    """Test cleanup can be called multiple times safely."""
+    # Should not raise exception
+    controller.cleanup()
+    controller.cleanup()
+    controller.cleanup()
+
+
+def test_del_calls_cleanup(mock_config_service, mock_analysis_service):
+    """Test __del__ attempts cleanup."""
+    controller = AnalysisController(mock_config_service)
+    
+    # Mock cleanup to track if it's called
+    controller.cleanup = Mock()
+    
+    # Trigger __del__
+    del controller
+    
+    # Note: __del__ may not be called immediately, this is just a smoke test
+
+
+def test_progress_handler_with_pause(controller, mock_analysis_service):
+    """Test progress handler respects pause state."""
+    import time
+    import threading
+    
+    mock_analysis_service.validate_request = Mock()
+    
+    request = AnalysisRequest(
+        module_name="test",
+        experiment_path=Path("/fake"),
+        output_path=Path("/fake/out")
+    )
+    
+    controller.initialize_analysis(request)
+    controller.is_paused = True
+    
+    # Start a thread to unpause after short delay
+    def unpause():
+        time.sleep(0.1)
+        controller.is_paused = False
+    
+    threading.Thread(target=unpause, daemon=True).start()
+    
+    # This should wait until unpaused
+    start = time.time()
+    controller._progress_handler("Test", 0.5)
+    elapsed = time.time() - start
+    
+    # Should have waited at least 0.1 seconds
+    assert elapsed >= 0.1
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

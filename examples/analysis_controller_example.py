@@ -34,22 +34,21 @@ def basic_usage():
         controller.initialize_analysis(request)
         controller.start()
         
-        # Wait for completion
-        while controller.is_running:
-            state = controller.get_state()
-            print(f"Progress: {state['progress']*100:.1f}% - {state['message']}")
-            time.sleep(1)
-        
-        # Get results
-        result = controller.get_result()
-        if result and result.success:
-            print(f"\n✓ Analysis complete!")
-            print(f"  Output: {result.output_path}")
-            print(f"  Rows: {len(result.dataframe) if result.dataframe is not None else 0}")
-            print(f"  Time: {result.execution_time:.2f}s")
-            print(f"  Cache hit: {result.cache_hit}")
+        # Wait for completion using the new method (recommended)
+        print("Waiting for analysis to complete...")
+        if controller.wait_for_completion(timeout=300):  # 5 minute timeout
+            # Get results
+            result = controller.get_result()
+            if result and result.success:
+                print(f"\n✓ Analysis complete!")
+                print(f"  Output: {result.output_path}")
+                print(f"  Rows: {len(result.dataframe) if result.dataframe is not None else 0}")
+                print(f"  Time: {result.execution_time:.2f}s")
+                print(f"  Cache hit: {result.cache_hit}")
+            else:
+                print(f"\n✗ Analysis failed: {result.error if result else 'Unknown error'}")
         else:
-            print(f"\n✗ Analysis failed: {result.error if result else 'Unknown error'}")
+            print("\n✗ Analysis timed out after 5 minutes")
     
     finally:
         controller.cleanup()
@@ -91,9 +90,8 @@ def with_callbacks():
         controller.initialize_analysis(request)
         controller.start()
         
-        # Wait for completion
-        while controller.is_running:
-            time.sleep(0.5)
+        # Wait for completion using new method
+        controller.wait_for_completion()
         
         print()  # New line after progress bar
         
@@ -123,15 +121,13 @@ def with_context_manager():
         controller.initialize_analysis(request)
         controller.start()
         
-        # Wait and monitor
-        while controller.is_running:
-            state = controller.get_state()
-            print(f"Status: {state['status']} - Progress: {state['progress']*100:.0f}%")
-            time.sleep(1)
-        
-        result = controller.get_result()
-        if result and result.success:
-            print(f"✓ Complete! Output: {result.output_path}")
+        # Wait for completion with timeout
+        if controller.wait_for_completion(timeout=600):  # 10 minute timeout
+            result = controller.get_result()
+            if result and result.success:
+                print(f"✓ Complete! Output: {result.output_path}")
+        else:
+            print("✗ Analysis timed out")
     
     # Cleanup happens automatically
 
@@ -172,8 +168,7 @@ def pause_resume_example():
         controller.start()
         
         # Wait for completion
-        while controller.is_running:
-            time.sleep(0.5)
+        controller.wait_for_completion()
         
         result = controller.get_result()
         if result and result.success:
@@ -238,16 +233,15 @@ def batch_analysis_example():
             controller.initialize_analysis(request)
             controller.start()
             
-            while controller.is_running:
-                state = controller.get_state()
-                print(f"  {state['progress']*100:.0f}%", end="\r")
-                time.sleep(0.5)
-            
-            result = controller.get_result()
-            if result and result.success:
-                print(f"  ✓ {module_name} complete ({result.execution_time:.1f}s)")
+            # Use wait_for_completion with timeout
+            if controller.wait_for_completion(timeout=300):
+                result = controller.get_result()
+                if result and result.success:
+                    print(f"  ✓ {module_name} complete ({result.execution_time:.1f}s)")
+                else:
+                    print(f"  ✗ {module_name} failed")
             else:
-                print(f"  ✗ {module_name} failed")
+                print(f"  ✗ {module_name} timed out")
 
 
 def custom_parameters_example():
@@ -284,8 +278,8 @@ def custom_parameters_example():
         controller.initialize_analysis(request)
         controller.start()
         
-        while controller.is_running:
-            time.sleep(0.5)
+        # Wait for completion
+        controller.wait_for_completion()
         
         result = controller.get_result()
         if result and result.success:
