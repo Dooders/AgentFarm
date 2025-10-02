@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 Instrumentation for sampling system metrics via psutil during an iteration.
 """
@@ -18,7 +16,12 @@ except Exception:  # pragma: no cover - optional dependency
 
 
 class _Sampler(threading.Thread):
-    def __init__(self, interval_s: float, out_list: List[Dict[str, Any]], max_samples: int | None = None):
+    def __init__(
+        self,
+        interval_s: float,
+        out_list: List[Dict[str, Any]],
+        max_samples: int | None = None,
+    ):
         super().__init__(daemon=True)
         self.interval_s = interval_s
         self.out_list = out_list
@@ -50,7 +53,10 @@ class _Sampler(threading.Thread):
                     }
                 )
                 # Enforce max samples
-                if self.max_samples is not None and len(self.out_list) >= self.max_samples:
+                if (
+                    self.max_samples is not None
+                    and len(self.out_list) >= self.max_samples
+                ):
                     break
             except Exception:
                 pass
@@ -67,14 +73,25 @@ class _Sampler(threading.Thread):
 
 
 @contextmanager
-def psutil_sampling(run_dir: str, name: str, iteration_index: int, metrics: Dict[str, Any], interval_ms: int = 200, max_samples: int | None = 1000):
+def psutil_sampling(
+    run_dir: str,
+    name: str,
+    iteration_index: int,
+    metrics: Dict[str, Any],
+    interval_ms: int = 200,
+    max_samples: int | None = 1000,
+):
     """Context manager that samples psutil metrics and writes a JSONL artifact."""
     if psutil is None:
         yield
         return
 
     samples: List[Dict[str, Any]] = []
-    sampler = _Sampler(interval_s=max(0.01, interval_ms / 1000.0), out_list=samples, max_samples=max_samples)
+    sampler = _Sampler(
+        interval_s=max(0.01, interval_ms / 1000.0),
+        out_list=samples,
+        max_samples=max_samples,
+    )
     sampler.start()
     try:
         yield
@@ -84,7 +101,7 @@ def psutil_sampling(run_dir: str, name: str, iteration_index: int, metrics: Dict
         prefix = f"{name}_iter{iteration_index:03d}"
         jsonl_path = os.path.join(run_dir, f"{prefix}_psutil.jsonl")
         try:
-            with open(jsonl_path, "w") as f:
+            with open(jsonl_path, "w", encoding="utf-8") as f:
                 for s in samples:
                     f.write(json.dumps(s) + "\n")
             metrics["psutil_artifact"] = jsonl_path
@@ -107,4 +124,3 @@ def psutil_sampling(run_dir: str, name: str, iteration_index: int, metrics: Dict
                 }
         except Exception:
             pass
-
