@@ -1,6 +1,7 @@
 import os
 from dataclasses import replace
 from datetime import datetime
+import threading
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -31,6 +32,31 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 active_simulations = {}
 
 
+def _run_simulation_background(sim_id, config, db_path):
+    try:
+        active_simulations[sim_id]["status"] = "running"
+
+        # Run simulation
+        run_simulation(
+            num_steps=config.simulation_steps,
+            config=config,
+            path=os.path.dirname(db_path),
+        )
+
+        active_simulations[sim_id]["status"] = "completed"
+        active_simulations[sim_id]["ended_at"] = datetime.now().isoformat()
+    except Exception as e:
+        logger.error(
+            "background_simulation_failed",
+            simulation_id=sim_id,
+            error_type=type(e).__name__,
+            error_message=str(e),
+            exc_info=True,
+        )
+        active_simulations[sim_id]["status"] = "error"
+        active_simulations[sim_id]["error_message"] = str(e)
+
+
 @app.route("/api/simulation/new", methods=["POST"])
 def create_simulation():
     """Create a new simulation with provided configuration."""
@@ -54,31 +80,30 @@ def create_simulation():
         # Create database
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
-        # Run simulation
-        run_simulation(
-            num_steps=config.simulation_steps,
-            config=config,
-            path=os.path.dirname(db_path),
-        )
-
         # Store simulation info
         active_simulations[sim_id] = {
             "db_path": db_path,
             "config": config_data,
             "created_at": datetime.now().isoformat(),
+            "status": "pending",
         }
 
-        # Get initial state
-        db = SimulationDatabase(db_path)
-        initial_state = db.query.gui_repository.get_simulation_data(0)
+        # Start background thread
+        thread = threading.Thread(
+            target=_run_simulation_background, args=(sim_id, config, db_path)
+        )
+        thread.daemon = True
+        thread.start()
 
-        return jsonify(
-            {
-                "status": "success",
-                "sim_id": sim_id,
-                "data": initial_state,
-                "message": "Simulation created successfully",
-            }
+        return (
+            jsonify(
+                {
+                    "status": "accepted",
+                    "sim_id": sim_id,
+                    "message": "Simulation started",
+                }
+            ),
+            202,
         )
 
     except Exception as e:
@@ -130,6 +155,23 @@ def get_analysis(sim_id):
     except Exception as e:
         logger.error(
             "api_analysis_failed",
+            simulation_id=sim_id,
+            error_type=type(e).__name__,
+            error_message=str(e),
+        )
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/simulation/<sim_id>/status", methods=["GET"])
+def get_simulation_status(sim_id):
+    try:
+        if sim_id not in active_simulations:
+            raise ValueError(f"Simulation {sim_id} not found")
+
+        return jsonify({"status": "success", "data": active_simulations[sim_id]})
+    except Exception as e:
+        logger.error(
+            "api_get_simulation_status_failed",
             simulation_id=sim_id,
             error_type=type(e).__name__,
             error_message=str(e),
@@ -208,7 +250,7 @@ def export_simulation(sim_id):
         logger.error(
             "api_export_failed",
             simulation_id=sim_id,
-            format=format,
+            export_path=export_path,
             error_type=type(e).__name__,
             error_message=str(e),
         )
