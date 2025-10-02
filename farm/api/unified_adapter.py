@@ -22,8 +22,10 @@ from farm.api.models import (
     EventSubscription,
     ExperimentResults,
     ExperimentStatus,
+    ExperimentStatusInfo,
     SimulationResults,
     SimulationStatus,
+    SimulationStatusInfo,
 )
 from farm.api.simulation_controller import SimulationController
 from farm.core.analysis import SimulationAnalyzer
@@ -224,7 +226,7 @@ class UnifiedAdapter:
 
         return self.get_simulation_status(simulation_id)
 
-    def get_simulation_status(self, simulation_id: str) -> SimulationStatus:
+    def get_simulation_status(self, simulation_id: str) -> SimulationStatusInfo:
         """Get simulation status.
 
         Args:
@@ -249,7 +251,7 @@ class UnifiedAdapter:
             else 0
         )
 
-        return SimulationStatus(
+        return SimulationStatusInfo(
             simulation_id=simulation_id,
             status=sim_info["status"],
             current_step=sim_info["current_step"],
@@ -436,7 +438,7 @@ class UnifiedAdapter:
 
         return self.get_experiment_status(experiment_id)
 
-    def get_experiment_status(self, experiment_id: str) -> ExperimentStatus:
+    def get_experiment_status(self, experiment_id: str) -> ExperimentStatusInfo:
         """Get experiment status.
 
         Args:
@@ -461,7 +463,7 @@ class UnifiedAdapter:
             else 0
         )
 
-        return ExperimentStatus(
+        return ExperimentStatusInfo(
             experiment_id=experiment_id,
             status=exp_info["status"],
             current_iteration=state["current_iteration"],
