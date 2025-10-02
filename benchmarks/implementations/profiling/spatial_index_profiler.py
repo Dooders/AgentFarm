@@ -97,7 +97,7 @@ class SpatialIndexProfiler:
             }
 
             print(
-                f"  Build time: {build_time*1000:.2f}ms ({build_time*1000000/(count+count//2):.2f}μs per entity)"
+                f"  Build time: {build_time*1000:.2f}ms ({build_time*1000000/(count+count//2):.2f}us per entity)"
             )
 
         self.results["build_time"] = results
@@ -148,7 +148,7 @@ class SpatialIndexProfiler:
             qps = (num_queries / query_time) if query_time > 0 else 0
             print(
                 f"  {num_queries} queries: {query_time*1000:.2f}ms "
-                f"({us_per_query:.2f}μs per query, "
+                f"({us_per_query:.2f}us per query, "
                 f"{qps:.0f} qps)"
             )
 
@@ -177,7 +177,7 @@ class SpatialIndexProfiler:
             qps = (num_queries / query_time) if query_time > 0 else 0
             print(
                 f"  {num_queries} queries: {query_time*1000:.2f}ms "
-                f"({us_per_query:.2f}μs per query, "
+                f"({us_per_query:.2f}us per query, "
                 f"{qps:.0f} qps)"
             )
 
@@ -234,7 +234,7 @@ class SpatialIndexProfiler:
             us_per_move = (update_time * 1000000 / num_moves) if num_moves > 0 else 0
             print(
                 f"  Update time: {update_time*1000:.2f}ms "
-                f"({us_per_move:.2f}μs per moved entity)"
+                f"({us_per_move:.2f}us per moved entity)"
             )
 
         self.results["batch_updates"] = results
@@ -252,40 +252,48 @@ class SpatialIndexProfiler:
         agents = self.create_test_entities(entity_count, "agent")
         resources = self.create_test_entities(entity_count // 2, "resource")
 
+        # Test different index configurations
         index_configs = [
-            ("kdtree_only", False, False),
-            ("with_quadtree", True, False),
-            ("with_spatial_hash", False, True),
-            ("all_indices", True, True),
+            (
+                "kdtree_only",
+                {
+                    "agents": {"index_type": "kdtree"},
+                    "resources": {"index_type": "kdtree"},
+                },
+            ),
+            (
+                "quadtree_only",
+                {
+                    "agents": {"index_type": "quadtree"},
+                    "resources": {"index_type": "quadtree"},
+                },
+            ),
+            (
+                "spatial_hash_only",
+                {
+                    "agents": {"index_type": "spatial_hash", "cell_size": 50.0},
+                    "resources": {"index_type": "spatial_hash", "cell_size": 50.0},
+                },
+            ),
+            (
+                "mixed_indices",
+                {
+                    "agents": {"index_type": "kdtree"},
+                    "resources": {"index_type": "quadtree"},
+                },
+            ),
         ]
 
-        for name, enable_quadtree, enable_hash in index_configs:
+        for name, index_config in index_configs:
             print(f"Testing {name}...")
 
-            # Create spatial index
+            # Create spatial index with custom index configurations
             spatial_index = SpatialIndex(
                 self.width,
                 self.height,
+                index_configs=index_config,
                 enable_batch_updates=False,
             )
-
-            # Enable additional indices
-            if enable_quadtree:
-                if hasattr(spatial_index, "enable_quadtree_indices"):
-                    spatial_index.enable_quadtree_indices()
-                else:
-                    print(
-                        "  Warning: SpatialIndex does not have enable_quadtree_indices, skipping"
-                    )
-                    continue
-            if enable_hash:
-                if hasattr(spatial_index, "enable_spatial_hash_indices"):
-                    spatial_index.enable_spatial_hash_indices(cell_size=50.0)
-                else:
-                    print(
-                        "  Warning: SpatialIndex does not have enable_spatial_hash_indices, skipping"
-                    )
-                    continue
 
             spatial_index.set_references(agents, resources)
 
@@ -306,16 +314,26 @@ class SpatialIndexProfiler:
                 _ = spatial_index.get_nearby(pos, radius, ["agents"])
             query_time = time.perf_counter() - start
 
+            # Profile get_nearest time
+            start = time.perf_counter()
+            for pos in query_positions:
+                _ = spatial_index.get_nearest(pos, ["agents"])
+            nearest_time = time.perf_counter() - start
+
             results[name] = {
                 "build_time": build_time,
                 "query_time_100": query_time,
+                "nearest_time_100": nearest_time,
                 "query_per_call": query_time / 100,
+                "nearest_per_call": nearest_time / 100,
             }
 
             print(
                 f"  Build: {build_time*1000:.2f}ms, "
                 f"Query (100x): {query_time*1000:.2f}ms "
-                f"({query_time*10:.2f}μs per query)"
+                f"({query_time*10:.2f}us per query), "
+                f"Nearest (100x): {nearest_time*1000:.2f}ms "
+                f"({nearest_time*10:.2f}us per call)"
             )
 
         self.results["index_types"] = results
@@ -333,7 +351,7 @@ class SpatialIndexProfiler:
             for count, data in sorted(self.results["build_time"].items()):
                 print(
                     f"  {count:>6} entities: {data['build_time']*1000:>8.2f}ms "
-                    f"({data['time_per_entity']*1000000:>6.2f}μs per entity)"
+                    f"({data['time_per_entity']*1000000:>6.2f}us per entity)"
                 )
 
         # Query performance summary
@@ -343,7 +361,7 @@ class SpatialIndexProfiler:
                 if "nearby" in query_type:
                     num = query_type.split("_")[1]
                     print(
-                        f"  get_nearby ({num} queries): {data['per_query']*1000000:.2f}μs per query, "
+                        f"  get_nearby ({num} queries): {data['per_query']*1000000:.2f}us per query, "
                         f"{data['queries_per_second']:.0f} qps"
                     )
 
@@ -353,7 +371,7 @@ class SpatialIndexProfiler:
             for batch_size, data in sorted(self.results["batch_updates"].items()):
                 print(
                     f"  Batch size {batch_size:>4}: {data['update_time']*1000:.2f}ms "
-                    f"({data['time_per_move']*1000000:.2f}μs per entity)"
+                    f"({data['time_per_move']*1000000:.2f}us per entity)"
                 )
 
         # Index type comparison
@@ -362,7 +380,8 @@ class SpatialIndexProfiler:
             for name, data in self.results["index_types"].items():
                 print(
                     f"  {name:>20}: Build {data['build_time']*1000:>7.2f}ms, "
-                    f"Query {data['query_per_call']*1000000:>6.2f}μs"
+                    f"Query {data['query_per_call']*1000000:>6.2f}us, "
+                    f"Nearest {data['nearest_per_call']*1000000:>6.2f}us"
                 )
 
         print("\n" + "=" * 60 + "\n")
@@ -391,7 +410,7 @@ def main():
     # Generate report
     profiler.generate_report()
 
-    print("✓ Spatial index profiling complete!")
+    print("+ Spatial index profiling complete!")
     print("  Results saved in profiler.results")
 
 
