@@ -27,7 +27,7 @@ def filter_results_by_field(
 
 
 def group_results_by_implementation(
-    results: List[Dict[str, Any]],
+    results: List[Dict[str, Any]]
 ) -> Dict[str, List[Dict[str, Any]]]:
     """
     Group results by implementation name.

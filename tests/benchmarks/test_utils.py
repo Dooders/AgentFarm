@@ -1,7 +1,7 @@
 """
-Unit tests for the benchmarks.utils module.
+Unit tests for the benchmarks.utils.config_helper module.
 
-Tests utility functions and helper modules.
+Tests utility functions in the config_helper submodule, including configuration helpers and recommendations.
 """
 
 import unittest

@@ -25,9 +25,7 @@ def calculate_statistics(results: RunResult) -> Dict[str, float]:
         Dictionary of statistics
     """
     # Extract durations from the new result structure
-    durations = []
-    if results.iteration_metrics:
-        durations = [iteration.duration_s for iteration in results.iteration_metrics]
+    durations = [iteration.duration_s for iteration in results.iteration_metrics] if results.iteration_metrics else []
 
     if not durations:
         return {

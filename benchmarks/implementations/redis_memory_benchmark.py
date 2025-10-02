@@ -69,7 +69,7 @@ class RedisMemoryBenchmark(Experiment):
         super().__init__(parameters or {})
 
         # Set benchmark-specific parameters
-        self.parameters.update(
+        self.params.update(
             {
                 "num_agents": num_agents,
                 "memory_entries": memory_entries,
