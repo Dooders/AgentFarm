@@ -22,7 +22,7 @@ class _Sampler(threading.Thread):
         super().__init__(daemon=True)
         self.interval_s = interval_s
         self.out_list = out_list
-        self._stop = threading.Event()
+        self._stop_event = threading.Event()
         self.max_samples = max_samples
 
     def run(self) -> None:
@@ -34,7 +34,7 @@ class _Sampler(threading.Thread):
             process.cpu_percent(interval=None)
         except Exception:
             pass
-        while not self._stop.is_set():
+        while not self._stop_event.is_set():
             try:
                 ts = time.monotonic()
                 cpu = process.cpu_percent(interval=None)
@@ -56,14 +56,14 @@ class _Sampler(threading.Thread):
                 pass
             # sleep using monotonic reference
             target = time.monotonic() + self.interval_s
-            while not self._stop.is_set():
+            while not self._stop_event.is_set():
                 remaining = target - time.monotonic()
                 if remaining <= 0:
                     break
                 time.sleep(min(remaining, 0.05))
 
     def stop(self) -> None:
-        self._stop.set()
+        self._stop_event.set()
 
 
 @contextmanager
