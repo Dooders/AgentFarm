@@ -1,11 +1,19 @@
+import asyncio
 import os
+import threading
 from dataclasses import replace
 from datetime import datetime
-import threading
+from typing import Any, Dict, Optional
 
-from flask import Flask, jsonify, request
-from flask_cors import CORS
-from flask_socketio import SocketIO, emit
+from fastapi import (
+    BackgroundTasks,
+    FastAPI,
+    HTTPException,
+    WebSocket,
+    WebSocketDisconnect,
+)
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from farm.analysis.service import AnalysisRequest, AnalysisService
 from farm.config import SimulationConfig
@@ -24,13 +32,81 @@ configure_logging(
 )
 logger = get_logger(__name__)
 
-app = Flask(__name__)
-CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
+app = FastAPI(title="AgentFarm API", version="1.0.0")
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# Pydantic models for request/response validation
+class SimulationCreateRequest(BaseModel):
+    simulation_steps: Optional[int] = None
+    # Add other config fields as needed
+
+
+class SimulationResponse(BaseModel):
+    status: str
+    sim_id: Optional[str] = None
+    message: Optional[str] = None
+
+
+class AnalysisRequestModel(BaseModel):
+    experiment_path: str = "results"
+    output_path: str = "results/analysis"
+    group: str = "all"
+    processor_kwargs: Optional[Dict[str, Any]] = None
+    analysis_kwargs: Optional[Dict[str, Any]] = None
+
+
+class AnalysisResponse(BaseModel):
+    status: str
+    output_path: Optional[str] = None
+    rows: Optional[int] = None
+    message: Optional[str] = None
+
+
+class SimulationStatus(BaseModel):
+    status: str
+    data: Optional[Dict[str, Any]] = None
+    message: Optional[str] = None
+
 
 # Store active simulations
 active_simulations = {}
 _active_simulations_lock = threading.Lock()
+
+
+# WebSocket connection manager
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: Dict[str, WebSocket] = {}
+
+    async def connect(self, websocket: WebSocket, client_id: str):
+        await websocket.accept()
+        self.active_connections[client_id] = websocket
+
+    def disconnect(self, client_id: str):
+        if client_id in self.active_connections:
+            del self.active_connections[client_id]
+
+    async def send_personal_message(self, message: str, websocket: WebSocket):
+        await websocket.send_text(message)
+
+    async def broadcast(self, message: str):
+        for connection in self.active_connections.values():
+            try:
+                await connection.send_text(message)
+            except Exception:
+                pass
+
+
+manager = ConnectionManager()
 
 
 def _run_simulation_background(sim_id, config, db_path):
@@ -40,7 +116,11 @@ def _run_simulation_background(sim_id, config, db_path):
                 active_simulations[sim_id]["status"] = "running"
 
         # Run simulation
-        run_simulation(num_steps=config.simulation_steps, config=config, path=os.path.dirname(db_path))
+        run_simulation(
+            num_steps=config.simulation_steps,
+            config=config,
+            path=os.path.dirname(db_path),
+        )
 
         with _active_simulations_lock:
             if sim_id in active_simulations:
@@ -60,11 +140,13 @@ def _run_simulation_background(sim_id, config, db_path):
                 active_simulations[sim_id]["error_message"] = str(e)
 
 
-@app.route("/api/simulation/new", methods=["POST"])
-def create_simulation():
+@app.post("/api/simulation/new", response_model=SimulationResponse)
+async def create_simulation(
+    request_data: SimulationCreateRequest, background_tasks: BackgroundTasks
+):
     """Create a new simulation with provided configuration."""
     try:
-        config_data = request.json or {}
+        config_data = request_data.dict(exclude_unset=True)
 
         # Generate unique simulation ID
         sim_id = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -92,12 +174,12 @@ def create_simulation():
                 "status": "pending",
             }
 
-        # Start background thread
-        thread = threading.Thread(target=_run_simulation_background, args=(sim_id, config, db_path))
-        thread.daemon = True
-        thread.start()
+        # Start background task
+        background_tasks.add_task(_run_simulation_background, sim_id, config, db_path)
 
-        return (jsonify({"status": "accepted", "sim_id": sim_id, "message": "Simulation started"}), 202)
+        return SimulationResponse(
+            status="accepted", sim_id=sim_id, message="Simulation started"
+        )
 
     except Exception as e:
         logger.error(
@@ -107,23 +189,27 @@ def create_simulation():
             error_message=str(e),
             exc_info=True,
         )
-        return jsonify({"status": "error", "message": str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.route("/api/simulation/<sim_id>/step/<int:step>", methods=["GET"])
-def get_step(sim_id, step):
+@app.get("/api/simulation/{sim_id}/step/{step}")
+async def get_step(sim_id: str, step: int):
     """Get simulation state for a specific step."""
     try:
         with _active_simulations_lock:
             if sim_id not in active_simulations:
-                raise ValueError(f"Simulation {sim_id} not found")
+                raise HTTPException(
+                    status_code=404, detail=f"Simulation {sim_id} not found"
+                )
             db_path = active_simulations[sim_id]["db_path"]
 
         db = SimulationDatabase(db_path)
         data = db.query.gui_repository.get_simulation_data(step)
 
-        return jsonify({"status": "success", "data": data})
+        return {"status": "success", "data": data}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(
             "api_get_step_failed",
@@ -132,23 +218,27 @@ def get_step(sim_id, step):
             error_type=type(e).__name__,
             error_message=str(e),
         )
-        return jsonify({"status": "error", "message": str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.route("/api/simulation/<sim_id>/analysis", methods=["GET"])
-def get_analysis(sim_id):
+@app.get("/api/simulation/{sim_id}/analysis")
+async def get_analysis(sim_id: str):
     """Get detailed simulation analysis."""
     try:
         with _active_simulations_lock:
             if sim_id not in active_simulations:
-                raise ValueError(f"Simulation {sim_id} not found")
+                raise HTTPException(
+                    status_code=404, detail=f"Simulation {sim_id} not found"
+                )
             db_path = active_simulations[sim_id]["db_path"]
 
         db = SimulationDatabase(db_path)
         analysis_results = analyze_simulation(db)
 
-        return jsonify({"status": "success", "data": analysis_results})
+        return {"status": "success", "data": analysis_results}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(
             "api_analysis_failed",
@@ -156,35 +246,26 @@ def get_analysis(sim_id):
             error_type=type(e).__name__,
             error_message=str(e),
         )
-        return jsonify({"status": "error", "message": str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.route("/api/analysis/<module_name>", methods=["POST"])
-def run_analysis_module(module_name):
+@app.post("/api/analysis/{module_name}", response_model=AnalysisResponse)
+async def run_analysis_module(module_name: str, request_data: AnalysisRequestModel):
     try:
-        payload = request.json or {}
-        experiment_path = payload.get("experiment_path", "results")
-        output_path = payload.get("output_path", "results/analysis")
-        group = payload.get("group", "all")
-        processor_kwargs = payload.get("processor_kwargs")
-        analysis_kwargs = payload.get("analysis_kwargs")
-
         service = AnalysisService(config_service=EnvConfigService())
         req = AnalysisRequest(
             module_name=module_name,
-            experiment_path=experiment_path,
-            output_path=output_path,
-            group=group,
-            processor_kwargs=processor_kwargs,
-            analysis_kwargs=analysis_kwargs,
+            experiment_path=request_data.experiment_path,
+            output_path=request_data.output_path,
+            group=request_data.group,
+            processor_kwargs=request_data.processor_kwargs,
+            analysis_kwargs=request_data.analysis_kwargs,
         )
         result = service.run(req)
-        return jsonify(
-            {
-                "status": "success",
-                "output_path": str(result.output_path),
-                "rows": (int(result.dataframe.shape[0]) if result.dataframe is not None else 0),
-            }
+        return AnalysisResponse(
+            status="success",
+            output_path=str(result.output_path),
+            rows=int(result.dataframe.shape[0]) if result.dataframe is not None else 0,
         )
     except Exception as e:
         logger.error(
@@ -194,38 +275,40 @@ def run_analysis_module(module_name):
             error_message=str(e),
             exc_info=True,
         )
-        return jsonify({"status": "error", "message": str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.route("/api/simulations", methods=["GET"])
-def list_simulations():
+@app.get("/api/simulations")
+async def list_simulations():
     """Get list of active simulations."""
     with _active_simulations_lock:
         data = dict(active_simulations)
-    return jsonify({"status": "success", "data": data})
+    return {"status": "success", "data": data}
 
 
-@app.route("/api/simulation/<sim_id>/export", methods=["GET"])
-def export_simulation(sim_id):
+@app.get("/api/simulation/{sim_id}/export")
+async def export_simulation(sim_id: str):
     """Export simulation data."""
     try:
         with _active_simulations_lock:
             if sim_id not in active_simulations:
-                raise ValueError(f"Simulation {sim_id} not found")
+                raise HTTPException(
+                    status_code=404, detail=f"Simulation {sim_id} not found"
+                )
             db_path = active_simulations[sim_id]["db_path"]
 
         db = SimulationDatabase(db_path)
         export_path = f"results/export_{sim_id}.csv"
         db.export_data(export_path)
 
-        return jsonify(
-            {
-                "status": "success",
-                "path": export_path,
-                "message": "Data exported successfully",
-            }
-        )
+        return {
+            "status": "success",
+            "path": export_path,
+            "message": "Data exported successfully",
+        }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(
             "api_export_failed",
@@ -234,40 +317,75 @@ def export_simulation(sim_id):
             error_type=type(e).__name__,
             error_message=str(e),
         )
-        return jsonify({"status": "error", "message": str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-# WebSocket events
-@socketio.on("connect")
-def handle_connect():
-    logger.info("websocket_client_connected", client_id=request.sid)
+# WebSocket endpoint
+@app.websocket("/ws/{client_id}")
+async def websocket_endpoint(websocket: WebSocket, client_id: str):
+    await manager.connect(websocket, client_id)
+    logger.info("websocket_client_connected", client_id=client_id)
+
+    try:
+        while True:
+            # Receive message from client
+            data = await websocket.receive_text()
+
+            # Parse the message (assuming JSON format)
+            import json
+
+            try:
+                message = json.loads(data)
+                if message.get("type") == "subscribe_simulation":
+                    sim_id = message.get("sim_id")
+                    with _active_simulations_lock:
+                        exists = sim_id in active_simulations
+
+                    if exists:
+                        logger.info(
+                            "client_subscribed_to_simulation",
+                            client_id=client_id,
+                            simulation_id=sim_id,
+                        )
+                        await manager.send_personal_message(
+                            json.dumps(
+                                {"type": "subscription_success", "sim_id": sim_id}
+                            ),
+                            websocket,
+                        )
+                    else:
+                        await manager.send_personal_message(
+                            json.dumps(
+                                {
+                                    "type": "subscription_error",
+                                    "message": f"Simulation {sim_id} not found",
+                                }
+                            ),
+                            websocket,
+                        )
+            except json.JSONDecodeError:
+                await manager.send_personal_message(
+                    json.dumps({"type": "error", "message": "Invalid JSON format"}),
+                    websocket,
+                )
+
+    except WebSocketDisconnect:
+        manager.disconnect(client_id)
+        logger.info("websocket_client_disconnected", client_id=client_id)
 
 
-@socketio.on("disconnect")
-def handle_disconnect():
-    logger.info("websocket_client_disconnected", client_id=request.sid)
-
-
-@socketio.on("subscribe_simulation")
-def handle_subscribe(sim_id):
-    """Subscribe to simulation updates."""
-    with _active_simulations_lock:
-        exists = sim_id in active_simulations
-    if exists:
-        logger.info("client_subscribed_to_simulation", client_id=request.sid, simulation_id=sim_id)
-        emit("subscription_success", {"sim_id": sim_id})
-    else:
-        emit("subscription_error", {"message": f"Simulation {sim_id} not found"})
-
-
-@app.route("/api/simulation/<sim_id>/status", methods=["GET"])
-def get_simulation_status(sim_id):
+@app.get("/api/simulation/{sim_id}/status", response_model=SimulationStatus)
+async def get_simulation_status(sim_id: str):
     try:
         with _active_simulations_lock:
             if sim_id not in active_simulations:
-                raise ValueError(f"Simulation {sim_id} not found")
+                raise HTTPException(
+                    status_code=404, detail=f"Simulation {sim_id} not found"
+                )
             data = dict(active_simulations[sim_id])
-        return jsonify({"status": "success", "data": data})
+        return SimulationStatus(status="success", data=data)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(
             "api_get_simulation_status_failed",
@@ -275,12 +393,14 @@ def get_simulation_status(sim_id):
             error_type=type(e).__name__,
             error_message=str(e),
         )
-        return jsonify({"status": "error", "message": str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":
+    import uvicorn
+
     # Create logs directory
     os.makedirs("logs", exist_ok=True)
 
-    # Start SocketIO server
-    socketio.run(app, port=5000, debug=True)
+    # Start FastAPI server with uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=5000, reload=True)
