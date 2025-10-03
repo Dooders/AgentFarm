@@ -14,14 +14,13 @@ This project consolidates all analysis code into the protocol-based `farm.analys
 
 | Document | Purpose | Start Here? |
 |----------|---------|-------------|
-| **[REFACTORING_QUICK_START.md](REFACTORING_QUICK_START.md)** | Get started in 5 minutes | ✅ **YES** |
-| **[ANALYSIS_CODE_STATE_REPORT.md](ANALYSIS_CODE_STATE_REPORT.md)** | Complete inventory of existing code | 📊 Reference |
+| **[ANALYSIS_CODE_STATE_REPORT.md](ANALYSIS_CODE_STATE_REPORT.md)** | Complete inventory of existing code | ✅ **START HERE** |
 | **[ANALYSIS_REFACTORING_PLAN.md](ANALYSIS_REFACTORING_PLAN.md)** | Detailed implementation plan with code | 📋 Implementation |
 | **[REFACTORING_TASKS.md](REFACTORING_TASKS.md)** | Task tracker and checklists | ✓ Tracking |
+| **[REFACTORING_QUICK_START.md](REFACTORING_QUICK_START.md)** | Quick reference guide | 📖 Reference |
 
 ### Supporting Files
 
-- **[scripts/bootstrap_analysis_module.py](scripts/bootstrap_analysis_module.py)** - Module generator script
 - **farm/analysis/** - Existing protocol-based framework (ready to use)
 - **farm/analysis/dominance/** - Reference implementation (complete example)
 
@@ -46,20 +45,19 @@ This project consolidates all analysis code into the protocol-based `farm.analys
 
 ## 🚀 Quick Start
 
-### For First-Time Setup (5 minutes)
+### For First-Time Setup
 
 ```bash
-# 1. Read the quick start guide
+# 1. Read the current state report
+cat ANALYSIS_CODE_STATE_REPORT.md
+
+# 2. Review the detailed refactoring plan
+cat ANALYSIS_REFACTORING_PLAN.md
+
+# 3. Check the quick start guide
 cat REFACTORING_QUICK_START.md
 
-# 2. Create your first module structure
-python scripts/bootstrap_analysis_module.py population
-
-# 3. Review the generated files
-ls -la farm/analysis/population/
-
 # 4. Start implementing!
-# Edit farm/analysis/population/data.py
 # Follow examples in ANALYSIS_REFACTORING_PLAN.md
 ```
 
@@ -237,7 +235,7 @@ result = service.run(request)
 | Implement a module? | Follow **ANALYSIS_REFACTORING_PLAN.md** |
 | Track progress? | Update **REFACTORING_TASKS.md** |
 | See an example? | Look at `farm/analysis/dominance/` |
-| Create module structure? | Run `python scripts/bootstrap_analysis_module.py <name>` |
+| Create module structure? | Follow examples in ANALYSIS_REFACTORING_PLAN.md |
 
 ### "Where is...?"
 
@@ -491,17 +489,17 @@ Week 6: Polish & Release
 Ready to begin? Here's your immediate next steps:
 
 ```bash
-# 1. Read the quick start guide (5 minutes)
-cat REFACTORING_QUICK_START.md
+# 1. Review current state
+cat ANALYSIS_CODE_STATE_REPORT.md
 
-# 2. Review current state (5 minutes)  
-cat ANALYSIS_CODE_STATE_REPORT.md | less
+# 2. Read the detailed refactoring plan
+cat ANALYSIS_REFACTORING_PLAN.md
 
-# 3. Bootstrap first module (1 minute)
-python scripts/bootstrap_analysis_module.py population
+# 3. Check task breakdown
+cat REFACTORING_TASKS.md
 
-# 4. Start implementing! (rest of week)
-# Follow ANALYSIS_REFACTORING_PLAN.md
+# 4. Start implementing!
+# Follow ANALYSIS_REFACTORING_PLAN.md with detailed code examples
 ```
 
 **Everything you need is ready. Time to code! 🚀**

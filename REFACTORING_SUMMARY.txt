@@ -6,12 +6,11 @@
 📂 YOUR COMPLETE DOCUMENTATION PACKAGE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  ✅ REFACTORING_README.md                 Main project overview
-  ✅ REFACTORING_QUICK_START.md            Get started in 5 minutes
-  ✅ ANALYSIS_CODE_STATE_REPORT.md         Complete code inventory
-  ✅ ANALYSIS_REFACTORING_PLAN.md          Detailed implementation plan
+  ✅ ANALYSIS_CODE_STATE_REPORT.md         Complete code inventory (START HERE)
+  ✅ ANALYSIS_REFACTORING_PLAN.md          Detailed implementation plan with code
   ✅ REFACTORING_TASKS.md                  Task tracker with checklists
-  ✅ scripts/bootstrap_analysis_module.py  Automated module generator
+  ✅ REFACTORING_QUICK_START.md            Quick reference guide
+  ✅ REFACTORING_README.md                 Main project overview
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -26,24 +25,9 @@
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🚀 IMMEDIATE NEXT STEPS (Choose Your Path)
+🚀 IMMEDIATE NEXT STEPS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  PATH A: FAST START (Recommended)
-  ────────────────────────────────
-  
-  1. Read quick start guide:
-     $ cat REFACTORING_QUICK_START.md
-     
-  2. Bootstrap first module:
-     $ python scripts/bootstrap_analysis_module.py population
-     
-  3. Start coding!
-     $ code farm/analysis/population/data.py
-
-  PATH B: CAREFUL PLANNING
-  ────────────────────────
-  
   1. Review current state:
      $ cat ANALYSIS_CODE_STATE_REPORT.md
      
@@ -53,7 +37,7 @@
   3. Study task breakdown:
      $ cat REFACTORING_TASKS.md
      
-  4. Then bootstrap and code
+  4. Start implementing following the plan
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -108,8 +92,7 @@
   ├── analyze.py      Analysis functions (use compute)
   └── plot.py         Visualizations (matplotlib)
 
-  Create with:
-    $ python scripts/bootstrap_analysis_module.py <module_name>
+  Follow detailed code examples in ANALYSIS_REFACTORING_PLAN.md
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -147,8 +130,7 @@
   ✓ State report complete (117+ files documented)
   ✓ Refactoring plan ready (detailed code examples)
   ✓ Task tracker created (78 tasks with checklists)
-  ✓ Bootstrap script ready (automated module creation)
-  ✓ Quick start guide written (get started in 5 min)
+  ✓ Quick reference guide available
   ✓ Testing strategy defined (>80% coverage target)
   ✓ Timeline established (6 weeks, phased approach)
   ✓ Examples available (dominance module reference)
@@ -173,8 +155,9 @@
 🚦 START NOW!
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  $ cat REFACTORING_QUICK_START.md    # Read this first
-  $ python scripts/bootstrap_analysis_module.py population
+  $ cat ANALYSIS_CODE_STATE_REPORT.md       # Understand current state
+  $ cat ANALYSIS_REFACTORING_PLAN.md        # Review implementation plan
+  $ cat REFACTORING_TASKS.md                # Check task breakdown
   
   Then follow the detailed examples in ANALYSIS_REFACTORING_PLAN.md!
 

@@ -9,11 +9,12 @@ This guide will help you get started with the analysis module refactoring quickl
 1. **ANALYSIS_CODE_STATE_REPORT.md** - Complete inventory of all analysis code
 2. **ANALYSIS_REFACTORING_PLAN.md** - Detailed implementation plan with code examples
 3. **REFACTORING_TASKS.md** - Task tracker with checklists
-4. **scripts/bootstrap_analysis_module.py** - Automated module generator
+4. **REFACTORING_QUICK_START.md** - This quick reference guide
+5. **REFACTORING_README.md** - Main project overview
 
 ---
 
-## 🚀 Getting Started (5 minutes)
+## 🚀 Getting Started
 
 ### Step 1: Review the Current State
 
@@ -54,24 +55,6 @@ Create common utilities first:
 
 ## 🏗️ Creating Your First Module (Population)
 
-### Option A: Use Bootstrap Script (Recommended)
-
-```bash
-# Create module structure automatically
-python scripts/bootstrap_analysis_module.py population
-
-# This creates:
-# - farm/analysis/population/__init__.py
-# - farm/analysis/population/module.py
-# - farm/analysis/population/data.py
-# - farm/analysis/population/compute.py
-# - farm/analysis/population/analyze.py
-# - farm/analysis/population/plot.py
-# - tests/analysis/test_population.py
-```
-
-### Option B: Manual Creation
-
 Follow the detailed code examples in **ANALYSIS_REFACTORING_PLAN.md** under "Migration 2.1: Population Module".
 
 ---
@@ -82,7 +65,9 @@ Follow the detailed code examples in **ANALYSIS_REFACTORING_PLAN.md** under "Mig
 
 1. **Create Structure**
    ```bash
-   python scripts/bootstrap_analysis_module.py <module_name>
+   mkdir -p farm/analysis/<module_name>
+   cd farm/analysis/<module_name>
+   touch __init__.py module.py data.py compute.py analyze.py plot.py
    ```
 
 2. **Implement Data Processing** (`data.py`)
@@ -225,8 +210,8 @@ Follow this order for maximum impact:
 
 ### Week 1: Foundation
 1. ✅ Create `farm/analysis/common/utils.py` (reusable utilities)
-2. ✅ Test bootstrap script
-3. ✅ Set up testing infrastructure
+2. ✅ Set up testing infrastructure
+3. ✅ Create module templates
 
 ### Week 2: High Priority
 1. 🔴 **Population Module** (most used, clear boundaries)
@@ -449,20 +434,25 @@ Ready to start? Here's what to do RIGHT NOW:
 ```bash
 # 1. Create common utilities (copy from plan)
 mkdir -p farm/analysis/common
-touch farm/analysis/common/utils.py
 # Copy content from ANALYSIS_REFACTORING_PLAN.md Task 1.1
+# into farm/analysis/common/utils.py
 
-# 2. Create your first module
-python scripts/bootstrap_analysis_module.py population
+# 2. Create your first module structure
+mkdir -p farm/analysis/population
+cd farm/analysis/population
+touch __init__.py module.py data.py compute.py analyze.py plot.py
 
-# 3. Implement data processing
-# Edit farm/analysis/population/data.py
-# Use examples from ANALYSIS_REFACTORING_PLAN.md
+# 3. Implement following ANALYSIS_REFACTORING_PLAN.md
+# Start with data.py - see Migration 2.1 for complete example
 
-# 4. Run tests
+# 4. Create tests
+mkdir -p tests/analysis
+touch tests/analysis/test_population.py
+
+# 5. Run tests as you implement
 pytest tests/analysis/test_population.py -v
 
-# 5. Iterate until working!
+# 6. Iterate until working!
 ```
 
 ---
@@ -481,4 +471,4 @@ You have everything you need to succeed:
 
 **Stuck?** Check the dominance module - it has everything you need.
 
-**Ready?** Start with `python scripts/bootstrap_analysis_module.py population`!
+**Ready?** Follow the detailed implementation guide in ANALYSIS_REFACTORING_PLAN.md!
