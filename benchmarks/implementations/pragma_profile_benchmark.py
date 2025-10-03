@@ -63,7 +63,7 @@ class PragmaProfileBenchmark(Experiment):
         super().__init__(parameters or {})
 
         # Set benchmark-specific parameters
-        self.parameters.update(
+        self.params.update(
             {
                 "num_records": num_records,
                 "db_size_mb": db_size_mb,
@@ -185,7 +185,7 @@ class PragmaProfileBenchmark(Experiment):
         self.open_dbs.append(db)
 
         # Get the number of records to insert
-        num_records = self.parameters["num_records"]
+        num_records = self.params["num_records"]
 
         # Start timing
         start_time = time.time()
@@ -345,7 +345,7 @@ class PragmaProfileBenchmark(Experiment):
         self.open_dbs.append(db)
 
         # Get the target database size
-        db_size_mb = self.parameters["db_size_mb"]
+        db_size_mb = self.params["db_size_mb"]
 
         # Create a connection
         conn = db.engine.raw_connection()
@@ -441,7 +441,7 @@ class PragmaProfileBenchmark(Experiment):
 
         # Get the number of operations to perform
         num_operations = (
-            self.parameters["num_records"] // 10
+            self.params["num_records"] // 10
         )  # Fewer operations for mixed workload
 
         # Start timing
