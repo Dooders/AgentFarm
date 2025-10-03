@@ -569,23 +569,23 @@ while running:
 
 ### 🚧 In Development (v0.2.0)
 
-- [ ] GPU-accelerated spatial queries
-- [ ] Distributed simulation support
-- [ ] Real-time collaborative features
-- [ ] Advanced visualization (3D, WebGL)
-- [ ] Interactive configuration UI
-- [ ] Cloud deployment tools
-- [ ] Enhanced ML integration
+- [ ] GPU-accelerated spatial queries [^gpu-note]
+- [ ] Distributed simulation support [^distributed-note]
+- [ ] Real-time collaborative features [^realtime-note]
+- [ ] Advanced visualization (3D, WebGL) [^3d-viz-note]
+- [ ] Interactive configuration UI [^config-ui-note]
+- [ ] Cloud deployment tools [^cloud-note]
+- [ ] Enhanced ML integration [^ml-integration-note]
 
 ### 🔮 Planned (v0.3.0+)
 
-- [ ] Multi-agent communication protocols
-- [ ] Neural architecture search
-- [ ] Federated learning support
-- [ ] Real-time analytics dashboard
-- [ ] Plugin system for extensions
-- [ ] Mobile visualization app
-- [ ] Integration with Unity/Unreal
+- [ ] Multi-agent communication protocols [^comm-protocols-note]
+- [ ] Neural architecture search [^neural-arch-note]
+- [ ] Federated learning support [^federated-note]
+- [ ] Real-time analytics dashboard [^analytics-dashboard-note]
+- [ ] Plugin system for extensions [^plugin-system-note]
+- [ ] Mobile visualization app [^mobile-app-note]
+- [ ] Integration with Unity/Unreal [^unity-unreal-note]
 
 ---
 
@@ -748,6 +748,38 @@ If you use AgentFarm in your research, please cite:
   url={https://github.com/Dooders/AgentFarm}
 }
 ```
+
+---
+
+## Feature Implementation Notes
+
+[^gpu-note]: GPU-accelerated spatial queries are planned for v0.2.0 to enable large-scale simulations with thousands of agents.
+
+[^distributed-note]: Distributed simulation support will allow simulations to run across multiple machines for massive agent populations.
+
+[^realtime-note]: Real-time collaborative features will enable multiple researchers to interact with and modify simulations simultaneously.
+
+[^3d-viz-note]: Advanced 3D and WebGL visualization will provide immersive simulation experiences and better spatial understanding.
+
+[^config-ui-note]: Interactive configuration UI will simplify experiment setup and parameter exploration for non-programmers.
+
+[^cloud-note]: Cloud deployment tools will enable running simulations on cloud infrastructure with automatic scaling.
+
+[^ml-integration-note]: Enhanced ML integration will include advanced algorithms like evolutionary learning and federated learning approaches.
+
+[^comm-protocols-note]: Multi-agent communication protocols will enable complex social interactions and language-based coordination.
+
+[^neural-arch-note]: Neural architecture search will automatically optimize agent neural networks for specific tasks.
+
+[^federated-note]: Federated learning support will allow training across distributed datasets while preserving privacy.
+
+[^analytics-dashboard-note]: Real-time analytics dashboard will provide live monitoring and alerting for long-running simulations.
+
+[^plugin-system-note]: Plugin system will enable third-party extensions and custom simulation components.
+
+[^mobile-app-note]: Mobile visualization app will allow monitoring simulations on smartphones and tablets.
+
+[^unity-unreal-note]: Unity/Unreal integration will enable using AgentFarm simulations in game engines for interactive experiences.
 
 ---
 

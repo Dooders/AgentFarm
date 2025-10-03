@@ -139,16 +139,28 @@ class LearningAgent(BaseAgent):
 
 Improve learning efficiency with shared encoders:
 
+> **Note**: The `SharedEncoder` class is planned for a future release. Currently, shared feature extraction can be implemented using PyTorch's module sharing or custom neural network architectures.
+
 ```python
-from farm.core.decision.base_dqn import SharedEncoder
+import torch.nn as nn
+
+# Create shared encoder manually
+class SharedEncoder(nn.Module):
+    def __init__(self, input_dim, hidden_size):
+        super().__init__()
+        self.encoder = nn.Sequential(
+            nn.Linear(input_dim, hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, hidden_size)
+        )
+
+    def forward(self, x):
+        return self.encoder(x)
 
 # Create shared encoder
-shared_encoder = SharedEncoder(
-    input_dim=state_dimension,
-    hidden_size=64
-)
+shared_encoder = SharedEncoder(state_dimension, 64)
 
-# Use across multiple modules
+# Use across multiple modules (manually sharing the encoder)
 move_module = MoveDQNModule(
     input_dim=state_dimension,
     output_dim=4,
@@ -162,12 +174,6 @@ attack_module = AttackDQNModule(
     config=config,
     shared_encoder=shared_encoder  # Reuse same encoder
 )
-
-# Benefits:
-# - Reduced parameter count
-# - Faster training
-# - Better generalization
-# - Consistent feature representations
 ```
 
 #### Additional RL Algorithms
@@ -434,6 +440,8 @@ Use ML to identify patterns and predict future behaviors.
 #### Sequence Pattern Analysis
 
 Identify common behavioral sequences:
+
+> **Note**: Advanced sequence pattern analysis with automatic discovery of behavioral motifs is planned for a future release. The current implementation provides basic action frequency analysis.
 
 ```python
 from farm.analysis.social_behavior.analyze import analyze_interaction_sequences

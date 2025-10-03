@@ -954,11 +954,28 @@ config = SimulationConfig(
 
 Load data on-demand:
 
-```python
-from farm.database.data_retrieval import LazyDataRetriever
+> **Note**: The `LazyDataRetriever` class is planned for a future release. Currently, memory-efficient data retrieval can be implemented using pandas chunked reading or custom SQL LIMIT/OFFSET queries.
 
-# Lazy retriever doesn't load all data upfront
-retriever = LazyDataRetriever("large_simulation.db")
+```python
+# Custom lazy loading implementation
+from farm.database.database import SimulationDatabase
+import pandas as pd
+
+class CustomLazyRetriever:
+    def __init__(self, db_path, chunk_size=1000):
+        self.db = SimulationDatabase(db_path)
+        self.chunk_size = chunk_size
+
+    def get_step_data(self, step):
+        """Load data for specific step only."""
+        query = f"""
+        SELECT * FROM agent_actions
+        WHERE step = {step}
+        """
+        return pd.read_sql(query, self.db.engine)
+
+# Usage
+retriever = CustomLazyRetriever("large_simulation.db")
 
 # Data loaded only when accessed
 for step in range(0, 10000, 100):

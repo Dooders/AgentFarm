@@ -510,6 +510,8 @@ class LeaderAgent(BaseAgent):
 
 Add personality traits that influence behavior:
 
+> **Note**: The `AgentPersonality` system for procedural personality generation is planned for a future release. Currently, agent behaviors can be customized through direct parameter configuration.
+
 ```python
 from dataclasses import dataclass
 
@@ -774,10 +776,12 @@ results = run_simulation_batch(configs)
 
 Create complete custom scenarios:
 
-```python
-from farm.core.scenario import BaseScenario
+> **Note**: The `BaseScenario` class is planned for a future release. Currently, custom scenarios can be implemented by extending the `Environment` class and overriding its methods.
 
-class ResourceCompetitionScenario(BaseScenario):
+```python
+from farm.core.environment import Environment
+
+class ResourceCompetitionScenario(Environment):
     """Scenario studying competition for declining resources."""
     
     def __init__(self, config: SimulationConfig):
@@ -989,6 +993,8 @@ class ResearcherAgent(BaseAgent):
 
 Add new types of environmental information:
 
+> **Note**: Custom observation channels like `TemperatureChannel` are planned for a future release. The current observation system supports basic spatial and agent information.
+
 ```python
 from farm.core.channels import ChannelHandler
 
@@ -1037,6 +1043,8 @@ obs_config = ObservationConfig(
 ### Custom Learning Algorithms
 
 Implement specialized learning approaches:
+
+> **Note**: Custom learning algorithms like `EvolutionaryLearning` are planned for a future release. The current system provides a foundation for extending RL algorithms but requires custom implementation.
 
 ```python
 from farm.core.decision.algorithms.base import BaseDecisionAlgorithm

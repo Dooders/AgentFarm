@@ -134,6 +134,8 @@ best_params = results_db.find_optimal_configuration(
 
 Use Bayesian optimization to efficiently explore parameter space:
 
+> **Note**: The `BayesianParameterOptimizer` class is planned for a future release. Currently, parameter sweeps can be implemented using grid search or random sampling with external optimization libraries.
+
 ```python
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel

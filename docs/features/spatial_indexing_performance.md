@@ -421,16 +421,59 @@ with log_simulation(simulation_id="perf_test"):
 
 Compare performance across configurations:
 
-```python
-from farm.benchmarks.spatial import run_spatial_benchmark
+> **Note**: The `run_spatial_benchmark` function is planned for a future release. Currently, spatial performance benchmarking can be implemented using the existing spatial index APIs and timing utilities.
 
-# Run comprehensive benchmark
-results = run_spatial_benchmark(
-    entity_counts=[100, 500, 1000, 2000],
-    implementations=["kdtree", "quadtree", "spatial_hash"],
-    distributions=["uniform", "clustered"],
-    num_queries=100
-)
+```python
+# Custom spatial benchmarking implementation
+import time
+from farm.core.spatial.index import SpatialIndex
+
+def run_custom_spatial_benchmark():
+    """Custom spatial performance benchmark."""
+    entity_counts = [100, 500, 1000, 2000]
+    implementations = ["kdtree", "quadtree", "spatial_hash"]
+    results = []
+
+    for impl_name in implementations:
+        for count in entity_counts:
+            # Generate test entities
+            entities = generate_test_entities(count)
+
+            # Create appropriate index
+            if impl_name == "kdtree":
+                index = SpatialIndex.kd_tree_index()
+            elif impl_name == "quadtree":
+                index = SpatialIndex.quadtree_index()
+            else:  # spatial_hash
+                index = SpatialIndex.spatial_hash_index()
+
+            # Benchmark build time
+            start = time.perf_counter()
+            for entity in entities:
+                index.add_entity(entity)
+            build_time = (time.perf_counter() - start) * 1000  # ms
+
+            # Benchmark query time
+            query_times = []
+            for _ in range(100):
+                start = time.perf_counter()
+                results = index.query_radius((50, 50), 10.0)
+                query_times.append((time.perf_counter() - start) * 1e6)  # μs
+
+            avg_query_time = sum(query_times) / len(query_times)
+
+            results.append({
+                'name': f"{impl_name}_{count}",
+                'build_time_ms': build_time,
+                'query_time_us': avg_query_time,
+                'memory_mb': estimate_memory_usage(index),
+                'efficiency_score': calculate_efficiency(build_time, avg_query_time)
+            })
+
+    return results
+
+# Run benchmark
+results = run_custom_spatial_benchmark()
 
 # Analyze results
 print("Benchmark Results:")

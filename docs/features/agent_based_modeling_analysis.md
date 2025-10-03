@@ -317,28 +317,35 @@ response_analysis = analyzer.analyze_environmental_responses(
 
 Visualize and analyze agent interaction networks:
 
+> **Note**: The `InteractionNetworkAnalyzer` class is planned for a future release. Currently, network analysis can be performed using custom SQL queries or external network analysis libraries.
+
 ```python
-from farm.analysis.network_analysis import InteractionNetworkAnalyzer
+# Use custom SQL queries for network analysis
+from farm.database.database import SimulationDatabase
 
-network_analyzer = InteractionNetworkAnalyzer(simulation_db_path)
+db = SimulationDatabase(simulation_db_path)
 
-# Build interaction graph
-interaction_graph = network_analyzer.build_interaction_graph(
-    interaction_types=["combat", "sharing", "communication"],
-    time_window=(0, 1000)
-)
+# Example: Query combat interactions
+combat_query = """
+SELECT attacker_id, defender_id, COUNT(*) as interactions
+FROM agent_actions
+WHERE action_type = 'attack'
+GROUP BY attacker_id, defender_id
+"""
 
-# Analyze network properties
-network_metrics = network_analyzer.calculate_network_metrics()
-# Returns:
-# - Degree distribution
-# - Clustering coefficient
-# - Betweenness centrality
-# - Community structure
+# Custom network analysis implementation using pandas/networkx
+import pandas as pd
+combat_df = pd.read_sql(combat_query, db.engine)
+# Build network graph from combat_df...
 
-# Identify influential agents
-influential_agents = network_analyzer.identify_key_agents()
-# Returns agents with high centrality scores
+# Use networkx for analysis
+import networkx as nx
+G = nx.from_pandas_edgelist(combat_df, 'attacker_id', 'defender_id', 'interactions')
+network_metrics = {
+    'degree_distribution': dict(G.degree()),
+    'clustering_coefficient': nx.average_clustering(G),
+    'betweenness_centrality': nx.betweenness_centrality(G)
+}
 ```
 
 ---
@@ -351,44 +358,64 @@ Temporal analysis reveals how simulations evolve and helps identify long-term tr
 
 AgentFarm provides comprehensive time series analysis tools:
 
+> **Note**: The `TimeSeriesAnalyzer` class is planned for a future release. Currently, time series analysis can be performed using custom SQL queries and external libraries like pandas or statsmodels.
+
 **Population Trends:**
 ```python
-from farm.analysis.time_series_analysis import TimeSeriesAnalyzer
+# Use custom time series analysis
+from farm.database.database import SimulationDatabase
+import pandas as pd
 
-ts_analyzer = TimeSeriesAnalyzer(simulation_db_path)
+db = SimulationDatabase(simulation_db_path)
 
-# Analyze population trajectories
-population_trends = ts_analyzer.analyze_population_trends()
+# Query population over time
+population_query = """
+SELECT step, COUNT(*) as population
+FROM agents
+WHERE alive = 1
+GROUP BY step
+ORDER BY step
+"""
 
-# Returns:
-# - Growth/decline rates by agent type
-# - Turning points and inflection points
-# - Statistical trend tests (Mann-Kendall, etc.)
-# - Forecast future population levels
+population_df = pd.read_sql(population_query, db.engine)
+# Analyze trends with pandas/statsmodels...
+from statsmodels.tsa.seasonal import seasonal_decompose
+
+# Perform trend analysis
+result = seasonal_decompose(population_df.set_index('step')['population'], model='additive', period=100)
+population_trends = {
+    'trend': result.trend,
+    'seasonal': result.seasonal,
+    'residual': result.resid
+}
 ```
 
 **Resource Dynamics:**
 ```python
 # Track resource availability over time
-resource_trends = ts_analyzer.analyze_resource_trends()
+resource_query = """
+SELECT step, SUM(amount) as total_resources
+FROM resources
+GROUP BY step
+ORDER BY step
+"""
 
-# Returns:
-# - Resource depletion/recovery cycles
-# - Seasonal patterns (if configured)
-# - Sustainability indicators
-# - Critical thresholds and tipping points
+resource_df = pd.read_sql(resource_query, db.engine)
+# Analyze resource trends with pandas
 ```
 
 **Behavioral Evolution:**
 ```python
 # Study how agent behaviors change over time
-behavior_evolution = ts_analyzer.analyze_behavior_evolution()
+behavior_query = """
+SELECT step, action_type, COUNT(*) as frequency
+FROM agent_actions
+GROUP BY step, action_type
+ORDER BY step, action_type
+"""
 
-# Returns:
-# - Action frequency changes
-# - Strategy shifts
-# - Learning curves
-# - Adaptation timescales
+behavior_df = pd.read_sql(behavior_query, db.engine)
+# Analyze behavioral evolution with pandas
 ```
 
 #### Pattern Recognition
@@ -765,31 +792,52 @@ experiment.generate_comparative_report()
 
 Create custom analysis workflows:
 
+> **Note**: The `AnalysisPipeline` class is planned for a future release. Currently, custom analysis workflows can be created using Python functions and the existing database/analysis APIs.
+
 ```python
-from farm.analysis.pipeline import AnalysisPipeline
+# Create custom analysis workflow
+def run_custom_analysis_pipeline(db_path: str):
+    """Custom analysis pipeline using existing APIs."""
+    from farm.database.database import SimulationDatabase
+    from farm.database.analyzers import BehaviorClusteringAnalyzer
 
-# Define custom analysis pipeline
-pipeline = AnalysisPipeline()
+    db = SimulationDatabase(db_path)
 
-# Add analysis steps
-pipeline.add_step("population_dynamics", analyze_population)
-pipeline.add_step("behavioral_clustering", cluster_behaviors)
-pipeline.add_step("network_analysis", analyze_interactions)
-pipeline.add_step("report_generation", generate_report)
+    # Step 1: Population dynamics
+    pop_results = analyze_population(db)
 
-# Run pipeline
-results = pipeline.run(simulation_db_path)
+    # Step 2: Behavioral clustering
+    analyzer = BehaviorClusteringAnalyzer(db.session_manager)
+    cluster_results = analyzer.analyze(scope="SIMULATION")
+
+    # Step 3: Network analysis (custom implementation)
+    network_results = analyze_interactions(db)
+
+    # Step 4: Generate report
+    report = generate_analysis_report(pop_results, cluster_results, network_results)
+
+    return {
+        'population_dynamics': pop_results,
+        'behavioral_clustering': cluster_results,
+        'network_analysis': network_results,
+        'report': report
+    }
+
+# Run custom pipeline
+results = run_custom_analysis_pipeline(simulation_db_path)
 ```
 
 ### Machine Learning Integration
 
 Use ML for pattern recognition:
 
+> **Note**: The `BehavioralClusterAnalyzer` class is planned for a future release. Currently, use `BehaviorClusteringAnalyzer` from `farm.database.analyzers.behavior_clustering_analyzer`.
+
 ```python
-from farm.research.behavioral_clustering import BehavioralClusterAnalyzer
+from farm.database.analyzers.behavior_clustering_analyzer import BehaviorClusteringAnalyzer
 
 # Cluster agents by behavior
-clusterer = BehavioralClusterAnalyzer(simulation_db_path)
+clusterer = BehaviorClusteringAnalyzer(action_repository)
 
 # Extract behavioral features
 features = clusterer.extract_behavioral_features()
@@ -929,17 +977,26 @@ profiler.print_stats(sort='cumtime')
 ```
 
 **Monitor Resource Usage:**
+> **Note**: The `SimulationMonitor` class is planned for a future release. Currently, resource monitoring can be implemented using external profiling libraries like `memory_profiler` or `psutil`.
+
 ```python
-from farm.utils.monitoring import SimulationMonitor
+# Use external monitoring libraries
+import psutil
+import os
 
-monitor = SimulationMonitor()
-monitor.start()
+def monitor_simulation():
+    process = psutil.Process(os.getpid())
 
-run_simulation(config)
+    # Monitor memory usage
+    memory_info = process.memory_info()
+    print(f"Memory usage: {memory_info.rss / 1024 / 1024:.2f} MB")
 
-stats = monitor.get_statistics()
-print(f"Peak memory: {stats['peak_memory_mb']:.2f} MB")
-print(f"Average CPU: {stats['avg_cpu_percent']:.1f}%")
+    # Monitor CPU usage
+    cpu_percent = process.cpu_percent(interval=1.0)
+    print(f"CPU usage: {cpu_percent:.1f}%")
+
+# Call during simulation
+monitor_simulation()
 ```
 
 ---
