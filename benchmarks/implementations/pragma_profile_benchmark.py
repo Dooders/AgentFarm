@@ -181,7 +181,7 @@ class PragmaProfileBenchmark(Experiment):
         config.db_pragma_profile = profile
 
         # Create the database
-        db = SimulationDatabase(db_path, config)
+        db = SimulationDatabase(db_path, config, simulation_id="pragma_benchmark_test")
         self.open_dbs.append(db)
 
         # Get the number of records to insert
@@ -265,7 +265,7 @@ class PragmaProfileBenchmark(Experiment):
         self._prepare_read_test_database(db_path, profile, table_name)
 
         # Open the database with the specified profile
-        db = SimulationDatabase(db_path, config)
+        db = SimulationDatabase(db_path, config, simulation_id="pragma_benchmark_test")
         self.open_dbs.append(db)
 
         # Start timing
@@ -341,7 +341,7 @@ class PragmaProfileBenchmark(Experiment):
         config.db_pragma_profile = profile
 
         # Create the database
-        db = SimulationDatabase(db_path, config)
+        db = SimulationDatabase(db_path, config, simulation_id="pragma_benchmark_test")
         self.open_dbs.append(db)
 
         # Get the target database size
@@ -436,7 +436,7 @@ class PragmaProfileBenchmark(Experiment):
         config.db_pragma_profile = profile
 
         # Create the database
-        db = SimulationDatabase(db_path, config)
+        db = SimulationDatabase(db_path, config, simulation_id="pragma_benchmark_test")
         self.open_dbs.append(db)
 
         # Get the number of operations to perform

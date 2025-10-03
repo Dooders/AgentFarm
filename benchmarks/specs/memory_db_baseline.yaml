@@ -1,8 +1,8 @@
 experiment: memory_db
 params:
-  # Simulation parameters for testing
-  num_agents: 100
-  num_steps: 200
+  # Simulation parameters for quick validation
+  num_agents: 10
+  num_steps: 20
   # Additional parameters for comprehensive testing
   parameters:
     test_in_memory: true
@@ -11,8 +11,8 @@ params:
     buffer_sizes: [100, 500, 1000]
     flush_frequencies: [100, 500, 1000]
 iterations:
-  warmup: 1
-  measured: 3
+  warmup: 0
+  measured: 1
 instrumentation:
   - timing
   - psutil

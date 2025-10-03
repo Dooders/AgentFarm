@@ -97,9 +97,9 @@ class RedisMemoryBenchmark(Experiment):
             host="localhost",
             port=6379,
             db=0,
-            memory_limit=self.parameters["memory_limit"],
-            ttl=self.parameters["ttl"],
-            cleanup_interval=self.parameters["cleanup_interval"],
+            memory_limit=self.params["memory_limit"],
+            ttl=self.params["ttl"],
+            cleanup_interval=self.params["cleanup_interval"],
             namespace=f"agent_memory_benchmark_{int(time.time())}",  # Unique namespace per run
         )
 
@@ -119,7 +119,7 @@ class RedisMemoryBenchmark(Experiment):
         self.memory_manager = AgentMemoryManager.get_instance(redis_config)
 
         # Create agent IDs and corresponding memory instances
-        self.agent_ids = [f"agent_{i}" for i in range(self.parameters["num_agents"])]
+        self.agent_ids = [f"agent_{i}" for i in range(self.params["num_agents"])]
         self.memories = [
             self.memory_manager.get_memory(agent_id) for agent_id in self.agent_ids
         ]
@@ -129,7 +129,7 @@ class RedisMemoryBenchmark(Experiment):
 
     def _generate_test_data(self) -> None:
         """Generate test data for the benchmark."""
-        num_entries = self.parameters["memory_entries"]
+        num_entries = self.params["memory_entries"]
 
         self.test_data = []
         for step in range(num_entries):
@@ -370,7 +370,7 @@ class RedisMemoryBenchmark(Experiment):
 
         durations = []
         memory = self.memories[0]
-        search_radius = self.parameters["search_radius"]
+        search_radius = self.params["search_radius"]
 
         # Generate random positions for searching
         positions = [
@@ -444,7 +444,7 @@ class RedisMemoryBenchmark(Experiment):
         """
         print("Benchmarking batch operations...")
 
-        batch_size = self.parameters["batch_size"]
+        batch_size = self.params["batch_size"]
         memory = self.memories[0]
         memory.clear_memory()
 
@@ -631,7 +631,7 @@ class RedisMemoryBenchmark(Experiment):
             "remaining_entries": remaining_entries,
             "memory_after_cleanup": used_memory_after_cleanup,
             "entries_removed": len(self.test_data) - remaining_entries,
-            "memory_limit": self.parameters["memory_limit"],
+            "memory_limit": self.params["memory_limit"],
         }
 
     def teardown(self, context: ExperimentContext) -> None:
