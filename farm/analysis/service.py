@@ -341,7 +341,7 @@ class AnalysisService:
             if cached:
                 output_path, dataframe = cached
                 logger.info(f"Using cached result for {request.module_name}")
-                # For cached results, execution time represents the time to retrieve from cache
+                # For cached results, execution time includes request validation and cache retrieval
                 # This is typically much faster than running the actual analysis
                 return AnalysisResult(
                     success=True,

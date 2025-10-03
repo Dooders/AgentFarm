@@ -309,7 +309,7 @@ def test_wait_for_completion_success(controller, mock_analysis_service):
     
     result = controller.wait_for_completion(timeout=1.0)
     
-    # When thread is already dead, join() should not be called
+    # When wait_for_completion succeeds immediately, join() should not be called
     mock_thread.join.assert_not_called()
     assert result is True
 
