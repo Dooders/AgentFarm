@@ -11,11 +11,8 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Add parent directory to path to allow imports
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-
-from benchmarks.base.runner import BenchmarkRunner
-from benchmarks.implementations.pragma_profile_benchmark import PragmaProfileBenchmark
+from benchmarks.core.registry import REGISTRY
+from benchmarks.core.runner import Runner
 
 
 def parse_args():
@@ -55,23 +52,33 @@ def parse_args():
     return parser.parse_args()
 
 
-def visualize_results(results):
+def visualize_results(results, output_dir: str = "figures"):
     """
     Visualize benchmark results.
 
     Parameters
     ----------
-    results : BenchmarkResults
+    results : RunResult or legacy BenchmarkResults
         Benchmark results to visualize
+    output_dir : str
+        Directory to save visualization figures
     """
     try:
-        # Get raw results from the last iteration
-        if not results.iteration_results:
-            print("No results to visualize")
-            return
-
-        # Get the raw results from the last iteration
-        raw_data = results.iteration_results[-1]["results"]
+        # Handle both new RunResult and legacy BenchmarkResults structures
+        if hasattr(results, 'iteration_metrics'):
+            # New RunResult structure
+            if not results.iteration_metrics:
+                print("No results to visualize")
+                return
+            # Get the raw results from the last iteration
+            raw_data = results.iteration_metrics[-1].metrics
+        else:
+            # Legacy BenchmarkResults structure
+            if not results.iteration_results:
+                print("No results to visualize")
+                return
+            # Get the raw results from the last iteration
+            raw_data = results.iteration_results[-1]["results"]
 
         if not raw_data or not raw_data.get("raw_results"):
             print("No results to visualize")
@@ -290,11 +297,11 @@ def visualize_results(results):
         plt.tight_layout(rect=(0, 0.03, 1, 0.95))
 
         # Save figure
-        output_dir = os.path.join(args.output, "figures")
-        os.makedirs(output_dir, exist_ok=True)
+        figures_dir = os.path.join(output_dir, "figures")
+        os.makedirs(figures_dir, exist_ok=True)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = os.path.join(output_dir, f"pragma_benchmark_{timestamp}.png")
+        filename = os.path.join(figures_dir, f"pragma_benchmark_{timestamp}.png")
         plt.savefig(filename, dpi=300)
 
         print(f"Visualization saved to {filename}")
@@ -311,39 +318,42 @@ def visualize_results(results):
 
 def main():
     """Run the pragma profile benchmark with visualization."""
-    global args
     args = parse_args()
 
     # Create output directory
     os.makedirs(args.output, exist_ok=True)
 
-    # Create benchmark
-    benchmark = PragmaProfileBenchmark(
-        num_records=args.num_records,
-        db_size_mb=args.db_size_mb,
+    # Create experiment and runner via registry
+    REGISTRY.discover_package("benchmarks.implementations")
+    experiment = REGISTRY.create("pragma_profile", {
+        "num_records": args.num_records,
+        "db_size_mb": args.db_size_mb,
+    })
+    runner = Runner(
+        name="pragma_profile",
+        experiment=experiment,
+        output_dir=args.output,
+        iterations_warmup=0,
+        iterations_measured=args.iterations,
+        seed=None,
+        tags=["database", "pragma"],
+        notes="example script",
+        instruments=["timing"],
     )
-
-    # Create runner
-    runner = BenchmarkRunner(output_dir=args.output)
-    runner.register_benchmark(benchmark)
-
-    # Run benchmark
-    print(f"Running pragma profile benchmark with {args.iterations} iterations...")
-    results = runner.run_benchmark("pragma_profile", iterations=args.iterations)
+    print(f"Running pragma profile with {args.iterations} iterations...")
+    run_result = runner.run()
 
     # Print summary
-    summary = results.get_summary()
-    print("\nBenchmark Summary:")
+    print("\nRun Summary:")
     print("=================")
-    print(f"Description: {summary['metadata']['description']}")
-    print(f"Parameters: {summary['parameters']}")
-    print(f"Iterations: {summary['iterations']}")
-    print(f"Mean Duration: {summary['mean_duration']:.2f} seconds")
+    if "duration_s" in run_result.metrics:
+        m = run_result.metrics["duration_s"]
+        print(f"Duration (s): mean={m.get('mean', 0):.4f}, p50={m.get('p50', 0):.4f}, p95={m.get('p95', 0):.4f}")
 
     # Check if we have valid results before visualizing
-    if results.iteration_results and len(results.iteration_results) > 0:
-        # Visualize results
-        visualize_results(results)
+    if run_result.iteration_metrics:
+        # Visualize results using the new RunResult structure directly
+        visualize_results(run_result, args.output)
     else:
         print("No valid benchmark results to visualize.")
 

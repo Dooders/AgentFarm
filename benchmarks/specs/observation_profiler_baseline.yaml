@@ -1,0 +1,23 @@
+experiment: observation_profiler
+params:
+  # Test different observation configurations
+  num_agents: 200
+  steps: 100
+  # Test different observation radii
+  observation_radius: 20
+  # Test different channel configurations
+  channels: ["position", "health", "resources", "actions"]
+  # Test different storage modes
+  storage_mode: "hybrid"
+  # Test different interpolation methods
+  use_bilinear: true
+iterations:
+  warmup: 1
+  measured: 3
+instrumentation:
+  - timing
+  - psutil
+output_dir: benchmarks/results/observation_profiling
+tags: [observation, profiling, baseline]
+notes: "Observation system profiling baseline"
+seed: 42

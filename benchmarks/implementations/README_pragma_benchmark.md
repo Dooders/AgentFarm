@@ -22,11 +22,11 @@ Each profile is tested against three workload types:
 ### Basic Usage
 
 ```bash
-# Run with default settings
-python -m benchmarks.run_benchmarks --benchmark pragma_profile
+# Run with default settings (using the dedicated example script)
+python -m benchmarks.examples.run_pragma_benchmark
 
 # Run with custom parameters
-python -m benchmarks.run_benchmarks --benchmark pragma_profile --num-records 50000 --db-size-mb 50 --iterations 5
+python -m benchmarks.examples.run_pragma_benchmark --num-records 50000 --db-size-mb 50 --iterations 5
 ```
 
 ### With Visualization

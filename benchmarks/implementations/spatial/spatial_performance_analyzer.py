@@ -24,8 +24,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-# Add project root to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 
 @dataclass

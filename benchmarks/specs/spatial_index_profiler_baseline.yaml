@@ -1,0 +1,25 @@
+experiment: spatial_index_profiler
+params:
+  # Test different spatial indexing algorithms
+  algorithms: ["quadtree", "spatial_hash", "kd_tree"]
+  # Test different agent counts
+  agent_counts: [100, 500, 1000]
+  # Test different world sizes
+  world_size: 200
+  # Test different query types
+  query_types: ["range", "nearest", "intersection"]
+  # Test different query radii
+  query_radius: 25
+  # Number of simulation steps
+  steps: 100
+iterations:
+  warmup: 1
+  measured: 3
+instrumentation:
+  - timing
+  - psutil
+  - cprofile
+output_dir: benchmarks/results/spatial_index_profiling
+tags: [spatial, indexing, profiling, baseline]
+notes: "Spatial indexing profiling baseline"
+seed: 42

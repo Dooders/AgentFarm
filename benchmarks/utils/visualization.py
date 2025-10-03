@@ -8,10 +8,10 @@ from typing import List, Dict, Any, Optional, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 
-from benchmarks.base.results import BenchmarkResults
+from benchmarks.core.results import RunResult
 
 
-def plot_comparison(results_list: List[BenchmarkResults], 
+def plot_comparison(results_list: List[RunResult], 
                    metric: str = "mean_duration",
                    title: Optional[str] = None,
                    save_path: Optional[str] = None) -> None:
@@ -20,7 +20,7 @@ def plot_comparison(results_list: List[BenchmarkResults],
     
     Parameters
     ----------
-    results_list : List[BenchmarkResults]
+    results_list : List[RunResult]
         List of benchmark results to compare
     metric : str
         Metric to compare (e.g., "mean_duration", "median_duration")
@@ -68,7 +68,7 @@ def plot_comparison(results_list: List[BenchmarkResults],
     plt.show()
 
 
-def plot_multiple_results(results_list: List[BenchmarkResults],
+def plot_multiple_results(results_list: List[RunResult],
                          metric: str = "duration",
                          title: Optional[str] = None,
                          save_path: Optional[str] = None) -> None:
@@ -77,7 +77,7 @@ def plot_multiple_results(results_list: List[BenchmarkResults],
     
     Parameters
     ----------
-    results_list : List[BenchmarkResults]
+    results_list : List[RunResult]
         List of benchmark results to plot
     metric : str
         Metric to plot (e.g., "duration")
@@ -114,7 +114,7 @@ def plot_multiple_results(results_list: List[BenchmarkResults],
     plt.show()
 
 
-def plot_parameter_impact(results_dict: Dict[Any, BenchmarkResults],
+def plot_parameter_impact(results_dict: Dict[Any, RunResult],
                          parameter_name: str,
                          metric: str = "mean_duration",
                          title: Optional[str] = None,
@@ -124,7 +124,7 @@ def plot_parameter_impact(results_dict: Dict[Any, BenchmarkResults],
     
     Parameters
     ----------
-    results_dict : Dict[Any, BenchmarkResults]
+    results_dict : Dict[Any, RunResult]
         Dictionary mapping parameter values to benchmark results
     parameter_name : str
         Name of the parameter being varied

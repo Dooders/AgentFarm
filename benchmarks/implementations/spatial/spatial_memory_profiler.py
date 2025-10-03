@@ -29,8 +29,6 @@ try:
 except Exception:  # pragma: no cover - optional dependency
     profile = None  # type: ignore
 
-# Add project root to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from farm.core.spatial import SpatialIndex
 
