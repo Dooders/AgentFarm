@@ -30,8 +30,8 @@ This repository is being developed to support research in the [Dooders](https://
 
 ### Data & Visualization
 - Comprehensive data collection and metrics
-- Interactive results dashboard
-- Real-time visualization tools
+- Simulation visualization tools
+- Charting and plotting utilities
 - Automated report generation
 
 ### Research Tools
@@ -58,12 +58,9 @@ This repository is being developed to support research in the [Dooders](https://
 
 ### Additional Tools
 - **Interactive Notebooks**: Jupyter notebooks for data exploration and analysis
-- **Web Dashboard**: Browser-based interface for monitoring and visualization
 - **Benchmarking Suite**: Performance testing and optimization tools
 - **Research Tools**: Advanced analysis modules for academic research
 - **Genome Embeddings**: Machine learning tools for agent evolution analysis
-
- 
 
 ## Logging & Observability ✨
 
@@ -143,11 +140,6 @@ python farm/core/cli.py --mode visualize --db-path simulations/simulation.db
 python farm/core/cli.py --mode analyze --db-path simulations/simulation.db
 ```
 
-**GUI Interface**
-```bash
-python main.py
-```
-
 **Results**
 All simulation results are saved in the `simulations` directory with database files, logs, and analysis reports.
 
@@ -194,12 +186,12 @@ python run_tests.py
 ## Documentation
 
 For detailed documentation and advanced usage:
+- [Agent Loop Design](docs/design/agent_loop.md)
 - [User Guide](docs/user-guide.md)
 - [Developer Guide](docs/developer-guide.md)
-- [IPC API Reference](docs/ipc-api.md)
 - [Deployment](docs/deployment.md)
 - [Monitoring & Performance](docs/monitoring.md)
-- [Electron Config Explorer Architecture](docs/electron/config_explorer_architecture.md)
+- [Benchmarking & Profiling Report](benchmarks/reports/0.1.0/benchmark_profiling_summary_report.md)
 - [Core Architecture](docs/core_architecture.md)
 - [Full Documentation Index](docs/README.md)
 
