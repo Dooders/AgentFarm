@@ -10,44 +10,44 @@ This repository is being developed to support research in the [Dooders](https://
 
 ## Key Features
 
-### Agent-Based Modeling & Analysis
+### [Agent-Based Modeling & Analysis](docs/features/agent_based_modeling_analysis.md)
 - Run complex simulations with interacting, adaptive agents
 - Study emergent behaviors and system dynamics
 - Track agent interactions and environmental influences
 - Analyze trends and patterns over time
 
-### Customization & Flexibility
+### [Customization & Flexibility](docs/features/customization_flexibility.md)
 - Define custom parameters, rules, and environments
 - Create specialized agent behaviors and properties
 - Configure simulation parameters and conditions
 - Design custom experiments and scenarios
 
-### AI & Machine Learning
+### [AI & Machine Learning](docs/features/ai_machine_learning.md)
 - Reinforcement learning for agent adaptation
 - Automated data analysis and insight generation
 - Pattern recognition and behavior prediction
 - Evolutionary algorithms and genetic modeling
 
-### Data & Visualization
+### [Data & Visualization](docs/features/data_visualization.md)
 - Comprehensive data collection and metrics
 - Simulation visualization tools
 - Charting and plotting utilities
 - Automated report generation
 
-### Research Tools
+### [Research Tools](docs/features/research_tools.md)
 - Parameter sweep experiments
 - Comparative analysis framework
 - Experiment replication tools
 - **Structured Logging System**: Professional-grade logging with structlog for rich, contextual, machine-readable logs
 
-### Data System
+### [Data System](docs/features/data_system.md)
 - **Comprehensive Data Architecture**: Layered system with database, repositories, analyzers, and services
 - **Advanced Analytics**: Action statistics, behavioral clustering, causal analysis, and pattern recognition
 - **Flexible Data Access**: Repository pattern for efficient data retrieval and querying
 - **High-Level Services**: Coordinated analysis operations with built-in error handling
 - **Multi-Simulation Support**: Experiment database for comparing multiple simulation runs
 
-### Spatial Indexing & Performance
+### [Spatial Indexing & Performance](docs/features/spatial_indexing_performance.md)
 - **Advanced Spatial Indexing**: KD-tree, Quadtree, and Spatial Hash Grid implementations for efficient proximity queries
 - **Batch Spatial Updates**: Dirty region tracking system that only updates changed regions, reducing computational overhead by up to 70%
 - **Multi-Index Support**: Choose optimal spatial index type for different query patterns (radial, range, neighbor queries)
