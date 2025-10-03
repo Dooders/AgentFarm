@@ -88,11 +88,18 @@ seed: 42
 
 Tags help categorize and filter benchmarks:
 - `baseline` - Baseline performance measurements
+- `comprehensive` - Comprehensive benchmarking suites
 - `database` - Database-related benchmarks
-- `spatial` - Spatial indexing benchmarks
+- `memory` - Memory usage and profiling benchmarks
+- `performance` - Performance-focused benchmarks
 - `perception` - Perception and observation benchmarks
 - `profiling` - Detailed profiling benchmarks
+- `pragma` - SQLite pragma configuration benchmarks
+- `redis` - Redis memory system benchmarks
+- `spatial` - Spatial indexing benchmarks
+- `sqlite` - SQLite-specific benchmarks
 - `sweep` - Parameter sweep benchmarks
+- `system` - System resource profiling benchmarks
 
 ## Best Practices
 
@@ -128,7 +135,3 @@ python -m benchmarks.implementations.profiling.observation_profiler
 ```
 
 These standalone scripts typically generate their own results and reports.
-
-## Integration with CI/CD
-
-These specs are designed to work with the GitHub Actions workflow in `.github/workflows/database-performance-baseline.yml`. The workflow can be extended to run additional specs as needed.
