@@ -147,6 +147,7 @@ All simulation results are saved in the `simulations` directory with database fi
 ## Documentation
 
 For detailed documentation and advanced usage:
+- [Agent Loop Design](docs/design/agent_loop.md)
 - [User Guide](docs/user-guide.md)
 - [Developer Guide](docs/developer-guide.md)
 - [Deployment](docs/deployment.md)
