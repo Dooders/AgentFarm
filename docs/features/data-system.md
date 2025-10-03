@@ -2,64 +2,23 @@
 
 ## Overview
 
-AgentFarm features a comprehensive, layered data architecture designed for efficient storage, retrieval, and analysis of simulation data. The system follows the repository pattern and provides multiple abstraction levels, from low-level database access to high-level coordinated services.
+AgentFarm features a sophisticated, layered data architecture that provides efficient storage, flexible retrieval, and powerful analysis capabilities for simulation data. The architecture follows the repository pattern that separates data access logic from business logic, creating clean abstractions that make the codebase maintainable and extensible.
 
-## Key Capabilities
+This carefully designed infrastructure lets you work with simulation data at the level of abstraction most appropriate for your task. At the bottom, the database layer provides persistent storage with SQL-based queries. Above that, the repository layer offers clean object-oriented interfaces without exposing database details. The analyzer layer implements specialized analytical algorithms. At the top, the service layer coordinates multiple repositories and analyzers for high-level capabilities.
 
-### Comprehensive Data Architecture
-- **Database Layer**: SQLite-based storage with optimized schema
-- **Repository Layer**: Clean data access patterns following repository design
-- **Analyzer Layer**: Specialized components for different analysis types
-- **Service Layer**: High-level coordinated operations with error handling
+## Database Layer
 
-### Advanced Analytics
-- **Action Statistics**: Detailed analysis of agent actions and outcomes
-- **Behavioral Clustering**: Group agents by behavior patterns
-- **Causal Analysis**: Identify cause-and-effect relationships
-- **Pattern Recognition**: Discover temporal and spatial patterns
+The database layer provides reliable persistent storage for the vast amounts of data generated during simulations. AgentFarm uses SQLite as its default database engine, chosen for its simplicity, zero-configuration deployment, excellent performance for read-heavy workloads, and portability. SQLite databases are single files that can be easily copied, backed up, and shared.
 
-### Flexible Data Access
-- **Query Builder**: Construct complex queries with fluent interface
-- **Efficient Retrieval**: Optimized queries with proper indexing
-- **Filtering**: Rich filtering capabilities across all data types
-- **Aggregation**: Built-in aggregation functions for analytics
+The database schema is carefully designed to efficiently store simulation data while supporting queries needed for analysis. The schema uses appropriate data types to minimize storage and maximize query performance. Normalization reduces redundancy and ensures consistency. Denormalization is applied selectively when it significantly improves query performance for common access patterns.
 
-### High-Level Services
-- **Coordinated Operations**: Services that combine multiple data sources
-- **Error Handling**: Robust error handling and recovery
-- **Caching**: Intelligent caching for frequently accessed data
-- **Transaction Management**: Ensure data consistency
+Indexes are crucial for query performance, especially as databases grow to millions of records. AgentFarm automatically creates indexes on columns frequently used in WHERE clauses and JOIN operations, dramatically accelerating queries that would otherwise require full table scans. The indexing strategy is continuously refined based on profiling of actual query patterns.
 
-### Multi-Simulation Support
-- **Experiment Database**: Compare multiple simulation runs
-- **Cross-Simulation Analysis**: Analyze patterns across experiments
-- **Result Aggregation**: Combine results from multiple runs
-- **Parameter Tracking**: Link outcomes to configurations
+Transaction management ensures data consistency even in the presence of errors or crashes. All related writes are wrapped in transactions so that either all succeed or none do, preventing partial updates that would leave the database inconsistent. For long-running simulations, periodic commits prevent unbounded memory growth while maintaining consistency.
 
-## Architecture Layers
+## Repository Layer
 
-### Database Layer
-
-The foundation of the data system:
-
-```python
-from farm.data.database import SimulationDatabase
-
-# Create database connection
-db = SimulationDatabase('simulation.db')
-
-# Low-level database access
-with db.connection() as conn:
-    cursor = conn.execute(
-        "SELECT * FROM agents WHERE health > ?",
-        (50,)
-    )
-    results = cursor.fetchall()
-```
-
-### Repository Layer
-
-Clean data access patterns:
+The repository layer implements the repository pattern, encapsulating data access logic behind clean object-oriented interfaces. Repositories provide methods for querying and persisting domain objects without exposing how operations are implemented. This abstraction allows underlying storage to change without affecting code that uses repositories, promotes testability by allowing repositories to be mocked, and provides a natural place for caching and optimization.
 
 ```python
 from farm.data.repositories import AgentRepository, ActionRepository
@@ -86,9 +45,17 @@ action_counts = action_repo.get_action_counts(
 )
 ```
 
-### Analyzer Layer
+AgentRepository provides access to agent data through methods that speak in domain terms rather than SQL. You can retrieve agents by ID, get all agents at a timestep, filter by criteria like health or status, and track individual agent histories. These methods hide the complexity of constructing queries and transforming database rows into domain objects.
 
-Specialized analysis components:
+ActionRepository specializes in accessing action data, providing methods to retrieve actions by agent, by type, and action counts and distributions. Actions are central to understanding behavior, and the repository provides convenient access patterns without requiring complex SQL queries.
+
+InteractionRepository manages interaction data, supporting queries for interactions between specific agents, interaction networks over time periods, counts by type, and spatial patterns. This is essential for social network analysis and understanding emergent social structure.
+
+Each repository implements common patterns like filtering with flexible criteria, pagination for large result sets, bulk operations for efficiency, and caching of frequently accessed data. These ensure repositories are not only convenient but also performant.
+
+## Analyzer Layer
+
+While repositories provide data access, analyzers implement analytical algorithms that transform raw data into insights. The analyzer layer consists of specialized components focused on particular analysis types, each implementing sophisticated algorithms appropriate for its domain.
 
 ```python
 from farm.data.analyzers import (
@@ -116,16 +83,19 @@ patterns = temporal_analyzer.find_patterns(
     window_size=50,
     min_support=0.2
 )
-
-# Spatial analysis
-spatial_analyzer = SpatialAnalyzer(database)
-clustering = spatial_analyzer.analyze_spatial_clustering()
-hotspots = spatial_analyzer.identify_hotspots()
 ```
 
-### Service Layer
+ActionAnalyzer implements algorithms for understanding agent action patterns. It computes action frequency distributions, calculates success rates, identifies common action sequences, and analyzes temporal patterns. The analyzer applies statistical methods like sequence mining and time series analysis to reveal structure in action data.
 
-High-level coordinated operations:
+BehaviorAnalyzer groups agents by behavioral similarity using clustering and classification. It defines behavioral features that characterize strategies, applies clustering algorithms to identify behavioral types, tracks behavioral changes over time, and compares behaviors across conditions. This reveals the diversity of strategies and how diversity emerges and evolves.
+
+TemporalPatternAnalyzer specializes in discovering patterns in time series data. It identifies trends showing directional changes, detects cycles using spectral analysis, recognizes changepoints where behavior shifts, and measures autocorrelations indicating system memory. These analyses characterize system dynamics.
+
+SpatialAnalyzer examines spatial distributions and patterns using spatial statistics. It measures clustering to determine whether agents aggregate or disperse, computes density gradients, identifies hotspots, and analyzes territoriality. This reveals how agents organize in space and how spatial structure affects interactions.
+
+## Service Layer
+
+The service layer provides the highest abstraction, coordinating multiple repositories and analyzers to implement complex analytical workflows. Services handle orchestration of multi-step analyses, error handling and recovery, progress reporting, and caching to avoid redundant computation.
 
 ```python
 from farm.data.services import SimulationDataService
@@ -150,264 +120,37 @@ service.export_results(
 )
 ```
 
-## Database Schema
+SimulationDataService provides comprehensive access to all data from a specific simulation through a unified interface. Rather than working with multiple repositories separately, you interact with a single service that coordinates data access, handles initialization, manages connections, and transforms results into convenient formats.
 
-### Core Tables
+AnalysisService coordinates complete analytical pipelines combining multiple analyzers. For example, comprehensive behavioral analysis might involve ActionAnalyzer to characterize behaviors, BehaviorAnalyzer to cluster similar agents, NetworkAnalyzer to examine social structure, and EvolutionaryAnalyzer to understand how behaviors evolve. The service orchestrates these analyses and presents integrated results.
 
-The database schema is optimized for simulation data:
+ExperimentAnalysisService specializes in analyzing results across multiple simulations. It loads data from multiple databases, aligns data to enable comparison, applies statistical tests, computes effect sizes, and generates comparative visualizations. This makes systematic experiments and rigorous analysis straightforward.
 
-```sql
--- Agents table
-CREATE TABLE agents (
-    id INTEGER PRIMARY KEY,
-    simulation_id TEXT,
-    agent_id INTEGER,
-    step INTEGER,
-    health REAL,
-    resources REAL,
-    position_x REAL,
-    position_y REAL,
-    age INTEGER,
-    generation INTEGER,
-    alive BOOLEAN
-);
+## Database Schema Design
 
--- Actions table
-CREATE TABLE actions (
-    id INTEGER PRIMARY KEY,
-    simulation_id TEXT,
-    step INTEGER,
-    agent_id INTEGER,
-    action_type TEXT,
-    target_id INTEGER,
-    success BOOLEAN,
-    reward REAL
-);
+The database schema reflects careful thinking about data representation, query patterns, and performance. Core tables represent fundamental entities: agents, actions, interactions, resources, and metadata.
 
--- Interactions table
-CREATE TABLE interactions (
-    id INTEGER PRIMARY KEY,
-    simulation_id TEXT,
-    step INTEGER,
-    agent1_id INTEGER,
-    agent2_id INTEGER,
-    interaction_type TEXT,
-    outcome TEXT
-);
-```
+The agents table stores agent states at each timestep with columns for agent identifiers, temporal information, state variables, spatial positions, and status. The table is indexed by simulation ID, timestep, and agent ID to support common query patterns.
 
-### Indexes
+The actions table records every action with columns identifying the agent and timestep, action type and target, success or failure, and outcomes. Actions are central to understanding behavior, and the table supports queries about frequencies, success rates, temporal patterns, and agent-specific histories.
 
-Optimized indexes for common queries:
+The interactions table stores pairwise interactions including participants, interaction type, spatial context, and outcomes. This underpins social network analysis and study of emergent social structure.
 
-```sql
--- Agent queries
-CREATE INDEX idx_agents_step ON agents(simulation_id, step);
-CREATE INDEX idx_agents_id ON agents(simulation_id, agent_id);
-
--- Action queries
-CREATE INDEX idx_actions_agent ON actions(simulation_id, agent_id);
-CREATE INDEX idx_actions_step ON actions(simulation_id, step);
-
--- Interaction queries
-CREATE INDEX idx_interactions_agents ON interactions(agent1_id, agent2_id);
-CREATE INDEX idx_interactions_step ON interactions(simulation_id, step);
-```
-
-## Data Access Patterns
-
-### Query Building
-
-Construct complex queries with fluent interface:
-
-```python
-from farm.data.query import QueryBuilder
-
-# Build complex query
-query = (QueryBuilder(database)
-    .select('agents')
-    .where('health', '>', 50)
-    .where('generation', '>=', 10)
-    .order_by('resources', 'DESC')
-    .limit(100)
-)
-
-results = query.execute()
-```
-
-### Efficient Retrieval
-
-Optimize data retrieval:
-
-```python
-# Use pagination for large result sets
-page_size = 100
-offset = 0
-
-while True:
-    agents = agent_repo.get_all(
-        step=500,
-        limit=page_size,
-        offset=offset
-    )
-    
-    if not agents:
-        break
-    
-    process_agents(agents)
-    offset += page_size
-```
-
-### Batch Operations
-
-Perform batch operations efficiently:
-
-```python
-# Batch insert
-agent_repo.insert_batch([
-    {'agent_id': 1, 'health': 100, 'resources': 50},
-    {'agent_id': 2, 'health': 90, 'resources': 60},
-    # ... more agents
-])
-
-# Batch update
-agent_repo.update_batch(
-    agent_ids=[1, 2, 3],
-    updates={'health': 110}
-)
-```
+Schema versioning and migration support ensure databases remain compatible as the platform evolves. When schema changes are necessary, migration scripts transform existing databases automatically, preserving data while updating structure.
 
 ## Advanced Analytics
 
-### Action Statistics
+Beyond basic data access and standard analyses, AgentFarm's data system supports sophisticated analytical techniques providing deep insights.
 
-Analyze agent actions in detail:
+Causal analysis tools help identify cause-and-effect relationships even in observational data. The system implements propensity score matching for creating balanced comparison groups, instrumental variable approaches leveraging exogenous variation, and graphical causal models for reasoning about causal structure.
 
-```python
-from farm.data.analyzers import ActionAnalyzer
+Behavioral clustering groups agents by similarity in behavioral patterns using machine learning. The system extracts behavioral features, applies clustering algorithms including k-means and hierarchical clustering, and analyzes resulting clusters. This reveals behavioral diversity and specialist versus generalist strategies.
 
-analyzer = ActionAnalyzer(database)
-
-# Action distribution
-distribution = analyzer.get_action_distribution(
-    step_range=(0, 1000),
-    group_by='agent_type'
-)
-
-# Success rates
-success_rates = analyzer.calculate_success_rates(
-    action_types=['hunt', 'gather', 'reproduce']
-)
-
-# Action sequences
-sequences = analyzer.find_common_sequences(
-    min_length=3,
-    min_support=0.1
-)
-
-# Temporal patterns
-temporal = analyzer.analyze_temporal_patterns(
-    window_size=50,
-    stride=10
-)
-```
-
-### Behavioral Clustering
-
-Group agents by behavior:
-
-```python
-from farm.data.analyzers import BehaviorAnalyzer
-
-analyzer = BehaviorAnalyzer(database)
-
-# Cluster agents
-clusters = analyzer.cluster_agents(
-    features=[
-        'action_diversity',
-        'resource_efficiency',
-        'social_score',
-        'exploration_rate'
-    ],
-    n_clusters=5,
-    method='kmeans'
-)
-
-# Analyze cluster characteristics
-for cluster_id, agents in clusters.items():
-    characteristics = analyzer.analyze_cluster(cluster_id)
-    print(f"Cluster {cluster_id}: {characteristics}")
-
-# Find behavioral transitions
-transitions = analyzer.find_behavioral_transitions(
-    time_window=100
-)
-```
-
-### Causal Analysis
-
-Identify cause-and-effect relationships:
-
-```python
-from farm.data.analyzers import CausalAnalyzer
-
-analyzer = CausalAnalyzer(database)
-
-# Analyze causal relationships
-effects = analyzer.analyze_causal_effects(
-    treatment='high_resources',
-    outcome='reproduction_success',
-    confounders=['age', 'health', 'generation']
-)
-
-# Find causal chains
-chains = analyzer.find_causal_chains(
-    start_event='resource_collected',
-    end_event='reproduction',
-    max_length=5
-)
-
-# Estimate treatment effects
-ate = analyzer.estimate_treatment_effect(
-    treatment='learned_behavior',
-    outcome='survival_rate',
-    method='propensity_score'
-)
-```
-
-### Pattern Recognition
-
-Discover patterns in simulation data:
-
-```python
-from farm.data.analyzers import PatternAnalyzer
-
-analyzer = PatternAnalyzer(database)
-
-# Temporal patterns
-temporal_patterns = analyzer.find_temporal_patterns(
-    metrics=['population', 'resources', 'diversity'],
-    pattern_types=['trend', 'cycle', 'anomaly']
-)
-
-# Spatial patterns
-spatial_patterns = analyzer.find_spatial_patterns(
-    clustering_method='dbscan',
-    min_samples=5
-)
-
-# Behavioral patterns
-behavioral_patterns = analyzer.find_behavioral_patterns(
-    sequence_length=5,
-    min_support=0.15
-)
-```
+Pattern mining discovers frequent patterns in sequential data like action sequences. Association rule mining finds combinations that frequently occur together. Sequence mining identifies common behavioral motifs. These exploratory techniques generate hypotheses about mechanisms that can be tested through targeted experiments.
 
 ## Multi-Simulation Support
 
-### Experiment Database
-
-Compare multiple simulations:
+Research often involves many simulations with varying parameters. Managing and analyzing this collection requires infrastructure beyond what's needed for single simulations.
 
 ```python
 from farm.data.experiment_db import ExperimentDatabase
@@ -435,123 +178,22 @@ aggregated = exp_db.aggregate_results(
 )
 ```
 
-### Cross-Simulation Analysis
-
-Analyze patterns across experiments:
-
-```python
-from farm.data.services import ExperimentAnalysisService
-
-service = ExperimentAnalysisService(exp_db)
-
-# Compare simulation outcomes
-comparison = service.compare_simulations(
-    simulation_ids=['sim_001', 'sim_002', 'sim_003'],
-    metrics=['population', 'diversity', 'resources']
-)
-
-# Find optimal parameters
-optimal = service.find_optimal_parameters(
-    objective='maximize',
-    metric='final_population',
-    n_best=10
-)
-
-# Analyze parameter effects
-effects = service.analyze_parameter_effects(
-    parameters=['learning_rate', 'mutation_rate'],
-    outcome='fitness'
-)
-```
-
-## Data Persistence
-
-### Checkpointing
-
-Save and restore simulation state:
-
-```python
-from farm.data.checkpoint import CheckpointManager
-
-manager = CheckpointManager(database)
-
-# Save checkpoint
-manager.save_checkpoint(
-    simulation=simulation,
-    step=500,
-    checkpoint_id='cp_500'
-)
-
-# Restore from checkpoint
-simulation = manager.restore_checkpoint('cp_500')
-
-# List checkpoints
-checkpoints = manager.list_checkpoints(simulation_id='sim_001')
-```
-
-### Data Migration
-
-Migrate data between versions:
-
-```python
-from farm.data.migration import DataMigrator
-
-migrator = DataMigrator()
-
-# Migrate database schema
-migrator.migrate_schema(
-    from_version='1.0',
-    to_version='2.0',
-    database_path='simulation.db'
-)
-
-# Export for migration
-migrator.export_data(
-    database='old_simulation.db',
-    output_format='json',
-    output_path='migration_data.json'
-)
-
-# Import migrated data
-migrator.import_data(
-    database='new_simulation.db',
-    input_path='migration_data.json'
-)
-```
+The experiment database stores metadata and key results from all simulations in a research project, creating a searchable catalog. Each entry includes complete parameter configurations, summary statistics, provenance information, and annotations. Cross-simulation queries enable finding simulations matching criteria and comparing simulations differing in specific ways.
 
 ## Performance Optimization
 
-### Query Optimization
-- **Proper Indexing**: Use indexes for frequently queried columns
-- **Query Planning**: Analyze and optimize query execution plans
-- **Batch Operations**: Use batch operations for multiple updates
-- **Connection Pooling**: Reuse database connections
+Efficient data operations are crucial for maintaining good performance as databases grow. AgentFarm implements multiple optimization strategies.
 
-### Memory Management
-- **Lazy Loading**: Load data on-demand
-- **Pagination**: Use pagination for large result sets
-- **Streaming**: Stream large datasets instead of loading all at once
-- **Caching**: Cache frequently accessed data
+Query optimization ensures database queries execute efficiently through appropriate indexing, query planning, and caching. The system creates indexes automatically for common patterns, uses explain plans to verify queries use indexes effectively, and caches results when appropriate.
 
-### Storage Optimization
-- **Compression**: Compress large datasets
-- **Pruning**: Remove unnecessary historical data
-- **Archiving**: Archive old simulation data
-- **Vacuum**: Regularly vacuum SQLite databases
+Batch operations process multiple records together rather than one at a time, dramatically reducing overhead. Bulk inserts add many records in a single transaction. Batch updates modify many records together. These can be orders of magnitude faster than record-by-record processing.
+
+Lazy loading defers data retrieval until actually needed, avoiding unnecessary work. Connection pooling reuses database connections rather than creating new ones for each operation. Caching stores results of expensive operations for reuse, dramatically speeding up iterative analysis workflows.
 
 ## Related Documentation
 
-- [Database Schema](../data/database_schema.md)
-- [Repositories](../data/repositories.md)
-- [Data Services](../data/data_services.md)
-- [Data Retrieval](../data/data_retrieval.md)
-- [Analyzers Documentation](../data/analyzers/README.md)
-- [Service Usage Examples](../data/service_usage_examples.md)
+For detailed information, see [Database Schema](../data/database_schema.md), [Repositories](../data/repositories.md), [Data Services](../data/data_services.md), [Data Retrieval](../data/data_retrieval.md), [Analyzers Documentation](../data/analyzers/README.md), and [Service Usage Examples](../data/service_usage_examples.md).
 
 ## Examples
 
-For practical examples:
-- [Usage Examples](../usage_examples.md)
-- [Service Usage Examples](../data/service_usage_examples.md)
-- [Action Data Documentation](../action_data.md)
-- [Analysis Examples](../data/analysis/Analysis.md)
+Practical examples can be found in [Usage Examples](../usage_examples.md), [Service Usage Examples](../data/service_usage_examples.md), [Action Data Documentation](../action_data.md), and [Analysis Examples](../data/analysis/Analysis.md).

@@ -4,43 +4,15 @@
 
 AgentFarm implements advanced spatial indexing techniques to efficiently handle proximity queries and spatial operations in large-scale simulations. The system provides multiple index types optimized for different query patterns and includes sophisticated optimization strategies to minimize computational overhead.
 
-## Key Capabilities
-
-### Advanced Spatial Indexing
-- **KD-Tree**: Binary space partitioning for efficient nearest-neighbor queries
-- **Quadtree**: Hierarchical grid structure for dynamic spatial queries
-- **Spatial Hash Grid**: Fast uniform grid-based lookups
-- **R-Tree**: Bounding box-based indexing for range queries
-
-### Batch Spatial Updates
-- **Dirty Region Tracking**: Only update changed regions
-- **Lazy Evaluation**: Defer updates until queries are performed
-- **Incremental Updates**: Update index incrementally rather than rebuilding
-- **Performance Gains**: Reduce computational overhead by up to 70%
-
-### Multi-Index Support
-- **Index Selection**: Choose optimal index for query pattern
-- **Radial Queries**: Find agents within radius
-- **Range Queries**: Find agents in rectangular region
-- **Nearest Neighbor**: Find k-nearest neighbors
-
-### Performance Monitoring
-- **Query Metrics**: Track query performance statistics
-- **Index Statistics**: Monitor index size and structure
-- **Profiling Tools**: Identify bottlenecks in spatial operations
-- **Optimization Recommendations**: Automated suggestions for improvement
-
-### Scalable Architecture
-- **Efficient Scaling**: Handle thousands of agents with minimal degradation
-- **Memory Efficiency**: Optimize memory usage for large populations
-- **Parallel Queries**: Support concurrent spatial queries
-- **Dynamic Adaptation**: Automatically adjust to population density
+Spatial queries - finding nearby agents, identifying neighbors within a radius, locating agents in a region - are fundamental operations in spatial agent-based models. Without optimization, these queries require checking every agent against every other, resulting in O(n²) complexity that becomes prohibitive as populations grow. Spatial indexing reduces this to O(log n) or even O(1) in ideal cases, making simulations with tens of thousands of agents practical.
 
 ## Spatial Index Types
 
+AgentFarm provides multiple spatial index types, each optimized for different scenarios. The choice of index depends on your query patterns, spatial distribution, and update frequency.
+
 ### KD-Tree
 
-Binary space partitioning for balanced nearest-neighbor queries:
+KD-trees use binary space partitioning for efficient nearest-neighbor queries. They work by recursively dividing space along different dimensions, creating a balanced tree structure that enables fast spatial searches.
 
 ```python
 from farm.spatial import KDTree
@@ -68,9 +40,11 @@ in_radius = kdtree.query_radius(
 )
 ```
 
+KD-trees excel at nearest-neighbor queries and work well for static or slowly changing agent populations. They're particularly effective when the spatial distribution is relatively uniform and when you primarily need to find closest neighbors rather than all neighbors within a region.
+
 ### Quadtree
 
-Hierarchical grid structure for dynamic spatial partitioning:
+Quadtrees use hierarchical grid structure for dynamic spatial partitioning. They recursively subdivide space into four quadrants, creating finer divisions in dense regions while keeping sparse regions coarse.
 
 ```python
 from farm.spatial import Quadtree
@@ -97,17 +71,13 @@ in_radius = quadtree.query_radius(
     center=(50, 50),
     radius=15
 )
-
-# Get all objects in region
-objects = quadtree.get_objects_in_region(
-    x=50, y=50,
-    width=20, height=20
-)
 ```
+
+Quadtrees are excellent for dynamic simulations where agents frequently move and where spatial density varies significantly across the environment. They automatically adapt to density patterns, providing efficient queries in both dense and sparse regions.
 
 ### Spatial Hash Grid
 
-Fast uniform grid-based lookups:
+Spatial hash grids provide fast uniform grid-based lookups. They divide space into a regular grid of cells and use hashing to quickly locate which cell any point falls into.
 
 ```python
 from farm.spatial import SpatialHashGrid
@@ -135,44 +105,11 @@ agents_nearby = grid.query_radius(
 neighbors = grid.get_neighbors(cell=(5, 5))
 ```
 
-### R-Tree
-
-Bounding box-based indexing for range queries:
-
-```python
-from farm.spatial import RTree
-
-# Create R-tree
-rtree = RTree()
-
-# Insert agents with bounding boxes
-for agent in agents:
-    rtree.insert(
-        agent.id,
-        bbox=(
-            agent.x - agent.radius,
-            agent.y - agent.radius,
-            agent.x + agent.radius,
-            agent.y + agent.radius
-        )
-    )
-
-# Range query
-in_range = rtree.query_range(
-    bbox=(40, 40, 60, 60)
-)
-
-# Intersection query
-intersecting = rtree.query_intersection(
-    bbox=(45, 45, 55, 55)
-)
-```
+Spatial hash grids offer O(1) query time in ideal cases and are particularly effective when the spatial distribution is relatively uniform and when you primarily query local neighborhoods. They're also simple to implement and understand, making debugging easier.
 
 ## Batch Spatial Updates
 
-### Dirty Region Tracking
-
-Only update changed regions:
+One of the most significant performance optimizations in AgentFarm is batch spatial updates using dirty region tracking. Instead of rebuilding the entire spatial index every time an agent moves, the system tracks which regions have changed and only updates those regions.
 
 ```python
 from farm.spatial import SpatialIndexManager
@@ -198,9 +135,9 @@ manager.rebuild_dirty_regions()
 nearby = manager.query_radius(center=(50, 50), radius=15)
 ```
 
-### Lazy Updates
+This dirty region tracking can reduce computational overhead by up to 70% compared to full index rebuilds, especially in scenarios where only a fraction of agents move each timestep or where agents move short distances that keep them in the same spatial regions.
 
-Defer updates until queries are performed:
+Lazy updates take this further by deferring updates until queries are performed. If multiple agents move but no queries occur, no index updates happen. When a query finally occurs, the system updates only the portions of the index needed to answer that query.
 
 ```python
 from farm.spatial import LazySpatialIndex
@@ -219,32 +156,11 @@ for agent in agents:
 nearby = index.query_radius((50, 50), 15)
 ```
 
-### Incremental Updates
+Incremental updates modify the index directly rather than rebuilding from scratch. When an agent moves, the system removes it from its old position and inserts it at its new position, avoiding the cost of processing all agents.
 
-Update index incrementally:
+## Index Selection
 
-```python
-from farm.spatial import IncrementalSpatialIndex
-
-# Create incremental index
-index = IncrementalSpatialIndex(index_type='quadtree')
-
-# Incremental updates
-for agent in moved_agents:
-    # Remove from old position
-    index.remove(agent.id, agent.old_position)
-    
-    # Insert at new position
-    index.insert(agent.id, agent.position)
-
-# Index stays balanced and efficient
-```
-
-## Performance Optimization
-
-### Index Selection
-
-Choose optimal index for your use case:
+Choosing the optimal index for your use case significantly affects performance. AgentFarm can help guide this choice through analysis of your usage patterns.
 
 ```python
 from farm.spatial import SpatialIndexSelector
@@ -263,56 +179,17 @@ print(f"Recommended index: {recommendation.index_type}")
 print(f"Expected performance: {recommendation.performance_estimate}")
 ```
 
-### Query Optimization
+General guidelines for index selection:
 
-Optimize spatial queries:
+KD-trees work best for nearest-neighbor queries with static or slowly changing agent populations. They provide excellent query performance but can be expensive to rebuild.
 
-```python
-# Batch queries together
-queries = [
-    ('radius', (50, 50), 15),
-    ('radius', (60, 60), 15),
-    ('radius', (70, 70), 15)
-]
+Quadtrees excel in dynamic simulations with varying density. They automatically adapt to spatial structure and handle frequent updates efficiently.
 
-# Execute batch query
-results = index.batch_query(queries)
-
-# Use query caching for repeated queries
-index.enable_query_cache(max_size=1000)
-nearby_1 = index.query_radius((50, 50), 15)  # Computed
-nearby_2 = index.query_radius((50, 50), 15)  # Cached
-```
-
-### Memory Optimization
-
-Reduce memory usage:
-
-```python
-# Use compact representation
-index = SpatialHashGrid(
-    cell_size=10,
-    bounds=(0, 0, 100, 100),
-    compact_mode=True  # Store only IDs, not full objects
-)
-
-# Prune empty regions
-quadtree.prune_empty()
-
-# Use memory-mapped storage for very large datasets
-from farm.spatial import MemoryMappedSpatialIndex
-
-mm_index = MemoryMappedSpatialIndex(
-    index_file='spatial_index.mmap',
-    max_agents=100000
-)
-```
+Spatial hash grids offer the best performance when distribution is relatively uniform and when you primarily query local neighborhoods. They're simple and provide O(1) lookups in ideal cases.
 
 ## Performance Monitoring
 
-### Query Metrics
-
-Track query performance:
+AgentFarm provides tools for monitoring and analyzing spatial index performance, helping you identify bottlenecks and optimize your simulations.
 
 ```python
 from farm.spatial import SpatialIndexProfiler
@@ -331,9 +208,7 @@ print(f"Total queries: {stats.total_queries}")
 print(f"Cache hit rate: {stats.cache_hit_rate}")
 ```
 
-### Index Statistics
-
-Monitor index structure:
+Index statistics provide insights into structure and memory usage:
 
 ```python
 # Get index statistics
@@ -345,33 +220,11 @@ print(f"Memory usage: {stats.memory_bytes / 1024 / 1024} MB")
 print(f"Load factor: {stats.load_factor}")
 ```
 
-### Benchmarking
-
-Compare index performance:
-
-```python
-from farm.spatial.benchmarks import SpatialIndexBenchmark
-
-# Create benchmark
-benchmark = SpatialIndexBenchmark()
-
-# Test different indices
-results = benchmark.compare_indices(
-    index_types=['kdtree', 'quadtree', 'spatial_hash'],
-    num_agents=[100, 1000, 10000],
-    query_types=['radius', 'range', 'nearest'],
-    num_queries=1000
-)
-
-# Generate report
-benchmark.generate_report(results, output='benchmark_report.html')
-```
+Benchmarking tools compare performance across different index types and configurations, helping you make informed choices about which approach works best for your specific scenario.
 
 ## Scalability
 
-### Large-Scale Simulations
-
-Handle thousands of agents efficiently:
+AgentFarm's spatial indexing system is designed to scale efficiently to large populations. With appropriate index selection and optimization, simulations with tens of thousands of agents maintain reasonable performance.
 
 ```python
 from farm.spatial import ScalableSpatialIndex
@@ -394,85 +247,20 @@ index.optimize()  # Rebalances and optimizes structure
 nearby = index.query_radius((50, 50), 15)
 ```
 
-### Parallel Queries
-
-Execute concurrent spatial queries:
-
-```python
-from farm.spatial import ParallelSpatialIndex
-import concurrent.futures
-
-# Create thread-safe index
-index = ParallelSpatialIndex(base_index='quadtree')
-
-# Parallel query execution
-query_points = [(x, y) for x in range(0, 100, 10) 
-                        for y in range(0, 100, 10)]
-
-with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-    futures = [
-        executor.submit(index.query_radius, point, 15)
-        for point in query_points
-    ]
-    
-    results = [f.result() for f in futures]
-```
-
-### Dynamic Adaptation
-
-Automatically adapt to population density:
-
-```python
-from farm.spatial import AdaptiveSpatialIndex
-
-# Create adaptive index
-index = AdaptiveSpatialIndex(
-    initial_index='spatial_hash',
-    adaptation_threshold=1000,
-    density_monitoring=True
-)
-
-# Index automatically adapts
-for agent in agents:
-    index.insert(agent.id, agent.position)
-
-# Switches to quadtree if density becomes non-uniform
-if index.current_index_type == 'quadtree':
-    print("Switched to quadtree for better performance")
-```
+Parallel queries can execute concurrent spatial queries for even better performance in multi-threaded scenarios. Dynamic adaptation automatically adjusts index structure based on population density and query patterns, ensuring optimal performance across simulation phases.
 
 ## Best Practices
 
-### Index Selection Guidelines
+Choose index types appropriate for your scenario. KD-trees for static populations with nearest-neighbor queries. Quadtrees for dynamic simulations with varying density. Spatial hash grids for uniform distributions with local queries.
 
-- **KD-Tree**: Best for nearest-neighbor queries, static or slowly changing agents
-- **Quadtree**: Best for dynamic simulations with varying density
-- **Spatial Hash Grid**: Best for uniform distributions and fast lookups
-- **R-Tree**: Best for objects with extent (not just points)
+Use batch updates when possible to minimize overhead. Group agent updates and rebuild indexes once rather than after each individual movement. Enable dirty tracking to update only changed regions.
 
-### Update Strategies
-
-- **High Frequency Updates**: Use dirty tracking and incremental updates
-- **Batch Updates**: Group updates together and rebuild once
-- **Mixed Pattern**: Use adaptive indexing to automatically optimize
-
-### Query Patterns
-
-- **Few Queries**: Build index once, query multiple times
-- **Many Queries**: Use query caching and batch queries
-- **Mixed Pattern**: Profile and optimize based on actual usage
+Profile performance to identify bottlenecks. Use the profiling tools to measure actual query times and identify optimization opportunities. Compare different index types for your specific scenario rather than assuming one is universally better.
 
 ## Related Documentation
 
-- [Spatial Indexing Guide](../spatial/spatial_indexing.md)
-- [Batch Spatial Updates Guide](../spatial/batch_spatial_updates_guide.md)
-- [Spatial Benchmark Report](../spatial/direct_spatial_benchmark_report.md)
-- [Spatial Module Performance Summary](../spatial/spatial_module_performance_summary.md)
-- [Core Architecture](../core_architecture.md)
+For detailed information, see [Spatial Indexing Guide](../spatial/spatial_indexing.md), [Batch Spatial Updates Guide](../spatial/batch_spatial_updates_guide.md), [Spatial Benchmark Report](../spatial/direct_spatial_benchmark_report.md), [Spatial Module Performance Summary](../spatial/spatial_module_performance_summary.md), and [Core Architecture](../core_architecture.md).
 
 ## Examples
 
-For practical examples:
-- [Spatial Benchmark README](../spatial/spatial_benchmark_README.md)
-- [Usage Examples](../usage_examples.md)
-- [Performance Monitoring](../monitoring.md)
+Practical examples can be found in [Spatial Benchmark README](../spatial/spatial_benchmark_README.md), [Usage Examples](../usage_examples.md), and [Performance Monitoring](../monitoring.md).

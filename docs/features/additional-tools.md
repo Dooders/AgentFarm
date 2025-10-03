@@ -2,44 +2,15 @@
 
 ## Overview
 
-AgentFarm includes a rich set of additional tools and utilities that enhance the simulation, analysis, and research experience. These tools support interactive exploration, performance optimization, advanced research workflows, and evolutionary analysis.
+AgentFarm includes a rich set of additional tools and utilities that enhance the simulation, analysis, and research experience. These tools support interactive exploration through Jupyter notebooks, performance optimization through benchmarking, advanced research workflows, and evolutionary analysis through genome embeddings.
 
-## Key Capabilities
-
-### Interactive Notebooks
-- **Jupyter Integration**: Interactive data exploration and analysis
-- **Visualization Tools**: Rich plotting and charting capabilities
-- **Live Updates**: Real-time simulation monitoring
-- **Custom Widgets**: Interactive controls for parameter tuning
-
-### Benchmarking Suite
-- **Performance Testing**: Comprehensive performance benchmarks
-- **Profiling Tools**: Identify bottlenecks and optimize code
-- **Comparison Tools**: Compare performance across versions
-- **Automated Reports**: Generate detailed performance reports
-
-### Research Tools
-- **Analysis Modules**: Specialized tools for academic research
-- **Statistical Tools**: Advanced statistical analysis capabilities
-- **Data Export**: Export data in research-friendly formats
-- **Citation Tools**: Generate citations and references
-
-### Genome Embeddings
-- **Machine Learning**: ML tools for analyzing genetic evolution
-- **Similarity Analysis**: Find similar genomes in population
-- **Clustering**: Group genomes by characteristics
-- **Visualization**: Visualize genome space and evolution
+These additional capabilities complement the core simulation and analysis features, providing specialized tools for particular workflows and research questions. Whether you're exploring data interactively, optimizing performance, conducting academic research, or analyzing evolutionary dynamics, AgentFarm provides tools to support your work.
 
 ## Interactive Notebooks
 
-### Jupyter Integration
-
-Use Jupyter notebooks for interactive analysis:
+Jupyter notebooks provide an ideal environment for interactive data exploration and analysis. AgentFarm integrates seamlessly with Jupyter, bringing visualization and analysis capabilities into the rich ecosystem of interactive Python notebooks.
 
 ```python
-# Install Jupyter support
-# pip install jupyter ipywidgets matplotlib
-
 # In Jupyter notebook
 from farm.notebooks import SimulationExplorer
 
@@ -52,9 +23,7 @@ explorer.show_agent_details(agent_id=1)
 explorer.show_heatmap(step=500)
 ```
 
-### Interactive Widgets
-
-Create custom interactive controls:
+Interactive widgets let you create custom controls for exploring simulation data. You can add sliders, dropdowns, and other controls that update visualizations dynamically as you adjust parameters.
 
 ```python
 import ipywidgets as widgets
@@ -82,9 +51,7 @@ def update_visualization(step, metric):
     explorer.plot_agents(step=step, color_by=metric)
 ```
 
-### Live Monitoring
-
-Monitor simulations in real-time:
+Live monitoring capabilities let you watch simulations as they run, with charts updating in real-time. This is invaluable for debugging, understanding dynamics, and creating engaging demonstrations.
 
 ```python
 from farm.notebooks import LiveMonitor
@@ -107,35 +74,11 @@ monitor.show_live_charts([
 simulation.run()
 ```
 
-### Data Exploration
-
-Explore simulation data interactively:
-
-```python
-from farm.notebooks import DataExplorer
-
-# Create explorer
-explorer = DataExplorer('simulation.db')
-
-# Interactive data table
-explorer.show_agent_table(
-    step=500,
-    sortable=True,
-    filterable=True
-)
-
-# Statistical summary
-explorer.show_statistical_summary()
-
-# Correlation matrix
-explorer.show_correlation_matrix()
-```
+Data exploration tools provide interactive tables, statistical summaries, and correlation matrices that you can filter, sort, and drill into. This exploratory analysis helps you understand your data before conducting formal analyses.
 
 ## Benchmarking Suite
 
-### Performance Benchmarks
-
-Run comprehensive benchmarks:
+For researchers concerned with computational performance or developers optimizing code, AgentFarm includes comprehensive benchmarking tools.
 
 ```bash
 # Run all benchmarks
@@ -148,9 +91,7 @@ python -m benchmarks.run_benchmarks --benchmark spatial_index
 python -m benchmarks.run_benchmarks --num-agents 10000 --num-steps 1000
 ```
 
-### Benchmark Configuration
-
-Configure benchmark parameters:
+The benchmarking suite includes standardized performance tests covering all major system components - agent updates, spatial queries, data persistence, and analysis operations. Benchmarks can be run across different configurations to understand how performance scales, compared across versions to detect regressions, and used to evaluate different algorithms or implementations.
 
 ```python
 from benchmarks import BenchmarkSuite
@@ -176,9 +117,7 @@ results = suite.run()
 suite.generate_report(results, output='benchmark_report.html')
 ```
 
-### Profiling Tools
-
-Profile code to identify bottlenecks:
+Profiling tools provide detailed analysis of where time is spent. Line profilers show execution time for each line of code. Function profilers show call counts and cumulative time. Memory profilers track allocation and identify leaks. These tools are essential for understanding performance and guiding optimization.
 
 ```python
 from farm.profiling import profile_function, ProfileReport
@@ -198,58 +137,11 @@ report = ProfileReport()
 report.generate('profile_report.html')
 ```
 
-### Memory Profiling
-
-Track memory usage:
-
-```python
-from farm.profiling import memory_profile
-
-@memory_profile
-def run_simulation(config):
-    simulation = Simulation(config)
-    return simulation.run()
-
-# Run with memory profiling
-result = run_simulation(config)
-
-# View memory usage
-print(f"Peak memory: {result.peak_memory_mb} MB")
-print(f"Memory leaked: {result.memory_leaked_mb} MB")
-```
-
-### Benchmark Comparison
-
-Compare performance across versions:
-
-```python
-from benchmarks import BenchmarkComparison
-
-# Load benchmark results
-comparison = BenchmarkComparison([
-    'benchmarks/v1.0/results.json',
-    'benchmarks/v1.1/results.json',
-    'benchmarks/v1.2/results.json'
-])
-
-# Compare performance
-comparison.plot_comparison(
-    benchmark='agent_update',
-    metric='time_ms'
-)
-
-# Statistical analysis
-comparison.statistical_comparison(
-    test='t_test',
-    alpha=0.05
-)
-```
+Performance visualization creates graphical representations of profiling data that make bottlenecks immediately apparent. Flame graphs show the call stack with width proportional to time spent. Timeline visualizations show how execution unfolds. These help you quickly grasp performance characteristics.
 
 ## Research Tools
 
-### Analysis Modules
-
-Specialized analysis tools:
+AgentFarm includes specialized analysis tools for academic research, providing capabilities beyond standard simulation analysis.
 
 ```python
 from farm.research import (
@@ -274,9 +166,7 @@ diversity = eco_analyzer.compute_diversity_indices()
 stability = eco_analyzer.assess_stability()
 ```
 
-### Statistical Tools
-
-Advanced statistical analysis:
+Advanced statistical analysis tools provide capabilities beyond basic descriptive statistics. Time series analysis includes autocorrelation, stationarity testing, and spectral analysis. Distribution fitting identifies which probability distributions best match your data. Hypothesis testing includes parametric and nonparametric tests with appropriate multiple comparison corrections.
 
 ```python
 from farm.research.statistics import StatisticalAnalyzer
@@ -301,66 +191,11 @@ result = analyzer.hypothesis_test(
 )
 ```
 
-### Data Export for Research
-
-Export data in research-friendly formats:
-
-```python
-from farm.research.export import ResearchExporter
-
-exporter = ResearchExporter('simulation.db')
-
-# Export to R-compatible format
-exporter.export_to_r(
-    output_file='data.RData',
-    include_metadata=True
-)
-
-# Export to MATLAB format
-exporter.export_to_matlab(
-    output_file='data.mat',
-    version='7.3'
-)
-
-# Export to NetCDF (for large datasets)
-exporter.export_to_netcdf(
-    output_file='data.nc',
-    compression='zlib'
-)
-```
-
-### Citation and Documentation
-
-Generate citations and documentation:
-
-```python
-from farm.research import CitationGenerator
-
-# Generate citation
-citation = CitationGenerator.generate_citation(
-    simulation_id='sim_001',
-    format='bibtex'
-)
-
-# Generate methods section
-methods = CitationGenerator.generate_methods_section(
-    simulation_id='sim_001',
-    include_parameters=True,
-    style='academic'
-)
-
-# Generate data availability statement
-data_statement = CitationGenerator.generate_data_statement(
-    simulation_id='sim_001',
-    repository='zenodo'
-)
-```
+Data export tools prepare simulation data for analysis in other software. You can export to R-compatible formats, MATLAB, NetCDF for large datasets, and other specialized formats used in different research domains.
 
 ## Genome Embeddings
 
-### Machine Learning for Genomes
-
-Analyze genetic evolution using ML:
+For simulations involving evolution over many generations, analyzing genetic diversity and structure becomes important. AgentFarm includes machine learning tools for genome analysis through embedding techniques.
 
 ```python
 from farm.research.genome_embeddings import GenomeEmbedder
@@ -379,9 +214,7 @@ embedder.train(genomes, epochs=100)
 embeddings = embedder.embed(genomes)
 ```
 
-### Similarity Analysis
-
-Find similar genomes:
+Similarity analysis using these embeddings lets you find agents with similar genetic profiles, study how genetic diversity changes over time, identify genetic bottlenecks, and understand how genetic distance relates to phenotypic differences.
 
 ```python
 # Find similar genomes
@@ -399,9 +232,7 @@ similarity_matrix = embedder.compute_similarity_matrix(
 )
 ```
 
-### Genome Clustering
-
-Group genomes by characteristics:
+Clustering groups genomes by characteristics, revealing genetic structure in the population. Combined with temporal tracking, this shows how genetic structure evolves over generations.
 
 ```python
 from farm.research.genome_embeddings import GenomeClusterer
@@ -417,14 +248,11 @@ clusters = clusterer.cluster(
 
 # Analyze clusters
 for cluster_id in range(5):
-    cluster_genomes = clusterer.get_cluster_genomes(cluster_id)
     characteristics = clusterer.analyze_cluster(cluster_id)
     print(f"Cluster {cluster_id}: {characteristics}")
 ```
 
-### Genome Space Visualization
-
-Visualize genome evolution:
+Visualization of genome space uses dimensionality reduction techniques like t-SNE to plot high-dimensional genome data in two or three dimensions. This creates intuitive visual representations of genetic relationships and evolutionary trajectories.
 
 ```python
 # Visualize genome space
@@ -440,46 +268,11 @@ embedder.visualize_trajectory(
     end_generation=100,
     highlight_selection_events=True
 )
-
-# Animate evolution
-embedder.create_evolution_animation(
-    output_file='genome_evolution.mp4',
-    fps=10
-)
-```
-
-### Genetic Architecture Analysis
-
-Analyze genetic architecture:
-
-```python
-from farm.research.genome_embeddings import GeneticArchitectureAnalyzer
-
-analyzer = GeneticArchitectureAnalyzer(embeddings, genomes)
-
-# Identify important genes
-important_genes = analyzer.identify_important_genes(
-    method='feature_importance',
-    top_n=20
-)
-
-# Analyze epistasis
-epistasis = analyzer.analyze_epistasis(
-    gene_pairs=important_genes
-)
-
-# Compute heritability
-heritability = analyzer.estimate_heritability(
-    trait='fitness',
-    method='genomic_relm'
-)
 ```
 
 ## Command-Line Tools
 
-### CLI Interface
-
-Use command-line tools for automation:
+AgentFarm provides command-line tools for automation and scripting, making it easy to incorporate simulations into larger computational workflows.
 
 ```bash
 # Run simulation
@@ -495,9 +288,7 @@ farm compare --simulations sim1.db sim2.db sim3.db --output comparison.pdf
 farm export --input simulation.db --format csv --output exports/
 ```
 
-### Batch Processing
-
-Process multiple simulations:
+Batch processing capabilities let you process multiple simulations systematically. You can run many simulations in parallel, analyze entire directories of results, and generate reports for multiple experiments.
 
 ```bash
 # Batch run simulations
@@ -507,9 +298,7 @@ farm batch-run --config-dir configs/ --output-dir results/ --parallel 4
 farm batch-analyze --input-dir results/ --output-dir reports/
 ```
 
-### Workflow Automation
-
-Create automated workflows:
+Workflow automation tools let you define multi-step analysis pipelines that execute automatically. This ensures consistency and reproducibility across analyses.
 
 ```python
 from farm.tools import Workflow
@@ -529,9 +318,9 @@ workflow.execute(input_data='simulation.db')
 
 ## Utility Functions
 
-### Configuration Helpers
+AgentFarm includes various utility functions that simplify common tasks in simulation work.
 
-Utilities for configuration management:
+Configuration helpers assist with configuration management - merging configurations, validating settings, generating defaults, and converting between formats.
 
 ```python
 from farm.utils import ConfigUtils
@@ -544,14 +333,9 @@ errors = ConfigUtils.validate_config(config)
 
 # Generate default configuration
 default = ConfigUtils.generate_default_config()
-
-# Convert between formats
-ConfigUtils.yaml_to_json('config.yaml', 'config.json')
 ```
 
-### Data Utilities
-
-Helper functions for data manipulation:
+Data utilities provide helper functions for common data manipulations - resampling time series, smoothing data, normalizing features, and other preprocessing operations.
 
 ```python
 from farm.utils import DataUtils
@@ -580,15 +364,8 @@ normalized = DataUtils.normalize(
 
 ## Related Documentation
 
-- [Benchmarks README](../../benchmarks/README.md)
-- [Benchmarking Report](../../benchmarks/reports/0.1.0/benchmark_profiling_summary_report.md)
-- [Module Overview](../module_overview.md)
-- [User Guide](../user-guide.md)
-- [Developer Guide](../developer-guide.md)
+For detailed information, see [Benchmarks README](../../benchmarks/README.md), [Benchmarking Report](../../benchmarks/reports/0.1.0/benchmark_profiling_summary_report.md), [Module Overview](../module_overview.md), [User Guide](../user-guide.md), and [Developer Guide](../developer-guide.md).
 
 ## Examples
 
-For practical examples:
-- [Usage Examples](../usage_examples.md)
-- [Memory Agent Experiments](../experiments/memory_agent/README.md)
-- [Interactive Notebooks](../../examples/notebooks/)
+Practical examples can be found in [Usage Examples](../usage_examples.md), [Memory Agent Experiments](../experiments/memory_agent/README.md), and interactive notebook examples if available in your installation.

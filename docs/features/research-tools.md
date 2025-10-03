@@ -2,114 +2,233 @@
 
 ## Overview
 
-AgentFarm provides a comprehensive suite of research tools specifically designed to meet the rigorous demands of academic and scientific research. These tools enable systematic experimentation, reproducible results, rigorous statistical analysis, and comprehensive logging for tracking simulation dynamics. The research tools represent years of experience in computational research distilled into reusable, well-tested components that help researchers conduct high-quality studies efficiently. By providing infrastructure for common research tasks like parameter sweeps, replication management, and comparative analysis, AgentFarm allows researchers to focus on their scientific questions rather than research infrastructure.
+AgentFarm provides a comprehensive suite of research tools designed specifically for academic and scientific research. These tools enable systematic experimentation, reproducible results, rigorous statistical analysis, and comprehensive logging for tracking simulation dynamics. By providing infrastructure for common research tasks, AgentFarm allows you to focus on scientific questions rather than research infrastructure.
 
-The design of AgentFarm's research tools is informed by best practices from computational science, software engineering, and experimental methodology. Every tool emphasizes reproducibility, recognizing that computational experiments must be as reproducible as laboratory experiments for scientific progress. The tools support systematic exploration of parameter spaces rather than ad-hoc exploration, ensuring comprehensive coverage and reducing researcher bias. Statistical rigor is built in through appropriate replication strategies, significance testing, and effect size estimation. Together, these capabilities create a research environment that promotes scientific best practices and produces trustworthy, publishable results.
+The design emphasizes reproducibility, recognizing that computational experiments must be as reproducible as laboratory experiments. The tools support systematic exploration of parameter spaces, appropriate replication strategies, and statistical rigor through significance testing and effect size estimation. Together, these capabilities promote scientific best practices and produce trustworthy, publishable results.
 
 ## Parameter Sweep Experiments
 
-Parameter sweeps represent one of the most fundamental experimental patterns in computational research, systematically varying parameters to understand their effects on simulation outcomes. AgentFarm provides sophisticated infrastructure for designing, executing, and analyzing parameter sweep experiments, handling the logistics of generating parameter combinations, managing computational resources, organizing results, and facilitating analysis.
+Parameter sweeps systematically vary parameters to understand their effects on outcomes. AgentFarm provides sophisticated infrastructure for designing, executing, and analyzing these experiments, handling the logistics of generating parameter combinations, managing resources, and organizing results.
 
-Grid search represents the most straightforward approach to parameter sweeps, exhaustively exploring all combinations of discrete parameter values. When you specify ranges for each parameter of interest, the grid search system generates the Cartesian product of these ranges, creating a complete factorial design. This exhaustive approach guarantees that you explore the entire specified parameter space and can reveal interaction effects between parameters that might be missed by one-at-a-time parameter variations. Grid search is particularly valuable when parameter spaces are modest in size and when you need comprehensive coverage to support strong scientific claims.
+Grid search exhaustively explores all combinations of discrete parameter values. When you specify ranges for parameters, the system generates the Cartesian product, creating a complete factorial design. This guarantees comprehensive coverage and can reveal interaction effects between parameters that one-at-a-time variations miss.
 
-The computational expense of grid search grows exponentially with the number of parameters, making it impractical for high-dimensional parameter spaces. For these scenarios, random search provides an efficient alternative that samples parameter combinations randomly from specified distributions. Surprisingly, random search often finds good parameter regions more quickly than grid search in high dimensions because it doesn't waste effort evaluating nearby points that often yield similar results. AgentFarm's random search implementation supports various sampling distributions including uniform, log-uniform for parameters spanning orders of magnitude, normal for parameters clustered around central values, and custom distributions for complex prior knowledge.
+```python
+from farm.experiments import ParameterSweep, GridSearch
 
-Adaptive sampling represents the most sophisticated approach to parameter space exploration, intelligently focusing computational effort on interesting parameter regions. Rather than committing to all parameter combinations upfront, adaptive methods iteratively select which parameters to evaluate next based on results obtained so far. Bayesian optimization, one popular adaptive approach, builds a statistical model of how parameters affect outcomes and uses this model to identify parameter values likely to produce extreme or interesting results. This intelligent exploration can dramatically reduce the number of evaluations needed to map a parameter space or find optimal parameters.
+# Define parameter ranges
+parameters = {
+    'num_agents': [50, 100, 200],
+    'learning_rate': [0.01, 0.05, 0.1],
+    'mutation_rate': [0.001, 0.01, 0.1]
+}
 
-The parameter sweep infrastructure in AgentFarm handles parallel execution automatically, distributing simulation runs across available computational resources. You can specify the degree of parallelism appropriate for your hardware, and the system manages work distribution, monitors progress, handles failures gracefully, and collects results systematically. This parallel execution capability makes large parameter sweeps practical even on modest hardware by fully utilizing available cores.
+# Create grid search
+grid_search = GridSearch(parameters)
 
-## Comprehensive Comparative Analysis
+# Run experiments
+results = []
+for params in grid_search:
+    simulation = Simulation(params)
+    result = simulation.run()
+    results.append({
+        'parameters': params,
+        'outcome': result.final_population,
+        'metrics': result.metrics
+    })
+```
 
-Understanding simulation results requires comparing outcomes across different conditions, parameter values, or modeling choices. AgentFarm provides a comprehensive comparative analysis framework that facilitates rigorous, statistically sound comparisons. The framework handles data alignment across simulations, statistical testing of differences, effect size estimation, and visualization of comparisons in ways that highlight meaningful differences while accounting for uncertainty.
+The computational expense of grid search grows exponentially with parameters, making it impractical for high-dimensional spaces. For these scenarios, random search samples parameter combinations randomly from specified distributions. Surprisingly, random search often finds good parameter regions more quickly in high dimensions because it doesn't waste effort on nearby points that often yield similar results.
 
-Multi-run comparison capabilities allow you to load results from multiple simulations and compare their outcomes systematically. The system aligns data across simulations even when they differ in duration or sampling frequency, computes summary statistics for each condition, identifies which metrics show substantial differences, and visualizes comparisons through side-by-side plots, difference plots, and effect size displays. This infrastructure transforms raw simulation outputs into actionable insights about what parameters or conditions matter.
+Adaptive sampling intelligently focuses effort on interesting parameter regions. Rather than committing to all combinations upfront, adaptive methods iteratively select parameters based on results obtained so far. Bayesian optimization builds a statistical model of how parameters affect outcomes and uses it to identify values likely to produce extreme or interesting results.
 
-Statistical testing forms a crucial component of comparative analysis, distinguishing genuine effects from random variation. AgentFarm implements a comprehensive suite of statistical tests appropriate for different data types and experimental designs. T-tests compare means between two conditions when data are approximately normally distributed. Mann-Whitney U tests provide nonparametric alternatives when distributional assumptions are questionable. ANOVA extends comparison to multiple groups simultaneously, testing whether any groups differ significantly. Chi-square tests assess categorical data and frequency distributions. These tests include appropriate corrections for multiple comparisons when testing many hypotheses simultaneously, controlling the false discovery rate or family-wise error rate as appropriate.
+The infrastructure handles parallel execution automatically, distributing runs across available resources. You specify the degree of parallelism, and the system manages work distribution, monitors progress, handles failures, and collects results systematically.
 
-Beyond testing whether differences exist, quantifying the magnitude of differences through effect size estimation provides crucial context for interpreting results. Statistical significance depends partly on sample size, and large samples can make tiny, practically meaningless differences statistically significant. Effect sizes like Cohen's d for mean differences, correlation coefficients for associations, and odds ratios for categorical outcomes measure the practical importance of findings. AgentFarm automatically computes appropriate effect sizes along with their confidence intervals, providing a complete picture of both statistical significance and practical importance.
+## Comparative Analysis
 
-Sensitivity analysis represents a specialized form of comparative analysis that systematically quantifies how simulation outputs depend on input parameters. Rather than comparing discrete conditions, sensitivity analysis treats parameters as continuous variables and measures the rate of change of outputs with respect to inputs. Sobol indices, a sophisticated sensitivity measure, decompose output variance into components attributable to each parameter and their interactions. These indices reveal which parameters most strongly influence outcomes, where modeling precision matters most, and which parameters might be simplified without substantially affecting results.
+Understanding results requires comparing outcomes across different conditions, parameters, or modeling choices. AgentFarm provides a comprehensive comparative analysis framework that facilitates rigorous, statistically sound comparisons.
 
-## Experiment Replication and Reproducibility
+```python
+from farm.analysis import ComparativeAnalysis
 
-Reproducibility stands as a cornerstone of scientific research, ensuring that findings can be verified independently and that published results can be trusted. Computational research offers unique opportunities for perfect reproducibility but requires careful engineering to achieve it. AgentFarm prioritizes reproducibility through deterministic simulations with controlled randomness, comprehensive provenance tracking, validation tools, and replication management systems.
+# Load simulation results
+simulations = [
+    'sim_baseline',
+    'sim_high_learning',
+    'sim_low_mutation'
+]
 
-Deterministic simulations ensure that running a simulation multiple times with the same configuration produces identical results. This determinism is achieved through careful control of random number generation using specified seeds, deterministic floating-point arithmetic, and fixed iteration orders when processing agents. The ability to reproduce simulations exactly is invaluable for debugging, for verifying that code changes don't alter behavior, and for allowing collaborators to reproduce your results precisely. AgentFarm makes determinism easy by handling random seed management automatically while exposing controls when researchers need fine-grained control.
+# Create comparative analysis
+analysis = ComparativeAnalysis(simulations)
 
-Configuration management systems track all parameters and settings that define each simulation, storing complete configuration files alongside results. This comprehensive documentation ensures that you can always reconstruct how simulations were configured, compare configurations across experiments, and share configurations with collaborators who want to build on your work. The configuration system supports versioning so that you can track how experimental designs evolve over time, annotate configurations with descriptions and rationale, and tag configurations with metadata that facilitates searching and organization.
+# Compare key metrics
+comparison = analysis.compare_metrics(
+    metrics=['population', 'avg_fitness', 'diversity'],
+    statistical_tests=['t_test', 'anova', 'mann_whitney']
+)
 
-Result verification tools help ensure that replications truly reproduce original results by comparing outputs at multiple levels of detail. Exact numerical comparison verifies that deterministic replications produce bit-for-bit identical outputs. Statistical comparison assesses whether stochastic replications produce outcomes drawn from the same distribution. Visual comparison plots overlay results from original and replication runs to reveal any differences. These verification tools provide confidence that replications are valid and help identify when unintended code changes have altered behavior.
+# Generate comparison report
+report = analysis.generate_report(
+    include_visualizations=True,
+    include_statistics=True
+)
+```
 
-Batch replication infrastructure facilitates running many replications of each configuration, essential for understanding stochastic variation in simulation outcomes. The system manages the logistics of generating unique random seeds for each replication while maintaining an overall experimental random seed for reproducibility, executes replications in parallel to fully utilize computational resources, monitors progress and estimates completion time, and handles failures gracefully by retrying or logging problems. Results from replications are automatically aggregated to compute means, confidence intervals, and other summary statistics that characterize central tendencies and uncertainty.
+Multi-run comparison loads results from multiple simulations and compares them systematically. The system aligns data across simulations, computes summary statistics for each condition, identifies metrics showing substantial differences, and visualizes comparisons through side-by-side plots and effect size displays.
 
-## Professional-Grade Structured Logging
+Statistical testing distinguishes genuine effects from random variation. AgentFarm implements tests appropriate for different data types and designs. T-tests compare means between two conditions. Mann-Whitney U tests provide nonparametric alternatives when distributional assumptions are questionable. ANOVA extends comparison to multiple groups. Chi-square tests assess categorical data. These include appropriate corrections for multiple comparisons when testing many hypotheses simultaneously.
 
-Logging provides a continuous record of simulation execution, invaluable for debugging, understanding dynamics, and providing audit trails for research. AgentFarm implements professional-grade structured logging through the structlog library, providing rich contextual information, machine-readable output formats, flexible formatting for different contexts, and performance optimization to minimize logging overhead.
+Beyond testing whether differences exist, effect size estimation quantifies the magnitude of differences. Statistical significance depends partly on sample size - large samples can make tiny differences statistically significant. Effect sizes like Cohen's d measure practical importance. AgentFarm automatically computes appropriate effect sizes with confidence intervals, providing a complete picture of both statistical significance and practical importance.
 
-Structured logging differs fundamentally from traditional string-based logging by treating log events as data structures with named fields rather than unstructured text. Each log event includes the human-readable message along with structured context like simulation ID, timestep, agent ID, action type, and any other relevant information. This structured approach makes logs far more useful for automated analysis, enables powerful querying and filtering, supports structured visualization of execution traces, and allows consistent formatting across the codebase.
+Sensitivity analysis quantifies how outputs depend on inputs. Rather than comparing discrete conditions, sensitivity analysis treats parameters as continuous and measures the rate of change of outputs with respect to inputs. Sobol indices decompose output variance into components attributable to each parameter and their interactions, revealing which parameters most strongly influence outcomes.
 
-The logging system provides multiple output formats appropriate for different uses. Console logging for development uses color-coding and human-readable formatting to make logs easy to scan visually. JSON logging for production and archival creates machine-readable logs suitable for automated analysis and long-term storage. Plain text logging provides compatibility with traditional log analysis tools. The format can be selected through configuration, allowing the same code to produce logs optimized for different contexts without modification.
+## Experiment Replication
 
-Contextual logging automatically includes relevant context in every log message without requiring that context to be passed explicitly to every logging call. Context bindings established at simulation, environment, or agent scope are automatically included in all subsequent log messages from that scope. This approach dramatically reduces logging boilerplate while ensuring that log messages include sufficient context to be understood. For example, binding the simulation ID once at initialization ensures that all subsequent log messages include this identifier without requiring it to be passed to every logging call.
+Reproducibility stands as a cornerstone of scientific research. Computational research offers unique opportunities for perfect reproducibility but requires careful engineering. AgentFarm prioritizes reproducibility through deterministic simulations, comprehensive provenance tracking, validation tools, and replication management.
 
-Performance optimization ensures that comprehensive logging doesn't unacceptably slow simulations. The system implements lazy evaluation where expensive log message formatting only occurs if the message will actually be output. Log level filtering removes debug messages in production without incurring formatting cost. Sampling allows logging a fraction of high-frequency events like individual agent steps, providing visibility into dynamics without overwhelming storage or processing systems. Buffer management ensures that log output doesn't become a bottleneck. These optimizations make it practical to maintain detailed logging even in performance-critical simulations.
+```python
+from farm.core.simulation import Simulation
 
-## Advanced Log Analysis
+# Set random seed for reproducibility
+config = SimulationConfig(
+    random_seed=42,
+    deterministic=True
+)
 
-The value of comprehensive logging is realized through analysis tools that extract insights from log data. AgentFarm includes log analysis utilities that parse structured logs, extract metrics and patterns, identify anomalies and errors, and generate summaries and visualizations. These tools transform logs from passive archives into active sources of insight.
+# Run simulation
+simulation1 = Simulation(config)
+result1 = simulation1.run()
 
-Metric extraction parses logs to compute derived metrics not explicitly tracked during simulation. For example, you might extract the distribution of time between actions, identify which sequences of events occur frequently, measure how quickly agents respond to environmental changes, or quantify how often different code paths execute. This log mining reveals aspects of system behavior that might not be captured by explicit instrumentation.
+# Replicate with same seed
+simulation2 = Simulation(config)
+result2 = simulation2.run()
 
-Anomaly detection identifies unusual events or patterns in log data that might indicate problems or interesting phenomena. Statistical methods establish baselines for normal behavior and flag significant deviations. Pattern-based methods identify suspicious sequences of events. Temporal methods detect unusual timing or scheduling behaviors. Anomaly detection in logs can reveal bugs, numerical issues, unexpected emergent behaviors, and other phenomena worth investigating.
+# Verify replication
+assert result1.final_population == result2.final_population
+```
 
-Log summarization condenses detailed logs into high-level overviews suitable for quick assessment and reporting. Summaries might include counts of different event types, distributions of timing and performance metrics, identification of most active agents or components, and timeline visualization showing major events. These summaries provide efficient navigation into detailed logs by highlighting what happened when.
+Deterministic simulations ensure that running a simulation multiple times with the same configuration produces identical results. This is achieved through careful control of random number generation using specified seeds, deterministic floating-point arithmetic, and fixed iteration orders. The ability to reproduce simulations exactly is invaluable for debugging, verifying that code changes don't alter behavior, and allowing collaborators to reproduce your results.
 
-## Comprehensive Experiment Database
+Configuration management tracks all parameters and settings, storing complete configurations alongside results. This ensures you can always reconstruct how simulations were configured, compare configurations across experiments, and share configurations with collaborators. The system supports versioning so you can track how experimental designs evolve, annotate configurations with descriptions, and tag them with metadata.
 
-For research programs involving many simulations, organizing and querying results efficiently becomes essential. AgentFarm provides an experiment database system that stores results from all simulations in a queryable repository, enabling systematic comparative analysis across your entire body of computational experiments.
+Batch replication facilitates running many replications of each configuration, essential for understanding stochastic variation. The system manages generating unique random seeds for each replication while maintaining an overall experimental seed for reproducibility, executes replications in parallel, monitors progress, and handles failures gracefully. Results are automatically aggregated to compute means, confidence intervals, and summary statistics.
 
-The experiment database maintains complete records including full parameter configurations, summary statistics and key metrics, paths to detailed output files, metadata about execution environment and timing, and annotations and tags for organization. This comprehensive record-keeping ensures that you can always reconstruct what was done and that results aren't lost or forgotten.
+## Structured Logging
 
-Query capabilities allow you to find simulations matching specific criteria, retrieve all simulations exploring a particular parameter, identify outlier simulations with unusual outcomes, and compare simulations across parameter ranges. These queries support systematic literature review of your own computational experiments, identifying gaps in parameter space coverage, and finding relevant previous work before launching new experiments.
+Logging provides a continuous record of simulation execution, invaluable for debugging, understanding dynamics, and providing audit trails. AgentFarm implements professional-grade structured logging through structlog, providing rich contextual information, machine-readable output, flexible formatting, and performance optimization.
 
-Aggregate analysis across the experiment database reveals high-level patterns spanning multiple simulations. You might compute how outcomes vary across parameter ranges, identify which parameters most strongly affect outcomes, detect trends over time as models evolve, or assess the reproducibility of findings across replications. These meta-analyses provide insights that transcend individual simulations.
+```python
+from farm.utils import configure_logging, get_logger
 
-## Advanced Analytics and Causal Inference
+# Configure logging
+configure_logging(
+    environment="development",
+    log_level="INFO",
+    log_format="console"  # or "json", "plain"
+)
 
-Beyond descriptive statistics and visualization, AgentFarm supports advanced analytical techniques that help researchers move from correlation to causation and from description to explanation. These tools draw on econometrics, statistics, and causal inference methods to extract deeper insights from simulation data.
+# Get logger
+logger = get_logger(__name__)
 
-Causal analysis tools help identify cause-and-effect relationships even in observational simulation data where random assignment isn't possible. Propensity score matching creates balanced comparison groups from observational data, instrumental variable approaches leverage exogenous variation to isolate causal effects, regression discontinuity designs exploit threshold-based treatment assignment, and difference-in-differences methods compare trends across groups to isolate treatment effects. While simulation data offers advantages over real-world observational data because the true data-generating process is known, these methods remain valuable for analyzing complex simulations where the causal structure isn't obvious despite being deterministic in principle.
+# Log with context
+logger.info(
+    "simulation_started",
+    simulation_id="sim_001",
+    num_agents=100,
+    num_steps=1000
+)
+```
 
-Clustering analysis groups simulations by similarity in outcomes or dynamics, revealing distinct behavioral regimes or strategies. Hierarchical clustering builds dendrograms showing nested similarity structure. K-means and other partitioning methods identify discrete clusters. Density-based methods find clusters of arbitrary shape. Applied to simulation results, clustering can identify basins of attraction, alternative stable states, or distinct behavioral strategies that emerge under different conditions.
+Structured logging treats log events as data structures with named fields rather than unstructured text. Each event includes the message along with structured context like simulation ID, timestep, agent ID, and action type. This makes logs far more useful for automated analysis, enables powerful querying and filtering, and allows consistent formatting across the codebase.
 
-Pattern mining discovers recurring sequences, associations, and structures in simulation data. Sequence mining identifies common action patterns or behavioral motifs. Association rule learning finds combinations of factors that frequently occur together. Subgroup discovery identifies conditions that produce distinctive outcomes. These exploratory techniques can generate hypotheses about mechanisms and relationships that can then be tested through targeted experiments.
+The system provides multiple output formats. Console logging for development uses color-coding and human-readable formatting. JSON logging for production creates machine-readable logs suitable for automated analysis. Plain text provides compatibility with traditional tools. The format can be selected through configuration without code modification.
 
-## Benchmarking and Performance Profiling
+Contextual logging automatically includes relevant context without requiring explicit passing to every logging call. Context bindings established at simulation or agent scope are automatically included in subsequent log messages. This dramatically reduces boilerplate while ensuring messages include sufficient context.
 
-For researchers concerned with computational performance or for model developers optimizing code, AgentFarm includes comprehensive benchmarking and profiling tools. These tools measure performance systematically, identify bottlenecks, track performance across versions, and guide optimization efforts.
+Performance optimization ensures comprehensive logging doesn't slow simulations unacceptably. The system implements lazy evaluation where expensive formatting only occurs if messages will actually be output. Log level filtering removes debug messages in production without incurring formatting cost. Sampling allows logging a fraction of high-frequency events, providing visibility without overwhelming storage.
 
-The benchmarking suite includes standardized performance tests covering all major system components including agent update performance, spatial query performance, data persistence performance, and analysis operation performance. These benchmarks can be run across different configurations to understand how performance scales with problem size, compared across versions to detect regressions or measure speedups, and used to evaluate different algorithms or implementations. The benchmarking framework handles warm-up periods, multiple replications for statistical reliability, and result reporting automatically.
+## Log Analysis
 
-Profiling tools provide detailed analysis of where simulation time is spent. Line profilers show execution time for each line of code, revealing hot spots. Function profilers show call counts and cumulative time for each function. Memory profilers track allocation and identify memory leaks. These profiling tools are essential for understanding performance and guiding optimization efforts toward the changes that will have the greatest impact.
+The value of logging is realized through analysis tools that extract insights from log data.
 
-Performance visualization creates graphical representations of profiling data that make bottlenecks immediately apparent. Flame graphs show the call stack with width proportional to time spent. Timeline visualizations show how execution unfolds over time. Call graphs illustrate function call relationships with edge weights proportional to call frequency or time. These visualizations help developers quickly grasp performance characteristics that might be obscure in tabular reports.
+```python
+from farm.utils.logging import LogAnalyzer
 
-## Best Practices for Research Computing
+analyzer = LogAnalyzer('logs/simulation.json')
 
-Effective use of AgentFarm's research tools requires attention to experimental design, statistical methodology, and computational practices. Following established best practices helps ensure that research is rigorous, efficient, and reproducible.
+# Extract metrics from logs
+metrics = analyzer.extract_metrics(
+    event_type='simulation_step',
+    fields=['population', 'avg_health', 'resources']
+)
 
-Experimental design principles apply equally to computational and laboratory experiments. Control variables carefully, varying only the factors of interest while holding others constant. Use adequate replication to achieve desired statistical power. Randomize when appropriate to prevent systematic biases. Block or stratify to account for known sources of variation. Pilot test to ensure that methods work before investing in large-scale experiments. These fundamentals of experimental design often receive insufficient attention in computational work but are crucial for drawing valid inferences.
+# Find anomalies
+anomalies = analyzer.find_anomalies(
+    threshold=3.0  # 3 standard deviations
+)
 
-Statistical analysis should use appropriate methods for the data and research questions at hand. Choose tests that match data characteristics and distributional assumptions. Report effect sizes along with p-values to convey practical significance. Correct for multiple comparisons when testing many hypotheses. Use confidence intervals to characterize uncertainty. Consider Bayesian methods when appropriate to incorporate prior knowledge and provide more intuitive probability statements. Statistical rigor distinguishes publishable research from exploratory analysis.
+# Generate log summary
+summary = analyzer.generate_summary()
+```
 
-Computational practices ensure efficiency and reproducibility. Version control all code and configuration files. Document dependencies and execution environments. Automate workflows to ensure consistency and reproducibility. Test code to catch bugs early. Use meaningful names and clear code structure. Comment non-obvious logic. These software engineering practices adapted to scientific computing pay dividends in productivity and research quality.
+Metric extraction parses logs to compute derived metrics not explicitly tracked during simulation. Log mining reveals aspects of system behavior that might not be captured by explicit instrumentation. Anomaly detection identifies unusual events or patterns indicating problems or interesting phenomena. Log summarization condenses detailed logs into high-level overviews for quick assessment and reporting.
 
-Data management ensures that the valuable data generated by simulations is preserved, organized, and accessible. Maintain organized directory structures with clear naming conventions. Store metadata alongside data files. Back up important results. Use appropriate file formats for different data types. Archive completed experiments systematically. Document data schemas and file formats. Good data management prevents data loss and makes it possible to revisit old experiments as new questions arise.
+## Experiment Database
+
+For research involving many simulations, organizing and querying results efficiently becomes essential. AgentFarm provides an experiment database that stores results from all simulations in a queryable repository.
+
+```python
+from farm.data.experiment_db import ExperimentDatabase
+
+db = ExperimentDatabase('experiments.db')
+
+# Store experiment result
+db.store_experiment(
+    experiment_id='exp_001',
+    configuration=config,
+    results=results,
+    metadata={
+        'researcher': 'Jane Doe',
+        'hypothesis': 'Higher learning rates improve fitness',
+        'date': '2024-01-15'
+    }
+)
+
+# Query experiments
+experiments = db.query_experiments(
+    parameter_ranges={'learning_rate': (0.01, 0.1)},
+    outcome_threshold={'final_population': 50}
+)
+```
+
+The database maintains complete records including full parameter configurations, summary statistics and key metrics, paths to detailed outputs, and metadata about execution environment. Query capabilities let you find simulations matching criteria, retrieve all simulations exploring a parameter, identify outliers with unusual outcomes, and compare simulations across parameter ranges.
+
+## Benchmarking Suite
+
+For researchers concerned with performance or developers optimizing code, AgentFarm includes comprehensive benchmarking and profiling tools.
+
+```bash
+# Run all benchmarks
+python -m benchmarks.run_benchmarks
+
+# Run specific benchmark
+python -m benchmarks.run_benchmarks --benchmark spatial_index
+
+# Run with custom configuration
+python -m benchmarks.run_benchmarks --num-agents 10000 --num-steps 1000
+```
+
+The benchmarking suite includes standardized performance tests covering all major components. Benchmarks can be run across configurations to understand how performance scales, compared across versions to detect regressions, and used to evaluate different algorithms. Profiling tools provide detailed analysis of where time is spent, tracking line-level execution time, function call counts, and memory allocation.
+
+## Best Practices
+
+Effective use of research tools requires attention to experimental design and statistical methodology. Control variables carefully, use adequate replication for statistical power, randomize appropriately to prevent biases, and pilot test before large-scale experiments.
+
+Statistical analysis should use methods appropriate for your data and questions. Report effect sizes along with p-values. Correct for multiple comparisons when testing many hypotheses. Use confidence intervals to characterize uncertainty. These fundamentals distinguish publishable research from exploratory analysis.
 
 ## Related Documentation
 
-For detailed information on specific research tools, consult the Experiments Documentation which provides comprehensive coverage of the experiment framework. The Experiment Quick Start offers a hands-on tutorial for setting up experiments. The Experiment Analysis guide demonstrates analytical workflows. The Logging Guide provides complete documentation of the structured logging system, while the Logging Quick Reference serves as a handy command reference. The Benchmarking Report exemplifies the insights available from systematic performance measurement. The Deterministic Simulations guide explains how to ensure reproducibility.
+For detailed information, see [Experiments Documentation](../experiments.md), [Experiment Quick Start](../ExperimentQuickStart.md), [Experiment Analysis](../experiment_analysis.md), [Logging Guide](../logging_guide.md), [Logging Quick Reference](../LOGGING_QUICK_REFERENCE.md), and [Deterministic Simulations](../deterministic_simulations.md).
 
-## Examples and Case Studies
+## Examples
 
-Practical examples of research workflows appear throughout the documentation. The Logging Examples demonstrate various logging patterns and use cases. The One of a Kind Experiments provide detailed case studies showing complete research workflows from experimental design through analysis to publication. The Memory Agent Experiments illustrate how to design experiments investigating specific research questions. The Benchmarks README documents the benchmarking infrastructure and how to use it. These examples provide concrete, runnable code demonstrating best practices and serving as templates for your own research projects.
+Practical examples can be found in [Logging Examples](../../examples/logging_examples.py), [One of a Kind Experiments](../experiments/one_of_a_kind/README.md), [Memory Agent Experiments](../experiments/memory_agent/README.md), and [Benchmarks README](../../benchmarks/README.md).
