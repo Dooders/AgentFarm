@@ -1,0 +1,15 @@
+experiment: pragma_profile
+params:
+  profiles: ["balanced", "performance"]
+  workloads: ["write_heavy", "read_heavy"]
+  num_records: 10000
+  db_size_mb: 20
+iterations:
+  warmup: 1
+  measured: 2
+instrumentation:
+  - timing
+output_dir: benchmarks/results/pragma_profile_sweep
+tags: [database, pragma, comprehensive]
+notes: "Pragma profile sweep from comprehensive profiling"
+seed: 42

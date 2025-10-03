@@ -47,6 +47,9 @@ def main() -> int:
         print("Error: --spec is required (or use --list)")
         return 2
 
+    # Discover experiments before loading spec
+    REGISTRY.discover_package("benchmarks.implementations")
+
     # Load spec and create experiment
     spec = load_spec(args.spec)
     if spec.sweep:

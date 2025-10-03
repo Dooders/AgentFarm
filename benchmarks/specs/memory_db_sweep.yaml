@@ -1,0 +1,18 @@
+experiment: memory_db
+params:
+  num_agents: 100
+  num_steps: 100
+  parameters:
+    test_in_memory: true
+    test_disk_based: true
+    test_persistence: true
+iterations:
+  warmup: 1
+  measured: 2
+instrumentation:
+  - timing
+  - psutil
+output_dir: benchmarks/results/memory_db_sweep
+tags: [database, baseline, comprehensive]
+notes: "Memory database sweep from comprehensive profiling"
+seed: 42

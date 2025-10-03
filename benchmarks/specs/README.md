@@ -28,7 +28,10 @@ This directory contains YAML specification files for running various benchmarks 
 - **`system_profiler_baseline.yaml`** - System resource profiling
 
 ### Comprehensive Sweeps
-- **`comprehensive_profiling_sweep.yaml`** - Multi-experiment profiling sweep
+- **`memory_db_sweep.yaml`** - Memory database parameter sweep
+- **`pragma_profile_sweep.yaml`** - SQLite pragma profile sweep
+- **`perception_metrics_sweep.yaml`** - Perception metrics parameter sweep
+- **`spatial_comprehensive_sweep.yaml`** - Spatial indexing parameter sweep
 
 ## Usage
 
@@ -46,8 +49,11 @@ python -m benchmarks.run_benchmarks --spec benchmarks/specs/pragma_profile_basel
 # Run parameter sweeps
 python -m benchmarks.run_benchmarks --spec benchmarks/specs/observation_sweep.yaml
 
-# Run comprehensive profiling sweep
-python -m benchmarks.run_benchmarks --spec benchmarks/specs/comprehensive_profiling_sweep.yaml
+# Run individual comprehensive sweeps
+python -m benchmarks.run_benchmarks --spec benchmarks/specs/memory_db_sweep.yaml
+python -m benchmarks.run_benchmarks --spec benchmarks/specs/pragma_profile_sweep.yaml
+python -m benchmarks.run_benchmarks --spec benchmarks/specs/perception_metrics_sweep.yaml
+python -m benchmarks.run_benchmarks --spec benchmarks/specs/spatial_comprehensive_sweep.yaml
 ```
 
 ## Spec File Structure
