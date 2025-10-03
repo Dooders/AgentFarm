@@ -1,11 +1,11 @@
 experiment: pragma_profile
 params:
-  # Database size parameters
-  num_records: 50000
-  db_size_mb: 50
+  # Database size parameters for quick validation
+  num_records: 1000
+  db_size_mb: 5
 iterations:
-  warmup: 1
-  measured: 3
+  warmup: 0
+  measured: 1
 instrumentation:
   - timing
   - psutil

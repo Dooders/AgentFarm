@@ -187,7 +187,7 @@ class TestFastAPIServer:
             assert data["data"]["total_steps"] == 100
 
     def test_run_analysis_module_success(self, client):
-        """Test successful analysis module execution."""
+        """Test successful analysis module execution (async)."""
         module_name = "test_analysis"
         request_data = AnalysisRequestModel(
             experiment_path="test/experiments",
@@ -197,28 +197,29 @@ class TestFastAPIServer:
             analysis_kwargs={"param2": "value2"},
         )
 
-        # Mock analysis service
-        with patch("farm.api.server.AnalysisService") as mock_service_class, patch(
+        # Mock analysis controller and config service
+        with patch(
+            "farm.api.server.AnalysisController"
+        ) as mock_controller_class, patch(
             "farm.api.server.EnvConfigService"
         ) as mock_config_service:
 
-            mock_service = Mock()
-            mock_service_class.return_value = mock_service
-            mock_result = Mock()
-            mock_result.output_path = Path("test/output/result.csv")
-            mock_result.dataframe = Mock()
-            mock_result.dataframe.shape = (100, 5)
-            mock_service.run.return_value = mock_result
+            mock_controller = Mock()
+            mock_controller_class.return_value = mock_controller
+            mock_controller.initialize_analysis.return_value = None
 
             response = client.post(
                 f"/api/analysis/{module_name}", json=request_data.dict()
             )
 
-            assert response.status_code == 200
+            # Should return 202 (accepted) for async analysis
+            assert response.status_code == 202
             data = response.json()
-            assert data["status"] == "success"
-            assert data["output_path"] == str(Path("test/output/result.csv"))
-            assert data["rows"] == 100
+            assert data["status"] == "accepted"
+            assert "Analysis started with ID:" in data["message"]
+
+            # Verify controller was initialized
+            mock_controller.initialize_analysis.assert_called_once()
 
     def test_list_simulations(self, client):
         """Test listing active simulations."""

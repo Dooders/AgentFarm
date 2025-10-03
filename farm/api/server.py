@@ -7,6 +7,7 @@ from fastapi import (
     BackgroundTasks,
     FastAPI,
     HTTPException,
+    Response,
     WebSocket,
     WebSocketDisconnect,
 )
@@ -204,7 +205,7 @@ async def create_simulation(
             error_message=str(e),
             exc_info=True,
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.get("/api/simulation/{sim_id}/step/{step}")
@@ -233,7 +234,7 @@ async def get_step(sim_id: str, step: int):
             error_type=type(e).__name__,
             error_message=str(e),
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.get("/api/simulation/{sim_id}/analysis")
@@ -261,7 +262,7 @@ async def get_analysis(sim_id: str):
             error_type=type(e).__name__,
             error_message=str(e),
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 def _cleanup_old_analyses():
@@ -269,7 +270,7 @@ def _cleanup_old_analyses():
     with _active_analyses_lock:
         now = datetime.now()
         to_remove = []
-        
+
         # Find old completed analyses
         for aid, info in active_analyses.items():
             if info.get("status") in ["completed", "error", "stopped"]:
@@ -282,14 +283,14 @@ def _cleanup_old_analyses():
                             to_remove.append(aid)
                     except (ValueError, TypeError):
                         pass
-        
+
         # Limit total completed analyses
         completed = [
             (aid, info.get("ended_at", ""))
             for aid, info in active_analyses.items()
             if info.get("status") in ["completed", "error", "stopped"]
         ]
-        
+
         if len(completed) > MAX_COMPLETED_ANALYSES:
             # Sort by ended_at and remove oldest
             completed.sort(key=lambda x: x[1])
@@ -297,7 +298,7 @@ def _cleanup_old_analyses():
             for aid, _ in completed[:excess_count]:
                 if aid not in to_remove:
                     to_remove.append(aid)
-        
+
         # Remove analyses and cleanup controllers
         for aid in to_remove:
             info = active_analyses.get(aid)
@@ -309,7 +310,7 @@ def _cleanup_old_analyses():
                     except Exception as e:
                         logger.warning(f"Error cleaning up controller {aid}: {e}")
                 del active_analyses[aid]
-        
+
         if to_remove:
             logger.info(f"Cleaned up {len(to_remove)} old analyses")
 
@@ -335,19 +336,29 @@ def _run_analysis_background(analysis_id: str, controller: AnalysisController):
                 if analysis_id in active_analyses:
                     if result and result.success:
                         active_analyses[analysis_id]["status"] = "completed"
-                        active_analyses[analysis_id]["output_path"] = str(result.output_path)
-                        active_analyses[analysis_id]["execution_time"] = result.execution_time
+                        active_analyses[analysis_id]["output_path"] = str(
+                            result.output_path
+                        )
+                        active_analyses[analysis_id][
+                            "execution_time"
+                        ] = result.execution_time
                         active_analyses[analysis_id]["cache_hit"] = result.cache_hit
                         active_analyses[analysis_id]["rows"] = (
                             len(result.dataframe) if result.dataframe is not None else 0
                         )
                     else:
                         active_analyses[analysis_id]["status"] = "error"
-                        active_analyses[analysis_id]["error"] = result.error if result else "Unknown error"
-                        active_analyses[analysis_id]["error_type"] = (
-                            type(result.error).__name__ if result and result.error else "UnknownError"
+                        active_analyses[analysis_id]["error"] = (
+                            result.error if result else "Unknown error"
                         )
-                    active_analyses[analysis_id]["ended_at"] = datetime.now().isoformat()
+                        active_analyses[analysis_id]["error_type"] = (
+                            type(result.error).__name__
+                            if result and result.error
+                            else "UnknownError"
+                        )
+                    active_analyses[analysis_id][
+                        "ended_at"
+                    ] = datetime.now().isoformat()
 
     except Exception as e:
         logger.error(
@@ -363,7 +374,7 @@ def _run_analysis_background(analysis_id: str, controller: AnalysisController):
                 active_analyses[analysis_id]["error"] = str(e)
                 active_analyses[analysis_id]["error_type"] = type(e).__name__
                 active_analyses[analysis_id]["ended_at"] = datetime.now().isoformat()
-                
+
                 # Ensure controller is properly cleaned up on error
                 try:
                     controller.cleanup()
@@ -381,7 +392,7 @@ def _run_analysis_background(analysis_id: str, controller: AnalysisController):
 async def run_analysis_module(
     module_name: str,
     request_data: AnalysisRequestModel,
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks,
 ):
     """Run analysis module with controller (async execution)."""
     try:
@@ -425,9 +436,13 @@ async def run_analysis_module(
         # Start background task
         background_tasks.add_task(_run_analysis_background, analysis_id, controller)
 
-        return AnalysisResponse(
-            status="accepted",
-            message=f"Analysis started with ID: {analysis_id}",
+        return Response(
+            content=AnalysisResponse(
+                status="accepted",
+                message=f"Analysis started with ID: {analysis_id}",
+            ).json(),
+            status_code=202,
+            media_type="application/json",
         )
 
     except Exception as e:
@@ -439,7 +454,7 @@ async def run_analysis_module(
             error_message=str(e),
             exc_info=True,
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.get("/api/analysis/{analysis_id}/status")
@@ -452,15 +467,15 @@ async def get_analysis_status(analysis_id: str):
                     status_code=404, detail=f"Analysis {analysis_id} not found"
                 )
             analysis_info = dict(active_analyses[analysis_id])
-            
+
             # Get live state from controller if available
             controller = analysis_info.pop("controller", None)
             if controller:
                 state = controller.get_state()
                 analysis_info.update(state)
-        
+
         return {"status": "success", "data": analysis_info}
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -470,7 +485,7 @@ async def get_analysis_status(analysis_id: str):
             error_type=type(e).__name__,
             error_message=str(e),
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.post("/api/analysis/{analysis_id}/pause")
@@ -483,13 +498,15 @@ async def pause_analysis(analysis_id: str):
                     status_code=404, detail=f"Analysis {analysis_id} not found"
                 )
             controller = active_analyses[analysis_id].get("controller")
-        
+
         if not controller:
-            raise HTTPException(status_code=400, detail="Analysis controller not available")
-        
+            raise HTTPException(
+                status_code=400, detail="Analysis controller not available"
+            )
+
         controller.pause()
         return {"status": "success", "message": "Analysis paused"}
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -499,7 +516,7 @@ async def pause_analysis(analysis_id: str):
             error_type=type(e).__name__,
             error_message=str(e),
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.post("/api/analysis/{analysis_id}/resume")
@@ -512,13 +529,15 @@ async def resume_analysis(analysis_id: str):
                     status_code=404, detail=f"Analysis {analysis_id} not found"
                 )
             controller = active_analyses[analysis_id].get("controller")
-        
+
         if not controller:
-            raise HTTPException(status_code=400, detail="Analysis controller not available")
-        
+            raise HTTPException(
+                status_code=400, detail="Analysis controller not available"
+            )
+
         controller.start()
         return {"status": "success", "message": "Analysis resumed"}
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -528,7 +547,7 @@ async def resume_analysis(analysis_id: str):
             error_type=type(e).__name__,
             error_message=str(e),
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.post("/api/analysis/{analysis_id}/stop")
@@ -541,18 +560,20 @@ async def stop_analysis(analysis_id: str):
                     status_code=404, detail=f"Analysis {analysis_id} not found"
                 )
             controller = active_analyses[analysis_id].get("controller")
-        
+
         if not controller:
-            raise HTTPException(status_code=400, detail="Analysis controller not available")
-        
+            raise HTTPException(
+                status_code=400, detail="Analysis controller not available"
+            )
+
         controller.stop()
-        
+
         with _active_analyses_lock:
             if analysis_id in active_analyses:
                 active_analyses[analysis_id]["status"] = "stopped"
-        
+
         return {"status": "success", "message": "Analysis stopped"}
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -562,7 +583,7 @@ async def stop_analysis(analysis_id: str):
             error_type=type(e).__name__,
             error_message=str(e),
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.get("/api/analyses")
@@ -574,24 +595,24 @@ async def list_analyses():
             analyses_data = {}
             for analysis_id, info in active_analyses.items():
                 safe_info = {k: v for k, v in info.items() if k != "controller"}
-                
+
                 # Add live state if controller available
                 controller = info.get("controller")
                 if controller:
                     state = controller.get_state()
                     safe_info.update(state)
-                
+
                 analyses_data[analysis_id] = safe_info
-        
+
         return {"status": "success", "data": analyses_data}
-    
+
     except Exception as e:
         logger.error(
             "api_list_analyses_failed",
             error_type=type(e).__name__,
             error_message=str(e),
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.get("/api/analysis/modules")
@@ -601,14 +622,14 @@ async def list_analysis_modules():
         controller = AnalysisController(config_service=EnvConfigService())
         modules = controller.list_available_modules()
         return {"status": "success", "data": modules}
-    
+
     except Exception as e:
         logger.error(
             "api_list_modules_failed",
             error_type=type(e).__name__,
             error_message=str(e),
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.get("/api/analysis/modules/{module_name}")
@@ -618,7 +639,7 @@ async def get_module_info_endpoint(module_name: str):
         controller = AnalysisController(config_service=EnvConfigService())
         info = controller.get_module_info(module_name)
         return {"status": "success", "data": info}
-    
+
     except Exception as e:
         logger.error(
             "api_get_module_info_failed",
@@ -626,7 +647,7 @@ async def get_module_info_endpoint(module_name: str):
             error_type=type(e).__name__,
             error_message=str(e),
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.post("/api/analyses/cleanup")
@@ -637,21 +658,21 @@ async def cleanup_old_analyses_endpoint():
         _cleanup_old_analyses()
         final_count = len(active_analyses)
         removed = initial_count - final_count
-        
+
         return {
             "status": "success",
             "message": f"Cleaned up {removed} old analyses",
             "removed_count": removed,
-            "remaining_count": final_count
+            "remaining_count": final_count,
         }
-    
+
     except Exception as e:
         logger.error(
             "api_cleanup_analyses_failed",
             error_type=type(e).__name__,
             error_message=str(e),
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.get("/api/analyses/stats")
@@ -662,15 +683,15 @@ async def get_analysis_statistics():
             total = len(active_analyses)
             by_status = {}
             running_count = 0
-            
+
             for info in active_analyses.values():
                 status = info.get("status", "unknown")
                 by_status[status] = by_status.get(status, 0) + 1
                 if status == "running":
                     running_count += 1
-            
+
             available_slots = MAX_CONCURRENT_ANALYSES - running_count
-        
+
         return {
             "status": "success",
             "data": {
@@ -680,17 +701,17 @@ async def get_analysis_statistics():
                 "running_count": running_count,
                 "available_slots": available_slots,
                 "retention_hours": ANALYSIS_RETENTION_HOURS,
-                "max_completed_retention": MAX_COMPLETED_ANALYSES
-            }
+                "max_completed_retention": MAX_COMPLETED_ANALYSES,
+            },
         }
-    
+
     except Exception as e:
         logger.error(
             "api_get_analysis_stats_failed",
             error_type=type(e).__name__,
             error_message=str(e),
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.get("/api/simulations")
@@ -732,7 +753,7 @@ async def export_simulation(sim_id: str):
             error_type=type(e).__name__,
             error_message=str(e),
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # WebSocket endpoint
@@ -808,7 +829,7 @@ async def get_simulation_status(sim_id: str):
             error_type=type(e).__name__,
             error_message=str(e),
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 if __name__ == "__main__":
