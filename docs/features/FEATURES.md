@@ -315,11 +315,11 @@ comprehensive = actions_service.analyze_actions(
 
 **State-of-the-art spatial data structures for maximum performance**
 
-Multiple spatial indexing strategies optimized for different query patterns, with revolutionary batch update processing.
+Multiple spatial indexing strategies optimized for different query patterns, with batch update processing for incremental improvements.
 
 **Key Capabilities:**
 - 🌳 **Three Index Types**: KD-tree, Quadtree, Spatial Hash Grid
-- ⚡ **Batch Updates**: 70% reduction in computational overhead
+- ⚡ **Batch Updates**: Incremental reduction in computational overhead
 - 🎯 **Query Optimization**: Choose optimal index per query type
 - 📊 **Performance Monitoring**: Real-time metrics and benchmarking
 
@@ -329,7 +329,7 @@ from farm.config import SpatialIndexConfig
 
 # Configure optimized spatial indexing
 spatial_config = SpatialIndexConfig(
-    enable_batch_updates=True,     # 70% speedup for dynamic sims
+    enable_batch_updates=True,     # Incremental speedup for dynamic sims (2-3%)
     region_size=50.0,
     max_batch_size=100
 )
@@ -355,7 +355,7 @@ nearby = env.spatial_index.get_nearby(pos, 3.0, ["agents_hash"])
 - **Build Time**: 1.26ms for 1,000 entities
 - **Query Time**: 4.85μs average (beats Scikit-learn by 5x)
 - **Memory**: <0.1MB per 1,000 entities
-- **Scalability**: Handles 10,000+ entities efficiently
+- **Scalability**: Handles hundreds of entities efficiently
 
 📖 **[Full Documentation →](spatial_indexing_performance.md)**
 
@@ -559,7 +559,7 @@ while running:
 
 - [x] Core agent-based modeling framework
 - [x] Three spatial indexing strategies
-- [x] Batch update system with 70% speedup
+- [x] Batch update system with incremental improvements
 - [x] Comprehensive data architecture
 - [x] Multiple RL algorithms (DQN, PPO, SAC, A2C, TD3)
 - [x] 20+ chart types and visualizations
@@ -595,17 +595,17 @@ while running:
 
 | Metric | Performance | Notes |
 |--------|-------------|-------|
-| **Max Agents** | 10,000+ | With optimized spatial indexing |
-| **Steps per Second** | 7-10 | 1,000 agents, default config |
+| **Max Agents** | 200+ | Tested with spatial indexing |
+| **Steps per Second** | 2.5-8.6 | Depends on agent count (fewer = faster) |
 | **Memory Usage** | ~200MB | 1,000 agents, full logging |
 | **Spatial Query** | 4.85μs | Average KD-tree query |
-| **Batch Updates** | 70% faster | vs. full rebuilds |
+| **Batch Updates** | 2-3% faster | vs. individual updates |
 
 ### Scalability
 
 - **Linear Scaling**: Memory usage scales linearly with agent count
 - **Sub-Linear Queries**: Spatial queries scale O(log n)
-- **Efficient Updates**: Batch processing reduces overhead by 70%
+- **Efficient Updates**: Batch processing provides incremental overhead reduction
 - **Multi-Core**: Parallel experiment execution supported
 
 ---

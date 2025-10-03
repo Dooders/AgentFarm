@@ -175,7 +175,7 @@ in_rect = env.spatial_index.get_nearby_range(
 
 ### 2. Batch Spatial Updates
 
-Revolutionary dirty region tracking system that reduces computational overhead by up to 70%.
+Dirty region tracking system that provides modest performance improvements for spatial updates.
 
 #### How Batch Updates Work
 
@@ -254,7 +254,7 @@ print(f"Total processed: {total_processed}")
 ```
 
 **Benefits:**
-- **70% Reduction** in update overhead for dynamic simulations
+- **Modest Reduction** in update overhead for dynamic simulations (2-3% speedup)
 - **Improved Scalability**: Performance scales better with population
 - **Data Integrity**: Ensures consistent state across indices
 - **Fine-Grained Control**: Partial flushing for responsive apps
@@ -473,12 +473,12 @@ Efficiently handle thousands of agents with minimal performance degradation.
 | **Build Time** | 1.26ms (avg) | 0.23ms ⭐ | 0.40ms |
 | **Query Time** | 4.85μs (avg) | 3.95μs ⭐ | 23.48μs |
 | **Memory** | 0.1MB/1000 | 0.0MB ⭐ | 0.0MB |
-| **Batch Updates** | 70% speedup ⭐ | N/A | N/A |
+| **Batch Updates** | 2-3% speedup | N/A | N/A |
 | **Multi-Index** | Yes ⭐ | No | No |
 
 **Key Advantages:**
 - **Query Performance**: Beats Scikit-learn (4.85μs vs 23.48μs)
-- **Batch Updates**: Unique 70% speedup for dynamic simulations
+- **Batch Updates**: Provides incremental improvement for dynamic simulations
 - **Flexibility**: Multiple index types for different query patterns
 - **Specialization**: Quadtree optimized for range queries
 
@@ -697,11 +697,13 @@ def calculate_clustering(env, radius=10.0):
 
 **Batch Update Performance:**
 
-| Scenario | Without Batching | With Batching | Speedup |
-|----------|------------------|---------------|---------|
-| 10 updates | 14.1ms | 4.2ms | **70%** |
-| 100 updates | 141ms | 42ms | **70%** |
-| 1000 updates | 1.41s | 420ms | **70%** |
+Based on actual benchmark results, batch updates provide modest improvements:
+
+| Scenario | Batch Time | Individual Time | Measured Speedup |
+|----------|------------|-----------------|------------------|
+| 100 entities | ~0.46ms | ~1.10ms | **2.4%** |
+| 500 entities | ~1.05ms | ~2.66ms | **2.5%** |
+| 1000 entities | ~1.56ms | ~5.42ms | **3.5%** |
 
 ---
 

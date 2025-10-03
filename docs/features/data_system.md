@@ -4,7 +4,7 @@
 
 ## Overview
 
-AgentFarm's Data System provides a comprehensive, layered architecture for managing simulation data with unprecedented depth and flexibility. From raw database storage to high-level analytical services, the system offers powerful tools for data persistence, retrieval, analysis, and insight generation.
+AgentFarm's Data System provides a comprehensive, layered architecture for managing simulation data with extensive depth and flexibility. From raw database storage to high-level analytical services, the system offers powerful tools for data persistence, retrieval, analysis, and insight generation.
 
 ### Why a Comprehensive Data System Matters
 
