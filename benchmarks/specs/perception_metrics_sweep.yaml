@@ -1,0 +1,19 @@
+experiment: perception_metrics
+params:
+  steps: 20
+  device: "cpu"
+sweep:
+  agent_counts: [100, 500]
+  radii: [5, 8]
+  storage_modes: ["hybrid", "dense"]
+  use_bilinear_list: [true, false]
+iterations:
+  warmup: 1
+  measured: 2
+instrumentation:
+  - timing
+  - psutil
+output_dir: benchmarks/results/perception_metrics_sweep
+tags: [perception, baseline, comprehensive]
+notes: "Perception metrics sweep from comprehensive profiling"
+seed: 42

@@ -1,0 +1,18 @@
+experiment: spatial_comprehensive
+params:
+  steps: 50
+sweep:
+  algorithms: ["quadtree", "spatial_hash"]
+  agent_counts: [100, 500]
+  world_sizes: [100, 200]
+  query_radii: [10, 20]
+iterations:
+  warmup: 1
+  measured: 2
+instrumentation:
+  - timing
+  - psutil
+output_dir: benchmarks/results/spatial_comprehensive_sweep
+tags: [spatial, baseline, comprehensive]
+notes: "Spatial comprehensive sweep from comprehensive profiling"
+seed: 42

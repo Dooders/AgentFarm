@@ -1,16 +1,13 @@
-experiment: observation_profiler
+experiment: observation_flow
 params:
   # Test different observation configurations
   num_agents: 200
   steps: 100
   # Test different observation radii
-  observation_radius: 20
-  # Test different channel configurations
-  channels: ["position", "health", "resources", "actions"]
-  # Test different storage modes
-  storage_mode: "hybrid"
-  # Test different interpolation methods
-  use_bilinear: true
+  radius: 20
+  fov_radius: 20
+  # Default device
+  device: "cpu"
 iterations:
   warmup: 1
   measured: 3

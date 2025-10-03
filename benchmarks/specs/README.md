@@ -7,7 +7,8 @@ This directory contains YAML specification files for running various benchmarks 
 ### Database Benchmarks
 - **`memory_db_baseline.yaml`** - Memory database performance baseline
 - **`pragma_profile_baseline.yaml`** - SQLite pragma profile performance comparison
-- **`database_profiler_baseline.yaml`** - Database operation profiling
+- **`pragma_profile_sweep.yaml`** - SQLite pragma profile parameter sweep
+- **`database_profiler_baseline.yaml`** - Database operation profiling *(standalone script)*
 
 ### Memory System Benchmarks
 - **`redis_memory_baseline.yaml`** - Redis memory system performance
@@ -16,19 +17,21 @@ This directory contains YAML specification files for running various benchmarks 
 - **`observation_baseline.yaml`** - Observation flow baseline (existing)
 - **`observation_sweep.yaml`** - Observation flow parameter sweep (existing)
 - **`perception_metrics_baseline.yaml`** - Perception metrics performance
-- **`observation_profiler_baseline.yaml`** - Observation system profiling
+- **`observation_profiler_baseline.yaml`** - Observation system profiling *(standalone script)*
 
 ### Spatial Indexing Benchmarks
-- **`spatial_comprehensive_baseline.yaml`** - Comprehensive spatial indexing performance
-- **`spatial_index_profiler_baseline.yaml`** - Spatial indexing profiling
-- **`spatial_memory_profiler_baseline.yaml`** - Spatial indexing memory usage
-- **`spatial_performance_analyzer_baseline.yaml`** - Spatial performance analysis
+- **`spatial_comprehensive_baseline.yaml`** - Comprehensive spatial indexing performance *(standalone script)*
+- **`spatial_index_profiler_baseline.yaml`** - Spatial indexing profiling *(standalone script)*
+- **`spatial_memory_profiler_baseline.yaml`** - Spatial indexing memory usage *(standalone script)*
+- **`spatial_performance_analyzer_baseline.yaml`** - Spatial performance analysis *(standalone script)*
 
 ### System Profiling
-- **`system_profiler_baseline.yaml`** - System resource profiling
+- **`system_profiler_baseline.yaml`** - System resource profiling *(standalone script)*
 
 ### Comprehensive Sweeps
-- **`comprehensive_profiling_sweep.yaml`** - Multi-experiment profiling sweep
+- **`pragma_profile_sweep.yaml`** - SQLite pragma profile parameter sweep
+- **`perception_metrics_sweep.yaml`** - Perception metrics parameter sweep
+- **`spatial_comprehensive_sweep.yaml`** - Spatial indexing parameter sweep
 
 ## Usage
 
@@ -37,8 +40,7 @@ This directory contains YAML specification files for running various benchmarks 
 # Run a specific benchmark
 python -m benchmarks.run_benchmarks --spec benchmarks/specs/memory_db_baseline.yaml
 
-# Run with custom output directory
-python -m benchmarks.run_benchmarks --spec benchmarks/specs/pragma_profile_baseline.yaml --output-dir custom/results
+# Output directory is configured in the spec file itself
 ```
 
 ### Running Sweeps
@@ -46,8 +48,10 @@ python -m benchmarks.run_benchmarks --spec benchmarks/specs/pragma_profile_basel
 # Run parameter sweeps
 python -m benchmarks.run_benchmarks --spec benchmarks/specs/observation_sweep.yaml
 
-# Run comprehensive profiling sweep
-python -m benchmarks.run_benchmarks --spec benchmarks/specs/comprehensive_profiling_sweep.yaml
+# Run individual comprehensive sweeps
+python -m benchmarks.run_benchmarks --spec benchmarks/specs/pragma_profile_sweep.yaml
+python -m benchmarks.run_benchmarks --spec benchmarks/specs/perception_metrics_sweep.yaml
+python -m benchmarks.run_benchmarks --spec benchmarks/specs/spatial_comprehensive_sweep.yaml
 ```
 
 ## Spec File Structure
@@ -83,11 +87,18 @@ seed: 42
 
 Tags help categorize and filter benchmarks:
 - `baseline` - Baseline performance measurements
+- `comprehensive` - Comprehensive benchmarking suites
 - `database` - Database-related benchmarks
-- `spatial` - Spatial indexing benchmarks
+- `memory` - Memory usage and profiling benchmarks
+- `performance` - Performance-focused benchmarks
 - `perception` - Perception and observation benchmarks
 - `profiling` - Detailed profiling benchmarks
+- `pragma` - SQLite pragma configuration benchmarks
+- `redis` - Redis memory system benchmarks
+- `spatial` - Spatial indexing benchmarks
+- `sqlite` - SQLite-specific benchmarks
 - `sweep` - Parameter sweep benchmarks
+- `system` - System resource profiling benchmarks
 
 ## Best Practices
 
@@ -105,6 +116,21 @@ You can create custom spec files by:
 3. Adjusting iterations and instrumentation as needed
 4. Using descriptive names and tags
 
-## Integration with CI/CD
+## Standalone Scripts
 
-These specs are designed to work with the GitHub Actions workflow in `.github/workflows/database-performance-baseline.yml`. The workflow can be extended to run additional specs as needed.
+Some benchmark specs are marked with *(standalone script)* because they reference Python files that are standalone scripts rather than registered benchmark experiment classes. These scripts can be run directly:
+
+```bash
+# Run standalone spatial benchmarks
+python -m benchmarks.implementations.spatial.comprehensive_spatial_benchmark
+
+# Run standalone profiling scripts
+python -m benchmarks.implementations.profiling.database_profiler
+python -m benchmarks.implementations.profiling.spatial_index_profiler
+python -m benchmarks.implementations.spatial.spatial_memory_profiler
+python -m benchmarks.implementations.spatial.spatial_performance_analyzer
+python -m benchmarks.implementations.profiling.system_profiler
+python -m benchmarks.implementations.profiling.observation_profiler
+```
+
+These standalone scripts typically generate their own results and reports.
