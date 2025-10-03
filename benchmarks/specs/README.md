@@ -7,7 +7,7 @@ This directory contains YAML specification files for running various benchmarks 
 ### Database Benchmarks
 - **`memory_db_baseline.yaml`** - Memory database performance baseline
 - **`pragma_profile_baseline.yaml`** - SQLite pragma profile performance comparison
-- **`database_profiler_baseline.yaml`** - Database operation profiling
+- **`database_profiler_baseline.yaml`** - Database operation profiling *(standalone script)*
 
 ### Memory System Benchmarks
 - **`redis_memory_baseline.yaml`** - Redis memory system performance
@@ -16,16 +16,16 @@ This directory contains YAML specification files for running various benchmarks 
 - **`observation_baseline.yaml`** - Observation flow baseline (existing)
 - **`observation_sweep.yaml`** - Observation flow parameter sweep (existing)
 - **`perception_metrics_baseline.yaml`** - Perception metrics performance
-- **`observation_profiler_baseline.yaml`** - Observation system profiling
+- **`observation_profiler_baseline.yaml`** - Observation system profiling *(standalone script)*
 
 ### Spatial Indexing Benchmarks
-- **`spatial_comprehensive_baseline.yaml`** - Comprehensive spatial indexing performance
-- **`spatial_index_profiler_baseline.yaml`** - Spatial indexing profiling
-- **`spatial_memory_profiler_baseline.yaml`** - Spatial indexing memory usage
-- **`spatial_performance_analyzer_baseline.yaml`** - Spatial performance analysis
+- **`spatial_comprehensive_baseline.yaml`** - Comprehensive spatial indexing performance *(standalone script)*
+- **`spatial_index_profiler_baseline.yaml`** - Spatial indexing profiling *(standalone script)*
+- **`spatial_memory_profiler_baseline.yaml`** - Spatial indexing memory usage *(standalone script)*
+- **`spatial_performance_analyzer_baseline.yaml`** - Spatial performance analysis *(standalone script)*
 
 ### System Profiling
-- **`system_profiler_baseline.yaml`** - System resource profiling
+- **`system_profiler_baseline.yaml`** - System resource profiling *(standalone script)*
 
 ### Comprehensive Sweeps
 - **`memory_db_sweep.yaml`** - Memory database parameter sweep
@@ -40,8 +40,7 @@ This directory contains YAML specification files for running various benchmarks 
 # Run a specific benchmark
 python -m benchmarks.run_benchmarks --spec benchmarks/specs/memory_db_baseline.yaml
 
-# Run with custom output directory
-python -m benchmarks.run_benchmarks --spec benchmarks/specs/pragma_profile_baseline.yaml --output-dir custom/results
+# Output directory is configured in the spec file itself
 ```
 
 ### Running Sweeps
@@ -110,6 +109,25 @@ You can create custom spec files by:
 2. Modifying the parameters for your specific needs
 3. Adjusting iterations and instrumentation as needed
 4. Using descriptive names and tags
+
+## Standalone Scripts
+
+Some benchmark specs are marked with *(standalone script)* because they reference Python files that are standalone scripts rather than registered benchmark experiment classes. These scripts can be run directly:
+
+```bash
+# Run standalone spatial benchmarks
+python -m benchmarks.implementations.spatial.comprehensive_spatial_benchmark
+
+# Run standalone profiling scripts
+python -m benchmarks.implementations.profiling.database_profiler
+python -m benchmarks.implementations.profiling.spatial_index_profiler
+python -m benchmarks.implementations.spatial.spatial_memory_profiler
+python -m benchmarks.implementations.spatial.spatial_performance_analyzer
+python -m benchmarks.implementations.profiling.system_profiler
+python -m benchmarks.implementations.profiling.observation_profiler
+```
+
+These standalone scripts typically generate their own results and reports.
 
 ## Integration with CI/CD
 
