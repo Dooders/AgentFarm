@@ -52,7 +52,9 @@ This repository is being developed to support research in the [Dooders](https://
 - **Batch Spatial Updates**: Dirty region tracking system that only updates changed regions, reducing computational overhead by up to 70%
 - **Multi-Index Support**: Choose optimal spatial index type for different query patterns (radial, range, neighbor queries)
 - **Performance Monitoring**: Comprehensive metrics and statistics for spatial query optimization
-- **Scalable Architecture**: Efficiently handles hundreds to thousands of agents with good performance scaling
+- **Scalable Architecture**: Efficiently handles thousands of agents with minimal performance degradation
+
+ 
 
 ### Additional Tools
 - **Interactive Notebooks**: Jupyter notebooks for data exploration and analysis
@@ -126,13 +128,10 @@ AgentFarm provides multiple ways to run simulations:
 python run_simulation.py --environment development --steps 1000
 ```
 
-**Command Line Interface (Advanced)**
+**Experiments and Tools**
 ```bash
-# Run simulation with various options
-python farm/core/cli.py --mode simulate --environment development --steps 1000
-
 # Run experiments with parameter variations
-python farm/core/cli.py --mode experiment --environment production --experiment-name test --iterations 3
+python farm/core/cli.py --mode experiment --environment development --experiment-name test --iterations 3
 
 # Visualize existing simulation results
 python farm/core/cli.py --mode visualize --db-path simulations/simulation.db
@@ -143,6 +142,46 @@ python farm/core/cli.py --mode analyze --db-path simulations/simulation.db
 
 **Results**
 All simulation results are saved in the `simulations` directory with database files, logs, and analysis reports.
+
+### API Server
+
+Run the REST/WebSocket API for managing simulations and analysis:
+
+```bash
+# From repository root
+python -m farm.api.server
+# or
+python farm/api/server.py
+```
+
+Defaults:
+- Binds to port 5000
+- Writes logs to `logs/api.log`
+
+Key endpoints:
+- `POST /api/simulation/new` — create and run a simulation
+- `GET /api/simulation/<sim_id>/step/<step>` — fetch a specific step
+- `GET /api/simulation/<sim_id>/analysis` — run analysis
+- `GET /api/simulation/<sim_id>/export` — export data
+
+### Benchmarks
+
+```bash
+python -m benchmarks.run_benchmarks
+# or a specific benchmark
+python -m benchmarks.run_benchmarks --benchmark memory_db
+```
+See `benchmarks/README.md` for details and recommended configurations.
+
+### Testing
+
+```bash
+# Using pytest
+pytest -q
+
+# Or using the bundled test runner
+python run_tests.py
+```
 
 ## Documentation
 
