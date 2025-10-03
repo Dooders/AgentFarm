@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time as _time
-from typing import Any, Dict, List, Tuple, Union, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
@@ -33,22 +33,32 @@ class PerceptionMetricsBenchmark(Experiment):
 
     def __init__(
         self,
-        agent_counts: Optional[List[int]] = None,
-        radii: Optional[List[int]] = None,
-        storage_modes: Optional[List[str]] = None,
-        use_bilinear_list: Optional[List[bool]] = None,
+        agent_counts: Optional[Union[int, List[int]]] = None,
+        radii: Optional[Union[int, List[int]]] = None,
+        storage_modes: Optional[Union[str, List[str]]] = None,
+        use_bilinear_list: Optional[Union[bool, List[bool]]] = None,
         steps: int = 10,
         device: str = "cpu",
     ) -> None:
-        # Set defaults for mutable arguments
-        if agent_counts is None:
-            agent_counts = [100, 1000, 10000]
-        if radii is None:
-            radii = [5, 8, 10]
-        if storage_modes is None:
-            storage_modes = ["hybrid", "dense"]
-        if use_bilinear_list is None:
-            use_bilinear_list = [True, False]
+        # Handle both single values (from sweep) and lists (from baseline)
+        def ensure_list(param, default):
+            if param is None:
+                return default
+            elif isinstance(param, list):
+                return param
+            else:
+                # Single value from sweep - wrap in list
+                return [param]
+
+        default_agent_counts = [100, 1000, 10000]
+        default_radii = [5, 8, 10]
+        default_storage_modes = ["hybrid", "dense"]
+        default_use_bilinear_list = [True, False]
+
+        agent_counts = ensure_list(agent_counts, default_agent_counts)
+        radii = ensure_list(radii, default_radii)
+        storage_modes = ensure_list(storage_modes, default_storage_modes)
+        use_bilinear_list = ensure_list(use_bilinear_list, default_use_bilinear_list)
 
         super().__init__({
             "agent_counts": agent_counts,

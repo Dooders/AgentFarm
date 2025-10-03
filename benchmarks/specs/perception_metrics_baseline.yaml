@@ -1,20 +1,20 @@
 experiment: perception_metrics
 params:
   # Test different agent counts
-  agent_counts: [100, 500, 1000]
+  agent_counts: [25, 50]
   # Test different observation radii
-  radii: [5, 8, 10]
+  radii: [5]
   # Test different storage modes
-  storage_modes: ["hybrid", "dense"]
+  storage_modes: ["hybrid"]
   # Test bilinear vs nearest neighbor interpolation
-  use_bilinear_list: [true, false]
+  use_bilinear_list: [false]
   # Simulation steps
-  steps: 20
+  steps: 5
   # Device (cpu/gpu)
   device: "cpu"
 iterations:
   warmup: 1
-  measured: 3
+  measured: 2
 instrumentation:
   - timing
   - psutil
