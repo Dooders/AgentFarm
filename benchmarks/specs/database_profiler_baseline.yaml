@@ -1,16 +1,9 @@
-experiment: database_profiler
+experiment: pragma_profile
 params:
-  # Test different database operations
-  operations: ["insert", "query", "update", "delete", "mixed"]
-  # Test different batch sizes
-  batch_sizes: [100, 500, 1000, 5000]
-  # Test different database configurations
-  use_in_memory_db: true
-  persist_db_on_completion: false
-  # Test different pragma profiles
-  pragma_profile: "balanced"
   # Number of records to test with
   num_records: 10000
+  # Target database size in MB for read tests
+  db_size_mb: 5
 iterations:
   warmup: 1
   measured: 3

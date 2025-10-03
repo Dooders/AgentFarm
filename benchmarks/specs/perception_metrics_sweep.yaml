@@ -1,11 +1,12 @@
 experiment: perception_metrics
 params:
+  steps: 20
+  device: "cpu"
+sweep:
   agent_counts: [100, 500]
   radii: [5, 8]
   storage_modes: ["hybrid", "dense"]
   use_bilinear_list: [true, false]
-  steps: 20
-  device: "cpu"
 iterations:
   warmup: 1
   measured: 2

@@ -1,9 +1,10 @@
 experiment: pragma_profile
 params:
-  profiles: ["balanced", "performance"]
-  workloads: ["write_heavy", "read_heavy"]
   num_records: 10000
   db_size_mb: 20
+sweep:
+  profiles: ["balanced", "performance"]
+  workloads: ["write_heavy", "read_heavy"]
 iterations:
   warmup: 1
   measured: 2

@@ -7,6 +7,7 @@ This directory contains YAML specification files for running various benchmarks 
 ### Database Benchmarks
 - **`memory_db_baseline.yaml`** - Memory database performance baseline
 - **`pragma_profile_baseline.yaml`** - SQLite pragma profile performance comparison
+- **`pragma_profile_sweep.yaml`** - SQLite pragma profile parameter sweep
 - **`database_profiler_baseline.yaml`** - Database operation profiling *(standalone script)*
 
 ### Memory System Benchmarks
@@ -28,8 +29,7 @@ This directory contains YAML specification files for running various benchmarks 
 - **`system_profiler_baseline.yaml`** - System resource profiling *(standalone script)*
 
 ### Comprehensive Sweeps
-- **`memory_db_sweep.yaml`** - Memory database parameter sweep
-- **`pragma_profile_sweep.yaml`** - SQLite pragma profile sweep
+- **`pragma_profile_sweep.yaml`** - SQLite pragma profile parameter sweep
 - **`perception_metrics_sweep.yaml`** - Perception metrics parameter sweep
 - **`spatial_comprehensive_sweep.yaml`** - Spatial indexing parameter sweep
 
@@ -49,7 +49,6 @@ python -m benchmarks.run_benchmarks --spec benchmarks/specs/memory_db_baseline.y
 python -m benchmarks.run_benchmarks --spec benchmarks/specs/observation_sweep.yaml
 
 # Run individual comprehensive sweeps
-python -m benchmarks.run_benchmarks --spec benchmarks/specs/memory_db_sweep.yaml
 python -m benchmarks.run_benchmarks --spec benchmarks/specs/pragma_profile_sweep.yaml
 python -m benchmarks.run_benchmarks --spec benchmarks/specs/perception_metrics_sweep.yaml
 python -m benchmarks.run_benchmarks --spec benchmarks/specs/spatial_comprehensive_sweep.yaml

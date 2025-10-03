@@ -9,6 +9,7 @@ This module tests the agent observation system including:
 """
 
 from typing import Dict, List, Tuple
+import unittest
 
 import numpy as np
 import pytest
@@ -694,3 +695,156 @@ class TestGridSparsification:
         # Memory estimate should indicate reduction relative to dense baseline
         metrics = obs.get_metrics()
         assert metrics["sparse_logical_bytes"] < metrics["dense_bytes"]
+
+
+class TestObservationFrequency(unittest.TestCase):
+    """Test that observations are called the correct number of times during simulation."""
+
+    def setUp(self):
+        """Set up test environment with minimal configuration."""
+        import tempfile
+        from farm.config import SimulationConfig
+        from farm.config.config import EnvironmentConfig, PopulationConfig, ResourceConfig
+        from farm.core.environment import Environment
+        from farm.core.agent import BaseAgent
+
+        self.test_dir = tempfile.mkdtemp()
+        self.db_path = f"{self.test_dir}/test.db"
+
+        # Create minimal config for testing
+        self.config = SimulationConfig(
+            environment=EnvironmentConfig(width=50, height=50),
+            population=PopulationConfig(system_agents=2, independent_agents=1, control_agents=0),
+            resources=ResourceConfig(initial_resources=10),
+            max_steps=5,  # Small number of steps for testing
+        )
+
+        # Create environment
+        self.env = Environment(
+            width=50,
+            height=50,
+            resource_distribution={"amount": 10},
+            config=self.config,
+            db_path=self.db_path,
+        )
+
+        # Add agents
+        self.agents = []
+        for i in range(3):  # 2 system + 1 independent = 3 total
+            agent = BaseAgent(
+                agent_id=self.env.get_next_agent_id(),
+                position=(10 + i * 5, 10 + i * 5),
+                resource_level=5,
+                environment=self.env,
+                generation=0,
+                spatial_service=self.env.spatial_service,
+            )
+            self.agents.append(agent)
+            self.env.add_agent(agent)
+
+    def tearDown(self):
+        """Clean up test environment."""
+        if hasattr(self, 'env') and self.env:
+            self.env.cleanup()
+
+        import shutil
+        if hasattr(self, 'test_dir') and self.test_dir:
+            shutil.rmtree(self.test_dir, ignore_errors=True)
+
+    def test_observation_frequency_per_step_per_agent(self):
+        """Test that perceive_world is called correctly: once per agent during reset (caching) + once per agent per step.
+
+        This validates that the observation system doesn't have excessive redundant calls.
+        The reset calls are expected in AEC environments for caching observations.
+        For N agents and S steps: expect N + (N*S) total calls.
+        """
+        # Counter to track observation calls with context
+        observation_calls = []
+
+        # Get the AgentObservation class and store original method
+        from farm.core.observations import AgentObservation
+        original_perceive_world = AgentObservation.perceive_world
+
+        def tracking_perceive_world(self_obs, *args, **kwargs):
+            # Track when and for which agent the call is made
+            agent_pos = kwargs.get('agent_world_pos', 'unknown')
+            call_info = {
+                'agent_pos': agent_pos,
+                'call_stack': []  # Could add more context if needed
+            }
+            observation_calls.append(call_info)
+            # Call the original method
+            return original_perceive_world(self_obs, *args, **kwargs)
+
+        # Replace with tracking version
+        AgentObservation.perceive_world = tracking_perceive_world
+
+        try:
+            # Reset environment to starting state
+            reset_start_count = len(observation_calls)
+            self.env.reset()
+            reset_calls = len(observation_calls) - reset_start_count
+
+            # Run simulation for known number of full cycles (steps)
+            num_full_cycles = 3  # Complete cycles where all agents act
+            num_agents = len(self.env.agents)
+            initial_agent_selection = self.env.agent_selection
+
+            step_start_count = len(observation_calls)
+            steps_taken = 0
+            cycles_completed = 0
+
+            # Continue until we've completed the desired number of cycles
+            while cycles_completed < num_full_cycles and not self.env.terminations.get(self.env.agent_selection, False):
+                # Take a step for the current agent
+                action = None  # No action
+                obs, reward, terminated, truncated, info = self.env.step(action)
+                steps_taken += 1
+
+                # Check if we've completed a full cycle (all agents have acted)
+                if self.env.agent_selection == initial_agent_selection:
+                    cycles_completed += 1
+
+                # Break if episode ended
+                if terminated or truncated:
+                    break
+
+            step_calls = len(observation_calls) - step_start_count
+            total_calls = len(observation_calls)
+
+            # Expected: reset_calls + (num_agents * cycles_completed)
+            expected_step_calls = num_agents * cycles_completed
+            expected_total_calls = reset_calls + expected_step_calls
+
+            print(f"Reset calls: {reset_calls}, Step calls: {step_calls}, Total calls: {total_calls}")
+            print(f"Expected: {reset_calls} + ({num_agents} × {cycles_completed}) = {expected_total_calls}")
+
+            # Check that we have the right number of calls during steps
+            self.assertEqual(
+                step_calls,
+                expected_step_calls,
+                f"Expected {expected_step_calls} observation calls during steps "
+                f"({num_agents} agents × {cycles_completed} cycles), "
+                f"but got {step_calls}."
+            )
+
+            # Check total calls
+            self.assertEqual(
+                total_calls,
+                expected_total_calls,
+                f"Expected {expected_total_calls} total observation calls "
+                f"({reset_calls} during reset + {expected_step_calls} during steps), "
+                f"but got {total_calls}."
+            )
+
+            # Verify that reset calls equal number of agents
+            self.assertEqual(
+                reset_calls,
+                num_agents,
+                f"Expected {num_agents} observation calls during reset (one per agent), "
+                f"but got {reset_calls}."
+            )
+
+        finally:
+            # Restore original method
+            AgentObservation.perceive_world = original_perceive_world

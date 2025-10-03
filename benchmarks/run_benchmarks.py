@@ -84,7 +84,6 @@ def main() -> int:
         print(f"  Output dir: {spec.output_dir}")
         return 0
     else:
-        REGISTRY.discover_package("benchmarks.implementations")
         experiment = REGISTRY.create(spec.experiment, spec.params)
         runner = Runner(
             name=spec.experiment,
