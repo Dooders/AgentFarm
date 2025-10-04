@@ -204,7 +204,7 @@ class BaseAnalysisModule:
         analysis_kwargs: Optional[Dict[str, Dict[str, Any]]] = None,
         progress_callback: Optional[Callable[[str, float], None]] = None,
         error_mode: Optional[ErrorHandlingMode] = None
-    ) -> tuple[Path, Optional[pd.DataFrame], List[AnalysisFunctionError]]:
+    ) -> tuple[Path, Optional[pd.DataFrame]]:
         """Run complete analysis workflow.
         
         Args:
@@ -277,7 +277,7 @@ class BaseAnalysisModule:
         # Check for empty DataFrame after validation (validation should handle this)
         if df is None or df.empty:
             ctx.logger.warning("No data produced by processor")
-            return output_path, None
+            return output_path, None, []
 
         ctx.report_progress(f"Processed {len(df)} records", 0.3)
         
@@ -334,7 +334,7 @@ class BaseAnalysisModule:
         if errors_collected:
             ctx.logger.warning(f"Analysis completed with {len(errors_collected)} error(s)")
         
-        return output_path, df, errors_collected
+        return output_path, df
     
     def _ensure_registered(self) -> None:
         """Ensure functions are registered (lazy registration)."""
