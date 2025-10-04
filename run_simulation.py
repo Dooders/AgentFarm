@@ -128,15 +128,15 @@ def main():
 
         # Apply in-memory database settings if requested
         if args.in_memory:
-            config.use_in_memory_db = True
-            config.in_memory_db_memory_limit_mb = (
+            config.database.use_in_memory_db = True
+            config.database.in_memory_db_memory_limit_mb = (
                 args.memory_limit if args.memory_limit else 1000
             )
-            config.persist_db_on_completion = not args.no_persist
+            config.database.persist_db_on_completion = not args.no_persist
             logger.info(
                 "in_memory_db_configured",
-                memory_limit_mb=config.in_memory_db_memory_limit_mb,
-                persist=config.persist_db_on_completion,
+                memory_limit_mb=config.database.in_memory_db_memory_limit_mb,
+                persist=config.database.persist_db_on_completion,
             )
             if args.no_persist:
                 logger.warning("in_memory_db_no_persist", message="Database will not be persisted to disk")

@@ -291,7 +291,13 @@ def run_simulation(
                 simulation_id=simulation_id,
             )
 
-            # Note: Simulation record is already created in setup_db for in-memory databases
+            # Create simulation record for in-memory database
+            environment.db.add_simulation_record(
+                simulation_id=simulation_id,
+                start_time=datetime.now(),
+                status="running",
+                parameters=config.to_dict(),
+            )
 
         else:
             # Clean up any existing database file for disk-based DB

@@ -609,3 +609,131 @@ class AgentRepository(BaseRepository[AgentModel]):
             return random_agent[0]
 
         return self.session_manager.execute_with_retry(query_random_agent)
+
+    def get_agent_positions_over_time(self) -> List[Dict[str, Any]]:
+        """Get agent positions over time for spatial analysis.
+
+        Returns
+        -------
+        List[Dict[str, Any]]
+            List of dictionaries containing agent position data with keys:
+            agent_id, step, position_x, position_y, position_z
+        """
+
+        def query_positions(session: Session) -> List[Dict[str, Any]]:
+            # Query agent states with position information
+            result = session.query(
+                AgentStateModel.agent_id,
+                AgentStateModel.step_number,
+                AgentStateModel.position_x,
+                AgentStateModel.position_y,
+                AgentStateModel.position_z
+            ).filter(
+                AgentStateModel.position_x.isnot(None),
+                AgentStateModel.position_y.isnot(None)
+            ).order_by(
+                AgentStateModel.agent_id,
+                AgentStateModel.step_number
+            ).all()
+
+            return [
+                {
+                    'agent_id': row.agent_id,
+                    'step': row.step_number,
+                    'position_x': row.position_x,
+                    'position_y': row.position_y,
+                    'position_z': row.position_z or 0.0
+                }
+                for row in result
+            ]
+
+        return self.session_manager.execute_with_retry(query_positions)
+
+    def get_agent_trajectories(self, agent_ids: Optional[List[int]] = None) -> List[Dict[str, Any]]:
+        """Get agent movement trajectories for spatial analysis.
+
+        Parameters
+        ----------
+        agent_ids : Optional[List[int]]
+            Specific agent IDs to analyze. If None, analyze all agents.
+
+        Returns
+        -------
+        List[Dict[str, Any]]
+            List of dictionaries containing trajectory data
+        """
+
+        def query_trajectories(session: Session) -> List[Dict[str, Any]]:
+            query = session.query(
+                AgentStateModel.agent_id,
+                AgentStateModel.step_number,
+                AgentStateModel.position_x,
+                AgentStateModel.position_y,
+                AgentStateModel.position_z
+            ).filter(
+                AgentStateModel.position_x.isnot(None),
+                AgentStateModel.position_y.isnot(None)
+            )
+
+            if agent_ids:
+                query = query.filter(AgentStateModel.agent_id.in_(agent_ids))
+
+            result = query.order_by(
+                AgentStateModel.agent_id,
+                AgentStateModel.step_number
+            ).all()
+
+            return [
+                {
+                    'agent_id': row.agent_id,
+                    'step': row.step_number,
+                    'position_x': row.position_x,
+                    'position_y': row.position_y,
+                    'position_z': row.position_z or 0.0
+                }
+                for row in result
+            ]
+
+        return self.session_manager.execute_with_retry(query_trajectories)
+
+    def get_location_activity_data(self) -> List[Dict[str, Any]]:
+        """Get location-based activity data for spatial analysis.
+
+        Returns
+        -------
+        List[Dict[str, Any]]
+            List of dictionaries containing location activity data
+        """
+
+        def query_location_activity(session: Session) -> List[Dict[str, Any]]:
+            # Get agent positions and activity data
+            result = session.query(
+                AgentStateModel.step_number,
+                AgentStateModel.position_x,
+                AgentStateModel.position_y,
+                AgentStateModel.position_z,
+                func.count(AgentStateModel.agent_id).label('agent_count')
+            ).filter(
+                AgentStateModel.position_x.isnot(None),
+                AgentStateModel.position_y.isnot(None)
+            ).group_by(
+                AgentStateModel.step_number,
+                AgentStateModel.position_x,
+                AgentStateModel.position_y,
+                AgentStateModel.position_z
+            ).order_by(
+                AgentStateModel.step_number
+            ).all()
+
+            return [
+                {
+                    'step': row.step_number,
+                    'position_x': row.position_x,
+                    'position_y': row.position_y,
+                    'position_z': row.position_z or 0.0,
+                    'agent_count': row.agent_count
+                }
+                for row in result
+            ]
+
+        return self.session_manager.execute_with_retry(query_location_activity)

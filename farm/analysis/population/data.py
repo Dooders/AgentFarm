@@ -4,17 +4,14 @@ Population data processing for analysis.
 
 from pathlib import Path
 from typing import Optional
+
 import pandas as pd
 
-from farm.database.database import SimulationDatabase
 from farm.database.repositories.population_repository import PopulationRepository
+from farm.database.session_manager import SessionManager
 
 
-def process_population_data(
-    experiment_path: Path,
-    use_database: bool = True,
-    **kwargs
-) -> pd.DataFrame:
+def process_population_data(experiment_path: Path, use_database: bool = True, **kwargs) -> pd.DataFrame:
     """Process population data from experiment.
 
     Args:
@@ -35,22 +32,29 @@ def process_population_data(
             db_path = experiment_path / "data" / "simulation.db"
 
         if db_path.exists():
-            # Load data using repository directly
-            db = SimulationDatabase(f"sqlite:///{db_path}")
-            repository = PopulationRepository(db.session_manager)
+            # Load data using SessionManager directly
+            db_uri = f"sqlite:///{db_path}"
+            session_manager = SessionManager(db_uri)
+            repository = PopulationRepository(session_manager)
 
             # Get population data over time
             population_data = repository.get_population_over_time()
 
             # Convert to DataFrame for analysis
-            df = pd.DataFrame({
-                'step': [p.step_number for p in population_data],
-                'total_agents': [p.total_agents for p in population_data],
-                'system_agents': [p.system_agents if p.system_agents is not None else 0 for p in population_data],
-                'independent_agents': [p.independent_agents if p.independent_agents is not None else 0 for p in population_data],
-                'control_agents': [p.control_agents if p.control_agents is not None else 0 for p in population_data],
-                'avg_resources': [p.avg_resources if p.avg_resources is not None else 0.0 for p in population_data],
-            })
+            df = pd.DataFrame(
+                {
+                    "step": [p.step_number for p in population_data],
+                    "total_agents": [p.total_agents for p in population_data],
+                    "system_agents": [p.system_agents if p.system_agents is not None else 0 for p in population_data],
+                    "independent_agents": [
+                        p.independent_agents if p.independent_agents is not None else 0 for p in population_data
+                    ],
+                    "control_agents": [
+                        p.control_agents if p.control_agents is not None else 0 for p in population_data
+                    ],
+                    "avg_resources": [p.avg_resources if p.avg_resources is not None else 0.0 for p in population_data],
+                }
+            )
     except Exception as e:
         # If database loading fails, try to load from CSV files
         pass
