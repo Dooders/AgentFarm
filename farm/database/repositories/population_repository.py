@@ -282,6 +282,52 @@ class PopulationRepository(BaseRepository[SimulationStepModel]):
             generation=generation,
         )
 
+    def get_population_over_time(self) -> List[Population]:
+        """Retrieve population metrics over time from all simulation steps.
+
+        Returns
+        -------
+        List[Population]
+            List of Population objects containing time-series metrics including:
+            - step: step number
+            - total_agents: total agent count
+            - system_agents: count of system agents
+            - independent_agents: count of independent agents
+            - control_agents: count of control agents
+            - avg_resources: average resources per agent
+        """
+
+        def query_population(session: Session) -> List[Population]:
+            results = (
+                session.query(
+                    SimulationStepModel.step_number,
+                    SimulationStepModel.total_agents,
+                    SimulationStepModel.system_agents,
+                    SimulationStepModel.independent_agents,
+                    SimulationStepModel.control_agents,
+                    SimulationStepModel.total_resources,
+                )
+                .filter(SimulationStepModel.total_agents > 0)
+                .order_by(SimulationStepModel.step_number)
+                .all()
+            )
+
+            return [
+                Population(
+                    step_number=row[0],
+                    total_agents=row[1],
+                    total_resources=row[5],
+                    resources_consumed=None,
+                    system_agents=row[2],
+                    independent_agents=row[3],
+                    control_agents=row[4],
+                    avg_resources=row[5] / row[1] if row[1] > 0 else 0.0,
+                )
+                for row in results
+            ]
+
+        return self.session_manager.execute_with_retry(query_population)
+
     def get_all_agents(self) -> List[AgentModel]:
         """Retrieve all agents from the database.
 

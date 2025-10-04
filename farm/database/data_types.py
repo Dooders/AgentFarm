@@ -1237,12 +1237,24 @@ class Population:
         Total resources available across all grid cells
     resources_consumed : float
         Total amount of resources consumed by agents in this step
+    system_agents : Optional[int]
+        Number of system agents at this step (optional)
+    independent_agents : Optional[int]
+        Number of independent agents at this step (optional)
+    control_agents : Optional[int]
+        Number of control agents at this step (optional)
+    avg_resources : Optional[float]
+        Average resources per agent at this step (optional)
     """
 
     step_number: int
     total_agents: int
     total_resources: float
-    resources_consumed: float
+    resources_consumed: Optional[float] = None
+    system_agents: Optional[int] = None
+    independent_agents: Optional[int] = None
+    control_agents: Optional[int] = None
+    avg_resources: Optional[float] = None
 
 
 @dataclass

@@ -44,12 +44,12 @@ def process_population_data(
 
             # Convert to DataFrame for analysis
             df = pd.DataFrame({
-                'step': [p.step for p in population_data],
+                'step': [p.step_number for p in population_data],
                 'total_agents': [p.total_agents for p in population_data],
-                'system_agents': [p.system_agents for p in population_data],
-                'independent_agents': [p.independent_agents for p in population_data],
-                'control_agents': [p.control_agents for p in population_data],
-                'avg_resources': [p.avg_resources for p in population_data],
+                'system_agents': [p.system_agents if p.system_agents is not None else 0 for p in population_data],
+                'independent_agents': [p.independent_agents if p.independent_agents is not None else 0 for p in population_data],
+                'control_agents': [p.control_agents if p.control_agents is not None else 0 for p in population_data],
+                'avg_resources': [p.avg_resources if p.avg_resources is not None else 0.0 for p in population_data],
             })
     except Exception as e:
         # If database loading fails, try to load from CSV files

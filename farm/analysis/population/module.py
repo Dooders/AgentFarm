@@ -9,11 +9,13 @@ from farm.analysis.population.data import process_population_data
 from farm.analysis.population.analyze import (
     analyze_population_dynamics,
     analyze_agent_composition,
+    analyze_comprehensive_population,
 )
 from farm.analysis.population.plot import (
     plot_population_over_time,
     plot_birth_death_rates,
     plot_agent_composition,
+    plot_population_dashboard,
 )
 
 
@@ -43,9 +45,11 @@ class PopulationModule(BaseAnalysisModule):
         self._functions = {
             "analyze_dynamics": make_analysis_function(analyze_population_dynamics),
             "analyze_composition": make_analysis_function(analyze_agent_composition),
+            "analyze_comprehensive": make_analysis_function(analyze_comprehensive_population),
             "plot_population": make_analysis_function(plot_population_over_time),
             "plot_births_deaths": make_analysis_function(plot_birth_death_rates),
             "plot_composition": make_analysis_function(plot_agent_composition),
+            "plot_dashboard": make_analysis_function(plot_population_dashboard),
         }
 
         # Function groups
@@ -54,15 +58,21 @@ class PopulationModule(BaseAnalysisModule):
             "analysis": [
                 self._functions["analyze_dynamics"],
                 self._functions["analyze_composition"],
+                self._functions["analyze_comprehensive"],
             ],
             "plots": [
                 self._functions["plot_population"],
                 self._functions["plot_births_deaths"],
                 self._functions["plot_composition"],
+                self._functions["plot_dashboard"],
             ],
             "basic": [
                 self._functions["analyze_dynamics"],
                 self._functions["plot_population"],
+            ],
+            "comprehensive": [
+                self._functions["analyze_comprehensive"],
+                self._functions["plot_dashboard"],
             ],
         }
 
