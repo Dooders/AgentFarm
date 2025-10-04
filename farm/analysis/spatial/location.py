@@ -306,8 +306,8 @@ def _ripleys_k_approximation(coords: np.ndarray, max_radius: float = 10.0, n_rad
     height = float(np.max(coords[:, 1]) - np.min(coords[:, 1]))
     area = width * height
     n_points = len(coords)
-    # Guard against zero area (identical coordinates) to avoid division by zero
-    if area <= 0:
+    # Guard against zero area (identical coordinates) or invalid area to avoid division by zero
+    if area <= 0 or not np.isfinite(area):
         return {
             'radii': np.linspace(0.1, max_radius, n_radii).tolist(),
             'k_values': [0.0] * n_radii,
@@ -325,8 +325,8 @@ def _ripleys_k_approximation(coords: np.ndarray, max_radius: float = 10.0, n_rad
                     if dist <= radius:
                         count += 1
 
-        # Guard denominator in case intensity becomes non-positive due to numeric issues
-        denom = max(n_points * intensity, 1e-12)
+        # Guard denominator in case intensity becomes non-positive or invalid due to numeric issues
+        denom = max(n_points * intensity, 1e-12) if np.isfinite(n_points * intensity) else 1e-12
         k_value = count / denom
         k_values.append(float(k_value))
 
