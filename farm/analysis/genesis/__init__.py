@@ -14,12 +14,15 @@ from farm.analysis.genesis.compute import (
 from farm.analysis.genesis.analyze import (
     analyze_genesis_factors,
     analyze_genesis_across_simulations,
-    analyze_critical_period
+    analyze_critical_period,
+    analyze_genesis_patterns,
 )
 from farm.analysis.genesis.plot import (
     plot_genesis_analysis_results,
     plot_initial_state_comparison,
-    plot_critical_period_analysis
+    plot_critical_period_analysis,
+    plot_genesis_patterns,
+    plot_genesis_timeline,
 )
 
 __all__ = [
@@ -29,9 +32,12 @@ __all__ = [
     'analyze_genesis_factors',
     'analyze_genesis_across_simulations',
     'analyze_critical_period',
+    'analyze_genesis_patterns',
     'plot_genesis_analysis_results',
     'plot_initial_state_comparison',
     'plot_critical_period_analysis',
+    'plot_genesis_patterns',
+    'plot_genesis_timeline',
     'genesis_module'
 ]
 

@@ -10,11 +10,14 @@ from farm.analysis.genesis.analyze import (
     analyze_genesis_factors,
     analyze_genesis_across_simulations,
     analyze_critical_period,
+    analyze_genesis_patterns,
 )
 from farm.analysis.genesis.plot import (
     plot_genesis_analysis_results,
     plot_initial_state_comparison,
     plot_critical_period_analysis,
+    plot_genesis_patterns,
+    plot_genesis_timeline,
 )
 
 
@@ -45,9 +48,12 @@ class GenesisModule(BaseAnalysisModule):
             "analyze_factors": make_analysis_function(analyze_genesis_factors),
             "analyze_across_simulations": make_analysis_function(analyze_genesis_across_simulations),
             "analyze_critical_period": make_analysis_function(analyze_critical_period),
+            "analyze_genesis_patterns": make_analysis_function(analyze_genesis_patterns),
             "plot_results": make_analysis_function(plot_genesis_analysis_results),
             "plot_initial_comparison": make_analysis_function(plot_initial_state_comparison),
             "plot_critical_period": make_analysis_function(plot_critical_period_analysis),
+            "plot_genesis_patterns": make_analysis_function(plot_genesis_patterns),
+            "plot_genesis_timeline": make_analysis_function(plot_genesis_timeline),
         }
 
         # Function groups
@@ -57,11 +63,14 @@ class GenesisModule(BaseAnalysisModule):
                 self._functions["analyze_factors"],
                 self._functions["analyze_across_simulations"],
                 self._functions["analyze_critical_period"],
+                self._functions["analyze_genesis_patterns"],
             ],
             "plots": [
                 self._functions["plot_results"],
                 self._functions["plot_initial_comparison"],
                 self._functions["plot_critical_period"],
+                self._functions["plot_genesis_patterns"],
+                self._functions["plot_genesis_timeline"],
             ],
             "basic": [
                 self._functions["analyze_factors"],

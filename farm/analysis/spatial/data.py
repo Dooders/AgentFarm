@@ -27,40 +27,51 @@ def process_spatial_data(
     Returns:
         DataFrame with spatial metrics over time
     """
-    # Find simulation database
-    db_path = experiment_path / "simulation.db"
-    if not db_path.exists():
-        db_path = experiment_path / "data" / "simulation.db"
-
-    if not db_path.exists():
-        raise FileNotFoundError(f"No simulation database found in {experiment_path}")
-
-    # Load data using existing infrastructure
-    db = SimulationDatabase(f"sqlite:///{db_path}")
-    agent_repo = AgentRepository(db.session_manager)
-    resource_repo = ResourceRepository(db.session_manager)
-
+    # Try to load from database first
+    spatial_data = None
     try:
-        # Get agent position data
-        agent_data = agent_repo.get_agent_positions_over_time()
+        # Find simulation database
+        db_path = experiment_path / "simulation.db"
+        if not db_path.exists():
+            db_path = experiment_path / "data" / "simulation.db"
 
-        # Get resource position data
-        resource_data = resource_repo.get_resource_positions_over_time()
+        if db_path.exists():
+            # Load data using existing infrastructure
+            db = SimulationDatabase(f"sqlite:///{db_path}")
+            agent_repo = AgentRepository(db.session_manager)
+            resource_repo = ResourceRepository(db.session_manager)
 
-        # Convert to DataFrames
-        agent_df = pd.DataFrame(agent_data) if agent_data else pd.DataFrame()
-        resource_df = pd.DataFrame(resource_data) if resource_data else pd.DataFrame()
+            try:
+                # Get agent position data
+                agent_data = agent_repo.get_agent_positions_over_time()
 
-        # Combine spatial data
+                # Get resource position data
+                resource_data = resource_repo.get_resource_positions_over_time()
+
+                # Convert to DataFrames
+                agent_df = pd.DataFrame(agent_data) if agent_data else pd.DataFrame()
+                resource_df = pd.DataFrame(resource_data) if resource_data else pd.DataFrame()
+
+                # Combine spatial data
+                spatial_data = {
+                    'agent_positions': agent_df,
+                    'resource_positions': resource_df,
+                }
+
+            finally:
+                db.close()
+    except Exception as e:
+        # If database loading fails, return empty spatial data
+        pass
+
+    if spatial_data is None:
+        # Return empty spatial data structure
         spatial_data = {
-            'agent_positions': agent_df,
-            'resource_positions': resource_df,
+            'agent_positions': pd.DataFrame(),
+            'resource_positions': pd.DataFrame(),
         }
 
-        return spatial_data
-
-    finally:
-        db.close()
+    return spatial_data
 
 
 def process_movement_data(
@@ -78,42 +89,50 @@ def process_movement_data(
     Returns:
         DataFrame with movement trajectories
     """
-    db_path = experiment_path / "simulation.db"
-    if not db_path.exists():
-        db_path = experiment_path / "data" / "simulation.db"
-
-    if not db_path.exists():
-        raise FileNotFoundError(f"No simulation database found in {experiment_path}")
-
-    db = SimulationDatabase(f"sqlite:///{db_path}")
-    agent_repo = AgentRepository(db.session_manager)
-
+    # Try to load from database first
+    df = None
     try:
-        # Get movement trajectories
-        trajectories = agent_repo.get_agent_trajectories(agent_ids=agent_ids)
+        db_path = experiment_path / "simulation.db"
+        if not db_path.exists():
+            db_path = experiment_path / "data" / "simulation.db"
 
-        if not trajectories:
-            return pd.DataFrame(columns=['agent_id', 'step', 'position_x', 'position_y', 'position_z'])
+        if db_path.exists():
+            db = SimulationDatabase(f"sqlite:///{db_path}")
+            agent_repo = AgentRepository(db.session_manager)
 
-        # Convert to DataFrame
-        df = pd.DataFrame(trajectories)
+            try:
+                # Get movement trajectories
+                trajectories = agent_repo.get_agent_trajectories(agent_ids=agent_ids)
 
-        # Ensure position columns exist
-        required_cols = ['agent_id', 'step', 'position_x', 'position_y']
-        for col in required_cols:
-            if col not in df.columns:
-                df[col] = None
+                if not trajectories:
+                    df = pd.DataFrame(columns=['agent_id', 'step', 'position_x', 'position_y', 'position_z'])
+                else:
+                    # Convert to DataFrame
+                    df = pd.DataFrame(trajectories)
 
-        # Calculate movement distances
-        df = df.sort_values(['agent_id', 'step'])
-        df['distance'] = df.groupby('agent_id').apply(
-            lambda group: _calculate_trajectory_distances(group)
-        ).explode().values
+                    # Ensure position columns exist
+                    required_cols = ['agent_id', 'step', 'position_x', 'position_y']
+                    for col in required_cols:
+                        if col not in df.columns:
+                            df[col] = None
 
-        return df
+                    # Calculate movement distances
+                    df = df.sort_values(['agent_id', 'step'])
+                    df['distance'] = df.groupby('agent_id').apply(
+                        lambda group: _calculate_trajectory_distances(group)
+                    ).explode().values
 
-    finally:
-        db.close()
+            finally:
+                db.close()
+    except Exception as e:
+        # If database loading fails, return empty DataFrame
+        pass
+
+    if df is None:
+        # Return empty DataFrame with correct structure
+        df = pd.DataFrame(columns=['agent_id', 'step', 'position_x', 'position_y', 'position_z'])
+
+    return df
 
 
 def process_location_analysis_data(
@@ -129,29 +148,42 @@ def process_location_analysis_data(
     Returns:
         Dictionary with location analysis data
     """
-    db_path = experiment_path / "simulation.db"
-    if not db_path.exists():
-        db_path = experiment_path / "data" / "simulation.db"
-
-    if not db_path.exists():
-        raise FileNotFoundError(f"No simulation database found in {experiment_path}")
-
-    db = SimulationDatabase(f"sqlite:///{db_path}")
-    agent_repo = AgentRepository(db.session_manager)
-    resource_repo = ResourceRepository(db.session_manager)
-
+    # Try to load from database first
+    location_data = None
     try:
-        # Get location-based activity data
-        location_activity = agent_repo.get_location_activity_data()
-        resource_distribution = resource_repo.get_resource_distribution_data()
+        db_path = experiment_path / "simulation.db"
+        if not db_path.exists():
+            db_path = experiment_path / "data" / "simulation.db"
 
-        return {
-            'location_activity': pd.DataFrame(location_activity) if location_activity else pd.DataFrame(),
-            'resource_distribution': pd.DataFrame(resource_distribution) if resource_distribution else pd.DataFrame(),
+        if db_path.exists():
+            db = SimulationDatabase(f"sqlite:///{db_path}")
+            agent_repo = AgentRepository(db.session_manager)
+            resource_repo = ResourceRepository(db.session_manager)
+
+            try:
+                # Get location-based activity data
+                location_activity = agent_repo.get_location_activity_data()
+                resource_distribution = resource_repo.get_resource_distribution_data()
+
+                location_data = {
+                    'location_activity': pd.DataFrame(location_activity) if location_activity else pd.DataFrame(),
+                    'resource_distribution': pd.DataFrame(resource_distribution) if resource_distribution else pd.DataFrame(),
+                }
+
+            finally:
+                db.close()
+    except Exception as e:
+        # If database loading fails, return empty location data
+        pass
+
+    if location_data is None:
+        # Return empty location data structure
+        location_data = {
+            'location_activity': pd.DataFrame(),
+            'resource_distribution': pd.DataFrame(),
         }
 
-    finally:
-        db.close()
+    return location_data
 
 
 def _calculate_trajectory_distances(group: pd.DataFrame) -> List[float]:

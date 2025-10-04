@@ -105,15 +105,22 @@ class TestDominanceVisualization:
     @patch('farm.analysis.dominance.plot.plt')
     def test_plot_dominance_distribution(self, mock_plt, sample_dominance_data, analysis_context):
         """Test dominance distribution plotting."""
-        result = plot_dominance_distribution(sample_dominance_data, analysis_context)
+        # Mock plt.subplots to return a tuple of (fig, axes)
+        mock_fig = MagicMock()
+        mock_axes = MagicMock()
+        mock_plt.subplots.return_value = (mock_fig, mock_axes)
+
+        result = plot_dominance_distribution(sample_dominance_data, ctx=analysis_context)
         assert result is None  # Plot functions return None
         mock_plt.savefig.assert_called_once()
 
     @patch('farm.analysis.dominance.plot.plt')
     def test_plot_comprehensive_score_breakdown(self, mock_plt, sample_dominance_data, analysis_context):
         """Test comprehensive score breakdown plotting."""
-        result = plot_comprehensive_score_breakdown(sample_dominance_data, analysis_context)
-        assert result is None
+        result = plot_comprehensive_score_breakdown(sample_dominance_data, ctx=analysis_context)
+        # Function returns the weighted scores DataFrame
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 3  # Should have 3 agent types
         mock_plt.savefig.assert_called_once()
 
 

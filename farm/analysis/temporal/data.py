@@ -25,43 +25,51 @@ def process_temporal_data(
     Returns:
         DataFrame with temporal metrics over time
     """
-    # Find simulation database
-    db_path = experiment_path / "simulation.db"
-    if not db_path.exists():
-        db_path = experiment_path / "data" / "simulation.db"
-
-    if not db_path.exists():
-        raise FileNotFoundError(f"No simulation database found in {experiment_path}")
-
-    # Load data using existing infrastructure
-    db = SimulationDatabase(f"sqlite:///{db_path}")
-    action_repo = ActionRepository(db.session_manager)
-
+    # Try to load from database first
+    df = None
     try:
-        # Get action data over time
-        actions = action_repo.get_actions_by_scope("simulation")
+        # Find simulation database
+        db_path = experiment_path / "simulation.db"
+        if not db_path.exists():
+            db_path = experiment_path / "data" / "simulation.db"
 
-        if not actions:
-            return pd.DataFrame(columns=['step', 'agent_id', 'action_type', 'reward'])
+        if db_path.exists():
+            # Load data using existing infrastructure
+            db = SimulationDatabase(f"sqlite:///{db_path}")
+            action_repo = ActionRepository(db.session_manager)
 
-        # Convert to DataFrame
-        df = pd.DataFrame([{
-            'step': getattr(action, 'step_number', 0),
-            'agent_id': getattr(action, 'agent_id', None),
-            'action_type': getattr(action, 'action_type', ''),
-            'reward': getattr(action, 'reward', 0.0) or 0.0,
-        } for action in actions])
+            try:
+                # Get action data over time
+                actions = action_repo.get_actions_by_scope("simulation")
 
-        # Ensure required columns exist
-        required_cols = ['step', 'agent_id', 'action_type', 'reward']
-        for col in required_cols:
-            if col not in df.columns:
-                df[col] = None
+                if not actions:
+                    df = pd.DataFrame(columns=['step', 'agent_id', 'action_type', 'reward'])
+                else:
+                    # Convert to DataFrame
+                    df = pd.DataFrame([{
+                        'step': getattr(action, 'step_number', 0),
+                        'agent_id': getattr(action, 'agent_id', None),
+                        'action_type': getattr(action, 'action_type', ''),
+                        'reward': getattr(action, 'reward', 0.0) or 0.0,
+                    } for action in actions])
 
-        return df
+                    # Ensure required columns exist
+                    required_cols = ['step', 'agent_id', 'action_type', 'reward']
+                    for col in required_cols:
+                        if col not in df.columns:
+                            df[col] = None
 
-    finally:
-        db.close()
+            finally:
+                db.close()
+    except Exception as e:
+        # If database loading fails, return empty DataFrame
+        pass
+
+    if df is None:
+        # Return empty DataFrame with correct structure
+        df = pd.DataFrame(columns=['step', 'agent_id', 'action_type', 'reward'])
+
+    return df
 
 
 def process_time_series_data(

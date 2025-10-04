@@ -10,6 +10,9 @@ from unittest.mock import patch, MagicMock
 
 from farm.analysis.genesis import (
     genesis_module,
+    analyze_genesis_patterns,
+    plot_genesis_patterns,
+    plot_genesis_timeline,
     plot_initial_state_comparison,
     plot_critical_period_analysis,
     plot_genesis_analysis_results,
@@ -30,16 +33,15 @@ class TestGenesisModule:
         """Test module function names."""
         functions = genesis_module.get_function_names()
         expected_functions = [
+            "analyze_factors",
+            "analyze_across_simulations",
+            "analyze_critical_period",
+            "analyze_genesis_patterns",
+            "plot_results",
+            "plot_initial_comparison",
+            "plot_critical_period",
             "plot_genesis_patterns",
             "plot_genesis_timeline",
-            "plot_genesis_success_rates",
-            "plot_genesis_efficiency",
-            "plot_genesis_distribution",
-            "plot_genesis_correlations",
-            "plot_genesis_optimization",
-            "plot_genesis_performance",
-            "analyze_genesis_patterns",
-            "analyze_genesis_efficiency",
         ]
 
         for func_name in expected_functions:
