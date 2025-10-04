@@ -350,16 +350,40 @@ AgentFarm provides comprehensive analysis tools:
 - Reproduction and genealogy tracking
 - Spatial distribution analysis
 
+### Analysis Framework
+AgentFarm provides a unified analysis framework:
+
+```python
+from farm.analysis.service import AnalysisService, AnalysisRequest
+from pathlib import Path
+
+# Initialize analysis service
+service = AnalysisService()
+
+# Run comprehensive analysis
+request = AnalysisRequest(
+    module_name="social_behavior",  # or "population", "advantage", etc.
+    experiment_path=Path("data/experiment"),
+    output_path=Path("results/analysis"),
+    group="all"
+)
+
+result = service.run(request)
+```
+
 ### Analysis Scripts
 ```bash
-# Generate comparative analysis
-python -m farm.analysis.comparative_analysis --path simulations/experiment_001
+# Run advantage analysis
+python scripts/advantage_analysis.py
+
+# Run social behavior analysis
+python scripts/social_analysis.py
+
+# Run genesis analysis
+python scripts/genesis_analysis.py
 
 # Create visualization videos
 python scripts/animate_simulation.py --simulation simulation.db --output video.mp4
-
-# Analyze agent behaviors
-python scripts/social_analysis.py --simulation simulation.db
 ```
 
 ### Database Schema

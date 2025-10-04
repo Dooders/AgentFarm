@@ -147,3 +147,6 @@ def get_module_info():
 
 # Register analysis functions when module is imported
 register_analysis()
+
+# Import the module instance
+from farm.analysis.dominance.module import dominance_module

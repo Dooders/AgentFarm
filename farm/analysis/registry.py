@@ -202,13 +202,35 @@ def _implements_analysis_module_protocol(obj: any) -> bool:
 
 def _register_builtin_modules() -> int:
     """Register built-in analysis modules.
-    
+
     Returns:
         Number of successfully registered modules
     """
+    # Organize built-in modules by category for better maintainability
     builtin_modules = [
+        # Core analysis modules
+        "farm.analysis.genesis.module.genesis_module",
         "farm.analysis.dominance.module.dominance_module",
-        "farm.analysis.null_module.null_module",
+        "farm.analysis.advantage.module.advantage_module",
+
+        # Agent-focused analysis modules
+        "farm.analysis.agents.module.agents_module",
+        "farm.analysis.learning.module.learning_module",
+        "farm.analysis.social_behavior.module.social_behavior_module",
+
+        # Environment and resource analysis modules
+        "farm.analysis.spatial.module.spatial_module",
+        "farm.analysis.temporal.module.temporal_module",
+        "farm.analysis.resources.module.resources_module",
+
+        # Action and event analysis modules
+        "farm.analysis.actions.module.actions_module",
+        "farm.analysis.combat.module.combat_module",
+        "farm.analysis.significant_events.module.significant_events_module",
+
+        # Comparative and population analysis modules
+        "farm.analysis.population.module.population_module",
+        "farm.analysis.comparative.module.comparative_module",
     ]
     
     count = 0

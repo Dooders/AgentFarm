@@ -344,6 +344,56 @@ from farm.analysis.registry import (
 )
 ```
 
+## Available Analysis Modules
+
+### Core Modules
+- **`population`** - Population dynamics, births/deaths, agent composition
+- **`resources`** - Resource distribution, consumption, efficiency analysis
+- **`actions`** - Action patterns, success rates, decision analysis
+- **`agents`** - Individual agent behavior, lifespans, clustering
+
+### Specialized Modules
+- **`learning`** - Learning performance, curves, module efficiency
+- **`spatial`** - Spatial patterns, movement trajectories, location effects
+- **`temporal`** - Time series patterns, periodic behaviors, efficiency
+- **`combat`** - Combat metrics, win/loss ratios, damage patterns
+
+### Legacy Modules
+- **`dominance`** - Dominance hierarchies, social structures
+- **`genesis`** - Initial population generation and setup
+- **`advantage`** - Relative advantages between agent types
+- **`social_behavior`** - Social interactions and behavior patterns
+
+### Usage Examples
+
+```python
+# Population analysis
+request = AnalysisRequest(
+    module_name="population",
+    experiment_path=Path("data/exp"),
+    output_path=Path("results/pop"),
+    group="basic"
+)
+
+# Learning analysis with custom params
+request = AnalysisRequest(
+    module_name="learning",
+    experiment_path=Path("data/exp"),
+    output_path=Path("results/learn"),
+    analysis_kwargs={
+        "plot_curves": {"figsize": (12, 8), "dpi": 300}
+    }
+)
+
+# Spatial movement analysis
+request = AnalysisRequest(
+    module_name="spatial",
+    experiment_path=Path("data/exp"),
+    output_path=Path("results/spatial"),
+    group="movement"
+)
+```
+
 ## File Locations
 
 ```
@@ -357,8 +407,16 @@ farm/analysis/
 ├── exceptions.py         # Errors
 ├── registry.py           # Module registry
 ├── service.py            # Service API
-└── common/
-    └── context.py        # Analysis context
+├── common/
+│   └── context.py        # Analysis context
+├── population/           # Population analysis module
+├── resources/            # Resource analysis module
+├── actions/              # Action analysis module
+├── agents/               # Agent analysis module
+├── learning/             # Learning analysis module
+├── spatial/              # Spatial analysis module
+├── temporal/             # Temporal analysis module
+└── combat/               # Combat analysis module
 
 examples/
 └── analysis_example.py   # 7 complete examples

@@ -30,6 +30,39 @@ from farm.analysis.genesis.compute import (
     transform_metrics_for_plotting,
 )
 
+
+def analyze_genesis_patterns(data: pd.DataFrame) -> Dict[str, Any]:
+    """
+    Analyze patterns in genesis data from a DataFrame.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        DataFrame containing genesis data with columns like 'success_rate', 'efficiency_score', etc.
+
+    Returns
+    -------
+    Dict[str, Any]
+        Dictionary containing analysis results
+    """
+    if data.empty:
+        return {
+            'total_genesis_events': 0,
+            'avg_success_rate': 0.0,
+            'avg_efficiency': 0.0,
+        }
+
+    # Calculate basic statistics
+    total_genesis_events = len(data)
+    avg_success_rate = data['success_rate'].mean() if 'success_rate' in data.columns else 0.0
+    avg_efficiency = data['efficiency_score'].mean() if 'efficiency_score' in data.columns else 0.0
+
+    return {
+        'total_genesis_events': total_genesis_events,
+        'avg_success_rate': avg_success_rate,
+        'avg_efficiency': avg_efficiency,
+    }
+
 logger = get_logger(__name__)
 
 

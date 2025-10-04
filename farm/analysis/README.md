@@ -11,6 +11,8 @@ A modern, protocol-based architecture for creating and running analysis modules 
 📊 **Progress Tracking** - Real-time progress callbacks  
 🎯 **Standardized Functions** - Consistent API across all analysis types  
 🧪 **Fully Tested** - Comprehensive test suite with >80% coverage  
+🔧 **Shared Utilities** - Common statistical and data processing functions  
+📋 **Standard Templates** - Consistent module structure templates  
 
 ### Quick Start
 
@@ -39,6 +41,58 @@ if result.success:
     print(f"Results saved to: {result.output_path}")
 else:
     print(f"Analysis failed: {result.error}")
+```
+
+### Common Utilities
+
+The `farm.analysis.common.utils` module provides shared utilities for analysis:
+
+```python
+from farm.analysis.common.utils import (
+    calculate_statistics,      # Basic stats (mean, median, std, etc.)
+    calculate_trend,          # Linear trend calculation
+    calculate_rolling_mean,   # Rolling averages
+    normalize_dict,           # Normalize dictionary values to proportions
+    validate_required_columns, # Check DataFrame has required columns
+    save_analysis_results,    # Save results to JSON
+    setup_plot_figure,        # Consistent matplotlib setup
+    get_agent_type_colors,    # Standard agent type color scheme
+    handle_missing_data,      # Handle NaN values with different strategies
+)
+
+# Example usage
+import pandas as pd
+from farm.analysis.common.utils import calculate_statistics, normalize_dict
+
+# Calculate stats for a data series
+data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+stats = calculate_statistics(data)
+print(f"Mean: {stats['mean']}, Std: {stats['std']}")
+
+# Normalize agent counts
+agent_counts = {'system': 25, 'independent': 35, 'control': 40}
+normalized = normalize_dict(agent_counts)
+print(f"Normalized: {normalized}")
+```
+
+### Standard Module Template
+
+Use the standard template for consistent module structure:
+
+```python
+from farm.analysis.template.standard_module import MODULEModule
+
+# Copy template and replace 'MODULE' with your analysis type
+# Template includes:
+# - Data processing function
+# - Analysis functions with standard signatures
+# - Visualization functions
+# - Complete module class with validation
+# - Function registration and grouping
+
+class PopulationModule(MODULEModule):
+    # Customize as needed
+    pass
 ```
 
 ### Creating a New Analysis Module
@@ -280,11 +334,16 @@ farm/analysis/
 ├── service.py           # High-level service API
 ├── common/
 │   ├── context.py       # Analysis context
-│   └── metrics.py       # Shared metrics
+│   ├── metrics.py       # Shared metrics utilities
+│   └── utils.py         # Common analysis utilities
+├── template/
+│   └── standard_module.py # Standard module template
 └── {module}/
+    ├── __init__.py      # Package exports
     ├── module.py        # Module implementation
-    ├── processor.py     # Data processing
-    ├── compute.py       # Analysis functions
+    ├── data.py          # Data processing
+    ├── compute.py       # Statistical computations
+    ├── analyze.py       # Analysis functions
     └── plot.py          # Visualizations
 ```
 
@@ -302,6 +361,28 @@ pytest tests/analysis/test_core.py
 # With coverage
 pytest tests/analysis/ --cov=farm.analysis --cov-report=html
 ```
+
+### Refactoring Complete ✅
+
+All phases of the analysis refactoring have been completed successfully. The system now provides a unified, protocol-based architecture for all analysis operations.
+
+#### ✅ Completed Tasks
+
+- **Phase 1: Foundation** - Common utilities, templates, and testing infrastructure
+- **Phase 2: Core Analyzers** - Population, resources, actions, and agents modules
+- **Phase 3: Specialized Analyzers** - Learning, spatial, temporal, and combat modules
+- **Phase 4: Script Consolidation** - Updated orchestration scripts and utilities
+- **Phase 5: Testing & Documentation** - Comprehensive tests, performance benchmarks, and migration guides
+
+#### Key Achievements
+
+- **8 New Analysis Modules** with full feature parity to old analyzers
+- **Comprehensive Test Suite** with 80%+ coverage and performance benchmarks
+- **Migration Guide** for transitioning from old analyzers
+- **Backward Compatibility** maintained during transition
+- **Performance Improvements** through caching and optimization
+- **Consistent API** across all analysis types
+- **Enhanced Documentation** with examples and quick reference
 
 ### Migration from Old System
 
@@ -373,6 +454,110 @@ Key changes:
 
 ### Available Modules
 
+#### Core Analysis Modules
+
+**Population Analysis** (`population`) - Analyze population dynamics, births, deaths, and agent composition:
+```python
+# Analyze population trends
+request = AnalysisRequest(
+    module_name="population",
+    experiment_path=Path("data/experiment"),
+    output_path=Path("results/population"),
+    group="basic"
+)
+```
+
+**Resource Analysis** (`resources`) - Analyze resource distribution, consumption patterns, and efficiency:
+```python
+# Analyze resource usage
+request = AnalysisRequest(
+    module_name="resources",
+    experiment_path=Path("data/experiment"),
+    output_path=Path("results/resources"),
+    group="analysis"
+)
+```
+
+**Action Analysis** (`actions`) - Analyze action patterns, success rates, and decision making:
+```python
+# Analyze action distributions
+request = AnalysisRequest(
+    module_name="actions",
+    experiment_path=Path("data/experiment"),
+    output_path=Path("results/actions"),
+    group="plots"
+)
+```
+
+**Agent Analysis** (`agents`) - Analyze individual agent behavior, lifespans, and clustering:
+```python
+# Analyze agent behavior patterns
+request = AnalysisRequest(
+    module_name="agents",
+    experiment_path=Path("data/experiment"),
+    output_path=Path("results/agents"),
+    group="all"
+)
+```
+
+#### Specialized Analysis Modules
+
+**Learning Analysis** (`learning`) - Analyze learning performance, agent learning curves, and module efficiency:
+```python
+# Analyze learning progress
+request = AnalysisRequest(
+    module_name="learning",
+    experiment_path=Path("data/experiment"),
+    output_path=Path("results/learning"),
+    group="performance"
+)
+```
+
+**Spatial Analysis** (`spatial`) - Analyze spatial patterns, movement trajectories, and location effects:
+```python
+# Analyze movement patterns
+request = AnalysisRequest(
+    module_name="spatial",
+    experiment_path=Path("data/experiment"),
+    output_path=Path("results/spatial"),
+    group="movement"
+)
+```
+
+**Temporal Analysis** (`temporal`) - Analyze time series patterns, periodic behaviors, and temporal efficiency:
+```python
+# Analyze temporal patterns
+request = AnalysisRequest(
+    module_name="temporal",
+    experiment_path=Path("data/experiment"),
+    output_path=Path("results/temporal"),
+    group="analysis"
+)
+```
+
+**Combat Analysis** (`combat`) - Analyze combat metrics, win/loss ratios, and damage patterns:
+```python
+# Analyze combat performance
+request = AnalysisRequest(
+    module_name="combat",
+    experiment_path=Path("data/experiment"),
+    output_path=Path("results/combat"),
+    group="all"
+)
+```
+
+#### Legacy Modules
+
+**Dominance Analysis** (`dominance`) - Analyze dominance hierarchies and social structures (legacy module)
+
+**Genesis Analysis** (`genesis`) - Analyze initial population generation and setup (legacy module)
+
+**Advantage Analysis** (`advantage`) - Analyze relative advantages between agent types (legacy module)
+
+**Social Behavior** (`social_behavior`) - Analyze social interactions and behavior patterns (legacy module)
+
+#### Listing All Modules
+
 List all registered modules:
 
 ```python
@@ -381,18 +566,15 @@ from farm.analysis.registry import list_modules
 print(list_modules())
 ```
 
-Get module info:
+Get detailed module info:
 
 ```python
 from farm.analysis.registry import get_module
 
-module = get_module("dominance")
-info = module.get_info()
-
-print(f"Name: {info['name']}")
-print(f"Description: {info['description']}")
-print(f"Function groups: {info['function_groups']}")
-print(f"Functions: {info['functions']}")
+module = get_module("learning")
+print(f"Name: {module.name}")
+print(f"Description: {module.description}")
+print(f"Function groups: {list(module.get_function_groups().keys())}")
 ```
 
 ### Contributing
