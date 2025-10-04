@@ -133,11 +133,11 @@ class TestTemporalIntegration:
         )
 
         # Mock the data processing to avoid database dependency
-        with patch('farm.analysis.temporal.data.process_temporal_data') as mock_process:
+        with patch('farm.analysis.temporal.module.process_temporal_data') as mock_process:
             mock_process.return_value = pd.DataFrame({
-                'step': range(10),
-                'value': range(10),
-                'metric_a': range(10),
+                'step': list(range(10)),
+                'value': list(range(10)),
+                'metric_a': list(range(10)),
             })
 
             result = service.run(request)
