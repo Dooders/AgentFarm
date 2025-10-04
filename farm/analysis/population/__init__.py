@@ -14,15 +14,19 @@ from farm.analysis.population.compute import (
     compute_population_statistics,
     compute_birth_death_rates,
     compute_population_stability,
+    compute_growth_rate_analysis,
+    compute_demographic_metrics,
 )
 from farm.analysis.population.analyze import (
     analyze_population_dynamics,
     analyze_agent_composition,
+    analyze_comprehensive_population,
 )
 from farm.analysis.population.plot import (
     plot_population_over_time,
     plot_birth_death_rates,
     plot_agent_composition,
+    plot_population_dashboard,
 )
 
 __all__ = [
@@ -31,9 +35,13 @@ __all__ = [
     "compute_population_statistics",
     "compute_birth_death_rates",
     "compute_population_stability",
+    "compute_growth_rate_analysis",
+    "compute_demographic_metrics",
     "analyze_population_dynamics",
     "analyze_agent_composition",
+    "analyze_comprehensive_population",
     "plot_population_over_time",
     "plot_birth_death_rates",
     "plot_agent_composition",
+    "plot_population_dashboard",
 ]
