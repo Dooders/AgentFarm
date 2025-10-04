@@ -7,8 +7,8 @@ from farm.database.models import AgentModel, AgentStateModel, SimulationStepMode
 
 
 class SimulationAnalyzer:
-    def __init__(self, db_path: str = "simulation.db"):
-        self.db = SimulationDatabase(db_path)
+    def __init__(self, db_path: str = "simulation.db", simulation_id: str = None):
+        self.db = SimulationDatabase(db_path, simulation_id=simulation_id)
 
     def calculate_survival_rates(self) -> pd.DataFrame:
         """Calculate survival rates for different agent types over time."""

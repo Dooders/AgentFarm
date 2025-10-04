@@ -814,3 +814,77 @@ def plot_advantage_trajectories(
         plt.savefig(output_file, dpi=300, bbox_inches="tight")
         plt.close()
         logger.info(f"Saved {category} advantage trajectory to {output_file}")
+
+
+def plot_advantage_distribution(
+    df: pd.DataFrame,
+    ctx: Optional[AnalysisContext] = None,
+):
+    """
+    Plot advantage distribution.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame containing advantage data
+    ctx : AnalysisContext, optional
+        Analysis context containing output path and metadata
+    """
+    if df.empty:
+        logger.warning("Empty DataFrame, skipping advantage distribution plot")
+        return
+
+    # Create output directory if needed
+    out_dir = ctx.output_path if ctx else "."
+    os.makedirs(out_dir, exist_ok=True)
+
+    # Simple distribution plot of advantage_score if it exists
+    if "advantage_score" in df.columns:
+        fig = plt.figure(figsize=(10, 6))
+        plt.hist(df["advantage_score"].dropna(), bins=20, alpha=0.7, edgecolor='black')
+        plt.xlabel("Advantage Score")
+        plt.ylabel("Frequency")
+        plt.title("Distribution of Advantage Scores")
+        plt.grid(True, alpha=0.3)
+
+        output_file = os.path.join(out_dir, "advantage_distribution.png")
+        plt.savefig(output_file, dpi=300, bbox_inches="tight")
+        plt.close()
+        logger.info(f"Saved advantage distribution to {output_file}")
+
+
+def plot_advantage_timeline(
+    df: pd.DataFrame,
+    ctx: Optional[AnalysisContext] = None,
+):
+    """
+    Plot advantage timeline.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        DataFrame containing advantage data
+    ctx : AnalysisContext, optional
+        Analysis context containing output path and metadata
+    """
+    if df.empty:
+        logger.warning("Empty DataFrame, skipping advantage timeline plot")
+        return
+
+    # Create output directory if needed
+    out_dir = ctx.output_path if ctx else "."
+    os.makedirs(out_dir, exist_ok=True)
+
+    # Simple timeline plot if we have iteration and advantage_score
+    if "iteration" in df.columns and "advantage_score" in df.columns:
+        fig = plt.figure(figsize=(10, 6))
+        plt.plot(df["iteration"], df["advantage_score"], 'o-', alpha=0.7)
+        plt.xlabel("Iteration")
+        plt.ylabel("Advantage Score")
+        plt.title("Advantage Score Timeline")
+        plt.grid(True, alpha=0.3)
+
+        output_file = os.path.join(out_dir, "advantage_timeline.png")
+        plt.savefig(output_file, dpi=300, bbox_inches="tight")
+        plt.close()
+        logger.info(f"Saved advantage timeline to {output_file}")

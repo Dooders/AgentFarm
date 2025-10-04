@@ -114,13 +114,20 @@ def analyze_correlations(
 
     filtered_df = filter_condition(df) if filter_condition is not None else df
 
+    # Adjust threshold in presence of filter condition to be practical but safe
+    # Allows correlations on smaller filtered subsets while keeping defaults intact
+    threshold = min_data_points
+    if filter_condition is not None:
+        # Require at least 2 points to compute correlation
+        threshold = max(2, min(min_data_points, len(filtered_df)))
+
     correlations: Dict[str, float] = {}
     for col in metric_columns:
         try:
             valid_data = filtered_df[
                 filtered_df[col].notna() & filtered_df[target_column].notna()
             ]
-            if len(valid_data) >= min_data_points:
+            if len(valid_data) >= threshold:
                 corr = valid_data[[col, target_column]].corr().iloc[0, 1]
                 if not pd.isna(corr):
                     correlations[col] = pd.to_numeric(corr, errors="coerce")
@@ -135,7 +142,7 @@ def group_and_analyze(
     group_column: str,
     group_values: List[str],
     analysis_func: Callable[[pd.DataFrame], Dict[str, Any]],
-    min_group_size: int = 5,
+    min_group_size: int = 1,
 ) -> Dict[str, Dict[str, Any]]:
     if df.empty or group_column not in df.columns:
         return {}

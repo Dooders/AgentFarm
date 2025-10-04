@@ -104,12 +104,13 @@ class TestRegisterModules:
 
     def test_register_from_config(self, config_service_mock):
         """Test registering modules from config service."""
-        config_service_mock.set_module_paths(["farm.analysis.null_module.null_module"])
+        # Use an existing module for testing
+        config_service_mock.set_module_paths(["farm.analysis.population.module.population_module"])
 
         count = register_modules(config_service=config_service_mock)
 
         assert count == 1
-        assert "null" in registry.get_module_names()
+        assert "population" in registry.get_module_names()
 
     def test_register_invalid_path(self, config_service_mock, caplog):
         """Test handling of invalid module paths."""

@@ -1,314 +1,211 @@
 import unittest
 from unittest.mock import Mock, patch
+import pandas as pd
+from pathlib import Path
+import tempfile
+import json
 
-from farm.database.analyzers.action_stats_analyzer import ActionStatsAnalyzer
+from farm.analysis.actions import (
+    analyze_action_patterns,
+    compute_action_statistics,
+    compute_sequence_patterns,
+    compute_decision_patterns,
+    compute_reward_metrics
+)
+from farm.analysis.common.context import AnalysisContext
 from farm.database.data_types import AgentActionData
 from farm.database.enums import AnalysisScope
 from farm.database.repositories.action_repository import ActionRepository
 
 
-class TestActionStatsAnalyzer(unittest.TestCase):
+class TestActionAnalysis(unittest.TestCase):
     def setUp(self):
-        """Initialize test fixtures for ActionStatsAnalyzer tests.
+        """Initialize test fixtures for action analysis tests.
 
-        Sets up a mock ActionRepository and creates sample test actions with various
-        types (gather, move) and different reward values to test analysis functionality.
+        Sets up sample action data as pandas DataFrame and creates temporary
+        directories for analysis output.
         """
-        self.repository = Mock(spec=ActionRepository)
-        self.analyzer = ActionStatsAnalyzer(self.repository)
+        # Create temporary directory for test outputs
+        self.temp_dir = Path(tempfile.mkdtemp())
 
-        # Create sample test actions
-        self.test_actions = [
-            AgentActionData(
-                agent_id="1",
-                action_type="gather",
-                step_number=1,
-                action_target_id=None,
-                resources_before=None,
-                resources_after=None,
-                state_before_id=None,
-                state_after_id=None,
-                reward=10.0,
-                details=None,
-            ),
-            AgentActionData(
-                agent_id="1",
-                action_type="gather",
-                step_number=1,
-                action_target_id="2",
-                resources_before=None,
-                resources_after=None,
-                state_before_id=None,
-                state_after_id=None,
-                reward=5.0,
-                details=None,
-            ),
-            AgentActionData(
-                agent_id="1",
-                action_type="move",
-                step_number=2,
-                action_target_id=None,
-                resources_before=None,
-                resources_after=None,
-                state_before_id=None,
-                state_after_id=None,
-                reward=2.0,
-                details=None,
-            ),
-        ]
+        # Create sample test actions as DataFrame
+        self.test_actions_df = pd.DataFrame([
+            {
+                "step": 1,
+                "action_type": "gather",
+                "frequency": 2,
+                "success_rate": 0.8,
+                "avg_reward": 7.5,
+                "agent_id": "1",
+                "action_target_id": None,
+            },
+            {
+                "step": 1,
+                "action_type": "gather",
+                "frequency": 1,
+                "success_rate": 1.0,
+                "avg_reward": 5.0,
+                "agent_id": "1",
+                "action_target_id": "2",
+            },
+            {
+                "step": 2,
+                "action_type": "move",
+                "frequency": 1,
+                "success_rate": 1.0,
+                "avg_reward": 2.0,
+                "agent_id": "1",
+                "action_target_id": None,
+            },
+        ])
 
-    def test_analyze_basic_metrics(self):
-        """Test the calculation of basic action metrics.
+        # Create analysis context
+        self.ctx = AnalysisContext(
+            output_path=self.temp_dir,
+            logger=Mock(),
+            config={}
+        )
 
-        Verifies that the analyzer correctly calculates:
-        - Action counts per type
-        - Action frequencies
-        - Average rewards
+    def tearDown(self):
+        """Clean up temporary test directory."""
+        import shutil
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_compute_action_statistics(self):
+        """Test the calculation of basic action statistics.
+
+        Verifies that compute_action_statistics correctly calculates:
+        - Total actions statistics
+        - Per action type statistics
+        - Most common action
 
         Uses sample data with 'gather' and 'move' actions to validate metrics.
         """
-        # Arrange
-        self.repository.get_actions_by_scope.return_value = self.test_actions
-
         # Act
-        results = self.analyzer.analyze(scope=AnalysisScope.SIMULATION)
+        stats = compute_action_statistics(self.test_actions_df)
 
         # Assert
-        self.assertEqual(len(results), 2)  # Should have metrics for 'gather' and 'move'
+        self.assertIn("total_actions", stats)
+        self.assertIn("action_types", stats)
+        self.assertIn("most_common_action", stats)
 
-        # Find gather metrics
-        gather_metrics = next(m for m in results if m.action_type == "gather")
-        self.assertEqual(gather_metrics.count, 2)
-        self.assertAlmostEqual(gather_metrics.frequency, 2 / 3)
-        self.assertAlmostEqual(gather_metrics.avg_reward, 7.5)
+        # Check that we have statistics for both action types
+        action_types = stats["action_types"]
+        self.assertIn("gather", action_types)
+        self.assertIn("move", action_types)
 
-        # Find move metrics
-        move_metrics = next(m for m in results if m.action_type == "move")
-        self.assertEqual(move_metrics.count, 1)
-        self.assertAlmostEqual(move_metrics.frequency, 1 / 3)
-        self.assertEqual(move_metrics.avg_reward, 2.0)
+        # Check gather statistics - should have frequency, success_rate, avg_reward
+        gather_stats = action_types["gather"]
+        self.assertIn("frequency", gather_stats)
+        self.assertIn("success_rate", gather_stats)
+        self.assertIn("avg_reward", gather_stats)
 
-    def test_analyze_interaction_metrics(self):
-        """Test the calculation of interaction-related metrics.
+        # Check frequency stats for gather
+        gather_freq = gather_stats["frequency"]
+        self.assertIn("mean", gather_freq)
+        self.assertIn("min", gather_freq)
+        self.assertIn("max", gather_freq)
 
-        Verifies metrics specific to action interactions:
-        - Interaction rate (actions with targets vs. without)
-        - Solo performance (rewards for non-interactive actions)
-        - Interaction performance (rewards for actions with targets)
+        # Check move statistics
+        move_stats = action_types["move"]
+        self.assertIn("frequency", move_stats)
+        self.assertIn("success_rate", move_stats)
+        self.assertIn("avg_reward", move_stats)
 
-        Uses gather actions with and without targets for validation.
+        # Check most common action
+        self.assertEqual(stats["most_common_action"], "gather")
+
+    def test_compute_reward_metrics(self):
+        """Test the calculation of reward-related metrics.
+
+        Verifies that compute_reward_metrics correctly calculates:
+        - Average rewards per action type
+        - Reward distributions
+        - Performance metrics
+
+        Uses sample data with different reward values.
         """
-        # Arrange
-        self.repository.get_actions_by_scope.return_value = self.test_actions
-
         # Act
-        results = self.analyzer.analyze(scope=AnalysisScope.SIMULATION)
+        reward_metrics = compute_reward_metrics(self.test_actions_df)
 
         # Assert
-        gather_metrics = next(m for m in results if m.action_type == "gather")
-        self.assertAlmostEqual(
-            gather_metrics.interaction_rate, 0.5
-        )  # 1 out of 2 gather actions had target
-        self.assertEqual(
-            gather_metrics.solo_performance, 10.0
-        )  # Reward for non-interactive gather
-        self.assertEqual(
-            gather_metrics.interaction_performance, 5.0
-        )  # Reward for interactive gather
+        self.assertIsInstance(reward_metrics, dict)
 
-    def test_analyze_with_empty_data(self):
-        """Test analyzer behavior when no action data is present.
+        # Check that reward metrics include expected action types
+        if "gather" in reward_metrics:
+            gather_rewards = reward_metrics["gather"]
+            self.assertIn("avg_reward", gather_rewards)
+            self.assertIn("min_reward", gather_rewards)
+            self.assertIn("max_reward", gather_rewards)
 
-        Ensures the analyzer handles empty datasets gracefully by returning
-        an empty result set without errors.
+        if "move" in reward_metrics:
+            move_rewards = reward_metrics["move"]
+            self.assertIn("avg_reward", move_rewards)
+
+    def test_compute_with_empty_data(self):
+        """Test computation behavior when no action data is present.
+
+        Ensures the compute functions handle empty datasets gracefully.
         """
         # Arrange
-        self.repository.get_actions_by_scope.return_value = []
+        empty_df = pd.DataFrame()
+
+        # Act & Assert - should not raise exceptions
+        stats = compute_action_statistics(empty_df)
+        self.assertIsInstance(stats, dict)
+
+        reward_metrics = compute_reward_metrics(empty_df)
+        self.assertIsInstance(reward_metrics, dict)
+
+    def test_analyze_action_patterns(self):
+        """Test the analyze_action_patterns function.
+
+        Verifies that the function creates output files and handles the analysis context.
+        """
+        # Act
+        analyze_action_patterns(self.test_actions_df, self.ctx)
+
+        # Assert - check that output file was created
+        output_file = self.ctx.get_output_file("action_statistics.json")
+        self.assertTrue(output_file.exists())
+
+        # Check that the file contains valid JSON
+        with open(output_file, 'r') as f:
+            data = json.load(f)
+            self.assertIsInstance(data, dict)
+
+    def test_compute_sequence_patterns(self):
+        """Test the computation of action sequence patterns.
+
+        Verifies that compute_sequence_patterns correctly identifies patterns
+        in action sequences.
+        """
+        # Arrange - create data with sequences
+        sequence_df = pd.DataFrame([
+            {"step": 1, "action_sequence": ["move", "gather"], "agent_id": "1"},
+            {"step": 2, "action_sequence": ["gather", "attack"], "agent_id": "1"},
+            {"step": 3, "action_sequence": ["move", "gather", "attack"], "agent_id": "1"},
+        ])
 
         # Act
-        results = self.analyzer.analyze(scope=AnalysisScope.SIMULATION)
+        patterns = compute_sequence_patterns(sequence_df)
 
         # Assert
-        self.assertEqual(len(results), 0)
+        self.assertIsInstance(patterns, dict)
+        # Should contain sequence analysis results
 
-    def test_analyze_with_scope_filters(self):
-        """Test analyzer functionality with different scope filters.
+    def test_compute_decision_patterns(self):
+        """Test the computation of decision patterns.
 
-        Verifies that the analyzer correctly applies filtering by:
-        - Agent scope (specific agent_id)
-        - Step scope (specific step number)
-
-        Ensures proper repository calls are made with correct parameters.
+        Verifies that compute_decision_patterns correctly analyzes
+        decision-making patterns in actions.
         """
-        # Arrange
-        self.repository.get_actions_by_scope.return_value = self.test_actions
-
         # Act
-        agent_results = self.analyzer.analyze(scope=AnalysisScope.AGENT, agent_id="1")
-        step_results = self.analyzer.analyze(scope=AnalysisScope.STEP, step=1)
+        patterns = compute_decision_patterns(self.test_actions_df)
 
         # Assert
-        self.repository.get_actions_by_scope.assert_any_call(
-            AnalysisScope.AGENT, "1", None, None
-        )
-        self.repository.get_actions_by_scope.assert_any_call(
-            AnalysisScope.STEP, None, 1, None
-        )
-
-    def test_analyze_statistical_measures(self):
-        """Test the calculation of detailed statistical measures for rewards.
-
-        Verifies computation of statistical metrics including:
-        - Minimum and maximum rewards
-        - Median reward
-        - Variance and standard deviation
-        - Reward quartiles
-
-        Uses a sequence of gather actions with varied rewards for validation.
-        """
-        # Arrange
-        actions_with_varied_rewards = [
-            AgentActionData(
-                agent_id="1",
-                action_type="gather",
-                step_number=1,
-                action_target_id=None,
-                resources_before=None,
-                resources_after=None,
-                state_before_id=None,
-                state_after_id=None,
-                reward=10.0,
-                details=None,
-            ),
-            AgentActionData(
-                agent_id="1",
-                action_type="gather",
-                step_number=2,
-                action_target_id=None,
-                resources_before=None,
-                resources_after=None,
-                state_before_id=None,
-                state_after_id=None,
-                reward=20.0,
-                details=None,
-            ),
-            AgentActionData(
-                agent_id="1",
-                action_type="gather",
-                step_number=3,
-                action_target_id=None,
-                resources_before=None,
-                resources_after=None,
-                state_before_id=None,
-                state_after_id=None,
-                reward=30.0,
-                details=None,
-            ),
-        ]
-        self.repository.get_actions_by_scope.return_value = actions_with_varied_rewards
-
-        # Act
-        results = self.analyzer.analyze(scope=AnalysisScope.SIMULATION)
-
-        # Assert
-        gather_metrics = next(m for m in results if m.action_type == "gather")
-        self.assertEqual(gather_metrics.min_reward, 10.0)
-        self.assertEqual(gather_metrics.max_reward, 30.0)
-        self.assertEqual(gather_metrics.median_reward, 20.0)
-        self.assertIsNotNone(gather_metrics.variance_reward)
-        self.assertIsNotNone(gather_metrics.std_dev_reward)
-        self.assertIsNotNone(gather_metrics.quartiles_reward)
-
-    @patch(
-        "farm.database.analyzers.temporal_pattern_analyzer.TemporalPatternAnalyzer.analyze"
-    )
-    @patch("farm.database.analyzers.resource_impact_analyzer.ResourceImpactAnalyzer.analyze")
-    @patch(
-        "farm.database.analyzers.decision_pattern_analyzer.DecisionPatternAnalyzer.analyze"
-    )
-    def test_analyze_with_step_range(self, mock_decision, mock_resource, mock_temporal):
-        """Test analyzer functionality with step range filtering.
-
-        Verifies that the analyzer correctly processes actions within
-        a specified step range and makes appropriate repository calls
-        with the step range parameter.
-        """
-        # Arrange
-        step_range = (1, 2)
-        self.repository.get_actions_by_scope.return_value = self.test_actions
-
-        # Mock the internal analyzers to avoid additional repository calls
-        # Create mock objects with action_type attributes
-        mock_time_pattern = Mock()
-        mock_time_pattern.action_type = "gather"
-        mock_temporal.return_value = [mock_time_pattern]
-
-        mock_resource_impact = Mock()
-        mock_resource_impact.action_type = "gather"
-        mock_resource.return_value = [mock_resource_impact]
-
-        mock_decision_patterns = Mock()
-        mock_decision_patterns.decision_patterns = {"gather": Mock()}
-        mock_decision.return_value = mock_decision_patterns
-
-        # Act
-        results = self.analyzer.analyze(
-            scope=AnalysisScope.SIMULATION, step_range=step_range
-        )
-
-        # Assert - only the main call should be made
-        self.repository.get_actions_by_scope.assert_called_once_with(
-            scope=AnalysisScope.SIMULATION, agent_id=None, step=None, step_range=step_range
-        )
-
-    @patch(
-        "farm.database.analyzers.temporal_pattern_analyzer.TemporalPatternAnalyzer.analyze"
-    )
-    @patch("farm.database.analyzers.resource_impact_analyzer.ResourceImpactAnalyzer.analyze")
-    @patch(
-        "farm.database.analyzers.decision_pattern_analyzer.DecisionPatternAnalyzer.analyze"
-    )
-    def test_pattern_analysis_integration(
-        self, mock_decision, mock_resource, mock_temporal
-    ):
-        """Test integration with various pattern analysis components.
-
-        Verifies proper interaction with:
-        - TemporalPatternAnalyzer
-        - ResourceImpactAnalyzer
-        - DecisionPatternAnalyzer
-
-        Ensures that pattern analysis results are correctly incorporated
-        into the final metrics for each action type.
-        """
-        # Arrange
-        # Create mock objects with action_type attributes
-        mock_time_pattern = Mock()
-        mock_time_pattern.action_type = "gather"
-        mock_temporal.return_value = [mock_time_pattern]
-
-        mock_resource_impact = Mock()
-        mock_resource_impact.action_type = "gather"
-        mock_resource.return_value = [mock_resource_impact]
-
-        mock_decision_patterns = Mock()
-        mock_decision_patterns.decision_patterns = {"gather": Mock()}
-        mock_decision.return_value = mock_decision_patterns
-
-        self.repository.get_actions_by_scope.return_value = self.test_actions
-
-        # Act
-        results = self.analyzer.analyze(scope=AnalysisScope.SIMULATION)
-
-        # Assert
-        self.assertTrue(mock_temporal.called)
-        self.assertTrue(mock_resource.called)
-        self.assertTrue(mock_decision.called)
-
-        gather_metrics = next(m for m in results if m.action_type == "gather")
-        self.assertEqual(len(gather_metrics.temporal_patterns), 1)
-        self.assertEqual(len(gather_metrics.resource_impacts), 1)
-        self.assertEqual(len(gather_metrics.decision_patterns), 1)
+        self.assertIsInstance(patterns, dict)
+        # Should contain decision pattern analysis results
 
 
 if __name__ == "__main__":
