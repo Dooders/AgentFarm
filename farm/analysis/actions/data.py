@@ -8,6 +8,10 @@ import pandas as pd
 
 from farm.database.database import SimulationDatabase
 from farm.database.repositories.action_repository import ActionRepository
+from farm.analysis.common.utils import find_database_path
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def process_action_data(
@@ -27,14 +31,13 @@ def process_action_data(
     """
     # Try to load from database first
     df = None
-    try:
-        # Find simulation database
-        db_path = experiment_path / "simulation.db"
-        if not db_path.exists():
-            # Try alternative locations
-            db_path = experiment_path / "data" / "simulation.db"
+    
+    if use_database:
+        try:
+            # Find simulation database using standardized utility
+            db_path = find_database_path(experiment_path, "simulation.db")
+            logger.info(f"Loading actions from database: {db_path}")
 
-        if db_path.exists():
             # Load data using repository directly
             db = SimulationDatabase(f"sqlite:///{db_path}")
             repository = ActionRepository(db.session_manager)
@@ -57,9 +60,11 @@ def process_action_data(
                 })
 
             df = pd.DataFrame(action_data)
-    except Exception as e:
-        # If database loading fails, try to load from CSV files
-        pass
+            logger.info(f"Loaded {len(df)} action records from database")
+            
+        except (FileNotFoundError, ImportError) as e:
+            logger.exception(f"Database loading failed: {e}. Falling back to CSV files")
+            df = None
 
     if df is None or df.empty:
         # Fallback to loading from CSV files

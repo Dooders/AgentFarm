@@ -2,6 +2,8 @@
 Learning analysis module implementation.
 """
 
+import numpy as np
+
 from farm.analysis.core import BaseAnalysisModule, SimpleDataProcessor, make_analysis_function
 from farm.analysis.validation import ColumnValidator, DataQualityValidator, CompositeValidator
 
@@ -36,7 +38,8 @@ class LearningModule(BaseAnalysisModule):
             DataQualityValidator(min_rows=1),
             ColumnValidator(
                 required_columns=['step', 'reward'],  # Core required columns
-                column_types={'step': int, 'reward': (int, float)}
+                # Use np.number to accept both int and float for reward
+                column_types={'step': int, 'reward': np.number}
             )
         ])
         self.set_validator(validator)

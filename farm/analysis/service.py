@@ -361,7 +361,7 @@ class AnalysisService:
                 f"Running {request.module_name} analysis " f"(group: {request.group})"
             )
 
-            output_path, dataframe = module.run_analysis(
+            output_path, dataframe, errors = module.run_analysis(
                 experiment_path=request.experiment_path,
                 output_path=request.output_path,
                 group=request.group,
@@ -369,6 +369,12 @@ class AnalysisService:
                 analysis_kwargs=request.analysis_kwargs,
                 progress_callback=request.progress_callback,
             )
+            
+            # Log any errors that occurred
+            if errors:
+                logger.warning(f"Analysis completed with {len(errors)} error(s)")
+                for error in errors:
+                    logger.debug(f"  - {error.function_name}: {error.original_error}")
 
             # Cache result if enabled
             if request.enable_caching:

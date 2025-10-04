@@ -53,7 +53,7 @@ class ColumnValidator:
             if col_name in df.columns:
                 actual_dtype = df[col_name].dtype
                 
-                # Check numeric types
+                # Check numeric types (supports int, float, or np.number)
                 if expected_type in (int, float, np.number):
                     if not pd.api.types.is_numeric_dtype(actual_dtype):
                         invalid_types[col_name] = f"Expected numeric, got {actual_dtype}"

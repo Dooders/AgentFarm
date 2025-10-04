@@ -2,6 +2,8 @@
 Actions analysis module implementation.
 """
 
+import numpy as np
+
 from farm.analysis.core import BaseAnalysisModule, SimpleDataProcessor, make_analysis_function
 from farm.analysis.validation import ColumnValidator, DataQualityValidator, CompositeValidator
 
@@ -33,7 +35,8 @@ class ActionsModule(BaseAnalysisModule):
         validator = CompositeValidator([
             ColumnValidator(
                 required_columns=['step', 'action_type', 'frequency'],
-                column_types={'step': int, 'frequency': (int, float)}
+                # Use np.number to accept both int and float for frequency
+                column_types={'step': int, 'frequency': np.number}
             ),
             DataQualityValidator(min_rows=1)
         ])

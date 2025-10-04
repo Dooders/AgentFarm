@@ -71,6 +71,7 @@ from farm.analysis.common.context import (
 from farm.analysis.core import (
     BaseAnalysisModule,
     ChainedDataProcessor,
+    ErrorHandlingMode,
     SimpleDataProcessor,
     make_analysis_function,
 )
@@ -133,6 +134,7 @@ __all__ = [
     "BaseAnalysisModule",
     "SimpleDataProcessor",
     "ChainedDataProcessor",
+    "ErrorHandlingMode",
     "make_analysis_function",
     # Validation
     "ColumnValidator",

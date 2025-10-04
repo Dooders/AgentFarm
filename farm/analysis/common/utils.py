@@ -153,17 +153,29 @@ def find_database_path(experiment_path: Path, db_filename: str = "simulation.db"
     Raises:
         FileNotFoundError: If database not found
     """
+    from farm.utils.logging_config import get_logger
+    logger = get_logger(__name__)
+    
     # Try direct location first
     db_path = experiment_path / db_filename
     if db_path.exists():
+        logger.debug(f"Found database at: {db_path}")
         return db_path
 
     # Try in data subdirectory
     db_path = experiment_path / "data" / db_filename
     if db_path.exists():
+        logger.debug(f"Found database at: {db_path}")
         return db_path
 
-    raise FileNotFoundError(f"No database found at {experiment_path}")
+    # Try experiment_path itself if it's a db file
+    if experiment_path.is_file() and experiment_path.name == db_filename:
+        logger.debug(f"Found database at: {experiment_path}")
+        return experiment_path
+
+    raise FileNotFoundError(
+        f"No database '{db_filename}' found in {experiment_path} or {experiment_path}/data"
+    )
 
 
 def convert_dict_to_dataframe(data: Dict[str, Any], step_column: str = "step") -> pd.DataFrame:
