@@ -28,6 +28,7 @@ from farm.database.models import (
     SimulationStepModel,
     SocialInteractionModel,
 )
+from farm.analysis.config import genesis_config
 
 logger = get_logger(__name__)
 
@@ -281,7 +282,7 @@ def compute_initial_state_metrics(session: Session) -> Dict[str, Any]:
 
             # Resource clustering coefficient (using a distance threshold)
             distance_matrix = squareform(distances)
-            threshold = 20  # Consider resources within 20 units as clustered
+            threshold = genesis_config.resource_proximity_threshold
             adjacency_matrix = distance_matrix < threshold
 
             # Count connections for each resource
@@ -709,7 +710,7 @@ def compute_initial_relative_advantages(
                 resource_pos = (resource["position_x"], resource["position_y"])
                 distance = euclidean(agent_pos, resource_pos)
 
-                if distance <= 30:  # Gathering range
+                if distance <= genesis_config.resource_proximity_threshold:  # Gathering range
                     resources_in_range += 1
                     resource_amount_in_range += resource["amount"]
 
@@ -1042,7 +1043,7 @@ def calculate_feature_importance(
 
 
 def compute_critical_period_metrics(
-    session: Session, critical_period_end: int = 100
+    session: Session, critical_period_end: Optional[int] = None
 ) -> Dict[str, Any]:
     """
     Compute metrics for the critical early period of the simulation.
@@ -1055,13 +1056,16 @@ def compute_critical_period_metrics(
     session : Session
         SQLAlchemy database session
     critical_period_end : int, optional
-        The step number that marks the end of the critical period, by default 100
+        The step number that marks the end of the critical period, uses config default if None
 
     Returns
     -------
     Dict[str, Any]
         Dictionary containing critical period metrics
     """
+    if critical_period_end is None:
+        critical_period_end = genesis_config.critical_period_end
+    
     metrics = {}
 
     # Get initial state

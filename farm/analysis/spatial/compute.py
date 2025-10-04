@@ -10,6 +10,7 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
 from farm.analysis.common.utils import calculate_statistics
+from farm.analysis.config import spatial_config
 
 
 def compute_spatial_statistics(spatial_data: Dict[str, pd.DataFrame]) -> Dict[str, Any]:
@@ -268,16 +269,17 @@ def _identify_hotspots(activity_df: pd.DataFrame) -> List[Dict[str, Any]]:
 
 def _compute_location_clusters(activity_df: pd.DataFrame) -> Dict[str, Any]:
     """Compute location clustering using K-means."""
-    if activity_df.empty or len(activity_df) < 3:
+    min_points = spatial_config.min_clustering_points
+    if activity_df.empty or len(activity_df) < min_points:
         return {}
 
     coords = activity_df[['position_x', 'position_y']].dropna().values
 
-    if len(coords) < 3:
+    if len(coords) < min_points:
         return {}
 
     # Try different numbers of clusters
-    max_clusters = min(10, len(coords))
+    max_clusters = min(spatial_config.max_clusters, len(coords))
     best_score = -1
     best_n_clusters = 2
 
@@ -313,7 +315,7 @@ def _estimate_spatial_density(coords: np.ndarray) -> Dict[str, Any]:
     try:
         # Simple density estimation using 2D histogram
         hist, xedges, yedges = np.histogram2d(
-            coords[:, 0], coords[:, 1], bins=20, density=True
+            coords[:, 0], coords[:, 1], bins=spatial_config.density_bins, density=True
         )
 
         return {

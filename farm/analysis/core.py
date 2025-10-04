@@ -8,6 +8,7 @@ can be extended by specific analysis modules.
 
 from typing import List, Dict, Any, Optional, Callable, Iterator
 from pathlib import Path
+from enum import Enum
 import pandas as pd
 from farm.utils.logging_config import get_logger
 
@@ -27,6 +28,13 @@ from farm.analysis.validation import CompositeValidator
 
 
 logger = get_logger(__name__)
+
+
+class ErrorHandlingMode(Enum):
+    """Error handling modes for analysis functions."""
+    CONTINUE = "continue"  # Continue on error (default)
+    FAIL_FAST = "fail_fast"  # Stop on first error
+    COLLECT = "collect"  # Continue and collect all errors
 
 
 class BaseAnalysisModule:
@@ -49,6 +57,7 @@ class BaseAnalysisModule:
         self._groups: Dict[str, List[AnalysisFunction]] = {}
         self._registered = False
         self._validator: Optional[DataValidator] = None
+        self._error_mode: ErrorHandlingMode = ErrorHandlingMode.CONTINUE
     
     @property
     def name(self) -> str:
@@ -103,6 +112,22 @@ class BaseAnalysisModule:
             validator: DataValidator instance
         """
         self._validator = validator
+    
+    def set_error_mode(self, mode: ErrorHandlingMode) -> None:
+        """Set the error handling mode for analysis functions.
+        
+        Args:
+            mode: Error handling mode (CONTINUE, FAIL_FAST, or COLLECT)
+        """
+        self._error_mode = mode
+    
+    def get_error_mode(self) -> ErrorHandlingMode:
+        """Get the current error handling mode.
+        
+        Returns:
+            Current error handling mode
+        """
+        return self._error_mode
     
     def get_analysis_functions(self, group: str = "all") -> List[AnalysisFunction]:
         """Get analysis functions by group.
@@ -177,8 +202,9 @@ class BaseAnalysisModule:
         group: str = "all",
         processor_kwargs: Optional[Dict[str, Any]] = None,
         analysis_kwargs: Optional[Dict[str, Dict[str, Any]]] = None,
-        progress_callback: Optional[Callable[[str, float], None]] = None
-    ) -> tuple[Path, Optional[pd.DataFrame]]:
+        progress_callback: Optional[Callable[[str, float], None]] = None,
+        error_mode: Optional[ErrorHandlingMode] = None
+    ) -> tuple[Path, Optional[pd.DataFrame], List[AnalysisFunctionError]]:
         """Run complete analysis workflow.
         
         Args:
@@ -188,9 +214,10 @@ class BaseAnalysisModule:
             processor_kwargs: Arguments for data processor
             analysis_kwargs: Arguments for specific analysis functions
             progress_callback: Optional progress callback
+            error_mode: Override error handling mode for this run
             
         Returns:
-            Tuple of (output_path, processed_dataframe)
+            Tuple of (output_path, processed_dataframe, list_of_errors)
         """
         self._ensure_registered()
         
@@ -262,9 +289,13 @@ class BaseAnalysisModule:
         functions = self.get_analysis_functions(group)
         if not functions:
             ctx.logger.warning(f"No functions found for group '{group}'")
-            return output_path, df
+            return output_path, df, []
         
         ctx.report_progress(f"Running {len(functions)} analysis functions", 0.4)
+        
+        # Determine error handling mode
+        active_error_mode = error_mode if error_mode is not None else self._error_mode
+        errors_collected: List[AnalysisFunctionError] = []
         
         # Run each analysis function
         for i, func in enumerate(functions):
@@ -285,13 +316,25 @@ class BaseAnalysisModule:
             except Exception as e:
                 error = AnalysisFunctionError(func_name, e)
                 ctx.logger.error(f"Error in {func_name}: {e}", exc_info=True)
-                # Continue with other functions rather than failing completely
-                continue
+                
+                # Handle error based on mode
+                if active_error_mode == ErrorHandlingMode.FAIL_FAST:
+                    ctx.logger.error("Stopping analysis due to FAIL_FAST mode")
+                    raise error
+                elif active_error_mode == ErrorHandlingMode.COLLECT:
+                    errors_collected.append(error)
+                    ctx.logger.warning(f"Collected error, continuing with remaining functions")
+                else:  # CONTINUE mode (default)
+                    ctx.logger.warning(f"Skipping {func_name}, continuing with remaining functions")
+                    continue
         
         ctx.report_progress("Analysis complete", 1.0)
         ctx.logger.info(f"Results saved to: {output_path}")
         
-        return output_path, df
+        if errors_collected:
+            ctx.logger.warning(f"Analysis completed with {len(errors_collected)} error(s)")
+        
+        return output_path, df, errors_collected
     
     def _ensure_registered(self) -> None:
         """Ensure functions are registered (lazy registration)."""
