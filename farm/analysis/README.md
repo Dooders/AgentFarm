@@ -393,7 +393,7 @@ Phase 1 of the analysis refactoring has established the foundation for migrating
 #### 🔄 Next Phases
 
 - **Phase 2**: Migrate core analyzers (population, resources, actions, agents)
-- **Phase 3**: Migrate specialized analyzers (learning, spatial, temporal, combat)
+- ✅ **Phase 3**: Migrate specialized analyzers (learning, spatial, temporal, combat) - **COMPLETED**
 - **Phase 4**: Consolidate scripts and update orchestration
 - **Phase 5**: Final testing and documentation
 
@@ -467,6 +467,110 @@ Key changes:
 
 ### Available Modules
 
+#### Core Analysis Modules
+
+**Population Analysis** (`population`) - Analyze population dynamics, births, deaths, and agent composition:
+```python
+# Analyze population trends
+request = AnalysisRequest(
+    module_name="population",
+    experiment_path=Path("data/experiment"),
+    output_path=Path("results/population"),
+    group="basic"
+)
+```
+
+**Resource Analysis** (`resources`) - Analyze resource distribution, consumption patterns, and efficiency:
+```python
+# Analyze resource usage
+request = AnalysisRequest(
+    module_name="resources",
+    experiment_path=Path("data/experiment"),
+    output_path=Path("results/resources"),
+    group="analysis"
+)
+```
+
+**Action Analysis** (`actions`) - Analyze action patterns, success rates, and decision making:
+```python
+# Analyze action distributions
+request = AnalysisRequest(
+    module_name="actions",
+    experiment_path=Path("data/experiment"),
+    output_path=Path("results/actions"),
+    group="plots"
+)
+```
+
+**Agent Analysis** (`agents`) - Analyze individual agent behavior, lifespans, and clustering:
+```python
+# Analyze agent behavior patterns
+request = AnalysisRequest(
+    module_name="agents",
+    experiment_path=Path("data/experiment"),
+    output_path=Path("results/agents"),
+    group="all"
+)
+```
+
+#### Specialized Analysis Modules
+
+**Learning Analysis** (`learning`) - Analyze learning performance, agent learning curves, and module efficiency:
+```python
+# Analyze learning progress
+request = AnalysisRequest(
+    module_name="learning",
+    experiment_path=Path("data/experiment"),
+    output_path=Path("results/learning"),
+    group="performance"
+)
+```
+
+**Spatial Analysis** (`spatial`) - Analyze spatial patterns, movement trajectories, and location effects:
+```python
+# Analyze movement patterns
+request = AnalysisRequest(
+    module_name="spatial",
+    experiment_path=Path("data/experiment"),
+    output_path=Path("results/spatial"),
+    group="movement"
+)
+```
+
+**Temporal Analysis** (`temporal`) - Analyze time series patterns, periodic behaviors, and temporal efficiency:
+```python
+# Analyze temporal patterns
+request = AnalysisRequest(
+    module_name="temporal",
+    experiment_path=Path("data/experiment"),
+    output_path=Path("results/temporal"),
+    group="analysis"
+)
+```
+
+**Combat Analysis** (`combat`) - Analyze combat metrics, win/loss ratios, and damage patterns:
+```python
+# Analyze combat performance
+request = AnalysisRequest(
+    module_name="combat",
+    experiment_path=Path("data/experiment"),
+    output_path=Path("results/combat"),
+    group="all"
+)
+```
+
+#### Legacy Modules
+
+**Dominance Analysis** (`dominance`) - Analyze dominance hierarchies and social structures (legacy module)
+
+**Genesis Analysis** (`genesis`) - Analyze initial population generation and setup (legacy module)
+
+**Advantage Analysis** (`advantage`) - Analyze relative advantages between agent types (legacy module)
+
+**Social Behavior** (`social_behavior`) - Analyze social interactions and behavior patterns (legacy module)
+
+#### Listing All Modules
+
 List all registered modules:
 
 ```python
@@ -475,18 +579,15 @@ from farm.analysis.registry import list_modules
 print(list_modules())
 ```
 
-Get module info:
+Get detailed module info:
 
 ```python
 from farm.analysis.registry import get_module
 
-module = get_module("dominance")
-info = module.get_info()
-
-print(f"Name: {info['name']}")
-print(f"Description: {info['description']}")
-print(f"Function groups: {info['function_groups']}")
-print(f"Functions: {info['functions']}")
+module = get_module("learning")
+print(f"Name: {module.name}")
+print(f"Description: {module.description}")
+print(f"Function groups: {list(module.get_function_groups().keys())}")
 ```
 
 ### Contributing
