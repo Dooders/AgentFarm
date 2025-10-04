@@ -14,6 +14,8 @@ from farm.analysis.comparative import (
     plot_performance_comparison,
     plot_simulation_comparison,
     compare_simulations,
+    compare_experiments,
+    plot_comparative_analysis,
 )
 from farm.analysis.common.context import AnalysisContext
 

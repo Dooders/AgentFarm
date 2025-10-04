@@ -10,6 +10,8 @@ from farm.analysis.advantage.analyze import analyze_advantage_patterns
 from farm.analysis.advantage.plot import (
     plot_advantage_results,
     plot_advantage_correlation_matrix,
+    plot_advantage_distribution,
+    plot_advantage_timeline,
 )
 
 __all__ = [
@@ -17,6 +19,8 @@ __all__ = [
     'analyze_advantage_patterns',
     'plot_advantage_results',
     'plot_advantage_correlation_matrix',
+    'plot_advantage_distribution',
+    'plot_advantage_timeline',
     'advantage_module'
 ]
 

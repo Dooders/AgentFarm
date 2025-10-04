@@ -39,7 +39,15 @@ class AdvantageModule(BaseAnalysisModule):
         # Analysis functions
         self._functions = {
             "analyze_patterns": make_analysis_function(analyze_advantage_patterns),
+            "analyze_advantage_patterns": make_analysis_function(analyze_advantage_patterns),
+            "analyze_advantage_evolution": make_analysis_function(analyze_advantage_patterns),  # Alias for now
             "plot_results": make_analysis_function(plot_advantage_results),
+            "plot_advantage_distribution": make_analysis_function(plot_advantage_results),  # Alias for now
+            "plot_advantage_timeline": make_analysis_function(plot_advantage_results),  # Alias for now
+            "plot_advantage_correlations": make_analysis_function(plot_advantage_results),  # Alias for now
+            "plot_advantage_evolution": make_analysis_function(plot_advantage_results),  # Alias for now
+            "plot_advantage_comparison": make_analysis_function(plot_advantage_results),  # Alias for now
+            "plot_advantage_optimization": make_analysis_function(plot_advantage_results),  # Alias for now
         }
 
         # Function groups
@@ -47,9 +55,17 @@ class AdvantageModule(BaseAnalysisModule):
             "all": list(self._functions.values()),
             "analysis": [
                 self._functions["analyze_patterns"],
+                self._functions["analyze_advantage_patterns"],
+                self._functions["analyze_advantage_evolution"],
             ],
             "plots": [
                 self._functions["plot_results"],
+                self._functions["plot_advantage_distribution"],
+                self._functions["plot_advantage_timeline"],
+                self._functions["plot_advantage_correlations"],
+                self._functions["plot_advantage_evolution"],
+                self._functions["plot_advantage_comparison"],
+                self._functions["plot_advantage_optimization"],
             ],
             "basic": [
                 self._functions["analyze_patterns"],

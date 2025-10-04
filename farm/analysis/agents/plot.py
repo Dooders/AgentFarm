@@ -100,7 +100,7 @@ def plot_behavior_clusters(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> 
     fig.savefig(output_file, dpi=kwargs.get('dpi', 300), bbox_inches='tight')
     plt.close(fig)
 
-    ctx.logger.info(f"Saved plot to {output_file}")
+    ctx.logger.info(f"Saved cluster plot to {output_file}")
 
 
 def plot_performance_metrics(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> None:

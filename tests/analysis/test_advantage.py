@@ -12,6 +12,8 @@ from farm.analysis.advantage import (
     advantage_module,
     plot_advantage_results,
     plot_advantage_correlation_matrix,
+    plot_advantage_distribution,
+    plot_advantage_timeline,
     analyze_advantage_patterns,
 )
 from farm.analysis.common.context import AnalysisContext

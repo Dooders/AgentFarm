@@ -100,7 +100,7 @@ def plot_behavior_clusters(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> 
 
     ax.grid(True, alpha=0.3)
 
-    output_file = ctx.get_output_file("behavior_cluster_plot.png")
+    output_file = ctx.get_output_file("behavior_clusters.png")
     fig.savefig(output_file, dpi=kwargs.get('dpi', 300), bbox_inches='tight')
     plt.close(fig)
 
