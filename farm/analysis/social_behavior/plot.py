@@ -110,8 +110,14 @@ def plot_cooperation_competition_balance(df: pd.DataFrame, ctx: AnalysisContext,
         # Add value labels on bars
         for bar, ratio in zip(bars, ratios):
             height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                   '.2f', ha='center', va='bottom', fontsize=9)
+            ax.text(
+                bar.get_x() + bar.get_width() / 2.0,
+                height + 0.01,
+                f"{ratio:.2f}",
+                ha='center',
+                va='bottom',
+                fontsize=9,
+            )
 
     else:
         # Fallback: show overall ratio
@@ -241,8 +247,14 @@ def plot_spatial_clustering(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) ->
         # Add value labels on bars
         for bar, ratio in zip(bars, ratios):
             height = bar.get_height()
-            ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                   '.2f', ha='center', va='bottom', fontsize=9)
+            ax.text(
+                bar.get_x() + bar.get_width() / 2.0,
+                height + 0.01,
+                f"{ratio:.2f}",
+                ha='center',
+                va='bottom',
+                fontsize=9,
+            )
 
         # Add reference line at 0.5
         ax.axhline(y=0.5, color='red', linestyle='--', alpha=0.7,

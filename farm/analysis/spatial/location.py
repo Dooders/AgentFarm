@@ -175,8 +175,13 @@ def _compute_detailed_clustering(activity_df: pd.DataFrame) -> Dict[str, Any]:
     # Nearest neighbor analysis
     nn_distances = []
     for i in range(n_points):
-        # Find minimum distance to other points
-        min_dist = np.min(distances[i, distances[i] > 0])
+        # Exclude self-distance (zero) and handle cases where all neighbors coincide
+        row = distances[i]
+        positive_mask = row > 0
+        if not np.any(positive_mask):
+            # All points coincide with point i; skip to avoid empty min()
+            continue
+        min_dist = float(np.min(row[positive_mask]))
         if min_dist > 0:
             nn_distances.append(min_dist)
 
@@ -297,8 +302,18 @@ def _ripleys_k_approximation(coords: np.ndarray, max_radius: float = 10.0, n_rad
     radii = np.linspace(0.1, max_radius, n_radii)
     k_values = []
 
-    area = (np.max(coords[:, 0]) - np.min(coords[:, 0])) * (np.max(coords[:, 1]) - np.min(coords[:, 1]))
+    width = float(np.max(coords[:, 0]) - np.min(coords[:, 0]))
+    height = float(np.max(coords[:, 1]) - np.min(coords[:, 1]))
+    area = width * height
     n_points = len(coords)
+    # Guard against zero area (identical coordinates) to avoid division by zero
+    if area <= 0:
+        return {
+            'radii': np.linspace(0.1, max_radius, n_radii).tolist(),
+            'k_values': [0.0] * n_radii,
+            'max_radius': max_radius,
+            'n_radii': n_radii,
+        }
     intensity = n_points / area
 
     for radius in radii:
@@ -310,7 +325,9 @@ def _ripleys_k_approximation(coords: np.ndarray, max_radius: float = 10.0, n_rad
                     if dist <= radius:
                         count += 1
 
-        k_value = count / (n_points * intensity)
+        # Guard denominator in case intensity becomes non-positive due to numeric issues
+        denom = max(n_points * intensity, 1e-12)
+        k_value = count / denom
         k_values.append(float(k_value))
 
     return {
