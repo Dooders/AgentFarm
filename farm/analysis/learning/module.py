@@ -31,13 +31,13 @@ class LearningModule(BaseAnalysisModule):
             description="Analysis of learning performance, agent learning curves, and module efficiency"
         )
 
-        # Set up validation
+        # Set up validation - DataQualityValidator first to catch empty data before type checking
         validator = CompositeValidator([
+            DataQualityValidator(min_rows=1),
             ColumnValidator(
                 required_columns=['step', 'reward'],  # Core required columns
                 column_types={'step': int, 'reward': (int, float)}
-            ),
-            DataQualityValidator(min_rows=1)
+            )
         ])
         self.set_validator(validator)
 

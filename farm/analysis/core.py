@@ -237,13 +237,7 @@ class BaseAnalysisModule:
         except Exception as e:
             raise DataProcessingError(f"Data processing failed: {e}", step="processing") from e
         
-        if df is None or df.empty:
-            ctx.logger.warning("No data produced by processor")
-            return output_path, None
-        
-        ctx.report_progress(f"Processed {len(df)} records", 0.3)
-        
-        # Validate data if validator is set
+        # Validate data if validator is set (even if empty, to catch insufficient data)
         validator = self.get_validator()
         if validator:
             try:
@@ -252,6 +246,13 @@ class BaseAnalysisModule:
             except Exception as e:
                 ctx.logger.error(f"Data validation failed: {e}")
                 raise
+
+        # Check for empty DataFrame after validation (validation should handle this)
+        if df is None or df.empty:
+            ctx.logger.warning("No data produced by processor")
+            return output_path, None
+
+        ctx.report_progress(f"Processed {len(df)} records", 0.3)
         
         # Log summary statistics
         ctx.logger.info(f"Analyzed {len(df)} records")

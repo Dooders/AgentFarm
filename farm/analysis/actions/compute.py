@@ -37,7 +37,7 @@ def compute_action_statistics(df: pd.DataFrame) -> Dict[str, Any]:
             stats['action_types'][action_type] = {
                 'frequency': calculate_statistics(type_data['frequency'].values),
                 'success_rate': calculate_statistics(type_data['success_rate'].values),
-                'avg_reward': calculate_statistics(type_data['reward'].values),
+                'avg_reward': calculate_statistics(type_data['avg_reward'].values),
             }
 
     # Most common action

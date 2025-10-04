@@ -3,7 +3,9 @@ Spatial analysis module implementation.
 """
 
 from farm.analysis.core import BaseAnalysisModule, SimpleDataProcessor, make_analysis_function
-from farm.analysis.validation import ColumnValidator, DataQualityValidator, CompositeValidator
+from farm.analysis.validation import ColumnValidator, DataQualityValidator, CompositeValidator, DataValidationError
+from typing import Dict, Any
+import pandas as pd
 
 from farm.analysis.spatial.data import process_spatial_data
 from farm.analysis.spatial.analyze import (
@@ -22,6 +24,47 @@ from farm.analysis.spatial.plot import (
 )
 
 
+class SpatialDataValidator:
+    """Custom validator for spatial data that handles dict of DataFrames."""
+
+    def __init__(self, min_rows: int = 1):
+        """Initialize validator.
+
+        Args:
+            min_rows: Minimum rows required in each DataFrame
+        """
+        self.min_rows = min_rows
+
+    def validate(self, data: Dict[str, pd.DataFrame]) -> None:
+        """Validate spatial data structure.
+
+        Args:
+            data: Dictionary containing 'agent_positions' and 'resource_positions' DataFrames
+
+        Raises:
+            DataValidationError: If validation fails
+        """
+        if not isinstance(data, dict):
+            raise DataValidationError("Spatial data must be a dictionary")
+
+        required_keys = ['agent_positions', 'resource_positions']
+        missing_keys = set(required_keys) - set(data.keys())
+        if missing_keys:
+            raise DataValidationError(f"Missing required data keys: {missing_keys}")
+
+        for key in required_keys:
+            df = data[key]
+            if not isinstance(df, pd.DataFrame):
+                raise DataValidationError(f"Data for '{key}' must be a DataFrame, got {type(df)}")
+
+            if len(df) < self.min_rows:
+                raise DataValidationError(f"DataFrame '{key}' has insufficient rows: {len(df)} < {self.min_rows}")
+
+    def get_required_columns(self) -> list:
+        """Get required columns (not applicable for dict structure)."""
+        return []
+
+
 class SpatialModule(BaseAnalysisModule):
     """Module for analyzing spatial patterns in simulations."""
 
@@ -31,14 +74,8 @@ class SpatialModule(BaseAnalysisModule):
             description="Analysis of spatial patterns, movement trajectories, location effects, and clustering"
         )
 
-        # Set up validation
-        validator = CompositeValidator([
-            ColumnValidator(
-                required_columns=[],  # Flexible since we handle multiple data types
-                column_types={}
-            ),
-            DataQualityValidator(min_rows=1)
-        ])
+        # Set up validation for spatial data structure
+        validator = SpatialDataValidator(min_rows=1)
         self.set_validator(validator)
 
     def register_functions(self) -> None:

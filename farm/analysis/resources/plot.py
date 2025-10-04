@@ -80,7 +80,7 @@ def plot_consumption_over_time(df: pd.DataFrame, ctx: AnalysisContext, **kwargs)
     ax.legend()
     ax.grid(True, alpha=0.3)
 
-    output_file = ctx.get_output_file("consumption_patterns.png")
+    output_file = ctx.get_output_file("consumption_over_time.png")
     fig.savefig(output_file, dpi=kwargs.get('dpi', 300), bbox_inches='tight')
     plt.close(fig)
 
@@ -119,7 +119,7 @@ def plot_efficiency_metrics(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) ->
     ax.grid(True, alpha=0.3)
     ax.set_ylim(0, 100)
 
-    output_file = ctx.get_output_file("resource_efficiency.png")
+    output_file = ctx.get_output_file("efficiency_metrics.png")
     fig.savefig(output_file, dpi=kwargs.get('dpi', 300), bbox_inches='tight')
     plt.close(fig)
 

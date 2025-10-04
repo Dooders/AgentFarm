@@ -144,12 +144,20 @@ class TestSpatialIntegration:
 
         # Mock the data processing to avoid database dependency
         with patch('farm.analysis.spatial.data.process_spatial_data') as mock_process:
-            mock_process.return_value = pd.DataFrame({
-                'step': range(10),
-                'agent_id': ['agent_1'] * 10,
-                'x': range(10),
-                'y': range(10),
-            })
+            mock_process.return_value = {
+                'agent_positions': pd.DataFrame({
+                    'step': range(10),
+                    'agent_id': ['agent_1'] * 10,
+                    'x': range(10),
+                    'y': range(10),
+                }),
+                'resource_positions': pd.DataFrame({
+                    'step': range(5),
+                    'resource_id': ['resource_1'] * 5,
+                    'x': range(5),
+                    'y': range(5),
+                })
+            }
 
             result = service.run(request)
 
