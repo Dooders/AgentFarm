@@ -35,6 +35,45 @@ def detect_significant_events(db_connection, start_step: int = 0, end_step: Opti
 
     # Mock some example events for now
     # TODO: Implement actual database queries
+    # Example event data structure for future implementation
+    # Each event should be a dictionary with at least the following keys:
+    # - 'type': str, one of ['agent_death', 'agent_birth', 'resource_depletion', 'population_crash', 'environmental_change']
+    # - 'step': int, simulation step when the event occurred
+    # - 'impact_scale': float, quantifies the impact (e.g., 0.0–1.0)
+    # - 'details': dict, additional event-specific information
+    events = [
+        {
+            'type': 'agent_death',
+            'step': 120,
+            'impact_scale': 0.7,
+            'details': {'agent_id': 42, 'cause': 'starvation'}
+        },
+        {
+            'type': 'resource_depletion',
+            'step': 135,
+            'impact_scale': 0.9,
+            'details': {'resource': 'water', 'remaining': 0}
+        },
+        {
+            'type': 'population_crash',
+            'step': 150,
+            'impact_scale': 1.0,
+            'details': {'population_before': 200, 'population_after': 50}
+        },
+        {
+            'type': 'environmental_change',
+            'step': 160,
+            'impact_scale': 0.6,
+            'details': {'change': 'temperature_drop', 'delta': -5}
+        },
+        {
+            'type': 'agent_birth',
+            'step': 170,
+            'impact_scale': 0.3,
+            'details': {'agent_id': 99, 'parent_id': 42}
+        }
+    ]
+    # TODO: Implement actual database queries to replace this example data
 
     return events
 

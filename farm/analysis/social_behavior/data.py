@@ -64,7 +64,8 @@ def process_social_behavior_data(
                 ratio = summary["overall_coop_comp_ratio"]
                 summary_data['metric_type'].append('overall_coop_comp_ratio')
                 summary_data['value'].append(float(ratio) if ratio != float('inf') else 999)
-                summary_data['description'].append('.3f')
+                ratio_value = float(ratio) if ratio != float('inf') else 999
+                summary_data['description'].append(f"Overall cooperation-competition ratio: {ratio_value:.3f}")
 
             # Total social interactions
             if "total_social_interactions" in summary:
@@ -76,7 +77,7 @@ def process_social_behavior_data(
             if "clustering_ratio" in summary:
                 summary_data['metric_type'].append('clustering_ratio')
                 summary_data['value'].append(summary["clustering_ratio"])
-                summary_data['description'].append('.3f')
+                summary_data['description'].append(f"Clustering ratio: {summary['clustering_ratio']:.3f}")
 
         # Add agent type summaries
         if "agent_type_summary" in summary:

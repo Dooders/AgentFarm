@@ -33,7 +33,11 @@ def process_genesis_data(data: Any, **kwargs) -> pd.DataFrame:
         # DataFrame input - likely from cross-simulation analysis
         return data
     else:
-        # Database session or other input - return empty DataFrame
-        # The actual data loading happens in the analysis functions
-        logger.info("Genesis analysis uses database sessions - no DataFrame processing needed")
-        return pd.DataFrame()
+        # Check for database session input
+        if hasattr(data, "execute"):  # crude check for DB session
+            logger.info("Processing database session input for genesis analysis")
+            # TODO: Implement actual data loading from database session
+            raise NotImplementedError("Database session processing not implemented in process_genesis_data")
+        else:
+            logger.error(f"Unsupported data type for genesis analysis: {type(data)}")
+            raise TypeError(f"Unsupported data type for genesis analysis: {type(data)}")

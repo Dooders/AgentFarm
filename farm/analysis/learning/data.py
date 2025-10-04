@@ -75,7 +75,7 @@ def process_learning_data(
         pass
 
     if df is None or df.empty:
-        # For learning, we don't have CSV fallback in the fixture
+        # For learning analysis, we don't have CSV fallback files available
         # Return an empty DataFrame with correct structure
         df = pd.DataFrame(columns=[
             'step', 'agent_id', 'module_type', 'reward', 'action_taken',
