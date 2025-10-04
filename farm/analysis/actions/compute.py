@@ -113,6 +113,61 @@ def compute_decision_patterns(df: pd.DataFrame) -> Dict[str, Any]:
     return decision_patterns
 
 
+def compute_success_rates(df: pd.DataFrame) -> Dict[str, float]:
+    """Compute success rates for different action types.
+
+    Args:
+        df: Action data with success rate columns
+
+    Returns:
+        Dictionary mapping action types to success rates
+    """
+    if 'success_count' not in df.columns or 'total_attempts' not in df.columns:
+        return {}
+
+    success_rates = {}
+    for action_type in df['action_type'].unique():
+        type_data = df[df['action_type'] == action_type]
+        total_success = type_data['success_count'].sum()
+        total_attempts = type_data['total_attempts'].sum()
+
+        if total_attempts > 0:
+            success_rates[action_type] = total_success / total_attempts
+        else:
+            success_rates[action_type] = 0.0
+
+    return success_rates
+
+
+def compute_action_sequences(df: pd.DataFrame) -> Dict[str, Any]:
+    """Compute action sequence statistics.
+
+    Args:
+        df: Action data with sequence columns
+
+    Returns:
+        Dictionary of sequence metrics
+    """
+    if 'action_sequence' not in df.columns:
+        return {}
+
+    sequences = {
+        'common_sequences': {},
+        'avg_sequence_length': float(df['sequence_length'].mean()) if 'sequence_length' in df.columns else 0.0,
+        'max_sequence_length': int(df['sequence_length'].max()) if 'sequence_length' in df.columns else 0,
+        'transition_matrix': {}
+    }
+
+    # Count common sequences
+    if not df.empty:
+        sequence_counts = df['action_sequence'].value_counts()
+        for seq, count in sequence_counts.items():
+            seq_key = '->'.join(seq) if isinstance(seq, list) else str(seq)
+            sequences['common_sequences'][seq_key] = int(count)
+
+    return sequences
+
+
 def compute_reward_metrics(df: pd.DataFrame) -> Dict[str, Any]:
     """Compute reward and performance metrics.
 

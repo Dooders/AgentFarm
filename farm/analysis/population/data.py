@@ -8,7 +8,6 @@ import pandas as pd
 
 from farm.database.database import SimulationDatabase
 from farm.database.repositories.population_repository import PopulationRepository
-from farm.database.analyzers.population_analyzer import PopulationAnalyzer
 
 
 def process_population_data(
@@ -35,23 +34,21 @@ def process_population_data(
     if not db_path.exists():
         raise FileNotFoundError(f"No simulation database found in {experiment_path}")
 
-    # Load data using existing infrastructure
+    # Load data using repository directly
     db = SimulationDatabase(f"sqlite:///{db_path}")
     repository = PopulationRepository(db.session_manager)
-    analyzer = PopulationAnalyzer(repository)
 
-    # Get comprehensive statistics
-    stats = analyzer.analyze_comprehensive_statistics()
+    # Get population data over time
+    population_data = repository.get_population_over_time()
 
     # Convert to DataFrame for analysis
     df = pd.DataFrame({
-        'step': range(len(stats.metrics)),
-        'total_agents': [m.total_agents for m in stats.metrics],
-        'system_agents': [m.system_agents for m in stats.metrics],
-        'independent_agents': [m.independent_agents for m in stats.metrics],
-        'control_agents': [m.control_agents for m in stats.metrics],
-        'avg_resources': [m.avg_resources for m in stats.metrics],
-        # Add more metrics as needed
+        'step': [p.step for p in population_data],
+        'total_agents': [p.total_agents for p in population_data],
+        'system_agents': [p.system_agents for p in population_data],
+        'independent_agents': [p.independent_agents for p in population_data],
+        'control_agents': [p.control_agents for p in population_data],
+        'avg_resources': [p.avg_resources for p in population_data],
     })
 
     return df

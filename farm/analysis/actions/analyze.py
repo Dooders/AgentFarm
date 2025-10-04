@@ -11,6 +11,8 @@ from farm.analysis.actions.compute import (
     compute_sequence_patterns,
     compute_decision_patterns,
     compute_reward_metrics,
+    compute_success_rates,
+    compute_action_sequences,
 )
 
 
@@ -97,3 +99,45 @@ def analyze_reward_analysis(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) ->
 
     ctx.logger.info(f"Saved reward analysis to {output_file}")
     ctx.report_progress("Reward analysis complete", 0.9)
+
+
+def analyze_success_rates(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> None:
+    """Analyze success rates and save results.
+
+    Args:
+        df: Action data with success metrics
+        ctx: Analysis context
+        **kwargs: Additional options
+    """
+    ctx.logger.info("Analyzing success rates...")
+
+    success_rates = compute_success_rates(df)
+
+    # Save success rates to CSV
+    output_file = ctx.get_output_file("success_rates.csv")
+    rates_df = pd.DataFrame(list(success_rates.items()), columns=['action_type', 'success_rate'])
+    rates_df.to_csv(output_file, index=False)
+
+    ctx.logger.info(f"Saved success rates to {output_file}")
+    ctx.report_progress("Success rates analysis complete", 0.5)
+
+
+def analyze_action_sequences(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> None:
+    """Analyze action sequences and save results.
+
+    Args:
+        df: Action data with sequence metrics
+        ctx: Analysis context
+        **kwargs: Additional options
+    """
+    ctx.logger.info("Analyzing action sequences...")
+
+    sequences = compute_action_sequences(df)
+
+    # Save sequence analysis
+    output_file = ctx.get_output_file("action_sequences.json")
+    with open(output_file, 'w') as f:
+        json.dump(sequences, f, indent=2)
+
+    ctx.logger.info(f"Saved sequence analysis to {output_file}")
+    ctx.report_progress("Action sequences analysis complete", 0.6)

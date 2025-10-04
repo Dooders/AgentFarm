@@ -8,7 +8,6 @@ import pandas as pd
 
 from farm.database.database import SimulationDatabase
 from farm.database.repositories.agent_repository import AgentRepository
-from farm.database.analyzers.agent_analyzer import AgentAnalysis
 
 
 def process_agent_data(
@@ -35,30 +34,35 @@ def process_agent_data(
     if not db_path.exists():
         raise FileNotFoundError(f"No simulation database found in {experiment_path}")
 
-    # Load data using existing infrastructure
+    # Load data using repository directly
     db = SimulationDatabase(f"sqlite:///{db_path}")
     repository = AgentRepository(db.session_manager)
-    analyzer = AgentAnalysis(repository)
 
-    # Get all agent IDs (this would need to be implemented in the repository)
-    # For now, create sample agent data structure
-    # This would be replaced with actual repository queries
+    # Get a sample agent ID to demonstrate functionality
+    sample_agent_id = repository.get_random_agent_id()
 
-    # Sample structure - would be populated from actual database
     agent_data = []
+    if sample_agent_id:
+        # Get agent info for the sample agent
+        agent_info = repository.get_agent_info(sample_agent_id)
+        if agent_info:
+            # Get performance metrics
+            metrics = repository.get_agent_performance_metrics(sample_agent_id)
 
-    # Note: In a full implementation, this would query the agent repository
-    # for all agents and their metrics. For now, creating placeholder structure.
+            agent_data.append({
+                'agent_id': sample_agent_id,
+                'agent_type': agent_info.agent_type,
+                'birth_time': agent_info.birth_time,
+                'death_time': agent_info.death_time,
+                'lifespan': getattr(agent_info, 'lifespan', None),
+                'initial_resources': getattr(agent_info, 'initial_resources', None),
+                'starting_health': getattr(agent_info, 'starting_health', None),
+                'final_resources': getattr(metrics, 'final_resources', None),
+                'final_health': getattr(metrics, 'final_health', None),
+                'total_actions': getattr(metrics, 'total_actions', None),
+                'successful_actions': getattr(metrics, 'successful_actions', None),
+                'total_rewards': getattr(metrics, 'total_rewards', None),
+            })
 
     df = pd.DataFrame(agent_data)
-
-    # If no data, create empty DataFrame with expected columns
-    if df.empty:
-        df = pd.DataFrame(columns=[
-            'agent_id', 'agent_type', 'birth_time', 'death_time',
-            'lifespan', 'initial_resources', 'starting_health',
-            'final_resources', 'final_health', 'total_actions',
-            'successful_actions', 'total_rewards'
-        ])
-
     return df

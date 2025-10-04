@@ -170,3 +170,122 @@ def plot_reward_distributions(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) 
     plt.close(fig)
 
     ctx.logger.info(f"Saved plot to {output_file}")
+
+
+def plot_action_distribution(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> None:
+    """Plot action distribution.
+
+    Args:
+        df: Action data with frequency columns
+        ctx: Analysis context
+        **kwargs: Plot options
+    """
+    ctx.logger.info("Creating action distribution plot...")
+
+    if df.empty:
+        ctx.logger.warning("No action data available")
+        return
+
+    figsize = kwargs.get('figsize', (10, 6))
+    dpi = kwargs.get('dpi', 300)
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Count actions by type
+    if 'frequency' in df.columns:
+        action_counts = df.groupby('action_type')['frequency'].sum()
+    else:
+        action_counts = df['action_type'].value_counts()
+
+    # Create bar plot
+    action_counts.plot(kind='bar', ax=ax, color='skyblue', edgecolor='black')
+    ax.set_xlabel('Action Type')
+    ax.set_ylabel('Frequency')
+    ax.set_title('Action Distribution')
+    ax.grid(True, alpha=0.3)
+
+    # Rotate x labels if needed
+    plt.xticks(rotation=45, ha='right')
+
+    plt.tight_layout()
+
+    output_file = ctx.get_output_file("action_distribution.png")
+    fig.savefig(output_file, dpi=dpi, bbox_inches='tight')
+    plt.close(fig)
+
+    ctx.logger.info(f"Saved plot to {output_file}")
+
+
+def plot_success_rates(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> None:
+    """Plot success rates by action type.
+
+    Args:
+        df: Action data with success rate columns
+        ctx: Analysis context
+        **kwargs: Plot options
+    """
+    ctx.logger.info("Creating success rates plot...")
+
+    figsize = kwargs.get('figsize', (10, 6))
+    dpi = kwargs.get('dpi', 300)
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    if 'success_rate' in df.columns and 'action_type' in df.columns:
+        # Group by action type and calculate mean success rate
+        success_by_action = df.groupby('action_type')['success_rate'].mean()
+
+        # Create bar plot
+        success_by_action.plot(kind='bar', ax=ax, color='lightgreen', edgecolor='black')
+        ax.set_xlabel('Action Type')
+        ax.set_ylabel('Success Rate')
+        ax.set_title('Success Rates by Action Type')
+        ax.grid(True, alpha=0.3)
+
+        # Rotate x labels if needed
+        plt.xticks(rotation=45, ha='right')
+    else:
+        ctx.logger.warning("No success rate data available")
+
+    plt.tight_layout()
+
+    output_file = ctx.get_output_file("success_rates.png")
+    fig.savefig(output_file, dpi=dpi, bbox_inches='tight')
+    plt.close(fig)
+
+    ctx.logger.info(f"Saved plot to {output_file}")
+
+
+def plot_action_sequences(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> None:
+    """Plot action sequence length distribution.
+
+    Args:
+        df: Action data with sequence length columns
+        ctx: Analysis context
+        **kwargs: Plot options
+    """
+    ctx.logger.info("Creating action sequences plot...")
+
+    figsize = kwargs.get('figsize', (10, 6))
+    dpi = kwargs.get('dpi', 300)
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    if 'sequence_length' in df.columns:
+        # Plot histogram of sequence lengths
+        ax.hist(df['sequence_length'], bins=range(1, df['sequence_length'].max() + 2),
+                edgecolor='black', alpha=0.7, color='orange')
+        ax.set_xlabel('Sequence Length')
+        ax.set_ylabel('Frequency')
+        ax.set_title('Action Sequence Length Distribution')
+        ax.grid(True, alpha=0.3)
+    else:
+        ctx.logger.warning("No sequence length data available")
+
+    plt.tight_layout()
+
+    output_file = ctx.get_output_file("action_sequences.png")
+    fig.savefig(output_file, dpi=dpi, bbox_inches='tight')
+    plt.close(fig)
+
+    ctx.logger.info(f"Saved plot to {output_file}")
