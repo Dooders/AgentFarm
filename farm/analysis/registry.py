@@ -219,6 +219,8 @@ def _register_builtin_modules() -> int:
         "farm.analysis.spatial.module.spatial_module",
         "farm.analysis.temporal.module.temporal_module",
         "farm.analysis.combat.module.combat_module",
+        "farm.analysis.comparative.module.comparative_module",
+        "farm.analysis.significant_events.module.significant_events_module",
         "farm.analysis.reproduction.module.reproduction_module",
         "farm.analysis.null_module.null_module",
     ]

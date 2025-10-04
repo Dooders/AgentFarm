@@ -19,7 +19,7 @@ import pandas as pd
 
 sys.path.append(str(Path(__file__).parent.parent))
 
-from analysis.simulation_analysis import SimulationAnalyzer
+from farm.core.analysis import SimulationAnalyzer
 
 
 class TestAdvancedTimeSeriesAnalysis(unittest.TestCase):
