@@ -1,3 +1,4 @@
+import warnings
 from typing import List, Optional, Tuple, Union
 
 from farm.database.data_types import (
@@ -15,6 +16,10 @@ class ResourceAnalyzer:
     """
     Analyzes resource dynamics and distribution patterns in the simulation.
 
+    .. deprecated::
+        ResourceAnalyzer is deprecated. Use farm.analysis.resources module
+        with AnalysisService instead.
+
     This class provides comprehensive analysis of resource-related data including
     distribution patterns, consumption statistics, concentration hotspots, and
     efficiency metrics across simulation timesteps.
@@ -23,13 +28,25 @@ class ResourceAnalyzer:
         repository (ResourceRepository): Repository instance for accessing resource data.
 
     Example:
-        >>> analyzer = ResourceAnalyzer(resource_repository)
+        >>> analyzer = ResourceAnalyzer(resource_repository)  # DEPRECATED
         >>> stats = analyzer.analyze_comprehensive_statistics()
         >>> print(f"Total consumed: {stats.consumption.total_consumed:.2f}")
+
+        # New recommended approach:
+        >>> from farm.analysis.service import AnalysisService, AnalysisRequest
+        >>> service = AnalysisService()
+        >>> request = AnalysisRequest(module_name="resources", ...)
+        >>> result = service.run(request)
     """
 
     def __init__(self, repository: ResourceRepository):
         """Initialize the ResourceAnalyzer with a ResourceRepository."""
+        warnings.warn(
+            "ResourceAnalyzer is deprecated. "
+            "Use farm.analysis.resources module with AnalysisService instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         self.repository = repository
 
     def analyze_resource_distribution(

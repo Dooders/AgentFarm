@@ -1,3 +1,4 @@
+import warnings
 from typing import List, Optional, Tuple, Union
 
 from farm.database.data_types import (
@@ -16,6 +17,10 @@ class PopulationAnalyzer:
     """
     Analyzes population data using methods from PopulationRepository.
 
+    .. deprecated::
+        PopulationAnalyzer is deprecated. Use farm.analysis.population module
+        with AnalysisService instead.
+
     This class provides comprehensive analysis of population dynamics, resource utilization,
     and agent distributions across simulation steps. Calculates statistics about agent
     populations, resource consumption, and survival metrics.
@@ -24,13 +29,25 @@ class PopulationAnalyzer:
         repository (PopulationRepository): Repository instance for accessing population data.
 
     Example:
-        >>> analyzer = PopulationAnalyzer(population_repository)
+        >>> analyzer = PopulationAnalyzer(population_repository)  # DEPRECATED
         >>> stats = analyzer.analyze_comprehensive_statistics()
         >>> print(f"Peak population: {stats.population_metrics.total_agents}")
+
+        # New recommended approach:
+        >>> from farm.analysis.service import AnalysisService, AnalysisRequest
+        >>> service = AnalysisService()
+        >>> request = AnalysisRequest(module_name="population", ...)
+        >>> result = service.run(request)
     """
 
     def __init__(self, repository: PopulationRepository):
         """Initialize the PopulationAnalyzer with a PopulationRepository."""
+        warnings.warn(
+            "PopulationAnalyzer is deprecated. "
+            "Use farm.analysis.population module with AnalysisService instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         self.repository = repository
 
     def analyze_population_data(

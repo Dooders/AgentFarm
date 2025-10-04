@@ -9,6 +9,7 @@ from farm.database.enums import AnalysisScope
 from farm.database.repositories.action_repository import ActionRepository
 
 
+import warnings
 class ActionStatsAnalyzer:
     """
     Analyzes statistics and patterns of agent actions in a simulation.
@@ -29,6 +30,12 @@ class ActionStatsAnalyzer:
         Args:
             repository (AgentActionRepository): Repository instance for accessing agent action data.
         """
+        warnings.warn(
+            "ActionStatsAnalyzer is deprecated. "
+            "Use farm.analysis.actions module with AnalysisService instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         self.repository = repository
 
     def analyze(

@@ -1,3 +1,4 @@
+import warnings
 from typing import Any, Dict, List, Optional, Tuple
 
 from farm.database.analyzers.analysis_utils import (
@@ -27,6 +28,12 @@ class AgentAnalysis:
         Args:
             repository (AgentRepository): Repository interface for accessing and querying agent data.
         """
+        warnings.warn(
+            "AgentAnalysis is deprecated. "
+            "Use farm.analysis.agents module with AnalysisService instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         self.repository = repository
 
     def analyze(self, agent_id: str) -> BasicAgentInfo:

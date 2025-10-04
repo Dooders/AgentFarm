@@ -4,6 +4,7 @@ from farm.database.analyzers.location_analysis import LocationAnalyzer
 from farm.database.analyzers.movement_analysis import MovementAnalyzer
 
 
+import warnings
 class SpatialAnalyzer:
     """Analyzes spatial patterns and behaviors of agents.
 

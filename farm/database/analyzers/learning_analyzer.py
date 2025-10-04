@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Union
 import pandas as pd
 
 from farm.database.data_types import (
+import warnings
     AgentLearningStats,
     LearningEfficiencyMetrics,
     LearningProgress,
@@ -32,6 +33,25 @@ class LearningAnalyzer:
 
     def __init__(self, repository: LearningRepository):
         """Initialize the LearningAnalyzer with a LearningRepository."""
+
+
+    warnings.warn(
+
+
+        "LearningAnalyzer is deprecated. "
+
+
+        "Use farm.analysis.learning module with AnalysisService instead.",
+
+
+        DeprecationWarning,
+
+
+        stacklevel=2
+
+
+    )
+
         self.repository = repository
 
     def analyze_learning_progress(

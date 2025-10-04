@@ -8,6 +8,7 @@ from farm.database.enums import AnalysisScope
 from farm.database.repositories.action_repository import ActionRepository
 
 
+import warnings
 class TemporalPatternAnalyzer:
     """
     Analyzes temporal patterns in agent actions over time, including rolling averages and event segmentation.
@@ -34,6 +35,12 @@ class TemporalPatternAnalyzer:
         Args:
             repository (AgentActionRepository): Repository for accessing agent action data.
         """
+        warnings.warn(
+            "TemporalPatternAnalyzer is deprecated. "
+            "Use farm.analysis.temporal module with AnalysisService instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         self.repository = repository
 
     def analyze(
