@@ -34,11 +34,19 @@ def compute_action_statistics(df: pd.DataFrame) -> Dict[str, Any]:
     for action_type in action_types:
         type_data = df[df['action_type'] == action_type]
         if not type_data.empty:
-            stats['action_types'][action_type] = {
+            type_stats = {
                 'frequency': calculate_statistics(type_data['frequency'].values),
-                'success_rate': calculate_statistics(type_data['success_rate'].values),
-                'avg_reward': calculate_statistics(type_data['avg_reward'].values),
             }
+
+            # Add success_rate if available
+            if 'success_rate' in type_data.columns:
+                type_stats['success_rate'] = calculate_statistics(type_data['success_rate'].values)
+
+            # Add avg_reward if available
+            if 'avg_reward' in type_data.columns:
+                type_stats['avg_reward'] = calculate_statistics(type_data['avg_reward'].values)
+
+            stats['action_types'][action_type] = type_stats
 
     # Most common action
     avg_frequencies = df.groupby('action_type')['frequency'].mean()
