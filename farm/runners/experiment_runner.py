@@ -22,7 +22,6 @@ from farm.core.simulation import run_simulation
 from farm.database.database import SimulationDatabase
 from farm.utils.logging_config import get_logger
 from farm.utils.logging_utils import log_experiment
-from scripts.significant_events import SignificantEventAnalyzer
 
 DEFAULT_NUM_STEPS = 1000
 
@@ -191,15 +190,34 @@ class ExperimentRunner:
                         chart_analyzer = ChartAnalyzer(analysis_db)
                         chart_analyzer.analyze_all_charts(iteration_path)
 
-                        significant_event_analyzer = SignificantEventAnalyzer(
-                            analysis_db
+                        # Run significant events analysis
+                        from farm.analysis.service import AnalysisService, AnalysisRequest
+                        from farm.core.services import EnvConfigService
+
+                        config_service = EnvConfigService()
+                        analysis_service = AnalysisService(config_service)
+
+                        # Create analysis request for significant events
+                        request = AnalysisRequest(
+                            module_name="significant_events",
+                            experiment_path=iteration_path,
+                            output_path=iteration_path / "analysis",
+                            config={
+                                "start_step": 0,
+                                "end_step": num_steps,
+                                "min_severity": 0.3,
+                                "db_connection": analysis_db
+                            }
                         )
-                        significant_event_analyzer.analyze_simulation(
-                            start_step=0,
-                            end_step=num_steps,
-                            min_severity=0.3,
-                            path=str(iteration_path),
-                        )
+
+                        try:
+                            result = analysis_service.run(request)
+                            if result.success:
+                                self.logger.info(f"Significant events analysis completed for iteration {i+1}")
+                            else:
+                                self.logger.warning(f"Significant events analysis failed: {result.error}")
+                        except Exception as e:
+                            self.logger.error(f"Significant events analysis error: {e}")
                     finally:
                         # Clean up analysis database connection
                         analysis_db.close()

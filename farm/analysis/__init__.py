@@ -8,11 +8,11 @@ Quick Start:
     >>> from farm.analysis.service import AnalysisService, AnalysisRequest
     >>> from farm.core.services import EnvConfigService
     >>> from pathlib import Path
-    >>> 
+    >>>
     >>> # Initialize service
     >>> config_service = EnvConfigService()
     >>> service = AnalysisService(config_service)
-    >>> 
+    >>>
     >>> # Create and run analysis
     >>> request = AnalysisRequest(
     ...     module_name="dominance",
@@ -20,7 +20,7 @@ Quick Start:
     ...     output_path=Path("results")
     ... )
     >>> result = service.run(request)
-    >>> 
+    >>>
     >>> if result.success:
     ...     print(f"Analysis complete in {result.execution_time:.2f}s")
 
@@ -48,62 +48,74 @@ Core Components:
     - service: High-level API
 """
 
+# Import modules to register them
+from farm.analysis import (
+    actions,
+    advantage,
+    agents,
+    combat,
+    comparative,
+    dominance,
+    genesis,
+    learning,
+    population,
+    resources,
+    significant_events,
+    social_behavior,
+    spatial,
+    temporal,
+)
+from farm.analysis.common.context import (
+    AnalysisContext,
+)
+from farm.analysis.core import (
+    BaseAnalysisModule,
+    ChainedDataProcessor,
+    ErrorHandlingMode,
+    SimpleDataProcessor,
+    make_analysis_function,
+)
+from farm.analysis.exceptions import (
+    AnalysisError,
+    AnalysisFunctionError,
+    ConfigurationError,
+    DatabaseError,
+    DataLoaderError,
+    DataProcessingError,
+    DataValidationError,
+    InsufficientDataError,
+    ModuleNotFoundError,
+    VisualizationError,
+)
 from farm.analysis.protocols import (
+    AnalysisFunction,
     AnalysisModule,
+    Analyzer,
     DataLoader,
     DataProcessor,
     DataValidator,
-    AnalysisFunction,
-    Analyzer,
     Visualizer,
 )
-
-from farm.analysis.core import (
-    BaseAnalysisModule,
-    SimpleDataProcessor,
-    ChainedDataProcessor,
-    make_analysis_function,
-)
-
-from farm.analysis.validation import (
-    ColumnValidator,
-    DataQualityValidator,
-    CompositeValidator,
-    validate_numeric_columns,
-    validate_simulation_data,
-)
-
-from farm.analysis.exceptions import (
-    AnalysisError,
-    DataValidationError,
-    ModuleNotFoundError,
-    DataLoaderError,
-    DataProcessingError,
-    AnalysisFunctionError,
-    ConfigurationError,
-    InsufficientDataError,
-    VisualizationError,
-    DatabaseError,
-)
-
 from farm.analysis.registry import (
     ModuleRegistry,
-    registry,
-    register_modules,
     get_module,
     get_module_names,
     list_modules,
+    register_modules,
+    registry,
 )
-
 from farm.analysis.service import (
-    AnalysisService,
+    AnalysisCache,
     AnalysisRequest,
     AnalysisResult,
-    AnalysisCache,
+    AnalysisService,
 )
-
-from farm.analysis.common.context import (
-    AnalysisContext,
+from farm.analysis.validation import (
+    ColumnValidator,
+    CompositeValidator,
+    DataQualityValidator,
+    validate_numeric_columns,
+    validate_simulation_data,
 )
 
 # Version info
@@ -122,6 +134,7 @@ __all__ = [
     "BaseAnalysisModule",
     "SimpleDataProcessor",
     "ChainedDataProcessor",
+    "ErrorHandlingMode",
     "make_analysis_function",
     # Validation
     "ColumnValidator",
@@ -159,7 +172,7 @@ __all__ = [
 
 def get_info() -> dict:
     """Get information about the analysis system.
-    
+
     Returns:
         Dictionary with system information
     """
@@ -186,21 +199,21 @@ def get_info() -> dict:
 def show_info():
     """Print information about the analysis system."""
     info = get_info()
-    
+
     print("=" * 60)
     print(f"Analysis Module System v{info['version']}")
     print("=" * 60)
-    
+
     print("\n📦 Registered Modules:")
-    for module in info['modules']:
+    for module in info["modules"]:
         print(f"  - {module}")
-    
+
     print("\n✨ Features:")
-    for feature in info['features']:
+    for feature in info["features"]:
         print(f"  - {feature}")
-    
+
     print("\n📚 Documentation:")
-    for doc in info['documentation']:
+    for doc in info["documentation"]:
         print(f"  - {doc}")
-    
+
     print("\n" + "=" * 60)

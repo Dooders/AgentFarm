@@ -3,7 +3,7 @@
 Genesis Analysis Script
 
 This script analyzes how initial states and conditions impact simulation outcomes
-using the Genesis analysis module.
+using the unified analysis framework.
 
 Usage:
     python genesis_analysis.py
@@ -13,566 +13,115 @@ defined in analysis_config.py and saves results to the OUTPUT_PATH.
 """
 
 import glob
-import json
-from farm.utils.logging_config import get_logger
-
-logger = get_logger(__name__)
 import os
-import sys
-import traceback
 from datetime import datetime
-from typing import Any, Dict
+from pathlib import Path
 
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
+# Import analysis framework
+from farm.analysis.service import AnalysisService, AnalysisRequest
+from farm.core.services import EnvConfigService
+
 # Import analysis configuration
-from analysis_config import (DATA_PATH, OUTPUT_PATH, safe_remove_directory,
-                             setup_logging)
-from sqlalchemy import create_engine, inspect
-from sqlalchemy.orm import sessionmaker
-
-# Add the parent directory to sys.path to import farm modules
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if parent_dir not in sys.path:
-    sys.path.append(parent_dir)
-
-try:
-    from farm.analysis.genesis.analyze import (
-        analyze_critical_period, analyze_genesis_across_simulations,
-        analyze_genesis_factors)
-    from farm.analysis.genesis.plot import (plot_critical_period_analysis,
-                                            plot_genesis_analysis_results,
-                                            plot_initial_state_comparison)
-except ImportError as e:
-    print(f"Error importing Genesis module: {e}")
-    print("Make sure the Genesis module is properly installed.")
-    sys.exit(1)
-
-
-def check_database_schema(engine) -> bool:
-    """
-    Check if the database has the required tables for Genesis analysis.
-
-    Parameters
-    ----------
-    engine : SQLAlchemy engine
-        Database engine
-
-    Returns
-    -------
-    bool
-        True if the database has the required tables, False otherwise
-    """
-    inspector = inspect(engine)
-    table_names = inspector.get_table_names()
-    logger.info(f"Found tables in database: {', '.join(table_names)}")
-
-    # Define required tables with possible alternative names
-    required_tables = {
-        "agents": ["agents"],
-        "resources": ["resource_states"],
-        "simulation_steps": ["simulation_steps"],
-    }
-
-    # Check each required table
-    for table_type, possible_names in required_tables.items():
-        found = False
-        for name in possible_names:
-            if name in table_names:
-                found = True
-                logger.info(f"Found required table '{table_type}' as '{name}'")
-                break
-        if not found:
-            logger.error(
-                f"Missing required table '{table_type}'. Expected one of: {', '.join(possible_names)}"
-            )
-            return False
-
-    # Additional schema validation
-    for table_name in table_names:
-        columns = inspector.get_columns(table_name)
-        logger.info(
-            f"Table '{table_name}' has {len(columns)} columns: {', '.join(col['name'] for col in columns)}"
-        )
-
-    return True
-
-
-def check_action_weights_column(engine) -> bool:
-    """
-    Check if the agents table has the action_weights column.
-
-    Parameters
-    ----------
-    engine : SQLAlchemy engine
-        Database engine
-
-    Returns
-    -------
-    bool
-        True if the action_weights column exists, False otherwise
-    """
-    inspector = inspect(engine)
-    columns = [col["name"] for col in inspector.get_columns("agents")]
-    return "action_weights" in columns
-
-
-def analyze_single_simulation(
-    sim_path: str, output_path: str, critical_period: int = 100
-) -> Dict[str, Any]:
-    """
-    Analyze a single simulation using the Genesis module.
-
-    Parameters
-    ----------
-    sim_path : str
-        Path to the simulation directory
-    output_path : str
-        Path where analysis results will be saved
-    critical_period : int, optional
-        Number of steps to consider as the critical period, by default 100
-
-    Returns
-    -------
-    Dict[str, Any]
-        Analysis results
-    """
-    logger.info(f"Analyzing simulation at {sim_path}")
-
-    # Create database connection
-    db_path = os.path.join(sim_path, "simulation.db")
-
-    if not os.path.exists(db_path):
-        logger.error(f"Database not found at {db_path}")
-        return {"error": f"Database not found at {db_path}"}
-
-    try:
-        engine = create_engine(f"sqlite:///{db_path}")
-
-        # Check if the database has the required schema
-        if not check_database_schema(engine):
-            logger.error(f"Database at {db_path} does not have the required tables")
-            return {"error": f"Database schema mismatch at {db_path}"}
-
-        # Check if action_weights column exists
-        has_action_weights = check_action_weights_column(engine)
-        if has_action_weights:
-            logger.info(
-                f"Database at {db_path} has action_weights column. Full agent analysis will be performed."
-            )
-        else:
-            logger.warning(
-                f"Database at {db_path} does not have the action_weights column. "
-                "Action weights analysis will be skipped."
-            )
-
-        Session = sessionmaker(bind=engine)
-        session = Session()
-
-        try:
-            # Analyze genesis factors
-            logger.info("Computing genesis factors...")
-            genesis_results = analyze_genesis_factors(session)
-
-            # Analyze critical period
-            logger.info(
-                f"Analyzing critical period (first {critical_period} steps)..."
-            )
-            critical_period_results = analyze_critical_period(session, critical_period)
-
-            # Combine results
-            results = {
-                "genesis_analysis": genesis_results,
-                "critical_period_analysis": critical_period_results,
-                "database_info": {"has_action_weights_column": has_action_weights},
-            }
-
-            # Create simulation-specific output directory
-            sim_name = os.path.basename(sim_path)
-            sim_output_path = os.path.join(output_path, sim_name)
-            os.makedirs(sim_output_path, exist_ok=True)
-
-            # Generate visualizations
-            logger.info("Generating visualizations...")
-            try:
-                plot_genesis_analysis_results(genesis_results, sim_output_path)
-            except Exception as e:
-                logger.error(f"Error generating visualizations: {e}")
-                logger.debug(traceback.format_exc())
-
-            # Save results as JSON
-            try:
-                with open(
-                    os.path.join(sim_output_path, "genesis_analysis_results.json"), "w"
-                ) as f:
-                    json.dump(results, f, indent=2, default=str)
-            except Exception as e:
-                logger.error(f"Error saving results to JSON: {e}")
-                logger.debug(traceback.format_exc())
-
-            logger.info(f"Analysis complete. Results saved to {sim_output_path}")
-
-            return results
-
-        except Exception as e:
-            logger.error(f"Error analyzing simulation: {e}")
-            logger.debug(traceback.format_exc())
-            return {"error": str(e)}
-
-        finally:
-            session.close()
-
-    except Exception as e:
-        logger.error(f"Error connecting to database: {e}")
-        logger.debug(traceback.format_exc())
-        return {"error": f"Database connection error: {str(e)}"}
-
-
-def analyze_experiment(
-    experiment_path: str, output_path: str, critical_period: int = 100
-) -> Dict[str, Any]:
-    """
-    Analyze all simulations in an experiment using the Genesis module.
-
-    Parameters
-    ----------
-    experiment_path : str
-        Path to the experiment directory
-    output_path : str
-        Path where analysis results will be saved
-    critical_period : int, optional
-        Number of steps to consider as the critical period, by default 100
-
-    Returns
-    -------
-    Dict[str, Any]
-        Analysis results
-    """
-    logger.info(f"Analyzing experiment at {experiment_path}")
-
-    # Create output directory
-    os.makedirs(output_path, exist_ok=True)
-
-    try:
-        # First, validate all databases have required schema
-        sim_dbs = []
-        for root, _, files in os.walk(experiment_path):
-            if "simulation.db" in files:
-                db_path = os.path.join(root, "simulation.db")
-                engine = create_engine(f"sqlite:///{db_path}")
-                if check_database_schema(engine):
-                    sim_dbs.append(db_path)
-                else:
-                    logger.warning(f"Skipping {db_path} due to invalid schema")
-
-        if not sim_dbs:
-            raise ValueError("No valid simulation databases found")
-
-        logger.info(f"Found {len(sim_dbs)} valid simulation databases")
-
-        # Analyze across simulations
-        logger.info("Performing cross-simulation analysis...")
-        cross_sim_results = analyze_genesis_across_simulations(experiment_path)
-
-        # Enhance cross-simulation results with additional metrics
-        cross_sim_results["experiment_summary"] = {
-            "total_simulations": len(sim_dbs),
-            "critical_period": critical_period,
-            "experiment_path": experiment_path,
-            "analysis_timestamp": datetime.now().isoformat(),
-        }
-
-        # Aggregate critical period data across all simulations
-        logger.info("Aggregating critical period data...")
-        critical_period_data = []
-        for db_path in sim_dbs:
-            engine = create_engine(f"sqlite:///{db_path}")
-            Session = sessionmaker(bind=engine)
-            session = Session()
-            try:
-                period_results = analyze_critical_period(session, critical_period)
-                critical_period_data.append(period_results)
-            except Exception as e:
-                logger.warning(f"Error analyzing critical period for {db_path}: {e}")
-            finally:
-                session.close()
-
-        if critical_period_data:
-            cross_sim_results["aggregated_critical_period"] = {
-                "data": critical_period_data,
-                "summary": {
-                    "mean_survival_rate": np.mean(
-                        [d.get("survival_rate", 0) for d in critical_period_data]
-                    ),
-                    "mean_reproduction_rate": np.mean(
-                        [d.get("reproduction_rate", 0) for d in critical_period_data]
-                    ),
-                    "mean_resource_efficiency": np.mean(
-                        [d.get("resource_efficiency", 0) for d in critical_period_data]
-                    ),
-                },
-            }
-
-        # Generate all visualizations with proper error handling
-        logger.info("Generating comprehensive visualizations...")
-
-        visualization_functions = [
-            (
-                "Initial State Comparison",
-                plot_initial_state_comparison,
-                [cross_sim_results.get("simulations", []), output_path],
-            ),
-            (
-                "Critical Period Analysis",
-                plot_critical_period_analysis,
-                [cross_sim_results.get("simulations", []), output_path],
-            ),
-            (
-                "Genesis Analysis Results",
-                plot_genesis_analysis_results,
-                [cross_sim_results, output_path],
-            ),
-        ]
-
-        for viz_name, viz_func, viz_args in visualization_functions:
-            try:
-                logger.info(f"Generating {viz_name} visualization...")
-                viz_func(*viz_args)
-                logger.info(f"Successfully generated {viz_name} visualization")
-            except Exception as e:
-                logger.error(f"Error generating {viz_name} visualization: {e}")
-                logger.debug(traceback.format_exc())
-
-        # Additional visualization for critical period trends
-        if critical_period_data:
-            try:
-                logger.info("Generating Critical Period Trends visualization...")
-                plt.figure(figsize=(12, 6))
-                metrics = ["survival_rate", "reproduction_rate", "resource_efficiency"]
-                for metric in metrics:
-                    values = [d.get(metric, 0) for d in critical_period_data]
-                    plt.plot(values, label=metric.replace("_", " ").title())
-                plt.title("Critical Period Metrics Across Simulations")
-                plt.xlabel("Simulation Index")
-                plt.ylabel("Rate")
-                plt.legend()
-                plt.grid(True)
-                plt.savefig(
-                    os.path.join(output_path, "critical_period_trends.png"), dpi=150
-                )
-                plt.close()
-                logger.info(
-                    "Successfully generated Critical Period Trends visualization"
-                )
-            except Exception as e:
-                logger.error(
-                    f"Error generating Critical Period Trends visualization: {e}"
-                )
-                logger.debug(traceback.format_exc())
-
-        # Save comprehensive cross-simulation results
-        try:
-            results_file = os.path.join(output_path, "cross_simulation_analysis.json")
-            with open(results_file, "w") as f:
-                json.dump(cross_sim_results, f, indent=2, default=str)
-            logger.info(f"Saved comprehensive analysis results to {results_file}")
-
-            # Generate summary report
-            summary_file = os.path.join(output_path, "analysis_summary.txt")
-            with open(summary_file, "w") as f:
-                f.write("Genesis Analysis Summary\n")
-                f.write("======================\n\n")
-                f.write(
-                    f"Analysis Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-                )
-                f.write(f"Experiment Path: {experiment_path}\n")
-                f.write(f"Total Simulations Analyzed: {len(sim_dbs)}\n")
-                f.write(f"Critical Period Length: {critical_period} steps\n\n")
-
-                if "determinism_analysis" in cross_sim_results:
-                    f.write("Determinism Analysis\n")
-                    f.write("-----------------\n")
-                    det = cross_sim_results["determinism_analysis"]
-                    if "determinism_level" in det:
-                        f.write(f"Determinism Level: {det['determinism_level']}\n")
-                    if "initial_advantage_realization_rate" in det:
-                        f.write(
-                            f"Initial Advantage Realization Rate: {det['initial_advantage_realization_rate']:.2f}\n"
-                        )
-                    f.write("\n")
-
-                if "cross_simulation_patterns" in cross_sim_results:
-                    f.write("Cross-Simulation Patterns\n")
-                    f.write("----------------------\n")
-                    patterns = cross_sim_results["cross_simulation_patterns"]
-                    if "advantage_consistency" in patterns:
-                        f.write("Advantage Consistency:\n")
-                        for agent_type, value in patterns[
-                            "advantage_consistency"
-                        ].items():
-                            f.write(f"  {agent_type}: {value:.2f}\n")
-                    f.write("\n")
-
-                if "aggregated_critical_period" in cross_sim_results:
-                    f.write("Critical Period Summary\n")
-                    f.write("--------------------\n")
-                    summary = cross_sim_results["aggregated_critical_period"]["summary"]
-                    for metric, value in summary.items():
-                        f.write(f"{metric.replace('_', ' ').title()}: {value:.3f}\n")
-
-            logger.info(f"Generated analysis summary at {summary_file}")
-
-        except Exception as e:
-            logger.error(f"Error saving analysis results: {e}")
-            logger.debug(traceback.format_exc())
-
-        logger.info(
-            f"Cross-simulation analysis complete. Results saved to {output_path}"
-        )
-
-        return cross_sim_results
-
-    except Exception as e:
-        logger.error(f"Error in cross-simulation analysis: {e}")
-        logger.debug(traceback.format_exc())
-        return {"error": str(e)}
+from analysis_config import DATA_PATH, OUTPUT_PATH, safe_remove_directory, setup_logging
 
 
 def main():
     """Main function to run the Genesis analysis."""
+    start_time = datetime.now()
+    print("Starting genesis analysis script...")
+
     try:
         # Create genesis output directory
         genesis_output_path = os.path.join(OUTPUT_PATH, "genesis")
 
         # Clear the genesis directory if it exists
         if os.path.exists(genesis_output_path):
-            logger.info(f"Clearing existing genesis directory: {genesis_output_path}")
+            print(f"Clearing existing genesis directory: {genesis_output_path}")
             if not safe_remove_directory(genesis_output_path):
-                # If we couldn't remove the directory after retries, create a new one with timestamp
+                # Create timestamped alternative
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 genesis_output_path = os.path.join(OUTPUT_PATH, f"genesis_{timestamp}")
-                logger.info(f"Using alternative directory: {genesis_output_path}")
+                print(f"Using alternative directory: {genesis_output_path}")
 
         # Create the directory
         os.makedirs(genesis_output_path, exist_ok=True)
 
-        # Set up logging to the genesis directory
+        # Set up logging
         log_file = setup_logging(genesis_output_path)
+        print(f"Saving results to {genesis_output_path}")
 
-        logger.info(f"Saving results to {genesis_output_path}")
-
-        # Find the most recent experiment folder in DATA_PATH
+        # Find the most recent experiment folder
         if not os.path.exists(DATA_PATH):
-            logger.error(f"DATA_PATH does not exist: {DATA_PATH}")
+            print(f"DATA_PATH does not exist: {DATA_PATH}")
             return
 
         experiment_folders = [
             d for d in glob.glob(os.path.join(DATA_PATH, "*")) if os.path.isdir(d)
         ]
         if not experiment_folders:
-            logger.error(f"No experiment folders found in {DATA_PATH}")
+            print(f"No experiment folders found in {DATA_PATH}")
             return
 
         # Sort by modification time (most recent first)
         experiment_folders.sort(key=os.path.getmtime, reverse=True)
         experiment_path = experiment_folders[0]
+        print(f"Found most recent experiment folder: {experiment_path}")
 
-        # Check if experiment_path contains iteration folders directly
+        # Verify experiment structure
         iteration_folders = glob.glob(os.path.join(experiment_path, "iteration_*"))
         if not iteration_folders:
-            # If no iteration folders found directly, look for subdirectories that might contain them
+            # Check subdirectories
             subdirs = [
-                d
-                for d in glob.glob(os.path.join(experiment_path, "*"))
-                if os.path.isdir(d)
+                d for d in glob.glob(os.path.join(experiment_path, "*")) if os.path.isdir(d)
             ]
             if subdirs:
-                # Sort by modification time (most recent first)
                 subdirs.sort(key=os.path.getmtime, reverse=True)
                 experiment_path = subdirs[0]
-                logger.info(
-                    f"Using subdirectory as experiment path: {experiment_path}"
-                )
-
-                # Verify that this subdirectory contains iteration folders
-                iteration_folders = glob.glob(
-                    os.path.join(experiment_path, "iteration_*")
-                )
+                iteration_folders = glob.glob(os.path.join(experiment_path, "iteration_*"))
                 if not iteration_folders:
-                    logger.error(f"No iteration folders found in {experiment_path}")
+                    print(f"No iteration folders found in {experiment_path}")
                     return
             else:
-                logger.error(f"No subdirectories found in {experiment_path}")
+                print(f"No valid experiment structure found")
                 return
 
-        # Check if reproduction events exist in the databases
-        # For now, assume they exist and continue
-        has_reproduction_events = True
-        if not has_reproduction_events:
-            logger.warning(
-                "No reproduction events found in databases. Reproduction analysis may be limited."
-            )
+        print(f"Found {len(iteration_folders)} iteration folders")
 
-        # Define critical period length
-        critical_period = 100  # Default value, can be adjusted if needed
+        # Initialize analysis service
+        config_service = EnvConfigService()
+        service = AnalysisService(config_service)
 
-        # Log analysis parameters
-        logger.info(f"Genesis Analysis started")
-        logger.info(f"Experiment path: {experiment_path}")
-        logger.info(f"Output path: {genesis_output_path}")
-        logger.info(f"Critical period: {critical_period} steps")
-        logger.info(f"Number of simulations to analyze: {len(iteration_folders)}")
-
-        # Analyze experiment as a whole
-        logger.info("Performing experiment-wide analysis...")
-        cross_sim_results = analyze_experiment(
-            experiment_path, genesis_output_path, critical_period
+        # Run comprehensive genesis analysis
+        print("Running genesis analysis...")
+        request = AnalysisRequest(
+            module_name="genesis",
+            experiment_path=Path(experiment_path),
+            output_path=Path(genesis_output_path),
+            group="all"  # Run all analysis functions
         )
 
-        # Log summary of findings
-        if "simulations" in cross_sim_results:
-            sim_count = len(cross_sim_results["simulations"])
-            logger.info(f"Cross-simulation analysis included {sim_count} simulations.")
+        result = service.run(request)
 
-            # Log determinism analysis if available
-            if "determinism_analysis" in cross_sim_results:
-                determinism = cross_sim_results["determinism_analysis"]
-                if "determinism_level" in determinism:
-                    logger.info(
-                        f"Determinism level: {determinism['determinism_level']}"
-                    )
-                if "initial_advantage_realization_rate" in determinism:
-                    rate = determinism["initial_advantage_realization_rate"]
-                    logger.info(f"Initial advantage realization rate: {rate:.2f}")
+        if result.success:
+            duration = datetime.now() - start_time
+            print(f"✅ Analysis complete in {duration.total_seconds():.2f} seconds")
+            print(f"📁 Results saved to: {result.output_path}")
+            print(f"📊 Generated {len(result.generated_files)} files:")
+            for file_path in result.generated_files:
+                print(f"   - {file_path}")
+        else:
+            print(f"❌ Analysis failed: {result.error}")
 
-            # Log predictive model performance if available
-            if "predictive_models" in cross_sim_results:
-                models = cross_sim_results["predictive_models"]
-                if "dominance_prediction" in models:
-                    accuracy = models["dominance_prediction"].get("accuracy", 0)
-                    logger.info(f"Dominance prediction accuracy: {accuracy:.2f}")
-                if "survival_prediction" in models:
-                    r2 = models["survival_prediction"].get("r2_score", 0)
-                    logger.info(f"Survival prediction R² score: {r2:.2f}")
-
-            # Log cross-simulation patterns if available
-            if "cross_simulation_patterns" in cross_sim_results:
-                patterns = cross_sim_results["cross_simulation_patterns"]
-                if "advantage_consistency" in patterns:
-                    consistency = patterns["advantage_consistency"]
-                    logger.info("\nAdvantage consistency across simulations:")
-                    for agent_type, value in consistency.items():
-                        logger.info(f"  {agent_type}: {value:.2f}")
-
-        logger.info(
-            f"\nGenesis Analysis completed. All results saved to {genesis_output_path}"
-        )
-        logger.info(f"Log file saved to: {log_file}")
+        # Log completion
+        total_duration = datetime.now() - start_time
+        print(f"\nAnalysis completed. Total execution time: {total_duration.total_seconds():.2f} seconds")
+        print(f"Log file saved to: {log_file}")
+        print(f"All results saved to: {genesis_output_path}")
 
     except Exception as e:
-        logger.error(f"Unhandled exception in main: {e}")
-        logger.debug(traceback.format_exc())
+        print(f"❌ Unhandled exception: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 if __name__ == "__main__":

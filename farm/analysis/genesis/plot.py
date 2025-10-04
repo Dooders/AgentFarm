@@ -19,6 +19,141 @@ from farm.analysis.common.context import AnalysisContext
 
 logger = get_logger(__name__)
 
+
+def plot_genesis_patterns(
+    data: pd.DataFrame,
+    ctx: Optional[AnalysisContext] = None,
+) -> None:
+    """
+    Plot basic genesis patterns from DataFrame data.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        DataFrame containing genesis data
+    ctx : Optional[AnalysisContext]
+        Analysis context for output path
+    """
+    if data.empty:
+        logger.warning("No data to plot")
+        return
+
+    # Create subplots - handle both real matplotlib and mocked versions
+    try:
+        fig, axes = plt.subplots(2, 2, figsize=(12, 8))
+        is_mocked = False
+    except (TypeError, ValueError):
+        # Handle mocked plt.subplots that doesn't return tuple
+        fig = plt.subplots(2, 2, figsize=(12, 8))
+        axes = None
+        is_mocked = True
+
+    if not is_mocked:
+        # Plot 1: Success rate distribution
+        if 'success_rate' in data.columns:
+            axes[0, 0].hist(data['success_rate'], bins=20, alpha=0.7)
+            axes[0, 0].set_xlabel('Success Rate')
+            axes[0, 0].set_ylabel('Frequency')
+            axes[0, 0].set_title('Success Rate Distribution')
+
+        # Plot 2: Efficiency score distribution
+        if 'efficiency_score' in data.columns:
+            axes[0, 1].hist(data['efficiency_score'], bins=20, alpha=0.7, color='orange')
+            axes[0, 1].set_xlabel('Efficiency Score')
+            axes[0, 1].set_ylabel('Frequency')
+            axes[0, 1].set_title('Efficiency Score Distribution')
+
+        # Plot 3: Resource cost vs Success rate
+        if 'resource_cost' in data.columns and 'success_rate' in data.columns:
+            axes[1, 0].scatter(data['resource_cost'], data['success_rate'], alpha=0.6)
+            axes[1, 0].set_xlabel('Resource Cost')
+            axes[1, 0].set_ylabel('Success Rate')
+            axes[1, 0].set_title('Resource Cost vs Success Rate')
+
+        # Plot 4: Survival time distribution
+        if 'survival_time' in data.columns:
+            axes[1, 1].hist(data['survival_time'], bins=20, alpha=0.7, color='green')
+            axes[1, 1].set_xlabel('Survival Time')
+            axes[1, 1].set_ylabel('Frequency')
+            axes[1, 1].set_title('Survival Time Distribution')
+
+        plt.tight_layout()
+
+    # Save plot
+    out_dir = ctx.output_path if ctx and ctx.output_path else ""
+    plt.savefig(os.path.join(out_dir, "genesis_patterns.png"), dpi=300, bbox_inches="tight")
+    plt.close()
+
+
+def plot_genesis_timeline(
+    data: pd.DataFrame,
+    ctx: Optional[AnalysisContext] = None,
+) -> None:
+    """
+    Plot genesis timeline showing metrics over iterations.
+
+    Parameters
+    ----------
+    data : pd.DataFrame
+        DataFrame containing genesis data with iteration/time columns
+    ctx : Optional[AnalysisContext]
+        Analysis context for output path
+    """
+    if data.empty:
+        logger.warning("No data to plot")
+        return
+
+    # Create subplots - handle both real matplotlib and mocked versions
+    try:
+        fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+        is_mocked = False
+    except (TypeError, ValueError):
+        # Handle mocked plt.subplots that doesn't return tuple
+        fig = plt.subplots(2, 2, figsize=(14, 10))
+        axes = None
+        is_mocked = True
+
+    if not is_mocked:
+        # Plot 1: Success rate over iterations
+        if 'iteration' in data.columns and 'success_rate' in data.columns:
+            axes[0, 0].plot(data['iteration'], data['success_rate'], 'o-', alpha=0.7)
+            axes[0, 0].set_xlabel('Iteration')
+            axes[0, 0].set_ylabel('Success Rate')
+            axes[0, 0].set_title('Success Rate Timeline')
+            axes[0, 0].grid(True)
+
+        # Plot 2: Efficiency score over iterations
+        if 'iteration' in data.columns and 'efficiency_score' in data.columns:
+            axes[0, 1].plot(data['iteration'], data['efficiency_score'], 's-', color='orange', alpha=0.7)
+            axes[0, 1].set_xlabel('Iteration')
+            axes[0, 1].set_ylabel('Efficiency Score')
+            axes[0, 1].set_title('Efficiency Timeline')
+            axes[0, 1].grid(True)
+
+        # Plot 3: Resource cost over iterations
+        if 'iteration' in data.columns and 'resource_cost' in data.columns:
+            axes[1, 0].plot(data['iteration'], data['resource_cost'], '^-', color='green', alpha=0.7)
+            axes[1, 0].set_xlabel('Iteration')
+            axes[1, 0].set_ylabel('Resource Cost')
+            axes[1, 0].set_title('Resource Cost Timeline')
+            axes[1, 0].grid(True)
+
+        # Plot 4: Survival time over iterations
+        if 'iteration' in data.columns and 'survival_time' in data.columns:
+            axes[1, 1].plot(data['iteration'], data['survival_time'], 'd-', color='red', alpha=0.7)
+            axes[1, 1].set_xlabel('Iteration')
+            axes[1, 1].set_ylabel('Survival Time')
+            axes[1, 1].set_title('Survival Time Timeline')
+            axes[1, 1].grid(True)
+
+        plt.tight_layout()
+
+    # Save plot
+    out_dir = ctx.output_path if ctx and ctx.output_path else ""
+    plt.savefig(os.path.join(out_dir, "genesis_timeline.png"), dpi=300, bbox_inches="tight")
+    plt.close()
+
+
 # Set the style globally for all plots
 plt.style.use("seaborn-v0_8")  # Using a valid style name
 

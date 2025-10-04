@@ -19,7 +19,7 @@ from farm.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-from farm.analysis.base_module import BaseAnalysisModule
+from farm.analysis.core import BaseAnalysisModule
 from farm.analysis.common.metrics import (
     analyze_correlations,
     get_valid_numeric_columns,
