@@ -11,6 +11,8 @@ A modern, protocol-based architecture for creating and running analysis modules 
 📊 **Progress Tracking** - Real-time progress callbacks  
 🎯 **Standardized Functions** - Consistent API across all analysis types  
 🧪 **Fully Tested** - Comprehensive test suite with >80% coverage  
+🔧 **Shared Utilities** - Common statistical and data processing functions  
+📋 **Standard Templates** - Consistent module structure templates  
 
 ### Quick Start
 
@@ -39,6 +41,58 @@ if result.success:
     print(f"Results saved to: {result.output_path}")
 else:
     print(f"Analysis failed: {result.error}")
+```
+
+### Common Utilities
+
+The `farm.analysis.common.utils` module provides shared utilities for analysis:
+
+```python
+from farm.analysis.common.utils import (
+    calculate_statistics,      # Basic stats (mean, median, std, etc.)
+    calculate_trend,          # Linear trend calculation
+    calculate_rolling_mean,   # Rolling averages
+    normalize_dict,           # Normalize dictionary values to proportions
+    validate_required_columns, # Check DataFrame has required columns
+    save_analysis_results,    # Save results to JSON
+    setup_plot_figure,        # Consistent matplotlib setup
+    get_agent_type_colors,    # Standard agent type color scheme
+    handle_missing_data,      # Handle NaN values with different strategies
+)
+
+# Example usage
+import pandas as pd
+from farm.analysis.common.utils import calculate_statistics, normalize_dict
+
+# Calculate stats for a data series
+data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+stats = calculate_statistics(data)
+print(f"Mean: {stats['mean']}, Std: {stats['std']}")
+
+# Normalize agent counts
+agent_counts = {'system': 25, 'independent': 35, 'control': 40}
+normalized = normalize_dict(agent_counts)
+print(f"Normalized: {normalized}")
+```
+
+### Standard Module Template
+
+Use the standard template for consistent module structure:
+
+```python
+from farm.analysis.template.standard_module import MODULEModule
+
+# Copy template and replace 'MODULE' with your analysis type
+# Template includes:
+# - Data processing function
+# - Analysis functions with standard signatures
+# - Visualization functions
+# - Complete module class with validation
+# - Function registration and grouping
+
+class PopulationModule(MODULEModule):
+    # Customize as needed
+    pass
 ```
 
 ### Creating a New Analysis Module
@@ -280,11 +334,16 @@ farm/analysis/
 ├── service.py           # High-level service API
 ├── common/
 │   ├── context.py       # Analysis context
-│   └── metrics.py       # Shared metrics
+│   ├── metrics.py       # Shared metrics utilities
+│   └── utils.py         # Common analysis utilities
+├── template/
+│   └── standard_module.py # Standard module template
 └── {module}/
+    ├── __init__.py      # Package exports
     ├── module.py        # Module implementation
-    ├── processor.py     # Data processing
-    ├── compute.py       # Analysis functions
+    ├── data.py          # Data processing
+    ├── compute.py       # Statistical computations
+    ├── analyze.py       # Analysis functions
     └── plot.py          # Visualizations
 ```
 
@@ -302,6 +361,41 @@ pytest tests/analysis/test_core.py
 # With coverage
 pytest tests/analysis/ --cov=farm.analysis --cov-report=html
 ```
+
+### Phase 1 Foundation (Complete)
+
+Phase 1 of the analysis refactoring has established the foundation for migrating all analysis code into the unified module system:
+
+#### ✅ Completed Tasks
+
+- **Common Utilities** (`farm.analysis.common.utils`):
+  - Statistical functions (`calculate_statistics`, `calculate_trend`, etc.)
+  - Data processing helpers (`validate_required_columns`, `handle_missing_data`)
+  - Plotting utilities (`setup_plot_figure`, `save_plot_figure`, `get_agent_type_colors`)
+  - File system utilities (`find_database_path`, `create_output_subdirs`)
+
+- **Standard Module Template** (`farm.analysis.template.standard_module`):
+  - Complete module structure template
+  - Standard function signatures and patterns
+  - Consistent validation setup
+  - Ready-to-copy implementation
+
+- **Testing Infrastructure** (`tests.analysis.test_common_utils`):
+  - Comprehensive test suite for utilities
+  - 27 test cases covering all utility functions
+  - Integration with existing pytest fixtures
+
+- **Pattern Extraction**:
+  - Analyzed existing modules (dominance, genesis, advantage, social_behavior)
+  - Identified common patterns for data loading, analysis, and visualization
+  - Standardized agent type naming and color schemes
+
+#### 🔄 Next Phases
+
+- **Phase 2**: Migrate core analyzers (population, resources, actions, agents)
+- **Phase 3**: Migrate specialized analyzers (learning, spatial, temporal, combat)
+- **Phase 4**: Consolidate scripts and update orchestration
+- **Phase 5**: Final testing and documentation
 
 ### Migration from Old System
 
