@@ -29,6 +29,23 @@ def compute_resource_statistics(df: pd.DataFrame) -> Dict[str, Any]:
         'resource_stability': float(1.0 / (1.0 + np.std(total_resources) / (np.mean(total_resources) + 1e-6))),
     }
 
+    # Add consumption statistics if available
+    if 'consumed_resources' in df.columns:
+        consumed = df['consumed_resources'].values
+        stats['consumption'] = {
+            'total': float(np.sum(consumed)),
+            'mean': float(np.mean(consumed)),
+            'min': float(np.min(consumed)),
+            'max': float(np.max(consumed)),
+            'std': float(np.std(consumed)),
+        }
+        stats['depletion_rate'] = calculate_trend(total_resources)
+
+    # Add efficiency statistics if available
+    if 'resource_efficiency' in df.columns:
+        efficiency = df['resource_efficiency'].values
+        stats['efficiency'] = calculate_statistics(efficiency)
+
     # Distribution entropy statistics
     if 'distribution_entropy' in df.columns:
         entropy = df['distribution_entropy'].values
@@ -36,7 +53,7 @@ def compute_resource_statistics(df: pd.DataFrame) -> Dict[str, Any]:
         stats['avg_distribution_uniformity'] = float(np.mean(entropy))
 
     # Efficiency metrics
-    efficiency_cols = ['utilization_rate', 'distribution_efficiency', 'consumption_efficiency']
+    efficiency_cols = ['utilization_rate', 'distribution_efficiency', 'consumption_efficiency', 'resource_efficiency']
     for col in efficiency_cols:
         if col in df.columns:
             stats[col] = calculate_statistics(df[col].values)
@@ -53,17 +70,16 @@ def compute_consumption_patterns(df: pd.DataFrame) -> Dict[str, float]:
     Returns:
         Dictionary of consumption metrics
     """
-    if 'avg_consumption_rate' not in df.columns:
+    if 'consumed_resources' not in df.columns:
         return {}
 
-    # Calculate consumption trends
-    consumption_rate = df['avg_consumption_rate'].values
+    consumed = df['consumed_resources'].values
 
     return {
-        'avg_consumption_rate': float(np.mean(consumption_rate)),
-        'consumption_trend': calculate_trend(consumption_rate),
-        'total_consumed': float(df['total_consumed'].iloc[0]) if 'total_consumed' in df.columns else 0.0,
-        'consumption_volatility': float(np.std(consumption_rate) / (np.mean(consumption_rate) + 1e-6)),
+        'trend': calculate_trend(consumed),
+        'volatility': float(np.std(consumed) / (np.mean(consumed) + 1e-6)),
+        'peak_consumption': float(np.max(consumed)),
+        'increasing_periods': int(np.sum(np.diff(consumed) > 0)),
     }
 
 
@@ -108,6 +124,28 @@ def compute_resource_efficiency(df: pd.DataFrame) -> Dict[str, float]:
             efficiency_metrics['overall_efficiency_score'] = overall_score / total_weight
 
     return efficiency_metrics
+
+
+def compute_efficiency_metrics(df: pd.DataFrame) -> Dict[str, float]:
+    """Compute efficiency metrics from resource data.
+
+    Args:
+        df: Resource data with efficiency columns
+
+    Returns:
+        Dictionary of efficiency metrics
+    """
+    if 'resource_efficiency' not in df.columns:
+        return {}
+
+    efficiency = df['resource_efficiency'].values
+
+    return {
+        'mean_efficiency': float(np.mean(efficiency)),
+        'efficiency_trend': calculate_trend(efficiency),
+        'efficiency_volatility': float(np.std(efficiency) / (np.mean(efficiency) + 1e-6)),
+        'peak_efficiency': float(np.max(efficiency)),
+    }
 
 
 def compute_resource_hotspots(df: pd.DataFrame) -> Dict[str, Any]:

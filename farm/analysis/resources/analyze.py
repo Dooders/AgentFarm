@@ -33,13 +33,13 @@ def analyze_resource_patterns(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) 
     # Combine results
     results = {
         'statistics': stats,
-        'consumption': consumption,
+        'patterns': consumption,  # Use consumption as patterns
         'efficiency': efficiency,
         'hotspots': hotspots,
     }
 
     # Save to file
-    output_file = ctx.get_output_file("resource_statistics.json")
+    output_file = ctx.get_output_file("resource_patterns.json")
     with open(output_file, 'w') as f:
         json.dump(results, f, indent=2)
 
@@ -47,7 +47,7 @@ def analyze_resource_patterns(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) 
     ctx.report_progress("Resource patterns analysis complete", 0.5)
 
 
-def analyze_consumption_analysis(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> None:
+def analyze_consumption(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> None:
     """Analyze resource consumption patterns in detail.
 
     Args:
@@ -57,12 +57,9 @@ def analyze_consumption_analysis(df: pd.DataFrame, ctx: AnalysisContext, **kwarg
     """
     ctx.logger.info("Analyzing resource consumption patterns...")
 
-    consumption = compute_consumption_patterns(df)
-
-    # Save consumption analysis
-    output_file = ctx.get_output_file("consumption_analysis.json")
-    with open(output_file, 'w') as f:
-        json.dump(consumption, f, indent=2)
+    # Save consumption analysis as CSV
+    output_file = ctx.get_output_file("consumption_patterns.csv")
+    df.to_csv(output_file, index=False)
 
     ctx.logger.info(f"Saved consumption analysis to {output_file}")
     ctx.report_progress("Consumption analysis complete", 0.7)
@@ -80,10 +77,18 @@ def analyze_resource_efficiency(df: pd.DataFrame, ctx: AnalysisContext, **kwargs
 
     efficiency = compute_resource_efficiency(df)
 
+    # Calculate improvement rate if efficiency_gain is available
+    improvement_rate = 0.0
+    if 'efficiency_gain' in df.columns:
+        improvement_rate = float(df['efficiency_gain'].mean())
+
     # Save efficiency analysis
     output_file = ctx.get_output_file("efficiency_analysis.json")
     with open(output_file, 'w') as f:
-        json.dump(efficiency, f, indent=2)
+        json.dump({
+            'metrics': efficiency,
+            'improvement_rate': improvement_rate
+        }, f, indent=2)
 
     ctx.logger.info(f"Saved efficiency analysis to {output_file}")
     ctx.report_progress("Efficiency analysis complete", 0.8)
@@ -108,3 +113,5 @@ def analyze_hotspots(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> None:
 
     ctx.logger.info(f"Saved hotspot analysis to {output_file}")
     ctx.report_progress("Hotspot analysis complete", 0.9)
+
+

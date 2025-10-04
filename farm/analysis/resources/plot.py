@@ -57,13 +57,19 @@ def plot_consumption_over_time(df: pd.DataFrame, ctx: AnalysisContext, **kwargs)
     """
     ctx.logger.info("Creating consumption over time plot...")
 
-    if 'avg_consumption_rate' not in df.columns:
+    consumption_col = None
+    if 'avg_consumption_rate' in df.columns:
+        consumption_col = 'avg_consumption_rate'
+    elif 'consumption_rate' in df.columns:
+        consumption_col = 'consumption_rate'
+
+    if consumption_col is None:
         ctx.logger.warning("No consumption data available")
         return
 
     fig, ax = plt.subplots(figsize=(12, 6))
 
-    ax.plot(df['step'], df['avg_consumption_rate'],
+    ax.plot(df['step'], df[consumption_col],
             label='Consumption Rate', linewidth=2, color='red')
 
     ax.set_xlabel('Simulation Step')
@@ -89,7 +95,7 @@ def plot_efficiency_metrics(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) ->
     """
     ctx.logger.info("Creating efficiency metrics plot...")
 
-    efficiency_cols = ['utilization_rate', 'distribution_efficiency', 'consumption_efficiency']
+    efficiency_cols = ['utilization_rate', 'distribution_efficiency', 'consumption_efficiency', 'resource_efficiency']
     available_cols = [col for col in efficiency_cols if col in df.columns]
 
     if not available_cols:
@@ -152,3 +158,5 @@ def plot_resource_hotspots(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> 
     plt.close(fig)
 
     ctx.logger.info(f"Saved plot to {output_file}")
+
+

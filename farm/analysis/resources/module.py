@@ -8,7 +8,7 @@ from farm.analysis.validation import ColumnValidator, DataQualityValidator, Comp
 from farm.analysis.resources.data import process_resource_data
 from farm.analysis.resources.analyze import (
     analyze_resource_patterns,
-    analyze_consumption_analysis,
+    analyze_consumption,
     analyze_resource_efficiency,
     analyze_hotspots,
 )
@@ -45,10 +45,10 @@ class ResourcesModule(BaseAnalysisModule):
         # Analysis functions
         self._functions = {
             "analyze_patterns": make_analysis_function(analyze_resource_patterns),
-            "analyze_consumption": make_analysis_function(analyze_consumption_analysis),
+            "analyze_consumption": make_analysis_function(analyze_consumption),
             "analyze_efficiency": make_analysis_function(analyze_resource_efficiency),
             "analyze_hotspots": make_analysis_function(analyze_hotspots),
-            "plot_distribution": make_analysis_function(plot_resource_distribution),
+            "plot_resource": make_analysis_function(plot_resource_distribution),
             "plot_consumption": make_analysis_function(plot_consumption_over_time),
             "plot_efficiency": make_analysis_function(plot_efficiency_metrics),
             "plot_hotspots": make_analysis_function(plot_resource_hotspots),
@@ -64,14 +64,14 @@ class ResourcesModule(BaseAnalysisModule):
                 self._functions["analyze_hotspots"],
             ],
             "plots": [
-                self._functions["plot_distribution"],
+                self._functions["plot_resource"],
                 self._functions["plot_consumption"],
                 self._functions["plot_efficiency"],
                 self._functions["plot_hotspots"],
             ],
             "basic": [
                 self._functions["analyze_patterns"],
-                self._functions["plot_distribution"],
+                self._functions["plot_resource"],
             ],
             "efficiency": [
                 self._functions["analyze_efficiency"],
@@ -82,6 +82,10 @@ class ResourcesModule(BaseAnalysisModule):
     def get_data_processor(self) -> SimpleDataProcessor:
         """Get data processor for resource analysis."""
         return SimpleDataProcessor(process_resource_data)
+
+    def get_group_names(self) -> list:
+        """Get names of function groups."""
+        return list(self._groups.keys())
 
 
 # Create singleton instance
