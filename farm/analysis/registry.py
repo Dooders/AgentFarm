@@ -6,7 +6,7 @@ Provides centralized registration and discovery of analysis modules.
 
 import importlib
 from farm.utils.logging_config import get_logger
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from farm.analysis.protocols import AnalysisModule
 from farm.analysis.exceptions import ModuleNotFoundError, ConfigurationError
@@ -186,7 +186,7 @@ def register_modules(
     return successfully_registered
 
 
-def _implements_analysis_module_protocol(obj: any) -> bool:
+def _implements_analysis_module_protocol(obj: Any) -> bool:
     """Check if object implements AnalysisModule protocol.
     
     Args:

@@ -289,7 +289,8 @@ def _compute_location_clusters(activity_df: pd.DataFrame) -> Dict[str, Any]:
             if score > best_score:
                 best_score = score
                 best_n_clusters = n_clusters
-        except:
+        except (ValueError, RuntimeError) as e:
+            # Clustering can fail for certain configurations
             continue
 
     # Final clustering with best number of clusters
@@ -322,7 +323,8 @@ def _estimate_spatial_density(coords: np.ndarray) -> Dict[str, Any]:
             'max_density': float(np.max(hist)),
             'avg_density': float(np.mean(hist)),
         }
-    except:
+    except (ValueError, TypeError) as e:
+        # Can fail if coordinates are invalid or insufficient
         return {}
 
 

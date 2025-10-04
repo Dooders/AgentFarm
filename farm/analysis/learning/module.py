@@ -36,7 +36,7 @@ class LearningModule(BaseAnalysisModule):
             DataQualityValidator(min_rows=1),
             ColumnValidator(
                 required_columns=['step', 'reward'],  # Core required columns
-                column_types={'step': int, 'reward': (int, float)}
+                column_types={'step': int, 'reward': float}
             )
         ])
         self.set_validator(validator)

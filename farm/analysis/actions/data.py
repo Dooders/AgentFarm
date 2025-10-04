@@ -57,7 +57,7 @@ def process_action_data(
                 })
 
             df = pd.DataFrame(action_data)
-    except Exception as e:
+    except (FileNotFoundError, ImportError) as e:
         # If database loading fails, try to load from CSV files
         pass
 

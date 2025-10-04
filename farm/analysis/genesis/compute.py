@@ -936,10 +936,10 @@ def compute_simulation_outcomes(session: Session) -> Dict[str, Any]:
 
     if agents:
         # Calculate average lifespan for dead agents
-        dead_agents = [agent for agent in agents if agent["death_time"] is not None]
+        dead_agents = [agent for agent in agents if agent.death_time is not None]
         if dead_agents:
             lifespans = [
-                agent["death_time"] - agent["birth_time"] for agent in dead_agents
+                agent.death_time - agent.birth_time for agent in dead_agents
             ]
             outcomes["average_lifespan"] = np.mean(lifespans)
 
@@ -950,9 +950,9 @@ def compute_simulation_outcomes(session: Session) -> Dict[str, Any]:
         survival_by_type = defaultdict(lambda: {"total": 0, "alive": 0})
 
         for agent in agents:
-            survival_by_type[agent["agent_type"]]["total"] += 1
-            if agent["death_time"] is None:
-                survival_by_type[agent["agent_type"]]["alive"] += 1
+            survival_by_type[agent.agent_type]["total"] += 1
+            if agent.death_time is None:
+                survival_by_type[agent.agent_type]["alive"] += 1
 
         for agent_type, counts in survival_by_type.items():
             if counts["total"] > 0:

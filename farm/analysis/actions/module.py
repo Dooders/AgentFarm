@@ -33,7 +33,7 @@ class ActionsModule(BaseAnalysisModule):
         validator = CompositeValidator([
             ColumnValidator(
                 required_columns=['step', 'action_type', 'frequency'],
-                column_types={'step': int, 'frequency': (int, float)}
+                column_types={'step': int, 'frequency': float}
             ),
             DataQualityValidator(min_rows=1)
         ])
