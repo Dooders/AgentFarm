@@ -208,6 +208,10 @@ def _register_builtin_modules() -> int:
     """
     builtin_modules = [
         "farm.analysis.dominance.module.dominance_module",
+        "farm.analysis.population.module.population_module",
+        "farm.analysis.resources.module.resources_module",
+        "farm.analysis.actions.module.actions_module",
+        "farm.analysis.agents.module.agents_module",
         "farm.analysis.null_module.null_module",
     ]
     
