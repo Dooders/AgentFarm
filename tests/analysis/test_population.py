@@ -302,7 +302,7 @@ class TestPopulationModule:
             ]
             mock_repository.get_population_over_time.return_value = mock_population_data
 
-            with patch('farm.analysis.population.data.SimulationDatabase', return_value=mock_db), \
+            with patch('farm.analysis.population.data.SessionManager', return_value=mock_session_manager), \
                  patch('farm.analysis.population.data.PopulationRepository', return_value=mock_repository):
 
                 result = processor.process(Path(temp_dir))

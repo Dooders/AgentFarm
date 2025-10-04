@@ -126,7 +126,9 @@ class AnalysisResult:
             "cache_hit": self.cache_hit,
             "timestamp": self.timestamp.isoformat(),
             "dataframe_shape": (
-                self.dataframe.shape if self.dataframe is not None else None
+                self.dataframe.shape if self.dataframe is not None and hasattr(self.dataframe, 'shape')
+                else (len(self.dataframe),) if isinstance(self.dataframe, dict) and self.dataframe is not None
+                else None
             ),
         }
 

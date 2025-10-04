@@ -38,12 +38,13 @@ def process_action_data(
             db_path = find_database_path(experiment_path, "simulation.db")
             logger.info(f"Loading actions from database: {db_path}")
 
-            # Load data using repository directly
-            db = SimulationDatabase(f"sqlite:///{db_path}")
-            repository = ActionRepository(db.session_manager)
+            # Load data using SessionManager directly (like population processor)
+            from farm.database.session_manager import SessionManager
+            session_manager = SessionManager(f"sqlite:///{db_path}")
+            repository = ActionRepository(session_manager)
 
-            # Get all actions from the experiment
-            actions = repository.get_actions_by_scope("experiment")
+            # Get all actions from the simulation
+            actions = repository.get_actions_by_scope("simulation")
 
             # Convert to DataFrame
             action_data = []
@@ -61,6 +62,15 @@ def process_action_data(
 
             df = pd.DataFrame(action_data)
             logger.info(f"Loaded {len(df)} action records from database")
+
+            # Aggregate actions by step and action_type to create frequency data
+            if not df.empty:
+                # Group by step and action_type, count frequencies
+                frequency_df = df.groupby(['step_number', 'action_type']).size().reset_index(name='frequency')
+                # Rename step_number to step to match expected column name
+                frequency_df = frequency_df.rename(columns={'step_number': 'step'})
+                df = frequency_df
+                logger.info(f"Aggregated into {len(df)} (step, action_type) frequency records")
             
         except (FileNotFoundError, ImportError) as e:
             logger.exception(f"Database loading failed: {e}. Falling back to CSV files")

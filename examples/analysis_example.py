@@ -8,9 +8,10 @@ modules for different types of simulation analysis.
 
 import time
 from pathlib import Path
-from farm.analysis.service import AnalysisService, AnalysisRequest
+
+from farm.analysis.registry import get_module, get_module_names
+from farm.analysis.service import AnalysisRequest, AnalysisService
 from farm.core.services import EnvConfigService
-from farm.analysis.registry import get_module_names, get_module
 
 
 def example_1_basic_population_analysis():
@@ -22,9 +23,9 @@ def example_1_basic_population_analysis():
     service = AnalysisService(config_service)
 
     # Assume we have an experiment directory
-    experiment_path = Path("data/sample_experiment")
+    experiment_path = Path("docs/sample")
     if not experiment_path.exists():
-        print("Note: This example assumes experiment data exists at data/sample_experiment")
+        print("Note: This example assumes experiment data exists at docs/sample")
         print("Creating mock directory for demonstration...")
         experiment_path.mkdir(parents=True, exist_ok=True)
         # In real usage, this would contain simulation.db and data files
@@ -34,7 +35,7 @@ def example_1_basic_population_analysis():
         module_name="population",
         experiment_path=experiment_path,
         output_path=Path("results/population_basic"),
-        group="basic"  # Run basic analysis (stats + plots)
+        group="basic",  # Run basic analysis (stats + plots)
     )
 
     # Run analysis
@@ -44,7 +45,8 @@ def example_1_basic_population_analysis():
     end_time = time.time()
 
     if result.success:
-        print("✅ Analysis completed successfully!"        print(f"⏱️  Execution time: {result.execution_time:.2f}s")
+        print("✅ Analysis completed successfully!")
+        print(f"⏱️  Execution time: {result.execution_time:.2f}s")
         print(f"📁 Results saved to: {result.output_path}")
 
         # List generated files
@@ -65,7 +67,7 @@ def example_2_comprehensive_multi_module_analysis():
     print("=== Example 2: Comprehensive Multi-Module Analysis ===")
 
     service = AnalysisService(EnvConfigService())
-    experiment_path = Path("data/sample_experiment")
+    experiment_path = Path("docs/sample")
 
     # Define modules to run
     modules = ["population", "resources", "actions", "agents"]
@@ -78,7 +80,7 @@ def example_2_comprehensive_multi_module_analysis():
             module_name=module,
             experiment_path=experiment_path,
             output_path=Path(f"results/comprehensive/{module}"),
-            group="all"  # Run all functions for each module
+            group="all",  # Run all functions for each module
         )
         requests.append(request)
 
@@ -108,7 +110,7 @@ def example_3_custom_analysis_parameters():
     print("=== Example 3: Custom Analysis Parameters ===")
 
     service = AnalysisService(EnvConfigService())
-    experiment_path = Path("data/sample_experiment")
+    experiment_path = Path("docs/sample")
 
     # Define progress callback
     def progress_callback(message: str, progress: float):
@@ -125,13 +127,13 @@ def example_3_custom_analysis_parameters():
             "plot_population": {
                 "figsize": (12, 8),
                 "dpi": 300,
-                "colors": ['#1f77b4', '#ff7f0e', '#2ca02c']  # Custom colors
+                "colors": ["#1f77b4", "#ff7f0e", "#2ca02c"],  # Custom colors
             },
             "plot_births_deaths": {
                 "window": 20,  # Rolling window for smoothing
-                "alpha": 0.8
-            }
-        }
+                "alpha": 0.8,
+            },
+        },
     )
 
     print("Running population analysis with custom parameters...")
@@ -151,13 +153,13 @@ def example_4_caching_and_performance():
     print("=== Example 4: Caching and Performance ===")
 
     service = AnalysisService(EnvConfigService())
-    experiment_path = Path("data/sample_experiment")
+    experiment_path = Path("docs/sample")
 
     request = AnalysisRequest(
         module_name="population",
         experiment_path=experiment_path,
         output_path=Path("results/caching_demo"),
-        enable_caching=True
+        enable_caching=True,
     )
 
     print("Running analysis with caching enabled...")
@@ -169,17 +171,18 @@ def example_4_caching_and_performance():
     first_run_time = time.time() - start_time
 
     if result1.success:
-        print(".2f"
+        print(f"First run completed in {first_run_time:.2f}s")
         # Second run (cached)
         print("Second run (cached)...")
         start_time = time.time()
         result2 = service.run(request)
         second_run_time = time.time() - start_time
 
-        print(".2f"
+        print(f"Second run completed in {second_run_time:.2f}s")
         if result2.cache_hit:
-            speedup = first_run_time / second_run_time if second_run_time > 0 else float('inf')
-            print(".1f"        else:
+            speedup = first_run_time / second_run_time if second_run_time > 0 else float("inf")
+            print(f"Speedup: {speedup:.1f}x")
+        else:
             print("Note: Cache hit not detected (may be due to implementation details)")
 
         print(f"Cache status - First: {result1.cache_hit}, Second: {result2.cache_hit}")
@@ -210,7 +213,7 @@ def example_5_batch_experiment_analysis():
             module_name="population",
             experiment_path=exp_path,
             output_path=Path(f"results/batch/{exp_name}"),
-            group="basic"
+            group="basic",
         )
         requests.append(request)
 
@@ -219,13 +222,13 @@ def example_5_batch_experiment_analysis():
     results = service.run_batch(requests)
     batch_time = time.time() - start_time
 
-    print(".2f"
+    print(f"Batch completed in {batch_time:.2f}s")
     # Analyze results
     successful = [r for r in results if r.success]
     failed = [r for r in results if not r.success]
 
     print(f"✅ Successful: {len(successful)}/{len(results)}")
-    print(".2f"
+    print(f"Average time per analysis: {batch_time / len(results):.2f}s")
     if failed:
         print(f"❌ Failed: {len(failed)}")
         for result in failed:
@@ -239,7 +242,7 @@ def example_6_specialized_module_analysis():
     print("=== Example 6: Specialized Module Analysis ===")
 
     service = AnalysisService(EnvConfigService())
-    experiment_path = Path("data/sample_experiment")
+    experiment_path = Path("docs/sample")
 
     # Specialized modules with different analysis focuses
     specialized_analyses = [
@@ -258,7 +261,7 @@ def example_6_specialized_module_analysis():
             module_name=module,
             experiment_path=experiment_path,
             output_path=Path(f"results/specialized/{module}"),
-            group=group
+            group=group,
         )
 
         start_time = time.time()
@@ -266,7 +269,8 @@ def example_6_specialized_module_analysis():
         analysis_time = time.time() - start_time
 
         if result.success:
-            print(".2f"            print(f"   📁 Results: {result.output_path}")
+            print(f"   Completed in {analysis_time:.2f}s")
+            print(f"   📁 Results: {result.output_path}")
         else:
             print(f"   ❌ Failed: {result.error}")
 
@@ -277,11 +281,7 @@ def example_7_error_handling_and_recovery():
     """Example 7: Error handling and recovery patterns."""
     print("=== Example 7: Error Handling and Recovery ===")
 
-    from farm.analysis.exceptions import (
-        ModuleNotFoundError,
-        DataValidationError,
-        DataProcessingError
-    )
+    from farm.analysis.exceptions import DataProcessingError, DataValidationError, ModuleNotFoundError
 
     service = AnalysisService(EnvConfigService())
 
@@ -300,12 +300,10 @@ def example_7_error_handling_and_recovery():
             if "invalid experiment" in description:
                 exp_path = Path("nonexistent/experiment/path")
             else:
-                exp_path = Path("data/sample_experiment")
+                exp_path = Path("docs/sample")
 
             request = AnalysisRequest(
-                module_name=module_name,
-                experiment_path=exp_path,
-                output_path=Path(f"results/error_test/{module_name}")
+                module_name=module_name, experiment_path=exp_path, output_path=Path(f"results/error_test/{module_name}")
             )
 
             result = service.run(request)
@@ -319,7 +317,8 @@ def example_7_error_handling_and_recovery():
             print(f"   ❌ Module not found: {e.module_name}")
             print(f"      Available: {', '.join(e.available_modules[:5])}...")
         except DataValidationError as e:
-            print("   ❌ Data validation error:"            print(f"      Missing columns: {e.missing_columns}")
+            print("   ❌ Data validation error:")
+            print(f"      Missing columns: {e.missing_columns}")
             print(f"      Invalid columns: {e.invalid_columns}")
         except DataProcessingError as e:
             print(f"   ❌ Data processing error at step: {e.step}")
@@ -345,7 +344,7 @@ def example_8_module_discovery_and_introspection():
 
         # Get detailed module info
         try:
-            details = service.get_module_info(module_info['name'])
+            details = service.get_module_info(module_info["name"])
             print(f"   Functions: {len(details['functions'])}")
             print(f"   Groups: {list(details['function_groups'].keys())}")
 
@@ -353,8 +352,8 @@ def example_8_module_discovery_and_introspection():
             print(f"   Could not get details: {e}")
 
     # Demonstrate getting a specific module
-    print("
-🔍 Detailed info for 'population' module:"    try:
+    print("\n🔍 Detailed info for 'population' module:")
+    try:
         pop_info = service.get_module_info("population")
         print(f"   Description: {pop_info['description']}")
         print(f"   Functions: {pop_info['functions']}")
@@ -385,7 +384,7 @@ def main():
     ]
 
     for i, (name, example_func) in enumerate(examples, 1):
-        print(f"\n{'='*20} Example {i}: {name} {'='*20}")
+        print(f"\n{'=' * 20} Example {i}: {name} {'=' * 20}")
         try:
             example_func()
         except KeyboardInterrupt:
@@ -394,6 +393,7 @@ def main():
         except Exception as e:
             print(f"❌ Error in example {i}: {e}")
             import traceback
+
             traceback.print_exc()
 
         # Brief pause between examples

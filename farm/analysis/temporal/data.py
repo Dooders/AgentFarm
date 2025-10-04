@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 import pandas as pd
 
-from farm.database.database import SimulationDatabase
+from farm.database.session_manager import SessionManager
 from farm.database.repositories.action_repository import ActionRepository
 
 
@@ -34,33 +34,42 @@ def process_temporal_data(
             db_path = experiment_path / "data" / "simulation.db"
 
         if db_path.exists():
-            # Load data using existing infrastructure
-            db = SimulationDatabase(f"sqlite:///{db_path}")
-            action_repo = ActionRepository(db.session_manager)
+            # Load data using SessionManager directly
+            db_uri = f"sqlite:///{db_path}"
+            session_manager = SessionManager(db_uri)
+            action_repo = ActionRepository(session_manager)
 
-            try:
-                # Get action data over time
-                actions = action_repo.get_actions_by_scope("simulation")
+            # Get action data over time
+            actions = action_repo.get_actions_by_scope("simulation")
 
-                if not actions:
-                    df = pd.DataFrame(columns=['step', 'agent_id', 'action_type', 'reward'])
-                else:
-                    # Convert to DataFrame
-                    df = pd.DataFrame([{
-                        'step': getattr(action, 'step_number', 0),
-                        'agent_id': getattr(action, 'agent_id', None),
-                        'action_type': getattr(action, 'action_type', ''),
-                        'reward': getattr(action, 'reward', 0.0) or 0.0,
-                    } for action in actions])
+            if not actions:
+                df = pd.DataFrame(columns=['step', 'agent_id', 'action_type', 'reward'])
+            else:
+                # Convert to DataFrame
+                df = pd.DataFrame([{
+                    'step': int(getattr(action, 'step_number', 0)),
+                    'agent_id': getattr(action, 'agent_id', None),
+                    'action_type': getattr(action, 'action_type', ''),
+                    'reward': float(getattr(action, 'reward', 0.0) or 0.0),
+                } for action in actions])
 
-                    # Ensure required columns exist
-                    required_cols = ['step', 'agent_id', 'action_type', 'reward']
-                    for col in required_cols:
-                        if col not in df.columns:
+                # Ensure required columns exist and have correct types
+                required_cols = ['step', 'agent_id', 'action_type', 'reward']
+                for col in required_cols:
+                    if col not in df.columns:
+                        if col == 'step':
+                            df[col] = 0
+                        elif col == 'agent_id':
                             df[col] = None
+                        elif col == 'action_type':
+                            df[col] = ''
+                        elif col == 'reward':
+                            df[col] = 0.0
 
-            finally:
-                db.close()
+                # Ensure correct data types
+                df['step'] = df['step'].astype(int)
+                df['reward'] = df['reward'].astype(float)
+
     except Exception as e:
         # If database loading fails, return empty DataFrame
         pass
