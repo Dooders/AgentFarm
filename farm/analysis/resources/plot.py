@@ -62,6 +62,8 @@ def plot_consumption_over_time(df: pd.DataFrame, ctx: AnalysisContext, **kwargs)
         consumption_col = 'avg_consumption_rate'
     elif 'consumption_rate' in df.columns:
         consumption_col = 'consumption_rate'
+    elif 'consumed_resources' in df.columns:
+        consumption_col = 'consumed_resources'
 
     if consumption_col is None:
         ctx.logger.warning("No consumption data available")
@@ -78,7 +80,7 @@ def plot_consumption_over_time(df: pd.DataFrame, ctx: AnalysisContext, **kwargs)
     ax.legend()
     ax.grid(True, alpha=0.3)
 
-    output_file = ctx.get_output_file("consumption_over_time.png")
+    output_file = ctx.get_output_file("consumption_patterns.png")
     fig.savefig(output_file, dpi=kwargs.get('dpi', 300), bbox_inches='tight')
     plt.close(fig)
 
@@ -117,7 +119,7 @@ def plot_efficiency_metrics(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) ->
     ax.grid(True, alpha=0.3)
     ax.set_ylim(0, 100)
 
-    output_file = ctx.get_output_file("efficiency_metrics.png")
+    output_file = ctx.get_output_file("resource_efficiency.png")
     fig.savefig(output_file, dpi=kwargs.get('dpi', 300), bbox_inches='tight')
     plt.close(fig)
 

@@ -71,8 +71,17 @@ def process_agent_data(
         pass
 
     if df is None or df.empty:
-        # For agents, we don't have CSV fallback in the fixture
-        # Return an empty DataFrame or raise an error
-        df = pd.DataFrame()
+        # Fallback to loading from CSV files
+        data_dir = experiment_path / "data"
+        if data_dir.exists():
+            csv_path = data_dir / "agents.csv"
+            if csv_path.exists():
+                df = pd.read_csv(csv_path)
+            else:
+                # Return empty DataFrame if no data available
+                df = pd.DataFrame()
+        else:
+            # Return empty DataFrame if no data directory
+            df = pd.DataFrame()
 
     return df

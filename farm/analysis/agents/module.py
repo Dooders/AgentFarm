@@ -11,6 +11,7 @@ from farm.analysis.agents.analyze import (
     analyze_behavior_clustering,
     analyze_performance_analysis,
     analyze_learning_curves,
+    analyze_agent_statistics,
 )
 from farm.analysis.agents.plot import (
     plot_lifespan_distributions,
@@ -52,6 +53,7 @@ class AgentsModule(BaseAnalysisModule):
 
         # Analysis functions
         self._functions = {
+            "analyze_statistics": make_analysis_function(analyze_agent_statistics),
             "analyze_lifespans": make_analysis_function(analyze_lifespan_patterns),
             "analyze_behaviors": make_analysis_function(analyze_behavior_clustering),
             "analyze_performance": make_analysis_function(analyze_performance_analysis),
@@ -70,6 +72,7 @@ class AgentsModule(BaseAnalysisModule):
         self._groups = {
             "all": list(self._functions.values()),
             "analysis": [
+                self._functions["analyze_statistics"],
                 self._functions["analyze_lifespans"],
                 self._functions["analyze_behaviors"],
                 self._functions["analyze_performance"],

@@ -29,12 +29,18 @@ def analyze_action_patterns(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) ->
     # Compute statistics
     stats = compute_action_statistics(df)
 
-    # Save to file
+    # Save statistics to JSON
     output_file = ctx.get_output_file("action_statistics.json")
     with open(output_file, 'w') as f:
         json.dump(stats, f, indent=2)
 
     ctx.logger.info(f"Saved statistics to {output_file}")
+
+    # Save action patterns to CSV
+    csv_file = ctx.get_output_file("action_patterns.csv")
+    df.to_csv(csv_file, index=False)
+    ctx.logger.info(f"Saved action patterns to {csv_file}")
+
     ctx.report_progress("Action patterns analysis complete", 0.4)
 
 

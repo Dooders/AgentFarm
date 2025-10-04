@@ -39,7 +39,7 @@ def analyze_resource_patterns(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) 
     }
 
     # Save to file
-    output_file = ctx.get_output_file("resource_patterns.json")
+    output_file = ctx.get_output_file("resource_statistics.json")
     with open(output_file, 'w') as f:
         json.dump(results, f, indent=2)
 

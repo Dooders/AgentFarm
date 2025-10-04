@@ -97,3 +97,42 @@ def analyze_learning_curves(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) ->
 
     ctx.logger.info(f"Saved learning analysis to {output_file}")
     ctx.report_progress("Learning curves analysis complete", 0.9)
+
+
+def analyze_agent_statistics(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> None:
+    """Analyze comprehensive agent statistics and save results.
+
+    Args:
+        df: Agent data
+        ctx: Analysis context
+        **kwargs: Additional options
+    """
+    ctx.logger.info("Analyzing agent statistics...")
+
+    # Compute all statistics
+    stats = {}
+
+    if not df.empty:
+        # Lifespan statistics
+        lifespan_stats = compute_lifespan_statistics(df)
+        stats['lifespan'] = lifespan_stats
+
+        # Behavior patterns
+        behavior_patterns = compute_behavior_patterns(df)
+        stats['behavior'] = behavior_patterns
+
+        # Performance metrics
+        performance_metrics = compute_performance_metrics(df)
+        stats['performance'] = performance_metrics
+
+        # Learning curves
+        learning_curves = compute_learning_curves(df)
+        stats['learning'] = learning_curves
+
+    # Save to file
+    output_file = ctx.get_output_file("agent_statistics.json")
+    with open(output_file, 'w') as f:
+        json.dump(stats, f, indent=2)
+
+    ctx.logger.info(f"Saved statistics to {output_file}")
+    ctx.report_progress("Agent statistics analysis complete", 0.5)

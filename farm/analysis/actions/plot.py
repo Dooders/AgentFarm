@@ -42,7 +42,7 @@ def plot_action_frequencies(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) ->
     ax.grid(True, alpha=0.3)
 
     # Save figure
-    output_file = ctx.get_output_file("action_frequencies.png")
+    output_file = ctx.get_output_file("action_distribution.png")
     fig.savefig(output_file, dpi=dpi, bbox_inches='tight')
     plt.close(fig)
 
