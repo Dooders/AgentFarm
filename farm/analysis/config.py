@@ -30,6 +30,19 @@ class SpatialAnalysisConfig:
     
     # Spatial density estimation bins
     density_bins: int = 20
+    
+    def __post_init__(self):
+        """Validate configuration values."""
+        if self.min_clustering_points < 2:
+            raise ValueError(f"min_clustering_points must be >= 2, got {self.min_clustering_points}")
+        if self.max_clusters < 2:
+            raise ValueError(f"max_clusters must be >= 2, got {self.max_clusters}")
+        if self.density_bins < 1:
+            raise ValueError(f"density_bins must be >= 1, got {self.density_bins}")
+        if self.resource_clustering_threshold <= 0:
+            raise ValueError(f"resource_clustering_threshold must be > 0, got {self.resource_clustering_threshold}")
+        if self.gathering_range <= 0:
+            raise ValueError(f"gathering_range must be > 0, got {self.gathering_range}")
 
 
 @dataclass

@@ -269,7 +269,7 @@ def _identify_hotspots(activity_df: pd.DataFrame) -> List[Dict[str, Any]]:
 
 def _compute_location_clusters(activity_df: pd.DataFrame) -> Dict[str, Any]:
     """Compute location clustering using K-means."""
-    min_points = spatial_config.min_clustering_points
+    min_points = max(2, spatial_config.min_clustering_points)  # Ensure at least 2
     if activity_df.empty or len(activity_df) < min_points:
         return {}
 
@@ -279,9 +279,13 @@ def _compute_location_clusters(activity_df: pd.DataFrame) -> Dict[str, Any]:
         return {}
 
     # Try different numbers of clusters
-    max_clusters = min(spatial_config.max_clusters, len(coords))
+    max_clusters = min(max(2, spatial_config.max_clusters), len(coords))  # Ensure at least 2
     best_score = -1
     best_n_clusters = 2
+    
+    # Ensure we have enough points for clustering
+    if max_clusters < 2 or len(coords) < 2:
+        return {}
 
     for n_clusters in range(2, max_clusters + 1):
         try:

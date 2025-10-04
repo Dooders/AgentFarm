@@ -62,8 +62,8 @@ def process_action_data(
             df = pd.DataFrame(action_data)
             logger.info(f"Loaded {len(df)} action records from database")
             
-        except (FileNotFoundError, ImportError, Exception) as e:
-            logger.warning(f"Database loading failed: {e}. Falling back to CSV files")
+        except (FileNotFoundError, ImportError) as e:
+            logger.exception(f"Database loading failed: {e}. Falling back to CSV files")
             df = None
 
     if df is None or df.empty:
