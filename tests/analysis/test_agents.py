@@ -239,7 +239,7 @@ class TestAgentsModule:
 
     def test_agents_module_function_groups(self):
         """Test module function groups."""
-        groups = agents_module.get_group_names()
+        groups = agents_module.get_function_groups()
         assert "all" in groups
         assert "analysis" in groups
         assert "plots" in groups

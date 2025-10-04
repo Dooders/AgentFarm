@@ -218,7 +218,7 @@ class TestResourcesModule:
 
     def test_resources_module_function_groups(self):
         """Test module function groups."""
-        groups = resources_module.get_group_names()
+        groups = resources_module.get_function_groups()
         assert "all" in groups
         assert "analysis" in groups
         assert "plots" in groups

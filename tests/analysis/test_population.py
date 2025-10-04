@@ -270,7 +270,7 @@ class TestPopulationModule:
 
     def test_population_module_function_groups(self):
         """Test module function groups."""
-        groups = population_module.get_group_names()
+        groups = population_module.get_function_groups()
         assert "all" in groups
         assert "analysis" in groups
         assert "plots" in groups
@@ -281,12 +281,32 @@ class TestPopulationModule:
         processor = population_module.get_data_processor()
         assert processor is not None
 
-        # Test with mock data
-        mock_data = pd.DataFrame({
-            'step': range(5),
-            'total_agents': range(100, 105),
-        })
+        # Test with mock path and database - use patch to mock database access
+        import tempfile
+        from unittest.mock import patch, MagicMock
 
-        result = processor.process(mock_data)
-        assert isinstance(result, pd.DataFrame)
-        assert len(result) == 5
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir) / "simulation.db"
+            temp_path.touch()  # Create empty file
+
+            # Mock the database and repository
+            mock_db = MagicMock()
+            mock_session_manager = MagicMock()
+            mock_db.session_manager = mock_session_manager
+
+            mock_repository = MagicMock()
+            mock_population_data = [
+                MagicMock(step=i, total_agents=100+i, system_agents=50+i//2,
+                         independent_agents=30+i//3, control_agents=20+i//4,
+                         avg_resources=50.0) for i in range(5)
+            ]
+            mock_repository.get_population_over_time.return_value = mock_population_data
+
+            with patch('farm.analysis.population.data.SimulationDatabase', return_value=mock_db), \
+                 patch('farm.analysis.population.data.PopulationRepository', return_value=mock_repository):
+
+                result = processor.process(Path(temp_dir))
+                assert isinstance(result, pd.DataFrame)
+                assert len(result) == 5
+                assert 'step' in result.columns
+                assert 'total_agents' in result.columns

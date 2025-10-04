@@ -31,5 +31,9 @@ __all__ = [
     'analyze_critical_period',
     'plot_genesis_analysis_results',
     'plot_initial_state_comparison',
-    'plot_critical_period_analysis'
-] 
+    'plot_critical_period_analysis',
+    'genesis_module'
+]
+
+# Import the module instance
+from farm.analysis.genesis.module import genesis_module 
