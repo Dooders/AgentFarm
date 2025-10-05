@@ -18,7 +18,9 @@
         "max": 25.0,
         "q25": 4.0,
         "q75": 8.0
-      }
+      },
+      "success_rate": null,
+      "avg_reward": null
     },
     "defend": {
       "frequency": {
@@ -29,7 +31,9 @@
         "max": 25.0,
         "q25": 4.0,
         "q75": 8.0
-      }
+      },
+      "success_rate": null,
+      "avg_reward": null
     },
     "gather": {
       "frequency": {
@@ -40,7 +44,9 @@
         "max": 26.0,
         "q25": 4.0,
         "q75": 8.0
-      }
+      },
+      "success_rate": null,
+      "avg_reward": null
     },
     "move": {
       "frequency": {
@@ -51,7 +57,9 @@
         "max": 23.0,
         "q25": 4.0,
         "q75": 8.0
-      }
+      },
+      "success_rate": null,
+      "avg_reward": null
     },
     "pass": {
       "frequency": {
@@ -62,7 +70,9 @@
         "max": 24.0,
         "q25": 4.0,
         "q75": 8.0
-      }
+      },
+      "success_rate": null,
+      "avg_reward": null
     },
     "reproduce": {
       "frequency": {
@@ -73,7 +83,9 @@
         "max": 27.0,
         "q25": 4.0,
         "q75": 8.0
-      }
+      },
+      "success_rate": null,
+      "avg_reward": null
     },
     "share": {
       "frequency": {
@@ -84,7 +96,9 @@
         "max": 28.0,
         "q25": 4.0,
         "q75": 8.0
-      }
+      },
+      "success_rate": null,
+      "avg_reward": null
     }
   },
   "most_common_action": "pass",
