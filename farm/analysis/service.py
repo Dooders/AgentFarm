@@ -126,8 +126,10 @@ class AnalysisResult:
             "cache_hit": self.cache_hit,
             "timestamp": self.timestamp.isoformat(),
             "dataframe_shape": (
-                self.dataframe.shape if self.dataframe is not None and hasattr(self.dataframe, 'shape')
-                else (len(self.dataframe),) if isinstance(self.dataframe, dict) and self.dataframe is not None
+                self.dataframe.shape
+                if self.dataframe is not None and hasattr(self.dataframe, "shape")
+                else (len(self.dataframe),)
+                if isinstance(self.dataframe, dict) and self.dataframe is not None
                 else None
             ),
         }
@@ -208,9 +210,7 @@ class AnalysisCache:
             logger.warning(f"Failed to load cache {cache_key}: {e}")
             return None
 
-    def put(
-        self, cache_key: str, output_path: Path, dataframe: Optional[pd.DataFrame]
-    ) -> None:
+    def put(self, cache_key: str, output_path: Path, dataframe: Optional[pd.DataFrame]) -> None:
         """Store result in cache.
 
         Args:
@@ -298,17 +298,14 @@ class AnalysisService:
 
         # Check experiment path exists
         if not request.experiment_path.exists():
-            raise ConfigurationError(
-                f"Experiment path does not exist: {request.experiment_path}"
-            )
+            raise ConfigurationError(f"Experiment path does not exist: {request.experiment_path}")
 
         # Check function group is valid
         module = get_module(request.module_name)
         available_groups = module.get_function_groups()
         if request.group not in available_groups:
             raise ConfigurationError(
-                f"Invalid function group '{request.group}'. "
-                f"Available groups: {', '.join(available_groups)}"
+                f"Invalid function group '{request.group}'. Available groups: {', '.join(available_groups.keys())}"
             )
 
     def run(self, request: AnalysisRequest) -> AnalysisResult:
@@ -359,9 +356,7 @@ class AnalysisService:
         try:
             module = get_module(request.module_name)
 
-            logger.info(
-                f"Running {request.module_name} analysis " f"(group: {request.group})"
-            )
+            logger.info(f"Running {request.module_name} analysis (group: {request.group})")
 
             output_path, dataframe = module.run_analysis(
                 experiment_path=request.experiment_path,
@@ -409,9 +404,7 @@ class AnalysisService:
                 metadata=request.metadata,
             )
 
-    def run_batch(
-        self, requests: List[AnalysisRequest], fail_fast: bool = False
-    ) -> List[AnalysisResult]:
+    def run_batch(self, requests: List[AnalysisRequest], fail_fast: bool = False) -> List[AnalysisResult]:
         """Run multiple analysis requests in batch.
 
         Args:
@@ -424,13 +417,13 @@ class AnalysisService:
         results = []
 
         for i, request in enumerate(requests):
-            logger.info(f"Running batch analysis {i+1}/{len(requests)}")
+            logger.info(f"Running batch analysis {i + 1}/{len(requests)}")
 
             result = self.run(request)
             results.append(result)
 
             if fail_fast and not result.success:
-                logger.error(f"Batch analysis failed at request {i+1}")
+                logger.error(f"Batch analysis failed at request {i + 1}")
                 break
 
         successful = sum(1 for r in results if r.success)
