@@ -29,14 +29,13 @@ def analyze_temporal_patterns(experiment_path: str, ctx: AnalysisContext, **kwar
     """
     ctx.logger.info("Analyzing temporal patterns...")
 
-    time_period_size = kwargs.get('time_period_size', 100)
-    rolling_window_size = kwargs.get('rolling_window_size', 10)
+    time_period_size = kwargs.get("time_period_size", 100)
+    rolling_window_size = kwargs.get("rolling_window_size", 10)
 
     from pathlib import Path
+
     patterns_df = extract_temporal_patterns(
-        Path(experiment_path),
-        time_period_size=time_period_size,
-        rolling_window_size=rolling_window_size
+        Path(experiment_path), time_period_size=time_period_size, rolling_window_size=rolling_window_size
     )
 
     if patterns_df.empty:
@@ -49,13 +48,13 @@ def analyze_temporal_patterns(experiment_path: str, ctx: AnalysisContext, **kwar
 
     # Combine results
     results = {
-        'patterns': patterns,
-        'efficiency': efficiency,
+        "patterns": patterns,
+        "efficiency": efficiency,
     }
 
     # Save to file
-    output_file = ctx.get_output_file("temporal_patterns.json")
-    with open(output_file, 'w') as f:
+    output_file = ctx.get_output_file("temporal_statistics.json")
+    with open(output_file, "w") as f:
         json.dump(results, f, indent=2, default=str)
 
     ctx.logger.info(f"Saved temporal patterns to {output_file}")
@@ -72,9 +71,10 @@ def analyze_event_segmentation(experiment_path: str, ctx: AnalysisContext, **kwa
     """
     ctx.logger.info("Analyzing event segmentation...")
 
-    event_steps = kwargs.get('event_steps', [])
+    event_steps = kwargs.get("event_steps", [])
 
     from pathlib import Path
+
     segments_data = process_event_segmentation_data(Path(experiment_path), event_steps=event_steps)
 
     # Compute segmentation metrics
@@ -82,7 +82,7 @@ def analyze_event_segmentation(experiment_path: str, ctx: AnalysisContext, **kwa
 
     # Save to file
     output_file = ctx.get_output_file("event_segmentation.json")
-    with open(output_file, 'w') as f:
+    with open(output_file, "w") as f:
         json.dump(segmentation, f, indent=2, default=str)
 
     ctx.logger.info(f"Saved event segmentation to {output_file}")
@@ -99,9 +99,10 @@ def analyze_time_series_overview(experiment_path: str, ctx: AnalysisContext, **k
     """
     ctx.logger.info("Analyzing time series overview...")
 
-    time_period_size = kwargs.get('time_period_size', 100)
+    time_period_size = kwargs.get("time_period_size", 100)
 
     from pathlib import Path
+
     time_series_df = process_time_series_data(Path(experiment_path), time_period_size=time_period_size)
 
     if time_series_df.empty:
@@ -113,7 +114,7 @@ def analyze_time_series_overview(experiment_path: str, ctx: AnalysisContext, **k
 
     # Save to file
     output_file = ctx.get_output_file("time_series_overview.json")
-    with open(output_file, 'w') as f:
+    with open(output_file, "w") as f:
         json.dump(stats, f, indent=2, default=str)
 
     ctx.logger.info(f"Saved time series overview to {output_file}")
@@ -131,6 +132,7 @@ def analyze_temporal_efficiency(experiment_path: str, ctx: AnalysisContext, **kw
     ctx.logger.info("Analyzing temporal efficiency...")
 
     from pathlib import Path
+
     time_series_df = process_time_series_data(Path(experiment_path))
 
     if time_series_df.empty:
@@ -142,7 +144,7 @@ def analyze_temporal_efficiency(experiment_path: str, ctx: AnalysisContext, **kw
 
     # Save to file
     output_file = ctx.get_output_file("temporal_efficiency.json")
-    with open(output_file, 'w') as f:
+    with open(output_file, "w") as f:
         json.dump(efficiency, f, indent=2, default=str)
 
     ctx.logger.info(f"Saved temporal efficiency to {output_file}")
