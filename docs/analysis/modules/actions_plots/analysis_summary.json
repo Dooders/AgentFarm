@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "module_name": "actions",
+  "output_path": "docs/analysis/modules/actions_plots",
+  "execution_time": 1.0885953903198242,
+  "error": null,
+  "metadata": {},
+  "cache_hit": false,
+  "timestamp": "2025-10-04T17:23:34.138410",
+  "dataframe_shape": [
+    6960,
+    3
+  ]
+}

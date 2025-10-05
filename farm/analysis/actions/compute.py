@@ -34,11 +34,26 @@ def compute_action_statistics(df: pd.DataFrame) -> Dict[str, Any]:
     for action_type in action_types:
         type_data = df[df['action_type'] == action_type]
         if not type_data.empty:
-            stats['action_types'][action_type] = {
+            type_stats = {
                 'frequency': calculate_statistics(type_data['frequency'].values),
-                'success_rate': calculate_statistics(type_data['success_rate'].values),
-                'avg_reward': calculate_statistics(type_data['avg_reward'].values),
+                # Maintain consistent structure; fill with None when unavailable
+                'success_rate': None,
+                'avg_reward': None,
             }
+
+            # Add success_rate if available and contains numeric, non-empty data
+            if 'success_rate' in type_data.columns:
+                sr_series = pd.to_numeric(type_data['success_rate'], errors='coerce').dropna()
+                if len(sr_series) > 0:
+                    type_stats['success_rate'] = calculate_statistics(sr_series.values)
+
+            # Add avg_reward if available and contains numeric, non-empty data
+            if 'avg_reward' in type_data.columns:
+                ar_series = pd.to_numeric(type_data['avg_reward'], errors='coerce').dropna()
+                if len(ar_series) > 0:
+                    type_stats['avg_reward'] = calculate_statistics(ar_series.values)
+
+            stats['action_types'][action_type] = type_stats
 
     # Most common action
     avg_frequencies = df.groupby('action_type')['frequency'].mean()
