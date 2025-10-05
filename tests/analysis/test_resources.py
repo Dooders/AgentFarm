@@ -143,7 +143,7 @@ class TestResourceComputations:
         
         patterns = compute_consumption_patterns(df)
         
-        assert patterns['trend'] == 0.0
+        assert abs(patterns['trend']) < 1e-10  # Should be approximately 0.0
         assert patterns['peak_consumption'] == 20
 
     def test_compute_efficiency_metrics(self, sample_efficiency_data):
@@ -187,7 +187,7 @@ class TestResourceComputations:
         efficiency = compute_resource_efficiency(df)
         
         assert 'avg_utilization_rate' in efficiency
-        assert efficiency['avg_utilization_rate'] == 0.8
+        assert abs(efficiency['avg_utilization_rate'] - 0.8) < 1e-10
 
     def test_compute_resource_efficiency_empty(self):
         """Test resource efficiency with no efficiency columns."""
@@ -224,8 +224,8 @@ class TestResourceComputations:
         hotspots = compute_resource_hotspots(df)
         
         # Uniform distribution should have ratio of 1.0
-        assert hotspots['concentration_ratio'] == 1.0
-        assert hotspots['hotspot_intensity'] == 0.0
+        assert abs(hotspots['concentration_ratio'] - 1.0) < 1e-8
+        assert abs(hotspots['hotspot_intensity']) < 1e-8
 
 
 class TestResourceAnalysis:
@@ -517,8 +517,8 @@ class TestEdgeCases:
         
         metrics = compute_efficiency_metrics(df)
         
-        assert metrics['mean_efficiency'] == 0.8
-        assert metrics['efficiency_trend'] == 0.0
+        assert abs(metrics['mean_efficiency'] - 0.8) < 1e-10
+        assert abs(metrics['efficiency_trend']) < 1e-10
 
     def test_compute_efficiency_decreasing_trend(self):
         """Test efficiency metrics with decreasing trend."""
@@ -630,14 +630,32 @@ class TestResourceHelperFunctions:
         db_path = exp_path / "simulation.db"
         db_path.touch()
         
-        with patch('farm.analysis.resources.data.SessionManager') as mock_sm:
-            mock_session = MagicMock()
-            mock_sm.return_value.__enter__.return_value = mock_session
-            mock_session.query.return_value.all.return_value = []
+        # Create data directory with a CSV file as fallback
+        data_dir = exp_path / "data"
+        data_dir.mkdir()
+        csv_path = data_dir / "resources.csv"
+        csv_path.write_text("step,total_resources\n0,1000\n1,950\n")
+        
+        with patch('farm.database.session_manager.SessionManager') as mock_sm, \
+             patch('farm.database.repositories.resource_repository.ResourceRepository') as mock_repo:
+            
+            # Mock the repository methods to return empty data
+            mock_repo_instance = MagicMock()
+            mock_repo.return_value = mock_repo_instance
+            mock_repo_instance.resource_distribution.return_value = []
+            mock_repo_instance.consumption_patterns.return_value = MagicMock(
+                total_consumed=0, avg_consumption_rate=0.0, 
+                peak_consumption=0, consumption_variance=0.0
+            )
+            mock_repo_instance.efficiency_metrics.return_value = MagicMock(
+                utilization_rate=0.0, distribution_efficiency=0.0,
+                consumption_efficiency=0.0, regeneration_rate=0.0
+            )
             
             result = process_resource_data(exp_path)
             
             assert isinstance(result, pd.DataFrame)
+            assert len(result) == 2  # Should load from CSV fallback
 
     def test_calculate_trend_helper(self):
         """Test trend calculation helper."""

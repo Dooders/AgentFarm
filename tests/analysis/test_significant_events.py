@@ -31,36 +31,26 @@ from farm.analysis.common.context import AnalysisContext
 def sample_events():
     """Create sample event data."""
     return [
+        {"type": "agent_death", "step": 120, "impact_scale": 0.7, "details": {"agent_id": 42, "cause": "starvation"}},
         {
-            'type': 'agent_death',
-            'step': 120,
-            'impact_scale': 0.7,
-            'details': {'agent_id': 42, 'cause': 'starvation'}
+            "type": "resource_depletion",
+            "step": 135,
+            "impact_scale": 0.9,
+            "details": {"resource": "water", "remaining": 0},
         },
         {
-            'type': 'resource_depletion',
-            'step': 135,
-            'impact_scale': 0.9,
-            'details': {'resource': 'water', 'remaining': 0}
+            "type": "population_crash",
+            "step": 150,
+            "impact_scale": 1.0,
+            "details": {"population_before": 200, "population_after": 50},
         },
         {
-            'type': 'population_crash',
-            'step': 150,
-            'impact_scale': 1.0,
-            'details': {'population_before': 200, 'population_after': 50}
+            "type": "environmental_change",
+            "step": 160,
+            "impact_scale": 0.6,
+            "details": {"change": "temperature_drop", "delta": -5},
         },
-        {
-            'type': 'environmental_change',
-            'step': 160,
-            'impact_scale': 0.6,
-            'details': {'change': 'temperature_drop', 'delta': -5}
-        },
-        {
-            'type': 'agent_birth',
-            'step': 170,
-            'impact_scale': 0.3,
-            'details': {'agent_id': 99, 'parent_id': 42}
-        }
+        {"type": "agent_birth", "step": 170, "impact_scale": 0.3, "details": {"agent_id": 99, "parent_id": 42}},
     ]
 
 
@@ -76,24 +66,24 @@ class TestSignificantEventsComputations:
     def test_detect_significant_events(self):
         """Test event detection."""
         mock_db = MagicMock()
-        
+
         events = detect_significant_events(mock_db, start_step=0, end_step=200, min_severity=0.3)
-        
+
         assert isinstance(events, list)
         assert len(events) > 0
         for event in events:
-            assert 'type' in event
-            assert 'step' in event
-            assert 'impact_scale' in event
+            assert "type" in event
+            assert "step" in event
+            assert "impact_scale" in event
 
     def test_detect_significant_events_with_filters(self):
         """Test event detection with different filters."""
         mock_db = MagicMock()
-        
+
         # Test with high severity threshold
         events = detect_significant_events(mock_db, min_severity=0.8)
         assert isinstance(events, list)
-        
+
         # Test with specific time range
         events = detect_significant_events(mock_db, start_step=100, end_step=150)
         assert isinstance(events, list)
@@ -101,25 +91,25 @@ class TestSignificantEventsComputations:
     def test_compute_event_severity(self, sample_events):
         """Test event severity computation."""
         events_with_severity = compute_event_severity(sample_events)
-        
+
         assert len(events_with_severity) == len(sample_events)
-        
+
         for event in events_with_severity:
-            assert 'severity' in event
-            assert 'severity_category' in event
-            assert 0 <= event['severity'] <= 1
-            assert event['severity_category'] in ['low', 'medium', 'high']
+            assert "severity" in event
+            assert "severity_category" in event
+            assert 0 <= event["severity"] <= 1
+            assert event["severity_category"] in ["low", "medium", "high"]
 
     def test_compute_event_severity_categories(self, sample_events):
         """Test event severity categorization."""
         events_with_severity = compute_event_severity(sample_events)
-        
+
         # Check specific severity levels
-        population_crash = next(e for e in events_with_severity if e['type'] == 'population_crash')
-        assert population_crash['severity_category'] == 'high'
-        
-        agent_birth = next(e for e in events_with_severity if e['type'] == 'agent_birth')
-        assert agent_birth['severity_category'] == 'low'
+        population_crash = next(e for e in events_with_severity if e["type"] == "population_crash")
+        assert population_crash["severity_category"] == "high"
+
+        agent_birth = next(e for e in events_with_severity if e["type"] == "agent_birth")
+        assert agent_birth["severity_category"] == "low"
 
     def test_compute_event_severity_empty_events(self):
         """Test severity computation with empty event list."""
@@ -129,15 +119,15 @@ class TestSignificantEventsComputations:
     def test_compute_event_patterns(self, sample_events_with_severity):
         """Test event pattern computation."""
         patterns = compute_event_patterns(sample_events_with_severity)
-        
-        assert 'event_frequency' in patterns
-        assert 'inter_event_times' in patterns
-        assert 'event_types' in patterns
-        assert 'severity_distribution' in patterns
-        
+
+        assert "event_frequency" in patterns
+        assert "inter_event_times" in patterns
+        assert "event_types" in patterns
+        assert "severity_distribution" in patterns
+
         # Check that event types are counted
-        assert isinstance(patterns['event_types'], dict)
-        assert len(patterns['event_types']) > 0
+        assert isinstance(patterns["event_types"], dict)
+        assert len(patterns["event_types"]) > 0
 
     def test_compute_event_patterns_empty(self):
         """Test pattern computation with no events."""
@@ -146,33 +136,35 @@ class TestSignificantEventsComputations:
 
     def test_compute_event_patterns_single_event(self):
         """Test pattern computation with single event."""
-        single_event = [{
-            'type': 'agent_death',
-            'step': 100,
-            'severity': 0.7,
-            'impact_scale': 0.7,
-        }]
-        
+        single_event = [
+            {
+                "type": "agent_death",
+                "step": 100,
+                "severity": 0.7,
+                "impact_scale": 0.7,
+            }
+        ]
+
         patterns = compute_event_patterns(single_event)
-        
-        assert 'event_types' in patterns
-        assert 'severity_distribution' in patterns
+
+        assert "event_types" in patterns
+        assert "severity_distribution" in patterns
         # Should not have inter_event_times with single event
-        assert 'inter_event_times' not in patterns
+        assert "inter_event_times" not in patterns
 
     def test_compute_event_impact(self, sample_events_with_severity):
         """Test event impact computation."""
         impact = compute_event_impact(sample_events_with_severity)
-        
-        assert 'impact_by_type' in impact
-        assert 'overall_impact' in impact
-        
+
+        assert "impact_by_type" in impact
+        assert "overall_impact" in impact
+
         # Check impact by type structure
-        assert isinstance(impact['impact_by_type'], dict)
-        for event_type, metrics in impact['impact_by_type'].items():
-            assert 'mean' in metrics
-            assert 'std' in metrics
-            assert 'count' in metrics
+        assert isinstance(impact["impact_by_type"], dict)
+        for event_type, metrics in impact["impact_by_type"].items():
+            assert "mean" in metrics
+            assert "std" in metrics
+            assert "count" in metrics
 
     def test_compute_event_impact_empty(self):
         """Test impact computation with no events."""
@@ -182,16 +174,16 @@ class TestSignificantEventsComputations:
     def test_compute_event_impact_single_type(self):
         """Test impact computation with single event type."""
         events = [
-            {'type': 'agent_death', 'impact_scale': 0.7},
-            {'type': 'agent_death', 'impact_scale': 0.8},
-            {'type': 'agent_death', 'impact_scale': 0.6},
+            {"type": "agent_death", "impact_scale": 0.7},
+            {"type": "agent_death", "impact_scale": 0.8},
+            {"type": "agent_death", "impact_scale": 0.6},
         ]
-        
+
         impact = compute_event_impact(events)
-        
-        assert 'impact_by_type' in impact
-        assert 'agent_death' in impact['impact_by_type']
-        assert impact['impact_by_type']['agent_death']['count'] == 3
+
+        assert "impact_by_type" in impact
+        assert "agent_death" in impact["impact_by_type"]
+        assert impact["impact_by_type"]["agent_death"]["count"] == 3
 
 
 class TestSignificantEventsAnalysis:
@@ -201,98 +193,98 @@ class TestSignificantEventsAnalysis:
         """Test significant events analysis."""
         ctx = AnalysisContext(output_path=tmp_path)
         mock_db = MagicMock()
-        
-        with patch('farm.analysis.significant_events.analyze.detect_significant_events') as mock_detect:
+
+        with patch("farm.analysis.significant_events.analyze.detect_significant_events") as mock_detect:
             mock_detect.return_value = sample_events
-            
+
             analyze_significant_events(ctx, db_connection=mock_db, min_severity=0.3)
-        
+
         # Check output file
         output_file = tmp_path / "significant_events.json"
         assert output_file.exists()
-        
+
         with open(output_file) as f:
             data = json.load(f)
-        
-        assert 'total_events_detected' in data
-        assert 'significant_events' in data
-        assert 'events' in data
+
+        assert "total_events_detected" in data
+        assert "significant_events" in data
+        assert "events" in data
 
     def test_analyze_significant_events_with_filters(self, tmp_path, sample_events):
         """Test event analysis with different filters."""
         ctx = AnalysisContext(output_path=tmp_path)
         mock_db = MagicMock()
-        
-        with patch('farm.analysis.significant_events.analyze.detect_significant_events') as mock_detect:
+
+        with patch("farm.analysis.significant_events.analyze.detect_significant_events") as mock_detect:
             mock_detect.return_value = sample_events
-            
+
             analyze_significant_events(ctx, db_connection=mock_db, min_severity=0.7)
-        
+
         output_file = tmp_path / "significant_events.json"
         assert output_file.exists()
-        
+
         with open(output_file) as f:
             data = json.load(f)
-        
+
         # Should have filtered out low-severity events
-        assert data['significant_events'] < data['total_events_detected']
+        assert data["significant_events"] < data["total_events_detected"]
 
     def test_analyze_event_patterns(self, tmp_path, sample_events):
         """Test event patterns analysis."""
         ctx = AnalysisContext(output_path=tmp_path)
         mock_db = MagicMock()
-        
-        with patch('farm.analysis.significant_events.analyze.detect_significant_events') as mock_detect:
+
+        with patch("farm.analysis.significant_events.analyze.detect_significant_events") as mock_detect:
             mock_detect.return_value = sample_events
-            
+
             analyze_event_patterns(ctx, db_connection=mock_db)
-        
+
         # Check output file
         output_file = tmp_path / "event_patterns.json"
         assert output_file.exists()
-        
+
         with open(output_file) as f:
             data = json.load(f)
-        
-        assert 'event_types' in data or 'event_frequency' in data
+
+        assert "event_types" in data or "event_frequency" in data
 
     def test_analyze_event_impact(self, tmp_path, sample_events):
         """Test event impact analysis."""
         ctx = AnalysisContext(output_path=tmp_path)
         mock_db = MagicMock()
-        
-        with patch('farm.analysis.significant_events.analyze.detect_significant_events') as mock_detect:
+
+        with patch("farm.analysis.significant_events.analyze.detect_significant_events") as mock_detect:
             mock_detect.return_value = sample_events
-            
+
             analyze_event_impact(ctx, db_connection=mock_db)
-        
+
         # Check output file
         output_file = tmp_path / "event_impact.json"
         assert output_file.exists()
-        
+
         with open(output_file) as f:
             data = json.load(f)
-        
-        assert 'impact_by_type' in data or 'overall_impact' in data
+
+        assert "impact_by_type" in data or "overall_impact" in data
 
     def test_analyze_with_no_events(self, tmp_path):
         """Test analysis with no events detected."""
         ctx = AnalysisContext(output_path=tmp_path)
         mock_db = MagicMock()
-        
-        with patch('farm.analysis.significant_events.analyze.detect_significant_events') as mock_detect:
+
+        with patch("farm.analysis.significant_events.analyze.detect_significant_events") as mock_detect:
             mock_detect.return_value = []
-            
+
             analyze_significant_events(ctx, db_connection=mock_db)
-        
+
         output_file = tmp_path / "significant_events.json"
         assert output_file.exists()
-        
+
         with open(output_file) as f:
             data = json.load(f)
-        
-        assert data['total_events_detected'] == 0
-        assert data['significant_events'] == 0
+
+        assert data["total_events_detected"] == 0
+        assert data["significant_events"] == 0
 
 
 class TestSignificantEventsVisualization:
@@ -302,77 +294,108 @@ class TestSignificantEventsVisualization:
         """Helper to set up events file for plotting."""
         events_file = tmp_path / "significant_events.json"
         data = {
-            'total_events_detected': len(events),
-            'significant_events': len(events),
-            'events': events,
+            "total_events_detected": len(events),
+            "significant_events": len(events),
+            "events": events,
         }
-        with open(events_file, 'w') as f:
+        with open(events_file, "w") as f:
             json.dump(data, f)
 
-    @patch('farm.analysis.significant_events.plot.plt')
+    @patch("farm.analysis.significant_events.plot.plt")
     def test_plot_event_timeline(self, mock_plt, tmp_path, sample_events_with_severity):
         """Test event timeline plotting."""
+        # Mock subplots to return proper figure and axis objects
+        mock_fig = mock_plt.figure.return_value
+        mock_ax = mock_plt.subplot.return_value
+        mock_plt.subplots.return_value = (mock_fig, mock_ax)
+
         self.setup_events_file(tmp_path, sample_events_with_severity)
-        
+
         ctx = AnalysisContext(output_path=tmp_path)
         plot_event_timeline(ctx)
-        
+
         # Check that plot was created
         assert mock_plt.savefig.called
         assert mock_plt.close.called
 
-    @patch('farm.analysis.significant_events.plot.plt')
+    @patch("farm.analysis.significant_events.plot.plt")
     def test_plot_event_timeline_no_file(self, mock_plt, tmp_path):
         """Test timeline plotting with no events file."""
         ctx = AnalysisContext(output_path=tmp_path)
-        
+
         # Should handle missing file gracefully
         plot_event_timeline(ctx)
-        
+
         # Should not try to plot
         assert not mock_plt.savefig.called
 
-    @patch('farm.analysis.significant_events.plot.plt')
+    @patch("farm.analysis.significant_events.plot.plt")
     def test_plot_event_timeline_empty_events(self, mock_plt, tmp_path):
         """Test timeline plotting with empty events."""
         self.setup_events_file(tmp_path, [])
-        
+
         ctx = AnalysisContext(output_path=tmp_path)
         plot_event_timeline(ctx)
-        
+
         # Should not create plot with no events
         assert not mock_plt.savefig.called
 
-    @patch('farm.analysis.significant_events.plot.plt')
+    @patch("farm.analysis.significant_events.plot.plt")
     def test_plot_event_severity_distribution(self, mock_plt, tmp_path, sample_events_with_severity):
         """Test event severity distribution plotting."""
+        # Mock subplots to return proper figure and axis objects
+        mock_fig = mock_plt.figure.return_value
+        mock_ax1 = mock_plt.subplot.return_value
+        mock_ax2 = mock_plt.subplot.return_value
+        mock_plt.subplots.return_value = (mock_fig, (mock_ax1, mock_ax2))
+
         self.setup_events_file(tmp_path, sample_events_with_severity)
-        
+
         ctx = AnalysisContext(output_path=tmp_path)
         plot_event_severity_distribution(ctx)
-        
+
         # Check that plot was created
         assert mock_plt.savefig.called
 
-    @patch('farm.analysis.significant_events.plot.plt')
-    def test_plot_event_impact_analysis(self, mock_plt, tmp_path, sample_events_with_severity):
+    @patch("farm.analysis.significant_events.plot.plt")
+    @patch("farm.analysis.significant_events.plot.sns")
+    def test_plot_event_impact_analysis(self, mock_sns, mock_plt, tmp_path, sample_events_with_severity):
         """Test event impact analysis plotting."""
+        # Mock subplots to return proper figure and axis objects
+        mock_fig = mock_plt.figure.return_value
+        mock_ax = mock_plt.subplot.return_value
+        mock_plt.subplots.return_value = (mock_fig, mock_ax)
+
         self.setup_events_file(tmp_path, sample_events_with_severity)
-        
+
         ctx = AnalysisContext(output_path=tmp_path)
         plot_event_impact_analysis(ctx)
-        
+
         # Check that plot was created
         assert mock_plt.savefig.called
 
-    @patch('farm.analysis.significant_events.plot.plt')
-    def test_plot_significant_events_comprehensive(self, mock_plt, tmp_path, sample_events_with_severity):
+    @patch("farm.analysis.significant_events.plot.plt")
+    @patch("farm.analysis.significant_events.plot.sns")
+    def test_plot_significant_events_comprehensive(self, mock_sns, mock_plt, tmp_path, sample_events_with_severity):
         """Test comprehensive significant events plotting."""
+        # Mock subplots to return proper figure and axis objects
+        mock_fig = mock_plt.figure.return_value
+        mock_ax = mock_plt.subplot.return_value
+        mock_ax1 = mock_plt.subplot.return_value
+        mock_ax2 = mock_plt.subplot.return_value
+        mock_plt.subplots.return_value = (mock_fig, mock_ax)
+        # For the severity distribution plot that uses (1, 2) subplots
+        mock_plt.subplots.side_effect = [
+            (mock_fig, mock_ax),  # timeline
+            (mock_fig, (mock_ax1, mock_ax2)),  # severity distribution
+            (mock_fig, mock_ax),  # impact analysis
+        ]
+
         self.setup_events_file(tmp_path, sample_events_with_severity)
-        
+
         ctx = AnalysisContext(output_path=tmp_path)
         plot_significant_events(ctx)
-        
+
         # Should create multiple plots
         assert mock_plt.savefig.call_count >= 3
 
@@ -383,7 +406,10 @@ class TestSignificantEventsModule:
     def test_significant_events_module_registration(self):
         """Test module registration."""
         assert significant_events_module.name == "significant_events"
-        assert significant_events_module.description == "Analysis of significant events, their severity, patterns, and impact"
+        assert (
+            significant_events_module.description
+            == "Analysis of significant events, their severity, patterns, and impact"
+        )
 
     def test_significant_events_module_function_names(self):
         """Test module function names."""
@@ -396,7 +422,7 @@ class TestSignificantEventsModule:
             "plot_severity",
             "plot_impact",
         ]
-        
+
         for func_name in expected_functions:
             assert func_name in functions
 
@@ -431,128 +457,128 @@ class TestEdgeCases:
         """Test severity computation with unknown event type."""
         events = [
             {
-                'type': 'unknown_event',
-                'step': 100,
-                'impact_scale': 0.5,
+                "type": "unknown_event",
+                "step": 100,
+                "impact_scale": 0.5,
             }
         ]
-        
+
         events_with_severity = compute_event_severity(events)
-        
+
         # Should handle unknown type with default severity
-        assert events_with_severity[0]['severity'] > 0
+        assert events_with_severity[0]["severity"] > 0
 
     def test_compute_patterns_missing_fields(self):
         """Test pattern computation with missing fields."""
         events = [
-            {'type': 'agent_death'},
-            {'step': 100},
-            {'severity': 0.7},
+            {"type": "agent_death"},
+            {"step": 100},
+            {"severity": 0.7},
         ]
-        
+
         patterns = compute_event_patterns(events)
-        
+
         # Should handle missing fields gracefully
         assert isinstance(patterns, dict)
 
     def test_compute_impact_with_nan_values(self):
         """Test impact computation with NaN values."""
         events = [
-            {'type': 'agent_death', 'impact_scale': 0.7},
-            {'type': 'agent_death', 'impact_scale': np.nan},
-            {'type': 'agent_death', 'impact_scale': 0.8},
+            {"type": "agent_death", "impact_scale": 0.7},
+            {"type": "agent_death", "impact_scale": np.nan},
+            {"type": "agent_death", "impact_scale": 0.8},
         ]
-        
+
         impact = compute_event_impact(events)
-        
+
         # Should handle NaN gracefully
-        assert 'overall_impact' in impact
+        assert "overall_impact" in impact
 
     def test_analyze_with_progress_callback(self, tmp_path, sample_events):
         """Test analysis with progress callback."""
         progress_calls = []
-        
+
         def progress_callback(message, progress):
             progress_calls.append((message, progress))
-        
+
         ctx = AnalysisContext(output_path=tmp_path, progress_callback=progress_callback)
         mock_db = MagicMock()
-        
-        with patch('farm.analysis.significant_events.analyze.detect_significant_events') as mock_detect:
+
+        with patch("farm.analysis.significant_events.analyze.detect_significant_events") as mock_detect:
             mock_detect.return_value = sample_events
-            
+
             analyze_significant_events(ctx, db_connection=mock_db)
-        
+
         # Should have called progress callback
         assert len(progress_calls) > 0
-        assert any('complete' in msg.lower() for msg, _ in progress_calls)
+        assert any("complete" in msg.lower() for msg, _ in progress_calls)
 
     def test_plot_timeline_missing_step_column(self, tmp_path):
         """Test timeline plotting with missing step column."""
         events = [
-            {'type': 'agent_death', 'severity': 0.7},
-            {'type': 'agent_birth', 'severity': 0.3},
+            {"type": "agent_death", "severity": 0.7},
+            {"type": "agent_birth", "severity": 0.3},
         ]
-        
+
         events_file = tmp_path / "significant_events.json"
-        with open(events_file, 'w') as f:
-            json.dump({'events': events}, f)
-        
+        with open(events_file, "w") as f:
+            json.dump({"events": events}, f)
+
         ctx = AnalysisContext(output_path=tmp_path)
-        
-        with patch('farm.analysis.significant_events.plot.plt'):
+
+        with patch("farm.analysis.significant_events.plot.plt"):
             # Should handle missing step column gracefully
             plot_event_timeline(ctx)
 
     def test_plot_severity_missing_severity_column(self, tmp_path):
         """Test severity plotting with missing severity column."""
         events = [
-            {'type': 'agent_death', 'step': 100},
-            {'type': 'agent_birth', 'step': 120},
+            {"type": "agent_death", "step": 100},
+            {"type": "agent_birth", "step": 120},
         ]
-        
+
         events_file = tmp_path / "significant_events.json"
-        with open(events_file, 'w') as f:
-            json.dump({'events': events}, f)
-        
+        with open(events_file, "w") as f:
+            json.dump({"events": events}, f)
+
         ctx = AnalysisContext(output_path=tmp_path)
-        
-        with patch('farm.analysis.significant_events.plot.plt'):
+
+        with patch("farm.analysis.significant_events.plot.plt"):
             # Should handle missing severity column gracefully
             plot_event_severity_distribution(ctx)
 
     def test_event_detection_with_extreme_values(self):
         """Test event detection handles extreme values."""
         mock_db = MagicMock()
-        
+
         # Should not crash with extreme values
         events = detect_significant_events(mock_db, start_step=-1000, end_step=999999)
-        
+
         assert isinstance(events, list)
 
     def test_severity_computation_extreme_impact_scale(self):
         """Test severity with extreme impact scale values."""
         events = [
-            {'type': 'agent_death', 'impact_scale': 10.0},  # Very high
-            {'type': 'agent_birth', 'impact_scale': -1.0},  # Negative
-            {'type': 'environmental_change', 'impact_scale': 0.0},  # Zero
+            {"type": "agent_death", "impact_scale": 10.0},  # Very high
+            {"type": "agent_birth", "impact_scale": -1.0},  # Negative
+            {"type": "environmental_change", "impact_scale": 0.0},  # Zero
         ]
-        
+
         events_with_severity = compute_event_severity(events)
-        
+
         # All severities should be capped at 1.0
         for event in events_with_severity:
-            assert 0 <= event['severity'] <= 1.0
+            assert 0 <= event["severity"] <= 1.0
 
     def test_patterns_with_simultaneous_events(self):
         """Test pattern computation with events at same step."""
         events = [
-            {'type': 'agent_death', 'step': 100, 'severity': 0.7},
-            {'type': 'agent_birth', 'step': 100, 'severity': 0.3},
-            {'type': 'resource_depletion', 'step': 100, 'severity': 0.9},
+            {"type": "agent_death", "step": 100, "severity": 0.7},
+            {"type": "agent_birth", "step": 100, "severity": 0.3},
+            {"type": "resource_depletion", "step": 100, "severity": 0.9},
         ]
-        
+
         patterns = compute_event_patterns(events)
-        
-        assert 'event_frequency' in patterns
-        assert 'event_types' in patterns
+
+        assert "event_frequency" in patterns
+        assert "event_types" in patterns

@@ -10,8 +10,9 @@ from pathlib import Path
 from farm.analysis.common.utils import calculate_statistics
 
 
-def detect_significant_events(db_connection, start_step: int = 0, end_step: Optional[int] = None,
-                            min_severity: float = 0.3) -> List[Dict[str, Any]]:
+def detect_significant_events(
+    db_connection, start_step: int = 0, end_step: Optional[int] = None, min_severity: float = 0.3
+) -> List[Dict[str, Any]]:
     """Detect significant events from simulation database.
 
     Args:
@@ -42,36 +43,26 @@ def detect_significant_events(db_connection, start_step: int = 0, end_step: Opti
     # - 'impact_scale': float, quantifies the impact (e.g., 0.0–1.0)
     # - 'details': dict, additional event-specific information
     events = [
+        {"type": "agent_death", "step": 120, "impact_scale": 0.7, "details": {"agent_id": 42, "cause": "starvation"}},
         {
-            'type': 'agent_death',
-            'step': 120,
-            'impact_scale': 0.7,
-            'details': {'agent_id': 42, 'cause': 'starvation'}
+            "type": "resource_depletion",
+            "step": 135,
+            "impact_scale": 0.9,
+            "details": {"resource": "water", "remaining": 0},
         },
         {
-            'type': 'resource_depletion',
-            'step': 135,
-            'impact_scale': 0.9,
-            'details': {'resource': 'water', 'remaining': 0}
+            "type": "population_crash",
+            "step": 150,
+            "impact_scale": 1.0,
+            "details": {"population_before": 200, "population_after": 50},
         },
         {
-            'type': 'population_crash',
-            'step': 150,
-            'impact_scale': 1.0,
-            'details': {'population_before': 200, 'population_after': 50}
+            "type": "environmental_change",
+            "step": 160,
+            "impact_scale": 0.6,
+            "details": {"change": "temperature_drop", "delta": -5},
         },
-        {
-            'type': 'environmental_change',
-            'step': 160,
-            'impact_scale': 0.6,
-            'details': {'change': 'temperature_drop', 'delta': -5}
-        },
-        {
-            'type': 'agent_birth',
-            'step': 170,
-            'impact_scale': 0.3,
-            'details': {'agent_id': 99, 'parent_id': 42}
-        }
+        {"type": "agent_birth", "step": 170, "impact_scale": 0.3, "details": {"agent_id": 99, "parent_id": 42}},
     ]
     # TODO: Implement actual database queries to replace this example data
 
@@ -90,19 +81,21 @@ def compute_event_severity(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]
     for event in events:
         # Calculate severity based on event type and impact
         base_severity = {
-            'agent_death': 0.5,
-            'agent_birth': 0.3,
-            'resource_depletion': 0.8,
-            'population_crash': 0.9,
-            'environmental_change': 0.6,
-        }.get(event.get('type', 'unknown'), 0.1)
+            "agent_death": 0.5,
+            "agent_birth": 0.3,
+            "resource_depletion": 0.8,
+            "population_crash": 0.9,
+            "environmental_change": 0.6,
+        }.get(event.get("type", "unknown"), 0.1)
 
         # Modify by scale/impact
-        impact_multiplier = event.get('impact_scale', 1.0)
+        impact_multiplier = event.get("impact_scale", 1.0)
+        # Ensure impact_multiplier is non-negative to avoid negative severity
+        impact_multiplier = max(0.0, impact_multiplier)
         severity = min(1.0, base_severity * impact_multiplier)
 
-        event['severity'] = severity
-        event['severity_category'] = 'high' if severity > 0.7 else 'medium' if severity > 0.4 else 'low'
+        event["severity"] = severity
+        event["severity_category"] = "high" if severity > 0.7 else "medium" if severity > 0.4 else "low"
 
     return events
 
@@ -124,25 +117,25 @@ def compute_event_patterns(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     # Convert to DataFrame for analysis
     df = pd.DataFrame(events)
 
-    if 'step' in df.columns:
+    if "step" in df.columns:
         # Event frequency over time
-        event_counts = df.groupby('step').size()
-        patterns['event_frequency'] = calculate_statistics(event_counts.values)
+        event_counts = df.groupby("step").size()
+        patterns["event_frequency"] = calculate_statistics(event_counts.values)
 
         # Time between events
         if len(df) > 1:
-            time_diffs = np.diff(sorted(df['step'].values))
-            patterns['inter_event_times'] = calculate_statistics(time_diffs)
+            time_diffs = np.diff(sorted(df["step"].values))
+            patterns["inter_event_times"] = calculate_statistics(time_diffs)
 
     # Event type distribution
-    if 'type' in df.columns:
-        type_counts = df['type'].value_counts()
-        patterns['event_types'] = type_counts.to_dict()
+    if "type" in df.columns:
+        type_counts = df["type"].value_counts()
+        patterns["event_types"] = type_counts.to_dict()
 
     # Severity distribution
-    if 'severity' in df.columns:
-        severity_values = df['severity'].values
-        patterns['severity_distribution'] = calculate_statistics(severity_values)
+    if "severity" in df.columns:
+        severity_values = df["severity"].values
+        patterns["severity_distribution"] = calculate_statistics(severity_values)
 
     return patterns
 
@@ -164,13 +157,13 @@ def compute_event_impact(events: List[Dict[str, Any]]) -> Dict[str, Any]:
     df = pd.DataFrame(events)
 
     # Group by event type and compute average impact
-    if 'type' in df.columns and 'impact_scale' in df.columns:
-        impact_by_type = df.groupby('type')['impact_scale'].agg(['mean', 'std', 'count'])
-        impact['impact_by_type'] = impact_by_type.to_dict('index')
+    if "type" in df.columns and "impact_scale" in df.columns:
+        impact_by_type = df.groupby("type")["impact_scale"].agg(["mean", "std", "count"])
+        impact["impact_by_type"] = impact_by_type.to_dict("index")
 
     # Overall impact statistics
-    if 'impact_scale' in df.columns:
-        impact_scales = df['impact_scale'].values
-        impact['overall_impact'] = calculate_statistics(impact_scales)
+    if "impact_scale" in df.columns:
+        impact_scales = df["impact_scale"].values
+        impact["overall_impact"] = calculate_statistics(impact_scales)
 
     return impact
