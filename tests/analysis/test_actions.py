@@ -738,7 +738,7 @@ class TestActionsModule:
     def test_actions_module_function_groups_contents(self):
         """Test that function groups contain the right functions."""
         functions = actions_module.get_functions()
-        groups = actions_module.get_function_groups()
+        groups = actions_module.get_function_groups_dict()
 
         # Test basic group
         basic_group = groups["basic"]
@@ -896,7 +896,10 @@ class TestEdgeCases:
         # Should handle NaN values by dropping them
         assert "move->gather" in patterns
         # All NaN column should not be included
-        assert "gather->attack" not in patterns or patterns["gather->attack"]["avg_probability"] != patterns["gather->attack"]["avg_probability"]  # NaN check
+        assert (
+            "gather->attack" not in patterns
+            or patterns["gather->attack"]["avg_probability"] != patterns["gather->attack"]["avg_probability"]
+        )  # NaN check
 
     def test_analyze_action_patterns_with_minimal_data(self, tmp_path):
         """Test action pattern analysis with minimal data."""

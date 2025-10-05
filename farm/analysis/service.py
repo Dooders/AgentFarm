@@ -305,7 +305,7 @@ class AnalysisService:
         available_groups = module.get_function_groups()
         if request.group not in available_groups:
             raise ConfigurationError(
-                f"Invalid function group '{request.group}'. Available groups: {', '.join(available_groups.keys())}"
+                f"Invalid function group '{request.group}'. Available groups: {', '.join(available_groups)}"
             )
 
     def run(self, request: AnalysisRequest) -> AnalysisResult:

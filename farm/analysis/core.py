@@ -138,8 +138,17 @@ class BaseAnalysisModule:
         self._ensure_registered()
         return self._groups.get(group, [])
 
-    def get_function_groups(self) -> Dict[str, List[AnalysisFunction]]:
-        """Get available function groups.
+    def get_function_groups(self) -> List[str]:
+        """Get available function group names.
+
+        Returns:
+            List of group names
+        """
+        self._ensure_registered()
+        return list(self._groups.keys())
+
+    def get_function_groups_dict(self) -> Dict[str, List[AnalysisFunction]]:
+        """Get available function groups as dictionary.
 
         Returns:
             Dictionary mapping group names to lists of functions
@@ -385,7 +394,7 @@ class BaseAnalysisModule:
         return {
             "name": self.name,
             "description": self.description,
-            "function_groups": self.get_function_groups(),
+            "function_groups": self.get_function_groups_dict(),
             "functions": self.get_function_names(),
             "supports_database": self.supports_database(),
             "db_filename": self.get_db_filename(),
