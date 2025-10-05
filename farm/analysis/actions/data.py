@@ -8,6 +8,7 @@ import pandas as pd
 
 from farm.database.database import SimulationDatabase
 from farm.database.repositories.action_repository import ActionRepository
+from farm.database.session_manager import SessionManager
 from farm.analysis.common.utils import find_database_path
 from farm.utils.logging_config import get_logger
 
@@ -39,7 +40,6 @@ def process_action_data(
             logger.info(f"Loading actions from database: {db_path}")
 
             # Load data using SessionManager directly (like population processor)
-            from farm.database.session_manager import SessionManager
             session_manager = SessionManager(f"sqlite:///{db_path}")
             repository = ActionRepository(session_manager)
 

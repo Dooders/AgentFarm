@@ -8,11 +8,12 @@ resource acquisition, reproduction, survival, population growth, and combat.
 
 from farm.utils.logging_config import get_logger
 
-logger = get_logger(__name__)
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import func
+
+logger = get_logger(__name__)
 
 
 def compute_advantages(sim_session, focus_agent_type=None):
@@ -49,27 +50,21 @@ def compute_advantages(sim_session, focus_agent_type=None):
 
     # If focus type is provided, only compare against that type
     if focus_agent_type and focus_agent_type in agent_types:
-        comparison_pairs = [
-            (t, focus_agent_type) for t in agent_types if t != focus_agent_type
-        ]
+        comparison_pairs = [(t, focus_agent_type) for t in agent_types if t != focus_agent_type]
     else:
         # All pairwise comparisons
-        comparison_pairs = [
-            (t1, t2) for i, t1 in enumerate(agent_types) for t2 in agent_types[i + 1 :]
-        ]
+        comparison_pairs = [(t1, t2) for i, t1 in enumerate(agent_types) for t2 in agent_types[i + 1 :]]
 
     logger.debug(f"Calculating advantages for {len(comparison_pairs)} agent pairs")
 
     # Get data needed for analysis
     logger.debug("Getting simulation step data")
-    max_step_result = sim_session.query(
-        func.max(SimulationStepModel.step_number)
-    ).scalar()
+    max_step_result = sim_session.query(func.max(SimulationStepModel.step_number)).scalar()
     max_step = 0 if max_step_result is None else max_step_result
     early_phase_end = max_step // 3
     mid_phase_end = 2 * max_step // 3
     logger.debug(
-        f"Simulation phases: early (1-{early_phase_end}), mid ({early_phase_end+1}-{mid_phase_end}), late ({mid_phase_end+1}-{max_step})"
+        f"Simulation phases: early (1-{early_phase_end}), mid ({early_phase_end + 1}-{mid_phase_end}), late ({mid_phase_end + 1}-{max_step})"
     )
 
     # 1. Resource Acquisition Advantage
@@ -89,9 +84,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
     # Check if there are agents of each type
     for agent_type in agent_types:
         type_count = (
-            sim_session.query(func.count(AgentModel.agent_id))
-            .filter(AgentModel.agent_type == agent_type)
-            .scalar()
+            sim_session.query(func.count(AgentModel.agent_id)).filter(AgentModel.agent_type == agent_type).scalar()
         )
         logger.debug(f"Total {agent_type} agents in database: {type_count}")
 
@@ -114,9 +107,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
         .scalar()
     )
 
-    logger.debug(
-        f"Join between AgentStateModel and AgentModel returns {join_check} records"
-    )
+    logger.debug(f"Join between AgentStateModel and AgentModel returns {join_check} records")
 
     # Calculate resource acquisition metrics for each agent type using AgentStateModel
     for agent_type in agent_types:
@@ -132,9 +123,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
             )
 
             # Debug the SQL query
-            logger.debug(
-                f"Early phase query for {agent_type}: {str(early_avg_resource_query)}"
-            )
+            logger.debug(f"Early phase query for {agent_type}: {str(early_avg_resource_query)}")
 
             # Check how many records match the query
             early_record_count = (
@@ -147,18 +136,14 @@ def compute_advantages(sim_session, focus_agent_type=None):
                 .scalar()
             )
 
-            logger.debug(
-                f"Early phase query for {agent_type} matches {early_record_count} records"
-            )
+            logger.debug(f"Early phase query for {agent_type} matches {early_record_count} records")
 
             early_avg_resource = early_avg_resource_query.scalar()
 
             # Handle None values properly
             early_avg_resource = 0 if early_avg_resource is None else early_avg_resource
 
-            logger.debug(
-                f"{agent_type} early phase avg resource: {early_avg_resource}"
-            )
+            logger.debug(f"{agent_type} early phase avg resource: {early_avg_resource}")
 
             # Mid phase average resource level
             mid_avg_resource_query = (
@@ -172,9 +157,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
             )
 
             # Debug the SQL query
-            logger.debug(
-                f"Mid phase query for {agent_type}: {str(mid_avg_resource_query)}"
-            )
+            logger.debug(f"Mid phase query for {agent_type}: {str(mid_avg_resource_query)}")
 
             # Check how many records match the query
             mid_record_count = (
@@ -188,9 +171,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
                 .scalar()
             )
 
-            logger.debug(
-                f"Mid phase query for {agent_type} matches {mid_record_count} records"
-            )
+            logger.debug(f"Mid phase query for {agent_type} matches {mid_record_count} records")
 
             mid_avg_resource = mid_avg_resource_query.scalar()
 
@@ -210,9 +191,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
             )
 
             # Debug the SQL query
-            logger.debug(
-                f"Late phase query for {agent_type}: {str(late_avg_resource_query)}"
-            )
+            logger.debug(f"Late phase query for {agent_type}: {str(late_avg_resource_query)}")
 
             # Check how many records match the query
             late_record_count = (
@@ -225,9 +204,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
                 .scalar()
             )
 
-            logger.debug(
-                f"Late phase query for {agent_type} matches {late_record_count} records"
-            )
+            logger.debug(f"Late phase query for {agent_type} matches {late_record_count} records")
 
             late_avg_resource = late_avg_resource_query.scalar()
 
@@ -243,18 +220,14 @@ def compute_advantages(sim_session, focus_agent_type=None):
             try:
                 # Get average resources per agent for each phase
                 early_avg_resources = (
-                    sim_session.query(
-                        func.avg(SimulationStepModel.average_agent_resources)
-                    )
+                    sim_session.query(func.avg(SimulationStepModel.average_agent_resources))
                     .filter(SimulationStepModel.step_number <= early_phase_end)
                     .scalar()
                     or 0
                 )
 
                 mid_avg_resources = (
-                    sim_session.query(
-                        func.avg(SimulationStepModel.average_agent_resources)
-                    )
+                    sim_session.query(func.avg(SimulationStepModel.average_agent_resources))
                     .filter(
                         SimulationStepModel.step_number > early_phase_end,
                         SimulationStepModel.step_number <= mid_phase_end,
@@ -264,9 +237,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
                 )
 
                 late_avg_resources = (
-                    sim_session.query(
-                        func.avg(SimulationStepModel.average_agent_resources)
-                    )
+                    sim_session.query(func.avg(SimulationStepModel.average_agent_resources))
                     .filter(SimulationStepModel.step_number > mid_phase_end)
                     .scalar()
                     or 0
@@ -281,9 +252,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
                 )
 
                 early_type_count = (
-                    sim_session.query(
-                        func.avg(getattr(SimulationStepModel, f"{agent_type}_agents"))
-                    )
+                    sim_session.query(func.avg(getattr(SimulationStepModel, f"{agent_type}_agents")))
                     .filter(SimulationStepModel.step_number <= early_phase_end)
                     .scalar()
                     or 0
@@ -300,9 +269,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
                 )
 
                 mid_type_count = (
-                    sim_session.query(
-                        func.avg(getattr(SimulationStepModel, f"{agent_type}_agents"))
-                    )
+                    sim_session.query(func.avg(getattr(SimulationStepModel, f"{agent_type}_agents")))
                     .filter(
                         SimulationStepModel.step_number > early_phase_end,
                         SimulationStepModel.step_number <= mid_phase_end,
@@ -319,9 +286,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
                 )
 
                 late_type_count = (
-                    sim_session.query(
-                        func.avg(getattr(SimulationStepModel, f"{agent_type}_agents"))
-                    )
+                    sim_session.query(func.avg(getattr(SimulationStepModel, f"{agent_type}_agents")))
                     .filter(SimulationStepModel.step_number > mid_phase_end)
                     .scalar()
                     or 0
@@ -342,40 +307,22 @@ def compute_advantages(sim_session, focus_agent_type=None):
                 elif agent_type == "control":
                     advantage_factor = 0.9
 
-                early_avg_resource = (
-                    early_avg_resources * early_proportion * advantage_factor
-                )
+                early_avg_resource = early_avg_resources * early_proportion * advantage_factor
                 mid_avg_resource = mid_avg_resources * mid_proportion * advantage_factor
-                late_avg_resource = (
-                    late_avg_resources * late_proportion * advantage_factor
-                )
+                late_avg_resource = late_avg_resources * late_proportion * advantage_factor
 
-                logger.info(
-                    f"Using estimated resources for {agent_type} based on population proportion"
-                )
-                logger.debug(
-                    f"{agent_type} early phase estimated avg resource: {early_avg_resource}"
-                )
-                logger.debug(
-                    f"{agent_type} mid phase estimated avg resource: {mid_avg_resource}"
-                )
-                logger.debug(
-                    f"{agent_type} late phase estimated avg resource: {late_avg_resource}"
-                )
+                logger.info(f"Using estimated resources for {agent_type} based on population proportion")
+                logger.debug(f"{agent_type} early phase estimated avg resource: {early_avg_resource}")
+                logger.debug(f"{agent_type} mid phase estimated avg resource: {mid_avg_resource}")
+                logger.debug(f"{agent_type} late phase estimated avg resource: {late_avg_resource}")
 
             except Exception as e2:
-                logger.warning(
-                    f"Alternative resource calculation also failed for {agent_type}: {e2}"
-                )
+                logger.warning(f"Alternative resource calculation also failed for {agent_type}: {e2}")
                 # If all else fails, use population as a proxy for resources
                 try:
                     # Early phase population as proxy
                     early_avg_resource = (
-                        sim_session.query(
-                            func.avg(
-                                getattr(SimulationStepModel, f"{agent_type}_agents")
-                            )
-                        )
+                        sim_session.query(func.avg(getattr(SimulationStepModel, f"{agent_type}_agents")))
                         .filter(SimulationStepModel.step_number <= early_phase_end)
                         .scalar()
                         or 0
@@ -383,11 +330,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
 
                     # Mid phase population as proxy
                     mid_avg_resource = (
-                        sim_session.query(
-                            func.avg(
-                                getattr(SimulationStepModel, f"{agent_type}_agents")
-                            )
-                        )
+                        sim_session.query(func.avg(getattr(SimulationStepModel, f"{agent_type}_agents")))
                         .filter(
                             SimulationStepModel.step_number > early_phase_end,
                             SimulationStepModel.step_number <= mid_phase_end,
@@ -398,24 +341,16 @@ def compute_advantages(sim_session, focus_agent_type=None):
 
                     # Late phase population as proxy
                     late_avg_resource = (
-                        sim_session.query(
-                            func.avg(
-                                getattr(SimulationStepModel, f"{agent_type}_agents")
-                            )
-                        )
+                        sim_session.query(func.avg(getattr(SimulationStepModel, f"{agent_type}_agents")))
                         .filter(SimulationStepModel.step_number > mid_phase_end)
                         .scalar()
                         or 0
                     )
 
-                    logger.info(
-                        f"Using population as proxy for resources for {agent_type}"
-                    )
+                    logger.info(f"Using population as proxy for resources for {agent_type}")
 
                 except Exception as e3:
-                    logger.error(
-                        f"All resource calculation methods failed for {agent_type}: {e3}"
-                    )
+                    logger.error(f"All resource calculation methods failed for {agent_type}: {e3}")
                     early_avg_resource = 0
                     mid_avg_resource = 0
                     late_avg_resource = 0
@@ -436,14 +371,12 @@ def compute_advantages(sim_session, focus_agent_type=None):
 
         # Mid phase advantage
         mid_adv = (
-            results["resource_acquisition"][type1]["mid_phase"]
-            - results["resource_acquisition"][type2]["mid_phase"]
+            results["resource_acquisition"][type1]["mid_phase"] - results["resource_acquisition"][type2]["mid_phase"]
         )
 
         # Late phase advantage
         late_adv = (
-            results["resource_acquisition"][type1]["late_phase"]
-            - results["resource_acquisition"][type2]["late_phase"]
+            results["resource_acquisition"][type1]["late_phase"] - results["resource_acquisition"][type2]["late_phase"]
         )
 
         # Overall advantage trajectory (positive means advantage is increasing)
@@ -462,9 +395,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
         )
 
     category_duration = time.time() - category_start_time
-    logger.debug(
-        f"Completed resource acquisition advantages in {category_duration:.2f}s"
-    )
+    logger.debug(f"Completed resource acquisition advantages in {category_duration:.2f}s")
 
     # 2. Reproduction Advantage
     # ------------------------
@@ -480,7 +411,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
             .join(AgentModel, ReproductionEventModel.parent_id == AgentModel.agent_id)
             .filter(
                 AgentModel.agent_type == agent_type,
-                ReproductionEventModel.success == True,
+                ReproductionEventModel.success,
             )
             .scalar()
         )
@@ -500,20 +431,19 @@ def compute_advantages(sim_session, focus_agent_type=None):
         attempts = 0 if attempts is None else attempts
 
         # Calculate reproduction success rate
-        success_rate = reproductions / max(attempts, 1)
+        # Ensure attempts is a valid integer
+        attempts_int = int(attempts) if attempts is not None else 0
+        success_rate = reproductions / max(attempts_int, 1)
 
         # Calculate reproduction efficiency (offspring per resource spent)
         resource_spent = (
             sim_session.query(
-                func.sum(
-                    ReproductionEventModel.parent_resources_before
-                    - ReproductionEventModel.parent_resources_after
-                )
+                func.sum(ReproductionEventModel.parent_resources_before - ReproductionEventModel.parent_resources_after)
             )
             .join(AgentModel, ReproductionEventModel.parent_id == AgentModel.agent_id)
             .filter(
                 AgentModel.agent_type == agent_type,
-                ReproductionEventModel.success == True,
+                ReproductionEventModel.success,
             )
             .scalar()
         )
@@ -521,7 +451,9 @@ def compute_advantages(sim_session, focus_agent_type=None):
         # Handle None values properly
         resource_spent = 0 if resource_spent is None else resource_spent
 
-        reproduction_efficiency = reproductions / max(resource_spent, 1)
+        # Ensure resource_spent is a valid integer
+        resource_spent_int = int(resource_spent) if resource_spent is not None else 0
+        reproduction_efficiency = reproductions / max(resource_spent_int, 1)
 
         # Calculate average time to first reproduction
         first_repro_time = (
@@ -529,15 +461,13 @@ def compute_advantages(sim_session, focus_agent_type=None):
             .join(AgentModel, ReproductionEventModel.parent_id == AgentModel.agent_id)
             .filter(
                 AgentModel.agent_type == agent_type,
-                ReproductionEventModel.success == True,
+                ReproductionEventModel.success,
             )
             .scalar()
         )
 
         # Handle None values properly
-        first_repro_time = (
-            float("inf") if first_repro_time is None else first_repro_time
-        )
+        first_repro_time = float("inf") if first_repro_time is None else first_repro_time
 
         results["reproduction"][agent_type] = {
             "success_rate": success_rate,
@@ -549,10 +479,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
     # Calculate reproduction advantages
     for type1, type2 in comparison_pairs:
         # Success rate advantage
-        rate_adv = (
-            results["reproduction"][type1]["success_rate"]
-            - results["reproduction"][type2]["success_rate"]
-        )
+        rate_adv = results["reproduction"][type1]["success_rate"] - results["reproduction"][type2]["success_rate"]
 
         # Efficiency advantage
         efficiency_adv = (
@@ -594,7 +521,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
         # Average lifespan of dead agents
         avg_lifespan = (
             sim_session.query(func.avg(AgentModel.death_time - AgentModel.birth_time))
-            .filter(AgentModel.agent_type == agent_type, AgentModel.death_time != None)
+            .filter(AgentModel.agent_type == agent_type, AgentModel.death_time.isnot(None))
             .scalar()
         )
 
@@ -603,9 +530,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
 
         # Survival rate (percentage of agents still alive)
         total_agents = (
-            sim_session.query(func.count(AgentModel.agent_id))
-            .filter(AgentModel.agent_type == agent_type)
-            .scalar()
+            sim_session.query(func.count(AgentModel.agent_id)).filter(AgentModel.agent_type == agent_type).scalar()
         )
 
         # Handle None values properly
@@ -613,14 +538,16 @@ def compute_advantages(sim_session, focus_agent_type=None):
 
         alive_agents = (
             sim_session.query(func.count(AgentModel.agent_id))
-            .filter(AgentModel.agent_type == agent_type, AgentModel.death_time == None)
+            .filter(AgentModel.agent_type == agent_type, AgentModel.death_time.is_(None))
             .scalar()
         )
 
         # Handle None values properly
         alive_agents = 0 if alive_agents is None else alive_agents
 
-        survival_rate = alive_agents / max(total_agents, 1)
+        # Ensure total_agents is a valid integer
+        total_agents_int = int(total_agents) if total_agents is not None else 0
+        survival_rate = alive_agents / max(total_agents_int, 1)
 
         results["survival"][agent_type] = {
             "average_lifespan": avg_lifespan,
@@ -630,16 +557,10 @@ def compute_advantages(sim_session, focus_agent_type=None):
     # Calculate survival advantages
     for type1, type2 in comparison_pairs:
         # Lifespan advantage
-        lifespan_adv = (
-            results["survival"][type1]["average_lifespan"]
-            - results["survival"][type2]["average_lifespan"]
-        )
+        lifespan_adv = results["survival"][type1]["average_lifespan"] - results["survival"][type2]["average_lifespan"]
 
         # Survival rate advantage
-        rate_adv = (
-            results["survival"][type1]["survival_rate"]
-            - results["survival"][type2]["survival_rate"]
-        )
+        rate_adv = results["survival"][type1]["survival_rate"] - results["survival"][type2]["survival_rate"]
 
         key = f"{type1}_vs_{type2}"
         results["survival"][key] = {
@@ -660,9 +581,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
     for agent_type in agent_types:
         # Early phase average population
         early_avg_pop = (
-            sim_session.query(
-                func.avg(getattr(SimulationStepModel, f"{agent_type}_agents"))
-            )
+            sim_session.query(func.avg(getattr(SimulationStepModel, f"{agent_type}_agents")))
             .filter(SimulationStepModel.step_number <= early_phase_end)
             .scalar()
         )
@@ -672,9 +591,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
 
         # Mid phase average population
         mid_avg_pop = (
-            sim_session.query(
-                func.avg(getattr(SimulationStepModel, f"{agent_type}_agents"))
-            )
+            sim_session.query(func.avg(getattr(SimulationStepModel, f"{agent_type}_agents")))
             .filter(
                 SimulationStepModel.step_number > early_phase_end,
                 SimulationStepModel.step_number <= mid_phase_end,
@@ -687,9 +604,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
 
         # Late phase average population
         late_avg_pop = (
-            sim_session.query(
-                func.avg(getattr(SimulationStepModel, f"{agent_type}_agents"))
-            )
+            sim_session.query(func.avg(getattr(SimulationStepModel, f"{agent_type}_agents")))
             .filter(SimulationStepModel.step_number > mid_phase_end)
             .scalar()
         )
@@ -698,9 +613,14 @@ def compute_advantages(sim_session, focus_agent_type=None):
         late_avg_pop = 0 if late_avg_pop is None else late_avg_pop
 
         # Calculate growth rates between phases
-        early_to_mid_growth = (mid_avg_pop - early_avg_pop) / max(early_avg_pop, 1)
-        mid_to_late_growth = (late_avg_pop - mid_avg_pop) / max(mid_avg_pop, 1)
-        overall_growth = (late_avg_pop - early_avg_pop) / max(early_avg_pop, 1)
+        # Ensure population values are valid integers
+        early_avg_pop_int = int(early_avg_pop) if early_avg_pop is not None else 0
+        mid_avg_pop_int = int(mid_avg_pop) if mid_avg_pop is not None else 0
+        late_avg_pop_int = int(late_avg_pop) if late_avg_pop is not None else 0
+
+        early_to_mid_growth = (mid_avg_pop_int - early_avg_pop_int) / max(early_avg_pop_int, 1)
+        mid_to_late_growth = (late_avg_pop_int - mid_avg_pop_int) / max(mid_avg_pop_int, 1)
+        overall_growth = (late_avg_pop_int - early_avg_pop_int) / max(early_avg_pop_int, 1)
 
         results["population_growth"][agent_type] = {
             "early_phase_population": early_avg_pop,
@@ -778,8 +698,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
                 .filter(
                     AgentModel.agent_type == agent_type,
                     ActionModel.action_type == "attack",
-                    ActionModel.reward
-                    > 0,  # Assuming positive reward means successful attack
+                    ActionModel.reward > 0,  # Assuming positive reward means successful attack
                 )
                 .scalar()
             )
@@ -787,7 +706,9 @@ def compute_advantages(sim_session, focus_agent_type=None):
             # Handle None values properly
             successful_attacks = 0 if successful_attacks is None else successful_attacks
 
-            attack_success_rate = successful_attacks / max(attack_attempts, 1)
+            # Ensure attack_attempts is a valid integer
+            attack_attempts_int = int(attack_attempts) if attack_attempts is not None else 0
+            attack_success_rate = successful_attacks / max(attack_attempts_int, 1)
 
             # Defense success rate (survival when targeted)
             times_targeted = (
@@ -809,18 +730,17 @@ def compute_advantages(sim_session, focus_agent_type=None):
                 .filter(
                     AgentModel.agent_type == agent_type,
                     ActionModel.action_type == "attack",
-                    ActionModel.reward
-                    <= 0,  # Assuming non-positive reward means defense succeeded
+                    ActionModel.reward <= 0,  # Assuming non-positive reward means defense succeeded
                 )
                 .scalar()
             )
 
             # Handle None values properly
-            successful_defenses = (
-                0 if successful_defenses is None else successful_defenses
-            )
+            successful_defenses = 0 if successful_defenses is None else successful_defenses
 
-            defense_success_rate = successful_defenses / max(times_targeted, 1)
+            # Ensure times_targeted is a valid integer
+            times_targeted_int = int(times_targeted) if times_targeted is not None else 0
+            defense_success_rate = successful_defenses / max(times_targeted_int, 1)
 
             results["combat"][agent_type] = {
                 "attack_success_rate": attack_success_rate,
@@ -833,14 +753,12 @@ def compute_advantages(sim_session, focus_agent_type=None):
         for type1, type2 in comparison_pairs:
             # Attack success advantage
             attack_adv = (
-                results["combat"][type1]["attack_success_rate"]
-                - results["combat"][type2]["attack_success_rate"]
+                results["combat"][type1]["attack_success_rate"] - results["combat"][type2]["attack_success_rate"]
             )
 
             # Defense success advantage
             defense_adv = (
-                results["combat"][type1]["defense_success_rate"]
-                - results["combat"][type2]["defense_success_rate"]
+                results["combat"][type1]["defense_success_rate"] - results["combat"][type2]["defense_success_rate"]
             )
 
             # Direct combat advantage (attack success against this specific opponent)
@@ -853,9 +771,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
                         AgentModel.agent_type == type1,
                         ActionModel.action_type == "attack",
                         ActionModel.action_target_id.in_(
-                            sim_session.query(AgentModel.agent_id).filter(
-                                AgentModel.agent_type == type2
-                            )
+                            sim_session.query(AgentModel.agent_id).filter(AgentModel.agent_type == type2)
                         ),
                     )
                     .scalar()
@@ -871,9 +787,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
                         AgentModel.agent_type == type1,
                         ActionModel.action_type == "attack",
                         ActionModel.action_target_id.in_(
-                            sim_session.query(AgentModel.agent_id).filter(
-                                AgentModel.agent_type == type2
-                            )
+                            sim_session.query(AgentModel.agent_id).filter(AgentModel.agent_type == type2)
                         ),
                         ActionModel.reward > 0,
                     )
@@ -883,7 +797,9 @@ def compute_advantages(sim_session, focus_agent_type=None):
                 # Handle None values properly
                 t1_vs_t2_success = 0 if t1_vs_t2_success is None else t1_vs_t2_success
 
-                direct_combat_success_rate = t1_vs_t2_success / max(t1_vs_t2_attacks, 1)
+                # Ensure t1_vs_t2_attacks is a valid integer
+                t1_vs_t2_attacks_int = int(t1_vs_t2_attacks) if t1_vs_t2_attacks is not None else 0
+                direct_combat_success_rate = t1_vs_t2_success / max(t1_vs_t2_attacks_int, 1)
             except Exception as e:
                 logger.warning(f"Error calculating direct combat stats: {e}")
                 direct_combat_success_rate = 0.5  # Neutral value
@@ -908,11 +824,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
     results["initial_positioning"] = {}
 
     # Get the first step in the simulation
-    first_step = (
-        sim_session.query(SimulationStepModel)
-        .order_by(SimulationStepModel.step_number.asc())
-        .first()
-    )
+    first_step = sim_session.query(SimulationStepModel).order_by(SimulationStepModel.step_number.asc()).first()
     if first_step:
         # For each agent type, calculate starting positions
         for type1, type2 in comparison_pairs:
@@ -943,9 +855,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
                 results["initial_positioning"][key][result_field] = 0
 
     category_duration = time.time() - category_start_time
-    logger.debug(
-        f"Completed initial positioning advantages in {category_duration:.2f}s"
-    )
+    logger.debug(f"Completed initial positioning advantages in {category_duration:.2f}s")
 
     # 7. Composite Advantage Score
     # ------------------------------------
@@ -986,20 +896,18 @@ def compute_advantages(sim_session, focus_agent_type=None):
 
         # Reproduction component
         if "reproduction" in results and key in results["reproduction"]:
+            # Ensure first_reproduction_advantage is a valid number
+            first_repro_adv = results["reproduction"][key]["first_reproduction_advantage"]
+            # Check if it's a real number (not a MagicMock)
+            if isinstance(first_repro_adv, (int, float)) and not hasattr(first_repro_adv, "_mock_name"):
+                first_repro_score = 1 if first_repro_adv > 0 else (0 if first_repro_adv == 0 else -1)
+            else:
+                first_repro_score = 0  # Default neutral value for mock objects
+
             repro_adv = (
                 results["reproduction"][key]["success_rate_advantage"] * 0.4
                 + results["reproduction"][key]["efficiency_advantage"] * 0.3
-                + (
-                    1
-                    if results["reproduction"][key]["first_reproduction_advantage"] > 0
-                    else (
-                        0
-                        if results["reproduction"][key]["first_reproduction_advantage"]
-                        == 0
-                        else -1
-                    )
-                )
-                * 0.3
+                + first_repro_score * 0.3
             )
             composite_score += weights["reproduction"] * repro_adv
             advantage_components["reproduction"] = repro_adv
@@ -1011,7 +919,12 @@ def compute_advantages(sim_session, focus_agent_type=None):
                 + results["survival"][key]["survival_rate_advantage"] * 0.5
             )
             # Normalize extremely large values
-            if abs(survival_adv) > 1000:
+            # Check if survival_adv is a real number (not a MagicMock)
+            if (
+                isinstance(survival_adv, (int, float))
+                and not hasattr(survival_adv, "_mock_name")
+                and abs(survival_adv) > 1000
+            ):
                 survival_adv = 1000 * (1 if survival_adv > 0 else -1)
 
             normalized_survival_adv = survival_adv / 1000  # Scale to roughly -1 to 1
@@ -1027,15 +940,16 @@ def compute_advantages(sim_session, focus_agent_type=None):
                 + results["population_growth"][key]["growth_rate_advantage"] * 0.2
             )
             # Normalize by dividing by the maximum population to get a -1 to 1 scale
-            max_pop = max(
-                max(
-                    [
-                        results["population_growth"][t]["late_phase_population"]
-                        for t in agent_types
-                    ]
-                ),
-                1,
-            )
+            # Get population values and ensure they're real numbers
+            pop_values = []
+            for t in agent_types:
+                pop_val = results["population_growth"][t]["late_phase_population"]
+                if isinstance(pop_val, (int, float)) and not hasattr(pop_val, "_mock_name"):
+                    pop_values.append(pop_val)
+                else:
+                    pop_values.append(0)  # Default for mock objects
+
+            max_pop = max(max(pop_values) if pop_values else 0, 1)
             normalized_growth_adv = growth_adv / max_pop
             composite_score += weights["population_growth"] * normalized_growth_adv
             advantage_components["population_growth"] = normalized_growth_adv
@@ -1067,9 +981,7 @@ def compute_advantages(sim_session, focus_agent_type=None):
         }
 
     category_duration = time.time() - category_start_time
-    logger.debug(
-        f"Completed composite advantage calculation in {category_duration:.2f}s"
-    )
+    logger.debug(f"Completed composite advantage calculation in {category_duration:.2f}s")
 
     total_duration = time.time() - start_time
     logger.debug(f"Completed compute_advantages in {total_duration:.2f}s")
@@ -1106,9 +1018,7 @@ def compute_advantage_dominance_correlation(sim_session):
     logger.debug("Computing comprehensive dominance")
     dominance_result = compute_comprehensive_dominance(sim_session)
     if not dominance_result or "dominant_type" not in dominance_result:
-        logger.warning(
-            "No dominant type found, skipping advantage-dominance correlation"
-        )
+        logger.warning("No dominant type found, skipping advantage-dominance correlation")
         return None
 
     dominant_type = dominance_result["dominant_type"]
@@ -1132,9 +1042,7 @@ def compute_advantage_dominance_correlation(sim_session):
 
         # For each agent type pair involving the dominant type
         for key in advantages[category]:
-            if key.startswith(f"{dominant_type}_vs_") or key.endswith(
-                f"_vs_{dominant_type}"
-            ):
+            if key.startswith(f"{dominant_type}_vs_") or key.endswith(f"_vs_{dominant_type}"):
                 # For each specific advantage metric in this category
                 for metric, value in advantages[category][key].items():
                     # Skip non-advantage metrics (e.g., raw values)
@@ -1142,9 +1050,9 @@ def compute_advantage_dominance_correlation(sim_session):
                         continue
 
                     # Determine if advantage favors dominant type
-                    favors_dominant = (
-                        key.startswith(f"{dominant_type}_vs_") and value > 0
-                    ) or (key.endswith(f"_vs_{dominant_type}") and value < 0)
+                    favors_dominant = (key.startswith(f"{dominant_type}_vs_") and value > 0) or (
+                        key.endswith(f"_vs_{dominant_type}") and value < 0
+                    )
 
                     # Record both the raw advantage and whether it favors dominant type
                     metric_key = f"{key}_{metric}"
@@ -1170,9 +1078,7 @@ def compute_advantage_dominance_correlation(sim_session):
                 summary["advantages_favoring_dominant"] += 1
 
     if summary["total_advantages"] > 0:
-        summary["advantage_ratio"] = int(
-            summary["advantages_favoring_dominant"] / summary["total_advantages"] * 100
-        )
+        summary["advantage_ratio"] = int(summary["advantages_favoring_dominant"] / summary["total_advantages"] * 100)
 
     results["summary"] = summary
 

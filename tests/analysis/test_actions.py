@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from farm.analysis.exceptions import DataValidationError
 from farm.analysis.actions import (
     actions_module,
     analyze_action_patterns,
@@ -704,7 +705,7 @@ class TestActionsModule:
             }
         )
 
-        with pytest.raises(ValueError, match="Missing required columns"):
+        with pytest.raises(DataValidationError, match="Missing required columns"):
             validator.validate(invalid_df)
 
     def test_actions_module_validator_empty_data(self):
@@ -713,7 +714,7 @@ class TestActionsModule:
 
         empty_df = pd.DataFrame()
 
-        with pytest.raises(ValueError):
+        with pytest.raises(DataValidationError):
             validator.validate(empty_df)
 
     def test_actions_module_all_functions_registered(self):
@@ -742,21 +743,21 @@ class TestActionsModule:
         # Test basic group
         basic_group = groups["basic"]
         assert len(basic_group) == 2
-        assert any(f.name == "analyze_patterns" for f in basic_group)
-        assert any(f.name == "plot_frequencies" for f in basic_group)
+        assert any(f.name == "analyze_action_patterns" for f in basic_group)
+        assert any(f.name == "plot_action_frequencies" for f in basic_group)
 
         # Test sequences group
         sequences_group = groups["sequences"]
         assert len(sequences_group) == 2
-        assert any(f.name == "analyze_sequences" for f in sequences_group)
-        assert any(f.name == "plot_sequences" for f in sequences_group)
+        assert any(f.name == "analyze_sequence_patterns" for f in sequences_group)
+        assert any(f.name == "plot_sequence_patterns" for f in sequences_group)
 
         # Test performance group
         performance_group = groups["performance"]
         assert len(performance_group) == 3
-        assert any(f.name == "analyze_decisions" for f in performance_group)
-        assert any(f.name == "analyze_rewards" for f in performance_group)
-        assert any(f.name == "plot_rewards" for f in performance_group)
+        assert any(f.name == "analyze_decision_patterns" for f in performance_group)
+        assert any(f.name == "analyze_reward_analysis" for f in performance_group)
+        assert any(f.name == "plot_reward_distributions" for f in performance_group)
 
 
 class TestDataProcessing:
