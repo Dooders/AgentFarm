@@ -147,6 +147,15 @@ class BaseAnalysisModule:
         self._ensure_registered()
         return list(self._groups.keys())
 
+    def get_function_groups_dict(self) -> Dict[str, List[AnalysisFunction]]:
+        """Get available function groups as dictionary.
+
+        Returns:
+            Dictionary mapping group names to lists of functions
+        """
+        self._ensure_registered()
+        return self._groups.copy()
+
     def get_function(self, name: str) -> Optional[AnalysisFunction]:
         """Get a specific analysis function by name.
 
@@ -167,6 +176,15 @@ class BaseAnalysisModule:
         """
         self._ensure_registered()
         return list(self._functions.keys())
+
+    def get_functions(self) -> List[AnalysisFunction]:
+        """Get all analysis functions.
+
+        Returns:
+            List of all analysis functions
+        """
+        self._ensure_registered()
+        return list(self._functions.values())
 
     def supports_database(self) -> bool:
         """Whether this module uses database for intermediate storage.
@@ -376,7 +394,7 @@ class BaseAnalysisModule:
         return {
             "name": self.name,
             "description": self.description,
-            "function_groups": self.get_function_groups(),
+            "function_groups": self.get_function_groups_dict(),
             "functions": self.get_function_names(),
             "supports_database": self.supports_database(),
             "db_filename": self.get_db_filename(),
@@ -480,7 +498,9 @@ def make_analysis_function(func: Callable, name: Optional[str] = None) -> Analys
 
     if name:
         wrapped.__name__ = name
+        wrapped.name = name
     elif hasattr(func, "__name__"):
         wrapped.__name__ = func.__name__
+        wrapped.name = func.__name__
 
     return wrapped

@@ -3,6 +3,7 @@ Significant events analysis module implementation.
 """
 
 from farm.analysis.core import BaseAnalysisModule, make_analysis_function
+from farm.analysis.validation import ColumnValidator, DataQualityValidator, CompositeValidator
 
 from farm.analysis.significant_events.analyze import (
     analyze_significant_events,
@@ -22,8 +23,19 @@ class SignificantEventsModule(BaseAnalysisModule):
     def __init__(self):
         super().__init__(
             name="significant_events",
-            description="Analysis of significant events, their severity, patterns, and impact"
+            description="Analysis of significant events, their severity, patterns, and impact",
         )
+
+        # Set up validation for significant events data
+        validator = CompositeValidator(
+            [
+                ColumnValidator(
+                    required_columns=["type", "step", "impact_scale"], column_types={"step": int, "impact_scale": float}
+                ),
+                DataQualityValidator(min_rows=1),
+            ]
+        )
+        self.set_validator(validator)
 
     def register_functions(self) -> None:
         """Register all significant events analysis functions."""

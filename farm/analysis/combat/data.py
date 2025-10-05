@@ -108,11 +108,12 @@ def process_combat_data(experiment_path: Path, use_database: bool = True, **kwar
     return df
 
 
-def process_combat_metrics_data(experiment_path: Path, **kwargs) -> pd.DataFrame:
+def process_combat_metrics_data(experiment_path: Path, use_database: bool = True, **kwargs) -> pd.DataFrame:
     """Process combat metrics from simulation metrics.
 
     Args:
         experiment_path: Path to experiment directory
+        use_database: Whether to use database or direct file access
         **kwargs: Additional options
 
     Returns:
@@ -121,37 +122,38 @@ def process_combat_metrics_data(experiment_path: Path, **kwargs) -> pd.DataFrame
     # Try DB first with safe fallback
     df: Optional[pd.DataFrame] = None
     db = None
-    try:
-        db_path = find_database_path(experiment_path, "simulation.db")
-        logger.info(f"Loading combat metrics from database: {db_path}")
-        db_uri = f"sqlite:///{db_path}"
-        session_manager = SessionManager(db_uri)
-
-        # Query step metrics that contain combat data
-        from farm.database.models import StepMetrics
-
-        session = session_manager.create_session()
+    if use_database:
         try:
-            metrics_rows: List[Dict[str, Any]] = []
-            for step_metric in session.query(StepMetrics).all():
-                metrics_dict = step_metric.to_dict()
-                if any(key in metrics_dict for key in ["combat_encounters", "successful_attacks"]):
-                    metrics_rows.append(
-                        {
-                            "step": metrics_dict.get("step", 0),
-                            "combat_encounters": metrics_dict.get("combat_encounters", 0),
-                            "successful_attacks": metrics_dict.get("successful_attacks", 0),
-                            "combat_encounters_this_step": metrics_dict.get("combat_encounters_this_step", 0),
-                            "successful_attacks_this_step": metrics_dict.get("successful_attacks_this_step", 0),
-                        }
-                    )
-            df = pd.DataFrame(metrics_rows)
-        finally:
-            session.close()
-            session_manager.close()
-    except Exception as e:
-        logger.exception(f"Failed loading combat metrics from database. Falling back to CSV. Error: {e}")
-        df = None
+            db_path = find_database_path(experiment_path, "simulation.db")
+            logger.info(f"Loading combat metrics from database: {db_path}")
+            db_uri = f"sqlite:///{db_path}"
+            session_manager = SessionManager(db_uri)
+
+            # Query step metrics that contain combat data
+            from farm.database.models import SimulationStepModel
+
+            session = session_manager.create_session()
+            try:
+                metrics_rows: List[Dict[str, Any]] = []
+                for step_metric in session.query(SimulationStepModel).all():
+                    metrics_dict = step_metric.to_dict()
+                    if any(key in metrics_dict for key in ["combat_encounters", "successful_attacks"]):
+                        metrics_rows.append(
+                            {
+                                "step": metrics_dict.get("step", 0),
+                                "combat_encounters": metrics_dict.get("combat_encounters", 0),
+                                "successful_attacks": metrics_dict.get("successful_attacks", 0),
+                                "combat_encounters_this_step": metrics_dict.get("combat_encounters_this_step", 0),
+                                "successful_attacks_this_step": metrics_dict.get("successful_attacks_this_step", 0),
+                            }
+                        )
+                df = pd.DataFrame(metrics_rows)
+            finally:
+                session.close()
+                session_manager.close()
+        except Exception as e:
+            logger.exception(f"Failed loading combat metrics from database. Falling back to CSV. Error: {e}")
+            df = None
 
     if df is None or df.empty:
         data_dir = experiment_path / "data"

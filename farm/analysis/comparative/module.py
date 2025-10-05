@@ -77,6 +77,23 @@ class ComparativeModule(BaseAnalysisModule):
         """Get data processor for comparative analysis."""
         return SimpleDataProcessor(process_comparative_data)
 
+    def get_validator(self):
+        """Get validator for comparative analysis module."""
+        # Return a simple validator that checks for required columns
+        def validate_data(df):
+            """Validate that data has required columns for comparative analysis."""
+            if df.empty:
+                return False, "Data is empty"
+            
+            # Check for at least one numeric column
+            numeric_cols = df.select_dtypes(include=['number']).columns
+            if len(numeric_cols) == 0:
+                return False, "No numeric columns found for analysis"
+            
+            return True, "Data is valid for comparative analysis"
+        
+        return validate_data
+
 
 # Create singleton instance
 comparative_module = ComparativeModule()

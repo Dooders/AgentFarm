@@ -5,7 +5,6 @@ Spatial statistical computations.
 from typing import Dict, Any, List, Tuple
 import pandas as pd
 import numpy as np
-from scipy import stats
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
@@ -22,22 +21,22 @@ def compute_spatial_statistics(spatial_data: Dict[str, pd.DataFrame]) -> Dict[st
     Returns:
         Dictionary of computed spatial statistics
     """
-    agent_df = spatial_data.get('agent_positions', pd.DataFrame())
-    resource_df = spatial_data.get('resource_positions', pd.DataFrame())
+    agent_df = spatial_data.get("agent_positions", pd.DataFrame())
+    resource_df = spatial_data.get("resource_positions", pd.DataFrame())
 
     stats = {}
 
     # Agent spatial statistics
     if not agent_df.empty:
-        stats['agent_spatial'] = _compute_agent_spatial_stats(agent_df)
+        stats["agent_spatial"] = _compute_agent_spatial_stats(agent_df)
 
     # Resource spatial statistics
     if not resource_df.empty:
-        stats['resource_spatial'] = _compute_resource_spatial_stats(resource_df)
+        stats["resource_spatial"] = _compute_resource_spatial_stats(resource_df)
 
     # Agent-resource interaction statistics
     if not agent_df.empty and not resource_df.empty:
-        stats['interaction_spatial'] = _compute_interaction_spatial_stats(agent_df, resource_df)
+        stats["interaction_spatial"] = _compute_interaction_spatial_stats(agent_df, resource_df)
 
     return stats
 
@@ -53,29 +52,29 @@ def compute_movement_patterns(movement_df: pd.DataFrame) -> Dict[str, Any]:
     """
     if movement_df.empty:
         return {
-            'total_movements': 0,
-            'avg_distance': 0.0,
-            'total_distance': 0.0,
-            'movement_frequency': 0.0,
+            "total_movements": 0,
+            "avg_distance": 0.0,
+            "total_distance": 0.0,
+            "movement_frequency": 0.0,
         }
 
     # Basic movement statistics
     total_movements = len(movement_df)
-    total_distance = movement_df['distance'].sum()
-    avg_distance = movement_df['distance'].mean()
+    total_distance = movement_df["distance"].sum()
+    avg_distance = movement_df["distance"].mean()
 
     # Movement frequency per agent per step
-    movement_freq = movement_df.groupby('agent_id')['distance'].count().mean()
+    movement_freq = movement_df.groupby("agent_id")["distance"].count().mean()
 
     # Movement paths analysis
     paths = _analyze_movement_paths(movement_df)
 
     return {
-        'total_movements': total_movements,
-        'avg_distance': float(avg_distance),
-        'total_distance': float(total_distance),
-        'movement_frequency': float(movement_freq),
-        'paths': paths,
+        "total_movements": total_movements,
+        "avg_distance": float(avg_distance),
+        "total_distance": float(total_distance),
+        "movement_frequency": float(movement_freq),
+        "paths": paths,
     }
 
 
@@ -88,10 +87,10 @@ def compute_location_hotspots(location_data: Dict[str, pd.DataFrame]) -> Dict[st
     Returns:
         Dictionary with hotspot and clustering analysis
     """
-    activity_df = location_data.get('location_activity', pd.DataFrame())
+    activity_df = location_data.get("location_activity", pd.DataFrame())
 
     if activity_df.empty:
-        return {'hotspots': [], 'clusters': {}}
+        return {"hotspots": [], "clusters": {}}
 
     # Identify hotspots based on activity density
     hotspots = _identify_hotspots(activity_df)
@@ -100,8 +99,8 @@ def compute_location_hotspots(location_data: Dict[str, pd.DataFrame]) -> Dict[st
     clusters = _compute_location_clusters(activity_df)
 
     return {
-        'hotspots': hotspots,
-        'clusters': clusters,
+        "hotspots": hotspots,
+        "clusters": clusters,
     }
 
 
@@ -114,11 +113,11 @@ def compute_spatial_distribution_metrics(positions_df: pd.DataFrame) -> Dict[str
     Returns:
         Dictionary with distribution metrics
     """
-    if positions_df.empty or 'position_x' not in positions_df.columns:
+    if positions_df.empty or "position_x" not in positions_df.columns:
         return {}
 
     # Extract coordinates
-    coords = positions_df[['position_x', 'position_y']].dropna().values
+    coords = positions_df[["position_x", "position_y"]].dropna().values
 
     if len(coords) < 2:
         return {}
@@ -127,7 +126,7 @@ def compute_spatial_distribution_metrics(positions_df: pd.DataFrame) -> Dict[str
     centroid = np.mean(coords, axis=0)
 
     # Spread metrics
-    distances_from_center = np.sqrt(np.sum((coords - centroid)**2, axis=1))
+    distances_from_center = np.sqrt(np.sum((coords - centroid) ** 2, axis=1))
     spread_stats = calculate_statistics(distances_from_center)
 
     # Density estimation
@@ -137,43 +136,43 @@ def compute_spatial_distribution_metrics(positions_df: pd.DataFrame) -> Dict[str
     clustering = _compute_clustering_coefficient(coords)
 
     return {
-        'centroid': centroid.tolist(),
-        'spread': spread_stats,
-        'density': density,
-        'clustering_coefficient': clustering,
+        "centroid": centroid.tolist(),
+        "spread": spread_stats,
+        "density": density,
+        "clustering_coefficient": clustering,
     }
 
 
 def _compute_agent_spatial_stats(agent_df: pd.DataFrame) -> Dict[str, Any]:
     """Compute spatial statistics for agents."""
-    if 'position_x' not in agent_df.columns:
+    if "position_x" not in agent_df.columns:
         return {}
 
-    coords = agent_df[['position_x', 'position_y']].dropna()
+    coords = agent_df[["position_x", "position_y"]].dropna()
 
     return {
-        'total_agents': len(agent_df['agent_id'].unique()) if 'agent_id' in agent_df.columns else 0,
-        'spatial_distribution': compute_spatial_distribution_metrics(agent_df),
-        'position_stats': {
-            'x': calculate_statistics(coords['position_x']) if not coords.empty else {},
-            'y': calculate_statistics(coords['position_y']) if not coords.empty else {},
+        "total_agents": len(agent_df["agent_id"].unique()) if "agent_id" in agent_df.columns else 0,
+        "spatial_distribution": compute_spatial_distribution_metrics(agent_df),
+        "position_stats": {
+            "x": calculate_statistics(coords["position_x"]) if not coords.empty else {},
+            "y": calculate_statistics(coords["position_y"]) if not coords.empty else {},
         },
     }
 
 
 def _compute_resource_spatial_stats(resource_df: pd.DataFrame) -> Dict[str, Any]:
     """Compute spatial statistics for resources."""
-    if 'position_x' not in resource_df.columns:
+    if "position_x" not in resource_df.columns:
         return {}
 
-    coords = resource_df[['position_x', 'position_y']].dropna()
+    coords = resource_df[["position_x", "position_y"]].dropna()
 
     return {
-        'total_resources': len(resource_df),
-        'spatial_distribution': compute_spatial_distribution_metrics(resource_df),
-        'position_stats': {
-            'x': calculate_statistics(coords['position_x']) if not coords.empty else {},
-            'y': calculate_statistics(coords['position_y']) if not coords.empty else {},
+        "total_resources": len(resource_df),
+        "spatial_distribution": compute_spatial_distribution_metrics(resource_df),
+        "position_stats": {
+            "x": calculate_statistics(coords["position_x"]) if not coords.empty else {},
+            "y": calculate_statistics(coords["position_y"]) if not coords.empty else {},
         },
     }
 
@@ -184,8 +183,8 @@ def _compute_interaction_spatial_stats(agent_df: pd.DataFrame, resource_df: pd.D
         return {}
 
     # Calculate distances between agents and resources
-    agent_coords = agent_df[['position_x', 'position_y']].dropna().values
-    resource_coords = resource_df[['position_x', 'position_y']].dropna().values
+    agent_coords = agent_df[["position_x", "position_y"]].dropna().values
+    resource_coords = resource_df[["position_x", "position_y"]].dropna().values
 
     if len(agent_coords) == 0 or len(resource_coords) == 0:
         return {}
@@ -194,14 +193,14 @@ def _compute_interaction_spatial_stats(agent_df: pd.DataFrame, resource_df: pd.D
     distances = []
     for agent_pos in agent_coords:
         for resource_pos in resource_coords:
-            dist = np.sqrt(np.sum((agent_pos - resource_pos)**2))
+            dist = np.sqrt(np.sum((agent_pos - resource_pos) ** 2))
             distances.append(dist)
 
     distance_stats = calculate_statistics(np.array(distances))
 
     return {
-        'avg_distance_to_resources': float(distance_stats['mean']),
-        'distance_stats': distance_stats,
+        "avg_distance_to_resources": float(distance_stats["mean"]),
+        "distance_stats": distance_stats,
     }
 
 
@@ -212,21 +211,23 @@ def _analyze_movement_paths(movement_df: pd.DataFrame) -> Dict[str, Any]:
 
     # Group by agent and analyze individual paths
     path_stats = []
-    for agent_id, group in movement_df.groupby('agent_id'):
+    for agent_id, group in movement_df.groupby("agent_id"):
         if len(group) > 1:
-            path_length = group['distance'].sum()
+            path_length = group["distance"].sum()
             straightness = _compute_path_straightness(group)
-            path_stats.append({
-                'agent_id': agent_id,
-                'length': float(path_length),
-                'straightness': straightness,
-                'steps': len(group),
-            })
+            path_stats.append(
+                {
+                    "agent_id": agent_id,
+                    "length": float(path_length),
+                    "straightness": straightness,
+                    "steps": len(group),
+                }
+            )
 
     return {
-        'individual_paths': path_stats,
-        'avg_path_length': np.mean([p['length'] for p in path_stats]) if path_stats else 0.0,
-        'avg_straightness': np.mean([p['straightness'] for p in path_stats]) if path_stats else 0.0,
+        "individual_paths": path_stats,
+        "avg_path_length": np.mean([p["length"] for p in path_stats]) if path_stats else 0.0,
+        "avg_straightness": np.mean([p["straightness"] for p in path_stats]) if path_stats else 0.0,
     }
 
 
@@ -236,13 +237,18 @@ def _compute_path_straightness(path_df: pd.DataFrame) -> float:
         return 1.0
 
     # Total path length
-    total_distance = path_df['distance'].sum()
+    total_distance = path_df["distance"].sum()
+
+    # Check if position columns exist
+    if "position_x" not in path_df.columns or "position_y" not in path_df.columns:
+        # If no position data, assume straight line (straightness = 1.0)
+        return 1.0
 
     # Straight-line distance from start to end
-    start_pos = path_df.iloc[0][['position_x', 'position_y']].values
-    end_pos = path_df.iloc[-1][['position_x', 'position_y']].values
+    start_pos = path_df.iloc[0][["position_x", "position_y"]].values
+    end_pos = path_df.iloc[-1][["position_x", "position_y"]].values
 
-    straight_distance = np.sqrt(np.sum((end_pos - start_pos)**2))
+    straight_distance = np.sqrt(np.sum((end_pos - start_pos) ** 2))
 
     return straight_distance / total_distance if total_distance > 0 else 1.0
 
@@ -253,18 +259,18 @@ def _identify_hotspots(activity_df: pd.DataFrame) -> List[Dict[str, Any]]:
         return []
 
     # Group by location and count activity
-    location_activity = activity_df.groupby(['position_x', 'position_y']).size().reset_index(name='activity')
+    location_activity = activity_df.groupby(["position_x", "position_y"]).size().reset_index(name="activity")
 
     # Calculate activity threshold (mean + std)
-    mean_activity = location_activity['activity'].mean()
-    std_activity = location_activity['activity'].std()
+    mean_activity = location_activity["activity"].mean()
+    std_activity = location_activity["activity"].std()
     threshold = mean_activity + std_activity
 
     # Identify hotspots
-    hotspots = location_activity[location_activity['activity'] > threshold]
-    hotspots = hotspots.sort_values('activity', ascending=False)
+    hotspots = location_activity[location_activity["activity"] > threshold]
+    hotspots = hotspots.sort_values("activity", ascending=False)
 
-    return hotspots.to_dict('records')
+    return hotspots.to_dict("records")
 
 
 def _compute_location_clusters(activity_df: pd.DataFrame) -> Dict[str, Any]:
@@ -273,7 +279,7 @@ def _compute_location_clusters(activity_df: pd.DataFrame) -> Dict[str, Any]:
     if activity_df.empty or len(activity_df) < min_points:
         return {}
 
-    coords = activity_df[['position_x', 'position_y']].dropna().values
+    coords = activity_df[["position_x", "position_y"]].dropna().values
 
     if len(coords) < min_points:
         return {}
@@ -282,7 +288,7 @@ def _compute_location_clusters(activity_df: pd.DataFrame) -> Dict[str, Any]:
     max_clusters = min(max(2, spatial_config.max_clusters), len(coords))  # Ensure at least 2
     best_score = -1
     best_n_clusters = 2
-    
+
     # Ensure we have enough points for clustering
     if max_clusters < 2 or len(coords) < 2:
         return {}
@@ -304,10 +310,10 @@ def _compute_location_clusters(activity_df: pd.DataFrame) -> Dict[str, Any]:
     labels = kmeans.fit_predict(coords)
 
     return {
-        'n_clusters': best_n_clusters,
-        'silhouette_score': float(best_score),
-        'cluster_centers': kmeans.cluster_centers_.tolist(),
-        'cluster_labels': labels.tolist(),
+        "n_clusters": best_n_clusters,
+        "silhouette_score": float(best_score),
+        "cluster_centers": kmeans.cluster_centers_.tolist(),
+        "cluster_labels": labels.tolist(),
     }
 
 
@@ -323,11 +329,11 @@ def _estimate_spatial_density(coords: np.ndarray) -> Dict[str, Any]:
         )
 
         return {
-            'density_map': hist.tolist(),
-            'x_edges': xedges.tolist(),
-            'y_edges': yedges.tolist(),
-            'max_density': float(np.max(hist)),
-            'avg_density': float(np.mean(hist)),
+            "density_map": hist.tolist(),
+            "x_edges": xedges.tolist(),
+            "y_edges": yedges.tolist(),
+            "max_density": float(np.max(hist)),
+            "avg_density": float(np.mean(hist)),
         }
     except (ValueError, TypeError) as e:
         # Can fail if coordinates are invalid or insufficient
@@ -345,7 +351,7 @@ def _compute_clustering_coefficient(coords: np.ndarray) -> float:
 
     for i in range(n):
         for j in range(n):
-            distances[i, j] = np.sqrt(np.sum((coords[i] - coords[j])**2))
+            distances[i, j] = np.sqrt(np.sum((coords[i] - coords[j]) ** 2))
 
     # Count triangles (simplified clustering coefficient)
     threshold = np.percentile(distances[distances > 0], 50)  # Median distance as threshold

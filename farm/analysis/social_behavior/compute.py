@@ -91,9 +91,7 @@ def compute_social_network_metrics(session: Session) -> Dict[str, Any]:
     results = {
         "total_interactions": sum(interaction_counts.values()),
         "unique_interaction_pairs": len(interaction_counts),
-        "network_density": (
-            sum(adjacency_matrix.flatten()) / (n * (n - 1)) if n > 1 else 0
-        ),
+        "network_density": (sum(adjacency_matrix.flatten()) / (n * (n - 1)) if n > 1 else 0),
         "interaction_types": {k: sum(v.values()) for k, v in interaction_types.items()},
         "agent_interaction_counts": {},
     }
@@ -105,11 +103,7 @@ def compute_social_network_metrics(session: Session) -> Dict[str, Any]:
         # In-degree: number of agents that interacted with this agent
         in_degree = np.sum(adjacency_matrix[:, i] > 0, out=None)
 
-        agent_type = (
-            session.query(AgentModel.agent_type)
-            .filter(AgentModel.agent_id == agent_id)
-            .first()
-        )
+        agent_type = session.query(AgentModel.agent_type).filter(AgentModel.agent_id == agent_id).first()
         if agent_type:
             agent_type = agent_type[0]
         else:
@@ -129,28 +123,16 @@ def compute_social_network_metrics(session: Session) -> Dict[str, Any]:
         agent_type = metrics["agent_type"]
         agent_type_metrics[agent_type]["out_degree"].append(metrics["out_degree"])
         agent_type_metrics[agent_type]["in_degree"].append(metrics["in_degree"])
-        agent_type_metrics[agent_type]["total_outgoing"].append(
-            metrics["total_outgoing"]
-        )
-        agent_type_metrics[agent_type]["total_incoming"].append(
-            metrics["total_incoming"]
-        )
+        agent_type_metrics[agent_type]["total_outgoing"].append(metrics["total_outgoing"])
+        agent_type_metrics[agent_type]["total_incoming"].append(metrics["total_incoming"])
 
     results["agent_type_averages"] = {}
     for agent_type, metrics in agent_type_metrics.items():
         results["agent_type_averages"][agent_type] = {
-            "avg_out_degree": (
-                np.mean(metrics["out_degree"]) if metrics["out_degree"] else 0
-            ),
-            "avg_in_degree": (
-                np.mean(metrics["in_degree"]) if metrics["in_degree"] else 0
-            ),
-            "avg_total_outgoing": (
-                np.mean(metrics["total_outgoing"]) if metrics["total_outgoing"] else 0
-            ),
-            "avg_total_incoming": (
-                np.mean(metrics["total_incoming"]) if metrics["total_incoming"] else 0
-            ),
+            "avg_out_degree": (np.mean(metrics["out_degree"]) if metrics["out_degree"] else 0),
+            "avg_in_degree": (np.mean(metrics["in_degree"]) if metrics["in_degree"] else 0),
+            "avg_total_outgoing": (np.mean(metrics["total_outgoing"]) if metrics["total_outgoing"] else 0),
+            "avg_total_incoming": (np.mean(metrics["total_incoming"]) if metrics["total_incoming"] else 0),
             "count": len(metrics["out_degree"]),
         }
 
@@ -182,9 +164,7 @@ def compute_resource_sharing_metrics(session: Session) -> Dict[str, Any]:
             AgentModel.agent_type.label("initiator_type"),
         )
         .join(AgentModel, AgentModel.agent_id == ActionModel.agent_id)
-        .filter(
-            ActionModel.action_type == "share", ActionModel.action_target_id.isnot(None)
-        )
+        .filter(ActionModel.action_type == "share", ActionModel.action_target_id.isnot(None))
         .all()
     )
 
@@ -193,10 +173,14 @@ def compute_resource_sharing_metrics(session: Session) -> Dict[str, Any]:
         return {"error": "No resource sharing actions found"}
 
     # Get agent types for targets
-    agent_types = {
-        a.agent_id: a.agent_type
-        for a in session.query(AgentModel.agent_id, AgentModel.agent_type).all()
-    }
+    agent_type_results = session.query(AgentModel.agent_id, AgentModel.agent_type).all()
+    agent_types = {}
+    for result in agent_type_results:
+        if hasattr(result, "agent_id"):
+            agent_types[result.agent_id] = result.agent_type
+        else:
+            # Handle tuple results from mock
+            agent_types[result[0]] = result[1]
 
     # Analyze sharing patterns
     results = {
@@ -208,41 +192,51 @@ def compute_resource_sharing_metrics(session: Session) -> Dict[str, Any]:
     }
 
     for action in share_actions:
+        # Handle both object and tuple results from mocks
+        if hasattr(action, "resources_before"):
+            # Real database result
+            resources_before = action.resources_before
+            resources_after = action.resources_after
+            action_target_id = action.action_target_id
+            initiator_type = action.initiator_type
+            step_number = action.step_number
+        else:
+            # Mock tuple result: (agent_id, target_id, resources_before, resources_after, step, initiator_type)
+            resources_before = action[2]
+            resources_after = action[3]
+            action_target_id = action[1]
+            initiator_type = action[5]
+            step_number = action[4]
+
         # Calculate amount shared
-        resources_shared = action.resources_before - action.resources_after
+        resources_shared = resources_before - resources_after
         if resources_shared <= 0:
             continue  # Skip if no resources were actually shared
 
-        target_type = agent_types.get(action.action_target_id, "unknown")
+        target_type = agent_types.get(action_target_id, "unknown")
 
         # Update total
         results["total_resources_shared"] += resources_shared
 
         # Update by agent type
-        results["by_agent_type"][action.initiator_type]["actions"] += 1
-        results["by_agent_type"][action.initiator_type]["resources"] += resources_shared
+        results["by_agent_type"][initiator_type]["actions"] += 1
+        results["by_agent_type"][initiator_type]["resources"] += resources_shared
 
         # Update sharing matrix (who shares with whom)
-        results["sharing_matrix"][action.initiator_type][
-            target_type
-        ] += resources_shared
+        results["sharing_matrix"][initiator_type][target_type] += resources_shared
 
         # Update time distribution (bucketed by steps)
-        step_bucket = action.step_number // 100  # Group by every 100 steps
+        step_bucket = step_number // 100  # Group by every 100 steps
         results["time_distribution"][step_bucket] += 1
 
     # Calculate average resources shared per action
     if results["total_sharing_actions"] > 0:
-        results["avg_resources_per_share"] = (
-            results["total_resources_shared"] / results["total_sharing_actions"]
-        )
+        results["avg_resources_per_share"] = results["total_resources_shared"] / results["total_sharing_actions"]
     else:
         results["avg_resources_per_share"] = 0
 
     # Convert sharing_matrix from defaultdict to regular dict for serialization
-    results["sharing_matrix"] = {
-        k: dict(v) for k, v in results["sharing_matrix"].items()
-    }
+    results["sharing_matrix"] = {k: dict(v) for k, v in results["sharing_matrix"].items()}
     results["by_agent_type"] = dict(results["by_agent_type"])
     results["time_distribution"] = dict(results["time_distribution"])
 
@@ -268,18 +262,20 @@ def compute_resource_sharing_metrics(session: Session) -> Dict[str, Any]:
     }
 
     for action in altruistic_actions:
-        results["altruistic_sharing"]["by_agent_type"][action.agent_type] += 1
+        # Handle both object and tuple results from mocks
+        if hasattr(action, "agent_type"):
+            agent_type = action.agent_type
+        else:
+            # Mock tuple result: (agent_id, resources_before, agent_type)
+            agent_type = action[2]
+        results["altruistic_sharing"]["by_agent_type"][agent_type] += 1
 
-    results["altruistic_sharing"]["by_agent_type"] = dict(
-        results["altruistic_sharing"]["by_agent_type"]
-    )
+    results["altruistic_sharing"]["by_agent_type"] = dict(results["altruistic_sharing"]["by_agent_type"])
 
     return results
 
 
-def compute_spatial_clustering(
-    session: Session, step: Optional[int] = None
-) -> Dict[str, Any]:
+def compute_spatial_clustering(session: Session, step: Optional[int] = None) -> Dict[str, Any]:
     """
     Analyze spatial clustering and group formation behaviors.
 
@@ -323,17 +319,31 @@ def compute_spatial_clustering(
     # Format agent positions
     agents = []
     for agent_id, x, y, agent_type in agent_positions:
-        agents.append(
-            {"agent_id": agent_id, "position": (x, y), "agent_type": agent_type}
-        )
+        agents.append({"agent_id": agent_id, "position": (x, y), "agent_type": agent_type})
 
     # Perform DBSCAN clustering to identify spatial groups
     from sklearn.cluster import DBSCAN
 
-    # Extract coordinates for clustering
-    coordinates = np.array(
-        [[agent["position"][0], agent["position"][1]] for agent in agents]
-    )
+    # Extract coordinates for clustering, filtering out NaN values
+    valid_agents = []
+    coordinates_list = []
+
+    for agent in agents:
+        pos = agent["position"]
+        if not (np.isnan(pos[0]) or np.isnan(pos[1])):
+            valid_agents.append(agent)
+            coordinates_list.append([pos[0], pos[1]])
+
+    if len(coordinates_list) < 2:
+        logger.warning("Not enough valid agent positions for clustering analysis")
+        return {
+            "error": "Not enough valid agent positions for clustering",
+            "total_agents": len(agents),
+            "valid_agents": len(coordinates_list),
+            "clustering_ratio": 0.0,
+        }
+
+    coordinates = np.array(coordinates_list)
 
     # Determine epsilon (max distance between points in a cluster)
     # This should be calibrated based on your simulation's scale
@@ -348,12 +358,12 @@ def compute_spatial_clustering(
     # Count clusters and assign to agents
     n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
 
-    for i, agent in enumerate(agents):
+    for i, agent in enumerate(valid_agents):
         agent["cluster"] = int(labels[i])
 
     # Analyze clusters
     clusters = defaultdict(list)
-    for agent in agents:
+    for agent in valid_agents:
         if agent["cluster"] >= 0:  # Skip noise points
             clusters[agent["cluster"]].append(agent)
 
@@ -386,11 +396,18 @@ def compute_spatial_clustering(
             }
         )
 
-    # Count isolated agents (no cluster)
+    # Count isolated agents (no cluster) - only from valid agents
     isolated_count = sum(1 for label in labels if label == -1)
     isolated_by_type = defaultdict(int)
-    for i, agent in enumerate(agents):
+    for i, agent in enumerate(valid_agents):
         if labels[i] == -1:
+            isolated_by_type[agent["agent_type"]] += 1
+
+    # Add agents with NaN positions to isolated count
+    nan_isolated_count = len(agents) - len(valid_agents)
+    isolated_count += nan_isolated_count
+    for agent in agents:
+        if agent not in valid_agents:
             isolated_by_type[agent["agent_type"]] += 1
 
     # Prepare results
@@ -400,20 +417,14 @@ def compute_spatial_clustering(
         "total_clusters": n_clusters,
         "isolated_agents": isolated_count,
         "isolated_by_type": dict(isolated_by_type),
-        "clustering_ratio": (
-            (len(agents) - isolated_count) / len(agents) if len(agents) > 0 else 0
-        ),
-        "avg_cluster_size": (
-            sum(len(members) for members in clusters.values()) / n_clusters
-            if n_clusters > 0
-            else 0
-        ),
+        "clustering_ratio": ((len(agents) - isolated_count) / len(agents) if len(agents) > 0 else 0),
+        "avg_cluster_size": (sum(len(members) for members in clusters.values()) / n_clusters if n_clusters > 0 else 0),
         "cluster_stats": cluster_stats,
     }
 
     # Add agent type clustering metrics
     agent_type_clusters = defaultdict(list)
-    for i, agent in enumerate(agents):
+    for i, agent in enumerate(valid_agents):
         if labels[i] != -1:  # Skip noise points
             agent_type_clusters[agent["agent_type"]].append(labels[i])
 
@@ -488,10 +499,14 @@ def compute_cooperation_competition_metrics(session: Session) -> Dict[str, Any]:
     )
 
     # Get agent types
-    agent_types = {
-        a.agent_id: a.agent_type
-        for a in session.query(AgentModel.agent_id, AgentModel.agent_type).all()
-    }
+    agent_type_results = session.query(AgentModel.agent_id, AgentModel.agent_type).all()
+    agent_types = {}
+    for result in agent_type_results:
+        if hasattr(result, "agent_id"):
+            agent_types[result.agent_id] = result.agent_type
+        else:
+            # Handle tuple results from mock
+            agent_types[result[0]] = result[1]
 
     # Initialize results
     results = {
@@ -513,28 +528,52 @@ def compute_cooperation_competition_metrics(session: Session) -> Dict[str, Any]:
 
     # Process cooperation actions
     for action in cooperation_actions:
-        target_type = agent_types.get(action.action_target_id, "unknown")
+        # Handle both object and tuple results from mocks
+        if hasattr(action, "action_target_id"):
+            # Real database result
+            action_target_id = action.action_target_id
+            initiator_type = action.initiator_type
+            action_type = action.action_type
+            step_number = action.step_number
+        else:
+            # Mock tuple result: (agent_id, target_id, action_type, step, initiator_type)
+            action_target_id = action[1]
+            initiator_type = action[4]
+            action_type = action[2]
+            step_number = action[3]
 
-        results["cooperation"]["by_agent_type"][action.initiator_type] += 1
-        results["cooperation"]["with_agent_type"][action.initiator_type][
-            target_type
-        ] += 1
-        results["cooperation"]["action_types"][action.action_type] += 1
+        target_type = agent_types.get(action_target_id, "unknown")
 
-        step_bucket = action.step_number // 100  # Group by every 100 steps
+        results["cooperation"]["by_agent_type"][initiator_type] += 1
+        results["cooperation"]["with_agent_type"][initiator_type][target_type] += 1
+        results["cooperation"]["action_types"][action_type] += 1
+
+        step_bucket = step_number // 100  # Group by every 100 steps
         results["cooperation"]["time_series"][step_bucket] += 1
 
     # Process competition actions
     for action in competition_actions:
-        target_type = agent_types.get(action.action_target_id, "unknown")
+        # Handle both object and tuple results from mocks
+        if hasattr(action, "action_target_id"):
+            # Real database result
+            action_target_id = action.action_target_id
+            initiator_type = action.initiator_type
+            action_type = action.action_type
+            step_number = action.step_number
+        else:
+            # Mock tuple result: (agent_id, target_id, action_type, step, initiator_type)
+            action_target_id = action[1]
+            initiator_type = action[4]
+            action_type = action[2]
+            step_number = action[3]
 
-        results["competition"]["by_agent_type"][action.initiator_type] += 1
-        results["competition"]["with_agent_type"][action.initiator_type][
-            target_type
-        ] += 1
-        results["competition"]["action_types"][action.action_type] += 1
+        target_type = agent_types.get(action_target_id, "unknown")
 
-        step_bucket = action.step_number // 100
+        results["competition"]["by_agent_type"][initiator_type] += 1
+        results["competition"]["with_agent_type"][initiator_type][target_type] += 1
+        results["competition"]["action_types"][action_type] += 1
+
+        step_bucket = step_number // 100
         results["competition"]["time_series"][step_bucket] += 1
 
     # Calculate cooperation-competition ratios by agent type
@@ -557,23 +596,15 @@ def compute_cooperation_competition_metrics(session: Session) -> Dict[str, Any]:
         }
 
     # Convert defaultdicts to regular dicts for serialization
-    results["cooperation"]["by_agent_type"] = dict(
-        results["cooperation"]["by_agent_type"]
-    )
-    results["cooperation"]["action_types"] = dict(
-        results["cooperation"]["action_types"]
-    )
+    results["cooperation"]["by_agent_type"] = dict(results["cooperation"]["by_agent_type"])
+    results["cooperation"]["action_types"] = dict(results["cooperation"]["action_types"])
     results["cooperation"]["time_series"] = dict(results["cooperation"]["time_series"])
     results["cooperation"]["with_agent_type"] = {
         k: dict(v) for k, v in results["cooperation"]["with_agent_type"].items()
     }
 
-    results["competition"]["by_agent_type"] = dict(
-        results["competition"]["by_agent_type"]
-    )
-    results["competition"]["action_types"] = dict(
-        results["competition"]["action_types"]
-    )
+    results["competition"]["by_agent_type"] = dict(results["competition"]["by_agent_type"])
+    results["competition"]["action_types"] = dict(results["competition"]["action_types"])
     results["competition"]["time_series"] = dict(results["competition"]["time_series"])
     results["competition"]["with_agent_type"] = {
         k: dict(v) for k, v in results["competition"]["with_agent_type"].items()
@@ -609,7 +640,7 @@ def compute_reproduction_social_patterns(session: Session) -> Dict[str, Any]:
         )
         .join(AgentModel, AgentModel.agent_id == ReproductionEventModel.parent_id)
         .filter(
-            ReproductionEventModel.success == True,
+            ReproductionEventModel.success,
             ReproductionEventModel.offspring_id.isnot(None),
         )
         .all()
@@ -639,9 +670,7 @@ def compute_reproduction_social_patterns(session: Session) -> Dict[str, Any]:
         )
 
         for agent_id, x, y, agent_type in positions:
-            step_positions[step].append(
-                {"agent_id": agent_id, "position": (x, y), "agent_type": agent_type}
-            )
+            step_positions[step].append({"agent_id": agent_id, "position": (x, y), "agent_type": agent_type})
 
     # Initialize results
     results = {
@@ -673,10 +702,7 @@ def compute_reproduction_social_patterns(session: Session) -> Dict[str, Any]:
                 continue  # Skip the parent
 
             agent_pos = agent["position"]
-            distance = math.sqrt(
-                (parent_pos[0] - agent_pos[0]) ** 2
-                + (parent_pos[1] - agent_pos[1]) ** 2
-            )
+            distance = math.sqrt((parent_pos[0] - agent_pos[0]) ** 2 + (parent_pos[1] - agent_pos[1]) ** 2)
 
             # Define "nearby" threshold
             if distance < 100:  # Adjust based on your simulation scale
@@ -691,14 +717,10 @@ def compute_reproduction_social_patterns(session: Session) -> Dict[str, Any]:
             nearby_types = set(agent["agent_type"] for agent in nearby_agents)
             if len(nearby_types) == 1 and parent_type in nearby_types:
                 results["social_context"]["homogeneous"] += 1
-                results["social_context"]["by_agent_type"][parent_type][
-                    "homogeneous"
-                ] += 1
+                results["social_context"]["by_agent_type"][parent_type]["homogeneous"] += 1
             else:
                 results["social_context"]["heterogeneous"] += 1
-                results["social_context"]["by_agent_type"][parent_type][
-                    "heterogeneous"
-                ] += 1
+                results["social_context"]["by_agent_type"][parent_type]["heterogeneous"] += 1
 
     # Convert defaultdicts to regular dicts for serialization
     results["by_agent_type"] = dict(results["by_agent_type"])
@@ -711,15 +733,9 @@ def compute_reproduction_social_patterns(session: Session) -> Dict[str, Any]:
     # Calculate percentages
     total = results["total_events"]
     if total > 0:
-        results["social_context"]["isolation_pct"] = (
-            results["social_context"]["isolation"] / total * 100
-        )
-        results["social_context"]["homogeneous_pct"] = (
-            results["social_context"]["homogeneous"] / total * 100
-        )
-        results["social_context"]["heterogeneous_pct"] = (
-            results["social_context"]["heterogeneous"] / total * 100
-        )
+        results["social_context"]["isolation_pct"] = results["social_context"]["isolation"] / total * 100
+        results["social_context"]["homogeneous_pct"] = results["social_context"]["homogeneous"] / total * 100
+        results["social_context"]["heterogeneous_pct"] = results["social_context"]["heterogeneous"] / total * 100
 
     return results
 
@@ -778,26 +794,16 @@ def compute_all_social_metrics(session: Session) -> Dict[str, Any]:
 
         # Get metrics for each agent type where available
         if "agent_type_averages" in results["social_network"]:
-            network_data = results["social_network"]["agent_type_averages"].get(
-                agent_type, {}
-            )
-            type_summary["avg_outgoing_connections"] = network_data.get(
-                "avg_out_degree", 0
-            )
-            type_summary["avg_incoming_connections"] = network_data.get(
-                "avg_in_degree", 0
-            )
+            network_data = results["social_network"]["agent_type_averages"].get(agent_type, {})
+            type_summary["avg_outgoing_connections"] = network_data.get("avg_out_degree", 0)
+            type_summary["avg_incoming_connections"] = network_data.get("avg_in_degree", 0)
 
         if "coop_comp_ratio" in results["cooperation_competition"]:
-            coop_comp = results["cooperation_competition"]["coop_comp_ratio"].get(
-                agent_type, {}
-            )
+            coop_comp = results["cooperation_competition"]["coop_comp_ratio"].get(agent_type, {})
             type_summary["cooperation_competition_ratio"] = coop_comp.get("ratio", 0)
 
         if "agent_type_clustering" in results["spatial_clustering"]:
-            clustering = results["spatial_clustering"]["agent_type_clustering"].get(
-                agent_type, {}
-            )
+            clustering = results["spatial_clustering"]["agent_type_clustering"].get(agent_type, {})
             type_summary["clustering_ratio"] = clustering.get("clustering_ratio", 0)
 
         if type_summary:

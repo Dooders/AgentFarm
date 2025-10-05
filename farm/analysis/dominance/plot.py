@@ -1,6 +1,3 @@
-from farm.utils.logging_config import get_logger
-
-logger = get_logger(__name__)
 import os
 from typing import Optional, Union
 
@@ -10,11 +7,12 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 
 from farm.analysis.common.context import AnalysisContext
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
-def plot_dominance_distribution(
-    df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None
-):
+def plot_dominance_distribution(df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None):
     """
     Plot the distribution of dominance types as percentages.
     """
@@ -84,7 +82,7 @@ def plot_dominance_distribution(
 
         # For survival dominance, ensure we have data
         if measure == "survival_dominance" and ordered_percentages.sum() == 0:
-            logger.warning(f"No data for survival_dominance, using placeholder data")
+            logger.warning("No data for survival_dominance, using placeholder data")
             # If there's no data, check if we can derive it from the DataFrame
             if "survival_rate" in df.columns:
                 # Try to derive dominance from survival rates
@@ -96,9 +94,7 @@ def plot_dominance_distribution(
 
                 # Normalize to ensure percentages sum to 100
                 if ordered_percentages.sum() > 0:
-                    ordered_percentages = (
-                        ordered_percentages / ordered_percentages.sum()
-                    ) * 100
+                    ordered_percentages = (ordered_percentages / ordered_percentages.sum()) * 100
                     logger.info(f"Derived survival dominance: {ordered_percentages}")
 
         # Plot percentages with consistent colors
@@ -203,17 +199,11 @@ def plot_feature_importance(
     plt.close()
 
 
-def plot_resource_proximity_vs_dominance(
-    df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None
-):
+def plot_resource_proximity_vs_dominance(df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None):
     """
     Plot the relationship between initial resource proximity and dominance.
     """
-    resource_metrics = [
-        col
-        for col in df.columns
-        if "resource_distance" in col or "resource_proximity" in col
-    ]
+    resource_metrics = [col for col in df.columns if "resource_distance" in col or "resource_proximity" in col]
 
     if not resource_metrics:
         return
@@ -249,22 +239,14 @@ def plot_resource_proximity_vs_dominance(
     plt.close()
 
 
-def plot_reproduction_vs_dominance(
-    df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None
-):
-    if (
-        ctx is not None
-        and getattr(ctx, "output_path", None)
-        and (output_path is None or output_path == "")
-    ):
+def plot_reproduction_vs_dominance(df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None):
+    if ctx is not None and getattr(ctx, "output_path", None) and (output_path is None or output_path == ""):
         output_path = ctx.output_path
     """
     Plot reproduction metrics vs dominance.
     """
     # Get all reproduction metrics
-    all_reproduction_metrics = [
-        col for col in df.columns if "reproduction" in col or "offspring" in col
-    ]
+    all_reproduction_metrics = [col for col in df.columns if "reproduction" in col or "offspring" in col]
 
     if not all_reproduction_metrics:
         return
@@ -295,9 +277,7 @@ def plot_reproduction_vs_dominance(
     # Limit to at most 10 metrics
     reproduction_metrics = important_metrics[:10]
 
-    logger.info(
-        f"Plotting {len(reproduction_metrics)} out of {len(all_reproduction_metrics)} reproduction metrics"
-    )
+    logger.info(f"Plotting {len(reproduction_metrics)} out of {len(all_reproduction_metrics)} reproduction metrics")
 
     # Create a figure with subplots for each metric
     n_metrics = len(reproduction_metrics)
@@ -314,16 +294,12 @@ def plot_reproduction_vs_dominance(
                     # Check if each category has data
                     category_counts = df.groupby("population_dominance")[metric].count()
                     if (category_counts > 0).all():
-                        sns.boxplot(
-                            x="population_dominance", y=metric, data=df, ax=axes[i]
-                        )
+                        sns.boxplot(x="population_dominance", y=metric, data=df, ax=axes[i])
                         axes[i].set_title(f"{metric} vs Population Dominance")
                         axes[i].set_xlabel("Dominant Agent Type")
                         axes[i].set_ylabel(metric)
                     else:
-                        logger.warning(
-                            f"Some categories in population_dominance have no data for {metric}"
-                        )
+                        logger.warning(f"Some categories in population_dominance have no data for {metric}")
                         axes[i].text(
                             0.5,
                             0.5,
@@ -379,11 +355,7 @@ def plot_correlation_matrix(
     output_path: Optional[str] = None,
     ctx: Optional[AnalysisContext] = None,
 ):
-    if (
-        ctx is not None
-        and getattr(ctx, "output_path", None)
-        and (output_path is None or output_path == "")
-    ):
+    if ctx is not None and getattr(ctx, "output_path", None) and (output_path is None or output_path == ""):
         output_path = ctx.output_path
     """
     Plot correlation matrix between features and the target label.
@@ -398,9 +370,7 @@ def plot_correlation_matrix(
         Directory to save the plot to. If None, the plot will be displayed but not saved.
     """
     if label_name is None or label_name not in df.columns:
-        raise ValueError(
-            f"label_name parameter must be a valid column name. Provided: {label_name}"
-        )
+        raise ValueError(f"label_name parameter must be a valid column name. Provided: {label_name}")
     if output_path is None:
         raise ValueError("output_path parameter is required")
 
@@ -420,9 +390,7 @@ def plot_correlation_matrix(
     numeric_features = numeric_features[valid_columns]
 
     if numeric_features.empty:
-        logger.warning(
-            f"No valid numeric features with non-zero standard deviation for {label_name}"
-        )
+        logger.warning(f"No valid numeric features with non-zero standard deviation for {label_name}")
         return
 
     # Calculate correlation with each target class
@@ -431,9 +399,7 @@ def plot_correlation_matrix(
         # Filter out any NaN values in the target
         valid_mask = ~target_numeric[target_class].isna()
         if valid_mask.sum() > 0:
-            correlations[target_class] = numeric_features[valid_mask].corrwith(
-                target_numeric[target_class][valid_mask]
-            )
+            correlations[target_class] = numeric_features[valid_mask].corrwith(target_numeric[target_class][valid_mask])
 
     if not correlations:
         logger.warning(f"Could not calculate correlations for {label_name}")
@@ -444,9 +410,7 @@ def plot_correlation_matrix(
 
     # Sort by absolute correlation
     corr_df["max_abs_corr"] = corr_df.abs().max(axis=1)
-    corr_df = corr_df.sort_values("max_abs_corr", ascending=False).drop(
-        "max_abs_corr", axis=1
-    )
+    corr_df = corr_df.sort_values("max_abs_corr", ascending=False).drop("max_abs_corr", axis=1)
 
     # Plot top correlations
     top_n = min(20, len(corr_df))  # Ensure we don't try to plot more rows than we have
@@ -477,9 +441,7 @@ def plot_correlation_matrix(
     plt.close()
 
 
-def plot_dominance_comparison(
-    df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None
-):
+def plot_dominance_comparison(df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None):
     """
     Create visualizations to compare different dominance measures.
 
@@ -650,9 +612,7 @@ def plot_dominance_comparison(
     plt.close()
 
 
-def plot_dominance_switches(
-    df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None
-):
+def plot_dominance_switches(df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None):
     """
     Create visualizations for dominance switching patterns.
 
@@ -684,6 +644,11 @@ def plot_dominance_switches(
 
     # Adjust layout to make room for caption
     plt.tight_layout(rect=(0, 0.07, 1, 0.95))
+
+    # Use ctx.output_path if output_path is not provided
+    if ctx is not None and getattr(ctx, "output_path", None) and (output_path is None or output_path == ""):
+        output_path = ctx.output_path
+
     if not output_path:
         raise ValueError("output_path is required")
     output_file = os.path.join(output_path, "dominance_switches_distribution.png")
@@ -693,9 +658,7 @@ def plot_dominance_switches(
     # 2. Average dominance period duration by agent type
     plt.figure(figsize=(10, 6))
     agent_types = ["system", "independent", "control"]
-    avg_periods = [
-        df[f"{agent_type}_avg_dominance_period"].mean() for agent_type in agent_types
-    ]
+    avg_periods = [df[f"{agent_type}_avg_dominance_period"].mean() for agent_type in agent_types]
 
     bars = plt.bar(agent_types, avg_periods)
 
@@ -759,9 +722,7 @@ def plot_dominance_switches(
             "It displays the average number of dominance switches that occur during each phase "
             "(early, middle, and late) of the simulations, revealing when dominance is most volatile."
         )
-        plt.figtext(
-            0.5, 0.01, caption, wrap=True, horizontalalignment="center", fontsize=9
-        )
+        plt.figtext(0.5, 0.01, caption, wrap=True, horizontalalignment="center", fontsize=9)
 
         # Adjust layout to make room for caption
         plt.tight_layout(rect=(0, 0.07, 1, 0.95))
@@ -772,11 +733,7 @@ def plot_dominance_switches(
         plt.close()
 
     # 4. Transition matrix heatmap (average across all simulations)
-    if all(
-        f"{from_type}_to_{to_type}" in df.columns
-        for from_type in agent_types
-        for to_type in agent_types
-    ):
+    if all(f"{from_type}_to_{to_type}" in df.columns for from_type in agent_types for to_type in agent_types):
         plt.figure(figsize=(10, 8))
         transition_data = np.zeros((3, 3))
 
@@ -812,9 +769,7 @@ def plot_dominance_switches(
             "it will be replaced by the column agent type. Higher values (darker colors) indicate "
             "more common transitions between those agent types."
         )
-        plt.figtext(
-            0.5, 0.01, caption, wrap=True, horizontalalignment="center", fontsize=9
-        )
+        plt.figtext(0.5, 0.01, caption, wrap=True, horizontalalignment="center", fontsize=9)
 
         # Adjust layout to make room for caption
         plt.tight_layout(rect=(0, 0.05, 1, 0.95))
@@ -828,9 +783,7 @@ def plot_dominance_switches(
     plot_dominance_stability(df, output_path)
 
 
-def plot_dominance_stability(
-    df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None
-):
+def plot_dominance_stability(df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None):
     """
     Create a scatter plot showing the relationship between dominance stability
     (inverse of switches per step) and dominance score for different agent types.
@@ -854,23 +807,23 @@ def plot_dominance_stability(
     plt.figure(figsize=(10, 6))
 
     # Calculate stability metric (inverse of switches per step)
-    df["dominance_stability"] = 1 / (
-        df["switches_per_step"] + 0.01
-    )  # Add small constant to avoid division by zero
+    df["dominance_stability"] = 1 / (df["switches_per_step"] + 0.01)  # Add small constant to avoid division by zero
 
     # Plot relationship between stability and dominance score for each agent type
     for agent_type in ["system", "independent", "control"]:
         score_col = f"{agent_type}_dominance_score"
         if score_col in df.columns:
-            plt.scatter(
-                df["dominance_stability"], df[score_col], label=agent_type, alpha=0.7
-            )
+            plt.scatter(df["dominance_stability"], df[score_col], label=agent_type, alpha=0.7)
 
     plt.xlabel("Dominance Stability (inverse of switches per step)")
     plt.ylabel("Dominance Score")
     plt.title("Relationship Between Dominance Stability and Final Dominance Score")
     plt.legend()
     plt.tight_layout()
+
+    # Use ctx.output_path if output_path is not provided
+    if ctx is not None and getattr(ctx, "output_path", None) and (output_path is None or output_path == ""):
+        output_path = ctx.output_path
 
     if not output_path:
         raise ValueError("output_path is required")
@@ -885,11 +838,7 @@ def plot_dominance_stability(
 def plot_reproduction_advantage_vs_stability(
     df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None
 ):
-    if (
-        ctx is not None
-        and getattr(ctx, "output_path", None)
-        and (output_path is None or output_path == "")
-    ):
+    if ctx is not None and getattr(ctx, "output_path", None) and (output_path is None or output_path == ""):
         output_path = ctx.output_path
     """
     Create a visualization showing the relationship between reproduction advantage
@@ -913,10 +862,7 @@ def plot_reproduction_advantage_vs_stability(
 
     # Find reproduction advantage columns
     advantage_cols = [
-        col
-        for col in df.columns
-        if "reproduction_rate_advantage" in col
-        or "reproduction_efficiency_advantage" in col
+        col for col in df.columns if "reproduction_rate_advantage" in col or "reproduction_efficiency_advantage" in col
     ]
 
     if not advantage_cols:
@@ -955,9 +901,7 @@ def plot_reproduction_advantage_vs_stability(
                 valid_data = df[df[col].notna() & df["dominance_stability"].notna()]
 
                 if len(valid_data) < 5:  # Skip if not enough valid data
-                    logger.warning(
-                        f"Not enough valid data points for {col} visualization"
-                    )
+                    logger.warning(f"Not enough valid data points for {col} visualization")
                     continue
 
                 plt.scatter(
@@ -981,9 +925,7 @@ def plot_reproduction_advantage_vs_stability(
 
                             # Double-check for NaN values
                             if np.isnan(X).any() or np.isnan(y).any():
-                                logger.warning(
-                                    f"Data for {col} still contains NaN values after filtering"
-                                )
+                                logger.warning(f"Data for {col} still contains NaN values after filtering")
                                 # Fallback to horizontal line at mean
                                 plt.axhline(
                                     y=valid_data["dominance_stability"].mean(),
@@ -1002,9 +944,7 @@ def plot_reproduction_advantage_vs_stability(
                                 # Plot the trend line
                                 plt.plot(x_sorted, y_pred, "--", alpha=0.6)
                         else:
-                            logger.info(
-                                f"Not enough variation in {col} for trend line"
-                            )
+                            logger.info(f"Not enough variation in {col} for trend line")
                             # Fallback to horizontal line at mean
                             plt.axhline(
                                 y=valid_data["dominance_stability"].mean(),
@@ -1046,21 +986,13 @@ def plot_reproduction_advantage_vs_stability(
     output_file = os.path.join(output_path, "reproduction_advantage_stability.png")
     plt.savefig(output_file)
     plt.close()
-    logger.info(
-        f"Saved reproduction advantage vs. stability analysis to {output_file}"
-    )
+    logger.info(f"Saved reproduction advantage vs. stability analysis to {output_file}")
 
     return output_file
 
 
-def plot_comprehensive_score_breakdown(
-    df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None
-):
-    if (
-        ctx is not None
-        and getattr(ctx, "output_path", None)
-        and (output_path is None or output_path == "")
-    ):
+def plot_comprehensive_score_breakdown(df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None):
+    if ctx is not None and getattr(ctx, "output_path", None) and (output_path is None or output_path == ""):
         output_path = ctx.output_path
     """
     Generate a chart showing the breakdown of average comprehensive dominance scores for each agent type.
@@ -1147,7 +1079,7 @@ def plot_comprehensive_score_breakdown(
             weighted_scores[component],
             bar_width,
             bottom=bottom,
-            label=f"{component.replace('_', ' ').title()} ({weights[component]*100:.0f}%)",
+            label=f"{component.replace('_', ' ').title()} ({weights[component] * 100:.0f}%)",
             color=colors[i],
         )
         bottom += weighted_scores[component]
@@ -1157,7 +1089,7 @@ def plot_comprehensive_score_breakdown(
         plt.text(
             i,
             bottom[i] + 0.01,
-            f'Total: {weighted_scores.loc[agent_type, "total"]:.3f}',
+            f"Total: {weighted_scores.loc[agent_type, 'total']:.3f}",
             ha="center",
             va="bottom",
             fontweight="bold",
@@ -1166,12 +1098,8 @@ def plot_comprehensive_score_breakdown(
     # Customize the chart
     plt.xlabel("Agent Type", fontsize=14)
     plt.ylabel("Weighted Score Contribution", fontsize=14)
-    plt.title(
-        "Breakdown of Average Comprehensive Dominance Score by Agent Type", fontsize=16
-    )
-    plt.xticks(
-        index, [agent_type.capitalize() for agent_type in agent_types], fontsize=12
-    )
+    plt.title("Breakdown of Average Comprehensive Dominance Score by Agent Type", fontsize=16)
+    plt.xticks(index, [agent_type.capitalize() for agent_type in agent_types], fontsize=12)
     plt.legend(loc="upper center", bbox_to_anchor=(0.5, -0.1), ncol=3, fontsize=10)
     plt.grid(axis="y", linestyle="--", alpha=0.7)
 
@@ -1214,11 +1142,7 @@ def plot_comprehensive_score_breakdown(
 def plot_reproduction_success_vs_switching(
     df, output_path: Optional[str] = None, ctx: Optional[AnalysisContext] = None
 ):
-    if (
-        ctx is not None
-        and getattr(ctx, "output_path", None)
-        and (output_path is None or output_path == "")
-    ):
+    if ctx is not None and getattr(ctx, "output_path", None) and (output_path is None or output_path == ""):
         output_path = ctx.output_path
     """
     Create a visualization showing the relationship between reproduction success rate and dominance switching.
@@ -1241,9 +1165,7 @@ def plot_reproduction_success_vs_switching(
         return None
 
     # Find reproduction success rate columns
-    success_rate_cols = [
-        col for col in df.columns if "reproduction_success_rate" in col
-    ]
+    success_rate_cols = [col for col in df.columns if "reproduction_success_rate" in col]
 
     if not success_rate_cols:
         logger.warning("No reproduction success rate data available for visualization")
@@ -1289,9 +1211,7 @@ def plot_reproduction_success_vs_switching(
 
                         # Make sure there are no NaN values
                         if np.isnan(X).any() or np.isnan(y).any():
-                            logger.warning(
-                                f"Data for {col} still contains NaN values after filtering"
-                            )
+                            logger.warning(f"Data for {col} still contains NaN values after filtering")
                             # Fallback to simple mean line
                             plt.axhline(
                                 y=valid_data["total_switches"].mean(),
@@ -1301,15 +1221,11 @@ def plot_reproduction_success_vs_switching(
                             )
                         else:
                             # Use Ridge regression which is more stable
-                            model = make_pipeline(
-                                PolynomialFeatures(degree=1), Ridge(alpha=1.0)
-                            )
+                            model = make_pipeline(PolynomialFeatures(degree=1), Ridge(alpha=1.0))
                             model.fit(X, y)
 
                             # Generate prediction points
-                            x_plot = np.linspace(
-                                valid_data[col].min(), valid_data[col].max(), 100
-                            ).reshape(-1, 1)
+                            x_plot = np.linspace(valid_data[col].min(), valid_data[col].max(), 100).reshape(-1, 1)
                             y_plot = model.predict(x_plot)
 
                             # Plot the trend line
