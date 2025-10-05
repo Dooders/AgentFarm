@@ -36,34 +36,62 @@ from farm.analysis.combat import (
 @pytest.fixture
 def sample_combat_data():
     """Create sample combat action data."""
-    return pd.DataFrame({
-        'step': [0, 0, 1, 1, 2, 2, 3, 3, 4, 4],
-        'agent_id': ['agent_1', 'agent_2', 'agent_1', 'agent_2', 'agent_3', 'agent_1', 'agent_2', 'agent_3', 'agent_1', 'agent_3'],
-        'target_id': ['agent_4', 'agent_5', 'agent_4', 'agent_5', 'agent_6', 'agent_5', 'agent_6', 'agent_4', 'agent_6', 'agent_5'],
-        'damage_dealt': [10, 15, 12, 0, 20, 18, 14, 16, 0, 22],
-        'reward': [1.0, 1.5, 1.2, 0.0, 2.0, 1.8, 1.4, 1.6, 0.0, 2.2],
-    })
+    return pd.DataFrame(
+        {
+            "step": [0, 0, 1, 1, 2, 2, 3, 3, 4, 4],
+            "agent_id": [
+                "agent_1",
+                "agent_2",
+                "agent_1",
+                "agent_2",
+                "agent_3",
+                "agent_1",
+                "agent_2",
+                "agent_3",
+                "agent_1",
+                "agent_3",
+            ],
+            "target_id": [
+                "agent_4",
+                "agent_5",
+                "agent_4",
+                "agent_5",
+                "agent_6",
+                "agent_5",
+                "agent_6",
+                "agent_4",
+                "agent_6",
+                "agent_5",
+            ],
+            "damage_dealt": [10, 15, 12, 0, 20, 18, 14, 16, 0, 22],
+            "reward": [1.0, 1.5, 1.2, 0.0, 2.0, 1.8, 1.4, 1.6, 0.0, 2.2],
+        }
+    )
 
 
 @pytest.fixture
 def sample_metrics_data():
     """Create sample combat metrics data."""
-    return pd.DataFrame({
-        'step': range(5),
-        'combat_encounters': [2, 2, 2, 2, 2],
-        'successful_attacks': [2, 1, 2, 2, 1],
-    })
+    return pd.DataFrame(
+        {
+            "step": range(5),
+            "combat_encounters": [2, 2, 2, 2, 2],
+            "successful_attacks": [2, 1, 2, 2, 1],
+        }
+    )
 
 
 @pytest.fixture
 def sample_agent_combat_data():
     """Create sample agent combat statistics."""
-    return pd.DataFrame({
-        'agent_id': ['agent_1', 'agent_2', 'agent_3'],
-        'total_damage': [40, 29, 38],
-        'total_attacks': [4, 3, 3],
-        'success_rate': [0.75, 0.67, 1.0],
-    })
+    return pd.DataFrame(
+        {
+            "agent_id": ["agent_1", "agent_2", "agent_3"],
+            "total_damage": [40, 29, 38],
+            "total_attacks": [4, 3, 3],
+            "success_rate": [0.75, 0.67, 1.0],
+        }
+    )
 
 
 class TestCombatComputations:
@@ -73,15 +101,15 @@ class TestCombatComputations:
         """Test combat statistics computation."""
         stats = compute_combat_statistics(sample_combat_data, sample_metrics_data)
 
-        assert 'combat_actions' in stats
-        assert 'combat_metrics' in stats
-        assert 'overall_combat' in stats
+        assert "combat_actions" in stats
+        assert "combat_metrics" in stats
+        assert "overall_combat" in stats
 
         # Check combat actions stats
-        assert 'total_attacks' in stats['combat_actions']
-        assert 'successful_attacks' in stats['combat_actions']
-        assert 'success_rate' in stats['combat_actions']
-        assert stats['combat_actions']['total_attacks'] == 10
+        assert "total_attacks" in stats["combat_actions"]
+        assert "successful_attacks" in stats["combat_actions"]
+        assert "success_rate" in stats["combat_actions"]
+        assert stats["combat_actions"]["total_attacks"] == 10
 
     def test_compute_combat_statistics_empty(self):
         """Test combat statistics with empty DataFrames."""
@@ -92,28 +120,28 @@ class TestCombatComputations:
         """Test combat statistics with only combat actions data."""
         stats = compute_combat_statistics(sample_combat_data, pd.DataFrame())
 
-        assert 'combat_actions' in stats
-        assert 'combat_metrics' not in stats
-        assert 'overall_combat' not in stats
+        assert "combat_actions" in stats
+        assert "combat_metrics" not in stats
+        assert "overall_combat" not in stats
 
     def test_compute_agent_combat_performance(self, sample_agent_combat_data):
         """Test agent combat performance computation."""
         performance = compute_agent_combat_performance(sample_agent_combat_data)
 
-        assert 'top_performers' in performance
-        assert 'rankings' in performance
-        assert 'performance_tiers' in performance
+        assert "top_performers" in performance
+        assert "rankings" in performance
+        assert "performance_tiers" in performance
 
         # Check top performers
-        assert 'by_damage' in performance['top_performers']
-        assert 'by_success_rate' in performance['top_performers']
-        assert 'by_activity' in performance['top_performers']
+        assert "by_damage" in performance["top_performers"]
+        assert "by_success_rate" in performance["top_performers"]
+        assert "by_activity" in performance["top_performers"]
 
         # Check rankings
-        assert len(performance['rankings']) == 3
-        for agent_id in ['agent_1', 'agent_2', 'agent_3']:
-            assert agent_id in performance['rankings']
-            assert 'damage_rank' in performance['rankings'][agent_id]
+        assert len(performance["rankings"]) == 3
+        for agent_id in ["agent_1", "agent_2", "agent_3"]:
+            assert agent_id in performance["rankings"]
+            assert "damage_rank" in performance["rankings"][agent_id]
 
     def test_compute_agent_combat_performance_empty(self):
         """Test agent combat performance with empty DataFrame."""
@@ -124,36 +152,36 @@ class TestCombatComputations:
         """Test combat efficiency metrics computation."""
         efficiency = compute_combat_efficiency_metrics(sample_combat_data)
 
-        assert 'overall_success_rate' in efficiency
-        assert 'damage_efficiency' in efficiency
-        assert 'combat_intensity' in efficiency
-        assert 'reward_efficiency' in efficiency
+        assert "overall_success_rate" in efficiency
+        assert "damage_efficiency" in efficiency
+        assert "combat_intensity" in efficiency
+        assert "reward_efficiency" in efficiency
 
         # Check values are reasonable
-        assert 0 <= efficiency['overall_success_rate'] <= 1
-        assert efficiency['damage_efficiency'] >= 0
-        assert efficiency['combat_intensity'] >= 0
+        assert 0 <= efficiency["overall_success_rate"] <= 1
+        assert efficiency["damage_efficiency"] >= 0
+        assert efficiency["combat_intensity"] >= 0
 
     def test_compute_combat_efficiency_metrics_empty(self):
         """Test combat efficiency with empty DataFrame."""
         efficiency = compute_combat_efficiency_metrics(pd.DataFrame())
 
-        assert efficiency['overall_success_rate'] == 0.0
-        assert efficiency['damage_efficiency'] == 0.0
-        assert efficiency['combat_intensity'] == 0.0
+        assert efficiency["overall_success_rate"] == 0.0
+        assert efficiency["damage_efficiency"] == 0.0
+        assert efficiency["combat_intensity"] == 0.0
 
     def test_compute_combat_temporal_patterns(self, sample_combat_data, sample_metrics_data):
         """Test combat temporal patterns computation."""
         patterns = compute_combat_temporal_patterns(sample_combat_data, sample_metrics_data)
 
-        assert 'frequency_trend' in patterns
-        assert 'success_rate_trend' in patterns
-        assert 'damage_trend' in patterns
-        assert 'peak_combat' in patterns
+        assert "frequency_trend" in patterns
+        assert "success_rate_trend" in patterns
+        assert "damage_trend" in patterns
+        assert "peak_combat" in patterns
 
         # Check peak combat info
-        assert 'step' in patterns['peak_combat']
-        assert 'encounters' in patterns['peak_combat']
+        assert "step" in patterns["peak_combat"]
+        assert "encounters" in patterns["peak_combat"]
 
     def test_compute_combat_temporal_patterns_empty(self):
         """Test combat temporal patterns with empty DataFrames."""
@@ -164,31 +192,35 @@ class TestCombatComputations:
         """Test temporal patterns with only metrics data."""
         patterns = compute_combat_temporal_patterns(pd.DataFrame(), sample_metrics_data)
 
-        assert 'frequency_trend' in patterns
-        assert 'peak_combat' in patterns
-        assert 'damage_trend' not in patterns
+        assert "frequency_trend" in patterns
+        assert "peak_combat" in patterns
+        assert "damage_trend" not in patterns
 
 
 class TestCombatAnalysis:
     """Test combat analysis functions."""
 
-    @patch('farm.analysis.combat.analyze.process_combat_data')
-    @patch('farm.analysis.combat.analyze.process_combat_metrics_data')
+    @patch("farm.analysis.combat.analyze.process_combat_data")
+    @patch("farm.analysis.combat.analyze.process_combat_metrics_data")
     def test_analyze_combat_overview(self, mock_metrics, mock_combat, tmp_path):
         """Test combat overview analysis."""
         # Mock data processing
-        mock_combat.return_value = pd.DataFrame({
-            'step': range(5),
-            'agent_id': ['agent_1'] * 5,
-            'target_id': ['agent_2'] * 5,
-            'damage_dealt': [10, 12, 15, 0, 18],
-            'reward': [1.0, 1.2, 1.5, 0.0, 1.8],
-        })
-        mock_metrics.return_value = pd.DataFrame({
-            'step': range(5),
-            'combat_encounters': [1] * 5,
-            'successful_attacks': [1, 1, 1, 0, 1],
-        })
+        mock_combat.return_value = pd.DataFrame(
+            {
+                "step": range(5),
+                "agent_id": ["agent_1"] * 5,
+                "target_id": ["agent_2"] * 5,
+                "damage_dealt": [10, 12, 15, 0, 18],
+                "reward": [1.0, 1.2, 1.5, 0.0, 1.8],
+            }
+        )
+        mock_metrics.return_value = pd.DataFrame(
+            {
+                "step": range(5),
+                "combat_encounters": [1] * 5,
+                "successful_attacks": [1, 1, 1, 0, 1],
+            }
+        )
 
         ctx = AnalysisContext(output_path=tmp_path)
         analyze_combat_overview(str(tmp_path), ctx)
@@ -199,17 +231,19 @@ class TestCombatAnalysis:
         with open(output_file) as f:
             data = json.load(f)
 
-        assert 'combat_actions' in data or 'combat_metrics' in data
+        assert "combat_actions" in data or "combat_metrics" in data
 
-    @patch('farm.analysis.combat.analyze.process_agent_combat_stats')
+    @patch("farm.analysis.combat.analyze.process_agent_combat_stats")
     def test_analyze_agent_combat_performance(self, mock_stats, tmp_path):
         """Test agent combat performance analysis."""
-        mock_stats.return_value = pd.DataFrame({
-            'agent_id': ['agent_1', 'agent_2', 'agent_3'],
-            'total_damage': [100, 80, 120],
-            'total_attacks': [10, 8, 12],
-            'success_rate': [0.8, 0.75, 0.9],
-        })
+        mock_stats.return_value = pd.DataFrame(
+            {
+                "agent_id": ["agent_1", "agent_2", "agent_3"],
+                "total_damage": [100, 80, 120],
+                "total_attacks": [10, 8, 12],
+                "success_rate": [0.8, 0.75, 0.9],
+            }
+        )
 
         ctx = AnalysisContext(output_path=tmp_path)
         analyze_agent_combat_performance(str(tmp_path), ctx)
@@ -217,7 +251,7 @@ class TestCombatAnalysis:
         output_file = tmp_path / "agent_combat_performance.json"
         assert output_file.exists()
 
-    @patch('farm.analysis.combat.analyze.process_agent_combat_stats')
+    @patch("farm.analysis.combat.analyze.process_agent_combat_stats")
     def test_analyze_agent_combat_performance_empty(self, mock_stats, tmp_path):
         """Test agent combat performance with no data."""
         mock_stats.return_value = pd.DataFrame()
@@ -229,15 +263,17 @@ class TestCombatAnalysis:
         output_file = tmp_path / "agent_combat_performance.json"
         assert not output_file.exists()
 
-    @patch('farm.analysis.combat.analyze.process_combat_data')
+    @patch("farm.analysis.combat.analyze.process_combat_data")
     def test_analyze_combat_efficiency(self, mock_combat, tmp_path):
         """Test combat efficiency analysis."""
-        mock_combat.return_value = pd.DataFrame({
-            'step': range(10),
-            'agent_id': ['agent_1'] * 10,
-            'damage_dealt': [10] * 10,
-            'reward': [1.0] * 10,
-        })
+        mock_combat.return_value = pd.DataFrame(
+            {
+                "step": range(10),
+                "agent_id": ["agent_1"] * 10,
+                "damage_dealt": [10] * 10,
+                "reward": [1.0] * 10,
+            }
+        )
 
         ctx = AnalysisContext(output_path=tmp_path)
         analyze_combat_efficiency(str(tmp_path), ctx)
@@ -245,20 +281,24 @@ class TestCombatAnalysis:
         output_file = tmp_path / "combat_efficiency.json"
         assert output_file.exists()
 
-    @patch('farm.analysis.combat.analyze.process_combat_data')
-    @patch('farm.analysis.combat.analyze.process_combat_metrics_data')
+    @patch("farm.analysis.combat.analyze.process_combat_data")
+    @patch("farm.analysis.combat.analyze.process_combat_metrics_data")
     def test_analyze_combat_temporal_patterns(self, mock_metrics, mock_combat, tmp_path):
         """Test combat temporal patterns analysis."""
-        mock_combat.return_value = pd.DataFrame({
-            'step': range(10),
-            'agent_id': ['agent_1'] * 10,
-            'damage_dealt': list(range(10)),
-        })
-        mock_metrics.return_value = pd.DataFrame({
-            'step': range(10),
-            'combat_encounters': list(range(1, 11)),
-            'successful_attacks': list(range(1, 11)),
-        })
+        mock_combat.return_value = pd.DataFrame(
+            {
+                "step": range(10),
+                "agent_id": ["agent_1"] * 10,
+                "damage_dealt": list(range(10)),
+            }
+        )
+        mock_metrics.return_value = pd.DataFrame(
+            {
+                "step": range(10),
+                "combat_encounters": list(range(1, 11)),
+                "successful_attacks": list(range(1, 11)),
+            }
+        )
 
         ctx = AnalysisContext(output_path=tmp_path)
         analyze_combat_temporal_patterns(str(tmp_path), ctx)
@@ -305,8 +345,11 @@ class TestCombatVisualization:
 
     def test_plot_combat_efficiency(self, sample_combat_data, tmp_path):
         """Test combat efficiency plotting."""
+        from farm.analysis.combat.compute import compute_combat_efficiency_metrics
+
         ctx = AnalysisContext(output_path=tmp_path)
-        plot_combat_efficiency(sample_combat_data, ctx)
+        efficiency_data = compute_combat_efficiency_metrics(sample_combat_data)
+        plot_combat_efficiency(efficiency_data, ctx)
 
         plot_file = tmp_path / "combat_efficiency.png"
         assert plot_file.exists()
@@ -321,8 +364,11 @@ class TestCombatVisualization:
 
     def test_plot_combat_temporal_patterns(self, sample_metrics_data, tmp_path):
         """Test combat temporal patterns plotting."""
+        from farm.analysis.combat.compute import compute_combat_temporal_patterns
+
         ctx = AnalysisContext(output_path=tmp_path)
-        plot_combat_temporal_patterns(sample_metrics_data, ctx)
+        patterns_data = compute_combat_temporal_patterns(pd.DataFrame(), sample_metrics_data)
+        plot_combat_temporal_patterns(patterns_data, ctx)
 
         plot_file = tmp_path / "combat_temporal_patterns.png"
         assert plot_file.exists()
@@ -360,11 +406,13 @@ class TestCombatModule:
         assert validator is not None
 
         # Test with valid data
-        valid_df = pd.DataFrame({
-            'step': [0, 1, 2],
-            'agent_id': ['agent_1', 'agent_2', 'agent_3'],
-            'damage_dealt': [10, 15, 20],
-        })
+        valid_df = pd.DataFrame(
+            {
+                "step": [0, 1, 2],
+                "agent_id": ["agent_1", "agent_2", "agent_3"],
+                "damage_dealt": [10, 15, 20],
+            }
+        )
         validator.validate(valid_df)  # Should not raise
 
     def test_module_all_functions_registered(self):
@@ -389,8 +437,8 @@ class TestCombatModule:
 class TestDataProcessing:
     """Test combat data processing functions."""
 
-    @patch('farm.analysis.combat.data.SessionManager')
-    @patch('farm.analysis.combat.data.ActionRepository')
+    @patch("farm.analysis.combat.data.SessionManager")
+    @patch("farm.analysis.combat.data.ActionRepository")
     def test_process_combat_data_from_database(self, mock_repo_class, mock_session_class, tmp_path):
         """Test processing combat data from database."""
         # Create mock database file
@@ -413,7 +461,7 @@ class TestDataProcessing:
         mock_action.damage_dealt = 10
         mock_action.reward = 1.0
 
-        mock_repo.get_combat_actions.return_value = [mock_action] * 5
+        mock_repo.get_actions_by_scope.return_value = [mock_action] * 5
 
         # Process data
         df = process_combat_data(tmp_path, use_database=True)
@@ -421,7 +469,7 @@ class TestDataProcessing:
         # Should return DataFrame with combat data
         assert isinstance(df, pd.DataFrame)
 
-    @patch('farm.analysis.combat.data.find_database_path')
+    @patch("farm.analysis.combat.data.find_database_path")
     def test_process_combat_metrics_data(self, mock_find_db, tmp_path):
         """Test processing combat metrics data."""
         # Mock database path
@@ -432,20 +480,22 @@ class TestDataProcessing:
         # Create mock metrics CSV
         data_dir = tmp_path / "data"
         data_dir.mkdir()
-        metrics_csv = data_dir / "combat_metrics.csv"
+        metrics_csv = data_dir / "step_metrics.csv"
 
-        test_df = pd.DataFrame({
-            'step': range(5),
-            'combat_encounters': [2, 3, 1, 4, 2],
-            'successful_attacks': [1, 2, 1, 3, 1],
-        })
+        test_df = pd.DataFrame(
+            {
+                "step": range(5),
+                "combat_encounters": [2, 3, 1, 4, 2],
+                "successful_attacks": [1, 2, 1, 3, 1],
+            }
+        )
         test_df.to_csv(metrics_csv, index=False)
 
         # Process data
         df = process_combat_metrics_data(tmp_path, use_database=False)
 
         assert not df.empty
-        assert 'combat_encounters' in df.columns
+        assert "combat_encounters" in df.columns
 
 
 class TestEdgeCases:
@@ -455,45 +505,51 @@ class TestEdgeCases:
         """Test combat statistics with NaN values."""
         # Add some NaN values
         combat_df = sample_combat_data.copy()
-        combat_df.loc[0, 'damage_dealt'] = np.nan
+        combat_df.loc[0, "damage_dealt"] = np.nan
 
-        metrics_df = pd.DataFrame({
-            'step': range(5),
-            'combat_encounters': [2, np.nan, 2, 2, 2],
-            'successful_attacks': [2, 1, np.nan, 2, 1],
-        })
+        metrics_df = pd.DataFrame(
+            {
+                "step": range(5),
+                "combat_encounters": [2, np.nan, 2, 2, 2],
+                "successful_attacks": [2, 1, np.nan, 2, 1],
+            }
+        )
 
         # Should handle NaN gracefully
         stats = compute_combat_statistics(combat_df, metrics_df)
-        assert 'combat_actions' in stats
+        assert "combat_actions" in stats
 
     def test_compute_agent_performance_single_agent(self):
         """Test agent performance with single agent."""
-        agent_df = pd.DataFrame({
-            'agent_id': ['agent_1'],
-            'total_damage': [100],
-            'total_attacks': [10],
-            'success_rate': [0.8],
-        })
+        agent_df = pd.DataFrame(
+            {
+                "agent_id": ["agent_1"],
+                "total_damage": [100],
+                "total_attacks": [10],
+                "success_rate": [0.8],
+            }
+        )
 
         performance = compute_agent_combat_performance(agent_df)
 
-        assert 'top_performers' in performance
-        assert len(performance['rankings']) == 1
+        assert "top_performers" in performance
+        assert len(performance["rankings"]) == 1
 
     def test_compute_efficiency_all_failed_attacks(self):
         """Test efficiency metrics when all attacks fail."""
-        combat_df = pd.DataFrame({
-            'step': range(10),
-            'agent_id': ['agent_1'] * 10,
-            'damage_dealt': [0] * 10,
-            'reward': [0.0] * 10,
-        })
+        combat_df = pd.DataFrame(
+            {
+                "step": range(10),
+                "agent_id": ["agent_1"] * 10,
+                "damage_dealt": [0] * 10,
+                "reward": [0.0] * 10,
+            }
+        )
 
         efficiency = compute_combat_efficiency_metrics(combat_df)
 
-        assert efficiency['overall_success_rate'] == 0.0
-        assert efficiency['damage_efficiency'] == 0.0
+        assert efficiency["overall_success_rate"] == 0.0
+        assert efficiency["damage_efficiency"] == 0.0
 
     def test_plot_with_progress_callback(self, sample_metrics_data, tmp_path):
         """Test plotting with progress callback."""
@@ -510,13 +566,15 @@ class TestEdgeCases:
 
     def test_zero_combat_encounters(self):
         """Test handling of zero combat encounters."""
-        metrics_df = pd.DataFrame({
-            'step': range(5),
-            'combat_encounters': [0] * 5,
-            'successful_attacks': [0] * 5,
-        })
+        metrics_df = pd.DataFrame(
+            {
+                "step": range(5),
+                "combat_encounters": [0] * 5,
+                "successful_attacks": [0] * 5,
+            }
+        )
 
         patterns = compute_combat_temporal_patterns(pd.DataFrame(), metrics_df)
 
         # Should still compute patterns without errors
-        assert 'peak_combat' in patterns
+        assert "peak_combat" in patterns
