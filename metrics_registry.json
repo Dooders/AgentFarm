@@ -1,0 +1,1748 @@
+{
+  "version": "1.0.0",
+  "description": "Global metrics registry for the AgentFarm analysis system",
+  "last_updated": "2025-10-05",
+  "metric_categories": {
+    "action_statistics": {
+      "description": "Overall action frequencies, per-action statistics, and most common actions",
+      "module": "actions",
+      "metrics": {
+        "total_actions": {
+          "name": "total_actions",
+          "description": "Overall action frequency statistics across all steps",
+          "data_type": "dict",
+          "unit": "count",
+          "range_description": null,
+          "example_value": {
+            "mean": 31.47,
+            "median": 32.0,
+            "std": 5.35,
+            "min": 14.0,
+            "max": 38.0,
+            "q25": 30.0,
+            "q75": 34.0
+          },
+          "required": true,
+          "tags": ["frequency", "aggregate", "statistics", "actions"]
+        },
+        "action_types": {
+          "name": "action_types",
+          "description": "Per-action-type frequency and performance statistics",
+          "data_type": "dict",
+          "unit": null,
+          "range_description": null,
+          "example_value": {
+            "attack": {
+              "frequency": {
+                "mean": 4.53,
+                "median": 5.0,
+                "std": 1.82,
+                "min": 1.0,
+                "max": 8.0,
+                "q25": 3.5,
+                "q75": 6.0
+              }
+            }
+          },
+          "required": true,
+          "tags": ["frequency", "per-action", "statistics", "actions"]
+        },
+        "most_common_action": {
+          "name": "most_common_action",
+          "description": "The most frequently occurring action type",
+          "data_type": "str",
+          "unit": null,
+          "range_description": null,
+          "example_value": "move",
+          "required": true,
+          "tags": ["frequency", "dominant", "categorical", "actions"]
+        },
+        "most_common_frequency": {
+          "name": "most_common_frequency",
+          "description": "Average frequency of the most common action",
+          "data_type": "float",
+          "unit": "count",
+          "range_description": null,
+          "example_value": 5.21,
+          "required": true,
+          "tags": ["frequency", "dominant", "numeric", "actions"]
+        }
+      }
+    },
+    "sequence_patterns": {
+      "description": "Action transition probabilities and common sequence patterns",
+      "module": "actions",
+      "metrics": {
+        "transition_patterns": {
+          "name": "transition_patterns",
+          "description": "Action transition probabilities and trends",
+          "data_type": "dict",
+          "unit": null,
+          "range_description": null,
+          "example_value": {
+            "attack->defend": {
+              "avg_probability": 0.23,
+              "max_probability": 0.45,
+              "min_probability": 0.12,
+              "probability_trend": "stable"
+            }
+          },
+          "required": true,
+          "tags": ["sequence", "probability", "transitions", "actions"]
+        },
+        "most_common_sequence": {
+          "name": "most_common_sequence",
+          "description": "Most probable action sequence pattern",
+          "data_type": "dict",
+          "unit": null,
+          "range_description": null,
+          "example_value": {
+            "sequence": "gather->share",
+            "probability": 0.67
+          },
+          "required": true,
+          "tags": ["sequence", "probability", "dominant", "actions"]
+        }
+      }
+    },
+    "decision_patterns": {
+      "description": "Success rates, decision consistency, and action diversity metrics",
+      "module": "actions",
+      "metrics": {
+        "avg_success_rate": {
+          "name": "avg_success_rate",
+          "description": "Average success rate across all decisions",
+          "data_type": "float",
+          "unit": null,
+          "range_description": "0.0 to 1.0",
+          "example_value": 0.74,
+          "required": true,
+          "tags": ["success", "decision", "average", "actions"]
+        },
+        "success_trend": {
+          "name": "success_trend",
+          "description": "Trend in success rates over time",
+          "data_type": "str",
+          "unit": null,
+          "range_description": null,
+          "example_value": "increasing",
+          "required": true,
+          "tags": ["success", "trend", "temporal", "actions"]
+        },
+        "decision_consistency": {
+          "name": "decision_consistency",
+          "description": "Consistency of decision-making quality",
+          "data_type": "float",
+          "unit": null,
+          "range_description": "0.0 to 1.0",
+          "example_value": 0.68,
+          "required": true,
+          "tags": ["decision", "consistency", "quality", "actions"]
+        },
+        "avg_action_diversity": {
+          "name": "avg_action_diversity",
+          "description": "Average number of different action types per step",
+          "data_type": "float",
+          "unit": "count",
+          "range_description": null,
+          "example_value": 3.2,
+          "required": true,
+          "tags": ["diversity", "variety", "behavioral", "actions"]
+        },
+        "diversity_trend": {
+          "name": "diversity_trend",
+          "description": "Trend in action diversity over time",
+          "data_type": "str",
+          "unit": null,
+          "range_description": null,
+          "example_value": "stable",
+          "required": true,
+          "tags": ["diversity", "trend", "temporal", "actions"]
+        }
+      }
+    },
+    "reward_metrics": {
+      "description": "Reward distributions, trends, and performance metrics",
+      "module": "actions",
+      "metrics": {
+        "overall_avg_reward": {
+          "name": "overall_avg_reward",
+          "description": "Average reward across all actions",
+          "data_type": "float",
+          "unit": null,
+          "range_description": null,
+          "example_value": 2.34,
+          "required": true,
+          "tags": ["reward", "average", "performance", "actions"]
+        },
+        "reward_trend": {
+          "name": "reward_trend",
+          "description": "Trend in rewards over time",
+          "data_type": "str",
+          "unit": null,
+          "range_description": null,
+          "example_value": "increasing",
+          "required": true,
+          "tags": ["reward", "trend", "temporal", "actions"]
+        },
+        "reward_volatility": {
+          "name": "reward_volatility",
+          "description": "Standard deviation of rewards",
+          "data_type": "float",
+          "unit": null,
+          "range_description": null,
+          "example_value": 1.67,
+          "required": true,
+          "tags": ["reward", "volatility", "variance", "actions"]
+        },
+        "avg_reward_variance": {
+          "name": "avg_reward_variance",
+          "description": "Average variance in rewards per action type",
+          "data_type": "float",
+          "unit": null,
+          "range_description": null,
+          "example_value": 0.89,
+          "required": true,
+          "tags": ["reward", "variance", "per-action", "actions"]
+        },
+        "total_rewards": {
+          "name": "total_rewards",
+          "description": "Total reward statistics across steps",
+          "data_type": "dict",
+          "unit": null,
+          "range_description": null,
+          "example_value": {
+            "mean": 74.2,
+            "median": 72.5,
+            "std": 12.8,
+            "min": 45.3,
+            "max": 98.7
+          },
+          "required": true,
+          "tags": ["reward", "aggregate", "statistics", "actions"]
+        },
+        "best_performing_action": {
+          "name": "best_performing_action",
+          "description": "Action type with highest average reward",
+          "data_type": "str",
+          "unit": null,
+          "range_description": null,
+          "example_value": "share",
+          "required": true,
+          "tags": ["reward", "performance", "optimal", "actions"]
+        },
+        "best_action_reward": {
+          "name": "best_action_reward",
+          "description": "Average reward of the best performing action",
+          "data_type": "float",
+          "unit": null,
+          "range_description": null,
+          "example_value": 3.21,
+          "required": true,
+          "tags": ["reward", "performance", "optimal", "actions"]
+        }
+      }
+    },
+    "success_rates": {
+      "description": "Success rates for different action types",
+      "module": "actions",
+      "metrics": {
+        "action_success_rates": {
+          "name": "action_success_rates",
+          "description": "Success rates for each action type",
+          "data_type": "dict",
+          "unit": null,
+          "range_description": "0.0 to 1.0 per action type",
+          "example_value": {
+            "attack": 0.75,
+            "defend": 0.82,
+            "gather": 0.68,
+            "move": 0.91,
+            "reproduce": 0.45,
+            "share": 0.73
+          },
+          "required": true,
+          "tags": ["success", "per-action", "rates", "actions"]
+        }
+      }
+    },
+    "action_sequences": {
+      "description": "Sequence length distributions and transition matrices",
+      "module": "actions",
+      "metrics": {
+        "common_sequences": {
+          "name": "common_sequences",
+          "description": "Count of common action sequence patterns",
+          "data_type": "dict",
+          "unit": null,
+          "range_description": null,
+          "example_value": {
+            "attack->defend->gather": 45,
+            "gather->share->move": 38,
+            "defend->attack->move": 29
+          },
+          "required": true,
+          "tags": ["sequence", "frequency", "patterns", "actions"]
+        },
+        "avg_sequence_length": {
+          "name": "avg_sequence_length",
+          "description": "Average length of action sequences",
+          "data_type": "float",
+          "unit": "actions",
+          "range_description": null,
+          "example_value": 2.8,
+          "required": true,
+          "tags": ["sequence", "length", "average", "actions"]
+        },
+        "max_sequence_length": {
+          "name": "max_sequence_length",
+          "description": "Maximum sequence length observed",
+          "data_type": "int",
+          "unit": "actions",
+          "range_description": null,
+          "example_value": 5,
+          "required": true,
+          "tags": ["sequence", "length", "maximum", "actions"]
+        },
+        "transition_matrix": {
+          "name": "transition_matrix",
+          "description": "Probabilities of transitioning between action types",
+          "data_type": "dict",
+          "unit": null,
+          "range_description": null,
+          "example_value": {
+            "attack": {
+              "defend": 0.45,
+              "move": 0.32,
+              "gather": 0.23
+            }
+          },
+          "required": true,
+          "tags": ["sequence", "transitions", "probabilistic", "actions"]
+        }
+      }
+    },
+    "agent_lifespan_analysis": {
+      "description": "Agent lifespan distributions and mortality patterns",
+      "module": "agents",
+      "metrics": {
+        "mean_lifespan": {
+          "name": "mean_lifespan",
+          "description": "Average lifespan of agents",
+          "data_type": "float",
+          "unit": "steps",
+          "range_description": null,
+          "example_value": 245.8,
+          "required": true,
+          "tags": ["lifespan", "average", "survival", "agents"]
+        },
+        "median_lifespan": {
+          "name": "median_lifespan",
+          "description": "Median lifespan of agents",
+          "data_type": "float",
+          "unit": "steps",
+          "range_description": null,
+          "example_value": 234.0,
+          "required": true,
+          "tags": ["lifespan", "median", "survival", "agents"]
+        },
+        "lifespan_variance": {
+          "name": "lifespan_variance",
+          "description": "Variance in agent lifespans",
+          "data_type": "float",
+          "unit": "steps²",
+          "range_description": null,
+          "example_value": 1247.5,
+          "required": true,
+          "tags": ["lifespan", "variance", "distribution", "agents"]
+        },
+        "max_lifespan": {
+          "name": "max_lifespan",
+          "description": "Maximum observed lifespan",
+          "data_type": "int",
+          "unit": "steps",
+          "range_description": null,
+          "example_value": 512,
+          "required": true,
+          "tags": ["lifespan", "maximum", "survival", "agents"]
+        },
+        "mortality_rate": {
+          "name": "mortality_rate",
+          "description": "Rate of agent deaths per step",
+          "data_type": "float",
+          "unit": "deaths/step",
+          "range_description": "0.0 to 1.0",
+          "example_value": 0.023,
+          "required": true,
+          "tags": ["mortality", "rate", "temporal", "agents"]
+        }
+      }
+    },
+    "behavior_clusters": {
+      "description": "Behavioral clustering and phenotype analysis",
+      "module": "agents",
+      "metrics": {
+        "num_clusters": {
+          "name": "num_clusters",
+          "description": "Number of behavioral clusters identified",
+          "data_type": "int",
+          "unit": "clusters",
+          "range_description": null,
+          "example_value": 5,
+          "required": true,
+          "tags": ["clustering", "behavioral", "phenotypes", "agents"]
+        },
+        "cluster_sizes": {
+          "name": "cluster_sizes",
+          "description": "Size of each behavioral cluster",
+          "data_type": "dict",
+          "unit": "agents",
+          "range_description": null,
+          "example_value": {
+            "cluster_0": 45,
+            "cluster_1": 32,
+            "cluster_2": 28,
+            "cluster_3": 19,
+            "cluster_4": 15
+          },
+          "required": true,
+          "tags": ["clustering", "distribution", "behavioral", "agents"]
+        },
+        "cluster_centroids": {
+          "name": "cluster_centroids",
+          "description": "Centroid features for each cluster",
+          "data_type": "dict",
+          "unit": null,
+          "range_description": null,
+          "example_value": {
+            "cluster_0": {
+              "action_diversity": 0.85,
+              "exploration_rate": 0.72,
+              "success_rate": 0.68
+            }
+          },
+          "required": true,
+          "tags": ["clustering", "centroids", "features", "agents"]
+        },
+        "silhouette_score": {
+          "name": "silhouette_score",
+          "description": "Quality measure of clustering (-1 to 1)",
+          "data_type": "float",
+          "unit": null,
+          "range_description": "-1.0 to 1.0",
+          "example_value": 0.74,
+          "required": true,
+          "tags": ["clustering", "quality", "validation", "agents"]
+        }
+      }
+    },
+    "agent_performance": {
+      "description": "Individual agent performance metrics",
+      "module": "agents",
+      "metrics": {
+        "avg_performance_score": {
+          "name": "avg_performance_score",
+          "description": "Average performance score across agents",
+          "data_type": "float",
+          "unit": null,
+          "range_description": null,
+          "example_value": 2.45,
+          "required": true,
+          "tags": ["performance", "average", "agents"]
+        },
+        "performance_rank": {
+          "name": "performance_rank",
+          "description": "Agent performance rankings",
+          "data_type": "dict",
+          "unit": null,
+          "range_description": null,
+          "example_value": {
+            "agent_123": 1,
+            "agent_456": 2,
+            "agent_789": 3
+          },
+          "required": true,
+          "tags": ["performance", "ranking", "agents"]
+        },
+        "performance_percentile": {
+          "name": "performance_percentile",
+          "description": "Performance percentiles for agents",
+          "data_type": "dict",
+          "unit": "percentile",
+          "range_description": "0 to 100",
+          "example_value": {
+            "agent_123": 99.5,
+            "agent_456": 95.2,
+            "agent_789": 87.3
+          },
+          "required": true,
+          "tags": ["performance", "percentile", "distribution", "agents"]
+        },
+        "elite_threshold": {
+          "name": "elite_threshold",
+          "description": "Performance threshold for elite agents",
+          "data_type": "float",
+          "unit": null,
+          "range_description": null,
+          "example_value": 3.8,
+          "required": true,
+          "tags": ["performance", "threshold", "elite", "agents"]
+        }
+      }
+    },
+    "learning_curves": {
+      "description": "Agent learning trajectories and progress",
+      "module": "agents",
+      "metrics": {
+        "learning_trajectory": {
+          "name": "learning_trajectory",
+          "description": "Individual agent learning curves",
+          "data_type": "dict",
+          "unit": null,
+          "range_description": null,
+          "example_value": {
+            "agent_123": [0.1, 0.25, 0.45, 0.67, 0.82, 0.91],
+            "agent_456": [0.05, 0.12, 0.28, 0.52, 0.71, 0.85]
+          },
+          "required": true,
+          "tags": ["learning", "trajectory", "temporal", "agents"]
+        },
+        "learning_improvement_rate": {
+          "name": "learning_improvement_rate",
+          "description": "Rate of learning improvement",
+          "data_type": "float",
+          "unit": "improvement/step",
+          "range_description": null,
+          "example_value": 0.034,
+          "required": true,
+          "tags": ["learning", "improvement", "rate", "agents"]
+        },
+        "convergence_step": {
+          "name": "convergence_step",
+          "description": "Step at which learning converges",
+          "data_type": "int",
+          "unit": "steps",
+          "range_description": null,
+          "example_value": 450,
+          "required": true,
+          "tags": ["learning", "convergence", "temporal", "agents"]
+        },
+        "plateau_performance": {
+          "name": "plateau_performance",
+          "description": "Final performance level after convergence",
+          "data_type": "float",
+          "unit": null,
+          "range_description": null,
+          "example_value": 0.89,
+          "required": true,
+          "tags": ["learning", "plateau", "final", "agents"]
+        }
+      }
+    },
+    "learning_performance": {
+      "description": "Overall learning performance trends and metrics",
+      "module": "learning",
+      "metrics": {
+        "mean_performance": {
+          "name": "mean_performance",
+          "description": "Average learning performance across steps",
+          "data_type": "float",
+          "unit": null,
+          "range_description": "0.0 to 1.0",
+          "example_value": 0.67,
+          "required": true,
+          "tags": ["learning", "performance", "average", "temporal"]
+        },
+        "performance_std": {
+          "name": "performance_std",
+          "description": "Standard deviation of learning performance",
+          "data_type": "float",
+          "unit": null,
+          "range_description": null,
+          "example_value": 0.23,
+          "required": true,
+          "tags": ["learning", "performance", "variance", "temporal"]
+        },
+        "improvement_rate": {
+          "name": "improvement_rate",
+          "description": "Rate of performance improvement",
+          "data_type": "float",
+          "unit": "improvement/step",
+          "range_description": null,
+          "example_value": 0.0042,
+          "required": true,
+          "tags": ["learning", "improvement", "rate", "temporal"]
+        },
+        "learning_efficiency": {
+          "name": "learning_efficiency",
+          "description": "Efficiency of learning process",
+          "data_type": "float",
+          "unit": null,
+          "range_description": "0.0 to 1.0",
+          "example_value": 0.78,
+          "required": true,
+          "tags": ["learning", "efficiency", "performance"]
+        }
+      }
+    },
+    "module_efficiency": {
+      "description": "Comparison of different learning modules",
+      "module": "learning",
+      "metrics": {
+        "module_performance": {
+          "name": "module_performance",
+          "description": "Final performance by learning module",
+          "data_type": "dict",
+          "unit": null,
+          "range_description": null,
+          "example_value": {
+            "dqn": 0.85,
+            "ppo": 0.79,
+            "a2c": 0.72,
+            "random": 0.15
+          },
+          "required": true,
+          "tags": ["learning", "modules", "comparison", "performance"]
+        },
+        "module_convergence_time": {
+          "name": "module_convergence_time",
+          "description": "Time to convergence for each module",
+          "data_type": "dict",
+          "unit": "steps",
+          "range_description": null,
+          "example_value": {
+            "dqn": 320,
+            "ppo": 450,
+            "a2c": 380,
+            "random": null
+          },
+          "required": true,
+          "tags": ["learning", "modules", "convergence", "temporal"]
+        },
+        "learning_rate_comparison": {
+          "name": "learning_rate_comparison",
+          "description": "Learning rates across modules",
+          "data_type": "dict",
+          "unit": "rate/step",
+          "range_description": null,
+          "example_value": {
+            "dqn": 0.0052,
+            "ppo": 0.0038,
+            "a2c": 0.0045
+          },
+          "required": true,
+          "tags": ["learning", "modules", "rates", "comparison"]
+        },
+        "best_module": {
+          "name": "best_module",
+          "description": "Highest performing learning module",
+          "data_type": "str",
+          "unit": null,
+          "range_description": null,
+          "example_value": "dqn",
+          "required": true,
+          "tags": ["learning", "modules", "optimal", "ranking"]
+        }
+      }
+    },
+    "convergence_analysis": {
+      "description": "Learning convergence and plateau detection",
+      "module": "learning",
+      "metrics": {
+        "avg_convergence_step": {
+          "name": "avg_convergence_step",
+          "description": "Average step at which learning converges",
+          "data_type": "float",
+          "unit": "steps",
+          "range_description": null,
+          "example_value": 387.5,
+          "required": true,
+          "tags": ["learning", "convergence", "average", "temporal"]
+        },
+        "convergence_stability": {
+          "name": "convergence_stability",
+          "description": "Stability of converged performance",
+          "data_type": "float",
+          "unit": null,
+          "range_description": "0.0 to 1.0",
+          "example_value": 0.92,
+          "required": true,
+          "tags": ["learning", "convergence", "stability", "quality"]
+        },
+        "plateau_duration": {
+          "name": "plateau_duration",
+          "description": "Duration of performance plateau",
+          "data_type": "int",
+          "unit": "steps",
+          "range_description": null,
+          "example_value": 67,
+          "required": true,
+          "tags": ["learning", "plateau", "duration", "temporal"]
+        },
+        "convergence_rate": {
+          "name": "convergence_rate",
+          "description": "Rate at which agents converge",
+          "data_type": "float",
+          "unit": "agents/step",
+          "range_description": "0.0 to 1.0",
+          "example_value": 0.023,
+          "required": true,
+          "tags": ["learning", "convergence", "rate", "temporal"]
+        }
+      }
+    },
+    "population_dynamics": {
+      "description": "Population size and growth metrics over time",
+      "module": "population",
+      "metrics": {
+        "mean_population": {
+          "name": "mean_population",
+          "description": "Average population size across steps",
+          "data_type": "float",
+          "unit": "agents",
+          "range_description": null,
+          "example_value": 145.7,
+          "required": true,
+          "tags": ["population", "average", "size", "temporal"]
+        },
+        "population_std": {
+          "name": "population_std",
+          "description": "Standard deviation of population size",
+          "data_type": "float",
+          "unit": "agents",
+          "range_description": null,
+          "example_value": 23.4,
+          "required": true,
+          "tags": ["population", "variance", "distribution"]
+        },
+        "growth_rate": {
+          "name": "growth_rate",
+          "description": "Population growth rate per step",
+          "data_type": "float",
+          "unit": "growth/step",
+          "range_description": null,
+          "example_value": 0.012,
+          "required": true,
+          "tags": ["population", "growth", "rate", "temporal"]
+        },
+        "population_stability": {
+          "name": "population_stability",
+          "description": "Stability of population size (1.0 = perfectly stable)",
+          "data_type": "float",
+          "unit": null,
+          "range_description": "0.0 to 1.0",
+          "example_value": 0.78,
+          "required": true,
+          "tags": ["population", "stability", "variance"]
+        },
+        "max_population": {
+          "name": "max_population",
+          "description": "Maximum population size observed",
+          "data_type": "int",
+          "unit": "agents",
+          "range_description": null,
+          "example_value": 198,
+          "required": true,
+          "tags": ["population", "maximum", "peak"]
+        }
+      }
+    },
+    "agent_composition": {
+      "description": "Breakdown of agent types and their proportions",
+      "module": "population",
+      "metrics": {
+        "agent_type_counts": {
+          "name": "agent_type_counts",
+          "description": "Number of agents by type",
+          "data_type": "dict",
+          "unit": "agents",
+          "range_description": null,
+          "example_value": {
+            "system": 87,
+            "independent": 58,
+            "cooperative": 23
+          },
+          "required": true,
+          "tags": ["population", "composition", "types", "counts"]
+        },
+        "agent_type_proportions": {
+          "name": "agent_type_proportions",
+          "description": "Proportion of each agent type",
+          "data_type": "dict",
+          "unit": null,
+          "range_description": "0.0 to 1.0 per type",
+          "example_value": {
+            "system": 0.55,
+            "independent": 0.37,
+            "cooperative": 0.08
+          },
+          "required": true,
+          "tags": ["population", "composition", "proportions", "types"]
+        },
+        "dominant_type": {
+          "name": "dominant_type",
+          "description": "Most common agent type",
+          "data_type": "str",
+          "unit": null,
+          "range_description": null,
+          "example_value": "system",
+          "required": true,
+          "tags": ["population", "dominant", "types", "categorical"]
+        },
+        "type_diversity": {
+          "name": "type_diversity",
+          "description": "Diversity of agent types (Shannon entropy)",
+          "data_type": "float",
+          "unit": null,
+          "range_description": null,
+          "example_value": 0.92,
+          "required": true,
+          "tags": ["population", "diversity", "entropy", "types"]
+        }
+      }
+    },
+    "birth_death_rates": {
+      "description": "Birth and death rate analysis",
+      "module": "population",
+      "metrics": {
+        "birth_rate": {
+          "name": "birth_rate",
+          "description": "Average birth rate per step",
+          "data_type": "float",
+          "unit": "births/step",
+          "range_description": null,
+          "example_value": 0.018,
+          "required": true,
+          "tags": ["population", "births", "rate", "temporal"]
+        },
+        "death_rate": {
+          "name": "death_rate",
+          "description": "Average death rate per step",
+          "data_type": "float",
+          "unit": "deaths/step",
+          "range_description": null,
+          "example_value": 0.015,
+          "required": true,
+          "tags": ["population", "deaths", "rate", "temporal"]
+        },
+        "net_growth_rate": {
+          "name": "net_growth_rate",
+          "description": "Net population growth rate (births - deaths)",
+          "data_type": "float",
+          "unit": "net_change/step",
+          "range_description": null,
+          "example_value": 0.003,
+          "required": true,
+          "tags": ["population", "growth", "net", "temporal"]
+        },
+        "birth_death_ratio": {
+          "name": "birth_death_ratio",
+          "description": "Ratio of births to deaths",
+          "data_type": "float",
+          "unit": null,
+          "range_description": null,
+          "example_value": 1.22,
+          "required": true,
+          "tags": ["population", "births", "deaths", "ratio"]
+        }
+      }
+    },
+    "combat_statistics": {
+      "description": "Overall combat performance and statistics",
+      "module": "combat",
+      "metrics": {
+        "total_combats": {
+          "name": "total_combats",
+          "description": "Total number of combat encounters",
+          "data_type": "int",
+          "unit": "combats",
+          "range_description": null,
+          "example_value": 1247,
+          "required": true,
+          "tags": ["combat", "count", "frequency"]
+        },
+        "win_rate": {
+          "name": "win_rate",
+          "description": "Overall win rate across all combats",
+          "data_type": "float",
+          "unit": null,
+          "range_description": "0.0 to 1.0",
+          "example_value": 0.63,
+          "required": true,
+          "tags": ["combat", "wins", "rate", "performance"]
+        },
+        "avg_damage_dealt": {
+          "name": "avg_damage_dealt",
+          "description": "Average damage dealt per combat",
+          "data_type": "float",
+          "unit": "damage",
+          "range_description": null,
+          "example_value": 12.7,
+          "required": true,
+          "tags": ["combat", "damage", "average", "offensive"]
+        },
+        "avg_combat_duration": {
+          "name": "avg_combat_duration",
+          "description": "Average duration of combat encounters",
+          "data_type": "float",
+          "unit": "steps",
+          "range_description": null,
+          "example_value": 8.3,
+          "required": true,
+          "tags": ["combat", "duration", "average", "temporal"]
+        }
+      }
+    },
+    "matchup_analysis": {
+      "description": "Combat outcomes by agent type matchups",
+      "module": "combat",
+      "metrics": {
+        "matchup_win_rates": {
+          "name": "matchup_win_rates",
+          "description": "Win rates for specific agent type matchups",
+          "data_type": "dict",
+          "unit": null,
+          "range_description": "0.0 to 1.0 per matchup",
+          "example_value": {
+            "warrior_vs_mage": 0.72,
+            "mage_vs_warrior": 0.28,
+            "warrior_vs_warrior": 0.51
+          },
+          "required": true,
+          "tags": ["combat", "matchups", "win_rates", "types"]
+        },
+        "damage_ratios": {
+          "name": "damage_ratios",
+          "description": "Damage dealt vs received ratios by matchup",
+          "data_type": "dict",
+          "unit": null,
+          "range_description": null,
+          "example_value": {
+            "warrior_vs_mage": 1.45,
+            "mage_vs_warrior": 0.69
+          },
+          "required": true,
+          "tags": ["combat", "matchups", "damage", "ratios"]
+        },
+        "strongest_matchup": {
+          "name": "strongest_matchup",
+          "description": "Most advantageous matchup combination",
+          "data_type": "str",
+          "unit": null,
+          "range_description": null,
+          "example_value": "warrior_vs_mage",
+          "required": true,
+          "tags": ["combat", "matchups", "advantage", "optimal"]
+        },
+        "matchup_balance": {
+          "name": "matchup_balance",
+          "description": "Balance measure of matchup outcomes",
+          "data_type": "float",
+          "unit": null,
+          "range_description": "0.0 to 1.0",
+          "example_value": 0.67,
+          "required": true,
+          "tags": ["combat", "matchups", "balance", "fairness"]
+        }
+      }
+    },
+    "combat_effectiveness": {
+      "description": "Combat effectiveness and performance metrics",
+      "module": "combat",
+      "metrics": {
+        "kill_death_ratio": {
+          "name": "kill_death_ratio",
+          "description": "Kills per death ratio",
+          "data_type": "float",
+          "unit": null,
+          "range_description": null,
+          "example_value": 1.23,
+          "required": true,
+          "tags": ["combat", "kills", "deaths", "ratio", "effectiveness"]
+        },
+        "damage_efficiency": {
+          "name": "damage_efficiency",
+          "description": "Damage dealt per unit time",
+          "data_type": "float",
+          "unit": "damage/step",
+          "range_description": null,
+          "example_value": 1.52,
+          "required": true,
+          "tags": ["combat", "damage", "efficiency", "rate"]
+        },
+        "combat_success_rate": {
+          "name": "combat_success_rate",
+          "description": "Rate of successful combat outcomes",
+          "data_type": "float",
+          "unit": null,
+          "range_description": "0.0 to 1.0",
+          "example_value": 0.71,
+          "required": true,
+          "tags": ["combat", "success", "rate", "performance"]
+        },
+        "resource_efficiency": {
+          "name": "resource_efficiency",
+          "description": "Combat effectiveness per resource spent",
+          "data_type": "float",
+          "unit": "effectiveness/resource",
+          "range_description": null,
+          "example_value": 0.89,
+          "required": true,
+          "tags": ["combat", "resources", "efficiency", "optimization"]
+        }
+      }
+    },
+    "strategy_patterns": {
+      "description": "Combat strategy pattern detection and analysis",
+      "module": "combat",
+      "metrics": {
+        "common_strategies": {
+          "name": "common_strategies",
+          "description": "Most common combat strategy patterns",
+          "data_type": "dict",
+          "unit": null,
+          "range_description": null,
+          "example_value": {
+            "aggressive_rush": 0.34,
+            "defensive_counter": 0.28,
+            "hit_and_run": 0.21,
+            "positional": 0.17
+          },
+          "required": true,
+          "tags": ["combat", "strategies", "patterns", "frequency"]
+        },
+        "strategy_success_rates": {
+          "name": "strategy_success_rates",
+          "description": "Win rates for different strategies",
+          "data_type": "dict",
+          "unit": null,
+          "range_description": "0.0 to 1.0 per strategy",
+          "example_value": {
+            "aggressive_rush": 0.65,
+            "defensive_counter": 0.72,
+            "hit_and_run": 0.58,
+            "positional": 0.61
+          },
+          "required": true,
+          "tags": ["combat", "strategies", "success", "rates"]
+        },
+        "best_strategy": {
+          "name": "best_strategy",
+          "description": "Most effective combat strategy",
+          "data_type": "str",
+          "unit": null,
+          "range_description": null,
+          "example_value": "defensive_counter",
+          "required": true,
+          "tags": ["combat", "strategies", "optimal", "performance"]
+        },
+        "strategy_adaptability": {
+          "name": "strategy_adaptability",
+          "description": "How well strategies adapt to opponents",
+          "data_type": "float",
+          "unit": null,
+          "range_description": "0.0 to 1.0",
+          "example_value": 0.76,
+          "required": true,
+          "tags": ["combat", "strategies", "adaptability", "flexibility"]
+        }
+      }
+    },
+    "resource_patterns": {
+      "description": "Resource distribution and availability patterns",
+      "module": "resources",
+      "metrics": {
+        "mean_resource_availability": {
+          "name": "mean_resource_availability",
+          "description": "Average resource availability across time",
+          "data_type": "float",
+          "unit": "resources",
+          "range_description": null,
+          "example_value": 456.8,
+          "required": true,
+          "tags": ["resources", "availability", "average", "temporal"]
+        },
+        "resource_variance": {
+          "name": "resource_variance",
+          "description": "Variance in resource availability",
+          "data_type": "float",
+          "unit": "resources²",
+          "range_description": null,
+          "example_value": 1234.5,
+          "required": true,
+          "tags": ["resources", "variance", "distribution"]
+        },
+        "resource_stability": {
+          "name": "resource_stability",
+          "description": "Stability of resource availability",
+          "data_type": "float",
+          "unit": null,
+          "range_description": "0.0 to 1.0",
+          "example_value": 0.72,
+          "required": true,
+          "tags": ["resources", "stability", "consistency"]
+        },
+        "total_consumed": {
+          "name": "total_consumed",
+          "description": "Total resources consumed",
+          "data_type": "int",
+          "unit": "resources",
+          "range_description": null,
+          "example_value": 8924,
+          "required": true,
+          "tags": ["resources", "consumption", "total", "aggregate"]
+        }
+      }
+    },
+    "consumption_analysis": {
+      "description": "Resource consumption rates and trends",
+      "module": "resources",
+      "metrics": {
+        "consumption_rate": {
+          "name": "consumption_rate",
+          "description": "Rate of resource consumption per step",
+          "data_type": "float",
+          "unit": "resources/step",
+          "range_description": null,
+          "example_value": 12.3,
+          "required": true,
+          "tags": ["resources", "consumption", "rate", "temporal"]
+        },
+        "cumulative_consumption": {
+          "name": "cumulative_consumption",
+          "description": "Total cumulative resource consumption",
+          "data_type": "int",
+          "unit": "resources",
+          "range_description": null,
+          "example_value": 8924,
+          "required": true,
+          "tags": ["resources", "consumption", "cumulative", "aggregate"]
+        },
+        "per_capita_consumption": {
+          "name": "per_capita_consumption",
+          "description": "Resource consumption per agent",
+          "data_type": "float",
+          "unit": "resources/agent",
+          "range_description": null,
+          "example_value": 8.7,
+          "required": true,
+          "tags": ["resources", "consumption", "per_capita", "efficiency"]
+        },
+        "consumption_trend": {
+          "name": "consumption_trend",
+          "description": "Trend in resource consumption over time",
+          "data_type": "str",
+          "unit": null,
+          "range_description": null,
+          "example_value": "increasing",
+          "required": true,
+          "tags": ["resources", "consumption", "trend", "temporal"]
+        }
+      }
+    },
+    "efficiency_metrics": {
+      "description": "Resource utilization efficiency by agent type",
+      "module": "resources",
+      "metrics": {
+        "efficiency_by_type": {
+          "name": "efficiency_by_type",
+          "description": "Resource utilization efficiency by agent type",
+          "data_type": "dict",
+          "unit": null,
+          "range_description": "0.0 to 1.0 per type",
+          "example_value": {
+            "gatherer": 0.89,
+            "hunter": 0.76,
+            "farmer": 0.92
+          },
+          "required": true,
+          "tags": ["resources", "efficiency", "types", "utilization"]
+        },
+        "waste_ratio": {
+          "name": "waste_ratio",
+          "description": "Ratio of wasted to consumed resources",
+          "data_type": "float",
+          "unit": null,
+          "range_description": "0.0 to 1.0",
+          "example_value": 0.23,
+          "required": true,
+          "tags": ["resources", "waste", "efficiency", "inefficiency"]
+        },
+        "optimal_consumption": {
+          "name": "optimal_consumption",
+          "description": "Theoretical optimal consumption level",
+          "data_type": "float",
+          "unit": "resources",
+          "range_description": null,
+          "example_value": 9.2,
+          "required": true,
+          "tags": ["resources", "optimal", "consumption", "theoretical"]
+        },
+        "efficiency_trend": {
+          "name": "efficiency_trend",
+          "description": "Trend in resource utilization efficiency",
+          "data_type": "str",
+          "unit": null,
+          "range_description": null,
+          "example_value": "improving",
+          "required": true,
+          "tags": ["resources", "efficiency", "trend", "temporal"]
+        }
+      }
+    },
+    "resource_hotspots": {
+      "description": "Resource concentration and hotspot analysis",
+      "module": "resources",
+      "metrics": {
+        "hotspot_count": {
+          "name": "hotspot_count",
+          "description": "Number of identified resource hotspots",
+          "data_type": "int",
+          "unit": "hotspots",
+          "range_description": null,
+          "example_value": 7,
+          "required": true,
+          "tags": ["resources", "hotspots", "count", "spatial"]
+        },
+        "hotspot_density": {
+          "name": "hotspot_density",
+          "description": "Average resource density in hotspots",
+          "data_type": "float",
+          "unit": "resources/area",
+          "range_description": null,
+          "example_value": 2.34,
+          "required": true,
+          "tags": ["resources", "hotspots", "density", "spatial"]
+        },
+        "hotspot_persistence": {
+          "name": "hotspot_persistence",
+          "description": "How long hotspots persist over time",
+          "data_type": "float",
+          "unit": "steps",
+          "range_description": null,
+          "example_value": 45.6,
+          "required": true,
+          "tags": ["resources", "hotspots", "persistence", "temporal"]
+        },
+        "hotspot_locations": {
+          "name": "hotspot_locations",
+          "description": "Coordinates of resource hotspots",
+          "data_type": "list",
+          "unit": null,
+          "range_description": null,
+          "example_value": [
+            {"x": 12.5, "y": 8.3, "density": 3.2},
+            {"x": 45.7, "y": 22.1, "density": 2.8}
+          ],
+          "required": true,
+          "tags": ["resources", "hotspots", "locations", "spatial"]
+        }
+      }
+    },
+    "spatial_distribution": {
+      "description": "Spatial distribution and clustering of agents",
+      "module": "spatial",
+      "metrics": {
+        "clustering_coefficient": {
+          "name": "clustering_coefficient",
+          "description": "Degree of spatial clustering (0-1)",
+          "data_type": "float",
+          "unit": null,
+          "range_description": "0.0 to 1.0",
+          "example_value": 0.67,
+          "required": true,
+          "tags": ["spatial", "clustering", "distribution"]
+        },
+        "spatial_spread": {
+          "name": "spatial_spread",
+          "description": "Spread of agents in space",
+          "data_type": "float",
+          "unit": "distance_units",
+          "range_description": null,
+          "example_value": 23.4,
+          "required": true,
+          "tags": ["spatial", "spread", "distribution", "area"]
+        },
+        "density_metric": {
+          "name": "density_metric",
+          "description": "Agent density in the environment",
+          "data_type": "float",
+          "unit": "agents/area",
+          "range_description": null,
+          "example_value": 0.12,
+          "required": true,
+          "tags": ["spatial", "density", "distribution"]
+        },
+        "spatial_autocorrelation": {
+          "name": "spatial_autocorrelation",
+          "description": "Spatial autocorrelation of agent positions",
+          "data_type": "float",
+          "unit": null,
+          "range_description": "-1.0 to 1.0",
+          "example_value": 0.45,
+          "required": true,
+          "tags": ["spatial", "autocorrelation", "correlation"]
+        }
+      }
+    },
+    "movement_patterns": {
+      "description": "Movement trajectory and pattern analysis",
+      "module": "spatial",
+      "metrics": {
+        "avg_speed": {
+          "name": "avg_speed",
+          "description": "Average movement speed of agents",
+          "data_type": "float",
+          "unit": "distance/step",
+          "range_description": null,
+          "example_value": 1.23,
+          "required": true,
+          "tags": ["spatial", "movement", "speed", "velocity"]
+        },
+        "path_efficiency": {
+          "name": "path_efficiency",
+          "description": "Efficiency of movement paths",
+          "data_type": "float",
+          "unit": null,
+          "range_description": "0.0 to 1.0",
+          "example_value": 0.78,
+          "required": true,
+          "tags": ["spatial", "movement", "efficiency", "paths"]
+        },
+        "direction_entropy": {
+          "name": "direction_entropy",
+          "description": "Entropy of movement directions",
+          "data_type": "float",
+          "unit": null,
+          "range_description": null,
+          "example_value": 2.1,
+          "required": true,
+          "tags": ["spatial", "movement", "direction", "entropy"]
+        },
+        "territory_coverage": {
+          "name": "territory_coverage",
+          "description": "Fraction of space covered by movement",
+          "data_type": "float",
+          "unit": null,
+          "range_description": "0.0 to 1.0",
+          "example_value": 0.34,
+          "required": true,
+          "tags": ["spatial", "movement", "territory", "coverage"]
+        }
+      }
+    },
+    "spatial_clusters": {
+      "description": "Spatial cluster detection and analysis",
+      "module": "spatial",
+      "metrics": {
+        "cluster_count": {
+          "name": "cluster_count",
+          "description": "Number of spatial clusters detected",
+          "data_type": "int",
+          "unit": "clusters",
+          "range_description": null,
+          "example_value": 5,
+          "required": true,
+          "tags": ["spatial", "clusters", "count"]
+        },
+        "cluster_sizes": {
+          "name": "cluster_sizes",
+          "description": "Sizes of detected spatial clusters",
+          "data_type": "list",
+          "unit": "agents",
+          "range_description": null,
+          "example_value": [12, 8, 15, 6, 9],
+          "required": true,
+          "tags": ["spatial", "clusters", "sizes", "distribution"]
+        },
+        "cluster_centers": {
+          "name": "cluster_centers",
+          "description": "Center coordinates of spatial clusters",
+          "data_type": "list",
+          "unit": null,
+          "range_description": null,
+          "example_value": [
+            {"x": 12.3, "y": 45.6},
+            {"x": 78.9, "y": 23.4}
+          ],
+          "required": true,
+          "tags": ["spatial", "clusters", "centers", "coordinates"]
+        },
+        "cluster_density": {
+          "name": "cluster_density",
+          "description": "Average density of spatial clusters",
+          "data_type": "float",
+          "unit": "agents/area",
+          "range_description": null,
+          "example_value": 1.45,
+          "required": true,
+          "tags": ["spatial", "clusters", "density"]
+        }
+      }
+    },
+    "territorial_analysis": {
+      "description": "Territorial behavior and space usage analysis",
+      "module": "spatial",
+      "metrics": {
+        "territory_sizes": {
+          "name": "territory_sizes",
+          "description": "Sizes of agent territories",
+          "data_type": "dict",
+          "unit": "area_units",
+          "range_description": null,
+          "example_value": {
+            "agent_1": 45.6,
+            "agent_2": 32.1,
+            "agent_3": 67.8
+          },
+          "required": true,
+          "tags": ["spatial", "territories", "sizes", "area"]
+        },
+        "territory_overlap": {
+          "name": "territory_overlap",
+          "description": "Overlap between agent territories",
+          "data_type": "float",
+          "unit": null,
+          "range_description": "0.0 to 1.0",
+          "example_value": 0.23,
+          "required": true,
+          "tags": ["spatial", "territories", "overlap", "conflict"]
+        },
+        "territory_stability": {
+          "name": "territory_stability",
+          "description": "Stability of territorial boundaries",
+          "data_type": "float",
+          "unit": null,
+          "range_description": "0.0 to 1.0",
+          "example_value": 0.78,
+          "required": true,
+          "tags": ["spatial", "territories", "stability", "temporal"]
+        },
+        "space_utilization": {
+          "name": "space_utilization",
+          "description": "Efficiency of space utilization",
+          "data_type": "float",
+          "unit": null,
+          "range_description": "0.0 to 1.0",
+          "example_value": 0.67,
+          "required": true,
+          "tags": ["spatial", "territories", "utilization", "efficiency"]
+        }
+      }
+    },
+    "temporal_trends": {
+      "description": "Time series trends and analysis",
+      "module": "temporal",
+      "metrics": {
+        "trend_coefficient": {
+          "name": "trend_coefficient",
+          "description": "Linear trend coefficient (slope)",
+          "data_type": "float",
+          "unit": "change/step",
+          "range_description": null,
+          "example_value": 0.023,
+          "required": true,
+          "tags": ["temporal", "trends", "coefficient", "slope"]
+        },
+        "trend_r_squared": {
+          "name": "trend_r_squared",
+          "description": "Goodness of fit for trend line (0-1)",
+          "data_type": "float",
+          "unit": null,
+          "range_description": "0.0 to 1.0",
+          "example_value": 0.87,
+          "required": true,
+          "tags": ["temporal", "trends", "r_squared", "fit"]
+        },
+        "trend_significance": {
+          "name": "trend_significance",
+          "description": "Statistical significance of trend (p-value)",
+          "data_type": "float",
+          "unit": null,
+          "range_description": "0.0 to 1.0",
+          "example_value": 0.0012,
+          "required": true,
+          "tags": ["temporal", "trends", "significance", "statistics"]
+        },
+        "trend_direction": {
+          "name": "trend_direction",
+          "description": "Direction of temporal trend",
+          "data_type": "str",
+          "unit": null,
+          "range_description": null,
+          "example_value": "increasing",
+          "required": true,
+          "tags": ["temporal", "trends", "direction", "categorical"]
+        }
+      }
+    },
+    "periodicity_analysis": {
+      "description": "Detection of periodic patterns and cycles",
+      "module": "temporal",
+      "metrics": {
+        "dominant_period": {
+          "name": "dominant_period",
+          "description": "Length of dominant periodic cycle",
+          "data_type": "int",
+          "unit": "steps",
+          "range_description": null,
+          "example_value": 24,
+          "required": true,
+          "tags": ["temporal", "periodicity", "cycles", "dominant"]
+        },
+        "period_amplitude": {
+          "name": "period_amplitude",
+          "description": "Amplitude of periodic variation",
+          "data_type": "float",
+          "unit": null,
+          "range_description": null,
+          "example_value": 3.45,
+          "required": true,
+          "tags": ["temporal", "periodicity", "amplitude", "variation"]
+        },
+        "period_phase": {
+          "name": "period_phase",
+          "description": "Phase offset of periodic pattern",
+          "data_type": "float",
+          "unit": "radians",
+          "range_description": "0 to 2π",
+          "example_value": 1.57,
+          "required": true,
+          "tags": ["temporal", "periodicity", "phase", "offset"]
+        },
+        "seasonal_strength": {
+          "name": "seasonal_strength",
+          "description": "Strength of seasonal/periodic component",
+          "data_type": "float",
+          "unit": null,
+          "range_description": "0.0 to 1.0",
+          "example_value": 0.68,
+          "required": true,
+          "tags": ["temporal", "periodicity", "seasonal", "strength"]
+        }
+      }
+    },
+    "autocorrelation_analysis": {
+      "description": "Temporal autocorrelation and persistence analysis",
+      "module": "temporal",
+      "metrics": {
+        "autocorrelation_lag1": {
+          "name": "autocorrelation_lag1",
+          "description": "Autocorrelation at lag 1 (-1 to 1)",
+          "data_type": "float",
+          "unit": null,
+          "range_description": "-1.0 to 1.0",
+          "example_value": 0.72,
+          "required": true,
+          "tags": ["temporal", "autocorrelation", "lag1", "persistence"]
+        },
+        "persistence_time": {
+          "name": "persistence_time",
+          "description": "Characteristic time of temporal persistence",
+          "data_type": "float",
+          "unit": "steps",
+          "range_description": null,
+          "example_value": 12.3,
+          "required": true,
+          "tags": ["temporal", "autocorrelation", "persistence", "time"]
+        },
+        "memory_length": {
+          "name": "memory_length",
+          "description": "Length of temporal memory in the system",
+          "data_type": "int",
+          "unit": "steps",
+          "range_description": null,
+          "example_value": 8,
+          "required": true,
+          "tags": ["temporal", "autocorrelation", "memory", "length"]
+        },
+        "autocorrelation_decay": {
+          "name": "autocorrelation_decay",
+          "description": "Rate of autocorrelation decay",
+          "data_type": "float",
+          "unit": "decay/step",
+          "range_description": null,
+          "example_value": 0.15,
+          "required": true,
+          "tags": ["temporal", "autocorrelation", "decay", "rate"]
+        }
+      }
+    },
+    "change_point_detection": {
+      "description": "Detection of significant changes in time series",
+      "module": "temporal",
+      "metrics": {
+        "change_point_count": {
+          "name": "change_point_count",
+          "description": "Number of detected change points",
+          "data_type": "int",
+          "unit": "changes",
+          "range_description": null,
+          "example_value": 3,
+          "required": true,
+          "tags": ["temporal", "changes", "count", "detection"]
+        },
+        "change_point_locations": {
+          "name": "change_point_locations",
+          "description": "Step numbers where changes were detected",
+          "data_type": "list",
+          "unit": "steps",
+          "range_description": null,
+          "example_value": [150, 320, 480],
+          "required": true,
+          "tags": ["temporal", "changes", "locations", "steps"]
+        },
+        "change_magnitudes": {
+          "name": "change_magnitudes",
+          "description": "Magnitudes of detected changes",
+          "data_type": "list",
+          "unit": null,
+          "range_description": null,
+          "example_value": [2.3, -1.8, 3.1],
+          "required": true,
+          "tags": ["temporal", "changes", "magnitudes", "size"]
+        },
+        "change_directions": {
+          "name": "change_directions",
+          "description": "Directions of detected changes",
+          "data_type": "list",
+          "unit": null,
+          "range_description": null,
+          "example_value": ["increase", "decrease", "increase"],
+          "required": true,
+          "tags": ["temporal", "changes", "directions", "categorical"]
+        }
+      }
+    }
+  },
+  "data_types": {
+    "str": "String value",
+    "int": "Integer number",
+    "float": "Floating point number",
+    "dict": "Dictionary/object with nested data",
+    "list": "Array of values"
+  },
+  "tags": {
+    "frequency": "Related to action frequencies and counts",
+    "probability": "Probabilistic measures and likelihoods",
+    "sequence": "Action sequence and pattern analysis",
+    "reward": "Reward-based metrics and performance",
+    "success": "Success rate and outcome measures",
+    "decision": "Decision-making and choice analysis",
+    "trend": "Temporal trends and changes over time",
+    "temporal": "Time-series related metrics",
+    "diversity": "Behavioral diversity and variety",
+    "variance": "Measures of spread and variability",
+    "aggregate": "Aggregated or summary statistics",
+    "per-action": "Metrics calculated per action type",
+    "dominant": "Most common or highest-ranked items",
+    "categorical": "Categorical or discrete values",
+    "numeric": "Continuous numerical values",
+    "optimal": "Best-performing or optimal values",
+    "behavioral": "Related to agent behavior patterns",
+    "performance": "Performance and effectiveness measures",
+    "average": "Mean or average values",
+    "consistency": "Measures of consistency and stability",
+    "quality": "Quality and reliability measures",
+    "length": "Sequence or pattern length measures",
+    "maximum": "Maximum or peak values",
+    "probabilistic": "Probability distributions and matrices",
+    "patterns": "Pattern recognition and analysis",
+    "rates": "Rate-based metrics and ratios",
+    "statistics": "Statistical measures and distributions",
+    "actions": "Metrics from the Actions analysis module",
+    "agents": "Metrics from the Agents analysis module",
+    "learning": "Metrics from the Learning analysis module",
+    "population": "Metrics from the Population analysis module",
+    "combat": "Metrics from the Combat analysis module",
+    "resources": "Metrics from the Resources analysis module",
+    "spatial": "Metrics from the Spatial analysis module",
+    "temporal": "Metrics from the Temporal analysis module",
+    "lifespan": "Agent lifespan and survival metrics",
+    "survival": "Survival and mortality analysis",
+    "clustering": "Clustering and grouping analysis",
+    "phenotypes": "Behavioral phenotypes and characteristics",
+    "centroids": "Cluster center and representative values",
+    "validation": "Quality and validation measures",
+    "ranking": "Ranking and ordering metrics",
+    "percentile": "Percentile and distribution position",
+    "threshold": "Threshold and boundary values",
+    "elite": "Elite and top-performing entities",
+    "trajectory": "Learning and behavioral trajectories",
+    "improvement": "Improvement and progress metrics",
+    "convergence": "Convergence and stabilization metrics",
+    "plateau": "Plateau and stable performance levels",
+    "final": "Final and end-state values",
+    "modules": "Learning module comparisons and analysis",
+    "comparison": "Comparative analysis metrics",
+    "efficiency": "Efficiency and resource utilization",
+    "size": "Size and scale metrics",
+    "growth": "Growth and expansion metrics",
+    "net": "Net change and difference metrics",
+    "composition": "Composition and constituent analysis",
+    "types": "Entity type analysis and categorization",
+    "counts": "Counting and frequency metrics",
+    "proportions": "Proportional and ratio analysis",
+    "entropy": "Entropy and information-theoretic measures",
+    "births": "Birth and creation event analysis",
+    "deaths": "Death and elimination event analysis",
+    "kills": "Combat kill and elimination metrics",
+    "damage": "Damage and harm metrics",
+    "offensive": "Offensive and attacking capabilities",
+    "ratio": "Ratio and quotient calculations",
+    "matchups": "Combat matchup and pairing analysis",
+    "advantage": "Advantage and superiority metrics",
+    "fairness": "Fairness and balance measures",
+    "strategies": "Strategy and tactical analysis",
+    "adaptability": "Adaptability and flexibility metrics",
+    "flexibility": "Flexibility and responsiveness",
+    "availability": "Availability and accessibility",
+    "consumption": "Consumption and usage metrics",
+    "waste": "Waste and inefficiency metrics",
+    "inefficiency": "Inefficiency and suboptimal performance",
+    "theoretical": "Theoretical and ideal values",
+    "hotspots": "Hotspot and concentration analysis",
+    "persistence": "Persistence and duration metrics",
+    "locations": "Location and position analysis",
+    "spread": "Spread and distribution extent",
+    "area": "Area and spatial extent",
+    "autocorrelation": "Autocorrelation and correlation analysis",
+    "correlation": "Correlation and relationship measures",
+    "movement": "Movement and mobility analysis",
+    "speed": "Speed and velocity metrics",
+    "velocity": "Velocity and rate of movement",
+    "paths": "Path and trajectory analysis",
+    "direction": "Direction and orientation metrics",
+    "territories": "Territorial and domain analysis",
+    "conflict": "Conflict and competition metrics",
+    "utilization": "Utilization and usage efficiency",
+    "coefficient": "Coefficient and parameter values",
+    "slope": "Slope and rate of change",
+    "r_squared": "R-squared and goodness-of-fit measures",
+    "fit": "Model fit and accuracy measures",
+    "significance": "Statistical significance measures",
+    "cycles": "Cycle and periodic pattern analysis",
+    "amplitude": "Amplitude and magnitude of variation",
+    "phase": "Phase and timing offset analysis",
+    "offset": "Offset and shift measurements",
+    "seasonal": "Seasonal and periodic components",
+    "strength": "Strength and intensity measures",
+    "lag1": "First-order lag analysis",
+    "memory": "Memory and retention characteristics",
+    "decay": "Decay and attenuation rates",
+    "changes": "Change and transition analysis",
+    "detection": "Detection and identification metrics",
+    "magnitudes": "Magnitude and scale measurements",
+    "directions": "Direction and orientation analysis"
+  },
+  "validation_rules": {
+    "required_fields": ["name", "description", "data_type", "required", "tags"],
+    "data_type_constraints": {
+      "float": {"range": null, "allow_null": true},
+      "int": {"range": null, "allow_null": true},
+      "str": {"allow_null": false},
+      "dict": {"allow_null": true},
+      "list": {"allow_null": true}
+    }
+  }
+}
