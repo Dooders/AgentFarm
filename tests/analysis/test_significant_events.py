@@ -100,11 +100,12 @@ def mock_db_with_events(request):
     # IMPORTANT: call_order tracks the sequence of database query calls made during a single
     # detect_significant_events invocation. Some tests rely on the fact that multiple
     # execute_with_retry calls within one analysis share the same call_order list, allowing
-    # us to verify the order and number of queries. Clearing call_order would break this
+    # us to verify the order and number of queries. Each test gets its own call_order instance,
+    # so parallel test execution is safe. Clearing call_order during a test would break this
     # verification and make the test results unreliable.
     call_order = []
 
-    # Reset the call order at the end of each test
+    # Reset the call order at the end of each test for proper test isolation
     def reset_order():
         call_order.clear()
 
@@ -283,6 +284,40 @@ class TestSignificantEventsComputations:
             assert "population_after" in event["details"]
             assert "change_rate" in event["details"]
             assert 0 <= event["impact_scale"] <= 1.0
+
+    def test_detect_population_extinction(self):
+        """Test that complete population extinction is detected."""
+        # Create a mock session with extinction data
+        mock_session = MagicMock()
+
+        # Mock population data: starts at 10, then goes to 0 (extinction)
+        mock_query = MagicMock()
+        mock_query.filter.return_value.filter.return_value.order_by.return_value.all.return_value = [
+            (100, 10, 2, 1),  # initial population
+            (200, 0, 0, 5),  # extinction event
+        ]
+        mock_session.query.return_value = mock_query
+
+        mock_db = MagicMock()
+
+        def mock_execute(func):
+            return func(mock_session)
+
+        mock_db.execute_with_retry = mock_execute
+
+        events = detect_significant_events(mock_db, start_step=0, end_step=300)
+
+        extinction_events = [e for e in events if e.get("details", {}).get("extinction")]
+        assert len(extinction_events) == 1
+
+        extinction = extinction_events[0]
+        assert extinction["type"] == "population_crash"
+        assert extinction["step"] == 200
+        assert extinction["impact_scale"] == 1.0  # Maximum impact for extinction
+        assert extinction["details"]["population_before"] == 10
+        assert extinction["details"]["population_after"] == 0
+        assert extinction["details"]["change_rate"] == 1.0
+        assert extinction["details"]["extinction"] is True
 
     def test_detect_health_critical(self, mock_db_with_events):
         """Test that critical health incidents are detected."""

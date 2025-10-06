@@ -43,7 +43,7 @@ def detect_significant_events(
     Returns:
         List of detected significant events with fields:
         - type: Event type (agent_death, agent_birth, resource_depletion, population_crash,
-                health_critical, mass_combat, resource_boom)
+                population_boom, health_critical, mass_combat)
         - step: Simulation step when event occurred
         - impact_scale: Quantified impact (0.0-1.0)
         - details: Additional event-specific information
@@ -195,12 +195,29 @@ def _detect_population_changes(query_func, start_step: int, end_step: Optional[i
         prev_population = None
 
         for step_number, total_agents, births, deaths in results:
-            if prev_population is not None and total_agents > 0:
+            if prev_population is not None and prev_population > 0:
                 # Calculate population change rate
                 change_rate = abs(total_agents - prev_population) / prev_population
 
+                # Detect complete extinction (population goes to 0)
+                if total_agents == 0:
+                    events.append(
+                        {
+                            "type": "population_crash",
+                            "step": step_number,
+                            "impact_scale": 1.0,  # Maximum impact for extinction
+                            "details": {
+                                "population_before": prev_population,
+                                "population_after": 0,
+                                "change_rate": 1.0,  # 100% decrease
+                                "deaths": deaths,
+                                "extinction": True,
+                            },
+                        }
+                    )
+
                 # Detect crashes (>30% decrease)
-                if total_agents < prev_population and change_rate > POPULATION_CRASH_THRESHOLD:
+                elif total_agents < prev_population and change_rate > POPULATION_CRASH_THRESHOLD:
                     impact_scale = min(1.0, change_rate)
                     events.append(
                         {
