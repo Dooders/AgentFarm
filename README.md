@@ -180,6 +180,7 @@ python run_tests.py
 
 For detailed documentation and advanced usage:
 - [Agent Loop Design](docs/design/agent_loop.md)
+- [Agent Design](docs/design/Agent.md)
 - [User Guide](docs/user-guide.md)
 - [Developer Guide](docs/developer-guide.md)
 - [Deployment](docs/deployment.md)
