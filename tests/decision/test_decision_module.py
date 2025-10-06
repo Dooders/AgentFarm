@@ -23,6 +23,9 @@ from farm.core.decision.decision import TIANSHOU_AVAILABLE, DecisionModule
 
 class TestDecisionModule(unittest.TestCase):
     """Test cases for DecisionModule class."""
+    
+    # Algorithm types used across multiple test methods
+    ALGORITHM_TYPES = ['ppo', 'sac', 'dqn', 'a2c', 'ddpg']
 
     def setUp(self):
         """Set up test fixtures."""
@@ -235,6 +238,297 @@ class TestDecisionModule(unittest.TestCase):
             if hasattr(module.algorithm, "train"):
                 mock_train.assert_called_once()
             self.assertTrue(module._is_trained)
+
+    def test_update_logs_learning_experience(self):
+        """Test that update logs learning experience to database."""
+        # Set up mock agent with full database chain
+        mock_db = Mock()
+        mock_logger = Mock()
+        mock_db.logger = mock_logger
+        
+        mock_env = Mock()
+        mock_env.db = mock_db
+        
+        mock_time_service = Mock()
+        mock_time_service.current_time.return_value = 42
+        
+        mock_action = Mock()
+        mock_action.name = "move"
+        
+        self.mock_agent.environment = mock_env
+        self.mock_agent.time_service = mock_time_service
+        self.mock_agent.actions = [mock_action, Mock(), Mock()]
+        
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.observation_space,
+            self.config,
+        )
+        
+        state = torch.randn(8)
+        action = 0
+        reward = 1.5
+        next_state = torch.randn(8)
+        done = False
+        
+        # Call update
+        module.update(state, action, reward, next_state, done)
+        
+        # Verify log_learning_experience was called with correct parameters
+        mock_logger.log_learning_experience.assert_called_once()
+        call_args = mock_logger.log_learning_experience.call_args
+        
+        self.assertEqual(call_args.kwargs['step_number'], 42)
+        self.assertEqual(call_args.kwargs['agent_id'], 'test_agent_1')
+        self.assertEqual(call_args.kwargs['module_type'], self.config.algorithm_type)
+        self.assertEqual(call_args.kwargs['action_taken'], 0)
+        self.assertEqual(call_args.kwargs['action_taken_mapped'], 'move')
+        self.assertEqual(call_args.kwargs['reward'], 1.5)
+        self.assertIsInstance(call_args.kwargs['module_id'], int)
+
+    def test_update_without_database_does_not_crash(self):
+        """Test that update works when database is not available."""
+        # Agent without database connection
+        self.mock_agent.environment = None
+        
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.observation_space,
+            self.config,
+        )
+        
+        state = torch.randn(8)
+        action = 1
+        reward = 1.0
+        next_state = torch.randn(8)
+        done = False
+        
+        # Should not raise exception
+        module.update(state, action, reward, next_state, done)
+
+    def test_update_without_time_service_skips_logging(self):
+        """Test that update skips logging when time service is unavailable."""
+        # Set up agent with database but no time service
+        mock_db = Mock()
+        mock_logger = Mock()
+        mock_db.logger = mock_logger
+        
+        mock_env = Mock()
+        mock_env.db = mock_db
+        
+        self.mock_agent.environment = mock_env
+        self.mock_agent.time_service = None
+        
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.observation_space,
+            self.config,
+        )
+        
+        state = torch.randn(8)
+        action = 1
+        reward = 1.0
+        next_state = torch.randn(8)
+        done = False
+        
+        # Call update
+        module.update(state, action, reward, next_state, done)
+        
+        # Should not call log_learning_experience when time service is missing
+        mock_logger.log_learning_experience.assert_not_called()
+
+    def test_update_without_actions_skips_logging(self):
+        """Test that update skips logging when actions list is unavailable."""
+        # Set up agent with database and time service but no actions
+        mock_db = Mock()
+        mock_logger = Mock()
+        mock_db.logger = mock_logger
+        
+        mock_env = Mock()
+        mock_env.db = mock_db
+        
+        mock_time_service = Mock()
+        mock_time_service.current_time.return_value = 42
+        
+        self.mock_agent.environment = mock_env
+        self.mock_agent.time_service = mock_time_service
+        self.mock_agent.actions = []  # Empty actions list
+        
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.observation_space,
+            self.config,
+        )
+        
+        state = torch.randn(8)
+        action = 0
+        reward = 1.0
+        next_state = torch.randn(8)
+        done = False
+        
+        # Call update
+        module.update(state, action, reward, next_state, done)
+        
+        # Should not call log_learning_experience when actions are missing
+        mock_logger.log_learning_experience.assert_not_called()
+
+    def test_update_logging_exception_does_not_crash(self):
+        """Test that logging exceptions are handled gracefully."""
+        # Set up mock agent with database that raises exception
+        mock_db = Mock()
+        mock_logger = Mock()
+        mock_logger.log_learning_experience.side_effect = Exception("Database error")
+        mock_db.logger = mock_logger
+        
+        mock_env = Mock()
+        mock_env.db = mock_db
+        
+        mock_time_service = Mock()
+        mock_time_service.current_time.return_value = 42
+        
+        mock_action = Mock()
+        mock_action.name = "move"
+        
+        self.mock_agent.environment = mock_env
+        self.mock_agent.time_service = mock_time_service
+        self.mock_agent.actions = [mock_action]
+        
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.observation_space,
+            self.config,
+        )
+        
+        state = torch.randn(8)
+        action = 0
+        reward = 1.0
+        next_state = torch.randn(8)
+        done = False
+        
+        # Should not raise exception even when logging fails
+        module.update(state, action, reward, next_state, done)
+
+    def test_update_logs_correct_algorithm_type(self):
+        """Test that different algorithm types are logged correctly."""
+        for algo_type in self.ALGORITHM_TYPES:
+            with self.subTest(algorithm_type=algo_type):
+                # Set up mock agent with database
+                mock_db = Mock()
+                mock_logger = Mock()
+                mock_db.logger = mock_logger
+                
+                mock_env = Mock()
+                mock_env.db = mock_db
+                
+                mock_time_service = Mock()
+                mock_time_service.current_time.return_value = 10
+                
+                mock_action = Mock()
+                mock_action.name = "gather"
+                
+                self.mock_agent.environment = mock_env
+                self.mock_agent.time_service = mock_time_service
+                self.mock_agent.actions = [mock_action]
+                
+                config = DecisionConfig(algorithm_type=algo_type)
+                module = DecisionModule(
+                    self.mock_agent,
+                    self.mock_env.action_space,
+                    self.observation_space,
+                    config,
+                )
+                
+                state = torch.randn(8)
+                module.update(state, 0, 1.0, torch.randn(8), False)
+                
+                # Verify correct algorithm type was logged
+                call_args = mock_logger.log_learning_experience.call_args
+                self.assertEqual(call_args.kwargs['module_type'], algo_type)
+
+    def test_update_logs_different_rewards(self):
+        """Test that different reward values are logged correctly."""
+        rewards = [-10.0, -1.5, 0.0, 1.5, 10.0, 100.5]
+        
+        for reward_value in rewards:
+            with self.subTest(reward=reward_value):
+                # Set up mock agent with database
+                mock_db = Mock()
+                mock_logger = Mock()
+                mock_db.logger = mock_logger
+                
+                mock_env = Mock()
+                mock_env.db = mock_db
+                
+                mock_time_service = Mock()
+                mock_time_service.current_time.return_value = 5
+                
+                mock_action = Mock()
+                mock_action.name = "attack"
+                
+                self.mock_agent.environment = mock_env
+                self.mock_agent.time_service = mock_time_service
+                self.mock_agent.actions = [mock_action]
+                
+                module = DecisionModule(
+                    self.mock_agent,
+                    self.mock_env.action_space,
+                    self.observation_space,
+                    self.config,
+                )
+                
+                state = torch.randn(8)
+                module.update(state, 0, reward_value, torch.randn(8), False)
+                
+                # Verify correct reward was logged
+                call_args = mock_logger.log_learning_experience.call_args
+                self.assertEqual(call_args.kwargs['reward'], reward_value)
+
+    def test_update_with_curriculum_logs_correct_action(self):
+        """Test that logging uses full action space index with curriculum."""
+        # Set up mock agent with database
+        mock_db = Mock()
+        mock_logger = Mock()
+        mock_db.logger = mock_logger
+        
+        mock_env = Mock()
+        mock_env.db = mock_db
+        
+        mock_time_service = Mock()
+        mock_time_service.current_time.return_value = 15
+        
+        # Create multiple actions
+        mock_actions = [Mock() for _ in range(5)]
+        for i, action in enumerate(mock_actions):
+            action.name = f"action_{i}"
+        
+        self.mock_agent.environment = mock_env
+        self.mock_agent.time_service = mock_time_service
+        self.mock_agent.actions = mock_actions
+        
+        module = DecisionModule(
+            self.mock_agent,
+            self.mock_env.action_space,
+            self.observation_space,
+            self.config,
+        )
+        
+        state = torch.randn(8)
+        
+        # Simulate curriculum: only actions 0, 2, 4 enabled (indices in full space)
+        enabled_actions = [0, 2, 4]
+        
+        # Agent selects action at index 1 within enabled_actions (which is action 2 in full space)
+        module.update(state, 1, 1.0, torch.randn(8), False, enabled_actions=enabled_actions)
+        
+        # Verify the logged action is 2 (full action space index)
+        call_args = mock_logger.log_learning_experience.call_args
+        self.assertEqual(call_args.kwargs['action_taken'], 2)
+        self.assertEqual(call_args.kwargs['action_taken_mapped'], 'action_2')
 
     def test_update_exception_handling(self):
         """Test update method exception handling."""

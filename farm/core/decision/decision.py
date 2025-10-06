@@ -140,9 +140,7 @@ class DecisionModule:
         # Initialize the decision algorithm
         self._initialize_algorithm()
 
-        logger.info(
-            f"Initialized DecisionModule for agent {self.agent_id} with {config.algorithm_type}"
-        )
+        logger.info(f"Initialized DecisionModule for agent {self.agent_id} with {config.algorithm_type}")
 
     def _initialize_algorithm(self):
         """Initialize the decision algorithm based on configuration."""
@@ -391,6 +389,8 @@ class DecisionModule:
             def __init__(self, num_actions, epsilon=0.1):
                 self.num_actions = num_actions
                 self.epsilon = epsilon
+                # Store experiences for testing purposes
+                self.experiences = []
 
             def predict(self, observation, deterministic=False):
                 if np.random.random() < self.epsilon:
@@ -414,9 +414,7 @@ class DecisionModule:
             def predict_proba(self, observation):
                 """Return uniform probabilities for fallback algorithm."""
                 # Return uniform distribution over all actions
-                return np.full(
-                    (1, self.num_actions), 1.0 / self.num_actions, dtype=np.float32
-                )
+                return np.full((1, self.num_actions), 1.0 / self.num_actions, dtype=np.float32)
 
             def learn(self, total_timesteps=1):
                 pass  # No learning in fallback
@@ -429,9 +427,10 @@ class DecisionModule:
                 """Should train method for compatibility with Tianshou-style algorithms."""
                 return True  # Always train in fallback to mark as trained
 
-            def store_experience(self, state, action, reward, next_state, done):
+            def store_experience(self, **kwargs):
                 """Store experience method for compatibility with Tianshou-style algorithms."""
-                # No experience storage in fallback
+                # Store experiences for testing - this enables database logging tests
+                self.experiences.append(kwargs)
 
         self.algorithm = FallbackAlgorithm(self.num_actions, self.config.epsilon_start)
 
@@ -478,9 +477,7 @@ class DecisionModule:
             action_mask = self._create_action_mask(enabled_actions)
 
             # Get action from algorithm with masking support
-            if self.algorithm is not None and hasattr(
-                self.algorithm, "select_action_with_mask"
-            ):
+            if self.algorithm is not None and hasattr(self.algorithm, "select_action_with_mask"):
                 # Use action masking support if available
                 # Returned action is in FULL action space; convert to relative index if enabled_actions provided
                 action_full = self.algorithm.select_action_with_mask(state_np, action_mask)
@@ -507,9 +504,7 @@ class DecisionModule:
                         return int(np.random.randint(len(enabled_actions)))
                 # No enabled_actions restriction: return full-space index
                 action = action_full
-            elif self.algorithm is not None and hasattr(
-                self.algorithm, "select_action"
-            ):
+            elif self.algorithm is not None and hasattr(self.algorithm, "select_action"):
                 # Fallback: get action and filter manually
                 logger.debug(
                     f"Algorithm {type(self.algorithm).__name__} does not implement select_action_with_mask; using manual action filtering."
@@ -518,9 +513,7 @@ class DecisionModule:
                 action = self._filter_action_with_mask(action, enabled_actions)
             else:
                 # Fallback algorithm - respect enabled actions
-                action = self._filter_action_with_mask(
-                    np.random.randint(self.num_actions), enabled_actions
-                )
+                action = self._filter_action_with_mask(np.random.randint(self.num_actions), enabled_actions)
 
             # Ensure action is within valid range after masking
             action = int(action)
@@ -534,9 +527,7 @@ class DecisionModule:
             else:
                 # Full action space - ensure valid range
                 if action < 0 or action >= self.num_actions:
-                    logger.warning(
-                        f"Invalid action {action} for agent {self.agent_id}, using random"
-                    )
+                    logger.warning(f"Invalid action {action} for agent {self.agent_id}, using random")
                     return np.random.randint(self.num_actions)
                 return action
 
@@ -548,9 +539,7 @@ class DecisionModule:
             else:
                 return np.random.randint(self.num_actions)
 
-    def _create_action_mask(
-        self, enabled_actions: Optional[List[int]] = None
-    ) -> np.ndarray:
+    def _create_action_mask(self, enabled_actions: Optional[List[int]] = None) -> np.ndarray:
         """Create a boolean mask for valid actions based on curriculum restrictions.
 
         Args:
@@ -568,9 +557,7 @@ class DecisionModule:
         mask[enabled_actions] = True
         return mask
 
-    def _filter_action_with_mask(
-        self, action: int, enabled_actions: Optional[List[int]] = None
-    ) -> int:
+    def _filter_action_with_mask(self, action: int, enabled_actions: Optional[List[int]] = None) -> int:
         """Filter an action through curriculum restrictions.
 
         Args:
@@ -597,18 +584,23 @@ class DecisionModule:
             selected_action = np.random.choice(enabled_actions)
             return enabled_actions.index(selected_action)
 
-    def _convert_to_full_action_space(
-        self, action_index: int, enabled_actions: Optional[List[int]] = None
-    ) -> int:
+    def _convert_to_full_action_space(self, action_index, enabled_actions: Optional[List[int]] = None) -> int:
         """Convert an action index from enabled_actions space back to full action space.
 
         Args:
-            action_index: Action index within enabled_actions list
+            action_index: Action index within enabled_actions list, or Action object
             enabled_actions: Optional list of enabled action indices
 
         Returns:
             int: Action index in full action space
         """
+        # Handle Action objects by converting to index first
+        if hasattr(action_index, "name"):
+            # This is an Action object, convert to full action space index and return directly
+            from farm.core.action import action_name_to_index
+
+            return action_name_to_index(action_index.name)
+
         if enabled_actions is None or len(enabled_actions) == 0:
             # No curriculum restrictions, action_index is already in full space
             return action_index
@@ -623,6 +615,16 @@ class DecisionModule:
 
         # Convert to full action space
         return enabled_actions[action_index]
+
+    def _has_database_logger(self) -> bool:
+        """Check if the agent has a database logger available."""
+        return (
+            hasattr(self.agent, "environment")
+            and self.agent.environment
+            and hasattr(self.agent.environment, "db")
+            and self.agent.environment.db
+            and hasattr(self.agent.environment.db, "logger")
+        )
 
     def update(
         self,
@@ -645,9 +647,7 @@ class DecisionModule:
         """
         try:
             # Convert action index back to full action space if curriculum is active
-            full_action_index = self._convert_to_full_action_space(
-                action, enabled_actions
-            )
+            full_action_index = self._convert_to_full_action_space(action, enabled_actions)
 
             # For Tianshou algorithms, store experience and train
             if (
@@ -664,11 +664,38 @@ class DecisionModule:
                     done=done,
                 )
 
+                # Log learning experience to database if available
+                if self._has_database_logger():
+                    try:
+                        step_number = None
+                        if hasattr(self.agent, "time_service") and self.agent.time_service:
+                            step_number = self.agent.time_service.current_time()
+
+                        action_taken_mapped = None
+                        # check if full_action_index is not None and if it is, check if it is less than the length of the actions list
+                        if (
+                            hasattr(self.agent, "actions")
+                            and full_action_index is not None
+                            and isinstance(full_action_index, int)
+                            and full_action_index < len(self.agent.actions)
+                        ):
+                            action_taken_mapped = self.agent.actions[full_action_index].name
+
+                        if step_number is not None and action_taken_mapped is not None:
+                            self.agent.environment.db.logger.log_learning_experience(
+                                step_number=step_number,
+                                agent_id=self.agent_id,
+                                module_type=self.config.algorithm_type,
+                                module_id=id(self.algorithm),
+                                action_taken=full_action_index,
+                                action_taken_mapped=action_taken_mapped,
+                                reward=reward,
+                            )
+                    except Exception as e:
+                        logger.warning(f"Failed to log learning experience for agent {self.agent_id}: {e}")
+
                 # Train if it's time to train
-                if (
-                    hasattr(self.algorithm, "should_train")
-                    and self.algorithm.should_train()
-                ):
+                if hasattr(self.algorithm, "should_train") and self.algorithm.should_train():
                     self.algorithm.train(batch=None)
                     self._is_trained = True
 
@@ -688,9 +715,7 @@ class DecisionModule:
                 self._is_trained = True
 
         except Exception as e:
-            logger.error(
-                f"Error updating DecisionModule for agent {self.agent_id}: {e}"
-            )
+            logger.error(f"Error updating DecisionModule for agent {self.agent_id}: {e}")
 
     def get_action_probabilities(self, state: torch.Tensor) -> np.ndarray:
         """Get action probabilities for the given state.
@@ -719,11 +744,7 @@ class DecisionModule:
                 # Get probabilities from Tianshou algorithm
                 probs = self.algorithm.predict_proba(state_np)
                 # Handle 2D output (batch_size, num_actions) - take first sample
-                if (
-                    isinstance(probs, np.ndarray)
-                    and probs.ndim == 2
-                    and probs.shape[0] == 1
-                ):
+                if isinstance(probs, np.ndarray) and probs.ndim == 2 and probs.shape[0] == 1:
                     probs = probs[0]
                 return np.array(probs, dtype=np.float32)
 
@@ -746,14 +767,10 @@ class DecisionModule:
 
             else:
                 # Fallback: uniform probabilities
-                return np.full(
-                    self.num_actions, 1.0 / self.num_actions, dtype=np.float32
-                )
+                return np.full(self.num_actions, 1.0 / self.num_actions, dtype=np.float32)
 
         except Exception as e:
-            logger.error(
-                f"Error getting action probabilities for agent {self.agent_id}: {e}"
-            )
+            logger.error(f"Error getting action probabilities for agent {self.agent_id}: {e}")
             return np.full(self.num_actions, 1.0 / self.num_actions, dtype=np.float32)
 
     def save_model(self, path: str):
@@ -806,9 +823,7 @@ class DecisionModule:
                         f,
                     )
 
-            logger.info(
-                f"Saved DecisionModule model for agent {self.agent_id} to {path}"
-            )
+            logger.info(f"Saved DecisionModule model for agent {self.agent_id} to {path}")
 
         except Exception as e:
             logger.error(f"Error saving model for agent {self.agent_id}: {e}")
@@ -834,9 +849,7 @@ class DecisionModule:
                     if "model_state" in data and self.algorithm is not None:
                         if hasattr(self.algorithm, "load_model_state"):
                             self.algorithm.load_model_state(data["model_state"])
-                            logger.info(
-                                f"Loaded Tianshou model state for agent {self.agent_id}"
-                            )
+                            logger.info(f"Loaded Tianshou model state for agent {self.agent_id}")
 
             elif (
                 self.algorithm is not None
@@ -849,17 +862,13 @@ class DecisionModule:
                     if hasattr(self.algorithm, "load"):
                         self.algorithm.load(path)
                 except Exception as load_error:
-                    logger.error(
-                        f"Failed to load SB3 model for agent {self.agent_id}: {load_error}"
-                    )
+                    logger.error(f"Failed to load SB3 model for agent {self.agent_id}: {load_error}")
                     return
             else:
                 # For fallback algorithm without saved state
                 self._is_trained = False
 
-            logger.info(
-                f"Loaded DecisionModule model for agent {self.agent_id} from {path}"
-            )
+            logger.info(f"Loaded DecisionModule model for agent {self.agent_id} from {path}")
 
         except Exception as e:
             logger.error(f"Error loading model for agent {self.agent_id}: {e}")

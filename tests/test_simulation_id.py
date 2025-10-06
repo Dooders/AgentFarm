@@ -109,7 +109,7 @@ class TestSimulationID(unittest.TestCase):
         self.assertEqual(self.environment.simulation_id, simulation_id)
 
         # Check the database for the simulation_id in various tables
-        db_file = os.path.join(self.db_path, "simulation.db")
+        db_file = os.path.join(self.db_path, f"simulation_{simulation_id}.db")
         self.assertTrue(
             os.path.exists(db_file), f"Database file {db_file} does not exist"
         )
@@ -182,7 +182,7 @@ class TestSimulationID(unittest.TestCase):
         self.assertTrue(environment.simulation_id.startswith("sim_"))
 
         # The simulation_id should be propagated to the database
-        db_file = os.path.join(self.db_path, "simulation.db")
+        db_file = os.path.join(self.db_path, f"simulation_{environment.simulation_id}.db")
         conn = sqlite3.connect(db_file)
         cursor = conn.cursor()
 
