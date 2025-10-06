@@ -184,7 +184,7 @@ class ExperimentRunner:
                     try:
                         # Run chart analysis if analyzer is provided
                         if self.chart_analyzer is not None:
-                            self.chart_analyzer.analyze_all_charts(iteration_path)
+                            self.chart_analyzer.analyze_all_charts(str(iteration_path), analysis_db)
 
                         # Run significant events analysis
                         from farm.analysis.service import AnalysisService, AnalysisRequest

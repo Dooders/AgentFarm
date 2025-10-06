@@ -4,7 +4,6 @@ This module defines protocols and abstract base classes that allow different
 components to communicate without tight coupling.
 """
 
-from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Protocol, Tuple
 
 
@@ -53,11 +52,7 @@ class MetricsTrackerProtocol(Protocol):
         ...
 
     def calculate_metrics(
-        self,
-        agent_objects: Dict[str, AgentProtocol],
-        resources: Any,
-        time: int,
-        config: Optional[Any] = None
+        self, agent_objects: Dict[str, AgentProtocol], resources: Any, time: int, config: Optional[Any] = None
     ) -> Dict[str, Any]:
         """Calculate metrics for the current simulation state."""
         ...
@@ -93,13 +88,7 @@ class EnvironmentProtocol(Protocol):
 class DatabaseProtocol(Protocol):
     """Protocol for database operations."""
 
-    def log_step(
-        self,
-        step_number: int,
-        agent_states: Any,
-        resource_states: Any,
-        metrics: Dict[str, Any]
-    ) -> None:
+    def log_step(self, step_number: int, agent_states: Any, resource_states: Any, metrics: Dict[str, Any]) -> None:
         """Log a simulation step to the database."""
         ...
 
@@ -108,11 +97,8 @@ class DatabaseFactoryProtocol(Protocol):
     """Protocol for database factory operations."""
 
     def setup_db(
-        self,
-        db_path: Optional[str],
-        simulation_id: str,
-        config: Optional[Dict[str, Any]] = None
-    ) -> Any:
+        self, db_path: Optional[str], simulation_id: str, config: Optional[Dict[str, Any]] = None
+    ) -> "DatabaseProtocol":
         """Setup and initialize a database instance."""
         ...
 
@@ -120,6 +106,6 @@ class DatabaseFactoryProtocol(Protocol):
 class ChartAnalyzerProtocol(Protocol):
     """Protocol for chart analysis functionality."""
 
-    def analyze_all_charts(self, output_dir: Optional[str] = None) -> Dict[str, Any]:
+    def analyze_all_charts(self, output_dir: Optional[str] = None, database: Optional[Any] = None) -> Dict[str, Any]:
         """Analyze all charts and return results."""
         ...
