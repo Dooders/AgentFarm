@@ -11,7 +11,7 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import numpy as np
 import torch
@@ -293,7 +293,8 @@ class TestLearningExperienceLoggingIntegration(unittest.TestCase):
         # Agent selects action index 1 within enabled_actions (which is action 2 in full space)
         self.mock_time_service.current_time.return_value = 0
         state = torch.randn(8)
-        module.update(state, 1, 1.0, torch.randn(8), False, enabled_actions=enabled_actions)
+        test_reward = 1.0
+        module.update(state, 1, test_reward, torch.randn(8), False, enabled_actions=enabled_actions)
         
         # Flush buffers
         self.logger.flush_all_buffers()
@@ -411,9 +412,9 @@ class TestLearningExperienceLoggingPerformance(unittest.TestCase):
         
         self.assertEqual(count, 1000)
         
-        # Performance assertion - should be fast (< 5 seconds for 1000 logs)
-        self.assertLess(elapsed, 5.0, 
-                       f"Logging 1000 experiences took {elapsed:.2f}s, expected < 5s")
+        # Performance assertion - should be fast (< 3 seconds for 1000 logs)
+        self.assertLess(elapsed, 3.0, 
+                       f"Logging 1000 experiences took {elapsed:.2f}s, expected < 3s")
 
 
 if __name__ == "__main__":

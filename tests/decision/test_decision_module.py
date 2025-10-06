@@ -23,6 +23,9 @@ from farm.core.decision.decision import TIANSHOU_AVAILABLE, DecisionModule
 
 class TestDecisionModule(unittest.TestCase):
     """Test cases for DecisionModule class."""
+    
+    # Algorithm types used across multiple test methods
+    ALGORITHM_TYPES = ['ppo', 'sac', 'dqn', 'a2c', 'ddpg']
 
     def setUp(self):
         """Set up test fixtures."""
@@ -412,9 +415,7 @@ class TestDecisionModule(unittest.TestCase):
 
     def test_update_logs_correct_algorithm_type(self):
         """Test that different algorithm types are logged correctly."""
-        algorithm_types = ['ppo', 'sac', 'dqn', 'a2c', 'ddpg']
-        
-        for algo_type in algorithm_types:
+        for algo_type in self.ALGORITHM_TYPES:
             with self.subTest(algorithm_type=algo_type):
                 # Set up mock agent with database
                 mock_db = Mock()

@@ -624,6 +624,16 @@ class DecisionModule:
         # Convert to full action space
         return enabled_actions[action_index]
 
+    def _has_database_logger(self) -> bool:
+        """Check if the agent has a database logger available."""
+        return (
+            hasattr(self.agent, 'environment') 
+            and self.agent.environment 
+            and hasattr(self.agent.environment, 'db') 
+            and self.agent.environment.db
+            and hasattr(self.agent.environment.db, 'logger')
+        )
+
     def update(
         self,
         state: torch.Tensor,
@@ -665,13 +675,7 @@ class DecisionModule:
                 )
 
                 # Log learning experience to database if available
-                if (
-                    hasattr(self.agent, 'environment') 
-                    and self.agent.environment 
-                    and hasattr(self.agent.environment, 'db') 
-                    and self.agent.environment.db
-                    and hasattr(self.agent.environment.db, 'logger')
-                ):
+                if self._has_database_logger():
                     try:
                         step_number = None
                         if hasattr(self.agent, 'time_service') and self.agent.time_service:
