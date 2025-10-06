@@ -146,11 +146,7 @@ class BaseAgent:
             memory_config: Configuration dictionary for memory system
         """
         # Add default actions (already normalized by default)
-        self.actions = (
-            action_set
-            if action_set is not None
-            else action_registry.get_all(normalized=True)
-        )
+        self.actions = action_set if action_set is not None else action_registry.get_all(normalized=True)
 
         self.agent_id = agent_id
         self.position = position
@@ -206,9 +202,7 @@ class BaseAgent:
             try:
                 self.metrics_service.record_birth()
             except Exception as e:
-                logger.warning(
-                    f"Failed to record birth metrics for agent {self.agent_id}: {e}"
-                )
+                logger.warning(f"Failed to record birth metrics for agent {self.agent_id}: {e}")
 
     def _initialize_agent_state(self) -> None:
         """Initialize agent state variables and configuration."""
@@ -345,25 +339,13 @@ class BaseAgent:
             decision_config = getattr(self.config, "decision", DecisionConfig())
 
         # Get action and observation spaces from config if available
-        action_space = (
-            getattr(self.config, "action_space", None) if self.config else None
-        )
-        observation_space = (
-            getattr(self.config, "observation_space", None) if self.config else None
-        )
+        action_space = getattr(self.config, "action_space", None) if self.config else None
+        observation_space = getattr(self.config, "observation_space", None) if self.config else None
 
         # If spaces are not in config, get them from the environment
-        if (
-            action_space is None
-            and hasattr(self, "environment")
-            and self.environment is not None
-        ):
+        if action_space is None and hasattr(self, "environment") and self.environment is not None:
             action_space = self.environment.action_space()
-        if (
-            observation_space is None
-            and hasattr(self, "environment")
-            and self.environment is not None
-        ):
+        if observation_space is None and hasattr(self, "environment") and self.environment is not None:
             observation_space = self.environment.observation_space()
 
         self.decision_module = DecisionModule(
@@ -408,23 +390,17 @@ class BaseAgent:
 
         # Get nearby entities using spatial service
         try:
-            nearby = self.spatial_service.get_nearby(
-                self.position, radius, ["resources"]
-            )
+            nearby = self.spatial_service.get_nearby(self.position, radius, ["resources"])
             nearby_resources = nearby.get("resources", [])
         except Exception as e:
-            logger.warning(
-                f"Failed to get nearby resources for agent {self.agent_id}: {e}"
-            )
+            logger.warning(f"Failed to get nearby resources for agent {self.agent_id}: {e}")
             nearby_resources = []  # Use empty list as fallback
 
         try:
             nearby = self.spatial_service.get_nearby(self.position, radius, ["agents"])
             nearby_agents = nearby.get("agents", [])
         except Exception as e:
-            logger.warning(
-                f"Failed to get nearby agents for agent {self.agent_id}: {e}"
-            )
+            logger.warning(f"Failed to get nearby agents for agent {self.agent_id}: {e}")
             nearby_agents = []  # Use empty list as fallback
 
         # Helper function to convert world coordinates to grid coordinates
@@ -433,14 +409,10 @@ class BaseAgent:
             # Use configurable discretization method for consistency
             # Discretization method from nested environment config when available
             if self.config and getattr(self.config, "environment", None) is not None:
-                discretization_method = getattr(
-                    self.config.environment, "position_discretization_method", "floor"
-                )
+                discretization_method = getattr(self.config.environment, "position_discretization_method", "floor")
             else:
                 discretization_method = (
-                    getattr(self.config, "position_discretization_method", "floor")
-                    if self.config
-                    else "floor"
+                    getattr(self.config, "position_discretization_method", "floor") if self.config else "floor"
                 )
 
             if discretization_method == "round":
@@ -479,17 +451,10 @@ class BaseAgent:
                 try:
                     # If validation_service is None, assume infinite bounds (all positions valid)
                     # Only mark as obstacle if validation service exists AND position is invalid
-                    if (
-                        self.validation_service
-                        and not self.validation_service.is_valid_position(
-                            (world_x, world_y)
-                        )
-                    ):
+                    if self.validation_service and not self.validation_service.is_valid_position((world_x, world_y)):
                         perception[i, j] = 3
                 except Exception as e:
-                    logger.warning(
-                        f"Failed to validate position ({world_x}, {world_y}) for agent {self.agent_id}: {e}"
-                    )
+                    logger.warning(f"Failed to validate position ({world_x}, {world_y}) for agent {self.agent_id}: {e}")
                     # Mark as obstacle by default when validation fails
                     perception[i, j] = 3
 
@@ -524,9 +489,7 @@ class BaseAgent:
         # Convert to torch tensor and ensure proper device/dtype
         # Keep multi-dimensional structure for CNN backbones
         # Shape: (NUM_CHANNELS, S, S)
-        observation_tensor = torch.from_numpy(observation_np).to(
-            device=self.device, dtype=torch.float32
-        )
+        observation_tensor = torch.from_numpy(observation_np).to(device=self.device, dtype=torch.float32)
 
         return observation_tensor
 
@@ -544,9 +507,7 @@ class BaseAgent:
             torch.Tensor: Multi-channel observation tensor matching expected shape
         """
         # Get expected observation shape from DecisionModule if available
-        if hasattr(self, "decision_module") and hasattr(
-            self.decision_module, "observation_shape"
-        ):
+        if hasattr(self, "decision_module") and hasattr(self.decision_module, "observation_shape"):
             expected_shape = self.decision_module.observation_shape
             # Handle case where observation_shape might be a Mock (for testing)
             try:
@@ -631,9 +592,7 @@ class BaseAgent:
         # Temporarily override config to get correct perception radius
         original_config = getattr(self, "config", None)
         try:
-            if hasattr(self, "decision_module") and hasattr(
-                self.decision_module, "observation_shape"
-            ):
+            if hasattr(self, "decision_module") and hasattr(self.decision_module, "observation_shape"):
                 expected_shape = self.decision_module.observation_shape
                 # Try to get the length and handle Mock objects properly
                 try:
@@ -659,9 +618,7 @@ class BaseAgent:
 
         # Map perception grid to remaining channels (up to available channels)
         # 0: Empty, 1: Resource, 2: Agent, 3: Obstacle
-        available_channels = max(
-            0, num_channels - 6
-        )  # Reserve channels for agent properties
+        available_channels = max(0, num_channels - 6)  # Reserve channels for agent properties
         perception_channels = min(4, available_channels)
 
         for c in range(perception_channels):
@@ -675,9 +632,7 @@ class BaseAgent:
                     mask_resized = np.zeros((size, size), dtype=np.float32)
                     min_size = min(mask.shape[0], size)
                     offset = (size - min_size) // 2
-                    mask_resized[
-                        offset : offset + min_size, offset : offset + min_size
-                    ] = mask[:min_size, :min_size]
+                    mask_resized[offset : offset + min_size, offset : offset + min_size] = mask[:min_size, :min_size]
                     mask = mask_resized
                 observation[channel_idx] = mask
 
@@ -714,8 +669,7 @@ class BaseAgent:
             current_health=self.current_health,
             is_defending=self.is_defending,
             total_reward=self.total_reward,
-            age=(self.time_service.current_time() if self.time_service else 0)
-            - self.birth_time,
+            age=(self.time_service.current_time() if self.time_service else 0) - self.birth_time,
         )
 
     def decide_action(self):
@@ -732,9 +686,7 @@ class BaseAgent:
         """
         # Cache state tensor to avoid recreating it multiple times
         current_time = self.time_service.current_time() if self.time_service else -1
-        if not hasattr(self, "_cached_selection_state") or current_time != getattr(
-            self, "_cached_selection_time", -1
-        ):
+        if not hasattr(self, "_cached_selection_state") or current_time != getattr(self, "_cached_selection_time", -1):
             self._cached_selection_state = self.create_decision_state()
             self._cached_selection_time = current_time
 
@@ -746,20 +698,12 @@ class BaseAgent:
             if isinstance(curriculum_phases, (list, tuple)):
                 for phase in curriculum_phases:
                     if current_step < phase["steps"] or phase["steps"] == -1:
-                        enabled_actions = [
-                            a
-                            for a in self.actions
-                            if a.name in phase["enabled_actions"]
-                        ]
+                        enabled_actions = [a for a in self.actions if a.name in phase["enabled_actions"]]
                         break
 
         # Use DecisionModule to select action index, passing enabled actions for curriculum support
-        enabled_action_indices = [
-            self.actions.index(action) for action in enabled_actions
-        ]
-        action_index = self.decision_module.decide_action(
-            self._cached_selection_state, enabled_action_indices
-        )
+        enabled_action_indices = [self.actions.index(action) for action in enabled_actions]
+        action_index = self.decision_module.decide_action(self._cached_selection_state, enabled_action_indices)
 
         # Map action index to Action object
         # Since decision_module now respects enabled_actions, action_index should always be valid
@@ -781,24 +725,18 @@ class BaseAgent:
         """
         # Cache state tensor to avoid recreating it multiple times
         current_time = self.time_service.current_time() if self.time_service else -1
-        if not hasattr(self, "_cached_selection_state") or current_time != getattr(
-            self, "_cached_selection_time", -1
-        ):
+        if not hasattr(self, "_cached_selection_state") or current_time != getattr(self, "_cached_selection_time", -1):
             self._cached_selection_state = self.create_decision_state()
             self._cached_selection_time = current_time
 
         # Convert enabled actions to indices for DecisionModule
         if enabled_actions:
-            enabled_action_indices = [
-                self.actions.index(action) for action in enabled_actions
-            ]
+            enabled_action_indices = [self.actions.index(action) for action in enabled_actions]
         else:
             enabled_action_indices = None
 
         # Use DecisionModule to select action index with curriculum support
-        action_index = self.decision_module.decide_action(
-            self._cached_selection_state, enabled_action_indices
-        )
+        action_index = self.decision_module.decide_action(self._cached_selection_state, enabled_action_indices)
 
         return action_index
 
@@ -813,9 +751,7 @@ class BaseAgent:
 
         curriculum_phases = getattr(self.config, "curriculum_phases", [])
         if not isinstance(curriculum_phases, (list, tuple)):
-            logger.warning(
-                f"Agent {self.agent_id}: curriculum_phases must be a list or tuple"
-            )
+            logger.warning(f"Agent {self.agent_id}: curriculum_phases must be a list or tuple")
             return False
 
         if not curriculum_phases:
@@ -833,33 +769,25 @@ class BaseAgent:
             # Check required fields
             for field in required_fields:
                 if field not in phase:
-                    logger.warning(
-                        f"Agent {self.agent_id}: Phase {i} missing required field '{field}'"
-                    )
+                    logger.warning(f"Agent {self.agent_id}: Phase {i} missing required field '{field}'")
                     return False
 
             # Validate steps
             steps = phase["steps"]
             if not isinstance(steps, int) or (steps != -1 and steps < 0):
-                logger.warning(
-                    f"Agent {self.agent_id}: Phase {i} steps must be non-negative integer or -1"
-                )
+                logger.warning(f"Agent {self.agent_id}: Phase {i} steps must be non-negative integer or -1")
                 return False
 
             # Validate enabled_actions
             enabled_actions = phase["enabled_actions"]
             if not isinstance(enabled_actions, (list, tuple)):
-                logger.warning(
-                    f"Agent {self.agent_id}: Phase {i} enabled_actions must be a list or tuple"
-                )
+                logger.warning(f"Agent {self.agent_id}: Phase {i} enabled_actions must be a list or tuple")
                 return False
 
             # Check all enabled actions exist
             for action_name in enabled_actions:
                 if action_name not in action_names:
-                    logger.warning(
-                        f"Agent {self.agent_id}: Phase {i} references unknown action '{action_name}'"
-                    )
+                    logger.warning(f"Agent {self.agent_id}: Phase {i} references unknown action '{action_name}'")
                     return False
 
         # Check phases are in ascending order (except -1 which should be last)
@@ -869,9 +797,7 @@ class BaseAgent:
             if steps == -1:
                 # -1 should be the last phase
                 if i != len(curriculum_phases) - 1:
-                    logger.warning(
-                        f"Agent {self.agent_id}: Phase with steps=-1 must be the last phase"
-                    )
+                    logger.warning(f"Agent {self.agent_id}: Phase with steps=-1 must be the last phase")
                     return False
             elif steps <= prev_steps:
                 logger.warning(
@@ -882,9 +808,7 @@ class BaseAgent:
 
         return True
 
-    def _calculate_reward(
-        self, pre_action_state: AgentState, post_action_state: AgentState, action_taken
-    ) -> float:
+    def _calculate_reward(self, pre_action_state: AgentState, post_action_state: AgentState, action_taken) -> float:
         """Calculate reward for the current state transition.
 
         Args:
@@ -901,12 +825,8 @@ class BaseAgent:
         - TODO: Separate rewards logic from agent
         """
         # Basic reward components based on state deltas
-        resource_reward = (
-            post_action_state.resource_level - pre_action_state.resource_level
-        ) * 0.1
-        health_reward = (
-            post_action_state.current_health - pre_action_state.current_health
-        ) * 0.5
+        resource_reward = (post_action_state.resource_level - pre_action_state.resource_level) * 0.1
+        health_reward = (post_action_state.current_health - pre_action_state.current_health) * 0.5
         survival_reward = 0.1 if self.alive else -10.0
 
         # Action-specific bonuses (simplified)
@@ -1006,11 +926,7 @@ class BaseAgent:
             if isinstance(curriculum_phases, (list, tuple)):
                 for phase in curriculum_phases:
                     if current_step < phase["steps"] or phase["steps"] == -1:
-                        enabled_actions = [
-                            a
-                            for a in self.actions
-                            if a.name in phase["enabled_actions"]
-                        ]
+                        enabled_actions = [a for a in self.actions if a.name in phase["enabled_actions"]]
                         break
 
         # Select and execute action with curriculum restrictions
@@ -1039,9 +955,7 @@ class BaseAgent:
             try:
                 # Get current time step
                 current_time = (
-                    self.time_service.current_time()
-                    if hasattr(self, "time_service") and self.time_service
-                    else 0
+                    self.time_service.current_time() if hasattr(self, "time_service") and self.time_service else 0
                 )
 
                 # Log the agent action
@@ -1063,9 +977,7 @@ class BaseAgent:
             try:
                 from farm.core.action import validate_action_result
 
-                validation_result = validate_action_result(
-                    self, action.name, action_result
-                )
+                validation_result = validate_action_result(self, action.name, action_result)
             except Exception as e:
                 logger.warning(f"Action validation failed for {action.name}: {str(e)}")
 
@@ -1081,8 +993,7 @@ class BaseAgent:
             logger.debug(f"Agent {self.agent_id} successfully executed {action.name}")
         else:
             logger.info(
-                f"Agent {self.agent_id} failed to execute {action.name}: "
-                f"{action_result.get('error', 'Unknown error')}"
+                f"Agent {self.agent_id} failed to execute {action.name}: {action_result.get('error', 'Unknown error')}"
             )
 
         # Store the action index for learning (relative to enabled actions)
@@ -1114,17 +1025,12 @@ class BaseAgent:
         done = not self.alive
 
         # Update DecisionModule with experience
-        if (
-            hasattr(self, "previous_state_tensor")
-            and self.previous_state_tensor is not None
-        ):
+        if hasattr(self, "previous_state_tensor") and self.previous_state_tensor is not None:
             # Get enabled actions from previous turn for consistent learning
             previous_enabled_actions = getattr(self, "_previous_enabled_actions", None)
 
             # Use stored action index for consistency with curriculum
-            previous_action_index = getattr(
-                self, "_previous_action_index", self._current_action_index
-            )
+            previous_action_index = getattr(self, "_previous_action_index", self._current_action_index)
 
             self.decision_module.update(
                 state=self.previous_state_tensor,
@@ -1142,10 +1048,7 @@ class BaseAgent:
             elif enabled_actions:
                 # Fallback: find current action's index within enabled actions
                 try:
-                    # Convert action to index first, then find its position in enabled_actions
-                    action_index = self._action_to_index(action)
-                    enabled_action_indices = [self._action_to_index(a) for a in enabled_actions]
-                    self._previous_action_index = enabled_action_indices.index(action_index)
+                    self._previous_action_index = enabled_actions.index(action)
                 except ValueError:
                     # Action not in enabled actions - this shouldn't happen but handle gracefully
                     logger.warning(
@@ -1158,9 +1061,7 @@ class BaseAgent:
                 self._previous_action_index = self._action_to_index(action)
 
             # Store current enabled actions for next turn's learning
-            self._previous_enabled_actions = getattr(
-                self, "_current_enabled_actions", None
-            )
+            self._previous_enabled_actions = getattr(self, "_current_enabled_actions", None)
 
     def clone(self, environment: Optional["Environment"] = None) -> "BaseAgent":
         """Create a mutated copy of this agent.
@@ -1181,9 +1082,7 @@ class BaseAgent:
             ValueError: If neither environment parameter nor self.environment is available
         """
         # Determine which environment to use
-        target_environment = environment or (
-            self.environment if hasattr(self, "environment") else None
-        )
+        target_environment = environment or (self.environment if hasattr(self, "environment") else None)
 
         if target_environment is None:
             raise ValueError("Cannot clone agent without environment reference")
@@ -1235,18 +1134,14 @@ class BaseAgent:
             # Record successful reproduction
             if self.logging_service:
                 self.logging_service.log_reproduction_event(
-                    step_number=(
-                        self.time_service.current_time() if self.time_service else 0
-                    ),
+                    step_number=(self.time_service.current_time() if self.time_service else 0),
                     parent_id=self.agent_id,
                     offspring_id=new_agent.agent_id,
                     success=True,
                     parent_resources_before=initial_resources,
                     parent_resources_after=self.resource_level,
                     offspring_initial_resources=(
-                        getattr(self.config, "offspring_initial_resources", 10)
-                        if self.config
-                        else 10
+                        getattr(self.config, "offspring_initial_resources", 10) if self.config else 10
                     ),
                     failure_reason="",  # Empty string for successful reproduction
                     parent_generation=self.generation,
@@ -1263,9 +1158,7 @@ class BaseAgent:
             # Log failed reproduction attempt
             if self.logging_service:
                 self.logging_service.log_reproduction_event(
-                    step_number=(
-                        self.time_service.current_time() if self.time_service else 0
-                    ),
+                    step_number=(self.time_service.current_time() if self.time_service else 0),
                     parent_id=self.agent_id,
                     offspring_id="",  # Empty string for failed reproduction
                     success=False,
@@ -1293,11 +1186,7 @@ class BaseAgent:
 
         # Generate unique ID and genome info first
         try:
-            new_id = (
-                self.lifecycle_service.get_next_agent_id()
-                if self.lifecycle_service
-                else self.agent_id + "_child"
-            )
+            new_id = self.lifecycle_service.get_next_agent_id() if self.lifecycle_service else self.agent_id + "_child"
         except Exception as e:
             logger.error(
                 "offspring_id_generation_failed",
@@ -1396,16 +1285,12 @@ class BaseAgent:
 
         if self.alive:
             self.alive = False
-            self.death_time = (
-                self.time_service.current_time() if self.time_service else 0
-            )
+            self.death_time = self.time_service.current_time() if self.time_service else 0
             # Record the death in environment
             # Log death in database
             if self.logging_service:
                 try:
-                    self.logging_service.update_agent_death(
-                        self.agent_id, self.death_time
-                    )
+                    self.logging_service.update_agent_death(self.agent_id, self.death_time)
                 except Exception as e:
                     logger.error(
                         "agent_death_logging_failed",
@@ -1419,11 +1304,7 @@ class BaseAgent:
                 agent_id=self.agent_id,
                 position=self.position,
                 step=self.time_service.current_time() if self.time_service else 0,
-                lifetime_steps=(
-                    self.death_time - self.birth_time
-                    if hasattr(self, "birth_time")
-                    else None
-                ),
+                lifetime_steps=(self.death_time - self.birth_time if hasattr(self, "birth_time") else None),
             )
             if self.lifecycle_service:
                 try:
@@ -1448,9 +1329,7 @@ class BaseAgent:
             try:
                 self.spatial_service.mark_positions_dirty()
             except Exception as e:
-                logger.warning(
-                    f"Failed to mark spatial positions as dirty for agent {self.agent_id}: {e}"
-                )
+                logger.warning(f"Failed to mark spatial positions as dirty for agent {self.agent_id}: {e}")
                 # Position was updated but spatial index wasn't marked dirty
                 # This is not critical but should be logged
 
@@ -1522,9 +1401,7 @@ class BaseAgent:
         Returns:
             BaseAgent: New agent instance with characteristics decoded from the genome
         """
-        return Genome.to_agent(
-            genome, agent_id, (int(position[0]), int(position[1])), environment, cls
-        )
+        return Genome.to_agent(genome, agent_id, (int(position[0]), int(position[1])), environment, cls)
 
     def take_damage(self, damage: float) -> bool:
         """Apply damage to the agent.
@@ -1650,9 +1527,7 @@ class BaseAgent:
             # Create state representation
             current_state = AgentState(
                 agent_id=self.agent_id,
-                step_number=(
-                    self.time_service.current_time() if self.time_service else 0
-                ),
+                step_number=(self.time_service.current_time() if self.time_service else 0),
                 position_x=self.position[0],
                 position_y=self.position[1],
                 position_z=self.position[2] if len(self.position) > 2 else 0,
@@ -1660,8 +1535,7 @@ class BaseAgent:
                 current_health=self.current_health,
                 is_defending=self.is_defending,
                 total_reward=self.total_reward,
-                age=(self.time_service.current_time() if self.time_service else 0)
-                - self.birth_time,
+                age=(self.time_service.current_time() if self.time_service else 0) - self.birth_time,
             )
 
             # Add default metadata if not provided

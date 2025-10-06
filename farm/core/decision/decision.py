@@ -596,10 +596,10 @@ class DecisionModule:
         """
         # Handle Action objects by converting to index first
         if hasattr(action_index, "name"):
-            # This is an Action object, convert to index
+            # This is an Action object, convert to full action space index and return directly
             from farm.core.action import action_name_to_index
 
-            action_index = action_name_to_index(action_index.name)
+            return action_name_to_index(action_index.name)
 
         if enabled_actions is None or len(enabled_actions) == 0:
             # No curriculum restrictions, action_index is already in full space
@@ -676,6 +676,7 @@ class DecisionModule:
                         if (
                             hasattr(self.agent, "actions")
                             and full_action_index is not None
+                            and isinstance(full_action_index, int)
                             and full_action_index < len(self.agent.actions)
                         ):
                             action_taken_mapped = self.agent.actions[full_action_index].name
