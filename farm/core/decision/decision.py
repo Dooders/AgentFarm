@@ -664,6 +664,36 @@ class DecisionModule:
                     done=done,
                 )
 
+                # Log learning experience to database if available
+                if (
+                    hasattr(self.agent, 'environment') 
+                    and self.agent.environment 
+                    and hasattr(self.agent.environment, 'db') 
+                    and self.agent.environment.db
+                    and hasattr(self.agent.environment.db, 'logger')
+                ):
+                    try:
+                        step_number = None
+                        if hasattr(self.agent, 'time_service') and self.agent.time_service:
+                            step_number = self.agent.time_service.current_time()
+                        
+                        action_taken_mapped = None
+                        if hasattr(self.agent, 'actions') and full_action_index < len(self.agent.actions):
+                            action_taken_mapped = self.agent.actions[full_action_index].name
+                        
+                        if step_number is not None and action_taken_mapped is not None:
+                            self.agent.environment.db.logger.log_learning_experience(
+                                step_number=step_number,
+                                agent_id=self.agent_id,
+                                module_type=self.config.algorithm_type,
+                                module_id=id(self.algorithm),
+                                action_taken=full_action_index,
+                                action_taken_mapped=action_taken_mapped,
+                                reward=reward,
+                            )
+                    except Exception as e:
+                        logger.warning(f"Failed to log learning experience for agent {self.agent_id}: {e}")
+
                 # Train if it's time to train
                 if (
                     hasattr(self.algorithm, "should_train")
