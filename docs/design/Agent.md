@@ -2,6 +2,52 @@
 
 This document describes the comprehensive agent design in AgentFarm, covering architecture, capabilities, advantages, disadvantages, and limitations of the autonomous entities that populate the simulation environment.
 
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Architecture](#architecture)
+   - [Core Components](#core-components)
+   - [Agent Types](#agent-types)
+3. [Capabilities](#capabilities)
+   - [Core Functionality](#core-functionality)
+     - [1. Spatial Navigation](#1-spatial-navigation)
+     - [2. Resource Management](#2-resource-management)
+     - [3. Combat System](#3-combat-system)
+     - [4. Reproduction](#4-reproduction)
+     - [5. Decision Making](#5-decision-making)
+   - [Advanced Features](#advanced-features)
+     - [1. Perception System](#1-perception-system)
+     - [2. Memory Systems](#2-memory-systems)
+     - [3. Genome System](#3-genome-system)
+     - [4. Service Integration](#4-service-integration)
+4. [Advantages](#advantages)
+   - [1. Modularity and Extensibility](#1-modularity-and-extensibility)
+   - [2. Performance Optimization](#2-performance-optimization)
+   - [3. Research-Friendly Design](#3-research-friendly-design)
+   - [4. Scalability](#4-scalability)
+   - [5. Learning Capabilities](#5-learning-capabilities)
+5. [Disadvantages](#disadvantages)
+   - [1. Complexity](#1-complexity)
+   - [2. Resource Requirements](#2-resource-requirements)
+   - [3. Performance Trade-offs](#3-performance-trade-offs)
+   - [4. Learning Limitations](#4-learning-limitations)
+6. [Limitations](#limitations)
+   - [1. Current Implementation Gaps](#1-current-implementation-gaps)
+   - [2. Algorithmic Limitations](#2-algorithmic-limitations)
+   - [3. Environmental Constraints](#3-environmental-constraints)
+   - [4. Scalability Boundaries](#4-scalability-boundaries)
+7. [Design Principles](#design-principles)
+   - [1. Single Responsibility Principle (SRP)](#1-single-responsibility-principle-srp)
+   - [2. Open-Closed Principle (OCP)](#2-open-closed-principle-ocp)
+   - [3. Dependency Inversion Principle (DIP)](#3-dependency-inversion-principle-dip)
+   - [4. Composition Over Inheritance](#4-composition-over-inheritance)
+8. [Future Enhancements](#future-enhancements)
+   - [Planned Improvements](#planned-improvements)
+   - [Research Directions](#research-directions)
+9. [Summary](#summary)
+
+---
+
 ## Overview
 
 AgentFarm agents are autonomous entities designed for multi-agent simulations. They follow the **Observation → Perception → Cognition → Action** loop described in the [Agent Loop Design](agent_loop.md), providing a structured approach to modeling intelligent behavior in complex environments.
@@ -23,11 +69,35 @@ The agent architecture consists of several key components:
 
 ### Agent Types
 
-AgentFarm supports three primary agent types, all inheriting from `BaseAgent`:
+AgentFarm supports five primary agent types, all inheriting from `BaseAgent`:
 
-- **SystemAgent**: Agents that operate within system-defined parameters
-- **IndependentAgent**: Autonomous agents with full decision-making capabilities
-- **ControlAgent**: Agents used for experimental control and comparison
+- **SystemAgent**: Cooperative agents that prioritize collective goals with high resource sharing (0.3) and low aggression (0.05)
+- **IndependentAgent**: Self-interested agents that prioritize individual survival with low resource sharing (0.05) and high aggression (0.25)
+- **ControlAgent**: Balanced baseline agents with moderate sharing (0.15) and aggression (0.15) used for experimental comparison
+- **RandomAgent**: Agents that make decisions through random action selection (future implementation)
+- **LogicAgent**: Agents that use logical decision-making without machine learning (future implementation)
+
+#### Future Agent Types
+
+**RandomAgent** (Planned)
+- **Purpose**: Provides baseline behavior for comparison studies and exploration analysis
+- **Decision Making**: Random action selection from available actions
+- **Use Cases**: 
+  - Baseline performance comparison against learning agents
+  - Exploration studies in multi-agent environments
+  - Control groups for evolutionary experiments
+  - Testing environment dynamics without intelligent behavior
+- **Implementation**: Simple random sampling from action space with optional bias weights
+
+**LogicAgent** (Planned)
+- **Purpose**: Implements rule-based and logical decision-making without machine learning
+- **Decision Making**: Deterministic or heuristic-based action selection
+- **Use Cases**:
+  - Rule-based behavior studies
+  - Comparison with learning-based approaches
+  - Implementation of classical AI algorithms (A*, minimax, etc.)
+  - Hybrid systems combining logical and learning components
+- **Implementation**: Configurable rule sets, state machines, and classical algorithms
 
 ## Capabilities
 
@@ -159,6 +229,7 @@ AgentFarm supports three primary agent types, all inheriting from `BaseAgent`:
 - **Simple Combat**: Basic damage mechanics, no advanced combat strategies
 - **Resource Dynamics**: Static resource distribution, limited environmental changes
 - **Social Behaviors**: Limited emergent social interaction capabilities
+- **Missing Agent Types**: RandomAgent and LogicAgent types not yet implemented for baseline comparisons and rule-based behavior studies
 
 ### 2. Algorithmic Limitations
 - **Fallback Algorithms**: Basic random selection when advanced algorithms unavailable
@@ -215,6 +286,8 @@ Functionality is achieved through composition:
 3. **Dynamic Environments**: Procedural environment generation
 4. **Social Learning**: Imitation and cultural transmission
 5. **Meta-Learning**: Agents that learn to learn
+6. **RandomAgent Implementation**: Agents that use random action selection for baseline comparisons and exploration studies
+7. **LogicAgent Implementation**: Agents that use rule-based or logical decision-making without machine learning components
 
 ### Research Directions
 1. **Emergent Behaviors**: Studying emergence of complex behaviors

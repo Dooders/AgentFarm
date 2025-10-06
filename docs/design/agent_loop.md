@@ -5,6 +5,22 @@ The loop provides a structured way to model how agents interact with their envir
 
 > **Note**: This design is still aspirational and not fully implemented in the current codebase.  
 
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Detailed Stages](#detailed-stages)
+   - [1. Observation](#1-observation)
+   - [2. Perception](#2-perception)
+   - [3. Cognition](#3-cognition)
+   - [4. Action](#4-action)
+   - [Feedback Loop](#feedback-loop)
+3. [Comparative Mapping](#comparative-mapping)
+4. [Design Principles](#design-principles)
+5. [Diagram](#diagram)
+6. [Minimal Implementation](#minimal-implementation)
+7. [Future Work](#future-work)
+8. [Summary](#summary)
+
 ---
 
 ## Overview
@@ -103,7 +119,7 @@ This makes the loop **continuous** and suitable for multi-agent interaction.
    - Agents can learn to use or ignore memory as needed.
 
 4. **Intrinsic Motivation**
-   - Entropy, curiosity, and empowerment are baked into cognition.  
+   - Entropy, curiosity, and autonomy are baked into cognition.  
    - Goes beyond extrinsic task rewards.
 
 5. **Feedback and Recursion**

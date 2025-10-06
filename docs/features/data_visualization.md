@@ -2,6 +2,51 @@
 
 ![Feature](https://img.shields.io/badge/feature-data%20%26%20viz-orange)
 
+## Table of Contents
+
+1. [Overview](#overview)
+   - [Why Data & Visualization Matter](#why-data--visualization-matter)
+2. [Core Capabilities](#core-capabilities)
+   - [1. Comprehensive Data Collection and Metrics](#1-comprehensive-data-collection-and-metrics)
+     - [Automatic Data Logging](#automatic-data-logging)
+     - [Data Schema](#data-schema)
+     - [Metrics Collection](#metrics-collection)
+     - [Custom Metrics](#custom-metrics)
+   - [2. Simulation Visualization Tools](#2-simulation-visualization-tools)
+     - [Interactive Real-Time Visualization](#interactive-real-time-visualization)
+     - [Static Visualization](#static-visualization)
+     - [Spatial Heatmaps](#spatial-heatmaps)
+   - [3. Charting and Plotting Utilities](#3-charting-and-plotting-utilities)
+     - [Population Charts](#population-charts)
+     - [Resource Charts](#resource-charts)
+     - [Action Charts](#action-charts)
+     - [Agent Charts](#agent-charts)
+     - [Evolutionary Charts](#evolutionary-charts)
+     - [Comparative Charts](#comparative-charts)
+   - [4. Automated Report Generation](#4-automated-report-generation)
+     - [Chart Analyzer](#chart-analyzer)
+     - [Comprehensive Reports](#comprehensive-reports)
+     - [Custom Report Templates](#custom-report-templates)
+3. [Advanced Data Access](#advanced-data-access)
+   - [Repository Pattern](#repository-pattern)
+   - [Service Layer](#service-layer)
+   - [Direct SQL Queries](#direct-sql-queries)
+4. [Data Export](#data-export)
+   - [Export Formats](#export-formats)
+   - [Data Pipelines](#data-pipelines)
+5. [Performance Optimization](#performance-optimization)
+   - [Efficient Data Storage](#efficient-data-storage)
+   - [Lazy Loading](#lazy-loading)
+   - [Batch Processing](#batch-processing)
+6. [Example: Complete Data & Visualization Workflow](#example-complete-data--visualization-workflow)
+7. [Additional Resources](#additional-resources)
+   - [Documentation](#documentation)
+   - [Examples](#examples)
+   - [Tools](#tools)
+8. [Support](#support)
+
+---
+
 ## Overview
 
 AgentFarm provides a comprehensive data collection and visualization system that captures every aspect of your simulations, from individual agent actions to population-level dynamics. With powerful analysis tools, flexible data access patterns, and rich visualization capabilities, you can extract deep insights from your simulation data.

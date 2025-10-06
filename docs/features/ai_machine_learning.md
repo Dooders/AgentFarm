@@ -2,6 +2,45 @@
 
 ![Feature](https://img.shields.io/badge/feature-AI%20%26%20ML-purple)
 
+## Table of Contents
+
+1. [Overview](#overview)
+   - [Why AI & ML in Agent-Based Modeling?](#why-ai--ml-in-agent-based-modeling)
+2. [Core Capabilities](#core-capabilities)
+   - [1. Reinforcement Learning for Agent Adaptation](#1-reinforcement-learning-for-agent-adaptation)
+     - [Deep Q-Learning (DQN)](#deep-q-learning-dqn)
+     - [Additional RL Algorithms](#additional-rl-algorithms)
+     - [Curriculum Learning](#curriculum-learning)
+   - [2. Automated Data Analysis and Insight Generation](#2-automated-data-analysis-and-insight-generation)
+     - [Automated Statistical Analysis](#automated-statistical-analysis)
+     - [Machine Learning-Based Analysis](#machine-learning-based-analysis)
+     - [Behavioral Clustering](#behavioral-clustering)
+     - [Automated Report Generation](#automated-report-generation)
+   - [3. Pattern Recognition and Behavior Prediction](#3-pattern-recognition-and-behavior-prediction)
+     - [Sequence Pattern Analysis](#sequence-pattern-analysis)
+     - [Predictive Modeling](#predictive-modeling)
+     - [Survival Prediction](#survival-prediction)
+   - [4. Evolutionary Algorithms and Genetic Modeling](#4-evolutionary-algorithms-and-genetic-modeling)
+     - [Genome System](#genome-system)
+     - [Genetic Operators](#genetic-operators)
+     - [Evolutionary Simulation](#evolutionary-simulation)
+     - [Genome Embeddings](#genome-embeddings)
+3. [Advanced ML Techniques](#advanced-ml-techniques)
+   - [Transfer Learning](#transfer-learning)
+   - [Multi-Agent Reinforcement Learning (MARL)](#multi-agent-reinforcement-learning-marl)
+   - [Imitation Learning](#imitation-learning)
+4. [Performance Optimization](#performance-optimization)
+   - [GPU Acceleration](#gpu-acceleration)
+   - [Batch Training](#batch-training)
+5. [Example: Complete ML-Enhanced Simulation](#example-complete-ml-enhanced-simulation)
+6. [Additional Resources](#additional-resources)
+   - [Documentation](#documentation)
+   - [Examples](#examples)
+   - [Research Resources](#research-resources)
+7. [Support](#support)
+
+---
+
 ## Overview
 
 AgentFarm integrates advanced AI and machine learning capabilities to enable intelligent agent behaviors, automated analysis, and sophisticated pattern recognition. From reinforcement learning for adaptive agents to evolutionary algorithms for population dynamics, AgentFarm provides a comprehensive ML toolkit for agent-based modeling research.
