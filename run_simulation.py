@@ -64,7 +64,7 @@ def main():
         help="Profile to use (benchmark/simulation/research)",
     )
     parser.add_argument(
-        "--steps", type=int, default=1000, help="Number of simulation steps to run"
+        "--steps", type=int, default=100, help="Number of simulation steps to run"
     )
     parser.add_argument(
         "--seed",
