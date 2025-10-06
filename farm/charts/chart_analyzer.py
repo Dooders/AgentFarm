@@ -69,23 +69,26 @@ class ChartAnalyzer:
         cfg = EnvConfigService()
         self.llm_client = LLMClient(api_key=None, config_service=cfg)
 
-    def analyze_all_charts(self, output_path: Optional[Path] = None) -> Dict[str, str]:
+    def analyze_all_charts(self, output_path: Optional[Path] = None, database: Optional["SimulationDatabase"] = None) -> Dict[str, str]:
         """Generate and analyze all charts, returning a dictionary of analyses."""
         analyses = {}
 
         if output_path:
             self.output_dir = output_path
 
+        # Use provided database or fall back to instance database
+        db_to_use = database if database is not None else self.db
+
         try:
             # Use the database connection directly instead of creating a new one
             simulation_df = pd.read_sql(
-                "SELECT * FROM simulation_steps", self.db.engine
+                "SELECT * FROM simulation_steps", db_to_use.engine
             )
-            actions_df = pd.read_sql("SELECT * FROM agent_actions", self.db.engine)
-            agents_df = pd.read_sql("SELECT * FROM agents", self.db.engine)
+            actions_df = pd.read_sql("SELECT * FROM agent_actions", db_to_use.engine)
+            agents_df = pd.read_sql("SELECT * FROM agents", db_to_use.engine)
 
             # Get connection string from engine
-            connection_string = str(self.db.engine.url)
+            connection_string = str(db_to_use.engine.url)
 
             # Simulation charts
             simulation_chart_functions = {

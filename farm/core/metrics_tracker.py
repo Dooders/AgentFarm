@@ -9,11 +9,12 @@ Environment class and provides a clean interface for metric collection.
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import numpy as np
 
 from farm.core.agent import BaseAgent
+from farm.core.interfaces import AgentProtocol
 from farm.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -73,9 +74,7 @@ class StepMetrics:
     reproduction_attempts: int = 0
     reproduction_successes: int = 0
     resource_consumption: float = 0.0
-    spatial_performance: SpatialPerformanceMetrics = field(
-        default_factory=SpatialPerformanceMetrics
-    )
+    spatial_performance: SpatialPerformanceMetrics = field(default_factory=SpatialPerformanceMetrics)
 
     def reset(self) -> None:
         """Reset all step-specific metrics to zero."""
@@ -171,55 +170,29 @@ class MetricsTracker:
         # Update batch update metrics
         if "batch_updates" in spatial_stats:
             batch_stats = spatial_stats["batch_updates"]
-            self.step_metrics.spatial_performance.total_batch_updates = batch_stats.get(
-                "total_batch_updates", 0
+            self.step_metrics.spatial_performance.total_batch_updates = batch_stats.get("total_batch_updates", 0)
+            self.step_metrics.spatial_performance.total_individual_updates = batch_stats.get(
+                "total_individual_updates", 0
             )
-            self.step_metrics.spatial_performance.total_individual_updates = (
-                batch_stats.get("total_individual_updates", 0)
+            self.step_metrics.spatial_performance.total_regions_processed = batch_stats.get(
+                "total_regions_processed", 0
             )
-            self.step_metrics.spatial_performance.total_regions_processed = (
-                batch_stats.get("total_regions_processed", 0)
-            )
-            self.step_metrics.spatial_performance.average_batch_size = batch_stats.get(
-                "average_batch_size", 0.0
-            )
-            self.step_metrics.spatial_performance.last_batch_time = batch_stats.get(
-                "last_batch_time", 0.0
-            )
-            self.step_metrics.spatial_performance.total_dirty_regions = batch_stats.get(
-                "total_dirty_regions", 0
-            )
-            self.step_metrics.spatial_performance.regions_by_type = batch_stats.get(
-                "regions_by_type", {}
-            )
-            self.step_metrics.spatial_performance.total_regions_marked = (
-                batch_stats.get("total_regions_marked", 0)
-            )
-            self.step_metrics.spatial_performance.total_regions_updated = (
-                batch_stats.get("total_regions_updated", 0)
-            )
-            self.step_metrics.spatial_performance.batch_count = batch_stats.get(
-                "batch_count", 0
-            )
+            self.step_metrics.spatial_performance.average_batch_size = batch_stats.get("average_batch_size", 0.0)
+            self.step_metrics.spatial_performance.last_batch_time = batch_stats.get("last_batch_time", 0.0)
+            self.step_metrics.spatial_performance.total_dirty_regions = batch_stats.get("total_dirty_regions", 0)
+            self.step_metrics.spatial_performance.regions_by_type = batch_stats.get("regions_by_type", {})
+            self.step_metrics.spatial_performance.total_regions_marked = batch_stats.get("total_regions_marked", 0)
+            self.step_metrics.spatial_performance.total_regions_updated = batch_stats.get("total_regions_updated", 0)
+            self.step_metrics.spatial_performance.batch_count = batch_stats.get("batch_count", 0)
 
         # Update perception performance metrics
         if "perception" in spatial_stats:
             perception_stats = spatial_stats["perception"]
-            self.step_metrics.spatial_performance.spatial_query_time = (
-                perception_stats.get("spatial_query_time_s", 0.0)
-            )
-            self.step_metrics.spatial_performance.bilinear_time = perception_stats.get(
-                "bilinear_time_s", 0.0
-            )
-            self.step_metrics.spatial_performance.nearest_time = perception_stats.get(
-                "nearest_time_s", 0.0
-            )
-            self.step_metrics.spatial_performance.bilinear_points = (
-                perception_stats.get("bilinear_points", 0)
-            )
-            self.step_metrics.spatial_performance.nearest_points = perception_stats.get(
-                "nearest_points", 0
-            )
+            self.step_metrics.spatial_performance.spatial_query_time = perception_stats.get("spatial_query_time_s", 0.0)
+            self.step_metrics.spatial_performance.bilinear_time = perception_stats.get("bilinear_time_s", 0.0)
+            self.step_metrics.spatial_performance.nearest_time = perception_stats.get("nearest_time_s", 0.0)
+            self.step_metrics.spatial_performance.bilinear_points = perception_stats.get("bilinear_points", 0)
+            self.step_metrics.spatial_performance.nearest_points = perception_stats.get("nearest_points", 0)
 
     def record_reproduction_attempt(self) -> None:
         """Record a reproduction attempt."""
@@ -300,8 +273,7 @@ class MetricsTracker:
     def get_metrics_summary(self) -> Dict[str, Any]:
         """Get a summary of key metrics."""
         return {
-            "population_growth": self.cumulative_metrics.total_births
-            - self.cumulative_metrics.total_deaths,
+            "population_growth": self.cumulative_metrics.total_births - self.cumulative_metrics.total_deaths,
             "combat_success_rate": (
                 self.cumulative_metrics.total_successful_attacks
                 / max(self.cumulative_metrics.total_combat_encounters, 1)
@@ -314,9 +286,7 @@ class MetricsTracker:
             "total_resource_consumption": self.cumulative_metrics.total_resource_consumption,
         }
 
-    def update_metrics(
-        self, metrics: Dict, db=None, time=None, agent_objects=None, resources=None
-    ):
+    def update_metrics(self, metrics: Dict, db=None, time=None, agent_objects=None, resources=None):
         """Update environment metrics and log to database.
 
         Parameters
@@ -335,17 +305,13 @@ class MetricsTracker:
                 agent_states = []
                 if agent_objects:
                     agent_states = [
-                        self._prepare_agent_state(agent, time)
-                        for agent in agent_objects.values()
-                        if agent.alive
+                        self._prepare_agent_state(agent, time) for agent in agent_objects.values() if agent.alive
                     ]
 
                 # Prepare resource states if resources provided
                 resource_states = []
                 if resources:
-                    resource_states = [
-                        self._prepare_resource_state(resource) for resource in resources
-                    ]
+                    resource_states = [self._prepare_resource_state(resource) for resource in resources]
 
                 db.logger.log_step(
                     step_number=time,
@@ -356,7 +322,7 @@ class MetricsTracker:
         except (ValueError, TypeError, AttributeError, IndexError) as e:
             logger.error("error_updating_metrics", error=str(e), exc_info=True)
 
-    def _prepare_agent_state(self, agent, time):
+    def _prepare_agent_state(self, agent: AgentProtocol, time: int):
         """Prepare agent state for database logging."""
         return (
             agent.agent_id,
@@ -380,7 +346,7 @@ class MetricsTracker:
             resource.position[1],  # y coordinate
         )
 
-    def calculate_metrics(self, agent_objects, resources, time, config=None):
+    def calculate_metrics(self, agent_objects: Dict[str, AgentProtocol], resources, time: int, config=None):
         """
         Calculate metrics for the current simulation state.
 
@@ -414,40 +380,20 @@ class MetricsTracker:
             deaths = tracker_metrics["deaths"]
 
             # Calculate generation metrics
-            current_max_generation = (
-                max([a.generation for a in alive_agents]) if alive_agents else 0
-            )
+            current_max_generation = max([a.generation for a in alive_agents]) if alive_agents else 0
 
             # Calculate health and age metrics
-            average_health = (
-                sum(a.current_health for a in alive_agents) / total_agents
-                if total_agents > 0
-                else 0
-            )
-            average_age = (
-                sum(time - a.birth_time for a in alive_agents) / total_agents
-                if total_agents > 0
-                else 0
-            )
-            average_reward = (
-                sum(a.total_reward for a in alive_agents) / total_agents
-                if total_agents > 0
-                else 0
-            )
+            average_health = sum(a.current_health for a in alive_agents) / total_agents if total_agents > 0 else 0
+            average_age = sum(time - a.birth_time for a in alive_agents) / total_agents if total_agents > 0 else 0
+            average_reward = sum(a.total_reward for a in alive_agents) / total_agents if total_agents > 0 else 0
 
             # Calculate resource metrics
             total_resources = sum(r.amount for r in resources)
             average_agent_resources = (
-                sum(a.resource_level for a in alive_agents) / total_agents
-                if total_agents > 0
-                else 0
+                sum(a.resource_level for a in alive_agents) / total_agents if total_agents > 0 else 0
             )
             resource_efficiency = (
-                total_resources
-                / (
-                    len(resources)
-                    * (config.resources.max_resource_amount if config else 30)
-                )
+                total_resources / (len(resources) * (config.resources.max_resource_amount if config else 30))
                 if resources
                 else 0
             )
@@ -455,15 +401,9 @@ class MetricsTracker:
             # Calculate genetic diversity
             genome_counts = {}
             for agent in alive_agents:
-                genome_counts[agent.genome_id] = (
-                    genome_counts.get(agent.genome_id, 0) + 1
-                )
-            genetic_diversity = (
-                len(genome_counts) / total_agents if total_agents > 0 else 0
-            )
-            dominant_genome_ratio = (
-                max(genome_counts.values()) / total_agents if genome_counts else 0
-            )
+                genome_counts[agent.genome_id] = genome_counts.get(agent.genome_id, 0) + 1
+            genetic_diversity = len(genome_counts) / total_agents if total_agents > 0 else 0
+            dominant_genome_ratio = max(genome_counts.values()) / total_agents if genome_counts else 0
 
             # Get combat and sharing metrics from tracker
             combat_encounters = tracker_metrics["combat_encounters"]
@@ -471,9 +411,7 @@ class MetricsTracker:
             resources_shared = tracker_metrics["resources_shared"]
             resources_shared_this_step = tracker_metrics["resources_shared_this_step"]
             combat_encounters_this_step = tracker_metrics["combat_encounters_this_step"]
-            successful_attacks_this_step = tracker_metrics[
-                "successful_attacks_this_step"
-            ]
+            successful_attacks_this_step = tracker_metrics["successful_attacks_this_step"]
 
             # Calculate resource distribution entropy
             resource_amounts = [r.amount for r in resources]
@@ -481,9 +419,7 @@ class MetricsTracker:
                 total = sum(resource_amounts)
                 if total > 0:
                     probabilities = [amt / total for amt in resource_amounts]
-                    resource_distribution_entropy = -sum(
-                        p * np.log(p) if p > 0 else 0 for p in probabilities
-                    )
+                    resource_distribution_entropy = -sum(p * np.log(p) if p > 0 else 0 for p in probabilities)
                 else:
                     resource_distribution_entropy = 0.0
             else:
