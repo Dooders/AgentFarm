@@ -389,6 +389,8 @@ class DecisionModule:
             def __init__(self, num_actions, epsilon=0.1):
                 self.num_actions = num_actions
                 self.epsilon = epsilon
+                # Store experiences for testing purposes
+                self.experiences = []
 
             def predict(self, observation, deterministic=False):
                 if np.random.random() < self.epsilon:
@@ -425,9 +427,10 @@ class DecisionModule:
                 """Should train method for compatibility with Tianshou-style algorithms."""
                 return True  # Always train in fallback to mark as trained
 
-            def store_experience(self, state, action, reward, next_state, done):
+            def store_experience(self, **kwargs):
                 """Store experience method for compatibility with Tianshou-style algorithms."""
-                # No experience storage in fallback
+                # Store experiences for testing - this enables database logging tests
+                self.experiences.append(kwargs)
 
         self.algorithm = FallbackAlgorithm(self.num_actions, self.config.epsilon_start)
 
