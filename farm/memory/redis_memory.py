@@ -22,6 +22,7 @@ import redis
 
 from farm.core.perception import PerceptionData
 from farm.core.state import AgentState
+from farm.memory.base_memory import MemorySearchMixin
 from farm.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -64,7 +65,7 @@ class RedisMemoryConfig:
         }
 
 
-class AgentMemory:
+class AgentMemory(MemorySearchMixin):
     """Redis-backed memory system for storing and retrieving agent experiences.
 
     This class provides a memory system that stores agent experiences in Redis,
@@ -120,6 +121,18 @@ class AgentMemory:
             )
             raise
 
+    def _get_timeline_key(self, agent_id: str) -> str:
+        """Get the Redis key for the agent's timeline."""
+        return f"{agent_id}:timeline"
+
+    def _get_all_timeline_steps(self, timeline_key: str) -> List[str]:
+        """Get all step IDs from the timeline."""
+        return self.redis_client.zrange(timeline_key, 0, -1)
+
+    def _retrieve_state_by_step(self, step: int) -> Optional[Dict[str, Any]]:
+        """Retrieve a state dictionary by step number."""
+        return self.retrieve_state(step)
+
     def _safe_serialize(self, obj: Any) -> Dict[str, Any]:
         """Safely serialize an object to a dictionary.
 
@@ -135,9 +148,7 @@ class AgentMemory:
         try:
             if hasattr(obj, "as_dict") and callable(getattr(obj, "as_dict")):
                 return obj.as_dict()
-            elif hasattr(obj, "as_serializable") and callable(
-                getattr(obj, "as_serializable")
-            ):
+            elif hasattr(obj, "as_serializable") and callable(getattr(obj, "as_serializable")):
                 return obj.as_serializable()
             else:
                 return vars(obj)
@@ -293,9 +304,7 @@ class AgentMemory:
             )
             return []
 
-    def retrieve_states_by_timeframe(
-        self, start_step: int, end_step: int
-    ) -> List[Dict[str, Any]]:
+    def retrieve_states_by_timeframe(self, start_step: int, end_step: int) -> List[Dict[str, Any]]:
         """Retrieve states within a specific timeframe.
 
         Args:
@@ -309,9 +318,7 @@ class AgentMemory:
             timeline_key = f"{self._agent_key_prefix}:timeline"
 
             # Get steps in the specified range
-            steps = self.redis_client.zrangebyscore(
-                timeline_key, min=start_step, max=end_step
-            )
+            steps = self.redis_client.zrangebyscore(timeline_key, min=start_step, max=end_step)
 
             # Retrieve each state
             results = []
@@ -323,14 +330,10 @@ class AgentMemory:
             return results
 
         except Exception as e:
-            logger.error(
-                f"Failed to retrieve states by timeframe for agent {self.agent_id}: {e}"
-            )
+            logger.error(f"Failed to retrieve states by timeframe for agent {self.agent_id}: {e}")
             return []
 
-    def search_by_metadata(
-        self, key: str, value: Any, limit: int = 10
-    ) -> List[Dict[str, Any]]:
+    def search_by_metadata(self, key: str, value: Any, limit: int = 10) -> List[Dict[str, Any]]:
         """Search for states with matching metadata.
 
         Args:
@@ -341,39 +344,14 @@ class AgentMemory:
         Returns:
             List[Dict]: List of matching state dictionaries
         """
-        try:
-            timeline_key = f"{self._agent_key_prefix}:timeline"
+        return self._search_states_by_criteria(
+            self.agent_id,
+            lambda state: ("metadata" in state and key in state["metadata"] and state["metadata"][key] == value),
+            limit,
+            "metadata search",
+        )
 
-            # Get all steps from the timeline
-            all_steps = self.redis_client.zrange(timeline_key, 0, -1)
-
-            # Search through states for matching metadata
-            results = []
-            for step in all_steps:  # type: ignore
-                state = self.retrieve_state(int(step))
-                if not state or "metadata" not in state:
-                    continue
-
-                if key in state["metadata"] and state["metadata"][key] == value:
-                    results.append(state)
-
-                if len(results) >= limit:
-                    break
-
-            return results
-
-        except Exception as e:
-            logger.error(
-                "metadata_search_failed",
-                agent_id=self.agent_id,
-                error_type=type(e).__name__,
-                error_message=str(e),
-            )
-            return []
-
-    def search_by_state_value(
-        self, key: str, value: Any, limit: int = 10
-    ) -> List[Dict[str, Any]]:
+    def search_by_state_value(self, key: str, value: Any, limit: int = 10) -> List[Dict[str, Any]]:
         """Search for states with matching state values.
 
         Args:
@@ -384,32 +362,12 @@ class AgentMemory:
         Returns:
             List[Dict]: List of matching state dictionaries
         """
-        try:
-            timeline_key = f"{self._agent_key_prefix}:timeline"
-
-            # Get all steps from the timeline
-            all_steps = self.redis_client.zrange(timeline_key, 0, -1)
-
-            # Search through states for matching value
-            results = []
-            for step in list(all_steps):  # type: ignore
-                state_data = self.retrieve_state(int(step))
-                if not state_data or "state" not in state_data:
-                    continue
-
-                if key in state_data["state"] and state_data["state"][key] == value:
-                    results.append(state_data)
-
-                if len(results) >= limit:
-                    break
-
-            return results
-
-        except Exception as e:
-            logger.error(
-                f"Failed to search state values for agent {self.agent_id}: {e}"
-            )
-            return []
+        return self._search_states_by_criteria(
+            self.agent_id,
+            lambda state: ("state" in state and key in state["state"] and state["state"][key] == value),
+            limit,
+            "state value search",
+        )
 
     def search_by_position(
         self, position: Tuple[float, float], radius: float = 1.0, limit: int = 10
@@ -490,9 +448,7 @@ class AgentMemory:
             return actions
 
         except Exception as e:
-            logger.error(
-                f"Failed to retrieve action history for agent {self.agent_id}: {e}"
-            )
+            logger.error(f"Failed to retrieve action history for agent {self.agent_id}: {e}")
             return []
 
     def get_action_frequency(self) -> Dict[str, int]:
@@ -515,9 +471,7 @@ class AgentMemory:
             return frequency
 
         except Exception as e:
-            logger.error(
-                f"Failed to get action frequency for agent {self.agent_id}: {e}"
-            )
+            logger.error(f"Failed to get action frequency for agent {self.agent_id}: {e}")
             return {}
 
     def clear_memory(self) -> bool:
@@ -650,9 +604,7 @@ class AgentMemoryManager:
             AgentMemory: Memory system for the agent
         """
         if agent_id not in self.memories:
-            self.memories[agent_id] = AgentMemory(
-                agent_id=agent_id, config=self.config, redis_client=self.redis
-            )
+            self.memories[agent_id] = AgentMemory(agent_id=agent_id, config=self.config, redis_client=self.redis)
         return self.memories[agent_id]
 
     def clear_all_memories(self) -> bool:
