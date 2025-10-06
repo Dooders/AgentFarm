@@ -164,7 +164,6 @@ docs/experiments/one_of_a_kind/data/
 farm/dashboard/
 
 # Jupyter notebooks
-notebooks/
 playground.ipynb
 
 # Simulation data
