@@ -123,7 +123,7 @@ class AgentMemory(MemorySearchMixin):
 
     def _get_timeline_key(self, agent_id: str) -> str:
         """Get the Redis key for the agent's timeline."""
-        return f"{agent_id}:timeline"
+        return f"{self._agent_key_prefix}:timeline"
 
     def _get_all_timeline_steps(self, timeline_key: str) -> List[str]:
         """Get all step IDs from the timeline."""

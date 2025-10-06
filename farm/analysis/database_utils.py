@@ -25,7 +25,7 @@ def import_data_generic(
     log_prefix: str,
     iteration_to_id: Optional[Dict[int, int]] = None,
     check_existing: bool = True,
-    commit_batch_size: int = 100
+    commit_batch_size: int = 100,
 ) -> int:
     """
     Generic function to import data into the database for single-table imports.
@@ -62,22 +62,16 @@ def import_data_generic(
             iteration = int(row["iteration"])
             sim_id = iteration_to_id.get(iteration)
             if not sim_id:
-                logger.warning(
-                    f"No simulation ID found for iteration {iteration}, skipping"
-                )
+                logger.warning(f"No simulation ID found for iteration {iteration}, skipping")
                 continue
         else:
             sim_id = None
 
         # Check if data already exists
         if check_existing and sim_id is not None:
-            existing = (
-                session.query(model_class).filter_by(simulation_id=sim_id).first()
-            )
+            existing = session.query(model_class).filter_by(simulation_id=sim_id).first()
             if existing:
-                logger.debug(
-                    f"{log_prefix} data for simulation {iteration} already exists, skipping"
-                )
+                logger.debug(f"{log_prefix} data for simulation {iteration} already exists, skipping")
                 continue
 
         # Create new data object
@@ -111,7 +105,7 @@ def import_multi_table_data(
     simulation_model_class,
     data_model_configs: List[Dict],
     log_prefix: str,
-    commit_batch_size: int = 100
+    commit_batch_size: int = 100,
 ) -> int:
     """
     Generic function to import data into multiple related tables per DataFrame row.
@@ -162,12 +156,18 @@ def import_multi_table_data(
 
         # Create all related data objects
         for config in data_model_configs:
+            create_func = config.get("create_func")
+            if create_func is None:
+                logger.error(
+                    f"Missing 'create_func' in config for {config.get('name', 'unknown')} at iteration {iteration}. Skipping this config."
+                )
+                continue
             try:
-                data_object = config['create_func'](row, sim.id)
+                data_object = create_func(row, sim.id)
                 if data_object is not None:  # Allow create functions to return None to skip
                     session.add(data_object)
             except Exception as e:
-                logger.error(f"Error creating {config['name']} for iteration {iteration}: {e}")
+                logger.error(f"Error creating {config.get('name', 'unknown')} for iteration {iteration}: {e}")
                 session.rollback()
                 break
         else:

@@ -412,9 +412,16 @@ class TestUnifiedAdapter:
 
         # Make run_experiment take some time so the test can check status before completion
         import time
+        import threading
+
+        # Use events for proper synchronization instead of hardcoded sleeps
+        experiment_started = threading.Event()
+        experiment_completed = threading.Event()
 
         def slow_run_experiment(*args, **kwargs):
-            time.sleep(0.5)  # Make it take longer so we can check status while running
+            experiment_started.set()  # Signal that experiment has started
+            time.sleep(0.1)  # Brief delay to ensure test can check running status
+            experiment_completed.set()  # Signal that experiment has completed
 
         mock_run_experiment = Mock(side_effect=slow_run_experiment)
         mock_controller.run_experiment = mock_run_experiment
@@ -439,9 +446,9 @@ class TestUnifiedAdapter:
         assert exp_info["start_time"] is not None
 
         # Wait for the background thread to start executing
-        time.sleep(0.1)  # Allow time for the background thread to call run_experiment
+        assert experiment_started.wait(timeout=1.0), "Experiment should start within timeout"
 
-        # The experiment should still be running since run_experiment takes 0.5s
+        # The experiment should still be running since run_experiment takes some time
         assert exp_info["status"] == ExperimentStatus.RUNNING
 
         # Should emit experiment_started event (before completion)
@@ -451,7 +458,7 @@ class TestUnifiedAdapter:
         assert event.experiment_id == experiment_id
 
         # Wait for completion
-        time.sleep(0.5)
+        assert experiment_completed.wait(timeout=1.0), "Experiment should complete within timeout"
 
         mock_controller.run_experiment.assert_called_once()
 

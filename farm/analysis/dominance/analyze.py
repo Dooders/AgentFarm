@@ -352,6 +352,28 @@ def _create_reproduction_stats(row, sim_id):
         control_reproduction_efficiency=row.get("control_reproduction_efficiency"),
         control_avg_resources_per_reproduction=row.get("control_avg_resources_per_reproduction"),
         control_avg_offspring_resources=row.get("control_avg_offspring_resources"),
+        # Reproduction advantage metrics
+        independent_vs_control_first_reproduction_advantage=row.get(
+            "independent_vs_control_first_reproduction_advantage"
+        ),
+        independent_vs_control_reproduction_efficiency_advantage=row.get(
+            "independent_vs_control_reproduction_efficiency_advantage"
+        ),
+        independent_vs_control_reproduction_rate_advantage=row.get(
+            "independent_vs_control_reproduction_rate_advantage"
+        ),
+        system_vs_independent_reproduction_rate_advantage=row.get("system_vs_independent_reproduction_rate_advantage"),
+        system_vs_control_reproduction_rate_advantage=row.get("system_vs_control_reproduction_rate_advantage"),
+        system_vs_independent_reproduction_efficiency_advantage=row.get(
+            "system_vs_independent_reproduction_efficiency_advantage"
+        ),
+        system_vs_control_first_reproduction_advantage=row.get("system_vs_control_first_reproduction_advantage"),
+        system_vs_independent_first_reproduction_advantage=row.get(
+            "system_vs_independent_first_reproduction_advantage"
+        ),
+        system_vs_control_reproduction_efficiency_advantage=row.get(
+            "system_vs_control_reproduction_efficiency_advantage"
+        ),
     )
 
 
@@ -751,7 +773,8 @@ def analyze_reproduction_timing(df, numeric_repro_cols):
         first_repro_corr = {}
         for col in first_repro_cols:
             # Create a single-column filter for this specific column
-            def col_filter(df):
+            # Use function to capture col by value, not by reference
+            def col_filter(df, col=col):
                 return df[df[col] > 0]
 
             correlations = analyze_correlations(
@@ -812,7 +835,7 @@ def analyze_reproduction_efficiency(df, numeric_repro_cols):
         df["dominance_stability"] = 1 / (df["switches_per_step"] + 0.01)
 
         # Use the utility function to analyze correlations
-        def filter_valid(data_df):
+        def filter_valid(data_df, efficiency_cols=efficiency_cols):
             return data_df[(data_df[efficiency_cols].notna()).all(axis=1) & (data_df[efficiency_cols] != 0).all(axis=1)]
 
         efficiency_stability_corr = analyze_correlations(
@@ -872,7 +895,7 @@ def analyze_reproduction_advantage(df, numeric_repro_cols):
             df["dominance_stability"] = 1 / (df["switches_per_step"] + 0.01)
 
         # Use the utility function to analyze correlations
-        def filter_valid(data_df):
+        def filter_valid(data_df, advantage_cols=advantage_cols):
             return data_df[data_df[advantage_cols].notna().all(axis=1)]
 
         advantage_stability_corr = analyze_correlations(
