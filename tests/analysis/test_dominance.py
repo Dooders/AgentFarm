@@ -703,22 +703,25 @@ class TestDominanceHelperFunctions:
         """Test saving dominance data to database."""
         from farm.analysis.dominance.db_io import save_dominance_data_to_db
 
-        with patch("farm.analysis.dominance.db_io.init_db") as mock_init, patch(
-            "farm.analysis.dominance.db_io.get_session"
-        ) as mock_get_session:
+        with patch("farm.analysis.dominance.db_io.import_multi_table_data") as mock_import, \
+             patch("farm.analysis.dominance.db_io.init_db") as mock_init, \
+             patch("farm.analysis.dominance.db_io.get_session") as mock_get_session:
+
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
+            mock_import.return_value = len(sample_dominance_data)
 
             # Should handle saving
             result = save_dominance_data_to_db(sample_dominance_data, "sqlite:///:memory:")
 
-            # Check if it attempted to save
-            assert mock_session.add.called or result is not None
+            assert result is True
+            mock_import.assert_called_once()
 
     def test_save_dominance_data_empty_df(self):
         """Test saving empty DataFrame to database."""
         from farm.analysis.dominance.db_io import save_dominance_data_to_db
 
+        # Should return False for empty data without calling database functions
         result = save_dominance_data_to_db(pd.DataFrame(), "sqlite:///:memory:")
 
         # Should return False for empty data
