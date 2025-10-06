@@ -413,27 +413,19 @@ class DataLogger:
                     self._action_buffer.clear()
 
                 if self._learning_exp_buffer:
-                    session.bulk_insert_mappings(
-                        LearningExperienceModel, self._learning_exp_buffer
-                    )
+                    session.bulk_insert_mappings(LearningExperienceModel, self._learning_exp_buffer)
                     self._learning_exp_buffer.clear()
 
                 if self._health_incident_buffer:
-                    session.bulk_insert_mappings(
-                        HealthIncident, self._health_incident_buffer
-                    )
+                    session.bulk_insert_mappings(HealthIncident, self._health_incident_buffer)
                     self._health_incident_buffer.clear()
 
                 if self.reproduction_buffer:
-                    session.bulk_insert_mappings(
-                        ReproductionEventModel, self.reproduction_buffer
-                    )
+                    session.bulk_insert_mappings(ReproductionEventModel, self.reproduction_buffer)
                     self.reproduction_buffer.clear()
 
                 if self._interaction_buffer:
-                    session.bulk_insert_mappings(
-                        InteractionModel, self._interaction_buffer
-                    )
+                    session.bulk_insert_mappings(InteractionModel, self._interaction_buffer)
                     self._interaction_buffer.clear()
 
                 if self._step_buffer:
@@ -498,23 +490,15 @@ class DataLogger:
         if action_weights is not None:
             try:
                 # Convert action_weights to a serializable format
-                serialized_action_weights = {
-                    str(k): float(v) for k, v in action_weights.items()
-                }
+                serialized_action_weights = {str(k): float(v) for k, v in action_weights.items()}
 
                 # Verify serialization by doing a round-trip through JSON
                 json_test = json.dumps(serialized_action_weights)
-                json.loads(
-                    json_test
-                )  # This will raise an exception if not properly serializable
+                json.loads(json_test)  # This will raise an exception if not properly serializable
 
-                logger.debug(
-                    f"Serialized action_weights for agent {agent_id}: {serialized_action_weights}"
-                )
+                logger.debug(f"Serialized action_weights for agent {agent_id}: {serialized_action_weights}")
             except Exception as e:
-                logger.warning(
-                    f"Failed to serialize action_weights for agent {agent_id}: {e}"
-                )
+                logger.warning(f"Failed to serialize action_weights for agent {agent_id}: {e}")
                 # Fall back to string representation if serialization fails
                 serialized_action_weights = str(action_weights)
 
@@ -575,15 +559,11 @@ class DataLogger:
                     ]
                     for field in required_fields:
                         if field not in data:
-                            raise ValueError(
-                                f"Missing required field '{field}' in agent data"
-                            )
+                            raise ValueError(f"Missing required field '{field}' in agent data")
 
                     # Process action_weights if present
                     action_weights = data.get("action_weights")
-                    if action_weights is not None and not isinstance(
-                        action_weights, (dict, str)
-                    ):
+                    if action_weights is not None and not isinstance(action_weights, (dict, str)):
                         logger.warning(
                             f"Invalid action_weights format for agent {data['agent_id']}: {type(action_weights)}"
                         )
@@ -676,9 +656,7 @@ class DataLogger:
                         unique_states[state_id] = mapping
 
                     # Use the filtered mappings for bulk insert
-                    session.bulk_insert_mappings(
-                        AgentStateModel, unique_states.values()
-                    )
+                    session.bulk_insert_mappings(AgentStateModel, unique_states.values())
 
                 # Bulk insert resource states
                 if resource_states:
@@ -720,9 +698,7 @@ class DataLogger:
             logger.error(f"Unexpected error in log_step: {e}")
             raise
 
-    def log_resource(
-        self, resource_id: int, initial_amount: float, position: Tuple[float, float]
-    ) -> None:
+    def log_resource(self, resource_id: int, initial_amount: float, position: Tuple[float, float]) -> None:
         """Log a new resource in the simulation."""
         try:
             resource_data = [
@@ -796,9 +772,7 @@ class ShardedDataLogger:
         # Ensure simulation_id is included in action_data
         if self.simulation_id and "simulation_id" not in action_data:
             action_data["simulation_id"] = self.simulation_id
-        self.sharded_db.shards[shard_id]["actions"].logger.log_agent_action(
-            **action_data
-        )
+        self.sharded_db.shards[shard_id]["actions"].logger.log_agent_action(**action_data)
 
     def flush_all_buffers(self):
         """Flush all buffers across all shards."""

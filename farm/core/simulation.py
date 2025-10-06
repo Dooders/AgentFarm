@@ -134,9 +134,7 @@ def create_initial_agents(
         environment.add_agent(agent)
         positions.append(position)
 
-    logger.info(
-        "agents_created", agent_type="independent", count=num_independent_agents
-    )
+    logger.info("agents_created", agent_type="independent", count=num_independent_agents)
 
     # Create control agents (now using BaseAgent)
     for _ in range(num_control_agents):
@@ -185,9 +183,7 @@ def init_random_seeds(seed=None):
                 # torch.backends.cudnn.deterministic = True
                 # torch.backends.cudnn.benchmark = False
         except ImportError:
-            logger.info(
-                "pytorch_unavailable", message="Skipping torch seed initialization"
-            )
+            logger.info("pytorch_unavailable", message="Skipping torch seed initialization")
 
         logger.info("random_seeds_initialized", seed=seed, deterministic=True)
 
@@ -253,7 +249,8 @@ def run_simulation(
 
     try:
         # Set up database path (None if path is None)
-        db_path = f"{path}/simulation.db" if path is not None else None
+        # Include simulation_id in filename to prevent conflicts between multiple simulations
+        db_path = f"{path}/simulation_{simulation_id}.db" if path is not None else None
 
         # Ensure the database directory exists
         if db_path is not None:
@@ -306,9 +303,7 @@ def run_simulation(
                     os.remove(db_path)
                 except PermissionError:
                     # If can't remove, create unique filename
-                    original_db_path = (
-                        db_path  # Store original path before modification
-                    )
+                    original_db_path = db_path  # Store original path before modification
                     base, ext = os.path.splitext(db_path)
                     db_path = f"{base}_{int(time.time())}{ext}"
                     logger.warning(
@@ -379,8 +374,7 @@ def run_simulation(
         # Main simulation loop
         # Disable tqdm progress bar in CI environments to avoid output interference
         disable_tqdm = (
-            os.environ.get("CI", "").lower() in ("true", "1")
-            or os.environ.get("GITHUB_ACTIONS", "").lower() == "true"
+            os.environ.get("CI", "").lower() in ("true", "1") or os.environ.get("GITHUB_ACTIONS", "").lower() == "true"
         )
         for step in tqdm(
             range(num_steps),
@@ -429,9 +423,7 @@ def run_simulation(
             if config.database.persist_db_on_completion and db_path is not None:
                 try:
                     # Create directory if it doesn't exist
-                    os.makedirs(
-                        os.path.dirname(os.path.abspath(db_path)), exist_ok=True
-                    )
+                    os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
 
                     logger.info("persisting_in_memory_database", db_path=db_path)
                     # Persist with selected tables or all tables

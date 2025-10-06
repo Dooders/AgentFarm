@@ -1142,7 +1142,10 @@ class BaseAgent:
             elif enabled_actions:
                 # Fallback: find current action's index within enabled actions
                 try:
-                    self._previous_action_index = enabled_actions.index(action)
+                    # Convert action to index first, then find its position in enabled_actions
+                    action_index = self._action_to_index(action)
+                    enabled_action_indices = [self._action_to_index(a) for a in enabled_actions]
+                    self._previous_action_index = enabled_action_indices.index(action_index)
                 except ValueError:
                     # Action not in enabled actions - this shouldn't happen but handle gracefully
                     logger.warning(
