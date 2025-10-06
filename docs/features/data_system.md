@@ -2,6 +2,45 @@
 
 ![Feature](https://img.shields.io/badge/feature-data%20system-blue)
 
+## Table of Contents
+
+1. [Overview](#overview)
+   - [Why a Comprehensive Data System Matters](#why-a-comprehensive-data-system-matters)
+2. [Core Capabilities](#core-capabilities)
+   - [1. Comprehensive Data Architecture](#1-comprehensive-data-architecture)
+     - [Architectural Layers](#architectural-layers)
+     - [Database Layer](#database-layer)
+     - [Repository Layer](#repository-layer)
+     - [Analyzers Layer](#analyzers-layer)
+     - [Services Layer](#services-layer)
+   - [2. Advanced Analytics](#2-advanced-analytics)
+     - [Action Statistics Analysis](#action-statistics-analysis)
+     - [Behavioral Clustering](#behavioral-clustering)
+     - [Causal Analysis](#causal-analysis)
+     - [Pattern Recognition](#pattern-recognition)
+   - [3. Flexible Data Access](#3-flexible-data-access)
+     - [Repository Pattern](#repository-pattern)
+     - [Scope-Based Filtering](#scope-based-filtering)
+     - [Direct SQL Queries](#direct-sql-queries)
+   - [4. High-Level Services](#4-high-level-services)
+     - [ActionsService](#actionsservice)
+     - [PopulationService](#populationservice)
+   - [5. Multi-Simulation Support](#5-multi-simulation-support)
+     - [Experiment Database](#experiment-database)
+     - [Cross-Simulation Queries](#cross-simulation-queries)
+     - [Comparative Analysis](#comparative-analysis)
+3. [Advanced Features](#advanced-features)
+   - [Custom Analyzers](#custom-analyzers)
+   - [Performance Optimization](#performance-optimization)
+4. [Example: Complete Data System Usage](#example-complete-data-system-usage)
+5. [Additional Resources](#additional-resources)
+   - [Documentation](#documentation)
+   - [Examples](#examples)
+   - [API Reference](#api-reference)
+6. [Support](#support)
+
+---
+
 ## Overview
 
 AgentFarm's Data System provides a comprehensive, layered architecture for managing simulation data with extensive depth and flexibility. From raw database storage to high-level analytical services, the system offers powerful tools for data persistence, retrieval, analysis, and insight generation.

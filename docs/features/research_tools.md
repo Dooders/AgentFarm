@@ -2,6 +2,44 @@
 
 ![Feature](https://img.shields.io/badge/feature-research%20tools-red)
 
+## Table of Contents
+
+1. [Overview](#overview)
+   - [Why Research Tools Matter](#why-research-tools-matter)
+2. [Core Capabilities](#core-capabilities)
+   - [1. Parameter Sweep Experiments](#1-parameter-sweep-experiments)
+     - [Basic Parameter Sweeps](#basic-parameter-sweeps)
+     - [Automated Parameter Space Exploration](#automated-parameter-space-exploration)
+     - [Adaptive Parameter Sweeps](#adaptive-parameter-sweeps)
+   - [2. Comparative Analysis Framework](#2-comparative-analysis-framework)
+     - [Multi-Simulation Comparison](#multi-simulation-comparison)
+     - [Cross-Experiment Analysis](#cross-experiment-analysis)
+     - [Effect Size Analysis](#effect-size-analysis)
+     - [Clustering Analysis](#clustering-analysis)
+   - [3. Experiment Replication Tools](#3-experiment-replication-tools)
+     - [Reproducibility Management](#reproducibility-management)
+     - [Exact Replication](#exact-replication)
+     - [Validation and Verification](#validation-and-verification)
+     - [Cross-Validation of Results](#cross-validation-of-results)
+   - [4. Structured Logging System](#4-structured-logging-system)
+     - [Basic Logging](#basic-logging)
+     - [Context Management](#context-management)
+     - [Specialized Context Managers](#specialized-context-managers)
+     - [Performance Logging](#performance-logging)
+     - [Agent-Specific Logging](#agent-specific-logging)
+     - [Log Sampling](#log-sampling)
+3. [Advanced Research Workflows](#advanced-research-workflows)
+   - [Multi-Stage Experiments](#multi-stage-experiments)
+   - [A/B Testing Framework](#ab-testing-framework)
+4. [Example: Complete Research Workflow](#example-complete-research-workflow)
+5. [Additional Resources](#additional-resources)
+   - [Documentation](#documentation)
+   - [Examples](#examples)
+   - [Tools](#tools)
+6. [Support](#support)
+
+---
+
 ## Overview
 
 AgentFarm provides a comprehensive suite of research tools designed to support rigorous scientific investigation through agent-based modeling. From parameter sweeps to comparative analysis and experiment replication, these tools enable researchers to conduct systematic studies with confidence in their results.

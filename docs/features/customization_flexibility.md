@@ -2,6 +2,47 @@
 
 ![Feature](https://img.shields.io/badge/feature-customization-green)
 
+## Table of Contents
+
+1. [Overview](#overview)
+   - [Why Customization Matters](#why-customization-matters)
+2. [Core Capabilities](#core-capabilities)
+   - [1. Define Custom Parameters, Rules, and Environments](#1-define-custom-parameters-rules-and-environments)
+     - [Hierarchical Configuration System](#hierarchical-configuration-system)
+     - [Basic Configuration Usage](#basic-configuration-usage)
+     - [Custom Environment Rules](#custom-environment-rules)
+     - [Custom Resource Distribution](#custom-resource-distribution)
+     - [Environmental Zones and Features](#environmental-zones-and-features)
+   - [2. Create Specialized Agent Behaviors and Properties](#2-create-specialized-agent-behaviors-and-properties)
+     - [Custom Agent Types](#custom-agent-types)
+     - [Custom Behavioral Traits](#custom-behavioral-traits)
+   - [3. Configure Simulation Parameters and Conditions](#3-configure-simulation-parameters-and-conditions)
+     - [Configuration Files](#configuration-files)
+     - [Parameter Presets](#parameter-presets)
+     - [Runtime Parameter Modification](#runtime-parameter-modification)
+     - [Configuration Validation](#configuration-validation)
+   - [4. Design Custom Experiments and Scenarios](#4-design-custom-experiments-and-scenarios)
+     - [Configuration Templates](#configuration-templates)
+     - [Custom Scenario Framework](#custom-scenario-framework)
+     - [Experiment Management](#experiment-management)
+3. [Advanced Customization](#advanced-customization)
+   - [Custom Action Types](#custom-action-types)
+   - [Custom Observation Channels](#custom-observation-channels)
+   - [Custom Learning Algorithms](#custom-learning-algorithms)
+4. [Configuration Best Practices](#configuration-best-practices)
+   - [1. Version Control Your Configurations](#1-version-control-your-configurations)
+   - [2. Document Configuration Changes](#2-document-configuration-changes)
+   - [3. Use Configuration Validation](#3-use-configuration-validation)
+   - [4. Create Reusable Configuration Profiles](#4-create-reusable-configuration-profiles)
+5. [Example: Complete Custom Simulation](#example-complete-custom-simulation)
+6. [Additional Resources](#additional-resources)
+   - [Documentation](#documentation)
+   - [Examples](#examples)
+   - [API Reference](#api-reference)
+7. [Support](#support)
+
+---
+
 ## Overview
 
 AgentFarm's Customization & Flexibility framework empowers researchers and developers to tailor every aspect of their simulations to match specific research goals and experimental designs. From simple parameter adjustments to complete behavioral overhauls, AgentFarm provides the tools and extensibility needed for any agent-based modeling scenario.

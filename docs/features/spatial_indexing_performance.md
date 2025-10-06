@@ -2,6 +2,45 @@
 
 ![Feature](https://img.shields.io/badge/feature-spatial%20%26%20performance-brightgreen)
 
+## Table of Contents
+
+1. [Overview](#overview)
+   - [Why Spatial Indexing Matters](#why-spatial-indexing-matters)
+2. [Core Capabilities](#core-capabilities)
+   - [1. Advanced Spatial Indexing](#1-advanced-spatial-indexing)
+     - [KD-Tree Indexing](#kd-tree-indexing)
+     - [Quadtree Indexing](#quadtree-indexing)
+     - [Spatial Hash Grid Indexing](#spatial-hash-grid-indexing)
+   - [2. Batch Spatial Updates](#2-batch-spatial-updates)
+     - [How Batch Updates Work](#how-batch-updates-work)
+     - [Partial Flushing](#partial-flushing)
+   - [3. Multi-Index Support](#3-multi-index-support)
+     - [Choosing the Right Index](#choosing-the-right-index)
+     - [Index Selection Guide](#index-selection-guide)
+     - [Custom Named Indices](#custom-named-indices)
+   - [4. Performance Monitoring](#4-performance-monitoring)
+     - [Real-Time Performance Metrics](#real-time-performance-metrics)
+     - [Profiling and Optimization](#profiling-and-optimization)
+     - [Benchmarking](#benchmarking)
+   - [5. Scalable Architecture](#5-scalable-architecture)
+     - [Scaling Characteristics](#scaling-characteristics)
+     - [Performance vs Industry Standards](#performance-vs-industry-standards)
+     - [Optimization Strategies](#optimization-strategies)
+3. [Advanced Usage](#advanced-usage)
+   - [Priority-Based Updates](#priority-based-updates)
+   - [Custom Query Filters](#custom-query-filters)
+   - [Spatial Analysis](#spatial-analysis)
+4. [Performance Benchmarks](#performance-benchmarks)
+   - [Real-World Performance](#real-world-performance)
+5. [Example: Complete Performance Optimization](#example-complete-performance-optimization)
+6. [Additional Resources](#additional-resources)
+   - [Documentation](#documentation)
+   - [Benchmarks](#benchmarks)
+   - [Implementation](#implementation)
+7. [Support](#support)
+
+---
+
 ## Overview
 
 AgentFarm's Spatial Indexing & Performance system provides state-of-the-art spatial data structures and optimization techniques for efficient large-scale multi-agent simulations. With multiple indexing strategies, batch update processing, and comprehensive performance monitoring, the system can handle thousands of agents with minimal computational overhead.
