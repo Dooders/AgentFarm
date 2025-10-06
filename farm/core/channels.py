@@ -54,7 +54,7 @@ from __future__ import annotations
 import math
 from abc import ABC, abstractmethod
 from enum import IntEnum
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import torch
 
@@ -125,9 +125,7 @@ class ChannelHandler(ABC):
         ...         pass
     """
 
-    def __init__(
-        self, name: str, behavior: ChannelBehavior, gamma: Optional[float] = None
-    ):
+    def __init__(self, name: str, behavior: ChannelBehavior, gamma: Optional[float] = None):
         """
         Initialize a channel handler.
 
@@ -223,9 +221,7 @@ class ChannelHandler(ABC):
         if self.behavior == ChannelBehavior.DYNAMIC and self.gamma is not None:
             self._safe_decay_sparse_channel(observation, channel_idx, self.gamma)
 
-    def _safe_store_sparse_point(
-        self, observation, channel_idx: int, y: int, x: int, value: float
-    ) -> None:
+    def _safe_store_sparse_point(self, observation, channel_idx: int, y: int, x: int, value: float) -> None:
         """
         Safely store a single point using sparse storage with fallback to direct tensor access.
 
@@ -248,9 +244,7 @@ class ChannelHandler(ABC):
             elif isinstance(observation, torch.Tensor):
                 observation[channel_idx, y, x] = value
 
-    def _safe_store_sparse_points(
-        self, observation, channel_idx: int, points: list, accumulate: bool = True
-    ) -> None:
+    def _safe_store_sparse_points(self, observation, channel_idx: int, points: list, accumulate: bool = True) -> None:
         """
         Safely store multiple points using sparse storage with fallback to direct tensor access.
 
@@ -272,22 +266,16 @@ class ChannelHandler(ABC):
                 if hasattr(observation, "tensor"):
                     tensor = observation.tensor()
                     if accumulate:
-                        tensor[channel_idx, y, x] = max(
-                            tensor[channel_idx, y, x].item(), value
-                        )
+                        tensor[channel_idx, y, x] = max(tensor[channel_idx, y, x].item(), value)
                     else:
                         tensor[channel_idx, y, x] = value
                 elif isinstance(observation, torch.Tensor):
                     if accumulate:
-                        observation[channel_idx, y, x] = max(
-                            observation[channel_idx, y, x].item(), value
-                        )
+                        observation[channel_idx, y, x] = max(observation[channel_idx, y, x].item(), value)
                     else:
                         observation[channel_idx, y, x] = value
 
-    def _safe_store_sparse_grid(
-        self, observation, channel_idx: int, grid: torch.Tensor
-    ) -> None:
+    def _safe_store_sparse_grid(self, observation, channel_idx: int, grid: torch.Tensor) -> None:
         """
         Safely store a full grid using sparse storage with fallback to direct tensor access.
 
@@ -308,9 +296,7 @@ class ChannelHandler(ABC):
             elif isinstance(observation, torch.Tensor):
                 observation[channel_idx].copy_(grid)
 
-    def _safe_decay_sparse_channel(
-        self, observation, channel_idx: int, gamma: float
-    ) -> None:
+    def _safe_decay_sparse_channel(self, observation, channel_idx: int, gamma: float) -> None:
         """
         Safely apply decay to a channel using sparse-aware decay with fallback.
 
@@ -350,6 +336,49 @@ class ChannelHandler(ABC):
                 observation.tensor()[channel_idx].zero_()
             elif isinstance(observation, torch.Tensor):
                 observation[channel_idx].zero_()
+
+    def _transform_entities_to_observation_coords(
+        self, entities: list, agent_world_pos: Tuple[int, int], angle: float, R: int
+    ) -> List[Tuple[int, int, float]]:
+        """
+        Transform world entity coordinates to local observation coordinates.
+
+        This utility method handles the common coordinate transformation logic used
+        by multiple channel handlers. It converts world coordinates to local observation
+        coordinates, applies optional rotation, and filters valid positions.
+
+        Args:
+            entities: List of (world_y, world_x, value) tuples representing entities
+            agent_world_pos: Agent's world position (y, x)
+            angle: Rotation angle in degrees (0 = no rotation)
+            R: Observation radius (used for coordinate offset)
+
+        Returns:
+            List of (obs_y, obs_x, value) tuples in observation coordinate space
+        """
+        use_rotation = angle != 0.0
+        if use_rotation:
+            a = math.radians(angle)
+            cos_a = math.cos(a)
+            sin_a = math.sin(a)
+
+        # Convert to local coordinates (rotate by -angle to align facing 'up') and filter valid positions
+        points = []
+        for world_y, world_x, value in entities:
+            dy = float(world_y - agent_world_pos[0])
+            dx = float(world_x - agent_world_pos[1])
+            if use_rotation:
+                dxp = dx * cos_a + dy * sin_a
+                dyp = -dx * sin_a + dy * cos_a
+            else:
+                dxp = dx
+                dyp = dy
+            y = int(round(R + dyp))
+            x = int(round(R + dxp))
+            if 0 <= y < 2 * R + 1 and 0 <= x < 2 * R + 1:
+                points.append((y, x, float(value)))
+
+        return points
 
     def clear(self, observation, channel_idx: int) -> None:
         """
@@ -467,9 +496,7 @@ class ChannelRegistry:
             self._next_index += 1
         else:
             if index in self._index_to_name:
-                raise ValueError(
-                    f"Channel index {index} already assigned to '{self._index_to_name[index]}'"
-                )
+                raise ValueError(f"Channel index {index} already assigned to '{self._index_to_name[index]}'")
             self._next_index = max(self._next_index, index + 1)
 
         self._handlers[handler.name] = handler
@@ -560,9 +587,7 @@ class ChannelRegistry:
             return -1
         return max(self._index_to_name.keys())
 
-    def apply_decay(
-        self, observation: torch.Tensor, config: "ObservationConfig"
-    ) -> None:
+    def apply_decay(self, observation: torch.Tensor, config: "ObservationConfig") -> None:
         """
         Apply decay to all DYNAMIC channels.
 
@@ -727,27 +752,12 @@ class AlliesHPHandler(ChannelHandler):
             sin_a = math.sin(a)
 
         # Convert to local coordinates (rotate by -angle to align facing 'up') and filter valid positions
-        points = []
-        for ally_y, ally_x, ally_hp in allies:
-            dy = float(ally_y - ay)
-            dx = float(ally_x - ax)
-            if use_rotation:
-                dxp = dx * cos_a + dy * sin_a
-                dyp = -dx * sin_a + dy * cos_a
-            else:
-                dxp = dx
-                dyp = dy
-            y = int(round(R + dyp))
-            x = int(round(R + dxp))
-            if 0 <= y < 2 * R + 1 and 0 <= x < 2 * R + 1:
-                points.append((y, x, float(ally_hp)))
+        points = self._transform_entities_to_observation_coords(allies, agent_world_pos, angle, R)
 
         # Use sparse storage utility method for consistent handling (no accumulation)
         # This maintains encapsulation by avoiding direct access to observation.sparse_channels
         # and instead uses the public sparse storage interface
-        self._safe_store_sparse_points(
-            observation, channel_idx, points, accumulate=False
-        )
+        self._safe_store_sparse_points(observation, channel_idx, points, accumulate=False)
 
 
 class EnemiesHPHandler(ChannelHandler):
@@ -801,27 +811,12 @@ class EnemiesHPHandler(ChannelHandler):
             sin_a = math.sin(a)
 
         # Convert to local coordinates (rotate by -angle to align facing 'up') and filter valid positions
-        points = []
-        for enemy_y, enemy_x, enemy_hp in enemies:
-            dy = float(enemy_y - ay)
-            dx = float(enemy_x - ax)
-            if use_rotation:
-                dxp = dx * cos_a + dy * sin_a
-                dyp = -dx * sin_a + dy * cos_a
-            else:
-                dxp = dx
-                dyp = dy
-            y = int(round(R + dyp))
-            x = int(round(R + dxp))
-            if 0 <= y < 2 * R + 1 and 0 <= x < 2 * R + 1:
-                points.append((y, x, float(enemy_hp)))
+        points = self._transform_entities_to_observation_coords(enemies, agent_world_pos, angle, R)
 
         # Use sparse storage utility method for consistent handling (no accumulation)
         # This maintains encapsulation by avoiding direct access to observation.sparse_channels
         # and instead uses the public sparse storage interface
-        self._safe_store_sparse_points(
-            observation, channel_idx, points, accumulate=False
-        )
+        self._safe_store_sparse_points(observation, channel_idx, points, accumulate=False)
 
 
 class WorldLayerHandler(ChannelHandler):
@@ -887,9 +882,7 @@ class WorldLayerHandler(ChannelHandler):
             if layer.device != config.device or layer.dtype != config.torch_dtype:
                 layer = layer.to(device=config.device, dtype=config.torch_dtype)
         else:
-            layer = torch.as_tensor(
-                layer, device=config.device, dtype=config.torch_dtype
-            )
+            layer = torch.as_tensor(layer, device=config.device, dtype=config.torch_dtype)
 
         # If already local sized (2R+1, 2R+1), use directly; otherwise crop from world
         R = config.R
@@ -902,9 +895,7 @@ class WorldLayerHandler(ChannelHandler):
                 final_layer = layer
         else:
             if angle != 0.0:
-                final_layer = crop_local_rotated(
-                    layer, agent_world_pos, R, orientation=angle, pad_val=0.0
-                )
+                final_layer = crop_local_rotated(layer, agent_world_pos, R, orientation=angle, pad_val=0.0)
             else:
                 final_layer = crop_local(layer, agent_world_pos, R, pad_val=0.0)
 
@@ -980,9 +971,7 @@ class KnownEmptyHandler(ChannelHandler):
 
     def __init__(self):
         """Initialize the known empty handler as a DYNAMIC channel."""
-        super().__init__(
-            "KNOWN_EMPTY", ChannelBehavior.DYNAMIC, gamma=None
-        )  # Use config gamma
+        super().__init__("KNOWN_EMPTY", ChannelBehavior.DYNAMIC, gamma=None)  # Use config gamma
 
     def decay(self, observation, channel_idx: int, config=None) -> None:
         """
@@ -1108,27 +1097,12 @@ class TransientEventHandler(ChannelHandler):
             sin_a = math.sin(a)
 
         # Convert to local coordinates (rotate by -angle to align facing 'up') and filter valid positions
-        points = []
-        for event_y, event_x, intensity in events:
-            dy = float(event_y - ay)
-            dx = float(event_x - ax)
-            if use_rotation:
-                dxp = dx * cos_a + dy * sin_a
-                dyp = -dx * sin_a + dy * cos_a
-            else:
-                dxp = dx
-                dyp = dy
-            y = int(round(R + dyp))
-            x = int(round(R + dxp))
-            if 0 <= y < 2 * R + 1 and 0 <= x < 2 * R + 1:
-                points.append((y, x, float(intensity)))
+        points = self._transform_entities_to_observation_coords(events, agent_world_pos, angle, R)
 
         # Use sparse storage utility method for consistent handling (no accumulation)
         # This maintains encapsulation by avoiding direct access to observation.sparse_channels
         # and instead uses the public sparse storage interface
-        self._safe_store_sparse_points(
-            observation, channel_idx, points, accumulate=False
-        )
+        self._safe_store_sparse_points(observation, channel_idx, points, accumulate=False)
 
 
 class GoalHandler(ChannelHandler):
@@ -1254,27 +1228,12 @@ class LandmarkHandler(ChannelHandler):
             sin_a = math.sin(a)
 
         # Convert to local coordinates (rotate by -angle to align facing 'up') and filter valid positions
-        points = []
-        for landmark_y, landmark_x, importance in landmarks_world:
-            dy = float(landmark_y - ay)
-            dx = float(landmark_x - ax)
-            if use_rotation:
-                dxp = dx * cos_a + dy * sin_a
-                dyp = -dx * sin_a + dy * cos_a
-            else:
-                dxp = dx
-                dyp = dy
-            y = int(round(R + dyp))
-            x = int(round(R + dxp))
-            if 0 <= y < 2 * R + 1 and 0 <= x < 2 * R + 1:
-                points.append((y, x, float(importance)))
+        points = self._transform_entities_to_observation_coords(landmarks_world, agent_world_pos, angle, R)
 
         # Use sparse storage utility method for consistent handling (with accumulation)
         # This maintains encapsulation by avoiding direct access to observation.sparse_channels
         # and instead uses the public sparse storage interface
-        self._safe_store_sparse_points(
-            observation, channel_idx, points, accumulate=True
-        )
+        self._safe_store_sparse_points(observation, channel_idx, points, accumulate=True)
 
 
 # Register core channel handlers with their original indices for backward compatibility
@@ -1312,15 +1271,9 @@ def _register_core_channels():
     register_channel(WorldLayerHandler("TERRAIN_COST", "TERRAIN_COST"), 5)
     register_channel(VisibilityHandler(), 6)
     register_channel(KnownEmptyHandler(), 7)
-    register_channel(
-        TransientEventHandler("DAMAGE_HEAT", "recent_damage_world", "gamma_dmg"), 8
-    )
-    register_channel(
-        TransientEventHandler("TRAILS", "trails_world_points", "gamma_trail"), 9
-    )
-    register_channel(
-        TransientEventHandler("ALLY_SIGNAL", "ally_signals_world", "gamma_sig"), 10
-    )
+    register_channel(TransientEventHandler("DAMAGE_HEAT", "recent_damage_world", "gamma_dmg"), 8)
+    register_channel(TransientEventHandler("TRAILS", "trails_world_points", "gamma_trail"), 9)
+    register_channel(TransientEventHandler("ALLY_SIGNAL", "ally_signals_world", "gamma_sig"), 10)
     register_channel(GoalHandler(), 11)
     register_channel(LandmarkHandler(), 12)
 

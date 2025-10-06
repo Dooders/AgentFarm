@@ -4,7 +4,7 @@ Common utility functions for analysis modules.
 Extracted from database analyzers and scripts for reuse.
 """
 
-from typing import List, Dict, Any, Optional, Tuple, Union
+from typing import List, Dict, Any, Optional, Tuple, Union, Callable
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -57,7 +57,7 @@ def calculate_rolling_mean(data: np.ndarray, window: int = 10) -> np.ndarray:
     Returns:
         Array of rolling means
     """
-    return np.convolve(data, np.ones(window) / window, mode='valid')
+    return np.convolve(data, np.ones(window) / window, mode="valid")
 
 
 def normalize_dict(d: Dict[str, int]) -> Dict[str, float]:
@@ -106,10 +106,7 @@ def validate_required_columns(df: pd.DataFrame, required: List[str]) -> None:
         raise ValueError(f"Missing required columns: {missing}")
 
 
-def align_time_series(
-    data_list: List[np.ndarray],
-    max_length: Optional[int] = None
-) -> np.ndarray:
+def align_time_series(data_list: List[np.ndarray], max_length: Optional[int] = None) -> np.ndarray:
     """Align multiple time series to same length by padding.
 
     Args:
@@ -128,7 +125,7 @@ def align_time_series(
     aligned = []
     for arr in data_list:
         if len(arr) < max_length:
-            padded = np.pad(arr, (0, max_length - len(arr)), mode='edge')
+            padded = np.pad(arr, (0, max_length - len(arr)), mode="edge")
         else:
             padded = arr[:max_length]
         aligned.append(padded)
@@ -139,6 +136,7 @@ def align_time_series(
 # ============================================================================
 # Data Loading Patterns
 # ============================================================================
+
 
 def find_database_path(experiment_path: Path, db_filename: str = "simulation.db") -> Path:
     """Find database file in experiment directory.
@@ -154,8 +152,9 @@ def find_database_path(experiment_path: Path, db_filename: str = "simulation.db"
         FileNotFoundError: If database not found
     """
     from farm.utils.logging_config import get_logger
+
     logger = get_logger(__name__)
-    
+
     # Try direct location first
     db_path = experiment_path / db_filename
     if db_path.exists():
@@ -173,9 +172,7 @@ def find_database_path(experiment_path: Path, db_filename: str = "simulation.db"
         logger.debug(f"Found database at: {experiment_path}")
         return experiment_path
 
-    raise FileNotFoundError(
-        f"No database '{db_filename}' found in {experiment_path} or {experiment_path}/data"
-    )
+    raise FileNotFoundError(f"No database '{db_filename}' found in {experiment_path} or {experiment_path}/data")
 
 
 def convert_dict_to_dataframe(data: Dict[str, Any], step_column: str = "step") -> pd.DataFrame:
@@ -204,9 +201,61 @@ def convert_dict_to_dataframe(data: Dict[str, Any], step_column: str = "step") -
     return pd.DataFrame([data])
 
 
+def load_data_with_csv_fallback(
+    experiment_path: Path,
+    csv_filename: str,
+    db_loader_func: Optional[Callable[[], pd.DataFrame]] = None,
+    logger: Optional[Any] = None,
+) -> pd.DataFrame:
+    """Load data from database with CSV fallback.
+
+    Attempts to load data from database first, then falls back to CSV files
+    if database loading fails or returns empty data.
+
+    Args:
+        experiment_path: Path to experiment directory
+        csv_filename: Name of CSV file to load as fallback (e.g., "actions.csv")
+        db_loader_func: Function to load from database, should return DataFrame or None
+        logger: Logger instance for logging messages
+
+    Returns:
+        DataFrame with loaded data
+
+    Raises:
+        FileNotFoundError: If neither database nor CSV data is found
+    """
+    df = None
+
+    # Try database loading first
+    if db_loader_func is not None:
+        try:
+            df = db_loader_func()
+        except Exception as e:
+            if logger:
+                logger.warning(f"Database loading failed: {e}. Falling back to CSV files")
+            df = None
+
+    # Fallback to CSV loading
+    if df is None or df.empty:
+        if logger:
+            logger.info("Loading data from CSV files")
+        data_dir = experiment_path / "data"
+        if data_dir.exists():
+            csv_path = data_dir / csv_filename
+            if csv_path.exists():
+                df = pd.read_csv(csv_path)
+            else:
+                raise FileNotFoundError(f"No {csv_filename} found in {experiment_path}")
+        else:
+            raise FileNotFoundError(f"No data directory found in {experiment_path}")
+
+    return df
+
+
 # ============================================================================
 # Analysis Patterns
 # ============================================================================
+
 
 def save_analysis_results(results: Dict[str, Any], filename: str, output_path: Path) -> Path:
     """Save analysis results to JSON file.
@@ -220,7 +269,7 @@ def save_analysis_results(results: Dict[str, Any], filename: str, output_path: P
         Path to saved file
     """
     output_file = output_path / filename
-    with open(output_file, 'w') as f:
+    with open(output_file, "w") as f:
         json.dump(results, f, indent=2, default=str)
     return output_file
 
@@ -248,8 +297,10 @@ def compute_basic_metrics(df: pd.DataFrame, columns: List[str]) -> Dict[str, Dic
 # Plotting Patterns
 # ============================================================================
 
-def setup_plot_figure(n_plots: int = 1, figsize: Optional[Tuple[int, int]] = None,
-                     style: str = "default") -> Tuple[plt.Figure, Union[plt.Axes, np.ndarray]]:
+
+def setup_plot_figure(
+    n_plots: int = 1, figsize: Optional[Tuple[int, int]] = None, style: str = "default"
+) -> Tuple[plt.Figure, Union[plt.Axes, np.ndarray]]:
     """Set up matplotlib figure with consistent styling.
 
     Args:
@@ -273,8 +324,9 @@ def setup_plot_figure(n_plots: int = 1, figsize: Optional[Tuple[int, int]] = Non
         return fig, axes
 
 
-def save_plot_figure(fig: plt.Figure, output_path: Path, filename: str,
-                    dpi: int = 300, bbox_inches: str = 'tight') -> Path:
+def save_plot_figure(
+    fig: plt.Figure, output_path: Path, filename: str, dpi: int = 300, bbox_inches: str = "tight"
+) -> Path:
     """Save matplotlib figure with consistent parameters.
 
     Args:
@@ -331,8 +383,10 @@ def normalize_agent_type_names(agent_types: List[str]) -> List[str]:
 # Validation Patterns
 # ============================================================================
 
-def validate_data_quality(df: pd.DataFrame, min_rows: int = 1,
-                         required_numeric_cols: Optional[List[str]] = None) -> None:
+
+def validate_data_quality(
+    df: pd.DataFrame, min_rows: int = 1, required_numeric_cols: Optional[List[str]] = None
+) -> None:
     """Validate DataFrame meets quality requirements.
 
     Args:
@@ -354,8 +408,7 @@ def validate_data_quality(df: pd.DataFrame, min_rows: int = 1,
                 raise ValueError(f"Column {col} must be numeric")
 
 
-def handle_missing_data(df: pd.DataFrame, strategy: str = "drop",
-                       columns: Optional[List[str]] = None) -> pd.DataFrame:
+def handle_missing_data(df: pd.DataFrame, strategy: str = "drop", columns: Optional[List[str]] = None) -> pd.DataFrame:
     """Handle missing data in DataFrame.
 
     Args:

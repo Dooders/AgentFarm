@@ -12,6 +12,44 @@ import numpy as np
 from farm.analysis.common.context import AnalysisContext
 
 
+def _create_empty_plot_message(
+    message: str, title: str, output_filename: str, ctx: AnalysisContext, figsize: tuple = (12, 8), dpi: int = 300
+) -> None:
+    """Create a plot with an empty data message.
+
+    Args:
+        message: Message to display when no data is available
+        title: Plot title
+        output_filename: Output filename for the saved plot
+        ctx: Analysis context
+        figsize: Figure size (width, height)
+        dpi: DPI for saved figure
+    """
+    ctx.logger.warning(f"No data available for {title.lower()} plot")
+    try:
+        fig, ax = plt.subplots(figsize=figsize)
+        ax.text(
+            0.5,
+            0.5,
+            message,
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+            fontsize=16,
+        )
+        ax.set_title(title)
+        ax.axis("off")
+
+        # Save figure
+        output_file = ctx.get_output_file(output_filename)
+        fig.savefig(output_file, dpi=dpi, bbox_inches="tight")
+        plt.close(fig)
+        ctx.logger.info(f"Saved empty {title.lower()} plot to {output_file}")
+    except (ValueError, TypeError):
+        # Handle case where plt is mocked and returns empty tuple
+        ctx.logger.info("Skipping plot creation due to mocked matplotlib")
+
+
 def plot_social_network_overview(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> None:
     """Create overview visualization of social networks.
 
@@ -27,30 +65,14 @@ def plot_social_network_overview(df: pd.DataFrame, ctx: AnalysisContext, **kwarg
 
     # Handle empty data
     if not isinstance(df, pd.DataFrame) or df.empty:
-        ctx.logger.warning("No data available for social network overview plot")
-        # Create a simple figure with a message
-        try:
-            fig, ax = plt.subplots(figsize=figsize)
-            ax.text(
-                0.5,
-                0.5,
-                "No social network data available",
-                ha="center",
-                va="center",
-                transform=ax.transAxes,
-                fontsize=16,
-            )
-            ax.set_title("Social Network Overview")
-            ax.axis("off")
-
-            # Save figure
-            output_file = ctx.get_output_file("social_network_overview.png")
-            fig.savefig(output_file, dpi=dpi, bbox_inches="tight")
-            plt.close(fig)
-            ctx.logger.info(f"Saved empty social network overview to {output_file}")
-        except (ValueError, TypeError):
-            # Handle case where plt is mocked and returns empty tuple
-            ctx.logger.info("Skipping plot creation due to mocked matplotlib")
+        _create_empty_plot_message(
+            "No social network data available",
+            "Social Network Overview",
+            "social_network_overview.png",
+            ctx,
+            figsize,
+            dpi,
+        )
         return
 
     # Create figure with subplots
@@ -113,27 +135,14 @@ def plot_cooperation_competition_balance(df: pd.DataFrame, ctx: AnalysisContext,
 
     # Handle empty data or non-DataFrame input
     if not isinstance(df, pd.DataFrame) or df.empty:
-        ctx.logger.warning("No data available for cooperation-competition balance plot")
-        try:
-            fig, ax = plt.subplots(figsize=figsize)
-            ax.text(
-                0.5,
-                0.5,
-                "No cooperation-competition data available",
-                ha="center",
-                va="center",
-                transform=ax.transAxes,
-                fontsize=16,
-            )
-            ax.set_title("Cooperation vs Competition Balance")
-            ax.axis("off")
-
-            output_file = ctx.get_output_file("cooperation_competition_balance.png")
-            fig.savefig(output_file, dpi=dpi, bbox_inches="tight")
-            plt.close(fig)
-            ctx.logger.info(f"Saved empty cooperation-competition balance plot to {output_file}")
-        except (ValueError, TypeError):
-            ctx.logger.info("Skipping plot creation due to mocked matplotlib")
+        _create_empty_plot_message(
+            "No cooperation-competition data available",
+            "Cooperation vs Competition Balance",
+            "cooperation_competition_balance.png",
+            ctx,
+            figsize,
+            dpi,
+        )
         return
 
     try:
@@ -212,27 +221,14 @@ def plot_resource_sharing_patterns(df: pd.DataFrame, ctx: AnalysisContext, **kwa
 
     # Handle empty data or non-DataFrame input
     if not isinstance(df, pd.DataFrame) or df.empty:
-        ctx.logger.warning("No data available for resource sharing patterns plot")
-        try:
-            fig, ax = plt.subplots(figsize=figsize)
-            ax.text(
-                0.5,
-                0.5,
-                "No resource sharing data available",
-                ha="center",
-                va="center",
-                transform=ax.transAxes,
-                fontsize=16,
-            )
-            ax.set_title("Resource Sharing Patterns")
-            ax.axis("off")
-
-            output_file = ctx.get_output_file("resource_sharing_patterns.png")
-            fig.savefig(output_file, dpi=dpi, bbox_inches="tight")
-            plt.close(fig)
-            ctx.logger.info(f"Saved empty resource sharing patterns plot to {output_file}")
-        except (ValueError, TypeError):
-            ctx.logger.info("Skipping plot creation due to mocked matplotlib")
+        _create_empty_plot_message(
+            "No resource sharing data available",
+            "Resource Sharing Patterns",
+            "resource_sharing_patterns.png",
+            ctx,
+            figsize,
+            dpi,
+        )
         return
 
     try:
@@ -307,27 +303,9 @@ def plot_spatial_clustering(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) ->
 
     # Handle empty data or non-DataFrame input
     if not isinstance(df, pd.DataFrame) or df.empty:
-        ctx.logger.warning("No data available for spatial clustering plot")
-        try:
-            fig, ax = plt.subplots(figsize=figsize)
-            ax.text(
-                0.5,
-                0.5,
-                "No spatial clustering data available",
-                ha="center",
-                va="center",
-                transform=ax.transAxes,
-                fontsize=16,
-            )
-            ax.set_title("Spatial Clustering")
-            ax.axis("off")
-
-            output_file = ctx.get_output_file("spatial_clustering.png")
-            fig.savefig(output_file, dpi=dpi, bbox_inches="tight")
-            plt.close(fig)
-            ctx.logger.info(f"Saved empty spatial clustering plot to {output_file}")
-        except (ValueError, TypeError):
-            ctx.logger.info("Skipping plot creation due to mocked matplotlib")
+        _create_empty_plot_message(
+            "No spatial clustering data available", "Spatial Clustering", "spatial_clustering.png", ctx, figsize, dpi
+        )
         return
 
     try:

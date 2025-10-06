@@ -9,6 +9,10 @@ import pandas as pd
 
 from farm.database.repositories.population_repository import PopulationRepository
 from farm.database.session_manager import SessionManager
+from farm.analysis.common.utils import find_database_path, load_data_with_csv_fallback
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def process_population_data(experiment_path: Path, use_database: bool = True, **kwargs) -> pd.DataFrame:
@@ -22,53 +26,35 @@ def process_population_data(experiment_path: Path, use_database: bool = True, **
     Returns:
         DataFrame with population metrics over time
     """
-    # Try to load from database first
-    df = None
-    try:
+
+    def _load_population_from_database() -> pd.DataFrame:
+        """Load population data from database."""
         # Find simulation database
-        db_path = experiment_path / "simulation.db"
-        if not db_path.exists():
-            # Try alternative locations
-            db_path = experiment_path / "data" / "simulation.db"
+        db_path = find_database_path(experiment_path)
+        session_manager = SessionManager(f"sqlite:///{db_path}")
+        repository = PopulationRepository(session_manager)
 
-        if db_path.exists():
-            # Load data using SessionManager directly
-            db_uri = f"sqlite:///{db_path}"
-            session_manager = SessionManager(db_uri)
-            repository = PopulationRepository(session_manager)
+        # Get population data over time
+        population_data = repository.get_population_over_time()
 
-            # Get population data over time
-            population_data = repository.get_population_over_time()
+        # Convert to DataFrame for analysis
+        df = pd.DataFrame(
+            {
+                "step": [p.step_number for p in population_data],
+                "total_agents": [p.total_agents for p in population_data],
+                "system_agents": [p.system_agents if p.system_agents is not None else 0 for p in population_data],
+                "independent_agents": [
+                    p.independent_agents if p.independent_agents is not None else 0 for p in population_data
+                ],
+                "control_agents": [p.control_agents if p.control_agents is not None else 0 for p in population_data],
+                "avg_resources": [p.avg_resources if p.avg_resources is not None else 0.0 for p in population_data],
+            }
+        )
+        return df
 
-            # Convert to DataFrame for analysis
-            df = pd.DataFrame(
-                {
-                    "step": [p.step_number for p in population_data],
-                    "total_agents": [p.total_agents for p in population_data],
-                    "system_agents": [p.system_agents if p.system_agents is not None else 0 for p in population_data],
-                    "independent_agents": [
-                        p.independent_agents if p.independent_agents is not None else 0 for p in population_data
-                    ],
-                    "control_agents": [
-                        p.control_agents if p.control_agents is not None else 0 for p in population_data
-                    ],
-                    "avg_resources": [p.avg_resources if p.avg_resources is not None else 0.0 for p in population_data],
-                }
-            )
-    except Exception as e:
-        # If database loading fails, try to load from CSV files
-        pass
-
-    if df is None or df.empty:
-        # Fallback to loading from CSV files
-        data_dir = experiment_path / "data"
-        if data_dir.exists():
-            csv_path = data_dir / "population.csv"
-            if csv_path.exists():
-                df = pd.read_csv(csv_path)
-            else:
-                raise FileNotFoundError(f"No population data found in {experiment_path}")
-        else:
-            raise FileNotFoundError(f"No data directory found in {experiment_path}")
-
-    return df
+    return load_data_with_csv_fallback(
+        experiment_path=experiment_path,
+        csv_filename="population.csv",
+        db_loader_func=_load_population_from_database if use_database else None,
+        logger=logger,
+    )

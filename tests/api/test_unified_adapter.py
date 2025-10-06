@@ -91,9 +91,7 @@ class TestUnifiedAdapter:
         assert event.simulation_id == simulation_id
 
     @patch("farm.api.unified_adapter.ConfigTemplateManager")
-    def test_create_simulation_invalid_config(
-        self, mock_config_manager_class, temp_workspace
-    ):
+    def test_create_simulation_invalid_config(self, mock_config_manager_class, temp_workspace):
         """Test creating simulation with invalid config."""
         session_path = temp_workspace / "test_session"
         session_path.mkdir(parents=True)
@@ -383,9 +381,7 @@ class TestUnifiedAdapter:
         assert event.experiment_id == experiment_id
 
     @patch("farm.api.unified_adapter.ConfigTemplateManager")
-    def test_create_experiment_invalid_config(
-        self, mock_config_manager_class, temp_workspace
-    ):
+    def test_create_experiment_invalid_config(self, mock_config_manager_class, temp_workspace):
         """Test creating experiment with invalid config."""
         session_path = temp_workspace / "test_session"
         session_path.mkdir(parents=True)
@@ -416,9 +412,16 @@ class TestUnifiedAdapter:
 
         # Make run_experiment take some time so the test can check status before completion
         import time
+        import threading
+
+        # Use events for proper synchronization instead of hardcoded sleeps
+        experiment_started = threading.Event()
+        experiment_completed = threading.Event()
 
         def slow_run_experiment(*args, **kwargs):
-            time.sleep(0.1)
+            experiment_started.set()  # Signal that experiment has started
+            time.sleep(0.1)  # Brief delay to ensure test can check running status
+            experiment_completed.set()  # Signal that experiment has completed
 
         mock_run_experiment = Mock(side_effect=slow_run_experiment)
         mock_controller.run_experiment = mock_run_experiment
@@ -436,18 +439,28 @@ class TestUnifiedAdapter:
         status = adapter.start_experiment(experiment_id)
 
         assert status.status == ExperimentStatus.RUNNING
-        mock_controller.run_experiment.assert_called_once()
 
-        # Check experiment info updated
+        # Check experiment info updated immediately
         exp_info = adapter._experiments[experiment_id]
         assert exp_info["status"] == ExperimentStatus.RUNNING
         assert exp_info["start_time"] is not None
 
-        # Should emit event
+        # Wait for the background thread to start executing
+        assert experiment_started.wait(timeout=1.0), "Experiment should start within timeout"
+
+        # The experiment should still be running since run_experiment takes some time
+        assert exp_info["status"] == ExperimentStatus.RUNNING
+
+        # Should emit experiment_started event (before completion)
         assert len(adapter._event_history) == 1
         event = adapter._event_history[0]
         assert event.event_type == "experiment_started"
         assert event.experiment_id == experiment_id
+
+        # Wait for completion
+        assert experiment_completed.wait(timeout=1.0), "Experiment should complete within timeout"
+
+        mock_controller.run_experiment.assert_called_once()
 
     def test_start_experiment_nonexistent(self, temp_workspace):
         """Test starting a non-existent experiment."""
@@ -716,9 +729,7 @@ class TestUnifiedAdapter:
         adapter = UnifiedAdapter(session_path)
 
         # Emit an event
-        adapter._emit_event(
-            "test_event", simulation_id="sim-123", data={"key": "value"}
-        )
+        adapter._emit_event("test_event", simulation_id="sim-123", data={"key": "value"})
 
         assert len(adapter._event_history) == 1
         event = adapter._event_history[0]
