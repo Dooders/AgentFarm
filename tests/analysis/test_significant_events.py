@@ -31,12 +31,22 @@ from farm.analysis.common.context import AnalysisContext
 def sample_events():
     """Create sample event data."""
     return [
-        {"type": "agent_death", "step": 120, "impact_scale": 0.7, "details": {"agent_id": "agent_42", "agent_type": "system", "generation": 3}},
+        {
+            "type": "agent_death",
+            "step": 120,
+            "impact_scale": 0.7,
+            "details": {"agent_id": "agent_42", "agent_type": "system", "generation": 3},
+        },
         {
             "type": "resource_depletion",
             "step": 135,
             "impact_scale": 0.9,
-            "details": {"total_resources_before": 1000, "total_resources_after": 100, "average_per_agent": 2.0, "drop_rate": 0.9},
+            "details": {
+                "total_resources_before": 1000,
+                "total_resources_after": 100,
+                "average_per_agent": 2.0,
+                "drop_rate": 0.9,
+            },
         },
         {
             "type": "population_crash",
@@ -50,12 +60,23 @@ def sample_events():
             "impact_scale": 0.8,
             "details": {"combat_encounters": 25, "successful_attacks": 15, "total_agents": 100, "combat_rate": 0.25},
         },
-        {"type": "agent_birth", "step": 170, "impact_scale": 0.3, "details": {"offspring_id": "agent_99", "parent_id": "agent_42", "generation": 4}},
+        {
+            "type": "agent_birth",
+            "step": 170,
+            "impact_scale": 0.3,
+            "details": {"offspring_id": "agent_99", "parent_id": "agent_42", "generation": 4},
+        },
         {
             "type": "health_critical",
             "step": 180,
             "impact_scale": 0.75,
-            "details": {"agent_id": "agent_50", "health_before": 100.0, "health_after": 15.0, "cause": "combat", "drop_rate": 0.85},
+            "details": {
+                "agent_id": "agent_50",
+                "health_before": 100.0,
+                "health_after": 15.0,
+                "cause": "combat",
+                "drop_rate": 0.85,
+            },
         },
         {
             "type": "population_boom",
@@ -75,29 +96,34 @@ def sample_events_with_severity(sample_events):
 @pytest.fixture
 def mock_db_with_events(request):
     """Create a mock database with realistic event data."""
-    
-    # Use a list to track call order (mutable so it persists across calls in same test)
+
+    # IMPORTANT: call_order tracks the sequence of database query calls made during a single
+    # detect_significant_events invocation. Some tests rely on the fact that multiple
+    # execute_with_retry calls within one analysis share the same call_order list, allowing
+    # us to verify the order and number of queries. Clearing call_order would break this
+    # verification and make the test results unreliable.
     call_order = []
-    
+
     # Reset the call order at the end of each test
     def reset_order():
         call_order.clear()
+
     request.addfinalizer(reset_order)
-    
+
     def create_mock_query(query_num):
         """Create a fresh mock query with data for specific query number."""
         mock_query = MagicMock()
-        
+
         # Query 1: agent deaths
         if query_num == 1:
             mock_query.filter.return_value.filter.return_value.all.return_value = [
-                ('agent_1', 120, 'system', 3),
-                ('agent_2', 150, 'independent', 5),
+                ("agent_1", 120, "system", 3),
+                ("agent_2", 150, "independent", 5),
             ]
         # Query 2: agent births (reproduction events)
         elif query_num == 2:
             mock_query.filter.return_value.filter.return_value.all.return_value = [
-                (170, 'agent_1', 'agent_10', True, 4),
+                (170, "agent_1", "agent_10", True, 4),
             ]
         # Query 3: population changes (uses filter().filter().order_by())
         elif query_num == 3:
@@ -108,7 +134,7 @@ def mock_db_with_events(request):
                 (100, 100, 5, 2),
                 (110, 150, 55, 5),  # population boom
                 (120, 140, 10, 15),
-                (150, 50, 5, 95),   # population crash
+                (150, 50, 5, 95),  # population crash
             ]
             mock_filter1.filter.return_value = mock_filter2
             mock_query.filter.return_value = mock_filter1
@@ -117,7 +143,7 @@ def mock_db_with_events(request):
             # Handle the chained filters
             mock_filter1 = MagicMock()
             mock_filter1.filter.return_value.all.return_value = [
-                (160, 'agent_3', 100.0, 15.0, 'combat'),
+                (160, "agent_3", 100.0, 15.0, "combat"),
             ]
             mock_query.filter.return_value = mock_filter1
         # Query 5: mass combat
@@ -142,26 +168,27 @@ def mock_db_with_events(request):
             mock_query.filter.return_value.all.return_value = []
             mock_query.filter.return_value.filter.return_value.all.return_value = []
             mock_query.filter.return_value.order_by.return_value.all.return_value = []
-        
+
         return mock_query
-    
+
     def mock_query_side_effect(*args, **kwargs):
         """Track calls and return appropriate mock query."""
         call_order.append(1)
         query_num = len(call_order)
         return create_mock_query(query_num)
-    
+
     mock_session = MagicMock()
     mock_session.query.side_effect = mock_query_side_effect
-    
+
     mock_db = MagicMock()
+
     def mock_execute(func):
         # Don't clear call_order - it should persist across multiple execute_with_retry calls
-        # within a single detect_significant_events call
+        # within a single detect_significant_events call (see above for detailed explanation)
         return func(mock_session)
-    
+
     mock_db.execute_with_retry = mock_execute
-    
+
     return mock_db
 
 
@@ -175,14 +202,14 @@ class TestSignificantEventsComputations:
         assert isinstance(events, list)
         # Should detect multiple types of events
         assert len(events) > 0
-        
+
         # Check that we have the expected event fields
         for event in events:
             assert "type" in event
             assert "step" in event
             assert "impact_scale" in event
             assert "details" in event
-        
+
         # Check that we detect different event types
         event_types = {e["type"] for e in events}
         # Should have at least some of: agent_death, agent_birth, population_crash, etc.
@@ -192,20 +219,21 @@ class TestSignificantEventsComputations:
         """Test event detection with different filters."""
         # Create a mock session with empty results
         mock_session = MagicMock()
-        
+
         def create_empty_query():
             mock_q = MagicMock()
             mock_q.filter.return_value.filter.return_value.all.return_value = []
             mock_q.filter.return_value.all.return_value = []
             mock_q.filter.return_value.order_by.return_value.all.return_value = []
             return mock_q
-        
+
         mock_session.query.side_effect = lambda *args: create_empty_query()
-        
+
         mock_db = MagicMock()
+
         def mock_execute(func):
             return func(mock_session)
-        
+
         mock_db.execute_with_retry = mock_execute
 
         # Test with high severity threshold
@@ -215,54 +243,54 @@ class TestSignificantEventsComputations:
         # Test with specific time range
         events = detect_significant_events(mock_db, start_step=100, end_step=150)
         assert isinstance(events, list)
-    
+
     def test_detect_agent_deaths(self, mock_db_with_events):
         """Test that agent death events are detected."""
         events = detect_significant_events(mock_db_with_events, start_step=0, end_step=200)
-        
+
         death_events = [e for e in events if e["type"] == "agent_death"]
         assert len(death_events) > 0
-        
+
         # Check death event structure
         for event in death_events:
             assert "agent_id" in event["details"]
             assert "agent_type" in event["details"]
             assert 0 <= event["impact_scale"] <= 1.0
-    
+
     def test_detect_agent_births(self, mock_db_with_events):
         """Test that agent birth events are detected."""
         events = detect_significant_events(mock_db_with_events, start_step=0, end_step=200)
-        
+
         birth_events = [e for e in events if e["type"] == "agent_birth"]
         assert len(birth_events) > 0
-        
+
         # Check birth event structure
         for event in birth_events:
             assert "offspring_id" in event["details"]
             assert "parent_id" in event["details"]
             assert 0 <= event["impact_scale"] <= 1.0
-    
+
     def test_detect_population_changes(self, mock_db_with_events):
         """Test that population crashes and booms are detected."""
         events = detect_significant_events(mock_db_with_events, start_step=0, end_step=200)
-        
+
         population_events = [e for e in events if e["type"] in ["population_crash", "population_boom"]]
         assert len(population_events) > 0
-        
+
         # Check population event structure
         for event in population_events:
             assert "population_before" in event["details"]
             assert "population_after" in event["details"]
             assert "change_rate" in event["details"]
             assert 0 <= event["impact_scale"] <= 1.0
-    
+
     def test_detect_health_critical(self, mock_db_with_events):
         """Test that critical health incidents are detected."""
         events = detect_significant_events(mock_db_with_events, start_step=0, end_step=200)
-        
+
         health_events = [e for e in events if e["type"] == "health_critical"]
         assert len(health_events) > 0
-        
+
         # Check health event structure
         for event in health_events:
             assert "agent_id" in event["details"]
@@ -270,27 +298,27 @@ class TestSignificantEventsComputations:
             assert "health_after" in event["details"]
             assert "cause" in event["details"]
             assert 0 <= event["impact_scale"] <= 1.0
-    
+
     def test_detect_mass_combat(self, mock_db_with_events):
         """Test that mass combat events are detected."""
         events = detect_significant_events(mock_db_with_events, start_step=0, end_step=200)
-        
+
         combat_events = [e for e in events if e["type"] == "mass_combat"]
         assert len(combat_events) > 0
-        
+
         # Check combat event structure
         for event in combat_events:
             assert "combat_encounters" in event["details"]
             assert "total_agents" in event["details"]
             assert 0 <= event["impact_scale"] <= 1.0
-    
+
     def test_detect_resource_depletion(self, mock_db_with_events):
         """Test that resource depletion events are detected."""
         events = detect_significant_events(mock_db_with_events, start_step=0, end_step=200)
-        
+
         resource_events = [e for e in events if e["type"] == "resource_depletion"]
         assert len(resource_events) > 0
-        
+
         # Check resource event structure
         for event in resource_events:
             assert "total_resources_after" in event["details"]
@@ -318,11 +346,11 @@ class TestSignificantEventsComputations:
 
         agent_birth = next(e for e in events_with_severity if e["type"] == "agent_birth")
         assert agent_birth["severity_category"] == "low"
-        
+
         # Check new event types
         mass_combat = next(e for e in events_with_severity if e["type"] == "mass_combat")
         assert mass_combat["severity_category"] in ["medium", "high"]
-        
+
         health_critical = next(e for e in events_with_severity if e["type"] == "health_critical")
         assert health_critical["severity_category"] in ["medium", "high"]
 
