@@ -16,7 +16,7 @@ from typing import Dict, List, Optional
 import pandas as pd
 from tqdm import tqdm
 
-from farm.charts.chart_analyzer import ChartAnalyzer
+from farm.core.interfaces import ChartAnalyzerProtocol
 from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
 from farm.database.database import SimulationDatabase
@@ -34,6 +34,7 @@ class ExperimentRunner:
         base_config: SimulationConfig,
         experiment_name: str,
         db_path: Optional[Path] = None,
+        chart_analyzer: Optional[ChartAnalyzerProtocol] = None,
     ):
         """
         Initialize experiment runner.
@@ -46,18 +47,17 @@ class ExperimentRunner:
             Name of the experiment for organizing results
         db_path : Optional[Path]
             Explicit path for the simulation database. If None, uses default location.
+        chart_analyzer : Optional[ChartAnalyzerProtocol]
+            Optional chart analyzer for post-run analysis. If None, analysis is skipped.
         """
         self.base_config = base_config
         self.experiment_name = experiment_name
         self.results: List[Dict] = []
+        self.chart_analyzer = chart_analyzer
 
         # Setup experiment directories
         self.experiment_dir = os.path.join("experiments", experiment_name)
-        self.db_dir = (
-            os.path.dirname(str(db_path))
-            if db_path
-            else os.path.join(self.experiment_dir, "databases")
-        )
+        self.db_dir = os.path.dirname(str(db_path)) if db_path else os.path.join(self.experiment_dir, "databases")
         self.results_dir = os.path.join(self.experiment_dir, "results")
 
         # Create directories
@@ -112,9 +112,7 @@ class ExperimentRunner:
         # Check if in-memory database is enabled in base config
         using_in_memory = getattr(self.base_config, "use_in_memory_db", False)
         if using_in_memory:
-            memory_limit = getattr(
-                self.base_config, "in_memory_db_memory_limit_mb", None
-            )
+            memory_limit = getattr(self.base_config, "in_memory_db_memory_limit_mb", None)
             self.logger.info(
                 "using_in_memory_database",
                 memory_limit_mb=memory_limit,
@@ -132,14 +130,14 @@ class ExperimentRunner:
         )
 
         for i in progress_bar:
-            progress_bar.set_description(f"Running iteration {i+1}/{num_iterations}")
+            progress_bar.set_description(f"Running iteration {i + 1}/{num_iterations}")
             self.logger.info(
                 "iteration_starting",
-                iteration=i+1,
+                iteration=i + 1,
                 total_iterations=num_iterations,
             )
             iteration_config = self._create_iteration_config(i, config_variations)
-            iteration_path = path / f"iteration_{i+1}" if path else None
+            iteration_path = path / f"iteration_{i + 1}" if path else None
 
             try:
                 if iteration_path:
@@ -156,19 +154,17 @@ class ExperimentRunner:
                 if env.db:
                     env.db.logger.flush_all_buffers()
 
-                self.logger.info("iteration_completed", iteration=i+1)
+                self.logger.info("iteration_completed", iteration=i + 1)
 
                 if run_analysis and iteration_path:
                     # Create a new database connection for analysis
                     db_path = iteration_path / "simulation.db"
 
                     # Skip analysis if using in-memory DB without persistence
-                    if using_in_memory and not getattr(
-                        iteration_config, "persist_db_on_completion", True
-                    ):
+                    if using_in_memory and not getattr(iteration_config, "persist_db_on_completion", True):
                         self.logger.warning(
                             "analysis_skipped",
-                            iteration=i+1,
+                            iteration=i + 1,
                             reason="in_memory_db_without_persistence",
                         )
                         continue
@@ -177,7 +173,7 @@ class ExperimentRunner:
                     if not os.path.exists(db_path):
                         self.logger.warning(
                             "analysis_skipped",
-                            iteration=i+1,
+                            iteration=i + 1,
                             reason="database_file_not_found",
                             db_path=str(db_path),
                         )
@@ -186,9 +182,9 @@ class ExperimentRunner:
                     analysis_db = SimulationDatabase(str(db_path))
 
                     try:
-                        # Run chart analysis with the new connection
-                        chart_analyzer = ChartAnalyzer(analysis_db)
-                        chart_analyzer.analyze_all_charts(iteration_path)
+                        # Run chart analysis if analyzer is provided
+                        if self.chart_analyzer is not None:
+                            self.chart_analyzer.analyze_all_charts(iteration_path)
 
                         # Run significant events analysis
                         from farm.analysis.service import AnalysisService, AnalysisRequest
@@ -206,14 +202,14 @@ class ExperimentRunner:
                                 "start_step": 0,
                                 "end_step": num_steps,
                                 "min_severity": 0.3,
-                                "db_connection": analysis_db
-                            }
+                                "db_connection": analysis_db,
+                            },
                         )
 
                         try:
                             result = analysis_service.run(request)
                             if result.success:
-                                self.logger.info(f"Significant events analysis completed for iteration {i+1}")
+                                self.logger.info(f"Significant events analysis completed for iteration {i + 1}")
                             else:
                                 self.logger.warning(f"Significant events analysis failed: {result.error}")
                         except Exception as e:
@@ -225,15 +221,13 @@ class ExperimentRunner:
             except Exception as e:
                 self.logger.error(
                     "iteration_failed",
-                    iteration=i+1,
+                    iteration=i + 1,
                     error_type=type(e).__name__,
                     error_message=str(e),
                 )
                 continue
 
-    def _create_iteration_config(
-        self, iteration: int, variations: Optional[List[Dict]] = None
-    ) -> SimulationConfig:
+    def _create_iteration_config(self, iteration: int, variations: Optional[List[Dict]] = None) -> SimulationConfig:
         """Create configuration for specific iteration."""
         config = self.base_config.copy()
 

@@ -9,11 +9,11 @@ Environment class and provides a clean interface for metric collection.
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import numpy as np
 
-from farm.core.agent import BaseAgent
+from farm.core.interfaces import AgentProtocol
 from farm.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -356,7 +356,7 @@ class MetricsTracker:
         except (ValueError, TypeError, AttributeError, IndexError) as e:
             logger.error("error_updating_metrics", error=str(e), exc_info=True)
 
-    def _prepare_agent_state(self, agent, time):
+    def _prepare_agent_state(self, agent: AgentProtocol, time: int):
         """Prepare agent state for database logging."""
         return (
             agent.agent_id,
@@ -380,7 +380,7 @@ class MetricsTracker:
             resource.position[1],  # y coordinate
         )
 
-    def calculate_metrics(self, agent_objects, resources, time, config=None):
+    def calculate_metrics(self, agent_objects: Dict[str, AgentProtocol], resources, time: int, config=None):
         """
         Calculate metrics for the current simulation state.
 
@@ -406,7 +406,7 @@ class MetricsTracker:
             total_agents = len(alive_agents)
 
             # Calculate agent type counts
-            system_agents = len([a for a in alive_agents if isinstance(a, BaseAgent)])
+            system_agents = len([a for a in alive_agents if hasattr(a, 'agent_type')])
 
             # Get metrics from tracker
             tracker_metrics = self.get_step_metrics()
