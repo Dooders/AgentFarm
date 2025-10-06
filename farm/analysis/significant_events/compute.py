@@ -6,8 +6,19 @@ from typing import Dict, Any, List, Optional
 import pandas as pd
 import numpy as np
 from pathlib import Path
+from sqlalchemy.orm import Session
+from sqlalchemy import func, and_, or_
 
 from farm.analysis.common.utils import calculate_statistics
+from farm.database.models import (
+    AgentModel,
+    AgentStateModel,
+    SimulationStepModel,
+    ResourceModel,
+    HealthIncident,
+    ReproductionEventModel,
+    ActionModel,
+)
 
 
 def detect_significant_events(
@@ -16,57 +27,354 @@ def detect_significant_events(
     """Detect significant events from simulation database.
 
     Args:
-        db_connection: Database connection to simulation data
+        db_connection: Database connection to simulation data (SessionManager or Session)
         start_step: Starting step for analysis
         end_step: Ending step for analysis (optional)
         min_severity: Minimum severity threshold for events
 
     Returns:
-        List of detected significant events
+        List of detected significant events with fields:
+        - type: Event type (agent_death, agent_birth, resource_depletion, population_crash, 
+                health_critical, mass_combat, resource_boom)
+        - step: Simulation step when event occurred
+        - impact_scale: Quantified impact (0.0-1.0)
+        - details: Additional event-specific information
     """
-    # This is a placeholder implementation
-    # In a real implementation, this would query the database for:
-    # - Agent deaths, births, major state changes
-    # - Resource depletion events
-    # - Population crashes/booms
-    # - Unusual action patterns
-    # - Environmental changes
-
     events = []
-
-    # Mock some example events for now
-    # TODO: Implement actual database queries
-    # Example event data structure for future implementation
-    # Each event should be a dictionary with at least the following keys:
-    # - 'type': str, one of ['agent_death', 'agent_birth', 'resource_depletion', 'population_crash', 'environmental_change']
-    # - 'step': int, simulation step when the event occurred
-    # - 'impact_scale': float, quantifies the impact (e.g., 0.0–1.0)
-    # - 'details': dict, additional event-specific information
-    events = [
-        {"type": "agent_death", "step": 120, "impact_scale": 0.7, "details": {"agent_id": 42, "cause": "starvation"}},
-        {
-            "type": "resource_depletion",
-            "step": 135,
-            "impact_scale": 0.9,
-            "details": {"resource": "water", "remaining": 0},
-        },
-        {
-            "type": "population_crash",
-            "step": 150,
-            "impact_scale": 1.0,
-            "details": {"population_before": 200, "population_after": 50},
-        },
-        {
-            "type": "environmental_change",
-            "step": 160,
-            "impact_scale": 0.6,
-            "details": {"change": "temperature_drop", "delta": -5},
-        },
-        {"type": "agent_birth", "step": 170, "impact_scale": 0.3, "details": {"agent_id": 99, "parent_id": 42}},
-    ]
-    # TODO: Implement actual database queries to replace this example data
+    
+    # Check if db_connection has execute_with_retry (SessionManager) or is a Session
+    if hasattr(db_connection, 'execute_with_retry'):
+        session_manager = db_connection
+        def query_func(func):
+            return session_manager.execute_with_retry(func)
+    else:
+        # Assume it's a Session object
+        session = db_connection
+        def query_func(func):
+            return func(session)
+    
+    # Detect agent deaths
+    events.extend(_detect_agent_deaths(query_func, start_step, end_step))
+    
+    # Detect agent births
+    events.extend(_detect_agent_births(query_func, start_step, end_step))
+    
+    # Detect population crashes and booms
+    events.extend(_detect_population_changes(query_func, start_step, end_step))
+    
+    # Detect critical health incidents
+    events.extend(_detect_critical_health_incidents(query_func, start_step, end_step))
+    
+    # Detect mass combat events
+    events.extend(_detect_mass_combat_events(query_func, start_step, end_step))
+    
+    # Detect resource depletion events
+    events.extend(_detect_resource_depletion(query_func, start_step, end_step))
 
     return events
+
+
+def _detect_agent_deaths(query_func, start_step: int, end_step: Optional[int]) -> List[Dict[str, Any]]:
+    """Detect agent death events."""
+    def query(session: Session) -> List[Dict[str, Any]]:
+        q = session.query(
+            AgentModel.agent_id,
+            AgentModel.death_time,
+            AgentModel.agent_type,
+            AgentModel.generation,
+        ).filter(
+            AgentModel.death_time.isnot(None),
+            AgentModel.death_time >= start_step
+        )
+        
+        if end_step is not None:
+            q = q.filter(AgentModel.death_time <= end_step)
+        
+        results = q.all()
+        
+        events = []
+        for agent_id, death_time, agent_type, generation in results:
+            # Calculate impact based on agent type and generation
+            # Higher generation and certain types have higher impact
+            impact_scale = 0.4  # Base impact
+            if agent_type == 'system':
+                impact_scale += 0.2
+            if generation and generation > 5:
+                impact_scale += min(0.3, generation * 0.03)
+            
+            impact_scale = min(1.0, impact_scale)
+            
+            events.append({
+                'type': 'agent_death',
+                'step': death_time,
+                'impact_scale': impact_scale,
+                'details': {
+                    'agent_id': agent_id,
+                    'agent_type': agent_type,
+                    'generation': generation,
+                }
+            })
+        
+        return events
+    
+    return query_func(query)
+
+
+def _detect_agent_births(query_func, start_step: int, end_step: Optional[int]) -> List[Dict[str, Any]]:
+    """Detect agent birth events."""
+    def query(session: Session) -> List[Dict[str, Any]]:
+        q = session.query(
+            ReproductionEventModel.step_number,
+            ReproductionEventModel.parent_id,
+            ReproductionEventModel.offspring_id,
+            ReproductionEventModel.success,
+            ReproductionEventModel.offspring_generation,
+        ).filter(
+            ReproductionEventModel.success == True,
+            ReproductionEventModel.step_number >= start_step
+        )
+        
+        if end_step is not None:
+            q = q.filter(ReproductionEventModel.step_number <= end_step)
+        
+        results = q.all()
+        
+        events = []
+        for step_number, parent_id, offspring_id, success, generation in results:
+            # Calculate impact based on generation
+            impact_scale = 0.2  # Base impact for births
+            if generation and generation > 5:
+                impact_scale += min(0.3, generation * 0.02)
+            
+            impact_scale = min(1.0, impact_scale)
+            
+            events.append({
+                'type': 'agent_birth',
+                'step': step_number,
+                'impact_scale': impact_scale,
+                'details': {
+                    'offspring_id': offspring_id,
+                    'parent_id': parent_id,
+                    'generation': generation,
+                }
+            })
+        
+        return events
+    
+    return query_func(query)
+
+
+def _detect_population_changes(query_func, start_step: int, end_step: Optional[int]) -> List[Dict[str, Any]]:
+    """Detect population crashes and booms."""
+    def query(session: Session) -> List[Dict[str, Any]]:
+        q = session.query(
+            SimulationStepModel.step_number,
+            SimulationStepModel.total_agents,
+            SimulationStepModel.births,
+            SimulationStepModel.deaths,
+        ).filter(
+            SimulationStepModel.step_number >= start_step
+        )
+        
+        if end_step is not None:
+            q = q.filter(SimulationStepModel.step_number <= end_step)
+        
+        q = q.order_by(SimulationStepModel.step_number)
+        results = q.all()
+        
+        events = []
+        prev_population = None
+        
+        for step_number, total_agents, births, deaths in results:
+            if prev_population is not None and total_agents > 0:
+                # Calculate population change rate
+                change_rate = abs(total_agents - prev_population) / prev_population
+                
+                # Detect crashes (>30% decrease)
+                if total_agents < prev_population and change_rate > 0.3:
+                    impact_scale = min(1.0, change_rate)
+                    events.append({
+                        'type': 'population_crash',
+                        'step': step_number,
+                        'impact_scale': impact_scale,
+                        'details': {
+                            'population_before': prev_population,
+                            'population_after': total_agents,
+                            'change_rate': change_rate,
+                            'deaths': deaths,
+                        }
+                    })
+                
+                # Detect booms (>40% increase)
+                elif total_agents > prev_population and change_rate > 0.4:
+                    impact_scale = min(1.0, change_rate * 0.7)  # Booms slightly less impactful
+                    events.append({
+                        'type': 'population_boom',
+                        'step': step_number,
+                        'impact_scale': impact_scale,
+                        'details': {
+                            'population_before': prev_population,
+                            'population_after': total_agents,
+                            'change_rate': change_rate,
+                            'births': births,
+                        }
+                    })
+            
+            prev_population = total_agents if total_agents else prev_population
+        
+        return events
+    
+    return query_func(query)
+
+
+def _detect_critical_health_incidents(query_func, start_step: int, end_step: Optional[int]) -> List[Dict[str, Any]]:
+    """Detect critical health incidents."""
+    def query(session: Session) -> List[Dict[str, Any]]:
+        q = session.query(
+            HealthIncident.step_number,
+            HealthIncident.agent_id,
+            HealthIncident.health_before,
+            HealthIncident.health_after,
+            HealthIncident.cause,
+        ).filter(
+            HealthIncident.step_number >= start_step
+        )
+        
+        if end_step is not None:
+            q = q.filter(HealthIncident.step_number <= end_step)
+        
+        results = q.all()
+        
+        events = []
+        for step_number, agent_id, health_before, health_after, cause in results:
+            # Detect critical health drops (>50% health loss or drops below 20%)
+            if health_before and health_after is not None:
+                health_drop = health_before - health_after
+                drop_rate = health_drop / health_before if health_before > 0 else 0
+                
+                is_critical = (drop_rate > 0.5) or (health_after < 20)
+                
+                if is_critical:
+                    impact_scale = min(1.0, 0.4 + drop_rate * 0.5)
+                    
+                    events.append({
+                        'type': 'health_critical',
+                        'step': step_number,
+                        'impact_scale': impact_scale,
+                        'details': {
+                            'agent_id': agent_id,
+                            'health_before': health_before,
+                            'health_after': health_after,
+                            'cause': cause,
+                            'drop_rate': drop_rate,
+                        }
+                    })
+        
+        return events
+    
+    return query_func(query)
+
+
+def _detect_mass_combat_events(query_func, start_step: int, end_step: Optional[int]) -> List[Dict[str, Any]]:
+    """Detect mass combat events."""
+    def query(session: Session) -> List[Dict[str, Any]]:
+        q = session.query(
+            SimulationStepModel.step_number,
+            SimulationStepModel.combat_encounters_this_step,
+            SimulationStepModel.successful_attacks_this_step,
+            SimulationStepModel.total_agents,
+        ).filter(
+            SimulationStepModel.step_number >= start_step,
+            SimulationStepModel.combat_encounters_this_step > 0
+        )
+        
+        if end_step is not None:
+            q = q.filter(SimulationStepModel.step_number <= end_step)
+        
+        results = q.all()
+        
+        events = []
+        for step_number, combat_encounters, successful_attacks, total_agents in results:
+            # Detect mass combat (>20% of population involved or >10 encounters)
+            if total_agents and total_agents > 0:
+                combat_rate = combat_encounters / total_agents
+                
+                is_mass_combat = (combat_rate > 0.2) or (combat_encounters > 10)
+                
+                if is_mass_combat:
+                    impact_scale = min(1.0, 0.5 + combat_rate * 0.5)
+                    
+                    events.append({
+                        'type': 'mass_combat',
+                        'step': step_number,
+                        'impact_scale': impact_scale,
+                        'details': {
+                            'combat_encounters': combat_encounters,
+                            'successful_attacks': successful_attacks,
+                            'total_agents': total_agents,
+                            'combat_rate': combat_rate,
+                        }
+                    })
+        
+        return events
+    
+    return query_func(query)
+
+
+def _detect_resource_depletion(query_func, start_step: int, end_step: Optional[int]) -> List[Dict[str, Any]]:
+    """Detect resource depletion events."""
+    def query(session: Session) -> List[Dict[str, Any]]:
+        # Get resource states and detect when resources drop to very low levels
+        q = session.query(
+            SimulationStepModel.step_number,
+            SimulationStepModel.total_resources,
+            SimulationStepModel.average_agent_resources,
+            SimulationStepModel.total_agents,
+        ).filter(
+            SimulationStepModel.step_number >= start_step
+        )
+        
+        if end_step is not None:
+            q = q.filter(SimulationStepModel.step_number <= end_step)
+        
+        q = q.order_by(SimulationStepModel.step_number)
+        results = q.all()
+        
+        events = []
+        prev_resources = None
+        
+        for step_number, total_resources, avg_resources, total_agents in results:
+            # Detect severe resource drops or critically low resources
+            if prev_resources is not None and prev_resources > 0:
+                drop_rate = (prev_resources - total_resources) / prev_resources
+                
+                # Critical resource depletion (>60% drop or avg < 5 per agent)
+                is_critical = (drop_rate > 0.6) or (avg_resources is not None and avg_resources < 5)
+                
+                if is_critical and total_resources is not None:
+                    impact_scale = 0.6
+                    if drop_rate > 0:
+                        impact_scale = min(1.0, 0.5 + drop_rate * 0.5)
+                    elif avg_resources is not None and avg_resources < 5:
+                        impact_scale = min(1.0, 0.7 + (5 - avg_resources) * 0.1)
+                    
+                    events.append({
+                        'type': 'resource_depletion',
+                        'step': step_number,
+                        'impact_scale': impact_scale,
+                        'details': {
+                            'total_resources_before': prev_resources,
+                            'total_resources_after': total_resources,
+                            'average_per_agent': avg_resources,
+                            'drop_rate': drop_rate if drop_rate > 0 else 0,
+                        }
+                    })
+            
+            prev_resources = total_resources if total_resources is not None else prev_resources
+        
+        return events
+    
+    return query_func(query)
 
 
 def compute_event_severity(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -85,6 +393,9 @@ def compute_event_severity(events: List[Dict[str, Any]]) -> List[Dict[str, Any]]
             "agent_birth": 0.3,
             "resource_depletion": 0.8,
             "population_crash": 0.9,
+            "population_boom": 0.6,
+            "health_critical": 0.7,
+            "mass_combat": 0.8,
             "environmental_change": 0.6,
         }.get(event.get("type", "unknown"), 0.1)
 
