@@ -211,7 +211,7 @@ class TestConfigCacheIsolation(unittest.TestCase):
             "config": "not_a_dict_or_config",
             "size": 100,
             "created": 1234567890.0,
-            "file_mtimes": {}
+            "file_mtimes": {},
         }
         cache.access_times["invalid_key"] = 1234567890.0
 
@@ -538,7 +538,7 @@ class TestSafeConfigLoaderIsolation(unittest.TestCase):
 
         errors = [
             {"field": "width", "error": "Environment dimensions must be positive", "value": -10},
-            {"field": "max_population", "error": "Max population must be positive", "value": 0}
+            {"field": "max_population", "error": "Max population must be positive", "value": 0},
         ]
 
         # Attempt repair
@@ -564,8 +564,12 @@ class TestSafeConfigLoaderIsolation(unittest.TestCase):
         try:
             # Create a minimal valid config
             config_data = {
-                "width": 100, "height": 100, "system_agents": 5,
-                "independent_agents": 5, "control_agents": 5, "max_population": 50
+                "width": 100,
+                "height": 100,
+                "system_agents": 5,
+                "independent_agents": 5,
+                "control_agents": 5,
+                "max_population": 50,
             }
 
             with open(os.path.join(temp_dir, "default.yaml"), "w") as f:
@@ -582,6 +586,7 @@ class TestSafeConfigLoaderIsolation(unittest.TestCase):
 
         finally:
             import shutil
+
             shutil.rmtree(temp_dir)
 
 
@@ -695,10 +700,7 @@ class TestConfigurationOrchestratorIsolation(unittest.TestCase):
 
         # Should raise the exception (doesn't handle gracefully)
         with self.assertRaises(FileNotFoundError):
-            self.orchestrator.load_config_with_status(
-                environment="test",
-                validate=False
-            )
+            self.orchestrator.load_config_with_status(environment="test", validate=False)
 
     def test_orchestrator_validation_error_propagation(self):
         """Test orchestrator propagates validation errors correctly."""
@@ -712,15 +714,12 @@ class TestConfigurationOrchestratorIsolation(unittest.TestCase):
         # Mock validation failure
         self.mock_validator.validate_config_dict.return_value = (
             {"failed": "validation"},
-            {"success": False, "errors": ["Validation failed"], "warnings": []}
+            {"success": False, "errors": ["Validation failed"], "warnings": []},
         )
 
         # Should raise ValidationError
         with self.assertRaises(Exception):  # Could be ValidationError or similar
-            self.orchestrator.load_config(
-                environment="test",
-                validate=True
-            )
+            self.orchestrator.load_config(environment="test", validate=True)
 
     def test_orchestrator_preload_common_configs(self):
         """Test orchestrator preload functionality."""
