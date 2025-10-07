@@ -38,6 +38,9 @@ from farm.core.agent.config import (
 # State
 from farm.core.agent.state import StateManager
 
+# Compatibility (for migration)
+from farm.core.agent.compat import BaseAgentAdapter
+
 __all__ = [
     # Core
     "AgentCore",
@@ -62,4 +65,6 @@ __all__ = [
     "ReproductionConfig",
     # State
     "StateManager",
+    # Compatibility
+    "BaseAgentAdapter",
 ]
