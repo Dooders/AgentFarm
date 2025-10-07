@@ -14,6 +14,43 @@ from farm.analysis.dominance.plot import (
 )
 from farm.analysis.dominance.query_dominance_db import load_data_from_db
 
+# Phase 1-3: Protocol-based architecture with dependency injection
+from farm.analysis.dominance.interfaces import (
+    DominanceAnalyzerProtocol,
+    DominanceComputerProtocol,
+    DominanceDataProviderProtocol,
+)
+from farm.analysis.dominance.compute import DominanceComputer
+from farm.analysis.dominance.implementations import (
+    DominanceAnalyzer,
+    DominanceDataProvider,
+)
+from farm.analysis.dominance.orchestrator import (
+    DominanceAnalysisOrchestrator,
+    create_dominance_orchestrator,
+)
+
+# Convenience: Create a default orchestrator instance for easy access
+_default_orchestrator = create_dominance_orchestrator()
+
+
+def get_orchestrator() -> DominanceAnalysisOrchestrator:
+    """
+    Get the default dominance analysis orchestrator instance.
+    
+    Returns
+    -------
+    DominanceAnalysisOrchestrator
+        The default orchestrator with all dependencies wired
+        
+    Example
+    -------
+    >>> from farm.analysis.dominance import get_orchestrator
+    >>> orchestrator = get_orchestrator()
+    >>> result = orchestrator.compute_population_dominance(session)
+    """
+    return _default_orchestrator
+
 # Dictionary to store all analysis functions
 _ANALYSIS_FUNCTIONS = {}
 _ANALYSIS_GROUPS = {}
@@ -150,3 +187,39 @@ register_analysis()
 
 # Import the module instance
 from farm.analysis.dominance.module import dominance_module
+
+# Define __all__ for explicit exports
+__all__ = [
+    # Legacy functions
+    "process_dominance_data",
+    "run_dominance_classification",
+    "load_data_from_db",
+    # Plot functions
+    "plot_comprehensive_score_breakdown",
+    "plot_correlation_matrix",
+    "plot_dominance_comparison",
+    "plot_dominance_distribution",
+    "plot_dominance_stability",
+    "plot_dominance_switches",
+    "plot_reproduction_advantage_vs_stability",
+    "plot_reproduction_success_vs_switching",
+    "plot_reproduction_vs_dominance",
+    "plot_resource_proximity_vs_dominance",
+    # Protocols (interfaces)
+    "DominanceAnalyzerProtocol",
+    "DominanceComputerProtocol",
+    "DominanceDataProviderProtocol",
+    # Concrete implementations
+    "DominanceComputer",
+    "DominanceAnalyzer",
+    "DominanceDataProvider",
+    # Orchestrator
+    "DominanceAnalysisOrchestrator",
+    "create_dominance_orchestrator",
+    "get_orchestrator",
+    # Module utilities
+    "get_analysis_function",
+    "get_analysis_functions",
+    "get_module_info",
+    "dominance_module",
+]
