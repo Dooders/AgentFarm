@@ -14,15 +14,15 @@ logger = get_logger(__name__)
 class DominanceComputer:
     """
     Concrete implementation of DominanceComputerProtocol.
-    
+
     Provides pure computation logic for dominance-related metrics without
     depending on analysis modules. Uses dependency injection pattern.
     """
 
-    def __init__(self, analyzer: Optional['DominanceAnalyzerProtocol'] = None):
+    def __init__(self, analyzer: Optional["DominanceAnalyzerProtocol"] = None):
         """
         Initialize the dominance computer.
-        
+
         Parameters
         ----------
         analyzer : Optional[DominanceAnalyzerProtocol]
@@ -36,11 +36,7 @@ class DominanceComputer:
         Compute the dominant agent type by final population.
         Query the final simulation step and choose the type with the highest count.
         """
-        final_step = (
-            sim_session.query(SimulationStepModel)
-            .order_by(SimulationStepModel.step_number.desc())
-            .first()
-        )
+        final_step = sim_session.query(SimulationStepModel).order_by(SimulationStepModel.step_number.desc()).first()
         if final_step is None:
             return None
         # Create a dictionary of agent counts
@@ -63,11 +59,7 @@ class DominanceComputer:
         agents = sim_session.query(AgentModel).all()
 
         # Get the final step number for calculating survival of still-alive agents
-        final_step = (
-            sim_session.query(SimulationStepModel)
-            .order_by(SimulationStepModel.step_number.desc())
-            .first()
-        )
+        final_step = sim_session.query(SimulationStepModel).order_by(SimulationStepModel.step_number.desc()).first()
         final_step_number = final_step.step_number if final_step else 0
 
         survival_by_type = {}
@@ -106,11 +98,7 @@ class DominanceComputer:
         Returns a dictionary with dominance switching statistics.
         """
         # Query all simulation steps ordered by step number
-        sim_steps = (
-            sim_session.query(SimulationStepModel)
-            .order_by(SimulationStepModel.step_number.asc())
-            .all()
-        )
+        sim_steps = sim_session.query(SimulationStepModel).order_by(SimulationStepModel.step_number.asc()).all()
 
         if not sim_steps:
             return None
@@ -121,9 +109,7 @@ class DominanceComputer:
         previous_dominant = None
         dominance_periods = {agent_type: [] for agent_type in agent_types}
         switches = []
-        transition_matrix = {
-            from_type: {to_type: 0 for to_type in agent_types} for from_type in agent_types
-        }
+        transition_matrix = {from_type: {to_type: 0 for to_type in agent_types} for from_type in agent_types}
 
         # Track the current dominance period
         period_start_step = 0
@@ -161,7 +147,9 @@ class DominanceComputer:
                         "phase": (
                             "early"
                             if step_idx < total_steps / 3
-                            else "middle" if step_idx < 2 * total_steps / 3 else "late"
+                            else "middle"
+                            if step_idx < 2 * total_steps / 3
+                            else "late"
                         ),
                     }
                 )
@@ -186,9 +174,7 @@ class DominanceComputer:
         avg_dominance_periods = {}
         for agent_type in agent_types:
             periods = dominance_periods[agent_type]
-            avg_dominance_periods[agent_type] = (
-                sum(periods) / len(periods) if periods else 0
-            )
+            avg_dominance_periods[agent_type] = sum(periods) / len(periods) if periods else 0
 
         # Calculate phase-specific switch counts
         phase_switches = {
@@ -204,9 +190,7 @@ class DominanceComputer:
             total_transitions = sum(transition_matrix[from_type].values())
             for to_type in agent_types:
                 transition_probabilities[from_type][to_type] = (
-                    transition_matrix[from_type][to_type] / total_transitions
-                    if total_transitions > 0
-                    else 0
+                    transition_matrix[from_type][to_type] / total_transitions if total_transitions > 0 else 0
                 )
 
         # Return comprehensive results
@@ -234,11 +218,7 @@ class DominanceComputer:
         Returns a dictionary with dominance scores for each agent type and the overall dominant type.
         """
         # Query all simulation steps ordered by step number
-        sim_steps = (
-            sim_session.query(SimulationStepModel)
-            .order_by(SimulationStepModel.step_number.asc())
-            .all()
-        )
+        sim_steps = sim_session.query(SimulationStepModel).order_by(SimulationStepModel.step_number.asc()).all()
 
         if not sim_steps:
             return None
@@ -283,9 +263,7 @@ class DominanceComputer:
                 "independent": step.independent_agents,
                 "control": step.control_agents,
             }
-            dominant_type = (
-                max(counts.items(), key=lambda x: x[1])[0] if any(counts.values()) else None
-            )
+            dominant_type = max(counts.items(), key=lambda x: x[1])[0] if any(counts.values()) else None
             if dominant_type:
                 dominance_duration[dominant_type] += 1
 
@@ -305,9 +283,7 @@ class DominanceComputer:
                     if latter_half_avg == 0:
                         growth_trends[agent_type] = 0
                     else:
-                        growth_trends[agent_type] = (
-                            latter_half[-1] - latter_half_avg
-                        ) / latter_half_avg
+                        growth_trends[agent_type] = (latter_half[-1] - latter_half_avg) / latter_half_avg
             else:
                 growth_trends[agent_type] = 0
 
@@ -337,9 +313,7 @@ class DominanceComputer:
                     agent_type: value / total for agent_type, value in metric_values.items()
                 }
             else:
-                normalized_metrics[metric_name] = {
-                    agent_type: 0 for agent_type in agent_types
-                }
+                normalized_metrics[metric_name] = {agent_type: 0 for agent_type in agent_types}
 
         # Calculate final composite score with weights for different metrics
         weights = {
@@ -355,21 +329,14 @@ class DominanceComputer:
         for agent_type in agent_types:
             composite_scores[agent_type] = (
                 weights["auc"] * normalized_metrics["auc"][agent_type]
-                + weights["recency_weighted_auc"]
-                * normalized_metrics["recency_weighted_auc"][agent_type]
-                + weights["dominance_duration"]
-                * normalized_metrics["dominance_duration"][agent_type]
-                + weights["growth_trend"]
-                * (max(0, growth_trends[agent_type]))  # Only count positive growth
+                + weights["recency_weighted_auc"] * normalized_metrics["recency_weighted_auc"][agent_type]
+                + weights["dominance_duration"] * normalized_metrics["dominance_duration"][agent_type]
+                + weights["growth_trend"] * (max(0, growth_trends[agent_type]))  # Only count positive growth
                 + weights["final_ratio"] * final_ratios[agent_type]
             )
 
         # Determine overall dominant type
-        dominant_type = (
-            max(composite_scores.items(), key=lambda x: x[1])[0]
-            if any(composite_scores.values())
-            else None
-        )
+        dominant_type = max(composite_scores.items(), key=lambda x: x[1])[0] if any(composite_scores.values()) else None
 
         # Return comprehensive results
         return {
@@ -407,17 +374,13 @@ class DominanceComputer:
 
         # 1. Correlation between initial conditions and switching frequency
         initial_condition_cols = [
-            col
-            for col in df.columns
-            if any(x in col for x in ["initial_", "resource_", "proximity"])
+            col for col in df.columns if any(x in col for x in ["initial_", "resource_", "proximity"])
         ]
 
         if initial_condition_cols and len(df) > 5:
             # Calculate correlations with total switches
             corr_with_switches = (
-                df[initial_condition_cols + ["total_switches"]]
-                .corr()["total_switches"]
-                .drop("total_switches")
+                df[initial_condition_cols + ["total_switches"]].corr()["total_switches"].drop("total_switches")
             )
 
             # Get top positive and negative correlations
@@ -440,9 +403,7 @@ class DominanceComputer:
         # 2. Relationship between switching and final dominance
         if "comprehensive_dominance" in df.columns:
             # Average switches by dominant type
-            switches_by_dominant = df.groupby("comprehensive_dominance")[
-                "total_switches"
-            ].mean()
+            switches_by_dominant = df.groupby("comprehensive_dominance")["total_switches"].mean()
             results["switches_by_dominant_type"] = switches_by_dominant.to_dict()
 
             logger.info("\nAverage dominance switches by final dominant type:")
@@ -453,11 +414,7 @@ class DominanceComputer:
         reproduction_cols = [col for col in df.columns if "reproduction" in col]
         if reproduction_cols and len(df) > 5:
             # Calculate correlations with total switches
-            repro_corr = (
-                df[reproduction_cols + ["total_switches"]]
-                .corr()["total_switches"]
-                .drop("total_switches")
-            )
+            repro_corr = df[reproduction_cols + ["total_switches"]].corr()["total_switches"].drop("total_switches")
 
             # Get top correlations (absolute value)
             top_repro_corr = repro_corr.abs().sort_values(ascending=False).head(5)
@@ -493,43 +450,113 @@ class DominanceComputer:
         """
         # Check if df is a DataFrame
         if not isinstance(df, pd.DataFrame):
-            logger.warning(
-                "Input to aggregate_reproduction_analysis_results is not a DataFrame"
-            )
+            logger.warning("Input to aggregate_reproduction_analysis_results is not a DataFrame")
             return {}
 
-        # If analyzer is injected, delegate to it
-        if self.analyzer is not None:
-            results = {}
-
-            # Analyze high vs low switching groups
-            high_low_results = self.analyzer.analyze_high_vs_low_switching(df, numeric_repro_cols)
-            if isinstance(high_low_results, dict) and high_low_results:
-                results.update(high_low_results)
-
-            # Analyze first reproduction timing
-            timing_results = self.analyzer.analyze_reproduction_timing(df, numeric_repro_cols)
-            if isinstance(timing_results, dict) and timing_results:
-                results.update(timing_results)
-
-            # Analyze reproduction efficiency
-            efficiency_results = self.analyzer.analyze_reproduction_efficiency(df, numeric_repro_cols)
-            if isinstance(efficiency_results, dict) and efficiency_results:
-                results.update(efficiency_results)
-
-            # Analyze reproduction advantage
-            advantage_results = self.analyzer.analyze_reproduction_advantage(df, numeric_repro_cols)
-            if isinstance(advantage_results, dict) and advantage_results:
-                results.update(advantage_results)
-
-            # Analyze by agent type
-            agent_type_results = self.analyzer.analyze_by_agent_type(df, numeric_repro_cols)
-            if isinstance(agent_type_results, dict) and agent_type_results:
-                results.update(agent_type_results)
-
-            return results
-        else:
-            # Without analyzer dependency, return empty results
-            # This maintains interface contract but doesn't break if analyzer not injected
+        # Without analyzer dependency, return empty results
+        if self.analyzer is None:
             logger.warning("No analyzer injected - cannot aggregate reproduction analysis")
             return {}
+
+        # Create a working copy of the DataFrame to avoid modifying the original
+        working_df = df.copy()
+
+        results = {}
+
+        try:
+            # Analyze high vs low switching groups
+            working_df = self.analyzer.analyze_high_vs_low_switching(working_df, numeric_repro_cols)
+
+            # Analyze first reproduction timing
+            working_df = self.analyzer.analyze_reproduction_timing(working_df, numeric_repro_cols)
+
+            # Analyze reproduction efficiency
+            working_df = self.analyzer.analyze_reproduction_efficiency(working_df, numeric_repro_cols)
+
+            # Analyze reproduction advantage
+            working_df = self.analyzer.analyze_reproduction_advantage(working_df, numeric_repro_cols)
+
+            # Analyze by agent type
+            working_df = self.analyzer.analyze_by_agent_type(working_df, numeric_repro_cols)
+
+            # Extract aggregated statistics from the analyzed DataFrame
+            results = self._extract_aggregated_results(working_df, numeric_repro_cols)
+
+        except Exception as e:
+            logger.error(f"Error during reproduction analysis aggregation: {e}")
+            return {}
+
+        return results
+
+    def _extract_aggregated_results(self, df: pd.DataFrame, numeric_repro_cols: List[str]) -> Dict[str, Any]:
+        """
+        Extract aggregated statistics from the analyzed DataFrame.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            DataFrame with analysis columns added by analyzer methods
+        numeric_repro_cols : list
+            List of numeric reproduction column names
+
+        Returns
+        -------
+        dict
+            Dictionary with aggregated results
+        """
+        results = {}
+
+        # Extract high vs low switching comparisons
+        high_low_cols = [
+            col
+            for col in df.columns
+            if "_high_switching_mean" in col
+            or "_low_switching_mean" in col
+            or "_difference" in col
+            or "_percent_difference" in col
+        ]
+        if high_low_cols:
+            results["high_vs_low_switching"] = {}
+            for col in high_low_cols:
+                if col in df.columns:
+                    # Get mean values across all rows for each comparison column
+                    mean_val = df[col].mean()
+                    if pd.notna(mean_val):
+                        results["high_vs_low_switching"][col] = mean_val
+
+        # Extract stability metrics if they exist
+        if "dominance_stability" in df.columns:
+            stability_stats = {}
+            stability_series = df["dominance_stability"].dropna()
+            if not stability_series.empty:
+                stability_stats["mean"] = stability_series.mean()
+                stability_stats["std"] = stability_series.std()
+                stability_stats["min"] = stability_series.min()
+                stability_stats["max"] = stability_series.max()
+                results["dominance_stability"] = stability_stats
+
+        # Extract reproduction correlations if they exist
+        repro_corr_cols = [col for col in df.columns if col.startswith("repro_corr_")]
+        if repro_corr_cols:
+            results["reproduction_correlations"] = {}
+            for col in repro_corr_cols:
+                if col in df.columns:
+                    # Get the first non-null value (correlations are typically constant across rows)
+                    corr_val = df[col].dropna().iloc[0] if not df[col].dropna().empty else None
+                    if corr_val is not None:
+                        results["reproduction_correlations"][col.replace("repro_corr_", "")] = corr_val
+
+        # Add summary statistics for reproduction columns
+        if numeric_repro_cols:
+            results["reproduction_summary"] = {}
+            for col in numeric_repro_cols:
+                if col in df.columns:
+                    col_data = df[col].dropna()
+                    if not col_data.empty:
+                        results["reproduction_summary"][col] = {
+                            "mean": col_data.mean(),
+                            "std": col_data.std(),
+                            "count": len(col_data),
+                        }
+
+        return results

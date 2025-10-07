@@ -37,7 +37,7 @@ class TestOrchestratorCreation:
     def test_create_orchestrator_with_defaults(self):
         """Test creating orchestrator with default implementations."""
         orchestrator = create_dominance_orchestrator()
-        
+
         assert orchestrator is not None
         assert isinstance(orchestrator, DominanceAnalysisOrchestrator)
         assert orchestrator.computer is not None
@@ -47,7 +47,7 @@ class TestOrchestratorCreation:
     def test_orchestrator_dependency_wiring(self):
         """Test that orchestrator wires dependencies correctly."""
         orchestrator = create_dominance_orchestrator()
-        
+
         # Verify bidirectional wiring
         assert orchestrator.computer.analyzer is orchestrator.analyzer
         assert orchestrator.analyzer.computer is orchestrator.computer
@@ -56,7 +56,7 @@ class TestOrchestratorCreation:
         """Test creating orchestrator with custom computer."""
         custom_computer = MockDominanceComputer()
         orchestrator = create_dominance_orchestrator(custom_computer=custom_computer)
-        
+
         assert orchestrator.computer is custom_computer
         assert orchestrator.computer.analyzer is orchestrator.analyzer
 
@@ -64,7 +64,7 @@ class TestOrchestratorCreation:
         """Test that get_orchestrator returns the default instance."""
         orch1 = get_orchestrator()
         orch2 = get_orchestrator()
-        
+
         # Should return the same instance
         assert orch1 is orch2
 
@@ -76,10 +76,10 @@ class TestOrchestratorComputationMethods:
         """Test compute_population_dominance delegates to computer."""
         mock_computer = MockDominanceComputer()
         orchestrator = DominanceAnalysisOrchestrator(computer=mock_computer)
-        
+
         mock_session = Mock()
         result = orchestrator.compute_population_dominance(mock_session)
-        
+
         assert result == "system"  # Default mock return value
         assert mock_computer.call_count["compute_population_dominance"] == 1
 
@@ -87,10 +87,10 @@ class TestOrchestratorComputationMethods:
         """Test compute_survival_dominance delegates to computer."""
         mock_computer = MockDominanceComputer()
         orchestrator = DominanceAnalysisOrchestrator(computer=mock_computer)
-        
+
         mock_session = Mock()
         result = orchestrator.compute_survival_dominance(mock_session)
-        
+
         assert result == "independent"  # Default mock return value
         assert mock_computer.call_count["compute_survival_dominance"] == 1
 
@@ -98,10 +98,10 @@ class TestOrchestratorComputationMethods:
         """Test compute_comprehensive_dominance delegates to computer."""
         mock_computer = MockDominanceComputer()
         orchestrator = DominanceAnalysisOrchestrator(computer=mock_computer)
-        
+
         mock_session = Mock()
         result = orchestrator.compute_comprehensive_dominance(mock_session)
-        
+
         assert result is not None
         assert result["dominant_type"] == "system"
         assert "scores" in result
@@ -111,10 +111,10 @@ class TestOrchestratorComputationMethods:
         """Test compute_dominance_switches delegates to computer."""
         mock_computer = MockDominanceComputer()
         orchestrator = DominanceAnalysisOrchestrator(computer=mock_computer)
-        
+
         mock_session = Mock()
         result = orchestrator.compute_dominance_switches(mock_session)
-        
+
         assert result is not None
         assert result["total_switches"] == 5
         assert "switches_per_step" in result
@@ -124,10 +124,10 @@ class TestOrchestratorComputationMethods:
         """Test compute_dominance_switch_factors delegates to computer."""
         mock_computer = MockDominanceComputer()
         orchestrator = DominanceAnalysisOrchestrator(computer=mock_computer)
-        
+
         df = create_sample_simulation_data()
         result = orchestrator.compute_dominance_switch_factors(df)
-        
+
         assert result is not None
         assert "top_positive_correlations" in result
         assert mock_computer.call_count["compute_dominance_switch_factors"] == 1
@@ -140,11 +140,11 @@ class TestOrchestratorAnalysisMethods:
         """Test analyze_by_agent_type delegates to analyzer."""
         mock_analyzer = MockDominanceAnalyzer()
         orchestrator = DominanceAnalysisOrchestrator(analyzer=mock_analyzer)
-        
+
         df = create_sample_simulation_data()
         numeric_cols = ["system_reproduction_success_rate"]
         result_df = orchestrator.analyze_by_agent_type(df, numeric_cols)
-        
+
         assert "agent_type_analysis_done" in result_df.columns
         assert mock_analyzer.call_count["analyze_by_agent_type"] == 1
 
@@ -152,11 +152,11 @@ class TestOrchestratorAnalysisMethods:
         """Test analyze_high_vs_low_switching delegates to analyzer."""
         mock_analyzer = MockDominanceAnalyzer()
         orchestrator = DominanceAnalysisOrchestrator(analyzer=mock_analyzer)
-        
+
         df = create_sample_simulation_data()
         numeric_cols = ["system_reproduction_success_rate"]
         result_df = orchestrator.analyze_high_vs_low_switching(df, numeric_cols)
-        
+
         assert f"{numeric_cols[0]}_high_switching_mean" in result_df.columns
         assert mock_analyzer.call_count["analyze_high_vs_low_switching"] == 1
 
@@ -165,14 +165,11 @@ class TestOrchestratorAnalysisMethods:
         mock_analyzer = MockDominanceAnalyzer()
         mock_computer = MockDominanceComputer()
         mock_analyzer.computer = mock_computer
-        orchestrator = DominanceAnalysisOrchestrator(
-            analyzer=mock_analyzer,
-            computer=mock_computer
-        )
-        
+        orchestrator = DominanceAnalysisOrchestrator(analyzer=mock_analyzer, computer=mock_computer)
+
         df = create_sample_simulation_data()
         result_df = orchestrator.analyze_dominance_switch_factors(df)
-        
+
         assert "positive_corr_resource_proximity" in result_df.columns
         assert mock_analyzer.call_count["analyze_dominance_switch_factors"] == 1
 
@@ -184,10 +181,10 @@ class TestOrchestratorDataProviderMethods:
         """Test get_final_population_counts delegates to data provider."""
         mock_provider = MockDominanceDataProvider()
         orchestrator = DominanceAnalysisOrchestrator(data_provider=mock_provider)
-        
+
         mock_session = Mock()
         result = orchestrator.get_final_population_counts(mock_session)
-        
+
         assert result is not None
         assert result["system_agents"] == 15
         assert mock_provider.call_count["get_final_population_counts"] == 1
@@ -196,10 +193,10 @@ class TestOrchestratorDataProviderMethods:
         """Test get_agent_survival_stats delegates to data provider."""
         mock_provider = MockDominanceDataProvider()
         orchestrator = DominanceAnalysisOrchestrator(data_provider=mock_provider)
-        
+
         mock_session = Mock()
         result = orchestrator.get_agent_survival_stats(mock_session)
-        
+
         assert result is not None
         assert result["system_count"] == 20
         assert mock_provider.call_count["get_agent_survival_stats"] == 1
@@ -208,10 +205,10 @@ class TestOrchestratorDataProviderMethods:
         """Test get_reproduction_stats delegates to data provider."""
         mock_provider = MockDominanceDataProvider()
         orchestrator = DominanceAnalysisOrchestrator(data_provider=mock_provider)
-        
+
         mock_session = Mock()
         result = orchestrator.get_reproduction_stats(mock_session)
-        
+
         assert result is not None
         assert result["system_reproduction_attempts"] == 25
         assert mock_provider.call_count["get_reproduction_stats"] == 1
@@ -224,16 +221,13 @@ class TestOrchestratorHighLevelMethods:
         """Test run_full_analysis orchestrates all components."""
         mock_computer = MockDominanceComputer()
         mock_provider = MockDominanceDataProvider()
-        orchestrator = DominanceAnalysisOrchestrator(
-            computer=mock_computer,
-            data_provider=mock_provider
-        )
-        
+        orchestrator = DominanceAnalysisOrchestrator(computer=mock_computer, data_provider=mock_provider)
+
         mock_session = Mock()
         config = {"gathering_range": 30}
-        
+
         result = orchestrator.run_full_analysis(mock_session, config)
-        
+
         # Verify all expected keys present
         assert "population_dominance" in result
         assert "survival_dominance" in result
@@ -243,7 +237,7 @@ class TestOrchestratorHighLevelMethods:
         assert "final_counts" in result
         assert "survival_stats" in result
         assert "reproduction_stats" in result
-        
+
         # Verify all methods were called
         assert mock_computer.call_count["compute_population_dominance"] == 1
         assert mock_computer.call_count["compute_survival_dominance"] == 1
@@ -256,17 +250,14 @@ class TestOrchestratorHighLevelMethods:
         mock_analyzer = MockDominanceAnalyzer()
         mock_computer = MockDominanceComputer()
         mock_analyzer.computer = mock_computer
-        orchestrator = DominanceAnalysisOrchestrator(
-            analyzer=mock_analyzer,
-            computer=mock_computer
-        )
-        
+        orchestrator = DominanceAnalysisOrchestrator(analyzer=mock_analyzer, computer=mock_computer)
+
         df = create_sample_simulation_data()
         result_df = orchestrator.analyze_dataframe_comprehensively(df)
-        
+
         # Verify DataFrame was modified
         assert len(result_df.columns) > len(df.columns)
-        
+
         # Verify methods were called
         assert mock_analyzer.call_count["analyze_dominance_switch_factors"] == 1
         assert mock_analyzer.call_count["analyze_reproduction_dominance_switching"] == 1
@@ -279,7 +270,7 @@ class TestProtocolBasedTesting:
         """Test computer in isolation without real analyzer."""
         # Create computer without analyzer dependency
         computer = DominanceComputer()
-        
+
         # Mock session
         mock_session = MagicMock()
         mock_step = MagicMock()
@@ -287,44 +278,43 @@ class TestProtocolBasedTesting:
         mock_step.independent_agents = 5
         mock_step.control_agents = 3
         mock_session.query.return_value.order_by.return_value.first.return_value = mock_step
-        
+
         # Test computer method
         result = computer.compute_population_dominance(mock_session)
-        
+
         assert result == "system"
 
     def test_isolated_analyzer_testing(self):
         """Test analyzer in isolation with mock computer."""
         mock_computer = MockDominanceComputer()
         analyzer = DominanceAnalyzer(computer=mock_computer)
-        
+
         df = create_sample_simulation_data()
+        original_columns = len(df.columns)
         result_df = analyzer.analyze_dominance_switch_factors(df)
-        
+
         # Verify analyzer called computer
         assert mock_computer.call_count["compute_dominance_switch_factors"] == 1
-        
+
         # Verify DataFrame modified
-        assert len(result_df.columns) > len(df.columns)
+        assert len(result_df.columns) > original_columns
 
     def test_mock_entire_orchestrator(self):
         """Test using completely mocked orchestrator."""
         mock_computer = MockDominanceComputer()
         mock_analyzer = MockDominanceAnalyzer()
         mock_provider = MockDominanceDataProvider()
-        
+
         orchestrator = DominanceAnalysisOrchestrator(
-            computer=mock_computer,
-            analyzer=mock_analyzer,
-            data_provider=mock_provider
+            computer=mock_computer, analyzer=mock_analyzer, data_provider=mock_provider
         )
-        
+
         # Test all components work together
         mock_session = Mock()
         config = {}
-        
+
         result = orchestrator.run_full_analysis(mock_session, config)
-        
+
         # Verify all components were used
         assert mock_computer.call_count["compute_population_dominance"] == 1
         assert mock_provider.call_count["get_final_population_counts"] == 1
@@ -339,7 +329,7 @@ class TestBackwardCompatibility:
             compute_population_dominance,
             compute_survival_dominance,
         )
-        
+
         # These should exist and be callable
         assert callable(compute_population_dominance)
         assert callable(compute_survival_dominance)
@@ -350,7 +340,7 @@ class TestBackwardCompatibility:
             analyze_dominance_switch_factors,
             analyze_by_agent_type,
         )
-        
+
         # These should exist and be callable
         assert callable(analyze_dominance_switch_factors)
         assert callable(analyze_by_agent_type)
@@ -358,10 +348,10 @@ class TestBackwardCompatibility:
     def test_legacy_function_delegates_to_class(self):
         """Test that legacy functions delegate to class instances."""
         from farm.analysis.dominance.analyze import analyze_dominance_switch_factors
-        
+
         df = create_minimal_simulation_data()
         result = analyze_dominance_switch_factors(df)
-        
+
         # Should return a DataFrame
         assert isinstance(result, pd.DataFrame)
 
@@ -373,14 +363,14 @@ class TestDependencyInjection:
         """Test that computer can accept analyzer via DI."""
         analyzer = DominanceAnalyzer()
         computer = DominanceComputer(analyzer=analyzer)
-        
+
         assert computer.analyzer is analyzer
 
     def test_analyzer_accepts_computer_dependency(self):
         """Test that analyzer can accept computer via DI."""
         computer = DominanceComputer()
         analyzer = DominanceAnalyzer(computer=computer)
-        
+
         assert analyzer.computer is computer
 
     def test_bidirectional_dependency_injection(self):
@@ -388,7 +378,7 @@ class TestDependencyInjection:
         computer = DominanceComputer()
         analyzer = DominanceAnalyzer(computer=computer)
         computer.analyzer = analyzer
-        
+
         # Verify bidirectional link
         assert computer.analyzer is analyzer
         assert analyzer.computer is computer
@@ -402,14 +392,14 @@ class TestOrchestratorIntegration:
         orchestrator = DominanceAnalysisOrchestrator(
             computer=MockDominanceComputer(),
             analyzer=MockDominanceAnalyzer(),
-            data_provider=MockDominanceDataProvider()
+            data_provider=MockDominanceDataProvider(),
         )
-        
+
         mock_session = Mock()
         config = {"gathering_range": 30}
-        
+
         result = orchestrator.run_full_analysis(mock_session, config)
-        
+
         # Verify comprehensive results
         assert result["population_dominance"] == "system"
         assert result["survival_dominance"] == "independent"
@@ -424,20 +414,17 @@ class TestOrchestratorIntegration:
         mock_analyzer = MockDominanceAnalyzer()
         mock_computer = MockDominanceComputer()
         mock_analyzer.computer = mock_computer
-        
-        orchestrator = DominanceAnalysisOrchestrator(
-            analyzer=mock_analyzer,
-            computer=mock_computer
-        )
-        
+
+        orchestrator = DominanceAnalysisOrchestrator(analyzer=mock_analyzer, computer=mock_computer)
+
         df = create_sample_simulation_data()
         original_cols = len(df.columns)
-        
+
         result_df = orchestrator.analyze_dataframe_comprehensively(df)
-        
+
         # Verify DataFrame was enhanced
         assert len(result_df.columns) > original_cols
-        
+
         # Verify methods were called
         assert mock_analyzer.call_count["analyze_dominance_switch_factors"] == 1
         assert mock_analyzer.call_count["analyze_reproduction_dominance_switching"] == 1
@@ -466,12 +453,12 @@ class TestRealImplementations:
     def test_real_orchestrator_creation(self):
         """Test creating orchestrator with real implementations."""
         orchestrator = create_dominance_orchestrator()
-        
+
         # Verify all components are real implementations
         assert isinstance(orchestrator.computer, DominanceComputer)
         assert isinstance(orchestrator.analyzer, DominanceAnalyzer)
         assert isinstance(orchestrator.data_provider, DominanceDataProvider)
-        
+
         # Verify wiring
         assert orchestrator.computer.analyzer is orchestrator.analyzer
         assert orchestrator.analyzer.computer is orchestrator.computer
@@ -484,12 +471,12 @@ class TestMockCallTracking:
         """Test that mock computer tracks method calls."""
         mock = MockDominanceComputer()
         mock_session = Mock()
-        
+
         # Make multiple calls
         mock.compute_population_dominance(mock_session)
         mock.compute_population_dominance(mock_session)
         mock.compute_survival_dominance(mock_session)
-        
+
         # Verify call tracking
         assert mock.call_count["compute_population_dominance"] == 2
         assert mock.call_count["compute_survival_dominance"] == 1
@@ -498,12 +485,12 @@ class TestMockCallTracking:
         """Test that mock analyzer tracks method calls."""
         mock = MockDominanceAnalyzer()
         df = create_minimal_simulation_data()
-        
+
         # Make multiple calls
         mock.analyze_by_agent_type(df, [])
         mock.analyze_high_vs_low_switching(df, [])
         mock.analyze_by_agent_type(df, [])
-        
+
         # Verify call tracking
         assert mock.call_count["analyze_by_agent_type"] == 2
         assert mock.call_count["analyze_high_vs_low_switching"] == 1
@@ -512,12 +499,12 @@ class TestMockCallTracking:
         """Test that mock data provider tracks method calls."""
         mock = MockDominanceDataProvider()
         mock_session = Mock()
-        
+
         # Make multiple calls
         mock.get_final_population_counts(mock_session)
         mock.get_agent_survival_stats(mock_session)
         mock.get_final_population_counts(mock_session)
-        
+
         # Verify call tracking
         assert mock.call_count["get_final_population_counts"] == 2
         assert mock.call_count["get_agent_survival_stats"] == 1
@@ -529,16 +516,16 @@ class TestProtocolCompliance:
     def test_computer_has_all_protocol_methods(self):
         """Test that DominanceComputer has all required methods."""
         computer = DominanceComputer()
-        
+
         required_methods = [
-            'compute_population_dominance',
-            'compute_survival_dominance',
-            'compute_comprehensive_dominance',
-            'compute_dominance_switches',
-            'compute_dominance_switch_factors',
-            'aggregate_reproduction_analysis_results'
+            "compute_population_dominance",
+            "compute_survival_dominance",
+            "compute_comprehensive_dominance",
+            "compute_dominance_switches",
+            "compute_dominance_switch_factors",
+            "aggregate_reproduction_analysis_results",
         ]
-        
+
         for method in required_methods:
             assert hasattr(computer, method), f"Missing method: {method}"
             assert callable(getattr(computer, method))
@@ -546,17 +533,17 @@ class TestProtocolCompliance:
     def test_analyzer_has_all_protocol_methods(self):
         """Test that DominanceAnalyzer has all required methods."""
         analyzer = DominanceAnalyzer()
-        
+
         required_methods = [
-            'analyze_by_agent_type',
-            'analyze_high_vs_low_switching',
-            'analyze_reproduction_advantage',
-            'analyze_reproduction_efficiency',
-            'analyze_reproduction_timing',
-            'analyze_dominance_switch_factors',
-            'analyze_reproduction_dominance_switching'
+            "analyze_by_agent_type",
+            "analyze_high_vs_low_switching",
+            "analyze_reproduction_advantage",
+            "analyze_reproduction_efficiency",
+            "analyze_reproduction_timing",
+            "analyze_dominance_switch_factors",
+            "analyze_reproduction_dominance_switching",
         ]
-        
+
         for method in required_methods:
             assert hasattr(analyzer, method), f"Missing method: {method}"
             assert callable(getattr(analyzer, method))
@@ -564,14 +551,14 @@ class TestProtocolCompliance:
     def test_data_provider_has_all_protocol_methods(self):
         """Test that DominanceDataProvider has all required methods."""
         provider = DominanceDataProvider()
-        
+
         required_methods = [
-            'get_final_population_counts',
-            'get_agent_survival_stats',
-            'get_reproduction_stats',
-            'get_initial_positions_and_resources'
+            "get_final_population_counts",
+            "get_agent_survival_stats",
+            "get_reproduction_stats",
+            "get_initial_positions_and_resources",
         ]
-        
+
         for method in required_methods:
             assert hasattr(provider, method), f"Missing method: {method}"
             assert callable(getattr(provider, method))
@@ -582,12 +569,8 @@ class TestOrchestratorEdgeCases:
 
     def test_orchestrator_with_none_dependencies(self):
         """Test orchestrator handles None dependencies gracefully."""
-        orchestrator = DominanceAnalysisOrchestrator(
-            computer=None,
-            analyzer=None,
-            data_provider=None
-        )
-        
+        orchestrator = DominanceAnalysisOrchestrator(computer=None, analyzer=None, data_provider=None)
+
         # Should create defaults
         assert orchestrator.computer is not None
         assert orchestrator.analyzer is not None
@@ -597,10 +580,10 @@ class TestOrchestratorEdgeCases:
         """Test compute_dominance_switch_factors with empty DataFrame."""
         mock_computer = MockDominanceComputer()
         orchestrator = DominanceAnalysisOrchestrator(computer=mock_computer)
-        
+
         empty_df = pd.DataFrame()
         result = orchestrator.compute_dominance_switch_factors(empty_df)
-        
+
         # Should return None for empty DataFrame
         assert result is None
 
@@ -608,10 +591,10 @@ class TestOrchestratorEdgeCases:
         """Test analysis with missing required columns."""
         mock_analyzer = MockDominanceAnalyzer()
         orchestrator = DominanceAnalysisOrchestrator(analyzer=mock_analyzer)
-        
+
         # DataFrame missing 'total_switches' column
         df = pd.DataFrame({"iteration": [1, 2, 3]})
-        
+
         # Should handle gracefully
         result_df = orchestrator.analyze_dominance_switch_factors(df)
         assert isinstance(result_df, pd.DataFrame)

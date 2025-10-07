@@ -198,7 +198,7 @@ class TestOrchestratorIntegration:
     def test_orchestrator_has_all_components(self):
         """Test orchestrator has all components wired."""
         orchestrator = get_orchestrator()
-        
+
         assert orchestrator.computer is not None
         assert orchestrator.analyzer is not None
         assert orchestrator.data_provider is not None
@@ -266,12 +266,12 @@ class TestProtocolCompliance:
         computer = DominanceComputer()
 
         required_methods = [
-            'compute_population_dominance',
-            'compute_survival_dominance',
-            'compute_comprehensive_dominance',
-            'compute_dominance_switches',
-            'compute_dominance_switch_factors',
-            'aggregate_reproduction_analysis_results'
+            "compute_population_dominance",
+            "compute_survival_dominance",
+            "compute_comprehensive_dominance",
+            "compute_dominance_switches",
+            "compute_dominance_switch_factors",
+            "aggregate_reproduction_analysis_results",
         ]
 
         for method in required_methods:
@@ -283,13 +283,13 @@ class TestProtocolCompliance:
         analyzer = DominanceAnalyzer()
 
         required_methods = [
-            'analyze_by_agent_type',
-            'analyze_high_vs_low_switching',
-            'analyze_reproduction_advantage',
-            'analyze_reproduction_efficiency',
-            'analyze_reproduction_timing',
-            'analyze_dominance_switch_factors',
-            'analyze_reproduction_dominance_switching'
+            "analyze_by_agent_type",
+            "analyze_high_vs_low_switching",
+            "analyze_reproduction_advantage",
+            "analyze_reproduction_efficiency",
+            "analyze_reproduction_timing",
+            "analyze_dominance_switch_factors",
+            "analyze_reproduction_dominance_switching",
         ]
 
         for method in required_methods:
