@@ -552,8 +552,9 @@ class DominanceComputer:
             for col in repro_corr_cols:
                 if col in df.columns:
                     # Get the first non-null value (correlations are typically constant across rows)
-                    corr_val = df[col].dropna().iloc[0] if not df[col].dropna().empty else None
-                    if corr_val is not None:
+                    dropped = df[col].dropna()
+                    if not dropped.empty:
+                        corr_val = dropped.iloc[0]
                         results["reproduction_correlations"][col.replace("repro_corr_", "")] = corr_val
 
         # Add summary statistics for reproduction columns
