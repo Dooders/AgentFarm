@@ -48,7 +48,37 @@ class TestDatabaseExport(unittest.TestCase):
             os.unlink(self.db_path)
 
         # Clean up any exported files
-        for filename in ["test_export.csv", "test_export.xlsx", "test_export.json", "test_export.parquet"]:
+        test_files = [
+            # Base export files
+            "test_export.csv",
+            "test_export.xlsx",
+            "test_export.json",
+            "test_export.parquet",
+            # CSV format creates separate files per data type + metadata
+            "test_export_agents.csv",
+            "test_export_actions.csv",
+            "test_export_metrics.csv",
+            "test_export_resources.csv",
+            "test_export_metadata.json",
+            # Parquet format creates separate files per data type
+            "test_export_agents.parquet",
+            "test_export_actions.parquet",
+            "test_export_metrics.parquet",
+            "test_export_resources.parquet",
+            # Filtered export (only agents + metadata)
+            "test_export_filtered_agents.csv",
+            "test_export_filtered_metadata.json",
+            # Range export creates separate files per data type + metadata
+            "test_export_range_agents.csv",
+            "test_export_range_actions.csv",
+            "test_export_range_metrics.csv",
+            "test_export_range_resources.csv",
+            "test_export_range_metadata.json",
+            # No metadata export
+            "test_export_no_metadata.json",
+        ]
+
+        for filename in test_files:
             if os.path.exists(filename):
                 os.unlink(filename)
 

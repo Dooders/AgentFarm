@@ -1,29 +1,36 @@
 """
 Comprehensive tests for dominance analysis module.
+
+Updated to use the new protocol-based architecture with orchestrator.
+
+NOTE: This test file uses the clean class-based architecture without
+backward compatibility wrappers. All tests use:
+- DominanceComputer class for computation tests
+- get_orchestrator() for integration tests
+- Protocol-based mocking for isolation
 """
 
-from pathlib import Path
-from unittest.mock import patch, MagicMock, Mock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
 import pytest
 
+from farm.analysis.common.context import AnalysisContext
 from farm.analysis.dominance import (
+    DominanceComputer,
     dominance_module,
-    plot_dominance_distribution,
+    get_orchestrator,
+    load_data_from_db,
     plot_comprehensive_score_breakdown,
-    plot_dominance_switches,
+    plot_dominance_distribution,
     plot_dominance_stability,
+    plot_dominance_switches,
+    plot_feature_importance,
     run_dominance_classification,
 )
-from farm.analysis.dominance.compute import (
-    compute_population_dominance,
-    compute_survival_dominance,
-    compute_dominance_switches,
-    compute_comprehensive_dominance,
-)
-from farm.analysis.common.context import AnalysisContext
+from farm.analysis.dominance.ml import prepare_features_for_classification, train_classifier
+from farm.analysis.dominance.validation import validate_sim_data
 
 
 @pytest.fixture
@@ -92,13 +99,14 @@ def sample_dominance_data():
 
 
 class TestDominanceComputations:
-    """Test dominance statistical computations."""
+    """Test dominance statistical computations using class-based architecture."""
 
     def test_compute_population_dominance(self, mock_session, mock_simulation_steps):
-        """Test population dominance computation."""
+        """Test population dominance computation with DominanceComputer class."""
         mock_session.query.return_value.order_by.return_value.first.return_value = mock_simulation_steps[-1]
 
-        result = compute_population_dominance(mock_session)
+        computer = DominanceComputer()
+        result = computer.compute_population_dominance(mock_session)
 
         assert result in ["system", "independent", "control"]
 
@@ -106,16 +114,18 @@ class TestDominanceComputations:
         """Test population dominance with no data."""
         mock_session.query.return_value.order_by.return_value.first.return_value = None
 
-        result = compute_population_dominance(mock_session)
+        computer = DominanceComputer()
+        result = computer.compute_population_dominance(mock_session)
 
         assert result is None
 
     def test_compute_survival_dominance(self, mock_session, mock_agents, mock_simulation_steps):
-        """Test survival dominance computation."""
+        """Test survival dominance computation with DominanceComputer class."""
         mock_session.query.return_value.all.return_value = mock_agents
         mock_session.query.return_value.order_by.return_value.first.return_value = mock_simulation_steps[-1]
 
-        result = compute_survival_dominance(mock_session)
+        computer = DominanceComputer()
+        result = computer.compute_survival_dominance(mock_session)
 
         assert result in ["system", "independent", "control"] or result is None
 
@@ -124,15 +134,17 @@ class TestDominanceComputations:
         mock_session.query.return_value.all.return_value = []
         mock_session.query.return_value.order_by.return_value.first.return_value = None
 
-        result = compute_survival_dominance(mock_session)
+        computer = DominanceComputer()
+        result = computer.compute_survival_dominance(mock_session)
 
         assert result is None
 
     def test_compute_dominance_switches(self, mock_session, mock_simulation_steps):
-        """Test dominance switch computation."""
+        """Test dominance switch computation with DominanceComputer class."""
         mock_session.query.return_value.order_by.return_value.all.return_value = mock_simulation_steps
 
-        result = compute_dominance_switches(mock_session)
+        computer = DominanceComputer()
+        result = computer.compute_dominance_switches(mock_session)
 
         assert isinstance(result, dict)
         assert "total_switches" in result
@@ -144,7 +156,8 @@ class TestDominanceComputations:
         """Test dominance switches with no steps."""
         mock_session.query.return_value.order_by.return_value.all.return_value = []
 
-        result = compute_dominance_switches(mock_session)
+        computer = DominanceComputer()
+        result = computer.compute_dominance_switches(mock_session)
 
         assert result is None
 
@@ -162,7 +175,8 @@ class TestDominanceComputations:
 
         mock_session.query.return_value.order_by.return_value.all.return_value = steps
 
-        result = compute_dominance_switches(mock_session)
+        computer = DominanceComputer()
+        result = computer.compute_dominance_switches(mock_session)
 
         assert result["total_switches"] == 0
 
@@ -175,7 +189,8 @@ class TestDominanceComputations:
         mock_session.query.return_value.order_by.return_value.all.return_value = mock_simulation_steps
         mock_session.query.return_value.scalar.return_value = 100
 
-        result = compute_comprehensive_dominance(mock_session)
+        computer = DominanceComputer()
+        result = computer.compute_comprehensive_dominance(mock_session)
 
         assert isinstance(result, dict)
         assert "dominant_type" in result
@@ -206,7 +221,8 @@ class TestDominanceComputations:
 
         mock_session.query.return_value.order_by.return_value.all.return_value = steps
 
-        result = compute_dominance_switches(mock_session)
+        computer = DominanceComputer()
+        result = computer.compute_dominance_switches(mock_session)
 
         assert "phase_switches" in result
         assert result["total_switches"] >= 2
@@ -219,18 +235,11 @@ class TestDominanceAnalysis:
         """Test processing single simulation."""
         from farm.analysis.dominance.analyze import process_single_simulation
 
-        with patch("farm.analysis.dominance.analyze.compute_population_dominance") as mock_pop, patch(
-            "farm.analysis.dominance.analyze.compute_survival_dominance"
-        ) as mock_surv, patch("farm.analysis.dominance.analyze.compute_comprehensive_dominance") as mock_comp, patch(
-            "farm.analysis.dominance.analyze.compute_dominance_switches"
-        ) as mock_switch, patch(
-            "farm.analysis.dominance.analyze.get_initial_positions_and_resources"
-        ) as mock_init, patch("farm.analysis.dominance.analyze.get_final_population_counts") as mock_final, patch(
-            "farm.analysis.dominance.analyze.get_agent_survival_stats"
-        ) as mock_stats, patch("farm.analysis.dominance.analyze.get_reproduction_stats") as mock_repro:
-            mock_pop.return_value = "system"
-            mock_surv.return_value = "system"
-            mock_comp.return_value = {
+        with patch("farm.analysis.dominance.orchestrator.create_dominance_orchestrator") as mock_create_orch:
+            mock_orchestrator = MagicMock()
+            mock_orchestrator.compute_population_dominance.return_value = "system"
+            mock_orchestrator.compute_survival_dominance.return_value = "system"
+            mock_orchestrator.compute_comprehensive_dominance.return_value = {
                 "dominant_type": "system",
                 "scores": {"system": 0.8, "independent": 0.3, "control": 0.2},
                 "metrics": {
@@ -241,7 +250,7 @@ class TestDominanceAnalysis:
                     "final_ratios": {"system": 0.7, "independent": 0.2, "control": 0.1},
                 },
             }
-            mock_switch.return_value = {
+            mock_orchestrator.compute_dominance_switches.return_value = {
                 "total_switches": 3,
                 "switches_per_step": 0.03,
                 "avg_dominance_periods": {"system": 30, "independent": 20, "control": 10},
@@ -252,16 +261,17 @@ class TestDominanceAnalysis:
                     "control": {"system": 0.5, "independent": 0.5, "control": 0},
                 },
             }
-            mock_init.return_value = {"initial_system_count": 10}
-            mock_final.return_value = {"system_agents": 20}
-            mock_stats.return_value = {
+            mock_orchestrator.get_initial_positions_and_resources.return_value = {"initial_system_count": 10}
+            mock_orchestrator.get_final_population_counts.return_value = {"system_agents": 20}
+            mock_orchestrator.get_agent_survival_stats.return_value = {
                 "system_count": 20,
                 "system_alive": 15,
                 "system_dead": 5,
                 "system_avg_survival": 50,
                 "system_dead_ratio": 0.25,
             }
-            mock_repro.return_value = {"system_reproduction_attempts": 10}
+            mock_orchestrator.get_reproduction_stats.return_value = {"system_reproduction_attempts": 10}
+            mock_create_orch.return_value = mock_orchestrator
 
             result = process_single_simulation(mock_session, iteration=1, config={})
 
@@ -273,8 +283,10 @@ class TestDominanceAnalysis:
         """Test processing simulation with error."""
         from farm.analysis.dominance.analyze import process_single_simulation
 
-        with patch("farm.analysis.dominance.analyze.compute_population_dominance") as mock_pop:
-            mock_pop.side_effect = Exception("Database error")
+        with patch("farm.analysis.dominance.orchestrator.create_dominance_orchestrator") as mock_create_orch:
+            mock_orchestrator = MagicMock()
+            mock_orchestrator.compute_population_dominance.side_effect = Exception("Database error")
+            mock_create_orch.return_value = mock_orchestrator
 
             result = process_single_simulation(mock_session, iteration=1, config={})
 
@@ -287,14 +299,16 @@ class TestDominanceAnalysis:
         exp_path = tmp_path / "experiment"
         exp_path.mkdir()
 
-        with patch("farm.analysis.dominance.analyze.setup_and_process_simulations") as mock_setup, patch(
-            "farm.analysis.dominance.analyze.analyze_dominance_switch_factors"
-        ) as mock_factors:
+        with patch("scripts.analysis_config.setup_and_process_simulations") as mock_setup, patch(
+            "farm.analysis.dominance.orchestrator.create_dominance_orchestrator"
+        ) as mock_create_orch:
             mock_setup.return_value = [
                 {"iteration": 0, "comprehensive_dominance": "system", "total_switches": 3},
                 {"iteration": 1, "comprehensive_dominance": "independent", "total_switches": 5},
             ]
-            mock_factors.return_value = pd.DataFrame(mock_setup.return_value)
+            mock_orchestrator = MagicMock()
+            mock_orchestrator.analyze_dataframe_comprehensively.return_value = pd.DataFrame(mock_setup.return_value)
+            mock_create_orch.return_value = mock_orchestrator
 
             result = process_dominance_data(str(exp_path))
 
@@ -302,8 +316,6 @@ class TestDominanceAnalysis:
 
     def test_analyze_dominance_switch_factors(self):
         """Test analyzing dominance switch factors."""
-        from farm.analysis.dominance.analyze import analyze_dominance_switch_factors
-
         df = pd.DataFrame(
             {
                 "iteration": range(10),
@@ -313,13 +325,14 @@ class TestDominanceAnalysis:
             }
         )
 
-        result = analyze_dominance_switch_factors(df)
+        computer = DominanceComputer()
+        result = computer.compute_dominance_switch_factors(df)
 
-        assert isinstance(result, pd.DataFrame)
+        assert isinstance(result, dict)
 
     def test_analyze_high_vs_low_switching(self):
-        """Test analyzing high vs low switching."""
-        from farm.analysis.dominance.features import analyze_high_vs_low_switching
+        """Test analyzing high vs low switching with orchestrator."""
+        orchestrator = get_orchestrator()
 
         df = pd.DataFrame(
             {
@@ -331,7 +344,7 @@ class TestDominanceAnalysis:
         )
 
         numeric_cols = ["system_reproduction_attempts", "independent_reproduction_attempts"]
-        result = analyze_high_vs_low_switching(df, numeric_cols)
+        result = orchestrator.analyze_high_vs_low_switching(df, numeric_cols)
 
         assert isinstance(result, pd.DataFrame)
 
@@ -404,6 +417,46 @@ class TestDominanceVisualization:
         # Should handle missing columns gracefully
         plot_dominance_distribution(df, ctx=ctx)
 
+    @patch("farm.analysis.dominance.plot.plt")
+    def test_plot_feature_importance(self, mock_plt, tmp_path):
+        """Test feature importance plotting."""
+        ctx = AnalysisContext(output_path=tmp_path)
+
+        # Sample feature importance data
+        feat_imp = [
+            ("feature1", 0.8),
+            ("feature2", 0.7),
+            ("feature3", 0.6),
+            ("feature4", 0.5),
+            ("feature5", 0.4),
+            ("feature6", 0.3),
+            ("feature7", 0.2),
+            ("feature8", 0.1),
+        ]
+
+        plot_feature_importance(feat_imp=feat_imp, label_name="comprehensive_dominance", ctx=ctx)
+
+        # Should create plot and save
+        assert mock_plt.savefig.called
+        assert mock_plt.figure.called
+
+    @patch("farm.analysis.dominance.plot.plt")
+    def test_plot_feature_importance_missing_parameters(self, mock_plt, tmp_path):
+        """Test feature importance plotting with missing required parameters."""
+        ctx = AnalysisContext(output_path=tmp_path)
+
+        # Test missing feat_imp
+        with pytest.raises(ValueError, match="feat_imp parameter is required"):
+            plot_feature_importance(label_name="test", ctx=ctx)
+
+        # Test missing label_name
+        with pytest.raises(ValueError, match="label_name parameter is required"):
+            plot_feature_importance(feat_imp=[("f", 0.5)], ctx=ctx)
+
+        # Test missing output_path
+        with pytest.raises(ValueError, match="output_path parameter is required"):
+            plot_feature_importance(feat_imp=[("f", 0.5)], label_name="test")
+
 
 class TestDominanceML:
     """Test dominance machine learning functions."""
@@ -447,6 +500,221 @@ class TestDominanceML:
         except (ValueError, KeyError):
             # Expected for insufficient data
             pass
+
+    @patch("farm.analysis.dominance.ml.logger")
+    def test_train_classifier(self, mock_logger):
+        """Test training a classifier."""
+        # Create sample data
+        X = pd.DataFrame(
+            {
+                "feature1": np.random.uniform(0, 1, 100),
+                "feature2": np.random.uniform(0, 1, 100),
+                "categorical": np.random.choice(["A", "B", "C"], 100),
+            }
+        )
+        y = pd.Series(np.random.choice(["system", "independent", "control"], 100))
+
+        clf, feat_imp = train_classifier(X, y, "test_dominance")
+
+        # Should return classifier and feature importances
+        assert clf is not None
+        assert isinstance(feat_imp, list)
+        assert len(feat_imp) > 0
+        assert all(isinstance(feat, tuple) and len(feat) == 2 for feat in feat_imp)
+
+        # Should have logged information
+        assert mock_logger.info.called
+
+    @patch("farm.analysis.dominance.ml.logger")
+    def test_prepare_features_for_classification(self, mock_logger):
+        """Test preparing features for classification."""
+        df = pd.DataFrame(
+            {
+                "iteration": range(10),
+                "population_dominance": ["system"] * 10,
+                "survival_dominance": ["independent"] * 10,
+                "comprehensive_dominance": ["system"] * 10,
+                "feature1": np.random.uniform(0, 1, 10),
+                "feature2": np.random.uniform(0, 1, 10),
+                "categorical": ["A", "B"] * 5,
+            }
+        )
+
+        X, feature_cols, exclude_cols = prepare_features_for_classification(df)
+
+        # Should return feature matrix and column lists
+        assert isinstance(X, pd.DataFrame)
+        assert isinstance(feature_cols, list)
+        assert isinstance(exclude_cols, list)
+
+        # Should exclude dominance columns
+        assert "iteration" in exclude_cols
+        assert "population_dominance" in exclude_cols
+        assert "survival_dominance" in exclude_cols
+        assert "comprehensive_dominance" in exclude_cols
+
+        # Should include feature columns
+        assert "feature1" in feature_cols
+        assert "feature2" in feature_cols
+        assert "categorical" in feature_cols
+
+        # X should not contain excluded columns
+        assert "iteration" not in X.columns
+        assert "population_dominance" not in X.columns
+
+    @patch("farm.analysis.dominance.ml.logger")
+    def test_prepare_features_with_duplicates(self, mock_logger):
+        """Test preparing features when DataFrame has duplicate columns."""
+        # Create DataFrame with duplicate columns by using MultiIndex or direct assignment
+        data = {
+            "iteration": range(10),
+            "feature1": np.random.uniform(0, 1, 10),
+            "feature2": np.random.uniform(0, 1, 10),
+        }
+        df = pd.DataFrame(data)
+        # Manually create duplicate column names
+        df.columns = ["iteration", "feature1", "feature1"]  # Force duplicate
+
+        X, feature_cols, exclude_cols = prepare_features_for_classification(df)
+
+        # Should handle duplicates and log warning
+        assert isinstance(X, pd.DataFrame)
+        assert mock_logger.warning.called
+
+    @patch("farm.analysis.dominance.ml.logger")
+    def test_prepare_features_with_missing_values(self, mock_logger):
+        """Test preparing features with missing values."""
+        df = pd.DataFrame(
+            {
+                "iteration": range(10),
+                "population_dominance": ["system"] * 10,
+                "numeric_feature": [1.0, 2.0, None, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0],
+                "categorical_feature": ["A", "B", None, "A", "B", "A", "B", "A", "B", "A"],
+            }
+        )
+
+        X, feature_cols, exclude_cols = prepare_features_for_classification(df)
+
+        # Should fill missing values
+        assert isinstance(X, pd.DataFrame)
+        assert not X["numeric_feature"].isna().any()
+        assert not X["categorical_feature"].isna().any()
+
+    def test_create_dominance_metrics(self):
+        """Test creating dominance metrics object from DataFrame row."""
+        from farm.analysis.dominance.db_io import _create_dominance_metrics
+
+        # Create test row data
+        row = {
+            "population_dominance": "system",
+            "survival_dominance": "independent",
+            "comprehensive_dominance": "system",
+            "system_dominance_score": 0.8,
+            "independent_dominance_score": 0.6,
+            "control_dominance_score": 0.4,
+            "system_auc": 0.85,
+            "independent_auc": 0.65,
+            "control_auc": 0.45,
+            "system_recency_weighted_auc": 0.82,
+            "independent_recency_weighted_auc": 0.62,
+            "control_recency_weighted_auc": 0.42,
+            "system_dominance_duration": 50,
+            "independent_dominance_duration": 30,
+            "control_dominance_duration": 20,
+            "system_growth_trend": 0.1,
+            "independent_growth_trend": 0.05,
+            "control_growth_trend": -0.02,
+            "system_final_ratio": 0.6,
+            "independent_final_ratio": 0.3,
+            "control_final_ratio": 0.1,
+        }
+
+        result = _create_dominance_metrics(row, sim_id=1)
+
+        # Should create DominanceMetrics object
+        assert result is not None
+        assert result.simulation_id == 1
+        assert result.population_dominance == "system"
+        assert result.comprehensive_dominance == "system"
+        assert result.system_dominance_score == 0.8
+
+    def test_create_agent_population(self):
+        """Test creating agent population object from DataFrame row."""
+        from farm.analysis.dominance.db_io import _create_agent_population
+
+        # Create test row data
+        row = {
+            "system_agents": 20,
+            "independent_agents": 15,
+            "control_agents": 10,
+            "total_agents": 45,
+            "final_step": 100,
+            "system_count": 25,
+            "system_alive": 20,
+            "system_dead": 5,
+            "system_avg_survival": 85.5,
+            "system_dead_ratio": 0.2,
+            "independent_count": 18,
+            "independent_alive": 15,
+            "independent_dead": 3,
+            "independent_avg_survival": 78.2,
+            "independent_dead_ratio": 0.167,
+            "control_count": 12,
+            "control_alive": 10,
+            "control_dead": 2,
+            "control_avg_survival": 72.1,
+            "control_dead_ratio": 0.167,
+        }
+
+        result = _create_agent_population(row, sim_id=1)
+
+        # Should create AgentPopulation object
+        assert result is not None
+        assert result.simulation_id == 1
+        assert result.system_agents == 20
+        assert result.total_agents == 45
+        assert result.system_avg_survival == 85.5
+
+    def test_create_reproduction_stats(self):
+        """Test creating reproduction stats object from DataFrame row."""
+        from farm.analysis.dominance.db_io import _create_reproduction_stats
+
+        # Create test row data
+        row = {
+            "system_reproduction_attempts": 25,
+            "system_reproduction_successes": 20,
+            "system_reproduction_failures": 5,
+            "system_reproduction_success_rate": 0.8,
+            "system_first_reproduction_time": 10,
+            "system_reproduction_efficiency": 0.75,
+            "system_avg_resources_per_reproduction": 50.5,
+            "system_avg_offspring_resources": 25.2,
+            "independent_reproduction_attempts": 22,
+            "independent_reproduction_successes": 18,
+            "independent_reproduction_failures": 4,
+            "independent_reproduction_success_rate": 0.818,
+            "independent_first_reproduction_time": 12,
+            "independent_reproduction_efficiency": 0.72,
+            "independent_avg_resources_per_reproduction": 48.3,
+            "independent_avg_offspring_resources": 24.1,
+            "control_reproduction_attempts": 18,
+            "control_reproduction_successes": 14,
+            "control_reproduction_failures": 4,
+            "control_reproduction_success_rate": 0.778,
+            "control_first_reproduction_time": 15,
+            "control_reproduction_efficiency": 0.68,
+            "control_avg_resources_per_reproduction": 45.7,
+            "control_avg_offspring_resources": 22.8,
+        }
+
+        result = _create_reproduction_stats(row, sim_id=1)
+
+        # Should create ReproductionStats object
+        assert result is not None
+        assert result.simulation_id == 1
+        assert result.system_reproduction_attempts == 25
+        assert result.system_reproduction_success_rate == 0.8
+        assert result.independent_reproduction_successes == 18
 
 
 class TestDominanceModule:
@@ -521,7 +789,8 @@ class TestEdgeCases:
 
         mock_session.query.return_value.order_by.return_value.first.return_value = step
 
-        result = compute_population_dominance(mock_session)
+        computer = DominanceComputer()
+        result = computer.compute_population_dominance(mock_session)
 
         # Should pick one deterministically
         assert result in ["system", "independent", "control"]
@@ -542,29 +811,30 @@ class TestEdgeCases:
         mock_session.query.return_value.all.return_value = agents
         mock_session.query.return_value.order_by.return_value.first.return_value = step
 
-        result = compute_survival_dominance(mock_session)
+        computer = DominanceComputer()
+        result = computer.compute_survival_dominance(mock_session)
 
         # Should compute based on birth time
         assert result in ["system", "independent", "control"] or result is None
 
     def test_analyze_switch_factors_empty_df(self):
         """Test analyzing switch factors with empty DataFrame."""
-        from farm.analysis.dominance.analyze import analyze_dominance_switch_factors
+        computer = DominanceComputer()
 
-        result = analyze_dominance_switch_factors(pd.DataFrame())
+        result = computer.compute_dominance_switch_factors(pd.DataFrame())
 
         # Should handle empty DataFrame
-        assert isinstance(result, pd.DataFrame)
+        assert result is None
 
     def test_analyze_switch_factors_no_switches_column(self):
         """Test analyzing switch factors without switches column."""
-        from farm.analysis.dominance.analyze import analyze_dominance_switch_factors
+        computer = DominanceComputer()
 
         df = pd.DataFrame({"iteration": [1, 2, 3]})
-        result = analyze_dominance_switch_factors(df)
+        result = computer.compute_dominance_switch_factors(df)
 
         # Should handle missing column
-        assert isinstance(result, pd.DataFrame)
+        assert result is None
 
     def test_process_dominance_data_empty_path(self, tmp_path):
         """Test processing dominance data with empty path."""
@@ -610,7 +880,8 @@ class TestEdgeCases:
 
         mock_session.query.return_value.order_by.return_value.all.return_value = steps
 
-        result = compute_dominance_switches(mock_session)
+        computer = DominanceComputer()
+        result = computer.compute_dominance_switches(mock_session)
 
         # Should handle no agents gracefully
         assert result is not None
@@ -618,7 +889,7 @@ class TestEdgeCases:
 
     def test_dominance_analysis_with_nan_values(self):
         """Test dominance analysis with NaN values."""
-        from farm.analysis.dominance.analyze import analyze_dominance_switch_factors
+        computer = DominanceComputer()
 
         df = pd.DataFrame(
             {
@@ -629,10 +900,10 @@ class TestEdgeCases:
             }
         )
 
-        result = analyze_dominance_switch_factors(df)
+        result = computer.compute_dominance_switch_factors(df)
 
         # Should handle NaN values
-        assert isinstance(result, pd.DataFrame)
+        assert isinstance(result, dict)
 
     def test_comprehensive_dominance_single_agent_type(self, mock_session):
         """Test comprehensive dominance with single agent type."""
@@ -649,7 +920,8 @@ class TestEdgeCases:
         mock_session.query.return_value.order_by.return_value.all.return_value = steps
         mock_session.query.return_value.scalar.return_value = 50
 
-        result = compute_comprehensive_dominance(mock_session)
+        computer = DominanceComputer()
+        result = computer.compute_comprehensive_dominance(mock_session)
 
         assert result["dominant_type"] == "system"
 
@@ -658,7 +930,8 @@ class TestEdgeCases:
         """Test that computation logs appropriately."""
         mock_session.query.return_value.order_by.return_value.first.return_value = None
 
-        compute_population_dominance(mock_session)
+        computer = DominanceComputer()
+        computer.compute_population_dominance(mock_session)
 
         # Logger might be called (implementation dependent)
         # Just verify it doesn't crash
@@ -703,10 +976,9 @@ class TestDominanceHelperFunctions:
         """Test saving dominance data to database."""
         from farm.analysis.dominance.db_io import save_dominance_data_to_db
 
-        with patch("farm.analysis.dominance.db_io.import_multi_table_data") as mock_import, \
-             patch("farm.analysis.dominance.db_io.init_db") as mock_init, \
-             patch("farm.analysis.dominance.db_io.get_session") as mock_get_session:
-
+        with patch("farm.analysis.dominance.db_io.import_multi_table_data") as mock_import, patch(
+            "farm.analysis.dominance.db_io.init_db"
+        ) as mock_init, patch("farm.analysis.dominance.db_io.get_session") as mock_get_session:
             mock_session = MagicMock()
             mock_get_session.return_value = mock_session
             mock_import.return_value = len(sample_dominance_data)
@@ -726,3 +998,167 @@ class TestDominanceHelperFunctions:
 
         # Should return False for empty data
         assert result is False
+
+    @patch("farm.analysis.dominance.query_dominance_db.create_engine")
+    @patch("farm.analysis.dominance.query_dominance_db.sessionmaker")
+    def test_load_data_from_db(self, mock_sessionmaker, mock_create_engine):
+        """Test loading data from database."""
+        # Mock database components
+        mock_engine = MagicMock()
+        mock_create_engine.return_value = mock_engine
+
+        mock_session_class = MagicMock()
+        mock_sessionmaker.return_value = mock_session_class
+
+        mock_session = MagicMock()
+        mock_session_class.return_value = mock_session
+
+        # Mock DataFrame from SQL query
+        mock_df = pd.DataFrame(
+            {"iteration": [0, 1], "population_dominance": ["system", "independent"], "system_agents": [20, 15]}
+        )
+
+        with patch("farm.analysis.dominance.query_dominance_db.pd.read_sql", return_value=mock_df):
+            result = load_data_from_db("sqlite:///test.db")
+
+            # Should return DataFrame
+            assert isinstance(result, pd.DataFrame)
+            assert len(result) == 2
+            assert "iteration" in result.columns
+            assert "population_dominance" in result.columns
+
+            # Should have called database functions
+            mock_create_engine.assert_called_once_with("sqlite:///test.db")
+            mock_sessionmaker.assert_called_once()
+
+    @patch("farm.analysis.dominance.query_dominance_db.create_engine")
+    @patch("farm.analysis.dominance.query_dominance_db.sessionmaker")
+    def test_load_data_from_db_error(self, mock_sessionmaker, mock_create_engine):
+        """Test loading data from database with error."""
+        # Mock database components to raise exception
+        mock_create_engine.side_effect = Exception("Database connection error")
+
+        result = load_data_from_db("sqlite:///test.db")
+
+        # Should return empty DataFrame on error
+        assert isinstance(result, pd.DataFrame)
+        assert result.empty
+
+    @patch("farm.analysis.dominance.validation.DominanceDataModel")
+    def test_validate_sim_data_with_model(self, mock_model):
+        """Test validating simulation data with DominanceDataModel available."""
+        # Mock model to return validated data
+        mock_instance = MagicMock()
+        mock_instance.dict.return_value = {"validated": True, "data": "test"}
+        mock_model.return_value = mock_instance
+
+        test_data = {"raw": "data", "value": 42}
+
+        result = validate_sim_data(test_data)
+
+        # Should use model validation
+        assert result == {"validated": True, "data": "test"}
+        mock_model.assert_called_once_with(**test_data)
+
+    @patch("farm.analysis.dominance.validation.DominanceDataModel", None)
+    def test_validate_sim_data_without_model(self):
+        """Test validating simulation data when DominanceDataModel is not available."""
+        test_data = {"raw": "data", "value": 42}
+
+        result = validate_sim_data(test_data)
+
+        # Should return original data unchanged
+        assert result is test_data
+
+    @patch("farm.analysis.dominance.validation.DominanceDataModel")
+    def test_validate_sim_data_model_error(self, mock_model):
+        """Test validating simulation data when model validation fails."""
+        # Mock model to raise exception
+        mock_model.side_effect = Exception("Validation error")
+
+        test_data = {"raw": "data", "value": 42}
+
+        result = validate_sim_data(test_data)
+
+        # Should return original data on validation error
+        assert result is test_data
+
+    @patch("farm.analysis.dominance.query_dominance_db.print")
+    def test_query_dominance_metrics(self, mock_print, mock_session):
+        """Test querying dominance metrics."""
+        from farm.analysis.dominance.query_dominance_db import query_dominance_metrics
+
+        # Mock query results
+        dominance_result = [("system", 10), ("independent", 5)]
+        avg_result = MagicMock()
+        avg_result.avg_system = 0.8
+        avg_result.avg_independent = 0.6
+        avg_result.avg_control = 0.4
+        top_result = [(0, 0.9, 0.5, 0.3), (1, 0.85, 0.6, 0.4)]
+
+        mock_session.query.return_value.group_by.return_value.all.return_value = dominance_result
+        mock_session.query.return_value.one.return_value = avg_result
+        mock_session.query.return_value.join.return_value.order_by.return_value.limit.return_value.all.return_value = (
+            top_result
+        )
+
+        # Should execute without error
+        query_dominance_metrics(mock_session)
+
+        # Should have made expected queries
+        assert mock_session.query.call_count >= 3
+
+    @patch("farm.analysis.dominance.query_dominance_db.print")
+    def test_query_agent_populations(self, mock_print, mock_session):
+        """Test querying agent populations."""
+        from farm.analysis.dominance.query_dominance_db import query_agent_populations
+
+        # Mock query results
+        avg_counts = MagicMock()
+        avg_counts.avg_system = 20.5
+        avg_counts.avg_independent = 15.3
+        avg_counts.avg_control = 10.2
+        avg_counts.avg_total = 46.0
+
+        avg_survival = MagicMock()
+        avg_survival.avg_system_survival = 85.2
+        avg_survival.avg_independent_survival = 78.5
+        avg_survival.avg_control_survival = 72.1
+
+        mock_session.query.return_value.one.side_effect = [avg_counts, avg_survival]
+
+        # Should execute without error
+        query_agent_populations(mock_session)
+
+        # Should have made expected queries
+        assert mock_session.query.call_count == 2
+
+    @patch("farm.analysis.dominance.query_dominance_db.print")
+    def test_query_reproduction_stats(self, mock_print, mock_session):
+        """Test querying reproduction stats."""
+        from farm.analysis.dominance.query_dominance_db import query_reproduction_stats
+
+        # Mock query results - need to handle multiple .one() calls (3 total)
+        success_rates = MagicMock()
+        success_rates.avg_system = 0.75
+        success_rates.avg_independent = 0.68
+        success_rates.avg_control = 0.62
+
+        first_repro_times = MagicMock()
+        first_repro_times.avg_system = 15.2
+        first_repro_times.avg_independent = 18.5
+        first_repro_times.avg_control = 22.1
+
+        efficiency = MagicMock()
+        efficiency.avg_system = 0.82
+        efficiency.avg_independent = 0.75
+        efficiency.avg_control = 0.68
+
+        # Set up the side_effect to return different results for different calls
+        mock_session.query.return_value.one.side_effect = [success_rates, first_repro_times, efficiency]
+
+        # Should execute without error
+        query_reproduction_stats(mock_session)
+
+        # Should have made expected queries
+        assert mock_session.query.call_count == 3
