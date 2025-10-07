@@ -105,7 +105,11 @@ class ConfigCache:
                 for filepath in filepaths:
                     if os.path.exists(filepath):
                         current_mtime = os.path.getmtime(filepath)
-                        current_size = os.path.getsize(filepath)
+                        try:
+                            current_size = os.path.getsize(filepath)
+                        except OSError:
+                            # If file disappears between exists() and getsize()
+                            current_size = -1
                         cached_mtime = cached_mtimes.get(filepath, -1)
                         cached_size = cached_sizes.get(filepath, -1)
 
@@ -182,7 +186,21 @@ class ConfigCache:
                 if os.path.exists(filepath):
                     file_mtimes[filepath] = os.path.getmtime(filepath)
                     # Persist size for robust change detection
-                    self.file_sizes[filepath] = os.path.getsize(filepath)
+                    try:
+                        self.file_sizes[filepath] = os.path.getsize(filepath)
+                    except OSError:
+                        self.file_sizes[filepath] = -1
+
+            # Build robust file sizes map (avoid crashing if file missing despite exists() mocks)
+            sizes_map: Dict[str, int] = {}
+            for fp in filepaths:
+                if os.path.exists(fp):
+                    try:
+                        sizes_map[fp] = os.path.getsize(fp)
+                    except OSError:
+                        sizes_map[fp] = -1
+                else:
+                    sizes_map[fp] = -1
 
             # Store in cache
             self.cache[cache_key] = {
@@ -190,7 +208,7 @@ class ConfigCache:
                 "size": config_size,
                 "created": time.time(),
                 "file_mtimes": file_mtimes,
-                "file_sizes": {fp: os.path.getsize(fp) for fp in filepaths if os.path.exists(fp)},
+                "file_sizes": sizes_map,
             }
             self.access_times[cache_key] = time.time()
             self.memory_usage += config_size

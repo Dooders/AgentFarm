@@ -51,6 +51,7 @@ networkx>=2.6.0  # For network analysis
 plotly>=5.3.0  # Interactive visualizations
 dash>=2.0.0  # Dashboard for visualization
 statsmodels>=0.14.0  # Statistical modeling and time series analysis
+pyarrow>=10.0.0  # Parquet support for pandas.to_parquet/read_parquet in tests
 
 # Reinforcement Learning
 tianshou>=0.4.11,<0.5.0  # Tianshou RL library (PPO, SAC, A2C, DQN, DDPG, etc.) - pinned due to NumPy compatibility
