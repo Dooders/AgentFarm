@@ -59,6 +59,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload, scoped_session, sessionmaker
 from sqlalchemy.pool import QueuePool
 
+from farm.core.interfaces import DatabaseProtocol
 from farm.database.data_retrieval import DataRetriever
 from farm.database.session_manager import SessionManager
 
@@ -95,6 +96,10 @@ class SimulationDatabase:
     data using SQLAlchemy ORM. It handles all database operations including state
     logging, configuration management, and data analysis with transaction safety
     and efficient batch operations.
+    
+    This class implements the DatabaseProtocol interface, providing a standardized
+    interface for database operations while breaking circular dependencies through
+    dependency inversion.
 
     Features
     --------
@@ -114,7 +119,7 @@ class SimulationDatabase:
     Session : sqlalchemy.orm.scoped_session
         Thread-local session factory
     logger : DataLogger
-        Handles buffered data logging operations
+        Handles buffered data logging operations (implements DataLoggerProtocol)
     query : DataRetriever
         Handles data querying operations
 
@@ -150,6 +155,7 @@ class SimulationDatabase:
     - Creates required tables automatically
     - Handles concurrent access through thread-local sessions
     - Buffers operations through DataLogger for better performance
+    - Implements DatabaseProtocol for dependency inversion
     """
 
     def _get_database_url(self, db_path: str) -> str:

@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from sqlalchemy.exc import SQLAlchemyError
 
+from farm.core.interfaces import DataLoggerProtocol
 from farm.database.models import (
     ActionModel,
     AgentModel,

@@ -298,6 +298,9 @@ def setup_db(db_path: Optional[str], simulation_id: str, parameters: Optional[Di
     Handles database file cleanup, creation, and initialization of the appropriate
     database instance. If the database file exists, it will be removed to ensure
     a fresh start. If removal fails, a unique filename will be generated.
+    
+    This function returns instances that implement DatabaseProtocol, enabling
+    dependency inversion and breaking circular dependencies.
 
     Parameters
     ----------
@@ -306,11 +309,14 @@ def setup_db(db_path: Optional[str], simulation_id: str, parameters: Optional[Di
         If ":memory:", an in-memory database is created.
     simulation_id : str
         The simulation ID to use for database initialization
+    parameters : Optional[Dict]
+        Configuration parameters for the simulation
 
     Returns
     -------
     Optional[Any]
-        The database instance if setup is successful, otherwise None
+        The database instance (implementing DatabaseProtocol) if setup is successful, 
+        otherwise None. Returns DatabaseProtocol-compatible instance.
     """
     # Skip setup if no database requested
     if db_path is None:
@@ -320,6 +326,7 @@ def setup_db(db_path: Optional[str], simulation_id: str, parameters: Optional[Di
     if db_path == ":memory:":
         from datetime import datetime
 
+        # Import inside function to avoid circular dependency at module level
         from farm.database.database import InMemorySimulationDatabase
 
         db = InMemorySimulationDatabase(simulation_id=simulation_id)
@@ -357,6 +364,7 @@ def setup_db(db_path: Optional[str], simulation_id: str, parameters: Optional[Di
             final_db_path = f"{base}_{int(time.time())}{ext}"
 
     # Create the database instance
+    # Import inside function to avoid circular dependency at module level
     from farm.database.database import SimulationDatabase
 
     db = SimulationDatabase(final_db_path, simulation_id=simulation_id)
