@@ -15,7 +15,29 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import yaml
 
-from .config import SimulationConfig
+from farm.config.config import SimulationConfig
+
+
+def _deep_merge_dicts(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Deep merge two dictionaries.
+
+    Args:
+        base: Base dictionary
+        override: Override dictionary
+
+    Returns:
+        Merged dictionary
+    """
+    result = base.copy()
+
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _deep_merge_dicts(result[key], value)
+        else:
+            result[key] = value
+
+    return result
 
 
 class ConfigCache:
@@ -50,9 +72,7 @@ class ConfigCache:
         self.misses = 0
         self.invalidations = 0
 
-    def get(
-        self, cache_key: str, filepaths: Optional[Union[str, List[str]]] = None
-    ) -> Optional[SimulationConfig]:
+    def get(self, cache_key: str, filepaths: Optional[Union[str, List[str]]] = None) -> Optional["SimulationConfig"]:
         """
         Retrieve a configuration from cache.
 
@@ -96,9 +116,22 @@ class ConfigCache:
             self.hits += 1
 
             # Return cached config
-            try:
-                return SimulationConfig.from_dict(cached_entry["config"])
-            except Exception:
+            config_data = cached_entry["config"]
+            if isinstance(config_data, dict):
+                # Convert dict back to SimulationConfig
+                from .config import SimulationConfig
+
+                try:
+                    return SimulationConfig.from_dict(config_data)
+                except Exception:
+                    # Invalid cached data, remove it
+                    self._remove_entry(cache_key)
+                    self.misses += 1
+                    return None
+            elif hasattr(config_data, "to_dict"):
+                # It's already a SimulationConfig
+                return config_data
+            else:
                 # Invalid cached data, remove it
                 self._remove_entry(cache_key)
                 self.misses += 1
@@ -107,7 +140,7 @@ class ConfigCache:
     def put(
         self,
         cache_key: str,
-        config: SimulationConfig,
+        config: Union[Dict[str, Any], "SimulationConfig"],
         filepaths: Optional[Union[str, List[str]]] = None,
     ) -> None:
         """
@@ -115,12 +148,17 @@ class ConfigCache:
 
         Args:
             cache_key: Unique cache key
-            config: Configuration to cache
+            config: Configuration dict or SimulationConfig to cache
             filepaths: List of associated file paths for modification tracking
         """
         with self.lock:
+            # Convert SimulationConfig to dict if needed
+            if hasattr(config, "to_dict"):
+                config_dict = config.to_dict()
+            else:
+                config_dict = config
+
             # Estimate memory usage
-            config_dict = config.to_dict()
             config_size = len(pickle.dumps(config_dict)) / (1024 * 1024)  # MB
 
             # Check memory limit
@@ -250,7 +288,7 @@ class OptimizedConfigLoader:
         profile: Optional[str] = None,
         config_dir: str = "farm/config",
         use_cache: bool = True,
-    ) -> SimulationConfig:
+    ) -> "SimulationConfig":
         """
         Load centralized configuration with caching.
 
@@ -273,20 +311,22 @@ class OptimizedConfigLoader:
         filepaths = self._get_config_filepaths(environment, profile, config_dir)
 
         # Try to get from cache
-        config = self.cache.get(cache_key, filepaths)
-        if config is not None:
-            return config
+        cached_dict = self.cache.get(cache_key, filepaths)
+        if cached_dict is not None:
+            # Convert dict to SimulationConfig (avoid circular import by importing locally)
+            from .config import SimulationConfig
+
+            return SimulationConfig.from_dict(cached_dict)
 
         # Load from files
         config = self._load_from_files(environment, profile, config_dir)
 
-        # Cache the result with all relevant file paths for modification tracking
-        self.cache.put(cache_key, config, filepaths)
+        # Cache the result as dict with all relevant file paths for modification tracking
+        config_dict = config.to_dict()
+        self.cache.put(cache_key, config_dict, filepaths)
         return config
 
-    def _load_from_files(
-        self, environment: str, profile: Optional[str], config_dir: str
-    ) -> SimulationConfig:
+    def _load_from_files(self, environment: str, profile: Optional[str], config_dir: str) -> "SimulationConfig":
         """
         Load configuration from files without caching.
 
@@ -297,6 +337,24 @@ class OptimizedConfigLoader:
 
         Returns:
             Loaded configuration
+        """
+        config_dict = self._load_from_files_dict(environment, profile, config_dir)
+        # Convert dict to SimulationConfig (avoid circular import by importing locally)
+        from .config import SimulationConfig
+
+        return SimulationConfig.from_dict(config_dict)
+
+    def _load_from_files_dict(self, environment: str, profile: Optional[str], config_dir: str) -> Dict[str, Any]:
+        """
+        Load configuration from files without caching.
+
+        Args:
+            environment: Environment name
+            profile: Optional profile name
+            config_dir: Configuration directory
+
+        Returns:
+            Loaded configuration as dict
         """
         import os
 
@@ -315,13 +373,11 @@ class OptimizedConfigLoader:
         if os.path.exists(env_path):
             with open(env_path, "r", encoding="utf-8") as f:
                 env_config = yaml.safe_load(f)
-            base_config = SimulationConfig._deep_merge(base_config, env_config)
+            base_config = _deep_merge_dicts(base_config, env_config)
         else:
             # If environment is not "default" and file doesn't exist, raise error
             if environment != "default":
-                raise FileNotFoundError(
-                    f"Environment configuration not found: {env_path}"
-                )
+                raise FileNotFoundError(f"Environment configuration not found: {env_path}")
 
         # Merge profile overrides (highest precedence)
         if profile:
@@ -329,18 +385,18 @@ class OptimizedConfigLoader:
             if os.path.exists(profile_path):
                 with open(profile_path, "r", encoding="utf-8") as f:
                     profile_config = yaml.safe_load(f)
-                base_config = SimulationConfig._deep_merge(base_config, profile_config)
+                base_config = _deep_merge_dicts(base_config, profile_config)
             else:
-                raise FileNotFoundError(
-                    f"Profile configuration not found: {profile_path}"
-                )
+                raise FileNotFoundError(f"Profile configuration not found: {profile_path}")
 
         # Handle nested configs
         vis_config = base_config.pop("visualization", {})
-        base_config["visualization"] = VisualizationConfig(**vis_config)
+        if vis_config:
+            base_config["visualization"] = VisualizationConfig(**vis_config)
 
         redis_config = base_config.pop("redis", {})
-        base_config["redis"] = RedisMemoryConfig(**redis_config)
+        if redis_config:
+            base_config["redis"] = RedisMemoryConfig(**redis_config)
 
         obs_config = base_config.pop("observation", None)
         if obs_config:
@@ -353,7 +409,8 @@ class OptimizedConfigLoader:
                 # If import fails, store as raw dict and let caller handle it
                 base_config["observation"] = obs_config
 
-        return SimulationConfig(**SimulationConfig._convert_flat_to_nested(base_config))
+        # Return the config dict directly (orchestrator will handle SimulationConfig creation)
+        return base_config
 
     def preload_common_configs(self, config_dir: str = "farm/config") -> None:
         """
@@ -382,9 +439,7 @@ class OptimizedConfigLoader:
                 # Skip configs that can't be loaded
                 continue
 
-    def _get_config_filepaths(
-        self, environment: str, profile: Optional[str], config_dir: str
-    ) -> List[str]:
+    def _get_config_filepaths(self, environment: str, profile: Optional[str], config_dir: str) -> List[str]:
         """Get all relevant configuration file paths for cache validation."""
         filepaths = []
 
@@ -403,9 +458,7 @@ class OptimizedConfigLoader:
 
         return filepaths
 
-    def _create_cache_key(
-        self, environment: str, profile: Optional[str], config_dir: str
-    ) -> str:
+    def _create_cache_key(self, environment: str, profile: Optional[str], config_dir: str) -> str:
         """Create a unique cache key for the configuration."""
         key_parts = [config_dir, environment, profile or ""]
         key_string = "|".join(key_parts)
@@ -413,9 +466,7 @@ class OptimizedConfigLoader:
         # Include file modification times in key for automatic invalidation
         try:
             mtimes = []
-            for filepath in self._get_config_filepaths(
-                environment, profile, config_dir
-            ):
+            for filepath in self._get_config_filepaths(environment, profile, config_dir):
                 if os.path.exists(filepath):
                     mtimes.append(str(os.path.getmtime(filepath)))
 
@@ -441,7 +492,7 @@ class LazyConfigLoader:
             loader: Underlying loader to use
         """
         self.loader = loader or OptimizedConfigLoader()
-        self._config: Optional[SimulationConfig] = None
+        self._config: Optional["SimulationConfig"] = None
         self._load_params: Optional[Dict[str, Any]] = None
 
     def configure(
@@ -469,7 +520,7 @@ class LazyConfigLoader:
         self._config = None  # Invalidate cached config
         return self
 
-    def get_config(self) -> SimulationConfig:
+    def get_config(self) -> "SimulationConfig":
         """
         Get the configuration, loading it if necessary.
 
@@ -484,7 +535,7 @@ class LazyConfigLoader:
 
         return self._config
 
-    def reload(self) -> SimulationConfig:
+    def reload(self) -> "SimulationConfig":
         """
         Force reload the configuration.
 
