@@ -63,7 +63,7 @@ from farm.core.services.implementations import (
 )
 from farm.core.spatial import SpatialIndex
 from farm.core.state import EnvironmentState
-from farm.core.interfaces import DatabaseFactoryProtocol
+from farm.core.interfaces import DatabaseFactoryProtocol, DatabaseProtocol
 from farm.utils.identity import Identity, IdentityConfig
 from farm.utils.logging_config import get_logger
 
@@ -147,7 +147,7 @@ class Environment(AECEnv):
         spatial_index (SpatialIndex): Efficient spatial query system
         resource_manager (ResourceManager): Handles resource lifecycle
         metrics_tracker (MetricsTracker): Tracks simulation statistics
-        db (Database): Optional database for logging simulation data
+        db (DatabaseProtocol): Optional database implementing DatabaseProtocol
 
     Inherits from:
         AECEnv: PettingZoo's Agent-Environment-Cycle environment base class

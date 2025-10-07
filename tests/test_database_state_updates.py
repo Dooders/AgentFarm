@@ -1,12 +1,15 @@
 import os
 import time
 from datetime import datetime
+from typing import Tuple
 
+from farm.core.interfaces import DatabaseProtocol
 from farm.database.database import SimulationDatabase
 from farm.database.models import AgentModel, AgentStateModel
 
 
-def _make_db(tmp_name: str = None) -> tuple[SimulationDatabase, str]:
+def _make_db(tmp_name: str = None) -> Tuple[DatabaseProtocol, str]:
+    """Create a test database that implements DatabaseProtocol."""
     db_path = tmp_name or f"test_state_updates_{time.time()}.db"
     db = SimulationDatabase(db_path, simulation_id="sim_test")
     # Ensure a simulation record exists for FK

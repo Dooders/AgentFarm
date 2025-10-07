@@ -18,11 +18,12 @@ import json
 import logging
 import os
 import time
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from farm.core.interfaces import DatabaseProtocol
 from farm.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -292,7 +293,11 @@ def create_prepared_statements(session):
     return statements
 
 
-def setup_db(db_path: Optional[str], simulation_id: str, parameters: Optional[Dict] = None) -> Optional[Any]:
+def setup_db(
+    db_path: Optional[str], 
+    simulation_id: str, 
+    parameters: Optional[Dict] = None
+) -> Optional[DatabaseProtocol]:
     """Setup database for simulation.
 
     Handles database file cleanup, creation, and initialization of the appropriate
@@ -300,7 +305,9 @@ def setup_db(db_path: Optional[str], simulation_id: str, parameters: Optional[Di
     a fresh start. If removal fails, a unique filename will be generated.
     
     This function returns instances that implement DatabaseProtocol, enabling
-    dependency inversion and breaking circular dependencies.
+    dependency inversion and breaking circular dependencies. All database
+    implementations (SimulationDatabase, InMemorySimulationDatabase) implement
+    the DatabaseProtocol interface.
 
     Parameters
     ----------
@@ -314,9 +321,9 @@ def setup_db(db_path: Optional[str], simulation_id: str, parameters: Optional[Di
 
     Returns
     -------
-    Optional[Any]
-        The database instance (implementing DatabaseProtocol) if setup is successful, 
-        otherwise None. Returns DatabaseProtocol-compatible instance.
+    Optional[DatabaseProtocol]
+        Database instance implementing DatabaseProtocol if setup is successful, 
+        otherwise None. Type hint ensures consumers use protocol interface.
     """
     # Skip setup if no database requested
     if db_path is None:

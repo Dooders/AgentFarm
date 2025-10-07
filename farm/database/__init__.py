@@ -3,13 +3,22 @@
 This module provides database implementations for storing and analyzing simulation data,
 with optimized SQLite pragma settings for different workloads.
 
+The module follows the Dependency Inversion Principle using protocols defined in
+farm.core.interfaces to enable loose coupling and easier testing.
+
 Classes
 -------
-SimulationDatabase : Main database interface for disk-based storage
-InMemorySimulationDatabase : High-performance in-memory database
+SimulationDatabase : Main database interface for disk-based storage (implements DatabaseProtocol)
+InMemorySimulationDatabase : High-performance in-memory database (implements DatabaseProtocol)
 ShardedSimulationDatabase : Database implementation for large-scale simulations
 ExperimentDatabase : Database for managing multiple simulations in a single file
 SimulationContext : Context for a specific simulation within an experiment
+
+Protocols
+---------
+DatabaseProtocol : Protocol for database operations (from farm.core.interfaces)
+DataLoggerProtocol : Protocol for data logging operations (from farm.core.interfaces)
+RepositoryProtocol : Protocol for repository operations (from farm.core.interfaces)
 
 Functions
 ---------
@@ -25,6 +34,11 @@ Pragma Profiles
 - memory: Optimized for low memory usage
 """
 
+from farm.core.interfaces import (
+    DatabaseProtocol,
+    DataLoggerProtocol,
+    RepositoryProtocol,
+)
 from .database import (
     SimulationDatabase,
     InMemorySimulationDatabase,
@@ -45,6 +59,7 @@ from .pragma_docs import (
 )
 
 __all__ = [
+    # Concrete implementations
     "SimulationDatabase",
     "InMemorySimulationDatabase",
     "ShardedSimulationDatabase",
@@ -52,6 +67,11 @@ __all__ = [
     "ExperimentDatabase",
     "SimulationContext",
     "ExperimentDataLogger",
+    # Protocols for type hints and testing
+    "DatabaseProtocol",
+    "DataLoggerProtocol",
+    "RepositoryProtocol",
+    # Pragma utilities
     "get_pragma_profile",
     "get_pragma_info",
     "analyze_pragma_value",
