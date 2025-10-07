@@ -4,7 +4,12 @@ This guide explains how to configure AgentFarm simulations using the YAML-based 
 
 ## Configuration File Structure
 
-AgentFarm uses a flat YAML configuration structure with nested sections for complex configurations. The main configuration file contains all simulation parameters at the top level, with specialized nested configurations for visualization, Redis memory, and observation systems.
+AgentFarm uses an orchestrator pattern for configuration management, with a flat YAML configuration structure and nested sections for complex configurations. The main configuration file contains all simulation parameters at the top level, with specialized nested configurations for visualization, Redis memory, and observation systems.
+
+The orchestrator coordinates three main components:
+- **ConfigCache**: Thread-safe caching with automatic invalidation
+- **OptimizedConfigLoader**: Efficient loading with file change tracking
+- **SafeConfigLoader**: Validation with automatic repair capabilities
 
 ```yaml
 # Core simulation parameters (flat structure)
@@ -325,20 +330,45 @@ The configuration system includes built-in validation and schema checking to ens
 
 ### Loading Configurations
 
-```python
-from farm.core.config import SimulationConfig
+The configuration system uses an orchestrator pattern to coordinate caching, loading, and validation. The main entry point is through the `ConfigurationOrchestrator`:
 
-# Load from centralized config system
-config = SimulationConfig.from_centralized_config()
+```python
+from farm.config import ConfigurationOrchestrator
+
+# Create orchestrator (coordinates cache, loader, and validator)
+orchestrator = ConfigurationOrchestrator()
+
+# Load from centralized config system (recommended approach)
+config = orchestrator.load_config()
 
 # Load specific environment and profile
-config = SimulationConfig.from_centralized_config(
+config = orchestrator.load_config(
     environment="production",
     profile="benchmark"
 )
 
-# Load from YAML file directly
-config = SimulationConfig.from_yaml("path/to/config.yaml")
+# Load with validation and caching options
+config = orchestrator.load_config(
+    environment="development",
+    profile="research",
+    validate=True,
+    use_cache=True
+)
+```
+
+### Legacy Loading Methods
+
+For backward compatibility, the old `SimulationConfig.from_centralized_config()` method is still available but now uses the orchestrator internally:
+
+```python
+from farm.core.config import SimulationConfig
+
+# These methods still work but use the orchestrator internally
+config = SimulationConfig.from_centralized_config()
+config = SimulationConfig.from_centralized_config(
+    environment="production",
+    profile="benchmark"
+)
 ```
 
 ### Programmatic Configuration
@@ -376,9 +406,10 @@ config = template.instantiate({
 ## Best Practices
 
 ### Organization
-- Use the centralized configuration system instead of direct YAML loading
+- Use the `ConfigurationOrchestrator` for all configuration loading (it coordinates caching, loading, and validation)
 - Leverage environments (development, production, testing) for different deployment scenarios
 - Use profiles for different types of experiments (benchmark, research, simulation)
+- Enable caching for production deployments to improve performance
 - Version important configurations for reproducible research
 
 ### Validation

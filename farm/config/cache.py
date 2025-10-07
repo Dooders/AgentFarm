@@ -115,22 +115,13 @@ class ConfigCache:
             self.access_times[cache_key] = time.time()
             self.hits += 1
 
-            # Return cached config
+            # Return cached config dict
             config_data = cached_entry["config"]
             if isinstance(config_data, dict):
-                # Convert dict back to SimulationConfig
-                from .config import SimulationConfig
-
-                try:
-                    return SimulationConfig.from_dict(config_data)
-                except Exception:
-                    # Invalid cached data, remove it
-                    self._remove_entry(cache_key)
-                    self.misses += 1
-                    return None
-            elif hasattr(config_data, "to_dict"):
-                # It's already a SimulationConfig
                 return config_data
+            elif hasattr(config_data, "to_dict"):
+                # Convert SimulationConfig back to dict for consistency
+                return config_data.to_dict()
             else:
                 # Invalid cached data, remove it
                 self._remove_entry(cache_key)
