@@ -125,7 +125,8 @@ class TestDominanceComputerClass:
         result = computer.compute_dominance_switch_factors(df)
 
         assert result is not None
-        assert "top_positive_correlations" in result
+        assert "reproduction_correlations" in result
+        assert "switches_by_dominant_type" in result
 
 
 class TestDominanceAnalyzerClass:
