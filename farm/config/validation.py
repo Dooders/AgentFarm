@@ -8,7 +8,16 @@ mechanisms for the configuration system.
 import os
 import traceback
 from typing import Any, Dict, List, Optional, Set, Tuple
-from .config import SimulationConfig
+from .config import (
+    SimulationConfig,
+    EnvironmentConfig,
+    PopulationConfig,
+    ResourceConfig,
+    LearningConfig,
+    VisualizationConfig,
+    RedisMemoryConfig,
+    DatabaseConfig,
+)
 
 
 class ConfigurationError(Exception):
@@ -431,16 +440,6 @@ class ConfigurationRecovery:
         Returns:
             Minimal working configuration
         """
-        from .config import (
-            EnvironmentConfig,
-            PopulationConfig,
-            ResourceConfig,
-            LearningConfig,
-            VisualizationConfig,
-            RedisMemoryConfig,
-            DatabaseConfig,
-        )
-
         # Create a minimal working configuration using nested config objects
         return SimulationConfig(
             environment=EnvironmentConfig(width=50, height=50),
@@ -514,7 +513,7 @@ class ConfigurationRecovery:
                     repair_actions.append(f"Clamped {field} to [0.0, 1.0] (was {value})")
 
             elif field == "memory_size" and error.get("value", 0) <= 0:
-                repaired_config.redis.memory_size = 1000
+                repaired_config.learning.memory_size = 1000
                 repair_actions.append("Set memory_size to 1000")
 
             elif field == "batch_size" and error.get("value", 0) <= 0:
@@ -631,6 +630,103 @@ class SafeConfigLoader:
                 ) from e
 
             return validated_config_dict, status_info
+
+    def load_config_safely(
+        self,
+        environment: str,
+        profile: Optional[str] = None,
+        config_dir: str = "farm/config",
+        strict_validation: bool = False,
+        auto_repair: bool = False,
+    ) -> Tuple[SimulationConfig, Dict[str, Any]]:
+        """
+        Load and validate configuration with comprehensive error handling and recovery.
+
+        Args:
+            environment: Environment name
+            profile: Optional profile name
+            config_dir: Configuration directory
+            strict_validation: Whether to treat warnings as errors
+            auto_repair: Whether to attempt automatic repair
+
+        Returns:
+            Tuple of (config, status_info)
+
+        Raises:
+            ValidationError: If validation fails and auto_repair is disabled
+        """
+        from .config import SimulationConfig
+
+        status_info = {
+            "success": False,
+            "errors": [],
+            "warnings": [],
+            "repair_actions": [],
+            "fallback_used": False,
+            "load_method": "safe_loader",
+        }
+
+        try:
+            # Load configuration from files
+            config = SimulationConfig.from_centralized_config(
+                environment=environment,
+                profile=profile,
+                config_dir=config_dir,
+                use_cache=False,  # Don't use cache in safe loader
+                strict_validation=False,  # We'll validate manually
+                auto_repair=False,  # We'll handle repair manually
+            )
+
+            # Convert to dict for validation
+            config_dict = config.to_dict()
+
+            # Validate the config dict
+            validated_dict, validation_status = self.validate_config_dict(
+                config_dict, strict_validation=strict_validation, auto_repair=auto_repair
+            )
+
+            # Update status info
+            status_info.update(validation_status)
+            status_info["success"] = validation_status.get("success", False)
+
+            # Convert back to SimulationConfig
+            if status_info["success"]:
+                validated_config = SimulationConfig.from_dict(validated_dict)
+                return validated_config, status_info
+            else:
+                # Validation failed
+                raise ValidationError(
+                    f"Configuration validation failed: {len(validation_status.get('errors', []))} errors",
+                    details=validation_status,
+                )
+
+        except Exception as e:
+            # Handle loading or validation errors
+            if auto_repair:
+                try:
+                    # Create fallback config
+                    fallback_config = ConfigurationRecovery.create_fallback_config(
+                        {
+                            "error": "load_validation_error",
+                            "exception": str(e),
+                            "environment": environment,
+                            "profile": profile,
+                        }
+                    )
+                    status_info["fallback_used"] = True
+                    status_info["success"] = True
+                    status_info["errors"] = [str(e)]
+                    return fallback_config, status_info
+                except Exception:
+                    pass
+
+            # Re-raise original error if fallback fails or auto_repair disabled
+            if isinstance(e, ValidationError):
+                raise
+            raise ValidationError(
+                f"Failed to load and validate configuration: {e}",
+                details={"original_error": str(e), "status": status_info},
+            ) from e
 
 
 def validate_config_files(config_dir: str = "config") -> Dict[str, Any]:

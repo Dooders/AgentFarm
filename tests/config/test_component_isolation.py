@@ -70,8 +70,12 @@ class TestConfigCacheIsolation(unittest.TestCase):
         # Put config in cache
         self.cache.put(cache_key, test_config)
 
-        # Should retrieve the same config
-        retrieved = self.cache.get(cache_key)
+        # Should retrieve the config dict
+        retrieved_dict = self.cache.get(cache_key)
+        self.assertIsInstance(retrieved_dict, dict)
+
+        # Convert back to SimulationConfig
+        retrieved = SimulationConfig.from_dict(retrieved_dict)
         self.assertIsInstance(retrieved, SimulationConfig)
         self.assertEqual(retrieved.environment.width, test_config.environment.width)
 
@@ -196,9 +200,11 @@ class TestConfigCacheIsolation(unittest.TestCase):
         cache.put("test_key", original_config)
 
         # Retrieve it
-        retrieved = cache.get("test_key")
+        retrieved_dict = cache.get("test_key")
+        self.assertIsInstance(retrieved_dict, dict)
 
-        # Should be a SimulationConfig with same values
+        # Convert back to SimulationConfig
+        retrieved = SimulationConfig.from_dict(retrieved_dict)
         self.assertIsInstance(retrieved, SimulationConfig)
         self.assertEqual(retrieved.environment.width, 999)
 
@@ -300,8 +306,8 @@ class TestOptimizedConfigLoaderIsolation(unittest.TestCase):
         # Create a valid config
         valid_config = SimulationConfig()
 
-        # Mock cache hit - cache now returns SimulationConfig objects directly
-        self.mock_cache.get.return_value = valid_config
+        # Mock cache hit - cache now returns config dicts
+        self.mock_cache.get.return_value = valid_config.to_dict()
 
         # Load config
         result = self.loader.load_centralized_config(environment="test", config_dir=self.config_dir, use_cache=True)
@@ -616,7 +622,7 @@ class TestConfigurationOrchestratorIsolation(unittest.TestCase):
 
         # Mock cache hit
         cached_config = SimulationConfig()
-        self.mock_cache.get.return_value = cached_config
+        self.mock_cache.get.return_value = cached_config.to_dict()
 
         # Mock validation
         validated_config = SimulationConfig()

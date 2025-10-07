@@ -112,9 +112,10 @@ class ConfigurationOrchestrator:
         try:
             # Step 1: Attempt to load from cache (if enabled)
             if use_cache:
-                config = self._load_from_cache(environment, profile, config_dir)
-                if config is not None:
+                config_dict = self._load_from_cache(environment, profile, config_dir)
+                if config_dict is not None:
                     logger.debug("Configuration loaded from cache")
+                    config = SimulationConfig.from_dict(config_dict)
                     if validate:
                         config = self._validate_config(config, strict_validation, auto_repair)
                     return config
@@ -285,8 +286,8 @@ class ConfigurationOrchestrator:
 
         logger.info("Configuration preload completed")
 
-    def _load_from_cache(self, environment: str, profile: Optional[str], config_dir: str) -> Optional[SimulationConfig]:
-        """Load configuration from cache if available."""
+    def _load_from_cache(self, environment: str, profile: Optional[str], config_dir: str) -> Optional[Dict[str, Any]]:
+        """Load configuration dict from cache if available."""
         cache_key = self.loader._create_cache_key(environment, profile, config_dir)
         filepaths = self.loader._get_config_filepaths(environment, profile, config_dir)
         return self.cache.get(cache_key, filepaths)

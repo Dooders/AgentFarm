@@ -72,16 +72,16 @@ class ConfigCache:
         self.misses = 0
         self.invalidations = 0
 
-    def get(self, cache_key: str, filepaths: Optional[Union[str, List[str]]] = None) -> Optional["SimulationConfig"]:
+    def get(self, cache_key: str, filepaths: Optional[Union[str, List[str]]] = None) -> Optional[Dict[str, Any]]:
         """
-        Retrieve a configuration from cache.
+        Retrieve a configuration dict from cache.
 
         Args:
             cache_key: Unique cache key
             filepaths: File path(s) to check for modifications
 
         Returns:
-            Cached configuration or None if not found or invalid
+            Cached configuration dict or None if not found or invalid
         """
         with self.lock:
             if cache_key not in self.cache:
@@ -115,20 +115,18 @@ class ConfigCache:
             self.access_times[cache_key] = time.time()
             self.hits += 1
 
-            # Return cached config as SimulationConfig
+            # Return cached config dict
             config_data = cached_entry["config"]
             if isinstance(config_data, dict):
-                # Convert dict back to SimulationConfig
+                # Validate that the dict can be converted to SimulationConfig
                 try:
-                    return SimulationConfig.from_dict(config_data)
+                    SimulationConfig.from_dict(config_data)
+                    return config_data
                 except Exception:
                     # Invalid cached data, remove it
                     self._remove_entry(cache_key)
                     self.misses += 1
                     return None
-            elif hasattr(config_data, "to_dict"):
-                # Already a SimulationConfig object
-                return config_data
             else:
                 # Invalid cached data, remove it
                 self._remove_entry(cache_key)
@@ -309,10 +307,9 @@ class OptimizedConfigLoader:
         filepaths = self._get_config_filepaths(environment, profile, config_dir)
 
         # Try to get from cache
-        cached_config = self.cache.get(cache_key, filepaths)
-        if cached_config is not None:
-            # Cache now returns SimulationConfig objects directly
-            return cached_config
+        cached_config_dict = self.cache.get(cache_key, filepaths)
+        if cached_config_dict is not None:
+            return SimulationConfig.from_dict(cached_config_dict)
 
         # Load from files
         config = self._load_from_files(environment, profile, config_dir)
@@ -386,12 +383,12 @@ class OptimizedConfigLoader:
                 raise FileNotFoundError(f"Profile configuration not found: {profile_path}")
 
         # Handle nested configs
-        vis_config = base_config.pop("visualization", {})
-        if vis_config:
+        vis_config = base_config.pop("visualization", None)
+        if vis_config is not None:
             base_config["visualization"] = VisualizationConfig(**vis_config)
 
-        redis_config = base_config.pop("redis", {})
-        if redis_config:
+        redis_config = base_config.pop("redis", None)
+        if redis_config is not None:
             base_config["redis"] = RedisMemoryConfig(**redis_config)
 
         obs_config = base_config.pop("observation", None)

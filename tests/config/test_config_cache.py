@@ -48,11 +48,13 @@ class TestConfigCache(unittest.TestCase):
         self.cache.put(cache_key, self.test_config)
 
         # Should be able to retrieve it
-        retrieved = self.cache.get(cache_key)
-        self.assertIsNotNone(retrieved)
-        self.assertEqual(
-            retrieved.environment.width, self.test_config.environment.width
-        )
+        retrieved_dict = self.cache.get(cache_key)
+        self.assertIsNotNone(retrieved_dict)
+        self.assertIsInstance(retrieved_dict, dict)
+
+        # Convert back to SimulationConfig for comparison
+        retrieved = SimulationConfig.from_dict(retrieved_dict)
+        self.assertEqual(retrieved.environment.width, self.test_config.environment.width)
 
         # Access time should be updated
         self.assertIn(cache_key, self.cache.access_times)
@@ -194,9 +196,13 @@ class TestConfigCache(unittest.TestCase):
                 self.cache.put(key, config)
 
                 # Get config
-                retrieved = self.cache.get(key)
-                if retrieved and retrieved.seed == worker_id:
-                    results.append(f"worker_{worker_id}_success")
+                retrieved_dict = self.cache.get(key)
+                if retrieved_dict:
+                    retrieved = SimulationConfig.from_dict(retrieved_dict)
+                    if retrieved.seed == worker_id:
+                        results.append(f"worker_{worker_id}_success")
+                    else:
+                        results.append(f"worker_{worker_id}_fail")
                 else:
                     results.append(f"worker_{worker_id}_fail")
 
