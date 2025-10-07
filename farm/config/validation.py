@@ -491,33 +491,34 @@ class ConfigurationRecovery:
 
             # Apply automatic fixes for common issues
             if field in ["width", "height"] and error.get("value", 0) <= 0:
-                setattr(repaired_config, field, 50)
+                setattr(repaired_config.environment, field, 50)
                 repair_actions.append(f"Set {field} to 50 (was {error.get('value', 0)})")
 
             elif field == "max_population" and error.get("value", 0) <= 0:
-                repaired_config.max_population = 100
+                repaired_config.population.max_population = 100
                 repair_actions.append("Set max_population to 100")
 
             elif field == "learning_rate":
                 if error.get("value", 0) <= 0:
-                    repaired_config.learning_rate = 0.001
+                    repaired_config.learning.learning_rate = 0.001
                     repair_actions.append("Set learning_rate to 0.001")
                 elif error.get("value", 0) > 1.0:
-                    repaired_config.learning_rate = 0.1
+                    repaired_config.learning.learning_rate = 0.1
                     repair_actions.append("Set learning_rate to 0.1")
 
             elif field in ["gamma", "epsilon_start", "epsilon_min", "epsilon_decay"]:
                 value = error.get("value", 0)
                 if value < 0.0 or value > 1.0:
-                    setattr(repaired_config, field, max(0.0, min(1.0, value)))
+                    clamped_value = max(0.0, min(1.0, value))
+                    setattr(repaired_config.learning, field, clamped_value)
                     repair_actions.append(f"Clamped {field} to [0.0, 1.0] (was {value})")
 
             elif field == "memory_size" and error.get("value", 0) <= 0:
-                repaired_config.memory_size = 1000
+                repaired_config.redis.memory_size = 1000
                 repair_actions.append("Set memory_size to 1000")
 
             elif field == "batch_size" and error.get("value", 0) <= 0:
-                repaired_config.batch_size = 32
+                repaired_config.learning.batch_size = 32
                 repair_actions.append("Set batch_size to 32")
 
         return repaired_config, repair_actions

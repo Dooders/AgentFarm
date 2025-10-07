@@ -161,6 +161,67 @@ class TestConfigCacheIsolation(unittest.TestCase):
         cache.clear()
         self.assertEqual(cache.get_stats()["entries"], 0)
 
+    def test_deep_merge_dicts_function(self):
+        """Test the _deep_merge_dicts utility function."""
+        from farm.config.cache import _deep_merge_dicts
+
+        # Test simple merge
+        base = {"a": 1, "b": 2}
+        override = {"b": 3, "c": 4}
+        result = _deep_merge_dicts(base, override)
+        self.assertEqual(result, {"a": 1, "b": 3, "c": 4})
+
+        # Test nested merge
+        base = {"nested": {"x": 1, "y": 2}}
+        override = {"nested": {"y": 3, "z": 4}}
+        result = _deep_merge_dicts(base, override)
+        self.assertEqual(result, {"nested": {"x": 1, "y": 3, "z": 4}})
+
+        # Test non-dict override
+        base = {"nested": {"x": 1}}
+        override = {"nested": "not_a_dict"}
+        result = _deep_merge_dicts(base, override)
+        self.assertEqual(result, {"nested": "not_a_dict"})
+
+    def test_cache_simulation_config_storage(self):
+        """Test that cache properly handles SimulationConfig objects."""
+        from farm.config.config import SimulationConfig
+
+        cache = ConfigCache()
+
+        # Create and store a config
+        original_config = SimulationConfig()
+        original_config.environment.width = 999  # Unique value
+
+        cache.put("test_key", original_config)
+
+        # Retrieve it
+        retrieved = cache.get("test_key")
+
+        # Should be a SimulationConfig with same values
+        self.assertIsInstance(retrieved, SimulationConfig)
+        self.assertEqual(retrieved.environment.width, 999)
+
+    def test_cache_invalid_data_handling(self):
+        """Test cache handles invalid cached data gracefully."""
+        cache = ConfigCache()
+
+        # Manually put invalid data in cache
+        cache.cache["invalid_key"] = {
+            "config": "not_a_dict_or_config",
+            "size": 100,
+            "created": 1234567890.0,
+            "file_mtimes": {}
+        }
+        cache.access_times["invalid_key"] = 1234567890.0
+
+        # Should handle gracefully and return None
+        result = cache.get("invalid_key")
+        self.assertIsNone(result)
+
+        # Invalid entry should be removed
+        self.assertNotIn("invalid_key", cache.cache)
+
 
 class TestOptimizedConfigLoaderIsolation(unittest.TestCase):
     """Test OptimizedConfigLoader component in isolation."""
@@ -420,6 +481,109 @@ class TestSafeConfigLoaderIsolation(unittest.TestCase):
         self.assertGreater(fallback.environment.width, 0)
         self.assertGreater(fallback.population.max_population, 0)
 
+    def test_configuration_validator_individual_checks(self):
+        """Test individual validation methods in ConfigurationValidator."""
+        from farm.config.config import SimulationConfig
+        from farm.config.validation import ConfigurationValidator
+
+        validator = ConfigurationValidator()
+        config = SimulationConfig()
+
+        # Test that individual validation methods don't raise exceptions
+        # (they add to errors/warnings instead)
+        try:
+            validator._validate_basic_properties(config)
+            validator._validate_agent_settings(config)
+            validator._validate_resource_settings(config)
+            validator._validate_learning_parameters(config)
+            validator._validate_environment_settings(config)
+            validator._validate_performance_settings(config)
+            validator._validate_business_rules(config)
+        except Exception as e:
+            self.fail(f"Individual validation methods should not raise exceptions: {e}")
+
+    def test_configuration_validator_with_invalid_config(self):
+        """Test validator with various invalid configurations."""
+        from farm.config.config import SimulationConfig
+        from farm.config.validation import ConfigurationValidator
+
+        validator = ConfigurationValidator()
+
+        # Test invalid dimensions
+        config = SimulationConfig()
+        config.environment.width = -10
+        config.environment.height = -5
+
+        is_valid, errors, warnings = validator.validate_config(config)
+        self.assertFalse(is_valid)
+        self.assertTrue(any("Environment dimensions must be positive" in str(error) for error in errors))
+
+        # Test invalid learning rate
+        config2 = SimulationConfig()
+        config2.learning.learning_rate = -0.5
+
+        is_valid2, errors2, warnings2 = validator.validate_config(config2)
+        self.assertFalse(is_valid2)
+        self.assertTrue(any("learning_rate" in str(error) for error in errors2))
+
+    def test_attempt_config_repair_functionality(self):
+        """Test the attempt_config_repair function."""
+        from farm.config.validation import ConfigurationRecovery
+        from farm.config.config import SimulationConfig
+
+        # Create config with repairable issues
+        config = SimulationConfig()
+        config.environment.width = -10  # Should be repaired to 50
+        config.population.max_population = 0  # Should be repaired
+
+        errors = [
+            {"field": "width", "error": "Environment dimensions must be positive", "value": -10},
+            {"field": "max_population", "error": "Max population must be positive", "value": 0}
+        ]
+
+        # Attempt repair
+        repaired_config, repair_actions = ConfigurationRecovery.attempt_config_repair(config, errors)
+
+        # Should have repair actions
+        self.assertGreater(len(repair_actions), 0)
+        self.assertTrue(any("width" in action.lower() for action in repair_actions))
+
+        # Repaired config should have valid values
+        self.assertGreater(repaired_config.environment.width, 0)
+        self.assertGreater(repaired_config.population.max_population, 0)
+
+    def test_validate_config_files_function(self):
+        """Test the validate_config_files function."""
+        from farm.config.validation import validate_config_files
+        import tempfile
+        import os
+        import yaml
+
+        # Create temporary config directory with test files
+        temp_dir = tempfile.mkdtemp()
+        try:
+            # Create a minimal valid config
+            config_data = {
+                "width": 100, "height": 100, "system_agents": 5,
+                "independent_agents": 5, "control_agents": 5, "max_population": 50
+            }
+
+            with open(os.path.join(temp_dir, "default.yaml"), "w") as f:
+                yaml.dump(config_data, f)
+
+            # Test validation
+            result = validate_config_files(temp_dir)
+
+            # Should return validation report
+            self.assertIsInstance(result, dict)
+            self.assertIn("files_checked", result)
+            self.assertIn("total_errors", result)
+            self.assertIn("total_warnings", result)
+
+        finally:
+            import shutil
+            shutil.rmtree(temp_dir)
+
 
 class TestConfigurationOrchestratorIsolation(unittest.TestCase):
     """Test ConfigurationOrchestrator component isolation."""
@@ -521,6 +685,58 @@ class TestConfigurationOrchestratorIsolation(unittest.TestCase):
 
         # Verify cache invalidate was called
         self.mock_cache.invalidate.assert_called_once()
+
+    def test_orchestrator_load_config_with_status_error_handling(self):
+        """Test orchestrator load_config_with_status error handling."""
+
+        # Mock cache miss and loader failure
+        self.mock_cache.get.return_value = None
+        self.mock_loader.load_centralized_config.side_effect = FileNotFoundError("Config not found")
+
+        # Should raise the exception (doesn't handle gracefully)
+        with self.assertRaises(FileNotFoundError):
+            self.orchestrator.load_config_with_status(
+                environment="test",
+                validate=False
+            )
+
+    def test_orchestrator_validation_error_propagation(self):
+        """Test orchestrator propagates validation errors correctly."""
+        from farm.config.config import SimulationConfig
+
+        # Mock successful loading but failed validation
+        loaded_config = SimulationConfig()
+        self.mock_cache.get.return_value = None
+        self.mock_loader.load_centralized_config.return_value = loaded_config
+
+        # Mock validation failure
+        self.mock_validator.validate_config_dict.return_value = (
+            {"failed": "validation"},
+            {"success": False, "errors": ["Validation failed"], "warnings": []}
+        )
+
+        # Should raise ValidationError
+        with self.assertRaises(Exception):  # Could be ValidationError or similar
+            self.orchestrator.load_config(
+                environment="test",
+                validate=True
+            )
+
+    def test_orchestrator_preload_common_configs(self):
+        """Test orchestrator preload functionality."""
+        from farm.config.config import SimulationConfig
+
+        # Mock successful loading - return a valid config
+        mock_config = SimulationConfig()
+        self.mock_loader.load_centralized_config.return_value = mock_config
+        self.mock_cache.get.return_value = None  # Cache miss
+        self.mock_validator.validate_config_dict.return_value = ({"validated": True}, {"success": True})
+
+        # Should not raise
+        self.orchestrator.preload_common_configs(config_dir="test_dir")
+
+        # Should have called loader multiple times (for different env/profile combos)
+        self.assertGreater(self.mock_loader.load_centralized_config.call_count, 1)
 
 
 class TestMockImplementations(unittest.TestCase):
