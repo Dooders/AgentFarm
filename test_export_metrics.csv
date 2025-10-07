@@ -1,0 +1,3 @@
+simulation_id,total_agents,system_agents,independent_agents,control_agents,total_resources,average_agent_resources,births,deaths,current_max_generation,resource_efficiency,resource_distribution_entropy,average_agent_health,average_agent_age,average_reward,combat_encounters,successful_attacks,resources_shared,resources_shared_this_step,combat_encounters_this_step,successful_attacks_this_step,genetic_diversity,dominant_genome_ratio,resources_consumed
+test_export_sim,2,,,,100.0,,,,,,,,,,,,,0.0,0,0,,,0.0
+test_export_sim,2,,,,100.0,,,,,,,,,,,,,0.0,0,0,,,0.0

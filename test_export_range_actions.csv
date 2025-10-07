@@ -1,0 +1,5 @@
+action_id,simulation_id,step_number,agent_id,action_type,action_target_id,state_before_id,state_after_id,resources_before,resources_after,reward,details
+1,test_export_sim,1,agent_1,move,,,,50.0,49.0,1.0,"{""position"": [15.0, 25.0]}"
+1,test_export_sim,1,agent_1,move,,,,50.0,49.0,1.0,"{""position"": [15.0, 25.0]}"
+2,test_export_sim,2,agent_2,move,,,,75.0,74.0,1.0,"{""position"": [30.0, 40.0]}"
+2,test_export_sim,2,agent_2,move,,,,75.0,74.0,1.0,"{""position"": [30.0, 40.0]}"

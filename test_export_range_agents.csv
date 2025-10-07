@@ -1,0 +1,9 @@
+id,simulation_id,step_number,agent_id,position_x,position_y,position_z,resource_level,current_health,starting_health,starvation_counter,is_defending,total_reward,age,simulation_id_1,agent_id_1,birth_time,death_time,agent_type,position_x_1,position_y_1,initial_resources,starting_health_1,starvation_counter_1,genome_id,generation,action_weights
+test_export_sim:agent_1-1,test_export_sim,1,agent_1,15.0,25.0,,49.0,100.0,100.0,0,False,1.0,1,test_export_sim,agent_1,0,,BaseAgent,10.0,20.0,50.0,100.0,0,genome_1,1,
+test_export_sim:agent_1-1,test_export_sim,1,agent_1,15.0,25.0,,49.0,100.0,100.0,0,False,1.0,1,test_export_sim,agent_1,0,,BaseAgent,10.0,20.0,50.0,100.0,0,genome_1,1,
+test_export_sim:agent_2-1,test_export_sim,1,agent_2,30.0,40.0,,85.0,100.0,100.0,0,False,2.0,2,test_export_sim,agent_2,5,,BaseAgent,30.0,40.0,75.0,100.0,0,genome_2,1,
+test_export_sim:agent_2-1,test_export_sim,1,agent_2,30.0,40.0,,85.0,100.0,100.0,0,False,2.0,2,test_export_sim,agent_2,5,,BaseAgent,30.0,40.0,75.0,100.0,0,genome_2,1,
+test_export_sim:agent_1-2,test_export_sim,2,agent_1,15.0,25.0,,49.0,100.0,100.0,0,False,1.0,1,test_export_sim,agent_1,0,,BaseAgent,10.0,20.0,50.0,100.0,0,genome_1,1,
+test_export_sim:agent_1-2,test_export_sim,2,agent_1,15.0,25.0,,49.0,100.0,100.0,0,False,1.0,1,test_export_sim,agent_1,0,,BaseAgent,10.0,20.0,50.0,100.0,0,genome_1,1,
+test_export_sim:agent_2-2,test_export_sim,2,agent_2,30.0,40.0,,85.0,100.0,100.0,0,False,2.0,2,test_export_sim,agent_2,5,,BaseAgent,30.0,40.0,75.0,100.0,0,genome_2,1,
+test_export_sim:agent_2-2,test_export_sim,2,agent_2,30.0,40.0,,85.0,100.0,100.0,0,False,2.0,2,test_export_sim,agent_2,5,,BaseAgent,30.0,40.0,75.0,100.0,0,genome_2,1,

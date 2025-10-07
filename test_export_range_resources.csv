@@ -1,0 +1,5 @@
+id,simulation_id,step_number,resource_id,amount,position_x,position_y
+1,test_export_sim,1,resource_1,35.0,45.0,50.0
+1,test_export_sim,1,resource_1,35.0,45.0,50.0
+2,test_export_sim,2,resource_1,35.0,45.0,50.0
+2,test_export_sim,2,resource_1,35.0,45.0,50.0
