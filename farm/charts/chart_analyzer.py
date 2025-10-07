@@ -8,6 +8,9 @@ import pandas as pd
 from sqlalchemy import create_engine
 
 from farm.core.interfaces import DatabaseProtocol
+from farm.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 from .chart_actions import (
     plot_action_frequency_over_time,
@@ -144,7 +147,13 @@ class ChartAnalyzer:
                             plt.close()
                         analyses[chart_name] = analysis
                 except Exception as e:
-                    print(f"Error generating {chart_name} chart: {e}")
+                    logger.error(
+                        "chart_generation_error",
+                        chart_name=chart_name,
+                        error_type=type(e).__name__,
+                        error_message=str(e),
+                        exc_info=True,
+                    )
                     analyses[chart_name] = f"Analysis failed: {str(e)}"
 
             # Process action charts
@@ -177,7 +186,13 @@ class ChartAnalyzer:
                                 plt.close()
                             analyses[chart_name] = analysis
                     except Exception as e:
-                        print(f"Error analyzing {chart_name}: {str(e)}")
+                        logger.error(
+                            "action_chart_analysis_error",
+                            chart_name=chart_name,
+                            error_type=type(e).__name__,
+                            error_message=str(e),
+                            exc_info=True,
+                        )
                         analyses[chart_name] = f"Analysis failed: {str(e)}"
 
             # Process agent charts
@@ -207,7 +222,13 @@ class ChartAnalyzer:
                                 plt.close()
                             analyses[chart_name] = analysis
                     except Exception as e:
-                        print(f"Error analyzing {chart_name}: {str(e)}")
+                        logger.error(
+                            "agent_chart_analysis_error",
+                            chart_name=chart_name,
+                            error_type=type(e).__name__,
+                            error_message=str(e),
+                            exc_info=True,
+                        )
                         analyses[chart_name] = f"Analysis failed: {str(e)}"
 
             # Save analyses to text file if saving is enabled
@@ -224,7 +245,12 @@ class ChartAnalyzer:
             return analyses
 
         except Exception as e:
-            print(f"Error loading simulation data: {e}")
+            logger.error(
+                "simulation_data_loading_error",
+                error_type=type(e).__name__,
+                error_message=str(e),
+                exc_info=True,
+            )
             return analyses
 
     def _analyze_simulation_chart(self, chart_name: str, df: pd.DataFrame) -> str:
@@ -285,6 +311,13 @@ class ChartAnalyzer:
             else:
                 return f"Analysis not implemented for {chart_name}"
         except Exception as e:
+            logger.error(
+                "chart_analysis_method_error",
+                chart_name=chart_name,
+                error_type=type(e).__name__,
+                error_message=str(e),
+                exc_info=True,
+            )
             return f"Error analyzing {chart_name}: {str(e)}"
 
     def _analyze_population_dynamics(self, df: pd.DataFrame) -> str:

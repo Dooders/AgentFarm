@@ -5,7 +5,7 @@ This module provides functions to visualize analysis results from the Genesis mo
 including initial state comparisons, critical period analysis, and overall simulation trends.
 """
 
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 import os
 from typing import Any, Dict, List, Optional
 

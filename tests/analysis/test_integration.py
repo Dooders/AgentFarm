@@ -17,7 +17,7 @@ from farm.analysis.core import (
 )
 from farm.analysis.registry import registry
 from farm.analysis.service import AnalysisRequest, AnalysisService
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

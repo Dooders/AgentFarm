@@ -28,6 +28,13 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         self.mock_agent = Mock()
         self.mock_agent.agent_id = "integration_test_agent"
 
+        # Create mock actions list
+        class MockAction:
+            def __init__(self, name):
+                self.name = name
+
+        self.mock_agent.actions = [MockAction(f"action_{i}") for i in range(4)]
+
         # Create mock environment with proper action space
         self.mock_env = Mock()
 
@@ -44,6 +51,11 @@ class TestDecisionModuleIntegration(unittest.TestCase):
         self.mock_env.action_space = MockActionSpace(4)
         self.mock_env.observation_space = MockObservationSpace((8,))
         self.mock_agent.environment = self.mock_env
+
+        # Add mock database logger to prevent logging errors
+        self.mock_agent.environment.db = Mock()
+        self.mock_agent.environment.db.logger = Mock()
+        self.mock_agent.environment.db.logger.log_learning_experience = Mock()
 
     @patch("farm.core.decision.decision.TIANSHOU_AVAILABLE", False)
     def test_decision_module_with_fallback_algorithm(self):
@@ -632,6 +644,13 @@ class TestDecisionSystemPerformance(unittest.TestCase):
         self.mock_agent = Mock()
         self.mock_agent.agent_id = "perf_test_agent"
 
+        # Create mock actions list
+        class MockAction:
+            def __init__(self, name):
+                self.name = name
+
+        self.mock_agent.actions = [MockAction(f"action_{i}") for i in range(4)]
+
         # Create mock environment with proper action space
         self.mock_env = Mock()
 
@@ -648,6 +667,11 @@ class TestDecisionSystemPerformance(unittest.TestCase):
         self.mock_env.action_space = MockActionSpace(4)
         self.mock_env.observation_space = MockObservationSpace((8,))
         self.mock_agent.environment = self.mock_env
+
+        # Add mock database logger to prevent logging errors
+        self.mock_agent.environment.db = Mock()
+        self.mock_agent.environment.db.logger = Mock()
+        self.mock_agent.environment.db.logger.log_learning_experience = Mock()
 
     def test_decision_speed(self):
         """Test the speed of decision making."""
@@ -913,18 +937,18 @@ class TestDecisionSystemRobustness(unittest.TestCase):
         # DecisionConfig gracefully handles invalid algorithm types by falling back to 'fallback'
         config = DecisionConfig(algorithm_type="invalid_algorithm")
         self.assertEqual(config.algorithm_type, "fallback")
-        
+
         module = DecisionModule(
             self.mock_agent,
             self.mock_env.action_space,
             self.mock_env.observation_space,
             config,
         )
-        
+
         # Should have fallen back to fallback algorithm
         self.assertIsNotNone(module.algorithm)
         self.assertEqual(module.config.algorithm_type, "fallback")
-        
+
         # Should still work
         state = torch.randn(8)
         action = module.decide_action(state)

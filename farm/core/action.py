@@ -19,7 +19,7 @@ Technical Details:
     - Automatic tensor-numpy conversion for state handling
 """
 
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 import math
@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Callable, List
 if TYPE_CHECKING:
     from farm.core.agent import BaseAgent
 
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -112,8 +112,13 @@ def log_interaction_safely(agent: "BaseAgent", **kwargs) -> None:
     try:
         if hasattr(agent, "logging_service") and agent.logging_service:
             agent.logging_service.log_interaction_edge(**kwargs)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(
+            "interaction_logging_failed",
+            agent_id=getattr(agent, "agent_id", "unknown"),
+            error_type=type(e).__name__,
+            error_message=str(e),
+        )
 
 
 def validate_action_result(agent: "BaseAgent", action_name: str, result: dict) -> dict:

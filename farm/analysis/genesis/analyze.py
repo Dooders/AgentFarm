@@ -8,7 +8,7 @@ and eventual dominance.
 
 import glob
 import json
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 import os
 import time
 from typing import Any, Dict, List, Optional, Tuple

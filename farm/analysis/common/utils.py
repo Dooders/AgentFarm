@@ -151,7 +151,7 @@ def find_database_path(experiment_path: Path, db_filename: str = "simulation.db"
     Raises:
         FileNotFoundError: If database not found
     """
-    from farm.utils.logging_config import get_logger
+    from farm.utils.logging import get_logger
 
     logger = get_logger(__name__)
 

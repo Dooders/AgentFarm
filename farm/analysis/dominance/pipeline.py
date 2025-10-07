@@ -1,7 +1,6 @@
 import pandas as pd
 
 from farm.analysis.common.metrics import get_valid_numeric_columns
-from farm.analysis.dominance.orchestrator import create_dominance_orchestrator
 from farm.analysis.dominance.data import (
     get_agent_survival_stats,
     get_final_population_counts,
@@ -17,7 +16,8 @@ from farm.analysis.dominance.features import (
     analyze_reproduction_efficiency,
     analyze_reproduction_timing,
 )
-from farm.utils.logging_config import get_logger
+from farm.analysis.dominance.orchestrator import create_dominance_orchestrator
+from farm.utils.logging import get_logger
 from scripts.analysis_config import setup_and_process_simulations
 
 logger = get_logger(__name__)
@@ -27,10 +27,12 @@ def process_single_simulation(session, iteration, config, **_):
     try:
         logger.info("processing_iteration", iteration=iteration)
 
-        population_dominance = compute_population_dominance(session)
-        survival_dominance = compute_survival_dominance(session)
-        comprehensive_dominance = compute_comprehensive_dominance(session)
-        dominance_switches = compute_dominance_switches(session)
+        orchestrator = create_dominance_orchestrator()
+
+        population_dominance = orchestrator.compute_population_dominance(session)
+        survival_dominance = orchestrator.compute_survival_dominance(session)
+        comprehensive_dominance = orchestrator.compute_comprehensive_dominance(session)
+        dominance_switches = orchestrator.compute_dominance_switches(session)
 
         initial_data = get_initial_positions_and_resources(session, config)
         final_counts = get_final_population_counts(session)

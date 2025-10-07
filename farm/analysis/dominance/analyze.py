@@ -20,13 +20,13 @@ import traceback
 
 import pandas as pd
 
-from farm.analysis.core import BaseAnalysisModule
 from farm.analysis.common.metrics import (
     analyze_correlations,
     get_valid_numeric_columns,
     group_and_analyze,
     split_and_compare_groups,
 )
+from farm.analysis.core import BaseAnalysisModule
 from farm.analysis.database_utils import import_multi_table_data
 from farm.analysis.dominance.compute import DominanceComputer
 from farm.analysis.dominance.data import (
@@ -52,7 +52,7 @@ from farm.analysis.dominance.sqlalchemy_models import (
     get_session,
     init_db,
 )
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 from scripts.analysis_config import setup_and_process_simulations
 
 logger = get_logger(__name__)
@@ -113,22 +113,36 @@ def process_single_simulation(session, iteration, config, **kwargs):
             "iteration": iteration,
             "population_dominance": population_dominance,
             "survival_dominance": survival_dominance,
-            "comprehensive_dominance": (comprehensive_dominance["dominant_type"] if comprehensive_dominance else None),
+            "comprehensive_dominance": (
+                comprehensive_dominance["dominant_type"]
+                if comprehensive_dominance
+                else None
+            ),
         }
 
         # Add dominance scores
         for agent_type in ["system", "independent", "control"]:
             if comprehensive_dominance:
-                sim_data[f"{agent_type}_dominance_score"] = comprehensive_dominance["scores"][agent_type]
-                sim_data[f"{agent_type}_auc"] = comprehensive_dominance["metrics"]["auc"][agent_type]
-                sim_data[f"{agent_type}_recency_weighted_auc"] = comprehensive_dominance["metrics"][
-                    "recency_weighted_auc"
+                sim_data[f"{agent_type}_dominance_score"] = comprehensive_dominance[
+                    "scores"
                 ][agent_type]
-                sim_data[f"{agent_type}_dominance_duration"] = comprehensive_dominance["metrics"]["dominance_duration"][
-                    agent_type
-                ]
-                sim_data[f"{agent_type}_growth_trend"] = comprehensive_dominance["metrics"]["growth_trends"][agent_type]
-                sim_data[f"{agent_type}_final_ratio"] = comprehensive_dominance["metrics"]["final_ratios"][agent_type]
+                sim_data[f"{agent_type}_auc"] = comprehensive_dominance["metrics"][
+                    "auc"
+                ][agent_type]
+                sim_data[f"{agent_type}_recency_weighted_auc"] = (
+                    comprehensive_dominance["metrics"]["recency_weighted_auc"][
+                        agent_type
+                    ]
+                )
+                sim_data[f"{agent_type}_dominance_duration"] = comprehensive_dominance[
+                    "metrics"
+                ]["dominance_duration"][agent_type]
+                sim_data[f"{agent_type}_growth_trend"] = comprehensive_dominance[
+                    "metrics"
+                ]["growth_trends"][agent_type]
+                sim_data[f"{agent_type}_final_ratio"] = comprehensive_dominance[
+                    "metrics"
+                ]["final_ratios"][agent_type]
             else:
                 # Set default values when comprehensive_dominance is None
                 sim_data[f"{agent_type}_dominance_score"] = None
@@ -145,18 +159,22 @@ def process_single_simulation(session, iteration, config, **kwargs):
 
             # Add average dominance periods
             for agent_type in ["system", "independent", "control"]:
-                sim_data[f"{agent_type}_avg_dominance_period"] = dominance_switches["avg_dominance_periods"][agent_type]
+                sim_data[f"{agent_type}_avg_dominance_period"] = dominance_switches[
+                    "avg_dominance_periods"
+                ][agent_type]
 
             # Add phase-specific switch counts
             for phase in ["early", "middle", "late"]:
-                sim_data[f"{phase}_phase_switches"] = dominance_switches["phase_switches"][phase]
+                sim_data[f"{phase}_phase_switches"] = dominance_switches[
+                    "phase_switches"
+                ][phase]
 
             # Add transition matrix data
             for from_type in ["system", "independent", "control"]:
                 for to_type in ["system", "independent", "control"]:
-                    sim_data[f"{from_type}_to_{to_type}"] = dominance_switches["transition_probabilities"][from_type][
-                        to_type
-                    ]
+                    sim_data[f"{from_type}_to_{to_type}"] = dominance_switches[
+                        "transition_probabilities"
+                    ][from_type][to_type]
 
         # Add all other data
         if initial_data:
@@ -205,7 +223,9 @@ def process_single_simulation(session, iteration, config, **kwargs):
         return None
 
 
-def process_dominance_data(experiment_path, save_to_db=False, db_path="sqlite:///dominance.db"):
+def process_dominance_data(
+    experiment_path, save_to_db=False, db_path="sqlite:///dominance.db"
+):
     """
     Analyze all simulation databases in the experiment folder.
 
@@ -321,23 +341,39 @@ def _create_reproduction_stats(row, sim_id):
         system_reproduction_success_rate=row.get("system_reproduction_success_rate"),
         system_first_reproduction_time=row.get("system_first_reproduction_time"),
         system_reproduction_efficiency=row.get("system_reproduction_efficiency"),
-        system_avg_resources_per_reproduction=row.get("system_avg_resources_per_reproduction"),
+        system_avg_resources_per_reproduction=row.get(
+            "system_avg_resources_per_reproduction"
+        ),
         system_avg_offspring_resources=row.get("system_avg_offspring_resources"),
         independent_reproduction_attempts=row.get("independent_reproduction_attempts"),
-        independent_reproduction_successes=row.get("independent_reproduction_successes"),
+        independent_reproduction_successes=row.get(
+            "independent_reproduction_successes"
+        ),
         independent_reproduction_failures=row.get("independent_reproduction_failures"),
-        independent_reproduction_success_rate=row.get("independent_reproduction_success_rate"),
-        independent_first_reproduction_time=row.get("independent_first_reproduction_time"),
-        independent_reproduction_efficiency=row.get("independent_reproduction_efficiency"),
-        independent_avg_resources_per_reproduction=row.get("independent_avg_resources_per_reproduction"),
-        independent_avg_offspring_resources=row.get("independent_avg_offspring_resources"),
+        independent_reproduction_success_rate=row.get(
+            "independent_reproduction_success_rate"
+        ),
+        independent_first_reproduction_time=row.get(
+            "independent_first_reproduction_time"
+        ),
+        independent_reproduction_efficiency=row.get(
+            "independent_reproduction_efficiency"
+        ),
+        independent_avg_resources_per_reproduction=row.get(
+            "independent_avg_resources_per_reproduction"
+        ),
+        independent_avg_offspring_resources=row.get(
+            "independent_avg_offspring_resources"
+        ),
         control_reproduction_attempts=row.get("control_reproduction_attempts"),
         control_reproduction_successes=row.get("control_reproduction_successes"),
         control_reproduction_failures=row.get("control_reproduction_failures"),
         control_reproduction_success_rate=row.get("control_reproduction_success_rate"),
         control_first_reproduction_time=row.get("control_first_reproduction_time"),
         control_reproduction_efficiency=row.get("control_reproduction_efficiency"),
-        control_avg_resources_per_reproduction=row.get("control_avg_resources_per_reproduction"),
+        control_avg_resources_per_reproduction=row.get(
+            "control_avg_resources_per_reproduction"
+        ),
         control_avg_offspring_resources=row.get("control_avg_offspring_resources"),
         # Reproduction advantage metrics
         independent_vs_control_first_reproduction_advantage=row.get(
@@ -349,12 +385,18 @@ def _create_reproduction_stats(row, sim_id):
         independent_vs_control_reproduction_rate_advantage=row.get(
             "independent_vs_control_reproduction_rate_advantage"
         ),
-        system_vs_independent_reproduction_rate_advantage=row.get("system_vs_independent_reproduction_rate_advantage"),
-        system_vs_control_reproduction_rate_advantage=row.get("system_vs_control_reproduction_rate_advantage"),
+        system_vs_independent_reproduction_rate_advantage=row.get(
+            "system_vs_independent_reproduction_rate_advantage"
+        ),
+        system_vs_control_reproduction_rate_advantage=row.get(
+            "system_vs_control_reproduction_rate_advantage"
+        ),
         system_vs_independent_reproduction_efficiency_advantage=row.get(
             "system_vs_independent_reproduction_efficiency_advantage"
         ),
-        system_vs_control_first_reproduction_advantage=row.get("system_vs_control_first_reproduction_advantage"),
+        system_vs_control_first_reproduction_advantage=row.get(
+            "system_vs_control_first_reproduction_advantage"
+        ),
         system_vs_independent_first_reproduction_advantage=row.get(
             "system_vs_independent_first_reproduction_advantage"
         ),
@@ -436,15 +478,21 @@ def _create_correlation_analysis(row, sim_id):
         simulation_id=sim_id,
         dominance_population_correlation=row.get("dominance_population_correlation"),
         dominance_survival_correlation=row.get("dominance_survival_correlation"),
-        dominance_reproduction_correlation=row.get("dominance_reproduction_correlation"),
+        dominance_reproduction_correlation=row.get(
+            "dominance_reproduction_correlation"
+        ),
         dominance_resource_correlation=row.get("dominance_resource_correlation"),
         dominance_combat_correlation=row.get("dominance_combat_correlation"),
         dominance_efficiency_correlation=row.get("dominance_efficiency_correlation"),
         dominance_stability_correlation=row.get("dominance_stability_correlation"),
-        population_reproduction_correlation=row.get("population_reproduction_correlation"),
+        population_reproduction_correlation=row.get(
+            "population_reproduction_correlation"
+        ),
         population_resource_correlation=row.get("population_resource_correlation"),
         reproduction_resource_correlation=row.get("reproduction_resource_correlation"),
-        reproduction_efficiency_correlation=row.get("reproduction_efficiency_correlation"),
+        reproduction_efficiency_correlation=row.get(
+            "reproduction_efficiency_correlation"
+        ),
         resource_efficiency_correlation=row.get("resource_efficiency_correlation"),
         dominant_type_correlation=row.get("dominant_type_correlation"),
         correlation_strength=row.get("correlation_strength"),
@@ -483,9 +531,21 @@ def save_dominance_data_to_db(df, db_path="sqlite:///dominance.db"):
 
         # Define the data model configurations
         data_model_configs = [
-            {"model_class": DominanceMetrics, "create_func": _create_dominance_metrics, "name": "dominance metrics"},
-            {"model_class": AgentPopulation, "create_func": _create_agent_population, "name": "agent population"},
-            {"model_class": ReproductionStats, "create_func": _create_reproduction_stats, "name": "reproduction stats"},
+            {
+                "model_class": DominanceMetrics,
+                "create_func": _create_dominance_metrics,
+                "name": "dominance metrics",
+            },
+            {
+                "model_class": AgentPopulation,
+                "create_func": _create_agent_population,
+                "name": "agent population",
+            },
+            {
+                "model_class": ReproductionStats,
+                "create_func": _create_reproduction_stats,
+                "name": "reproduction stats",
+            },
             {
                 "model_class": DominanceSwitching,
                 "create_func": _create_dominance_switching,
@@ -509,7 +569,7 @@ def save_dominance_data_to_db(df, db_path="sqlite:///dominance.db"):
         ]
 
         # Import data using the shared utility
-        count = import_multi_table_data(
+        import_multi_table_data(
             df=df,
             session=session,
             simulation_model_class=Simulation,
@@ -539,7 +599,17 @@ class DominanceAnalysis(BaseAnalysisModule):
 
     def __init__(self, df=None):
         """Initialize the dominance analysis module."""
-        super().__init__(df)
+        super().__init__(
+            name="dominance",
+            description="Dominance analysis module for analyzing agent dominance patterns",
+        )
+        self.df = df
+
+    def get_data_processor(self):
+        """Get the data processor for this module."""
+        from farm.analysis.core import SimpleDataProcessor
+
+        return SimpleDataProcessor(process_dominance_data)
 
     def analyze_high_vs_low_switching(self, numeric_repro_cols=None):
         """
@@ -563,7 +633,9 @@ class DominanceAnalysis(BaseAnalysisModule):
             numeric_repro_cols = self.get_valid_columns("reproduction")
 
         # Use split_and_compare from parent class
-        results = self.split_and_compare(split_column="total_switches", metrics=numeric_repro_cols)
+        results = self.split_and_compare(
+            split_column="total_switches", metrics=numeric_repro_cols
+        )
 
         return results
 
@@ -580,14 +652,21 @@ class DominanceAnalysis(BaseAnalysisModule):
             return {}
 
         # Find top correlations with switching
-        switch_correlations = self.find_top_correlations(target_column="total_switches", top_n=10)
+        switch_correlations = self.find_top_correlations(
+            target_column="total_switches", top_n=10
+        )
 
         # Find top correlations with dominance stability
-        if "dominance_stability" not in self.df.columns and "switches_per_step" in self.df.columns:
+        if (
+            "dominance_stability" not in self.df.columns
+            and "switches_per_step" in self.df.columns
+        ):
             self.df["dominance_stability"] = 1 / (self.df["switches_per_step"] + 0.01)
 
         if "dominance_stability" in self.df.columns:
-            stability_correlations = self.find_top_correlations(target_column="dominance_stability", top_n=10)
+            stability_correlations = self.find_top_correlations(
+                target_column="dominance_stability", top_n=10
+            )
         else:
             stability_correlations = {}
 
@@ -621,7 +700,9 @@ class DominanceAnalysis(BaseAnalysisModule):
         def analyze_agent_type(group_df):
             return {
                 "means": group_df[metric_columns].mean().to_dict(),
-                "correlations": analyze_correlations(group_df, "total_switches", metric_columns),
+                "correlations": analyze_correlations(
+                    group_df, "total_switches", metric_columns
+                ),
             }
 
         # Group and analyze by agent type
