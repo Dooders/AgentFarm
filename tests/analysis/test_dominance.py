@@ -1,5 +1,13 @@
 """
 Comprehensive tests for dominance analysis module.
+
+Updated to use the new protocol-based architecture with orchestrator.
+
+NOTE: This test file uses the clean class-based architecture without
+backward compatibility wrappers. All tests use:
+- DominanceComputer class for computation tests
+- get_orchestrator() for integration tests
+- Protocol-based mocking for isolation
 """
 
 from pathlib import Path
@@ -16,12 +24,13 @@ from farm.analysis.dominance import (
     plot_dominance_switches,
     plot_dominance_stability,
     run_dominance_classification,
+    get_orchestrator,
+    DominanceComputer,
+    DominanceAnalyzer,
 )
-from farm.analysis.dominance.compute import (
-    compute_population_dominance,
-    compute_survival_dominance,
-    compute_dominance_switches,
-    compute_comprehensive_dominance,
+from farm.analysis.dominance.mocks import (
+    MockDominanceComputer,
+    create_sample_simulation_data,
 )
 from farm.analysis.common.context import AnalysisContext
 
@@ -92,13 +101,14 @@ def sample_dominance_data():
 
 
 class TestDominanceComputations:
-    """Test dominance statistical computations."""
+    """Test dominance statistical computations using class-based architecture."""
 
     def test_compute_population_dominance(self, mock_session, mock_simulation_steps):
-        """Test population dominance computation."""
+        """Test population dominance computation with DominanceComputer class."""
         mock_session.query.return_value.order_by.return_value.first.return_value = mock_simulation_steps[-1]
 
-        result = compute_population_dominance(mock_session)
+        computer = DominanceComputer()
+        result = computer.compute_population_dominance(mock_session)
 
         assert result in ["system", "independent", "control"]
 
@@ -106,16 +116,18 @@ class TestDominanceComputations:
         """Test population dominance with no data."""
         mock_session.query.return_value.order_by.return_value.first.return_value = None
 
-        result = compute_population_dominance(mock_session)
+        computer = DominanceComputer()
+        result = computer.compute_population_dominance(mock_session)
 
         assert result is None
 
     def test_compute_survival_dominance(self, mock_session, mock_agents, mock_simulation_steps):
-        """Test survival dominance computation."""
+        """Test survival dominance computation with DominanceComputer class."""
         mock_session.query.return_value.all.return_value = mock_agents
         mock_session.query.return_value.order_by.return_value.first.return_value = mock_simulation_steps[-1]
 
-        result = compute_survival_dominance(mock_session)
+        computer = DominanceComputer()
+        result = computer.compute_survival_dominance(mock_session)
 
         assert result in ["system", "independent", "control"] or result is None
 
@@ -124,15 +136,17 @@ class TestDominanceComputations:
         mock_session.query.return_value.all.return_value = []
         mock_session.query.return_value.order_by.return_value.first.return_value = None
 
-        result = compute_survival_dominance(mock_session)
+        computer = DominanceComputer()
+        result = computer.compute_survival_dominance(mock_session)
 
         assert result is None
 
     def test_compute_dominance_switches(self, mock_session, mock_simulation_steps):
-        """Test dominance switch computation."""
+        """Test dominance switch computation with DominanceComputer class."""
         mock_session.query.return_value.order_by.return_value.all.return_value = mock_simulation_steps
 
-        result = compute_dominance_switches(mock_session)
+        computer = DominanceComputer()
+        result = computer.compute_dominance_switches(mock_session)
 
         assert isinstance(result, dict)
         assert "total_switches" in result
@@ -144,7 +158,8 @@ class TestDominanceComputations:
         """Test dominance switches with no steps."""
         mock_session.query.return_value.order_by.return_value.all.return_value = []
 
-        result = compute_dominance_switches(mock_session)
+        computer = DominanceComputer()
+        result = computer.compute_dominance_switches(mock_session)
 
         assert result is None
 
@@ -318,8 +333,8 @@ class TestDominanceAnalysis:
         assert isinstance(result, pd.DataFrame)
 
     def test_analyze_high_vs_low_switching(self):
-        """Test analyzing high vs low switching."""
-        from farm.analysis.dominance.features import analyze_high_vs_low_switching
+        """Test analyzing high vs low switching with orchestrator."""
+        orchestrator = get_orchestrator()
 
         df = pd.DataFrame(
             {
@@ -331,7 +346,7 @@ class TestDominanceAnalysis:
         )
 
         numeric_cols = ["system_reproduction_attempts", "independent_reproduction_attempts"]
-        result = analyze_high_vs_low_switching(df, numeric_cols)
+        result = orchestrator.analyze_high_vs_low_switching(df, numeric_cols)
 
         assert isinstance(result, pd.DataFrame)
 
