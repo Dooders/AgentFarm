@@ -112,8 +112,13 @@ def log_interaction_safely(agent: "BaseAgent", **kwargs) -> None:
     try:
         if hasattr(agent, "logging_service") and agent.logging_service:
             agent.logging_service.log_interaction_edge(**kwargs)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(
+            "interaction_logging_failed",
+            agent_id=getattr(agent, "agent_id", "unknown"),
+            error_type=type(e).__name__,
+            error_message=str(e),
+        )
 
 
 def validate_action_result(agent: "BaseAgent", action_name: str, result: dict) -> dict:

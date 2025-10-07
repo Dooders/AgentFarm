@@ -254,7 +254,14 @@ def compute_initial_state_metrics(session: Session) -> Dict[str, Any]:
                 try:
                     amount = float(resource["amount"])
                     resource_amounts.append(amount)
-                except (ValueError, TypeError):
+                except (ValueError, TypeError) as e:
+                    logger.debug(
+                        "resource_amount_conversion_error",
+                        resource_id=resource.get("resource_id"),
+                        amount=resource["amount"],
+                        error_type=type(e).__name__,
+                        error_message=str(e),
+                    )
                     continue
 
             if (
@@ -265,7 +272,15 @@ def compute_initial_state_metrics(session: Session) -> Dict[str, Any]:
                     pos_x = float(resource["position_x"])
                     pos_y = float(resource["position_y"])
                     resource_positions.append((pos_x, pos_y))
-                except (ValueError, TypeError):
+                except (ValueError, TypeError) as e:
+                    logger.debug(
+                        "resource_position_conversion_error",
+                        resource_id=resource.get("resource_id"),
+                        position_x=resource["position_x"],
+                        position_y=resource["position_y"],
+                        error_type=type(e).__name__,
+                        error_message=str(e),
+                    )
                     continue
 
         if resource_amounts:

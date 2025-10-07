@@ -152,8 +152,14 @@ class AgentMemory(MemorySearchMixin):
                 return obj.as_serializable()
             else:
                 return vars(obj)
-        except Exception:
+        except Exception as e:
             # Fallback to vars() if serialization methods fail
+            logger.debug(
+                "object_serialization_fallback",
+                object_type=type(obj).__name__,
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             return vars(obj)
 
     @property

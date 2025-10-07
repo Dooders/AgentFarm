@@ -14,6 +14,11 @@ from pathlib import Path
 from typing import Callable, Dict, Optional, Set, Union
 
 from .config import SimulationConfig
+# Note: Import from base logging_config (not enhanced) to ensure compatibility
+# whether enhanced logging is enabled or not. Both configs export get_logger().
+from farm.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class ConfigWatcher:
@@ -101,7 +106,12 @@ class ConfigWatcher:
                 self._check_files()
             except Exception as e:
                 # Log error but continue watching
-                print(f"ConfigWatcher error: {e}")
+                logger.error(
+                    "config_watcher_error",
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                    exc_info=True,
+                )
             time.sleep(self.watch_interval)
 
     def _check_files(self) -> None:
@@ -128,8 +138,18 @@ class ConfigWatcher:
                 with self.lock:
                     if filepath in self.watched_files:
                         self.watched_files[filepath] = ""
+                logger.warning(
+                    "config_file_not_found",
+                    filepath=filepath,
+                )
             except Exception as e:
-                print(f"Error checking file {filepath}: {e}")
+                logger.error(
+                    "config_file_check_error",
+                    filepath=filepath,
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                    exc_info=True,
+                )
 
     def _handle_file_change(self, filepath: str, new_hash: str) -> None:
         """Handle a file change by reloading config and calling callbacks."""
@@ -147,10 +167,22 @@ class ConfigWatcher:
                 try:
                     callback(config)
                 except Exception as e:
-                    print(f"Error in config change callback: {e}")
+                    logger.error(
+                        "config_change_callback_error",
+                        filepath=filepath,
+                        error_type=type(e).__name__,
+                        error_message=str(e),
+                        exc_info=True,
+                    )
 
         except Exception as e:
-            print(f"Error reloading config from {filepath}: {e}")
+            logger.error(
+                "config_reload_error",
+                filepath=filepath,
+                error_type=type(e).__name__,
+                error_message=str(e),
+                exc_info=True,
+            )
 
     def _get_file_hash(self, filepath: str) -> str:
         """
@@ -246,7 +278,12 @@ class ReloadableConfig:
             try:
                 callback(new_config)
             except Exception as e:
-                print(f"Error in reload callback: {e}")
+                logger.error(
+                    "reload_callback_error",
+                    error_type=type(e).__name__,
+                    error_message=str(e),
+                    exc_info=True,
+                )
 
     @property
     def config(self) -> SimulationConfig:
