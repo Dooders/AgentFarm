@@ -58,7 +58,6 @@ from scripts.analysis_config import setup_and_process_simulations
 logger = get_logger(__name__)
 
 
-
 def process_single_simulation(session, iteration, config, **kwargs):
     """
     Process a single simulation database for dominance analysis.
@@ -85,6 +84,7 @@ def process_single_simulation(session, iteration, config, **kwargs):
 
         # Use orchestrator for analysis
         from farm.analysis.dominance.orchestrator import create_dominance_orchestrator
+
         orchestrator = create_dominance_orchestrator()
 
         # Compute dominance metrics using orchestrator
@@ -238,8 +238,9 @@ def process_dominance_data(experiment_path, save_to_db=False, db_path="sqlite://
 
     # Use orchestrator for comprehensive DataFrame analysis
     from farm.analysis.dominance.orchestrator import create_dominance_orchestrator
+
     orchestrator = create_dominance_orchestrator()
-    
+
     # Run comprehensive analysis (auto-detects reproduction columns)
     df = orchestrator.analyze_dataframe_comprehensively(df)
 
@@ -526,10 +527,6 @@ def save_dominance_data_to_db(df, db_path="sqlite:///dominance.db"):
     finally:
         if "session" in locals():
             session.close()
-
-
-
-
 
 
 class DominanceAnalysis(BaseAnalysisModule):
