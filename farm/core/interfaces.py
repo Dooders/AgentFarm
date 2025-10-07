@@ -4,7 +4,11 @@ This module defines protocols and abstract base classes that allow different
 components to communicate without tight coupling.
 """
 
-from typing import Any, Dict, List, Optional, Protocol, Tuple, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Protocol, Tuple, TypeVar
+
+if TYPE_CHECKING:
+    # Import model classes for repository protocols during type checking only
+    from farm.database.models import AgentModel, ActionModel, ResourceModel
 
 
 class AgentProtocol(Protocol):
@@ -93,16 +97,8 @@ class DatabaseProtocol(Protocol):
     should support both logging operations and data retrieval.
     """
 
-    @property
-    def logger(self) -> "DataLoggerProtocol":
-        """Get the data logger instance.
-
-        Returns
-        -------
-        DataLoggerProtocol
-            The logger for buffered data operations
-        """
-        ...
+    logger: "DataLoggerProtocol"
+    """The logger for buffered data operations"""
 
     def log_step(self, step_number: int, agent_states: Any, resource_states: Any, metrics: Dict[str, Any]) -> None:
         """Log a simulation step to the database.
@@ -131,6 +127,51 @@ class DatabaseProtocol(Protocol):
             Export format (csv, excel, json, parquet)
         **kwargs : dict
             Additional export options
+        """
+        ...
+
+    def get_agent_repository(self) -> "RepositoryProtocol[AgentModel]":
+        """Get the agent repository for data access operations.
+
+        Returns
+        -------
+        RepositoryProtocol[AgentModel]
+            The repository for agent-related database operations
+        """
+        ...
+
+    def get_action_repository(self) -> "RepositoryProtocol[ActionModel]":
+        """Get the action repository for data access operations.
+
+        Returns
+        -------
+        RepositoryProtocol[ActionModel]
+            The repository for action-related database operations
+        """
+        ...
+
+    def get_resource_repository(self) -> "RepositoryProtocol[ResourceModel]":
+        """Get the resource repository for data access operations.
+
+        Returns
+        -------
+        RepositoryProtocol[ResourceModel]
+            The repository for resource-related database operations
+        """
+        ...
+
+    def _execute_in_transaction(self, func: Callable[[Any], Any]) -> Any:
+        """Execute database operations within a transaction with error handling.
+
+        Parameters
+        ----------
+        func : callable
+            Function that takes a session argument and performs database operations
+
+        Returns
+        -------
+        Any
+            Result of the executed function
         """
         ...
 

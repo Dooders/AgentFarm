@@ -15,11 +15,11 @@ Features:
 import json
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy.exc import SQLAlchemyError
 
-from farm.core.interfaces import DataLoggerProtocol
+from farm.core.interfaces import DatabaseProtocol, DataLoggerProtocol
 from farm.database.models import (
     ActionModel,
     AgentModel,
@@ -33,9 +33,6 @@ from farm.database.models import (
 )
 from farm.utils.logging_config import get_logger
 
-if TYPE_CHECKING:
-    from farm.database.database import SimulationDatabase
-
 logger = get_logger(__name__)
 
 
@@ -47,12 +44,12 @@ class DataLoggingConfig:
     commit_interval: int = 30  # Maximum time (in seconds) between commits
 
 
-class DataLogger:
+class DataLogger(DataLoggerProtocol):
     """Handles data logging operations for the simulation database."""
 
     def __init__(
         self,
-        database: "SimulationDatabase",
+        database: DatabaseProtocol,
         simulation_id: Optional[str] = None,
         config: Optional[DataLoggingConfig] = None,
     ):
@@ -60,7 +57,7 @@ class DataLogger:
 
         Parameters
         ----------
-        database : SimulationDatabase
+        database : DatabaseProtocol
             Database instance to use for logging
         simulation_id : Optional[str], optional
             Unique identifier for this simulation, by default None

@@ -55,7 +55,6 @@ from farm.utils.logging_config import get_logger
 
 import pandas as pd
 from sqlalchemy import create_engine, event, text
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import joinedload, scoped_session, sessionmaker
 from sqlalchemy.pool import QueuePool
 
@@ -89,14 +88,14 @@ from .utilities import (
 logger = get_logger(__name__)
 
 
-class SimulationDatabase:
+class SimulationDatabase(DatabaseProtocol):
     """Database interface for simulation state persistence and analysis.
 
     This class provides a high-level interface for storing and retrieving simulation
     data using SQLAlchemy ORM. It handles all database operations including state
     logging, configuration management, and data analysis with transaction safety
     and efficient batch operations.
-    
+
     This class implements the DatabaseProtocol interface, providing a standardized
     interface for database operations while breaking circular dependencies through
     dependency inversion.
@@ -118,8 +117,8 @@ class SimulationDatabase:
         SQLAlchemy database engine instance
     Session : sqlalchemy.orm.scoped_session
         Thread-local session factory
-    logger : DataLogger
-        Handles buffered data logging operations (implements DataLoggerProtocol)
+    logger : DataLoggerProtocol
+        Handles buffered data logging operations
     query : DataRetriever
         Handles data querying operations
 
@@ -206,9 +205,7 @@ class SimulationDatabase:
         custom_pragmas = {}
 
         if config:
-            print(
-                f"DEBUG: Config.db_pragma_profile: {getattr(config, 'db_pragma_profile', 'NOT_FOUND')}"
-            )
+            print(f"DEBUG: Config.db_pragma_profile: {getattr(config, 'db_pragma_profile', 'NOT_FOUND')}")
             db_pragmas = getattr(config, "database", None)
             print(
                 f"DEBUG: db_pragmas.db_pragma_profile: {getattr(db_pragmas, 'db_pragma_profile', 'NOT_FOUND') if db_pragmas else 'None'}"
@@ -227,12 +224,8 @@ class SimulationDatabase:
                     "db_synchronous_mode",
                     getattr(config, "db_synchronous_mode", synchronous_mode),
                 )
-                journal_mode = db_pragmas.get(
-                    "db_journal_mode", getattr(config, "db_journal_mode", journal_mode)
-                )
-                custom_pragmas = db_pragmas.get(
-                    "db_custom_pragmas", getattr(config, "db_custom_pragmas", {})
-                )
+                journal_mode = db_pragmas.get("db_journal_mode", getattr(config, "db_journal_mode", journal_mode))
+                custom_pragmas = db_pragmas.get("db_custom_pragmas", getattr(config, "db_custom_pragmas", {}))
             elif db_pragmas is not None:
                 pragma_profile = getattr(
                     db_pragmas,
@@ -241,9 +234,7 @@ class SimulationDatabase:
                 )
                 # If pragma_profile is the default, try to get it from top-level config
                 if pragma_profile == "balanced":  # balanced is the default
-                    top_level_profile = getattr(
-                        config, "db_pragma_profile", pragma_profile
-                    )
+                    top_level_profile = getattr(config, "db_pragma_profile", pragma_profile)
                     if top_level_profile != "balanced":
                         pragma_profile = top_level_profile
                 cache_size_mb = getattr(
@@ -272,9 +263,7 @@ class SimulationDatabase:
             else:
                 pragma_profile = getattr(config, "db_pragma_profile", pragma_profile)
                 cache_size_mb = getattr(config, "db_cache_size_mb", cache_size_mb)
-                synchronous_mode = getattr(
-                    config, "db_synchronous_mode", synchronous_mode
-                )
+                synchronous_mode = getattr(config, "db_synchronous_mode", synchronous_mode)
                 journal_mode = getattr(config, "db_journal_mode", journal_mode)
                 custom_pragmas = getattr(config, "db_custom_pragmas", {})
 
@@ -293,12 +282,8 @@ class SimulationDatabase:
                 # Backward-compatible fallback to top-level config
                 return getattr(config, name, default) if config else default
             if isinstance(db_cfg, dict):
-                return db_cfg.get(
-                    name, getattr(config, name, default) if config else default
-                )
-            return getattr(
-                db_cfg, name, getattr(config, name, default) if config else default
-            )
+                return db_cfg.get(name, getattr(config, name, default) if config else default)
+            return getattr(db_cfg, name, getattr(config, name, default) if config else default)
 
         self.pool_size = _get_db_setting("connection_pool_size", 10)
         self.pool_recycle = _get_db_setting("connection_pool_recycle", 3600)
@@ -380,8 +365,7 @@ class SimulationDatabase:
                 cursor.execute(f"PRAGMA synchronous={synchronous_mode}")
 
             if (
-                journal_mode
-                in ["WAL", "MEMORY", "DELETE", "TRUNCATE", "PERSIST", "OFF"]
+                journal_mode in ["WAL", "MEMORY", "DELETE", "TRUNCATE", "PERSIST", "OFF"]
                 and journal_mode != profile_defaults.get("journal_mode")
                 and journal_mode != "WAL"
             ):  # Don't override with default WAL
@@ -428,18 +412,12 @@ class SimulationDatabase:
                 getattr(config, "commit_interval_seconds", 30) if config else 30,
             )
         else:
-            log_buffer_size = (
-                getattr(config, "log_buffer_size", 1000) if config else 1000
-            )
-            commit_interval = (
-                getattr(config, "commit_interval_seconds", 30) if config else 30
-            )
+            log_buffer_size = getattr(config, "log_buffer_size", 1000) if config else 1000
+            commit_interval = getattr(config, "commit_interval_seconds", 30) if config else 30
         self.logger = DataLogger(
             self,
             simulation_id=self.simulation_id,
-            config=DataLoggingConfig(
-                buffer_size=log_buffer_size, commit_interval=commit_interval
-            ),
+            config=DataLoggingConfig(buffer_size=log_buffer_size, commit_interval=commit_interval),
         )
         self.query = DataRetriever(self.session_manager)
 
@@ -474,22 +452,16 @@ class SimulationDatabase:
             # Data safety settings
             cursor.execute("PRAGMA synchronous=FULL")
             cursor.execute("PRAGMA journal_mode=WAL")
-            cursor.execute(
-                f"PRAGMA cache_size={min(cache_size_kb, -102400)}"
-            )  # Max 100MB for safety
+            cursor.execute(f"PRAGMA cache_size={min(cache_size_kb, -102400)}")  # Max 100MB for safety
             cursor.execute("PRAGMA page_size=4096")  # Default page size
             cursor.execute("PRAGMA busy_timeout=30000")  # 30-second timeout
         elif profile == "memory":
             # Memory-optimized settings
             cursor.execute("PRAGMA synchronous=NORMAL")
-            cursor.execute(
-                "PRAGMA journal_mode=MEMORY"
-            )  # Explicitly set to MEMORY for memory profile
+            cursor.execute("PRAGMA journal_mode=MEMORY")  # Explicitly set to MEMORY for memory profile
 
             # Always limit to 50MB max for memory profile, regardless of the configured size
-            cursor.execute(
-                "PRAGMA cache_size=-51200"
-            )  # Fixed at 50MB max for memory profile
+            cursor.execute("PRAGMA cache_size=-51200")  # Fixed at 50MB max for memory profile
 
             cursor.execute("PRAGMA page_size=4096")  # Default page size
             cursor.execute("PRAGMA busy_timeout=15000")  # 15-second timeout
@@ -646,9 +618,7 @@ class SimulationDatabase:
 
         # Analyze cache size
         cache_size = pragmas.get("cache_size", 0)
-        cache_size_mb = (
-            abs(cache_size) / 1024 if cache_size < 0 else cache_size / 1024 / 1024
-        )
+        cache_size_mb = abs(cache_size) / 1024 if cache_size < 0 else cache_size / 1024 / 1024
         if cache_size_mb < 50:
             analysis["cache_size"] = {
                 "performance": "Poor",
@@ -728,6 +698,40 @@ class SimulationDatabase:
             return result
         finally:
             self.Session.remove()
+
+    def log_step(self, step_number: int, agent_states: Any, resource_states: Any, metrics: Dict[str, Any]) -> None:
+        """Log a simulation step to the database.
+
+        Parameters
+        ----------
+        step_number : int
+            Current simulation step
+        agent_states : Any
+            Collection of agent states
+        resource_states : Any
+            Collection of resource states
+        metrics : Dict[str, Any]
+            Step-level metrics
+        """
+        self.logger.log_step(step_number, agent_states, resource_states, metrics)
+
+    def get_agent_repository(self):
+        """Get the agent repository for data access operations."""
+        from farm.database.repositories.agent_repository import AgentRepository
+
+        return AgentRepository(self.session_manager)
+
+    def get_action_repository(self):
+        """Get the action repository for data access operations."""
+        from farm.database.repositories.action_repository import ActionRepository
+
+        return ActionRepository(self.session_manager)
+
+    def get_resource_repository(self):
+        """Get the resource repository for data access operations."""
+        from farm.database.repositories.resource_repository import ResourceRepository
+
+        return ResourceRepository(self.session_manager)
 
     def close(self) -> None:
         """Close the database connection and clean up resources."""
@@ -830,15 +834,11 @@ class SimulationDatabase:
                 metrics_query = session.query(SimulationStepModel)
                 if step_filter:
                     metrics_query = metrics_query.filter(*step_filter)
-                data["metrics"] = pd.read_sql(
-                    metrics_query.statement, session.bind, index_col="step_number"
-                )
+                data["metrics"] = pd.read_sql(metrics_query.statement, session.bind, index_col="step_number")
 
             if "agents" in export_types:
                 agents_query = (
-                    session.query(AgentStateModel)
-                    .join(AgentModel)
-                    .options(joinedload(AgentStateModel.agent))
+                    session.query(AgentStateModel).join(AgentModel).options(joinedload(AgentStateModel.agent))
                 )
                 if step_filter:
                     agents_query = agents_query.filter(*step_filter)
@@ -878,9 +878,7 @@ class SimulationDatabase:
                             encoding="utf-8",
                         )
                     elif data_type == "metadata":
-                        with open(
-                            f"{base_path}_metadata.json", "w", encoding="utf-8"
-                        ) as f:
+                        with open(f"{base_path}_metadata.json", "w", encoding="utf-8") as f:
                             json.dump(df, f, indent=2)
 
             elif format == "excel":
@@ -890,16 +888,11 @@ class SimulationDatabase:
                         if isinstance(df, pd.DataFrame):
                             df.to_excel(writer, sheet_name=data_type, index=False)
                         elif data_type == "metadata":
-                            pd.DataFrame([df]).to_excel(
-                                writer, sheet_name="metadata", index=False
-                            )
+                            pd.DataFrame([df]).to_excel(writer, sheet_name="metadata", index=False)
 
             elif format == "json":
                 # Convert all data to JSON format
-                json_data = {
-                    k: (v.to_dict("records") if isinstance(v, pd.DataFrame) else v)
-                    for k, v in data.items()
-                }
+                json_data = {k: (v.to_dict("records") if isinstance(v, pd.DataFrame) else v) for k, v in data.items()}
                 with open(filepath, "w", encoding="utf-8") as f:
                     json.dump(json_data, f, indent=2)
 
@@ -920,9 +913,7 @@ class SimulationDatabase:
 
         self._execute_in_transaction(_query)
 
-    def update_agent_death(
-        self, agent_id: str, death_time: int, cause: str = "starvation"
-    ):
+    def update_agent_death(self, agent_id: str, death_time: int, cause: str = "starvation"):
         """Update agent record with death information.
 
         Parameters
@@ -937,11 +928,7 @@ class SimulationDatabase:
 
         def _update(session):
             # Update agent record with death time
-            agent = (
-                session.query(AgentModel)
-                .filter(AgentModel.agent_id == agent_id)
-                .first()
-            )
+            agent = session.query(AgentModel).filter(AgentModel.agent_id == agent_id).first()
 
             if agent:
                 agent.death_time = death_time
@@ -1024,18 +1011,12 @@ class SimulationDatabase:
 
         def _update(session):
             # Get the agent to access its properties
-            agent = (
-                session.query(AgentModel)
-                .filter(AgentModel.agent_id == agent_id)
-                .first()
-            )
+            agent = session.query(AgentModel).filter(AgentModel.agent_id == agent_id).first()
             if not agent:
                 logger.error(f"Agent {agent_id} not found")
                 return
 
-            formatted_state = format_agent_state(
-                agent_id, step_number, state_data, simulation_id=self.simulation_id
-            )
+            formatted_state = format_agent_state(agent_id, step_number, state_data, simulation_id=self.simulation_id)
             agent_state = AgentStateModel(**formatted_state)
             session.add(agent_state)
 
@@ -1119,11 +1100,7 @@ class SimulationDatabase:
         """Retrieve the simulation configuration from the database."""
 
         def _query(session):
-            config = (
-                session.query(SimulationConfig)
-                .order_by(SimulationConfig.timestamp.desc())
-                .first()
-            )
+            config = session.query(SimulationConfig).order_by(SimulationConfig.timestamp.desc()).first()
 
             if config and config.config_data:
                 return safe_json_loads(config.config_data) or {}
@@ -1144,9 +1121,7 @@ class SimulationDatabase:
 
         self._execute_in_transaction(_insert)
 
-    def add_simulation_record(
-        self, simulation_id: str, start_time: datetime, status: str, parameters: Dict
-    ) -> None:
+    def add_simulation_record(self, simulation_id: str, start_time: datetime, status: str, parameters: Dict) -> None:
         """Add a simulation record to the database.
 
         Parameters
@@ -1167,9 +1142,7 @@ class SimulationDatabase:
                 start_time=start_time,
                 status=status,
                 parameters=parameters,
-                simulation_db_path=(
-                    self.db_path if hasattr(self, "db_path") else ":memory:"
-                ),
+                simulation_db_path=(self.db_path if hasattr(self, "db_path") else ":memory:"),
             )
             session.add(sim_record)
 
@@ -1242,11 +1215,7 @@ class SimulationDatabase:
             target_id = (
                 offspring_id
                 if offspring_id and success
-                else (
-                    f"{parent_position[0]},{parent_position[1]}"
-                    if parent_position
-                    else "unknown"
-                )
+                else (f"{parent_position[0]},{parent_position[1]}" if parent_position else "unknown")
             )
 
             # Only store essential relationship data - full details already in ReproductionEventModel
@@ -1367,10 +1336,7 @@ class AsyncDataLogger:
 
             # Process reproduction events
             if batched_data["reproduction"]:
-                events = [
-                    ReproductionEventModel(**data)
-                    for data in batched_data["reproduction"]
-                ]
+                events = [ReproductionEventModel(**data) for data in batched_data["reproduction"]]
                 session.bulk_save_objects(events)
 
             # Commit all changes at once
@@ -1434,11 +1400,7 @@ class InMemorySimulationDatabase(SimulationDatabase):
         self.memory_usage_samples = []
 
         # Override memory limit if specified in config
-        if (
-            memory_limit_mb is None
-            and config
-            and hasattr(config, "in_memory_db_memory_limit_mb")
-        ):
+        if memory_limit_mb is None and config and hasattr(config, "in_memory_db_memory_limit_mb"):
             self.memory_limit_mb = config.in_memory_db_memory_limit_mb
 
         # Initialize parent class - it will use our overridden _get_database_url method
@@ -1527,9 +1489,7 @@ class InMemorySimulationDatabase(SimulationDatabase):
         return {
             "current_mb": current,
             "limit_mb": self.memory_limit_mb,
-            "usage_percent": (
-                (current / self.memory_limit_mb * 100) if self.memory_limit_mb else None
-            ),
+            "usage_percent": ((current / self.memory_limit_mb * 100) if self.memory_limit_mb else None),
             "trend": trend,
         }
 
@@ -1571,11 +1531,7 @@ class InMemorySimulationDatabase(SimulationDatabase):
 
         # Get all tables
         source_cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-        all_tables = [
-            table_name
-            for (table_name,) in source_cursor.fetchall()
-            if not table_name.startswith("sqlite_")
-        ]
+        all_tables = [table_name for (table_name,) in source_cursor.fetchall() if not table_name.startswith("sqlite_")]
 
         # Filter tables if specified
         if tables:
@@ -1602,9 +1558,7 @@ class InMemorySimulationDatabase(SimulationDatabase):
             # Copy each table's data
             for i, table_name in enumerate(tables_to_copy):
                 if show_progress:
-                    logger.info(
-                        f"Copying table {i+1}/{len(tables_to_copy)}: {table_name}"
-                    )
+                    logger.info(f"Copying table {i + 1}/{len(tables_to_copy)}: {table_name}")
 
                 # Get data from source
                 source_cursor.execute(f"SELECT * FROM {table_name}")
@@ -1633,9 +1587,7 @@ class InMemorySimulationDatabase(SimulationDatabase):
                             batch,
                         )
                         if show_progress and len(rows) > 10000 and j % 10000 == 0:
-                            logger.info(
-                                f"  Progress: {j}/{len(rows)} rows ({j/len(rows)*100:.1f}%)"
-                            )
+                            logger.info(f"  Progress: {j}/{len(rows)} rows ({j / len(rows) * 100:.1f}%)")
                 else:
                     # For smaller tables, insert one by one
                     for row in rows:
@@ -1657,12 +1609,8 @@ class InMemorySimulationDatabase(SimulationDatabase):
             stats["duration"] = stats["end_time"] - stats["start_time"]
 
             if show_progress:
-                logger.info(
-                    f"Database persistence completed in {stats['duration']:.2f} seconds"
-                )
-                logger.info(
-                    f"Copied {stats['rows_copied']} rows across {stats['tables_copied']} tables"
-                )
+                logger.info(f"Database persistence completed in {stats['duration']:.2f} seconds")
+                logger.info(f"Copied {stats['rows_copied']} rows across {stats['tables_copied']} tables")
 
             return stats
 
@@ -1705,9 +1653,7 @@ class ShardedSimulationDatabase:
         os.makedirs(base_path, exist_ok=True)
 
         # Initialize metadata database
-        self.metadata_db = SimulationDatabase(
-            os.path.join(base_path, "metadata.db"), simulation_id=simulation_id
-        )
+        self.metadata_db = SimulationDatabase(os.path.join(base_path, "metadata.db"), simulation_id=simulation_id)
 
         # Initialize shard databases
         self.shards = {}
