@@ -293,7 +293,7 @@ class TestProtocolCompliance:
 
         for method in required_methods:
             assert hasattr(analyzer, method)
-            assert callable(getattr(computer, method))
+            assert callable(getattr(analyzer, method))
 
 
 class TestDependencyInjection:

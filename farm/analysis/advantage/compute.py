@@ -1011,10 +1011,10 @@ def compute_advantage_dominance_correlation(sim_session):
     start_time = time.time()
     logger.debug("Starting compute_advantage_dominance_correlation")
 
-    from farm.analysis.dominance.orchestrator import create_dominance_orchestrator
+    from farm.analysis.dominance import get_orchestrator
     from farm.database.models import SimulationStepModel
     
-    orchestrator = create_dominance_orchestrator()
+    orchestrator = get_orchestrator()
 
     # First, calculate comprehensive dominance
     logger.debug("Computing comprehensive dominance")
