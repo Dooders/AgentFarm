@@ -185,9 +185,7 @@ def format_agent_state(
     return formatted
 
 
-def execute_with_retry(
-    session: Session, operation: Callable, max_retries: int = 3
-) -> Any:
+def execute_with_retry(session: Session, operation: Callable, max_retries: int = 3) -> Any:
     """Execute database operation with retry logic.
 
     Parameters
@@ -294,16 +292,14 @@ def create_prepared_statements(session):
 
 
 def setup_db(
-    db_path: Optional[str], 
-    simulation_id: str, 
-    parameters: Optional[Dict] = None
+    db_path: Optional[str], simulation_id: str, parameters: Optional[Dict] = None
 ) -> Optional[DatabaseProtocol]:
     """Setup database for simulation.
 
     Handles database file cleanup, creation, and initialization of the appropriate
     database instance. If the database file exists, it will be removed to ensure
     a fresh start. If removal fails, a unique filename will be generated.
-    
+
     This function returns instances that implement DatabaseProtocol, enabling
     dependency inversion and breaking circular dependencies. All database
     implementations (SimulationDatabase, InMemorySimulationDatabase) implement
@@ -322,7 +318,7 @@ def setup_db(
     Returns
     -------
     Optional[DatabaseProtocol]
-        Database instance implementing DatabaseProtocol if setup is successful, 
+        Database instance implementing DatabaseProtocol if setup is successful,
         otherwise None. Type hint ensures consumers use protocol interface.
     """
     # Skip setup if no database requested
@@ -346,7 +342,7 @@ def setup_db(
             parameters=parameters or {},
         )
 
-        return db, ":memory:"
+        return db
 
     # Handle file-based database
     final_db_path = db_path
@@ -378,6 +374,7 @@ def setup_db(
 
     # Add simulation record to the file-based database
     from datetime import datetime
+
     db.add_simulation_record(
         simulation_id=simulation_id,
         start_time=datetime.now(),

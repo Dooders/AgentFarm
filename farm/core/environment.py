@@ -237,16 +237,12 @@ class Environment(AECEnv):
 
         # Setup database and get initialized database instance
         if db_factory is not None:
-            db_result = db_factory.setup_db(db_path, self.simulation_id, config.to_dict() if config else None)
+            self.db = db_factory.setup_db(db_path, self.simulation_id, config.to_dict() if config else None)
         else:
             # Import setup_db only when needed to avoid circular imports
             from farm.database.utilities import setup_db
 
-            db_result = setup_db(db_path, self.simulation_id, config.to_dict() if config else None)
-        if isinstance(db_result, tuple):
-            self.db = db_result[0]  # Extract database object from tuple
-        else:
-            self.db = db_result
+            self.db = setup_db(db_path, self.simulation_id, config.to_dict() if config else None)
 
         # Use self.identity for all ID needs
         self.max_resource = max_resource
