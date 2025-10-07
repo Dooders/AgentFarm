@@ -6,22 +6,45 @@ This guide provides practical instructions for using the Agent Farm configuratio
 
 ### Basic Configuration Loading
 
-The easiest way to load a configuration is using the centralized system:
+The easiest way to load a configuration is using the orchestrator pattern:
+
+```python
+from farm.config import ConfigurationOrchestrator
+
+# Create orchestrator for configuration management
+orchestrator = ConfigurationOrchestrator()
+
+# Load development configuration
+config = orchestrator.load_config()
+
+# Load production configuration
+config = orchestrator.load_config(environment="production")
+
+# Load with a specific profile
+config = orchestrator.load_config(
+    environment="production",
+    profile="benchmark"
+)
+
+# Load with validation options
+config = orchestrator.load_config(
+    environment="development",
+    validate=True,
+    use_cache=True,
+    auto_repair=False
+)
+```
+
+### Legacy Loading (Still Supported)
+
+For backward compatibility, the old methods still work:
 
 ```python
 from farm.core.config import SimulationConfig
 
-# Load development configuration
+# These methods still work but use the orchestrator internally
 config = SimulationConfig.from_centralized_config()
-
-# Load production configuration
 config = SimulationConfig.from_centralized_config(environment="production")
-
-# Load with a specific profile
-config = SimulationConfig.from_centralized_config(
-    environment="production",
-    profile="benchmark"
-)
 ```
 
 ### Understanding the Configuration Hierarchy
@@ -116,10 +139,11 @@ Versioning ensures that experiments are reproducible by creating immutable snaps
 ### Creating Versioned Configurations
 
 ```python
-from farm.core.config import SimulationConfig
+from farm.config import ConfigurationOrchestrator
 
-# Load a configuration
-config = SimulationConfig.from_centralized_config(
+# Load a configuration using orchestrator
+orchestrator = ConfigurationOrchestrator()
+config = orchestrator.load_config(
     environment="production",
     profile="research"
 )
@@ -169,10 +193,14 @@ Templates allow you to create parameterized configurations that can be instantia
 ### Creating Templates
 
 ```python
+from farm.config import ConfigurationOrchestrator
 from farm.config.template import ConfigTemplate, ConfigTemplateManager
 
-# Create a template from an existing configuration
-base_config = SimulationConfig.from_centralized_config()
+# Load a base configuration using orchestrator
+orchestrator = ConfigurationOrchestrator()
+base_config = orchestrator.load_config()
+
+# Create a template from the configuration
 template = ConfigTemplate.from_config(base_config)
 
 # Modify the template to add variables
@@ -313,11 +341,12 @@ reloadable.reload()
 ### Comparing Configurations
 
 ```python
-from farm.core.config import SimulationConfig
+from farm.config import ConfigurationOrchestrator
 
 # Load two configurations to compare
-config1 = SimulationConfig.from_centralized_config(environment="development")
-config2 = SimulationConfig.from_centralized_config(environment="production")
+orchestrator = ConfigurationOrchestrator()
+config1 = orchestrator.load_config(environment="development")
+config2 = orchestrator.load_config(environment="production")
 
 # Get differences
 differences = config1.diff_config(config2)
@@ -361,9 +390,11 @@ config = SimulationConfig.from_centralized_config(
 
 ```python
 from farm.config.cache import LazyConfigLoader
+from farm.config import ConfigurationOrchestrator
 
-# Create a lazy loader
-lazy_loader = LazyConfigLoader()
+# Create a lazy loader with orchestrator
+orchestrator = ConfigurationOrchestrator()
+lazy_loader = LazyConfigLoader(loader=orchestrator._loader)
 lazy_loader.configure(environment="production", profile="research")
 
 # Configuration is loaded only when first accessed
@@ -379,15 +410,15 @@ config3 = lazy_loader.reload()  # Reloads from disk
 ### Preloading Common Configurations
 
 ```python
-from farm.config.cache import OptimizedConfigLoader
+from farm.config import ConfigurationOrchestrator
 
-loader = OptimizedConfigLoader()
+orchestrator = ConfigurationOrchestrator()
 
 # Preload commonly used configurations at startup
-loader.preload_common_configs()
+orchestrator.preload_common_configs()
 
 # These will now load instantly from cache
-config = loader.load_centralized_config(environment="production")
+config = orchestrator.load_config(environment="production")
 ```
 
 ## Monitoring and Debugging

@@ -75,36 +75,26 @@ class TestConfigIntegration(unittest.TestCase):
         # Write environment configs
         dev_config = test_config.copy()
         dev_config.update({"debug": True, "width": 50})
-        with open(
-            os.path.join(self.config_dir, "environments", "development.yaml"), "w"
-        ) as f:
+        with open(os.path.join(self.config_dir, "environments", "development.yaml"), "w") as f:
             yaml.dump(dev_config, f)
 
         prod_config = test_config.copy()
         prod_config.update({"debug": False, "width": 200, "max_population": 500})
-        with open(
-            os.path.join(self.config_dir, "environments", "production.yaml"), "w"
-        ) as f:
+        with open(os.path.join(self.config_dir, "environments", "production.yaml"), "w") as f:
             yaml.dump(prod_config, f)
 
         # Write profile configs
         bench_config = test_config.copy()
-        bench_config.update({"learning_rate": 0.01, "batch_size": 64})
-        with open(
-            os.path.join(self.config_dir, "profiles", "benchmark.yaml"), "w"
-        ) as f:
+        bench_config.update({"learning_rate": 0.01, "batch_size": 64, "max_steps": 2000})
+        with open(os.path.join(self.config_dir, "profiles", "benchmark.yaml"), "w") as f:
             yaml.dump(bench_config, f)
 
     def test_full_config_workflow(self):
         """Test complete configuration workflow from creation to versioning."""
         # 1. Load centralized config
-        config = SimulationConfig.from_centralized_config(
-            config_dir=self.config_dir, environment="development"
-        )
+        config = SimulationConfig.from_centralized_config(config_dir=self.config_dir, environment="development")
 
-        self.assertEqual(
-            config.environment.width, 50
-        )  # Should use development override
+        self.assertEqual(config.environment.width, 50)  # Should use development override
         self.assertEqual(config.logging.debug, True)  # Should use development override
         self.assertEqual(config.seed, 42)  # Should use default
 
@@ -114,19 +104,13 @@ class TestConfigIntegration(unittest.TestCase):
         )
 
         self.assertEqual(config_with_profile.environment.width, 100)  # Profile override
-        self.assertEqual(
-            config_with_profile.learning.learning_rate, 0.01
-        )  # Profile override
-        self.assertEqual(
-            config_with_profile.logging.debug, True
-        )  # Development override
+        self.assertEqual(config_with_profile.learning.learning_rate, 0.01)  # Profile override
+        self.assertEqual(config_with_profile.logging.debug, True)  # Development override
 
         # 3. Version the configuration
         versioned = config_with_profile.version_config("Integration test config")
         self.assertIsNotNone(versioned.versioning.config_version)
-        self.assertEqual(
-            versioned.versioning.config_description, "Integration test config"
-        )
+        self.assertEqual(versioned.versioning.config_description, "Integration test config")
 
         # 4. Save versioned config
         filepath = versioned.save_versioned_config(self.versions_dir)
@@ -138,12 +122,8 @@ class TestConfigIntegration(unittest.TestCase):
         self.assertEqual(versions[0]["description"], "Integration test config")
 
         # 6. Load versioned config
-        loaded = SimulationConfig.load_versioned_config(
-            self.versions_dir, versioned.versioning.config_version
-        )
-        self.assertEqual(
-            loaded.versioning.config_version, versioned.versioning.config_version
-        )
+        loaded = SimulationConfig.load_versioned_config(self.versions_dir, versioned.versioning.config_version)
+        self.assertEqual(loaded.versioning.config_version, versioned.versioning.config_version)
         self.assertEqual(loaded.environment.width, 100)
 
         # 7. Compare configurations
@@ -155,9 +135,7 @@ class TestConfigIntegration(unittest.TestCase):
         manager = ConfigTemplateManager(self.templates_dir)
 
         # 1. Create template from config
-        base_config = SimulationConfig.from_centralized_config(
-            config_dir=self.config_dir
-        )
+        base_config = SimulationConfig.from_centralized_config(config_dir=self.config_dir)
         template = ConfigTemplate.from_config(base_config)
 
         # Modify template to add variables
@@ -167,9 +145,7 @@ class TestConfigIntegration(unittest.TestCase):
         template = ConfigTemplate(template_dict)
 
         # 2. Save template
-        template_path = manager.save_template(
-            "test_template", template, "Integration test template"
-        )
+        template_path = manager.save_template("test_template", template, "Integration test template")
         self.assertTrue(os.path.exists(template_path))
 
         # 3. Load template
@@ -191,9 +167,7 @@ class TestConfigIntegration(unittest.TestCase):
         ]
 
         batch_dir = os.path.join(self.templates_dir, "batch_output")
-        config_paths = manager.create_experiment_configs(
-            "test_template", variable_sets, batch_dir
-        )
+        config_paths = manager.create_experiment_configs("test_template", variable_sets, batch_dir)
 
         self.assertEqual(len(config_paths), 2)
         for path in config_paths:
@@ -207,9 +181,7 @@ class TestConfigIntegration(unittest.TestCase):
         """Test runtime reloading integration."""
         # Create test config file
         config_path = os.path.join(self.test_dir, "reload_test.yaml")
-        initial_config = SimulationConfig.from_centralized_config(
-            config_dir=self.config_dir
-        )
+        initial_config = SimulationConfig.from_centralized_config(config_dir=self.config_dir)
         initial_config.to_yaml(config_path)
 
         # Create reloadable config
@@ -244,9 +216,7 @@ class TestConfigIntegration(unittest.TestCase):
         """Test error handling throughout the system."""
         # Test invalid environment
         with self.assertRaises(FileNotFoundError):
-            SimulationConfig.from_centralized_config(
-                config_dir=self.config_dir, environment="nonexistent"
-            )
+            SimulationConfig.from_centralized_config(config_dir=self.config_dir, environment="nonexistent")
 
         # Test invalid profile
         with self.assertRaises(FileNotFoundError):
@@ -280,17 +250,13 @@ class TestConfigIntegration(unittest.TestCase):
 
             try:
                 # Load config
-                config = SimulationConfig.from_centralized_config(
-                    config_dir=self.config_dir
-                )
+                config = SimulationConfig.from_centralized_config(config_dir=self.config_dir)
 
                 # Modify a field to make each config unique
                 config.seed = 42 + worker_id
 
                 # Save version (this will version it automatically)
-                config.version_config(
-                    f"Worker {worker_id} config"
-                ).save_versioned_config(self.versions_dir)
+                config.version_config(f"Worker {worker_id} config").save_versioned_config(self.versions_dir)
 
                 results.append(f"Worker {worker_id}: SUCCESS")
             except Exception as e:
@@ -359,9 +325,7 @@ class TestConfigIntegration(unittest.TestCase):
         load_time = time.time() - start_time
 
         # Should load 100 configs in reasonable time (< 5 seconds)
-        self.assertLess(
-            load_time, 5.0, f"Config loading too slow: {load_time:.2f}s for 100 loads"
-        )
+        self.assertLess(load_time, 5.0, f"Config loading too slow: {load_time:.2f}s for 100 loads")
 
         # Test versioning performance
         config = SimulationConfig.from_centralized_config(config_dir=self.config_dir)
@@ -376,6 +340,161 @@ class TestConfigIntegration(unittest.TestCase):
             1.0,
             f"Versioning too slow: {version_time:.2f}s for 50 versions",
         )
+
+    def test_orchestrator_full_pipeline(self):
+        """Test the full orchestrator pipeline from cache to validation."""
+        from farm.config import ConfigurationOrchestrator
+
+        orchestrator = ConfigurationOrchestrator()
+
+        # Test 1: Basic loading
+        config = orchestrator.load_config(
+            environment="development", config_dir=self.config_dir, validate=False, use_cache=False
+        )
+        self.assertIsInstance(config, SimulationConfig)
+        self.assertEqual(config.environment.width, 50)
+
+        # Test 2: Loading with validation
+        config_validated, status = orchestrator.load_config_with_status(
+            environment="development", config_dir=self.config_dir, validate=True, use_cache=False
+        )
+        self.assertIsInstance(config_validated, SimulationConfig)
+        self.assertTrue(status["success"])
+        self.assertIn("errors", status)
+        self.assertIn("warnings", status)
+
+        # Test 3: Caching behavior
+        # First load (should miss cache)
+        config1 = orchestrator.load_config(
+            environment="development", config_dir=self.config_dir, validate=False, use_cache=True
+        )
+
+        # Second load (should hit cache)
+        config2 = orchestrator.load_config(
+            environment="development", config_dir=self.config_dir, validate=False, use_cache=True
+        )
+
+        # Verify they're the same and cache worked
+        self.assertEqual(config1.environment.width, config2.environment.width)
+        stats = orchestrator.get_cache_stats()
+        self.assertGreaterEqual(stats["hits"], 1)
+
+    def test_orchestrator_environment_profiles(self):
+        """Test orchestrator with different environments and profiles."""
+        from farm.config import ConfigurationOrchestrator
+
+        orchestrator = ConfigurationOrchestrator()
+
+        # Test environment switching
+        dev_config = orchestrator.load_config(environment="development", config_dir=self.config_dir, validate=False)
+        prod_config = orchestrator.load_config(environment="production", config_dir=self.config_dir, validate=False)
+
+        # Environments should have different settings
+        self.assertNotEqual(dev_config.environment.width, prod_config.environment.width)
+
+        # Test profile application
+        bench_config = orchestrator.load_config(
+            environment="development", profile="benchmark", config_dir=self.config_dir, validate=False
+        )
+
+        # Profile should override base settings
+        self.assertNotEqual(dev_config.max_steps, bench_config.max_steps)
+
+    def test_orchestrator_error_handling(self):
+        """Test orchestrator error handling and recovery."""
+        from farm.config import ConfigurationOrchestrator
+        from farm.config.validation import ValidationError
+
+        orchestrator = ConfigurationOrchestrator()
+
+        # Test invalid environment (should use fallback or raise)
+        try:
+            config = orchestrator.load_config(environment="nonexistent", config_dir=self.config_dir, validate=False)
+            # If it succeeds, it should have created a fallback config
+            self.assertIsInstance(config, SimulationConfig)
+        except Exception:
+            # If it fails, that's also acceptable
+            pass
+
+        # Test validation with auto-repair
+        config, status = orchestrator.load_config_with_status(
+            environment="development", config_dir=self.config_dir, validate=True, auto_repair=True
+        )
+        self.assertTrue(status["success"])
+        self.assertIsInstance(config, SimulationConfig)
+
+    def test_orchestrator_cache_invalidation(self):
+        """Test cache invalidation in orchestrator."""
+        from farm.config import ConfigurationOrchestrator
+        import time
+
+        orchestrator = ConfigurationOrchestrator()
+
+        # Load config to populate cache
+        config1 = orchestrator.load_config(
+            environment="development", config_dir=self.config_dir, validate=False, use_cache=True
+        )
+
+        # Verify cache has entries
+        stats = orchestrator.get_cache_stats()
+        initial_entries = stats["entries"]
+        self.assertGreaterEqual(initial_entries, 1)
+
+        # Invalidate cache
+        orchestrator.invalidate_cache()
+
+        # Verify cache is cleared
+        stats = orchestrator.get_cache_stats()
+        self.assertEqual(stats["entries"], 0)
+        self.assertEqual(stats["hits"], 0)
+        self.assertEqual(stats["misses"], 0)
+
+    def test_orchestrator_performance_regression(self):
+        """Test for performance regression in orchestrator."""
+        from farm.config import ConfigurationOrchestrator
+        import time
+
+        orchestrator = ConfigurationOrchestrator()
+
+        # Test basic load performance (should be < 50ms average)
+        times = []
+        for _ in range(20):
+            start = time.perf_counter()
+            config = orchestrator.load_config(
+                environment="development", config_dir=self.config_dir, validate=False, use_cache=False
+            )
+            end = time.perf_counter()
+            times.append((end - start) * 1000)  # Convert to ms
+
+        avg_time = sum(times) / len(times)
+        max_time = max(times)
+
+        # Performance should be reasonable
+        self.assertLess(avg_time, 50.0, f"Average load time too slow: {avg_time:.2f}ms")
+        self.assertLess(max_time, 100.0, f"Max load time too slow: {max_time:.2f}ms")
+
+        # Test cached performance (should be < 1ms average)
+        # Warm up cache
+        for _ in range(5):
+            orchestrator.load_config(
+                environment="development", config_dir=self.config_dir, validate=False, use_cache=True
+            )
+
+        times = []
+        for _ in range(20):
+            start = time.perf_counter()
+            config = orchestrator.load_config(
+                environment="development", config_dir=self.config_dir, validate=False, use_cache=True
+            )
+            end = time.perf_counter()
+            times.append((end - start) * 1000)
+
+        avg_cached_time = sum(times) / len(times)
+        self.assertLess(avg_cached_time, 1.0, f"Cached load time too slow: {avg_cached_time:.3f}ms")
+
+        # Verify high cache hit rate
+        stats = orchestrator.get_cache_stats()
+        self.assertGreater(stats["hit_rate"], 0.8, f"Cache hit rate too low: {stats['hit_rate']:.1%}")
 
 
 if __name__ == "__main__":

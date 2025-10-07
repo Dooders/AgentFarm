@@ -4,6 +4,109 @@ This document provides comprehensive API reference for the Agent Farm configurat
 
 ## Core Classes
 
+### ConfigurationOrchestrator
+
+The main orchestrator class that coordinates configuration loading, caching, and validation. This is the primary entry point for configuration management.
+
+#### Constructor
+
+##### `__init__(cache=None, loader=None, validator=None)`
+
+Initialize the configuration orchestrator.
+
+**Parameters:**
+- `cache` (ConfigCache, optional): Cache instance to use (default: new ConfigCache)
+- `loader` (OptimizedConfigLoader, optional): Loader instance to use (default: new OptimizedConfigLoader)
+- `validator` (SafeConfigLoader, optional): Validator instance to use (default: new SafeConfigLoader)
+
+**Example:**
+```python
+from farm.config import ConfigurationOrchestrator
+
+# Use default components
+orchestrator = ConfigurationOrchestrator()
+
+# Use custom components
+orchestrator = ConfigurationOrchestrator(
+    cache=my_cache,
+    loader=my_loader,
+    validator=my_validator
+)
+```
+
+#### Instance Methods
+
+##### `load_config(environment="development", profile=None, validate=True, use_cache=True, strict_validation=False, auto_repair=False, config_dir="farm/config")`
+
+Load configuration with full pipeline: cache → load → validate.
+
+**Parameters:**
+- `environment` (str): Environment name ("development", "production", "testing")
+- `profile` (str, optional): Profile name ("benchmark", "simulation", "research")
+- `validate` (bool): Whether to validate the configuration (default: True)
+- `use_cache` (bool): Whether to use caching for performance (default: True)
+- `strict_validation` (bool): Whether to treat warnings as errors (default: False)
+- `auto_repair` (bool): Whether to attempt automatic repair of validation errors (default: False)
+- `config_dir` (str): Base configuration directory (default: "farm/config")
+
+**Returns:** `SimulationConfig` instance
+
+**Raises:**
+- `FileNotFoundError`: If required configuration files are missing
+- `ValidationError`: If validation fails and auto_repair is False
+
+**Example:**
+```python
+# Load development config
+config = orchestrator.load_config()
+
+# Load production with benchmark profile and validation
+config = orchestrator.load_config(
+    environment="production",
+    profile="benchmark",
+    validate=True,
+    use_cache=True
+)
+```
+
+##### `load_config_with_status(...)`
+
+Load configuration with detailed status information.
+
+**Parameters:** Same as `load_config()`
+
+**Returns:** `Tuple[SimulationConfig, Dict[str, Any]]` - (config, status_dict)
+
+**Example:**
+```python
+config, status = orchestrator.load_config_with_status(environment="production")
+print(f"Success: {status['success']}")
+print(f"Cached: {status['cached']}")
+print(f"Errors: {len(status['errors'])}")
+```
+
+##### `invalidate_cache(environment=None)`
+
+Invalidate cached configurations.
+
+**Parameters:**
+- `environment` (str, optional): Specific environment to invalidate (default: all)
+
+##### `get_cache_stats()`
+
+Get cache statistics and metrics.
+
+**Returns:** Dictionary with cache statistics
+
+##### `preload_common_configs(environments=None, profiles=None, config_dir="farm/config")`
+
+Preload commonly used configurations into cache.
+
+**Parameters:**
+- `environments` (list, optional): List of environments to preload
+- `profiles` (list, optional): List of profiles to preload
+- `config_dir` (str): Configuration directory
+
 ### SimulationConfig
 
 The main configuration class containing all simulation parameters.
@@ -537,6 +640,39 @@ Create a reloadable configuration.
 
 **Returns:** `ReloadableConfig` instance
 
+## Global Orchestrator Functions
+
+### `get_global_orchestrator()`
+
+Get the global configuration orchestrator instance.
+
+**Returns:** `ConfigurationOrchestrator` instance
+
+**Example:**
+```python
+from farm.config import get_global_orchestrator
+
+orchestrator = get_global_orchestrator()
+config = orchestrator.load_config(environment="production")
+```
+
+### `load_config(environment="development", profile=None, **kwargs)`
+
+Convenience function to load configuration using the global orchestrator.
+
+**Parameters:** Same as `ConfigurationOrchestrator.load_config()`
+
+**Returns:** `SimulationConfig` instance
+
+**Example:**
+```python
+from farm.config import load_config
+
+# Simple loading using global orchestrator
+config = load_config()
+config = load_config(environment="production", profile="benchmark")
+```
+
 ##### `get_config_system_health()`
 
 Get overall health status of the configuration system.
@@ -599,7 +735,7 @@ All errors include detailed error messages and context information.
 
 ## Best Practices
 
-1. **Use centralized config loading** instead of direct YAML loading
+1. **Use the ConfigurationOrchestrator** for all configuration loading (coordinates caching, loading, and validation)
 2. **Enable caching** for production deployments to improve performance
 3. **Version important configurations** for reproducible experiments
 4. **Use templates** for systematic parameter sweeps
