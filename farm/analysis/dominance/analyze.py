@@ -28,14 +28,7 @@ from farm.analysis.common.metrics import (
     split_and_compare_groups,
 )
 from farm.analysis.database_utils import import_multi_table_data
-from farm.analysis.dominance.compute import (
-    aggregate_reproduction_analysis_results,
-    compute_comprehensive_dominance,
-    compute_dominance_switch_factors,
-    compute_dominance_switches,
-    compute_population_dominance,
-    compute_survival_dominance,
-)
+from farm.analysis.dominance.compute import DominanceComputer
 from farm.analysis.dominance.data import (
     get_agent_survival_stats,
     get_final_population_counts,
@@ -64,8 +57,6 @@ from scripts.analysis_config import setup_and_process_simulations
 
 logger = get_logger(__name__)
 
-# Global default analyzer instance for backward compatibility
-_default_analyzer = DominanceAnalyzer()
 
 
 def process_single_simulation(session, iteration, config, **kwargs):
@@ -92,22 +83,22 @@ def process_single_simulation(session, iteration, config, **kwargs):
     try:
         logger.info("processing_iteration", iteration=iteration)
 
-        # Compute dominance metrics
-        population_dominance = compute_population_dominance(session)
-        survival_dominance = compute_survival_dominance(session)
-        comprehensive_dominance = compute_comprehensive_dominance(session)
+        # Use orchestrator for analysis
+        from farm.analysis.dominance.orchestrator import create_dominance_orchestrator
+        orchestrator = create_dominance_orchestrator()
+
+        # Compute dominance metrics using orchestrator
+        population_dominance = orchestrator.compute_population_dominance(session)
+        survival_dominance = orchestrator.compute_survival_dominance(session)
+        comprehensive_dominance = orchestrator.compute_comprehensive_dominance(session)
 
         # Compute dominance switching metrics
-        dominance_switches = compute_dominance_switches(session)
+        dominance_switches = orchestrator.compute_dominance_switches(session)
 
-        # Get initial positions and resource data
-        initial_data = get_initial_positions_and_resources(session, config)
-
-        # Get final population counts
-        final_counts = get_final_population_counts(session)
-
-        # Get agent survival statistics
-        survival_stats = get_agent_survival_stats(session)
+        # Get data using orchestrator
+        initial_data = orchestrator.get_initial_positions_and_resources(session, config)
+        final_counts = orchestrator.get_final_population_counts(session)
+        survival_stats = orchestrator.get_agent_survival_stats(session)
         logger.info(
             "survival_stats_for_iteration",
             iteration=iteration,
@@ -115,7 +106,7 @@ def process_single_simulation(session, iteration, config, **kwargs):
         )
 
         # Get reproduction statistics
-        reproduction_stats = get_reproduction_stats(session)
+        reproduction_stats = orchestrator.get_reproduction_stats(session)
 
         # Combine all data
         sim_data = {
@@ -245,29 +236,12 @@ def process_dominance_data(experiment_path, save_to_db=False, db_path="sqlite://
     if df.empty:
         return df
 
-    # Compute dominance switch factors and add to the DataFrame
-    df = analyze_dominance_switch_factors(df)
-
-    # Analyze reproduction and dominance switching
-    df = analyze_reproduction_dominance_switching(df)
-
-    # Get valid numeric reproduction columns
-    numeric_repro_cols = get_valid_numeric_columns(df, [col for col in df.columns if "reproduction" in col])
-
-    # Analyze high vs low switching simulations
-    df = analyze_high_vs_low_switching(df, numeric_repro_cols)
-
-    # Analyze reproduction timing
-    df = analyze_reproduction_timing(df, numeric_repro_cols)
-
-    # Analyze reproduction efficiency
-    df = analyze_reproduction_efficiency(df, numeric_repro_cols)
-
-    # Analyze reproduction advantage
-    df = analyze_reproduction_advantage(df, numeric_repro_cols)
-
-    # Analyze by agent type
-    df = analyze_by_agent_type(df, numeric_repro_cols)
+    # Use orchestrator for comprehensive DataFrame analysis
+    from farm.analysis.dominance.orchestrator import create_dominance_orchestrator
+    orchestrator = create_dominance_orchestrator()
+    
+    # Run comprehensive analysis (auto-detects reproduction columns)
+    df = orchestrator.analyze_dataframe_comprehensively(df)
 
     if save_to_db:
         save_dominance_data_to_db(df, db_path)
@@ -554,155 +528,8 @@ def save_dominance_data_to_db(df, db_path="sqlite:///dominance.db"):
             session.close()
 
 
-def analyze_dominance_switch_factors(df):
-    """
-    Analyze what factors correlate with dominance switching patterns.
-
-    Backward compatibility wrapper that delegates to DominanceAnalyzer instance.
-
-    This function calculates various factors that correlate with dominance switching patterns,
-    including:
-    1. Top positive correlations between factors and total switches
-    2. Top negative correlations between factors and total switches
-    3. Average number of switches per dominant type
-    4. Correlations between reproduction metrics and total switches
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame with simulation analysis results
-
-    Returns
-    -------
-    pandas.DataFrame
-        The input DataFrame with added dominance switch factor columns
-    """
-    return _default_analyzer.analyze_dominance_switch_factors(df)
 
 
-def analyze_reproduction_dominance_switching(df):
-    """
-    Analyze the relationship between reproduction strategies and dominance switching patterns
-    and add the results to the DataFrame.
-
-    Backward compatibility wrapper that delegates to DominanceAnalyzer instance.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame with simulation analysis results
-
-    Returns
-    -------
-    pandas.DataFrame
-        The input DataFrame with added reproduction analysis columns
-    """
-    return _default_analyzer.analyze_reproduction_dominance_switching(df)
-
-
-def analyze_high_vs_low_switching(df, numeric_repro_cols):
-    """
-    Compare reproduction metrics between high and low switching groups.
-
-    Backward compatibility wrapper that delegates to DominanceAnalyzer instance.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame with simulation analysis results
-    numeric_repro_cols : list
-        List of numeric reproduction column names
-
-    Returns
-    -------
-    pandas.DataFrame
-        The input DataFrame with added high vs low switching analysis columns
-    """
-    return _default_analyzer.analyze_high_vs_low_switching(df, numeric_repro_cols)
-
-
-def analyze_reproduction_timing(df, numeric_repro_cols):
-    """
-    Analyze how first reproduction timing relates to dominance switching.
-
-    Backward compatibility wrapper that delegates to DominanceAnalyzer instance.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame with simulation analysis results
-    numeric_repro_cols : list
-        List of numeric reproduction column names
-
-    Returns
-    -------
-    pandas.DataFrame
-        The input DataFrame with added reproduction timing analysis columns
-    """
-    return _default_analyzer.analyze_reproduction_timing(df, numeric_repro_cols)
-
-
-def analyze_reproduction_efficiency(df, numeric_repro_cols):
-    """
-    Analyze if reproduction efficiency correlates with dominance stability.
-
-    Backward compatibility wrapper that delegates to DominanceAnalyzer instance.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame with simulation analysis results
-    numeric_repro_cols : list
-        List of numeric reproduction column names
-
-    Returns
-    -------
-    pandas.DataFrame
-        The input DataFrame with added reproduction efficiency analysis columns
-    """
-    return _default_analyzer.analyze_reproduction_efficiency(df, numeric_repro_cols)
-
-
-def analyze_reproduction_advantage(df, numeric_repro_cols):
-    """
-    Analyze reproduction advantage and dominance switching.
-
-    Backward compatibility wrapper that delegates to DominanceAnalyzer instance.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame with simulation analysis results
-    numeric_repro_cols : list
-        List of numeric reproduction column names
-
-    Returns
-    -------
-    pandas.DataFrame
-        The input DataFrame with added reproduction advantage analysis columns
-    """
-    return _default_analyzer.analyze_reproduction_advantage(df, numeric_repro_cols)
-
-
-def analyze_by_agent_type(df, numeric_repro_cols):
-    """
-    Analyze relationship between reproduction metrics and dominance switching by agent type.
-
-    Backward compatibility wrapper that delegates to DominanceAnalyzer instance.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame with simulation analysis results
-    numeric_repro_cols : list
-        List of numeric reproduction column names
-
-    Returns
-    -------
-    pandas.DataFrame
-        The input DataFrame with added agent type analysis columns
-    """
-    return _default_analyzer.analyze_by_agent_type(df, numeric_repro_cols)
 
 
 class DominanceAnalysis(BaseAnalysisModule):

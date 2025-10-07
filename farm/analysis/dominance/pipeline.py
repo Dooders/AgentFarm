@@ -1,12 +1,7 @@
 import pandas as pd
 
 from farm.analysis.common.metrics import get_valid_numeric_columns
-from farm.analysis.dominance.compute import (
-    compute_comprehensive_dominance,
-    compute_dominance_switches,
-    compute_population_dominance,
-    compute_survival_dominance,
-)
+from farm.analysis.dominance.orchestrator import create_dominance_orchestrator
 from farm.analysis.dominance.data import (
     get_agent_survival_stats,
     get_final_population_counts,

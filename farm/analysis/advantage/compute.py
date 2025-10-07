@@ -1011,12 +1011,14 @@ def compute_advantage_dominance_correlation(sim_session):
     start_time = time.time()
     logger.debug("Starting compute_advantage_dominance_correlation")
 
-    from farm.analysis.dominance.compute import compute_comprehensive_dominance
+    from farm.analysis.dominance.orchestrator import create_dominance_orchestrator
     from farm.database.models import SimulationStepModel
+    
+    orchestrator = create_dominance_orchestrator()
 
     # First, calculate comprehensive dominance
     logger.debug("Computing comprehensive dominance")
-    dominance_result = compute_comprehensive_dominance(sim_session)
+    dominance_result = orchestrator.compute_comprehensive_dominance(sim_session)
     if not dominance_result or "dominant_type" not in dominance_result:
         logger.warning("No dominant type found, skipping advantage-dominance correlation")
         return None
