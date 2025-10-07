@@ -160,37 +160,43 @@ class SamplingProcessor:
         """Initialize sampling processor.
         
         Args:
-            sample_rate: Fraction of events to log (0.0 to 1.0)
-            events_to_sample: Set of event names to sample (None = sample all)
+            sample_rate: Fraction of events to log (minimum 0.001, maximum 1.0)
+            events_to_sample: Set of event names to sample (None or empty = sample all)
         
         Raises:
-            ValueError: If sample_rate is not between 0 and 1
+            ValueError: If sample_rate is not between 0.001 and 1.0
         """
-        if not 0.0 < sample_rate <= 1.0:
-            raise ValueError(f"sample_rate must be between 0.0 (exclusive) and 1.0, got {sample_rate}")
-        self.sample_rate = sample_rate
-        self.events_to_sample = events_to_sample or set()
-        self.counter = {}
+        # Enforce practical minimum to avoid enormous sampling intervals
+        if not 0.001 <= sample_rate <= 1.0:
+            raise ValueError(
+                f"sample_rate must be between 0.001 and 1.0, got {sample_rate}"
+            )
+        self.sample_rate = float(sample_rate)
+        # None or empty set means "sample all events"
+        self.events_to_sample = set(events_to_sample) if events_to_sample else set()
+        self.counter: Dict[str, int] = {}
+        # Pre-compute interval once for performance; 1 means log all
+        self._sample_interval: int = 1 if self.sample_rate >= 1.0 else max(1, int(round(1.0 / self.sample_rate)))
+    
+    def _should_sample(self, event: str) -> bool:
+        # If events_to_sample is empty, sample all events; otherwise only those included
+        return not self.events_to_sample or event in self.events_to_sample
     
     def __call__(self, logger: Any, method_name: str, event_dict: EventDict) -> EventDict:
         event = event_dict.get("event", event_dict.get("message", ""))
         
-        # Sample specific events
-        if self.events_to_sample and event in self.events_to_sample:
-            if event not in self.counter:
-                self.counter[event] = 0
+        if not event:
+            return event_dict
+        
+        if self._should_sample(event):
+            count = self.counter.get(event, 0) + 1
+            self.counter[event] = count
             
-            self.counter[event] += 1
+            # Keep first event; then log every Nth event based on interval
+            if self._sample_interval > 1 and (count - 1) % self._sample_interval != 0:
+                raise structlog.DropEvent
             
-            # Drop events based on sample rate
-            if self.sample_rate < 1.0:
-                # Safe division - sample_rate is validated to be > 0 in __init__
-                sample_interval = int(1.0 / self.sample_rate)
-                if self.counter[event] % sample_interval != 0:
-                    raise structlog.DropEvent
-            
-            # Add sampling info
-            event_dict["sampled"] = True
+            event_dict["sampled"] = self._sample_interval > 1
             event_dict["sample_rate"] = self.sample_rate
         
         return event_dict
