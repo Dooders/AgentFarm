@@ -64,6 +64,17 @@ def add_logger_name(logger: Any, method_name: str, event_dict: EventDict) -> Eve
     return event_dict
 
 
+def add_process_info(logger: Any, method_name: str, event_dict: EventDict) -> EventDict:
+    """Add process ID and thread ID to log entries."""
+    import os
+    import threading
+    
+    event_dict["process_id"] = os.getpid()
+    event_dict["thread_id"] = threading.get_ident()
+    event_dict["thread_name"] = threading.current_thread().name
+    return event_dict
+
+
 def censor_sensitive_data(logger: Any, method_name: str, event_dict: EventDict) -> EventDict:
     """Censor sensitive information from logs."""
     sensitive_keys = {"password", "token", "secret", "api_key", "auth", "key"}
@@ -151,7 +162,12 @@ class SamplingProcessor:
         Args:
             sample_rate: Fraction of events to log (0.0 to 1.0)
             events_to_sample: Set of event names to sample (None = sample all)
+        
+        Raises:
+            ValueError: If sample_rate is not between 0 and 1
         """
+        if not 0.0 < sample_rate <= 1.0:
+            raise ValueError(f"sample_rate must be between 0.0 (exclusive) and 1.0, got {sample_rate}")
         self.sample_rate = sample_rate
         self.events_to_sample = events_to_sample or set()
         self.counter = {}
@@ -168,7 +184,9 @@ class SamplingProcessor:
             
             # Drop events based on sample rate
             if self.sample_rate < 1.0:
-                if self.counter[event] % int(1.0 / self.sample_rate) != 0:
+                # Safe division - sample_rate is validated to be > 0 in __init__
+                sample_interval = int(1.0 / self.sample_rate)
+                if self.counter[event] % sample_interval != 0:
                     raise structlog.DropEvent
             
             # Add sampling info
@@ -306,7 +324,7 @@ def configure_logging_enhanced(
         
         # PHASE 10: Process info (if enabled)
         *(
-            [structlog.processors.add_log_level]  # Placeholder for process info
+            [add_process_info]  # Add process ID, thread ID, thread name
             if include_process_info
             else []
         ),

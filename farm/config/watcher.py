@@ -13,8 +13,10 @@ import time
 from pathlib import Path
 from typing import Callable, Dict, Optional, Set, Union
 
-from farm.utils.logging_config import get_logger
 from .config import SimulationConfig
+# Note: Import from base logging_config (not enhanced) to ensure compatibility
+# whether enhanced logging is enabled or not. Both configs export get_logger().
+from farm.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
