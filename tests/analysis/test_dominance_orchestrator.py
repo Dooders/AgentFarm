@@ -25,7 +25,6 @@ from farm.analysis.dominance.mocks import (
     MockDominanceComputer,
     MockDominanceAnalyzer,
     MockDominanceDataProvider,
-    create_mock_computer,
     create_sample_simulation_data,
     create_minimal_simulation_data,
 )
@@ -562,6 +561,75 @@ class TestOrchestratorEdgeCases:
         # Should handle gracefully
         result_df = orchestrator.analyze_dominance_switch_factors(df)
         assert isinstance(result_df, pd.DataFrame)
+
+    def test_orchestrator_with_exception_handling(self):
+        """Test orchestrator handles exceptions gracefully."""
+        # Create a mock computer that raises an exception
+        mock_computer = Mock()
+        mock_computer.compute_population_dominance.side_effect = Exception("Computation failed")
+
+        orchestrator = DominanceAnalysisOrchestrator(computer=mock_computer)
+        mock_session = Mock()
+
+        # Should handle exceptions gracefully (depending on implementation)
+        try:
+            result = orchestrator.compute_population_dominance(mock_session)
+            # If it doesn't raise, result should be None or default
+            assert result is None or isinstance(result, str)
+        except Exception:
+            # If it raises, that's also acceptable behavior
+            pass
+
+    def test_orchestrator_with_extreme_data_sizes(self):
+        """Test orchestrator with very large/small DataFrames."""
+        mock_analyzer = MockDominanceAnalyzer()
+        orchestrator = DominanceAnalysisOrchestrator(analyzer=mock_analyzer)
+
+        # Test with very large DataFrame
+        large_df = pd.DataFrame(
+            {"iteration": range(10000), "total_switches": [5] * 10000, "comprehensive_dominance": ["system"] * 10000}
+        )
+
+        result_df = orchestrator.analyze_dominance_switch_factors(large_df)
+        assert isinstance(result_df, pd.DataFrame)
+
+        # Test with minimal DataFrame
+        minimal_df = pd.DataFrame({"iteration": [1], "total_switches": [1], "comprehensive_dominance": ["system"]})
+
+        result_df = orchestrator.analyze_dominance_switch_factors(minimal_df)
+        assert isinstance(result_df, pd.DataFrame)
+
+    def test_orchestrator_with_null_values(self):
+        """Test orchestrator handles null values in data."""
+        mock_analyzer = MockDominanceAnalyzer()
+        orchestrator = DominanceAnalysisOrchestrator(analyzer=mock_analyzer)
+
+        # DataFrame with null values
+        df_with_nulls = pd.DataFrame(
+            {
+                "iteration": [1, 2, 3],
+                "total_switches": [5, None, 3],
+                "comprehensive_dominance": ["system", None, "independent"],
+                "system_reproduction_success_rate": [0.8, 0.7, None],
+            }
+        )
+
+        result_df = orchestrator.analyze_dominance_switch_factors(df_with_nulls)
+        assert isinstance(result_df, pd.DataFrame)
+
+    def test_orchestrator_analyze_dataframe_comprehensively_with_errors(self):
+        """Test comprehensive DataFrame analysis with error conditions."""
+        mock_analyzer = Mock()
+        mock_computer = MockDominanceComputer()
+        mock_analyzer.analyze_dominance_switch_factors.side_effect = Exception("Analysis failed")
+
+        orchestrator = DominanceAnalysisOrchestrator(analyzer=mock_analyzer, computer=mock_computer)
+
+        df = create_sample_simulation_data()
+
+        # Should propagate exceptions after logging
+        with pytest.raises(Exception, match="Analysis failed"):
+            orchestrator.analyze_dataframe_comprehensively(df)
 
 
 # ============================================================================

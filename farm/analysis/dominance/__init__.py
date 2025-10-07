@@ -7,7 +7,7 @@ analyze.py and compute.py has been eliminated.
 
 Usage:
     from farm.analysis.dominance import get_orchestrator
-    
+
     orchestrator = get_orchestrator()
     result = orchestrator.compute_population_dominance(session)
     df = orchestrator.analyze_dataframe_comprehensively(df)
@@ -48,12 +48,16 @@ from farm.analysis.dominance.plot import (
     plot_dominance_distribution,
     plot_dominance_stability,
     plot_dominance_switches,
+    plot_feature_importance,
     plot_reproduction_advantage_vs_stability,
     plot_reproduction_success_vs_switching,
     plot_reproduction_vs_dominance,
     plot_resource_proximity_vs_dominance,
 )
 from farm.analysis.dominance.query_dominance_db import load_data_from_db
+
+# Import the module instance
+from farm.analysis.dominance.module import dominance_module
 
 # Convenience: Create a default orchestrator instance for easy access
 _default_orchestrator = create_dominance_orchestrator()
@@ -62,14 +66,14 @@ _default_orchestrator = create_dominance_orchestrator()
 def get_orchestrator() -> DominanceAnalysisOrchestrator:
     """
     Get the default dominance analysis orchestrator instance.
-    
+
     This is the recommended way to access dominance analysis functionality.
-    
+
     Returns
     -------
     DominanceAnalysisOrchestrator
         The default orchestrator with all dependencies wired
-        
+
     Example
     -------
     >>> from farm.analysis.dominance import get_orchestrator
@@ -78,6 +82,7 @@ def get_orchestrator() -> DominanceAnalysisOrchestrator:
     >>> df = orchestrator.analyze_dataframe_comprehensively(df)
     """
     return _default_orchestrator
+
 
 # Dictionary to store all analysis functions
 _ANALYSIS_FUNCTIONS = {}
@@ -213,9 +218,6 @@ def get_module_info():
 # Register analysis functions when module is imported
 register_analysis()
 
-# Import the module instance
-from farm.analysis.dominance.module import dominance_module
-
 # Define __all__ for explicit exports
 __all__ = [
     # Orchestrator (recommended entry point)
@@ -242,6 +244,7 @@ __all__ = [
     "plot_dominance_distribution",
     "plot_dominance_stability",
     "plot_dominance_switches",
+    "plot_feature_importance",
     "plot_reproduction_advantage_vs_stability",
     "plot_reproduction_success_vs_switching",
     "plot_reproduction_vs_dominance",
