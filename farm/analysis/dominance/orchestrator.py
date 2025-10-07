@@ -57,7 +57,7 @@ class DominanceAnalysisOrchestrator:
     ):
         """
         Initialize the dominance analysis orchestrator.
-        
+
         Parameters
         ----------
         computer : Optional[DominanceComputerProtocol]
@@ -66,6 +66,13 @@ class DominanceAnalysisOrchestrator:
             Optional analyzer implementation. If None, creates default DominanceAnalyzer.
         data_provider : Optional[DominanceDataProviderProtocol]
             Optional data provider implementation. If None, creates default DominanceDataProvider.
+
+        Notes
+        -----
+        When None is provided for any component, a default implementation is created.
+        This creates a fully functional orchestrator but may lead to unexpected behavior
+        if the same instance is reused across different contexts. For explicit control
+        over component creation, use create_dominance_orchestrator() factory function.
         """
         # Create components if not provided
         self.data_provider = data_provider or DominanceDataProvider()

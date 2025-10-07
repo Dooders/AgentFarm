@@ -453,10 +453,9 @@ class DominanceComputer:
             logger.warning("Input to aggregate_reproduction_analysis_results is not a DataFrame")
             return {}
 
-        # Without analyzer dependency, return empty results
+        # Without analyzer dependency, raise exception
         if self.analyzer is None:
-            logger.warning("No analyzer injected - cannot aggregate reproduction analysis")
-            return {}
+            raise RuntimeError("No analyzer injected - cannot aggregate reproduction analysis. Please provide a DominanceAnalyzerProtocol instance.")
 
         # Create a working copy of the DataFrame to avoid modifying the original
         working_df = df.copy()

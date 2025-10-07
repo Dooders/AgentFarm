@@ -144,6 +144,9 @@ class DominanceComputerProtocol(Protocol):
         """
         Aggregate results from multiple reproduction analysis functions.
 
+        This method requires an analyzer dependency to be injected into the
+        DominanceComputer instance for proper functionality.
+
         Parameters
         ----------
         df : pandas.DataFrame
@@ -160,6 +163,11 @@ class DominanceComputerProtocol(Protocol):
             - Reproduction efficiency analysis
             - Reproduction advantage analysis
             - Agent type-specific analysis
+
+        Raises
+        ------
+        RuntimeError
+            If no analyzer dependency is injected into the DominanceComputer instance
         """
         ...
 
@@ -173,9 +181,7 @@ class DominanceAnalyzerProtocol(Protocol):
     should coordinate data analysis and interpretation.
     """
 
-    def analyze_by_agent_type(
-        self, df: pd.DataFrame, numeric_repro_cols: List[str]
-    ) -> pd.DataFrame:
+    def analyze_by_agent_type(self, df: pd.DataFrame, numeric_repro_cols: List[str]) -> pd.DataFrame:
         """
         Analyze relationship between reproduction metrics and dominance switching by agent type.
 
@@ -193,9 +199,7 @@ class DominanceAnalyzerProtocol(Protocol):
         """
         ...
 
-    def analyze_high_vs_low_switching(
-        self, df: pd.DataFrame, numeric_repro_cols: List[str]
-    ) -> pd.DataFrame:
+    def analyze_high_vs_low_switching(self, df: pd.DataFrame, numeric_repro_cols: List[str]) -> pd.DataFrame:
         """
         Compare reproduction metrics between high and low switching groups.
 
@@ -216,9 +220,7 @@ class DominanceAnalyzerProtocol(Protocol):
         """
         ...
 
-    def analyze_reproduction_advantage(
-        self, df: pd.DataFrame, numeric_repro_cols: List[str]
-    ) -> pd.DataFrame:
+    def analyze_reproduction_advantage(self, df: pd.DataFrame, numeric_repro_cols: List[str]) -> pd.DataFrame:
         """
         Analyze reproduction advantage and its relationship to dominance switching.
 
@@ -239,9 +241,7 @@ class DominanceAnalyzerProtocol(Protocol):
         """
         ...
 
-    def analyze_reproduction_efficiency(
-        self, df: pd.DataFrame, numeric_repro_cols: List[str]
-    ) -> pd.DataFrame:
+    def analyze_reproduction_efficiency(self, df: pd.DataFrame, numeric_repro_cols: List[str]) -> pd.DataFrame:
         """
         Analyze if reproduction efficiency correlates with dominance stability.
 
@@ -262,9 +262,7 @@ class DominanceAnalyzerProtocol(Protocol):
         """
         ...
 
-    def analyze_reproduction_timing(
-        self, df: pd.DataFrame, numeric_repro_cols: List[str]
-    ) -> pd.DataFrame:
+    def analyze_reproduction_timing(self, df: pd.DataFrame, numeric_repro_cols: List[str]) -> pd.DataFrame:
         """
         Analyze how first reproduction timing relates to dominance switching.
 
@@ -379,9 +377,7 @@ class DominanceDataProviderProtocol(Protocol):
         """
         ...
 
-    def get_initial_positions_and_resources(
-        self, sim_session, config: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+    def get_initial_positions_and_resources(self, sim_session, config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Get initial positioning and resource data.
 
