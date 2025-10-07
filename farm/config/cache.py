@@ -64,6 +64,8 @@ class ConfigCache:
         self.cache: Dict[str, Dict[str, Any]] = {}
         self.access_times: Dict[str, float] = {}
         self.file_mtimes: Dict[str, float] = {}
+        # Track file sizes alongside mtimes for robust change detection
+        self.file_sizes: Dict[str, int] = {}
         self.memory_usage = 0.0
         self.lock = threading.RLock()
 
@@ -91,6 +93,7 @@ class ConfigCache:
             # Check if any of the associated files have been modified
             cached_entry = self.cache[cache_key]
             cached_mtimes = cached_entry.get("file_mtimes", {})
+            cached_sizes = cached_entry.get("file_sizes", {})
 
             # Normalize filepaths to list
             if isinstance(filepaths, str):
@@ -102,10 +105,12 @@ class ConfigCache:
                 for filepath in filepaths:
                     if os.path.exists(filepath):
                         current_mtime = os.path.getmtime(filepath)
-                        cached_mtime = cached_mtimes.get(filepath, 0)
+                        current_size = os.path.getsize(filepath)
+                        cached_mtime = cached_mtimes.get(filepath, -1)
+                        cached_size = cached_sizes.get(filepath, -1)
 
-                        if current_mtime > cached_mtime:
-                            # File modified, invalidate cache
+                        # Invalidate if either mtime or size changed
+                        if current_mtime != cached_mtime or current_size != cached_size:
                             self.invalidations += 1
                             self._remove_entry(cache_key)
                             self.misses += 1
@@ -176,6 +181,8 @@ class ConfigCache:
             for filepath in filepaths:
                 if os.path.exists(filepath):
                     file_mtimes[filepath] = os.path.getmtime(filepath)
+                    # Persist size for robust change detection
+                    self.file_sizes[filepath] = os.path.getsize(filepath)
 
             # Store in cache
             self.cache[cache_key] = {
@@ -183,6 +190,7 @@ class ConfigCache:
                 "size": config_size,
                 "created": time.time(),
                 "file_mtimes": file_mtimes,
+                "file_sizes": {fp: os.path.getsize(fp) for fp in filepaths if os.path.exists(fp)},
             }
             self.access_times[cache_key] = time.time()
             self.memory_usage += config_size
