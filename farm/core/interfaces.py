@@ -87,7 +87,7 @@ class EnvironmentProtocol(Protocol):
 
 class DatabaseProtocol(Protocol):
     """Enhanced protocol for database operations.
-    
+
     This protocol defines the interface for database instances that provide
     data logging, repository access, and configuration management. Implementations
     should support both logging operations and data retrieval.
@@ -96,7 +96,7 @@ class DatabaseProtocol(Protocol):
     @property
     def logger(self) -> "DataLoggerProtocol":
         """Get the data logger instance.
-        
+
         Returns
         -------
         DataLoggerProtocol
@@ -106,7 +106,7 @@ class DatabaseProtocol(Protocol):
 
     def log_step(self, step_number: int, agent_states: Any, resource_states: Any, metrics: Dict[str, Any]) -> None:
         """Log a simulation step to the database.
-        
+
         Parameters
         ----------
         step_number : int
@@ -122,7 +122,7 @@ class DatabaseProtocol(Protocol):
 
     def export_data(self, filepath: str, format: str = "csv", **kwargs) -> None:
         """Export simulation data to a file.
-        
+
         Parameters
         ----------
         filepath : str
@@ -140,7 +140,7 @@ class DatabaseProtocol(Protocol):
 
     def get_configuration(self) -> Dict[str, Any]:
         """Retrieve the current simulation configuration.
-        
+
         Returns
         -------
         Dict[str, Any]
@@ -150,7 +150,7 @@ class DatabaseProtocol(Protocol):
 
     def save_configuration(self, config: Dict[str, Any]) -> None:
         """Save simulation configuration to the database.
-        
+
         Parameters
         ----------
         config : Dict[str, Any]
@@ -183,7 +183,7 @@ T = TypeVar("T")
 
 class DataLoggerProtocol(Protocol):
     """Protocol for data logging operations.
-    
+
     This protocol defines the interface for logging simulation data including
     agent actions, states, health incidents, and other events. Implementations
     should handle buffered batch operations for performance.
@@ -201,7 +201,7 @@ class DataLoggerProtocol(Protocol):
         details: Optional[Dict] = None,
     ) -> None:
         """Log an agent action.
-        
+
         Parameters
         ----------
         step_number : int
@@ -231,7 +231,7 @@ class DataLoggerProtocol(Protocol):
         metrics: Dict[str, Any],
     ) -> None:
         """Log a complete simulation step.
-        
+
         Parameters
         ----------
         step_number : int
@@ -259,7 +259,7 @@ class DataLoggerProtocol(Protocol):
         action_weights: Optional[Dict[str, float]] = None,
     ) -> None:
         """Log a new agent creation.
-        
+
         Parameters
         ----------
         agent_id : str
@@ -295,7 +295,7 @@ class DataLoggerProtocol(Protocol):
         details: Optional[Dict] = None,
     ) -> None:
         """Log a health incident.
-        
+
         Parameters
         ----------
         step_number : int
@@ -320,7 +320,7 @@ class DataLoggerProtocol(Protocol):
 
 class RepositoryProtocol(Protocol[T]):
     """Generic repository protocol for data access operations.
-    
+
     This protocol defines the standard CRUD interface for accessing and
     manipulating entities in the database. Implementations should provide
     transaction safety and error handling.
@@ -328,7 +328,7 @@ class RepositoryProtocol(Protocol[T]):
 
     def add(self, entity: T) -> None:
         """Add a new entity to the repository.
-        
+
         Parameters
         ----------
         entity : T
@@ -338,12 +338,12 @@ class RepositoryProtocol(Protocol[T]):
 
     def get_by_id(self, entity_id: Any) -> Optional[T]:
         """Retrieve an entity by its ID.
-        
+
         Parameters
         ----------
         entity_id : Any
             The ID of the entity
-            
+
         Returns
         -------
         Optional[T]
@@ -353,7 +353,7 @@ class RepositoryProtocol(Protocol[T]):
 
     def update(self, entity: T) -> None:
         """Update an existing entity.
-        
+
         Parameters
         ----------
         entity : T
@@ -363,7 +363,7 @@ class RepositoryProtocol(Protocol[T]):
 
     def delete(self, entity: T) -> None:
         """Delete an entity from the repository.
-        
+
         Parameters
         ----------
         entity : T
