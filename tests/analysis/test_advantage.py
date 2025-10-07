@@ -493,9 +493,11 @@ class TestAdvantageHelperFunctions:
         """Test processing single simulation."""
         from farm.analysis.advantage.analyze import process_single_simulation
 
-        with patch("farm.analysis.advantage.analyze.compute_comprehensive_dominance") as mock_dom, patch(
-            "farm.analysis.advantage.analyze.compute_advantages"
-        ) as mock_adv, patch("farm.analysis.advantage.analyze.compute_advantage_dominance_correlation") as mock_corr:
+        with patch(
+            "farm.analysis.dominance.orchestrator.DominanceAnalysisOrchestrator.compute_comprehensive_dominance"
+        ) as mock_dom, patch("farm.analysis.advantage.analyze.compute_advantages") as mock_adv, patch(
+            "farm.analysis.advantage.analyze.compute_advantage_dominance_correlation"
+        ) as mock_corr:
             mock_dom.return_value = {
                 "dominant_type": "system",
                 "scores": {"system": 0.8, "independent": 0.3, "control": 0.2},
@@ -524,7 +526,9 @@ class TestAdvantageHelperFunctions:
         """Test processing simulation with error."""
         from farm.analysis.advantage.analyze import process_single_simulation
 
-        with patch("farm.analysis.advantage.analyze.compute_comprehensive_dominance") as mock_dom:
+        with patch(
+            "farm.analysis.dominance.orchestrator.DominanceAnalysisOrchestrator.compute_comprehensive_dominance"
+        ) as mock_dom:
             mock_dom.side_effect = Exception("Database error")
 
             result = process_single_simulation(mock_session, iteration=1, config={})

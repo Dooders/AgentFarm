@@ -22,7 +22,7 @@ from farm.analysis.advantage.compute import (
 )
 
 from farm.analysis.core import BaseAnalysisModule
-from farm.analysis.dominance.compute import compute_comprehensive_dominance
+from farm.analysis.dominance import get_orchestrator
 from scripts.analysis_config import setup_and_process_simulations
 
 
@@ -49,7 +49,8 @@ def process_single_simulation(session, iteration, config, **kwargs):
     """
     try:
         logger.debug("computing_dominance_for_iteration", iteration=iteration)
-        dominance_result = compute_comprehensive_dominance(session)
+        orchestrator = get_orchestrator()
+        dominance_result = orchestrator.compute_comprehensive_dominance(session)
 
         if not dominance_result:
             logger.warning("skipping_iteration_failed_dominance", iteration=iteration)

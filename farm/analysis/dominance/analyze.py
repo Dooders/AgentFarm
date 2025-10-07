@@ -9,6 +9,11 @@ This file contains legacy dominance analysis functions. For new code, use:
 
 The DominanceAnalysis class at the bottom uses the old BaseAnalysisModule
 and is kept for backwards compatibility. New code should use the module system.
+
+Phase 2 Refactoring:
+ - Classes now implement protocol interfaces with dependency injection
+ - Backward compatibility maintained through module-level functions
+ - Import from implementations.py for concrete classes
 """
 
 import traceback
@@ -23,19 +28,16 @@ from farm.analysis.common.metrics import (
     split_and_compare_groups,
 )
 from farm.analysis.database_utils import import_multi_table_data
-from farm.analysis.dominance.compute import (
-    aggregate_reproduction_analysis_results,
-    compute_comprehensive_dominance,
-    compute_dominance_switch_factors,
-    compute_dominance_switches,
-    compute_population_dominance,
-    compute_survival_dominance,
-)
+from farm.analysis.dominance.compute import DominanceComputer
 from farm.analysis.dominance.data import (
     get_agent_survival_stats,
     get_final_population_counts,
     get_initial_positions_and_resources,
     get_reproduction_stats,
+)
+from farm.analysis.dominance.implementations import (
+    DominanceAnalyzer,
+    DominanceDataProvider,
 )
 from farm.analysis.dominance.models import DominanceDataModel
 from farm.analysis.dominance.sqlalchemy_models import (
@@ -80,22 +82,23 @@ def process_single_simulation(session, iteration, config, **kwargs):
     try:
         logger.info("processing_iteration", iteration=iteration)
 
-        # Compute dominance metrics
-        population_dominance = compute_population_dominance(session)
-        survival_dominance = compute_survival_dominance(session)
-        comprehensive_dominance = compute_comprehensive_dominance(session)
+        # Use orchestrator for analysis
+        from farm.analysis.dominance.orchestrator import create_dominance_orchestrator
+
+        orchestrator = create_dominance_orchestrator()
+
+        # Compute dominance metrics using orchestrator
+        population_dominance = orchestrator.compute_population_dominance(session)
+        survival_dominance = orchestrator.compute_survival_dominance(session)
+        comprehensive_dominance = orchestrator.compute_comprehensive_dominance(session)
 
         # Compute dominance switching metrics
-        dominance_switches = compute_dominance_switches(session)
+        dominance_switches = orchestrator.compute_dominance_switches(session)
 
-        # Get initial positions and resource data
-        initial_data = get_initial_positions_and_resources(session, config)
-
-        # Get final population counts
-        final_counts = get_final_population_counts(session)
-
-        # Get agent survival statistics
-        survival_stats = get_agent_survival_stats(session)
+        # Get data using orchestrator
+        initial_data = orchestrator.get_initial_positions_and_resources(session, config)
+        final_counts = orchestrator.get_final_population_counts(session)
+        survival_stats = orchestrator.get_agent_survival_stats(session)
         logger.info(
             "survival_stats_for_iteration",
             iteration=iteration,
@@ -103,7 +106,7 @@ def process_single_simulation(session, iteration, config, **kwargs):
         )
 
         # Get reproduction statistics
-        reproduction_stats = get_reproduction_stats(session)
+        reproduction_stats = orchestrator.get_reproduction_stats(session)
 
         # Combine all data
         sim_data = {
@@ -233,29 +236,13 @@ def process_dominance_data(experiment_path, save_to_db=False, db_path="sqlite://
     if df.empty:
         return df
 
-    # Compute dominance switch factors and add to the DataFrame
-    df = analyze_dominance_switch_factors(df)
+    # Use orchestrator for comprehensive DataFrame analysis
+    from farm.analysis.dominance.orchestrator import create_dominance_orchestrator
 
-    # Analyze reproduction and dominance switching
-    df = analyze_reproduction_dominance_switching(df)
+    orchestrator = create_dominance_orchestrator()
 
-    # Get valid numeric reproduction columns
-    numeric_repro_cols = get_valid_numeric_columns(df, [col for col in df.columns if "reproduction" in col])
-
-    # Analyze high vs low switching simulations
-    df = analyze_high_vs_low_switching(df, numeric_repro_cols)
-
-    # Analyze reproduction timing
-    df = analyze_reproduction_timing(df, numeric_repro_cols)
-
-    # Analyze reproduction efficiency
-    df = analyze_reproduction_efficiency(df, numeric_repro_cols)
-
-    # Analyze reproduction advantage
-    df = analyze_reproduction_advantage(df, numeric_repro_cols)
-
-    # Analyze by agent type
-    df = analyze_by_agent_type(df, numeric_repro_cols)
+    # Run comprehensive analysis (auto-detects reproduction columns)
+    df = orchestrator.analyze_dataframe_comprehensively(df)
 
     if save_to_db:
         save_dominance_data_to_db(df, db_path)
@@ -540,461 +527,6 @@ def save_dominance_data_to_db(df, db_path="sqlite:///dominance.db"):
     finally:
         if "session" in locals():
             session.close()
-
-
-def analyze_dominance_switch_factors(df):
-    """
-    Analyze what factors correlate with dominance switching patterns.
-
-    This function calculates various factors that correlate with dominance switching patterns,
-    including:
-    1. Top positive correlations between factors and total switches
-    2. Top negative correlations between factors and total switches
-    3. Average number of switches per dominant type
-    4. Correlations between reproduction metrics and total switches
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame with simulation analysis results
-
-    Returns
-    -------
-    pandas.DataFrame
-        The input DataFrame with added dominance switch factor columns
-    """
-    # Check if df is a DataFrame
-    if not isinstance(df, pd.DataFrame):
-        logger.warning("input_not_dataframe", function="analyze_dominance_switch_factors")
-        return df
-
-    if df.empty or "total_switches" not in df.columns:
-        logger.warning("no_dominance_switch_data_available")
-        return df
-
-    # Calculate dominance switch factors
-    results = compute_dominance_switch_factors(df)
-
-    if results is None:
-        return df
-
-    # Add dominance switch factors to the DataFrame
-    if results:
-        # Add top positive correlations
-        if "top_positive_correlations" in results:
-            for factor, corr in results["top_positive_correlations"].items():
-                df[f"positive_corr_{factor}"] = corr
-
-        # Add top negative correlations
-        if "top_negative_correlations" in results:
-            for factor, corr in results["top_negative_correlations"].items():
-                df[f"negative_corr_{factor}"] = corr
-
-        # Add switches by dominant type
-        if "switches_by_dominant_type" in results:
-            for agent_type, avg_switches in results["switches_by_dominant_type"].items():
-                df[f"{agent_type}_avg_switches"] = avg_switches
-
-        # Add reproduction correlations
-        if "reproduction_correlations" in results:
-            for factor, corr in results["reproduction_correlations"].items():
-                df[f"repro_corr_{factor}"] = corr
-
-        logger.info("added_dominance_switch_factor_analysis")
-
-    return df
-
-
-def analyze_reproduction_dominance_switching(df):
-    """
-    Analyze the relationship between reproduction strategies and dominance switching patterns
-    and add the results to the DataFrame.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame with simulation analysis results
-
-    Returns
-    -------
-    pandas.DataFrame
-        The input DataFrame with added reproduction analysis columns
-    """
-    # Check if df is a DataFrame
-    if not isinstance(df, pd.DataFrame):
-        logger.warning("input_not_dataframe", function="analyze_reproduction_dominance_switching")
-        return df
-
-    if df.empty or "total_switches" not in df.columns:
-        logger.warning("no_dominance_switch_data_for_reproduction_switching")
-        return df
-
-    reproduction_cols = [col for col in df.columns if "reproduction" in col]
-
-    # Filter to only include numeric reproduction columns
-    numeric_repro_cols = get_valid_numeric_columns(df, reproduction_cols)
-
-    if not numeric_repro_cols:
-        logger.warning("no_numeric_reproduction_data_columns")
-        return df
-
-    # Use the aggregation function from compute.py to collect all results
-    results = aggregate_reproduction_analysis_results(df, numeric_repro_cols)
-
-    if not results:
-        return df
-
-    # Add results to the DataFrame
-    for category, category_results in results.items():
-        if isinstance(category_results, dict):
-            for key, value in category_results.items():
-                if isinstance(value, dict):
-                    # For nested dictionaries (like high vs low switching comparison)
-                    for subkey, subvalue in value.items():
-                        col_name = f"{category}_{key}_{subkey}"
-                        df[col_name] = subvalue
-                else:
-                    # For simple key-value pairs
-                    col_name = f"{category}_{key}"
-                    df[col_name] = value
-
-    logger.info("added_reproduction_analysis_categories", count=len(results))
-
-    return df
-
-
-def analyze_high_vs_low_switching(df, numeric_repro_cols):
-    """
-    Compare reproduction metrics between high and low switching groups.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame with simulation analysis results
-    numeric_repro_cols : list
-        List of numeric reproduction column names
-
-    Returns
-    -------
-    pandas.DataFrame
-        The input DataFrame with added high vs low switching analysis columns
-    """
-    # Check if df is a DataFrame
-    if not isinstance(df, pd.DataFrame):
-        logger.warning("input_not_dataframe", function="analyze_high_vs_low_switching")
-        return df
-
-    if df.empty or "total_switches" not in df.columns:
-        logger.warning("no_dominance_switch_data_for_high_vs_low_switching")
-        return df
-
-    # Use the utility function to split and compare groups
-    comparison_results = split_and_compare_groups(
-        df,
-        split_column="total_switches",
-        metrics=numeric_repro_cols,
-        split_method="median",
-    )
-
-    # Extract comparison results
-    if "comparison_results" in comparison_results:
-        repro_comparison = comparison_results["comparison_results"]
-
-        # Add these values to the DataFrame with the specific naming convention used in this module
-        for col, stats in repro_comparison.items():
-            df[f"{col}_high_switching_mean"] = stats["high_group_mean"]
-            df[f"{col}_low_switching_mean"] = stats["low_group_mean"]
-            df[f"{col}_difference"] = stats["difference"]
-            df[f"{col}_percent_difference"] = stats["percent_difference"]
-
-        # Log the most significant differences
-        logger.info("reproduction_differences_high_vs_low_switching")
-        sorted_diffs = sorted(
-            repro_comparison.items(),
-            key=lambda x: abs(x[1]["percent_difference"]),
-            reverse=True,
-        )
-
-        for col, stats in sorted_diffs[:5]:  # Top 5 differences
-            if abs(stats["percent_difference"]) > 10:  # Only report meaningful differences
-                direction = "higher" if stats["difference"] > 0 else "lower"
-                logger.info(
-                    "reproduction_difference_detail",
-                    column=col,
-                    high_mean=stats["high_group_mean"],
-                    low_mean=stats["low_group_mean"],
-                    percent_difference=abs(stats["percent_difference"]),
-                    direction=direction,
-                )
-
-    return df
-
-
-def analyze_reproduction_timing(df, numeric_repro_cols):
-    """
-    Analyze how first reproduction timing relates to dominance switching.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame with simulation analysis results
-    numeric_repro_cols : list
-        List of numeric reproduction column names
-
-    Returns
-    -------
-    pandas.DataFrame
-        The input DataFrame with added reproduction timing analysis columns
-    """
-    # Check if df is a DataFrame
-    if not isinstance(df, pd.DataFrame):
-        logger.warning("input_not_dataframe", function="analyze_reproduction_timing")
-        return df
-
-    # Filter to get only first reproduction columns
-    first_repro_cols = [col for col in numeric_repro_cols if "first_reproduction_time" in col]
-
-    if first_repro_cols:
-        # Define a filter condition to exclude rows where first reproduction is -1 (no reproduction)
-        def filter_valid_first_repro(data_df):
-            filtered_dfs = {}
-            for col in first_repro_cols:
-                if col in data_df.columns:
-                    filtered_dfs[col] = data_df[data_df[col] > 0]
-
-            # If no valid columns, return original data
-            if not filtered_dfs:
-                return data_df
-
-            # Return the filtered data for the first column (they should be similar)
-            return next(iter(filtered_dfs.values()))
-
-        # Use the utility function to analyze correlations with filtering
-        first_repro_corr = {}
-        for col in first_repro_cols:
-            # Create a single-column filter for this specific column
-            # Use function to capture col by value, not by reference
-            def col_filter(df, col=col):
-                return df[df[col] > 0]
-
-            correlations = analyze_correlations(
-                df,
-                target_column="total_switches",
-                metric_columns=[col],
-                min_data_points=5,
-                filter_condition=col_filter,
-            )
-
-            # Add the correlation if found
-            if correlations and col in correlations:
-                first_repro_corr[col] = correlations[col]
-
-        # Log the results
-        logger.info("correlation_reproduction_timing_dominance_switches")
-        for col, corr in first_repro_corr.items():
-            agent_type = col.split("_first_reproduction")[0]
-            if abs(corr) > 0.1:  # Only report meaningful correlations
-                direction = "more" if corr > 0 else "fewer"
-                logger.info(
-                    "reproduction_timing_correlation",
-                    agent_type=agent_type,
-                    direction=direction,
-                    correlation=corr,
-                )
-    else:
-        logger.info("no_first_reproduction_timing_data_available")
-
-    return df
-
-
-def analyze_reproduction_efficiency(df, numeric_repro_cols):
-    """
-    Analyze if reproduction efficiency correlates with dominance stability.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame with simulation analysis results
-    numeric_repro_cols : list
-        List of numeric reproduction column names
-
-    Returns
-    -------
-    pandas.DataFrame
-        The input DataFrame with added reproduction efficiency analysis columns
-    """
-    # Check if df is a DataFrame
-    if not isinstance(df, pd.DataFrame):
-        logger.warning("input_not_dataframe", function="analyze_reproduction_efficiency")
-        return df
-
-    efficiency_cols = [col for col in numeric_repro_cols if "reproduction_efficiency" in col]
-
-    if efficiency_cols and "switches_per_step" in df.columns:
-        # Calculate stability metric (inverse of switches per step)
-        df["dominance_stability"] = 1 / (df["switches_per_step"] + 0.01)
-
-        # Use the utility function to analyze correlations
-        def filter_valid(data_df, efficiency_cols=efficiency_cols):
-            return data_df[(data_df[efficiency_cols].notna()).all(axis=1) & (data_df[efficiency_cols] != 0).all(axis=1)]
-
-        efficiency_stability_corr = analyze_correlations(
-            df,
-            target_column="dominance_stability",
-            metric_columns=efficiency_cols,
-            min_data_points=5,
-            filter_condition=filter_valid,
-        )
-
-        # Log the results
-        logger.info("correlation_reproduction_efficiency_dominance_stability")
-        for col, corr in efficiency_stability_corr.items():
-            if abs(corr) > 0.1:  # Only report meaningful correlations
-                agent_type = col.split("_reproduction")[0]
-                direction = "more" if corr > 0 else "less"
-                logger.info(
-                    "reproduction_efficiency_correlation",
-                    agent_type=agent_type,
-                    direction=direction,
-                    correlation=corr,
-                )
-
-    return df
-
-
-def analyze_reproduction_advantage(df, numeric_repro_cols):
-    """
-    Analyze reproduction advantage and dominance switching.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame with simulation analysis results
-    numeric_repro_cols : list
-        List of numeric reproduction column names
-
-    Returns
-    -------
-    pandas.DataFrame
-        The input DataFrame with added reproduction advantage analysis columns
-    """
-    # Check if df is a DataFrame
-    if not isinstance(df, pd.DataFrame):
-        logger.warning("input_not_dataframe", function="analyze_reproduction_advantage")
-        return df
-
-    advantage_cols = [
-        col
-        for col in numeric_repro_cols
-        if "reproduction_rate_advantage" in col or "reproduction_efficiency_advantage" in col
-    ]
-
-    if advantage_cols and "switches_per_step" in df.columns:
-        # Calculate stability metric (inverse of switches per step)
-        if "dominance_stability" not in df.columns:
-            df["dominance_stability"] = 1 / (df["switches_per_step"] + 0.01)
-
-        # Use the utility function to analyze correlations
-        def filter_valid(data_df, advantage_cols=advantage_cols):
-            return data_df[data_df[advantage_cols].notna().all(axis=1)]
-
-        advantage_stability_corr = analyze_correlations(
-            df,
-            target_column="dominance_stability",
-            metric_columns=advantage_cols,
-            min_data_points=5,
-            filter_condition=filter_valid,
-        )
-
-        # Log the results
-        logger.info("correlation_reproduction_advantage_dominance_stability")
-        for col, corr in advantage_stability_corr.items():
-            if abs(corr) > 0.1:  # Only report meaningful correlations
-                if "_vs_" in col:
-                    types = (
-                        col.split("_vs_")[0],
-                        col.split("_vs_")[1].split("_reproduction")[0],
-                    )
-                    direction = "more" if corr > 0 else "less"
-                    logger.info(
-                        "reproduction_advantage_correlation",
-                        advantage_type=types[0],
-                        over_type=types[1],
-                        direction=direction,
-                        correlation=corr,
-                    )
-
-    return df
-
-
-def analyze_by_agent_type(df, numeric_repro_cols):
-    """
-    Analyze relationship between reproduction metrics and dominance switching by agent type.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        DataFrame with simulation analysis results
-    numeric_repro_cols : list
-        List of numeric reproduction column names
-
-    Returns
-    -------
-    pandas.DataFrame
-        The input DataFrame with added agent type analysis columns
-    """
-    # Check if df is a DataFrame
-    if not isinstance(df, pd.DataFrame):
-        logger.warning("input_not_dataframe", function="analyze_by_agent_type")
-        return df
-
-    results = {}
-
-    if "comprehensive_dominance" in df.columns:
-        # Define the analysis function to apply to each group
-        def analyze_group_correlations(group_df):
-            group_results = {}
-
-            # Calculate correlations between reproduction metrics and switching
-            group_correlations = analyze_correlations(
-                group_df,
-                target_column="total_switches",
-                metric_columns=numeric_repro_cols,
-                min_data_points=5,
-            )
-
-            # Add to results
-            return group_correlations
-
-        # Use the utility function to group and analyze
-        agent_types = ["system", "independent", "control"]
-        type_results = group_and_analyze(
-            df,
-            group_column="comprehensive_dominance",
-            group_values=agent_types,
-            analysis_func=analyze_group_correlations,
-            min_group_size=5,
-        )
-
-        # Log top correlations for each agent type
-        for agent_type, type_correlations in type_results.items():
-            if type_correlations:
-                logger.info(
-                    "top_reproduction_factors_affecting_switching",
-                    agent_type=agent_type,
-                )
-                sorted_corrs = sorted(type_correlations.items(), key=lambda x: abs(x[1]), reverse=True)
-                for col, corr in sorted_corrs[:3]:  # Top 3
-                    if abs(corr) > 0.2:  # Only report stronger correlations
-                        direction = "more" if corr > 0 else "fewer"
-                        logger.info(
-                            "reproduction_factor_correlation",
-                            column=col,
-                            correlation=corr,
-                            direction=direction,
-                        )
-
-    return df
 
 
 class DominanceAnalysis(BaseAnalysisModule):
