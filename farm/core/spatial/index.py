@@ -192,8 +192,12 @@ class SpatialIndex:
                     "spatial_index_invalid_references",
                     message="Received agent IDs instead of agent objects",
                 )
-        except (TypeError, AttributeError):
-            pass
+        except (TypeError, AttributeError) as e:
+            logger.debug(
+                "spatial_index_validation_skipped",
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
 
         # Defaults
         self.register_index(
@@ -269,7 +273,13 @@ class SpatialIndex:
         # Validate and clamp priority
         try:
             p = int(priority)
-        except Exception:
+        except Exception as e:
+            logger.debug(
+                "spatial_priority_invalid",
+                priority=priority,
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             p = PRIORITY_NORMAL
         priority = max(PRIORITY_LOW, min(p, PRIORITY_CRITICAL))
 
