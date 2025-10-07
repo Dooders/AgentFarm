@@ -12,9 +12,10 @@ Services provide a clean abstraction layer between application logic and underly
    - Services coordinate between different components but don't implement core logic
    - Each service focuses on a specific domain area (e.g., actions, population)
 
-2. **Dependency Injection**
-   - Services receive their dependencies through constructor injection
-   - Makes services more testable and loosely coupled
+2. **Protocol-Based Dependency Injection**
+   - Services receive their dependencies through constructor injection using protocol interfaces
+   - Dependencies conform to `RepositoryProtocol[T]` and `DatabaseProtocol` interfaces
+   - Makes services more testable and loosely coupled through abstraction contracts
 
 3. **High-Level Interface**
    - Services provide simple, intuitive interfaces for complex operations
@@ -50,8 +51,11 @@ Services provide a clean abstraction layer between application logic and underly
 **Key Methods**:
 
 ```python
+from farm.core.interfaces import RepositoryProtocol
+from farm.database.models import ActionModel
+
 class ActionsService:
-    def __init__(self, action_repository: ActionRepository)
+    def __init__(self, action_repository: RepositoryProtocol[ActionModel])
     
     def analyze_actions(
         self,
@@ -72,10 +76,11 @@ class ActionsService:
 **Usage Example**:
 ```python
 from farm.database.services.actions_service import ActionsService
-from farm.database.repositories.action_repository import ActionRepository
+from farm.core.interfaces import RepositoryProtocol
+from farm.database.models import ActionModel
 
-# Initialize repository and service
-action_repo = ActionRepository(session_manager)
+# Initialize repository and service with protocol interface
+action_repo: RepositoryProtocol[ActionModel] = ActionRepository(session_manager)
 actions_service = ActionsService(action_repo)
 
 # Perform comprehensive analysis
@@ -160,10 +165,11 @@ class PopulationService:
 **Usage Example**:
 ```python
 from farm.database.services.population_service import PopulationService
-from farm.database.repositories.population_repository import PopulationRepository
+from farm.core.interfaces import RepositoryProtocol
+from farm.database.models import SimulationStepModel
 
-# Initialize repository and service
-pop_repo = PopulationRepository(session_manager)
+# Initialize repository and service with protocol interface
+pop_repo: RepositoryProtocol[SimulationStepModel] = PopulationRepository(session_manager)
 pop_service = PopulationService(pop_repo)
 
 # Get comprehensive population statistics
@@ -357,10 +363,11 @@ except Exception as e:
 
 ```python
 from farm.database.services.actions_service import ActionsService
-from farm.database.repositories.action_repository import ActionRepository
+from farm.core.interfaces import RepositoryProtocol
+from farm.database.models import ActionModel
 
-# Setup
-action_repo = ActionRepository(session_manager)
+# Setup with protocol interface
+action_repo: RepositoryProtocol[ActionModel] = ActionRepository(session_manager)
 actions_service = ActionsService(action_repo)
 
 # Perform comprehensive analysis
@@ -386,10 +393,11 @@ for impact in results['resource_impacts']:
 
 ```python
 from farm.database.services.population_service import PopulationService
-from farm.database.repositories.population_repository import PopulationRepository
+from farm.core.interfaces import RepositoryProtocol
+from farm.database.models import SimulationStepModel
 
-# Setup
-pop_repo = PopulationRepository(session_manager)
+# Setup with protocol interface
+pop_repo: RepositoryProtocol[SimulationStepModel] = PopulationRepository(session_manager)
 pop_service = PopulationService(pop_repo)
 
 # Get population statistics

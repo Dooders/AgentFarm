@@ -8,13 +8,40 @@ Repositories follow the Repository pattern to provide a clean abstraction over t
 
 ### Common Interface
 
-All repositories inherit from `BaseRepository` and provide consistent patterns:
+All repositories implement `RepositoryProtocol[T]` and inherit from `BaseRepository[T]` for consistent patterns:
 
 ```python
-class BaseRepository[T]:
+from farm.core.interfaces import RepositoryProtocol
+
+class BaseRepository[T](RepositoryProtocol[T]):
+    """Base repository class implementing the RepositoryProtocol."""
+
     def __init__(self, session_manager: SessionManager)
     def _execute_in_transaction(self, query_func)
+
+    # RepositoryProtocol implementation
+    def add(self, entity: T) -> None:
+        """Add a new entity to the repository."""
+        ...
+
+    def get_by_id(self, entity_id: Any) -> Optional[T]:
+        """Retrieve an entity by its ID."""
+        ...
+
+    def update(self, entity: T) -> None:
+        """Update an existing entity."""
+        ...
+
+    def delete(self, entity: T) -> None:
+        """Delete an entity from the repository."""
+        ...
 ```
+
+This protocol-based approach enables:
+- Loose coupling between data access and business logic
+- Easier testing with mock repository implementations
+- Consistent CRUD interface across all repositories
+- Type safety through generic protocols
 
 ### Session Management
 
