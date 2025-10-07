@@ -4,7 +4,7 @@ This module defines protocols and abstract base classes that allow different
 components to communicate without tight coupling.
 """
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Protocol, Tuple, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Protocol, Tuple, TypeVar, runtime_checkable
 
 if TYPE_CHECKING:
     # Import model classes for repository protocols during type checking only
@@ -89,6 +89,7 @@ class EnvironmentProtocol(Protocol):
         ...
 
 
+@runtime_checkable
 class DatabaseProtocol(Protocol):
     """Enhanced protocol for database operations.
 
@@ -222,6 +223,7 @@ class ChartAnalyzerProtocol(Protocol):
 T = TypeVar("T")
 
 
+@runtime_checkable
 class DataLoggerProtocol(Protocol):
     """Protocol for data logging operations.
 
@@ -359,6 +361,7 @@ class DataLoggerProtocol(Protocol):
         ...
 
 
+@runtime_checkable
 class RepositoryProtocol(Protocol[T]):
     """Generic repository protocol for data access operations.
 
