@@ -455,7 +455,9 @@ class DominanceComputer:
 
         # Without analyzer dependency, raise exception
         if self.analyzer is None:
-            raise RuntimeError("No analyzer injected - cannot aggregate reproduction analysis. Please provide a DominanceAnalyzerProtocol instance.")
+            raise RuntimeError(
+                "No analyzer injected - cannot aggregate reproduction analysis. Please provide a DominanceAnalyzerProtocol instance."
+            )
 
         # Create a working copy of the DataFrame to avoid modifying the original
         working_df = df.copy()
@@ -481,6 +483,15 @@ class DominanceComputer:
             # Extract aggregated statistics from the analyzed DataFrame
             results = self._extract_aggregated_results(working_df, numeric_repro_cols)
 
+        except AttributeError as e:
+            if "'NoneType' object has no attribute" in str(e):
+                logger.error("Analyzer dependency not properly injected - analyzer methods called on None")
+                raise RuntimeError(
+                    "No analyzer injected - cannot aggregate reproduction analysis. Please provide a DominanceAnalyzerProtocol instance."
+                ) from e
+            else:
+                logger.error(f"AttributeError during reproduction analysis aggregation: {e}")
+                raise
         except Exception as e:
             logger.error(f"Error during reproduction analysis aggregation: {e}")
             return {}
