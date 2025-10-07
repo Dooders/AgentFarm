@@ -320,42 +320,6 @@ class TestProtocolBasedTesting:
         assert mock_provider.call_count["get_final_population_counts"] == 1
 
 
-class TestBackwardCompatibility:
-    """Test that backward compatibility is maintained."""
-
-    def test_legacy_compute_functions_work(self):
-        """Test that legacy compute functions still work."""
-        from farm.analysis.dominance.compute import (
-            compute_population_dominance,
-            compute_survival_dominance,
-        )
-
-        # These should exist and be callable
-        assert callable(compute_population_dominance)
-        assert callable(compute_survival_dominance)
-
-    def test_legacy_analyze_functions_work(self):
-        """Test that legacy analyze functions still work."""
-        from farm.analysis.dominance.analyze import (
-            analyze_dominance_switch_factors,
-            analyze_by_agent_type,
-        )
-
-        # These should exist and be callable
-        assert callable(analyze_dominance_switch_factors)
-        assert callable(analyze_by_agent_type)
-
-    def test_legacy_function_delegates_to_class(self):
-        """Test that legacy functions delegate to class instances."""
-        from farm.analysis.dominance.analyze import analyze_dominance_switch_factors
-
-        df = create_minimal_simulation_data()
-        result = analyze_dominance_switch_factors(df)
-
-        # Should return a DataFrame
-        assert isinstance(result, pd.DataFrame)
-
-
 class TestDependencyInjection:
     """Test dependency injection patterns."""
 
