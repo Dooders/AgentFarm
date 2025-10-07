@@ -1,8 +1,10 @@
-# New Agent System Guide
+# New Agent System - Complete Guide
 
 ## Overview
 
-The agent module has been refactored into a modern, component-based architecture following SOLID principles. This guide shows you how to use the new system.
+The agent module is a modern, component-based architecture following SOLID principles. This guide shows you everything you can do with the new system.
+
+**Note**: This system replaces the old `BaseAgent`. Use `AgentCore` and components directly.
 
 ---
 
@@ -442,29 +444,22 @@ agent = AgentCore(
 
 ---
 
-## Migrating Existing Code
+## Replacing Old BaseAgent Code
 
-### Option 1: Adapter (Quick)
+If you have code using the old `BaseAgent`, replace it with the new system:
 
 ```python
-# Change this:
+# Old way (don't use)
 from farm.core.agent import BaseAgent
+agent = BaseAgent(agent_id="001", position=(0,0), resource_level=100, ...)
 
-# To this:
-from farm.core.agent.compat import BaseAgentAdapter
-
-# Change this:
-agent = BaseAgent(...)
-
-# To this:
-agent = BaseAgentAdapter.from_old_style(...)
-
-# Everything else works the same!
+# New way (use this)
+from farm.core.agent import AgentFactory
+factory = AgentFactory(spatial_service=spatial_service)
+agent = factory.create_default_agent(agent_id="001", position=(0,0), initial_resources=100)
 ```
 
-### Option 2: Direct Migration (Clean)
-
-See **MIGRATION.md** for complete guide.
+The new system is cleaner, more testable, and follows SOLID principles.
 
 ---
 
@@ -850,8 +845,9 @@ python -m cProfile -o profile.stats your_simulation.py
 
 ## Resources
 
+- **Quick Start**: `docs/QUICK_START.md`
 - **Complete Design**: `docs/design/agent_refactoring_design.md`
-- **Migration Guide**: `MIGRATION.md`
+- **Recommended Usage**: `docs/design/RECOMMENDED_USAGE.md`
 - **Phase Summaries**: `docs/design/agent_refactoring_phase*_summary.md`
 - **Examples**: `examples/new_agent_system_demo.py`
 - **Tests**: `tests/agent/`
@@ -864,10 +860,10 @@ The new agent system provides:
 
 ✅ **Modular architecture** - Easy to understand and extend
 ✅ **SOLID principles** - Clean, maintainable code
-✅ **Comprehensive testing** - 236 tests ensuring correctness
+✅ **Comprehensive testing** - 195 tests ensuring correctness
 ✅ **Type safety** - Catch errors early
 ✅ **Performance** - No regression, some improvements
-✅ **Backward compatible** - Adapter for migration
+✅ **Component-based** - Compose capabilities as needed
 ✅ **Well-documented** - Guides and examples
 
 **Ready for production!** 🚀
