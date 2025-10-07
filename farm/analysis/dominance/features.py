@@ -9,13 +9,11 @@ If no orchestrator is provided, a new instance is created using the factory func
 This avoids global state while maintaining backward compatibility.
 """
 
-import pandas as pd
 from typing import Optional
 
-from farm.analysis.dominance.orchestrator import (
-    create_dominance_orchestrator,
-    DominanceAnalysisOrchestrator
-)
+import pandas as pd
+
+from farm.analysis.dominance.orchestrator import DominanceAnalysisOrchestrator, create_dominance_orchestrator
 from farm.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -24,9 +22,9 @@ logger = get_logger(__name__)
 # All analysis functions now use the orchestrator
 # These are thin wrappers that delegate to the orchestrator for consistency
 
+
 def analyze_dominance_switch_factors(
-    df: pd.DataFrame,
-    orchestrator: Optional[DominanceAnalysisOrchestrator] = None
+    df: pd.DataFrame, orchestrator: Optional[DominanceAnalysisOrchestrator] = None
 ) -> pd.DataFrame:
     """
     Analyze dominance switch factors using orchestrator.
@@ -49,8 +47,7 @@ def analyze_dominance_switch_factors(
 
 
 def analyze_reproduction_dominance_switching(
-    df: pd.DataFrame,
-    orchestrator: Optional[DominanceAnalysisOrchestrator] = None
+    df: pd.DataFrame, orchestrator: Optional[DominanceAnalysisOrchestrator] = None
 ) -> pd.DataFrame:
     """
     Analyze reproduction dominance switching using orchestrator.
@@ -73,10 +70,8 @@ def analyze_reproduction_dominance_switching(
 
 
 def analyze_high_vs_low_switching(
-    df: pd.DataFrame,
-    numeric_repro_cols,
-    orchestrator: Optional[DominanceAnalysisOrchestrator] = None
-):
+    df: pd.DataFrame, numeric_repro_cols, orchestrator: Optional[DominanceAnalysisOrchestrator] = None
+) -> pd.DataFrame:
     """
     Analyze high vs low switching using orchestrator.
 
@@ -100,10 +95,8 @@ def analyze_high_vs_low_switching(
 
 
 def analyze_reproduction_timing(
-    df: pd.DataFrame,
-    numeric_repro_cols,
-    orchestrator: Optional[DominanceAnalysisOrchestrator] = None
-):
+    df: pd.DataFrame, numeric_repro_cols, orchestrator: Optional[DominanceAnalysisOrchestrator] = None
+) -> pd.DataFrame:
     """
     Analyze reproduction timing using orchestrator.
 
@@ -127,10 +120,8 @@ def analyze_reproduction_timing(
 
 
 def analyze_reproduction_efficiency(
-    df: pd.DataFrame,
-    numeric_repro_cols,
-    orchestrator: Optional[DominanceAnalysisOrchestrator] = None
-):
+    df: pd.DataFrame, numeric_repro_cols, orchestrator: Optional[DominanceAnalysisOrchestrator] = None
+) -> pd.DataFrame:
     """
     Analyze reproduction efficiency using orchestrator.
 
@@ -154,10 +145,8 @@ def analyze_reproduction_efficiency(
 
 
 def analyze_reproduction_advantage(
-    df: pd.DataFrame,
-    numeric_repro_cols,
-    orchestrator: Optional[DominanceAnalysisOrchestrator] = None
-):
+    df: pd.DataFrame, numeric_repro_cols, orchestrator: Optional[DominanceAnalysisOrchestrator] = None
+) -> pd.DataFrame:
     """
     Analyze reproduction advantage using orchestrator.
 
@@ -181,10 +170,8 @@ def analyze_reproduction_advantage(
 
 
 def analyze_by_agent_type(
-    df: pd.DataFrame,
-    numeric_repro_cols,
-    orchestrator: Optional[DominanceAnalysisOrchestrator] = None
-):
+    df: pd.DataFrame, numeric_repro_cols, orchestrator: Optional[DominanceAnalysisOrchestrator] = None
+) -> pd.DataFrame:
     """
     Analyze by agent type using orchestrator.
 
