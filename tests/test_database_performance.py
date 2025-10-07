@@ -7,19 +7,21 @@ import unittest
 from datetime import datetime, timezone
 from typing import Dict, List, Tuple
 
+from farm.core.interfaces import DatabaseProtocol, DataLoggerProtocol
 from farm.database.database import SimulationDatabase
 from farm.database.models import AgentStateModel
 
 
 class TestDatabasePerformance(unittest.TestCase):
-    """Performance test suite for SimulationDatabase."""
+    """Performance test suite for SimulationDatabase (implements DatabaseProtocol)."""
 
     def setUp(self):
         """Set up test database and test data."""
         self.test_db_path = (
             f"test_performance_{time.time()}.db"  # Unique DB file for each test
         )
-        self.db = SimulationDatabase(self.test_db_path, simulation_id="test_simulation")
+        # Create concrete implementation that satisfies DatabaseProtocol
+        self.db: DatabaseProtocol = SimulationDatabase(self.test_db_path, simulation_id="test_simulation")
 
         # Add simulation record to satisfy foreign key constraints
         self.db.add_simulation_record(
@@ -29,7 +31,8 @@ class TestDatabasePerformance(unittest.TestCase):
             parameters={"test": True}
         )
 
-        self.logger = self.db.logger  # Use the database's logger instead of creating a new one
+        # Get logger through protocol interface (returns DataLoggerProtocol)
+        self.logger: DataLoggerProtocol = self.db.logger
         self.num_agents = 1000
         self.num_steps = 100
         self.used_agent_ids = set()  # Track used agent IDs

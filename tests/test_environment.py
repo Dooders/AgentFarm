@@ -22,9 +22,7 @@ class TestEnvironment(unittest.TestCase):
         # Create a minimal SimulationConfig for testing
         self.config = SimulationConfig(
             environment=EnvironmentConfig(width=100, height=100),
-            population=PopulationConfig(
-                system_agents=1, independent_agents=1, control_agents=1
-            ),
+            population=PopulationConfig(system_agents=1, independent_agents=1, control_agents=1),
             max_steps=100,
             seed=42,
         )
@@ -35,9 +33,7 @@ class TestEnvironment(unittest.TestCase):
         # Keep track of mock objects for later use in tests but don't attach them to config
         # to avoid JSON serialization issues
         self.mock_action_space = Mock()
-        self.mock_action_space.n = len(
-            ActionType
-        )  # Number of actions from ActionType enum
+        self.mock_action_space.n = len(ActionType)  # Number of actions from ActionType enum
 
         self.mock_observation_space = Mock()
         self.mock_observation_space.shape = (10, 21, 21)  # Typical observation shape
@@ -102,9 +98,7 @@ class TestEnvironment(unittest.TestCase):
             self.env.observation_config.R * 2 + 1,  # Height: 2*R + 1
         )
         # Note: Full shape includes NUM_CHANNELS as first dimension
-        self.assertEqual(
-            obs_space.shape[1:], expected_shape
-        )  # Check spatial dimensions
+        self.assertEqual(obs_space.shape[1:], expected_shape)  # Check spatial dimensions
         self.assertEqual(obs_space.dtype, np.float32)
 
         act_space = self.env.action_space(agent)
@@ -115,9 +109,7 @@ class TestEnvironment(unittest.TestCase):
     def test_reset_step_cycle(self):
         obs, info = self.env.reset()
         self.assertIsInstance(obs, np.ndarray)
-        self.assertEqual(
-            obs.shape, self.env.observation_space(self.env.agent_selection).shape
-        )
+        self.assertEqual(obs.shape, self.env.observation_space(self.env.agent_selection).shape)
 
         done = False
         steps = 0
@@ -156,9 +148,7 @@ class TestEnvironment(unittest.TestCase):
     def test_resource_initialization(self):
         """Test that resources are properly initialized"""
         # Resource count should match the amount specified in resource_distribution
-        expected_count = self.resource_distribution.get(
-            "amount", 20
-        )  # Default from ResourceManager
+        expected_count = self.resource_distribution.get("amount", 20)  # Default from ResourceManager
         self.assertEqual(len(self.env.resources), expected_count)
 
         for resource in self.env.resources:
@@ -194,9 +184,7 @@ class TestEnvironment(unittest.TestCase):
             self.skipTest("No agents in environment")
 
         agent_id = self.env.agents[0]
-        agent = next(
-            (a for a in self.env.agent_objects if a.agent_id == agent_id), None
-        )
+        agent = next((a for a in self.env.agent_objects if a.agent_id == agent_id), None)
         self.assertIsNotNone(agent)
         assert agent is not None  # Type assertion for type checker
 
@@ -241,9 +229,7 @@ class TestEnvironment(unittest.TestCase):
             self.skipTest("No agents in environment")
 
         agent_id = self.env.agents[0]
-        agent = next(
-            (a for a in self.env.agent_objects if a.agent_id == agent_id), None
-        )
+        agent = next((a for a in self.env.agent_objects if a.agent_id == agent_id), None)
         self.assertIsNotNone(agent)
         assert agent is not None  # Type assertion for type checker
 
@@ -282,9 +268,7 @@ class TestEnvironment(unittest.TestCase):
         obs = self.env._get_observation("non_existent_agent")
         self.assertIsInstance(obs, np.ndarray)
         # For non-existent agent, we get the default observation space shape
-        obs_space = self.env.observation_space(
-            self.env.agents[0] if self.env.agents else None
-        )
+        obs_space = self.env.observation_space(self.env.agents[0] if self.env.agents else None)
         self.assertEqual(obs.shape, obs_space.shape)
 
     def test_termination_conditions(self):
@@ -373,7 +357,7 @@ class TestEnvironment(unittest.TestCase):
             position = agent.position
 
             # Test range queries (Quadtree optimized)
-            bounds = (position[0]-5, position[1]-5, 10, 10)
+            bounds = (position[0] - 5, position[1] - 5, 10, 10)
             nearby_in_range = self.env.spatial_index.get_nearby_range(bounds, ["agents_quadtree"])
             self.assertIsInstance(nearby_in_range, dict)
 
@@ -400,9 +384,7 @@ class TestEnvironment(unittest.TestCase):
         # Create a simplified config for this test
         simple_config = SimulationConfig(
             environment=EnvironmentConfig(width=50, height=50),
-            population=PopulationConfig(
-                system_agents=0, independent_agents=0, control_agents=0
-            ),
+            population=PopulationConfig(system_agents=0, independent_agents=0, control_agents=0),
             resources=ResourceConfig(
                 max_resource_amount=10,
                 resource_regen_rate=0.1,
@@ -460,9 +442,7 @@ class TestEnvironment(unittest.TestCase):
         else:
             action = 0  # Any action since there are no agents
         obs, reward, terminated, truncated, info = self.env.step(action)
-        self.assertTrue(
-            terminated or truncated
-        )  # Should terminate when no agents remain
+        self.assertTrue(terminated or truncated)  # Should terminate when no agents remain
 
     def test_cleanup(self):
         """Test environment cleanup"""
@@ -492,7 +472,7 @@ class TestEnvironment(unittest.TestCase):
             config=self.config,
             db_path=":memory:",
         )
-        # setup_db returns a tuple for in-memory databases, but Environment handles this
+        # setup_db returns the database instance directly
         # Simulate missing database by setting db to None
         original_db = env_no_db.db
         env_no_db.db = None
@@ -513,14 +493,10 @@ class TestEnvironment(unittest.TestCase):
 
         # Test recording various events
         self.env.record_birth()
-        self.assertEqual(
-            self.env.metrics_tracker.step_metrics.births, initial_births + 1
-        )
+        self.assertEqual(self.env.metrics_tracker.step_metrics.births, initial_births + 1)
 
         self.env.record_death()
-        self.assertEqual(
-            self.env.metrics_tracker.step_metrics.deaths, initial_deaths + 1
-        )
+        self.assertEqual(self.env.metrics_tracker.step_metrics.deaths, initial_deaths + 1)
 
         self.env.record_combat_encounter()
         self.env.record_successful_attack()
@@ -632,9 +608,7 @@ class TestEnvironment(unittest.TestCase):
             agent.alive = False
             obs = self.env._get_observation(agent.agent_id)
             self.assertIsInstance(obs, np.ndarray)
-            self.assertEqual(
-                obs.shape, self.env.observation_space(agent.agent_id).shape
-            )
+            self.assertEqual(obs.shape, self.env.observation_space(agent.agent_id).shape)
 
         # Test reward calculation for non-existent agent
         reward = self.env._calculate_reward("non_existent")
@@ -749,9 +723,7 @@ class TestEnvironment(unittest.TestCase):
 
         # Test ID generation - resource manager handles ID generation internally
         # The test verifies that the resource manager maintains proper ID sequence
-        self.assertEqual(
-            initial_id, 10
-        )  # Based on resource_distribution["amount"] = 10
+        self.assertEqual(initial_id, 10)  # Based on resource_distribution["amount"] = 10
 
         # Create a new resource to test ID increment
         new_resource = self.env.resource_manager.add_resource((5, 5), 5.0)
@@ -772,9 +744,7 @@ class TestEnvironment(unittest.TestCase):
         # Test with minimal environment
         minimal_config = SimulationConfig(
             environment=EnvironmentConfig(width=1, height=1),
-            population=PopulationConfig(
-                system_agents=0, independent_agents=0, control_agents=0
-            ),
+            population=PopulationConfig(system_agents=0, independent_agents=0, control_agents=0),
             resources=ResourceConfig(initial_resources=0),
             max_steps=1,
             seed=123,

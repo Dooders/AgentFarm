@@ -68,10 +68,16 @@ def tmp_db_path(tmp_path):
 
 @pytest.fixture()
 def db(tmp_db_path):
-    """Provide a SimulationDatabase with a seeded simulation record."""
+    """Provide a database instance implementing DatabaseProtocol.
+    
+    Returns a SimulationDatabase with a seeded simulation record.
+    The returned instance satisfies DatabaseProtocol for type-safe testing.
+    """
+    from farm.core.interfaces import DatabaseProtocol
     from farm.database.database import SimulationDatabase
 
-    database = SimulationDatabase(str(tmp_db_path), simulation_id="test_sim")
+    # Create concrete implementation that satisfies DatabaseProtocol
+    database: DatabaseProtocol = SimulationDatabase(str(tmp_db_path), simulation_id="test_sim")
     # Ensure a simulation record exists for FK constraints
     database.add_simulation_record(
         simulation_id="test_sim",

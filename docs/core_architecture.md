@@ -56,7 +56,50 @@ environment.fire_event("resource_consumed", agent, resource_position, amount)
 environment.fire_event("combat_occurred", attacker, defender, damage)
 ```
 
-### 3. Factory Pattern for Agent Creation
+### 3. Protocol-Based Dependency Inversion
+
+The system uses Python protocols for dependency inversion, enabling loose coupling and improved testability:
+
+```python
+# Protocol definitions in farm.core.interfaces
+class DatabaseProtocol(Protocol):
+    """Protocol for database operations."""
+    logger: DataLoggerProtocol
+
+    def log_step(self, step_number: int, agent_states: Any, resource_states: Any, metrics: Dict[str, Any]) -> None:
+        """Log a simulation step to the database."""
+        ...
+
+    def get_agent_repository(self) -> RepositoryProtocol[AgentModel]:
+        """Get the agent repository for data access operations."""
+        ...
+
+class RepositoryProtocol(Protocol[T]):
+    """Generic repository protocol for data access operations."""
+    def add(self, entity: T) -> None:
+        """Add a new entity to the repository."""
+        ...
+
+    def get_by_id(self, entity_id: Any) -> Optional[T]:
+        """Retrieve an entity by its ID."""
+        ...
+
+    def update(self, entity: T) -> None:
+        """Update an existing entity."""
+        ...
+
+    def delete(self, entity: T) -> None:
+        """Delete an entity from the repository."""
+        ...
+```
+
+This approach allows components to depend on abstractions rather than concrete implementations, enabling:
+- Easier testing with mock implementations
+- Runtime database backend swapping
+- Reduced coupling between components
+- Better adherence to SOLID principles
+
+### 4. Factory Pattern for Agent Creation
 
 Agents are created through a factory system allowing runtime configuration:
 

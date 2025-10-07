@@ -18,11 +18,12 @@ import json
 import logging
 import os
 import time
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from farm.core.interfaces import DatabaseProtocol
 from farm.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -184,9 +185,7 @@ def format_agent_state(
     return formatted
 
 
-def execute_with_retry(
-    session: Session, operation: Callable, max_retries: int = 3
-) -> Any:
+def execute_with_retry(session: Session, operation: Callable, max_retries: int = 3) -> Any:
     """Execute database operation with retry logic.
 
     Parameters
@@ -292,12 +291,19 @@ def create_prepared_statements(session):
     return statements
 
 
-def setup_db(db_path: Optional[str], simulation_id: str, parameters: Optional[Dict] = None) -> Optional[Any]:
+def setup_db(
+    db_path: Optional[str], simulation_id: str, parameters: Optional[Dict] = None
+) -> Optional[DatabaseProtocol]:
     """Setup database for simulation.
 
     Handles database file cleanup, creation, and initialization of the appropriate
     database instance. If the database file exists, it will be removed to ensure
     a fresh start. If removal fails, a unique filename will be generated.
+
+    This function returns instances that implement DatabaseProtocol, enabling
+    dependency inversion and breaking circular dependencies. All database
+    implementations (SimulationDatabase, InMemorySimulationDatabase) implement
+    the DatabaseProtocol interface.
 
     Parameters
     ----------
@@ -306,11 +312,14 @@ def setup_db(db_path: Optional[str], simulation_id: str, parameters: Optional[Di
         If ":memory:", an in-memory database is created.
     simulation_id : str
         The simulation ID to use for database initialization
+    parameters : Optional[Dict]
+        Configuration parameters for the simulation
 
     Returns
     -------
-    Optional[Any]
-        The database instance if setup is successful, otherwise None
+    Optional[DatabaseProtocol]
+        Database instance implementing DatabaseProtocol if setup is successful,
+        otherwise None. Type hint ensures consumers use protocol interface.
     """
     # Skip setup if no database requested
     if db_path is None:
@@ -320,6 +329,7 @@ def setup_db(db_path: Optional[str], simulation_id: str, parameters: Optional[Di
     if db_path == ":memory:":
         from datetime import datetime
 
+        # Import inside function to avoid circular dependency at module level
         from farm.database.database import InMemorySimulationDatabase
 
         db = InMemorySimulationDatabase(simulation_id=simulation_id)
@@ -332,7 +342,7 @@ def setup_db(db_path: Optional[str], simulation_id: str, parameters: Optional[Di
             parameters=parameters or {},
         )
 
-        return db, ":memory:"
+        return db
 
     # Handle file-based database
     final_db_path = db_path
@@ -357,12 +367,14 @@ def setup_db(db_path: Optional[str], simulation_id: str, parameters: Optional[Di
             final_db_path = f"{base}_{int(time.time())}{ext}"
 
     # Create the database instance
+    # Import inside function to avoid circular dependency at module level
     from farm.database.database import SimulationDatabase
 
     db = SimulationDatabase(final_db_path, simulation_id=simulation_id)
 
     # Add simulation record to the file-based database
     from datetime import datetime
+
     db.add_simulation_record(
         simulation_id=simulation_id,
         start_time=datetime.now(),

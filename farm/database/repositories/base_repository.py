@@ -3,13 +3,18 @@ from typing import Any, Callable, Generic, List, Optional, Type, TypeVar
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from farm.core.interfaces import RepositoryProtocol
 from farm.database.session_manager import SessionManager
 
 T = TypeVar("T")
 
 
 class BaseRepository(Generic[T]):
-    """Base repository class with common CRUD operations and session management."""
+    """Base repository class with common CRUD operations and session management.
+    
+    This class implements the RepositoryProtocol[T] interface, providing standard
+    CRUD operations with transaction safety and error handling.
+    """
 
     def __init__(self, session_manager: SessionManager, model: Type[T]):
         """Initialize the repository with a session manager and model type.
