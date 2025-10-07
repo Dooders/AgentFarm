@@ -115,13 +115,20 @@ class ConfigCache:
             self.access_times[cache_key] = time.time()
             self.hits += 1
 
-            # Return cached config dict
+            # Return cached config as SimulationConfig
             config_data = cached_entry["config"]
             if isinstance(config_data, dict):
-                return config_data
+                # Convert dict back to SimulationConfig
+                try:
+                    return SimulationConfig.from_dict(config_data)
+                except Exception:
+                    # Invalid cached data, remove it
+                    self._remove_entry(cache_key)
+                    self.misses += 1
+                    return None
             elif hasattr(config_data, "to_dict"):
-                # Convert SimulationConfig back to dict for consistency
-                return config_data.to_dict()
+                # Already a SimulationConfig object
+                return config_data
             else:
                 # Invalid cached data, remove it
                 self._remove_entry(cache_key)
@@ -302,12 +309,10 @@ class OptimizedConfigLoader:
         filepaths = self._get_config_filepaths(environment, profile, config_dir)
 
         # Try to get from cache
-        cached_dict = self.cache.get(cache_key, filepaths)
-        if cached_dict is not None:
-            # Convert dict to SimulationConfig (avoid circular import by importing locally)
-            from .config import SimulationConfig
-
-            return SimulationConfig.from_dict(cached_dict)
+        cached_config = self.cache.get(cache_key, filepaths)
+        if cached_config is not None:
+            # Cache now returns SimulationConfig objects directly
+            return cached_config
 
         # Load from files
         config = self._load_from_files(environment, profile, config_dir)

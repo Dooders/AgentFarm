@@ -297,12 +297,11 @@ class TestOptimizedConfigLoaderIsolation(unittest.TestCase):
         """Test loader workflow when cache hits."""
         from farm.config.config import SimulationConfig
 
-        # Create a valid config dict
+        # Create a valid config
         valid_config = SimulationConfig()
-        cached_dict = valid_config.to_dict()
 
-        # Mock cache hit
-        self.mock_cache.get.return_value = cached_dict
+        # Mock cache hit - cache now returns SimulationConfig objects directly
+        self.mock_cache.get.return_value = valid_config
 
         # Load config
         result = self.loader.load_centralized_config(environment="test", config_dir=self.config_dir, use_cache=True)
