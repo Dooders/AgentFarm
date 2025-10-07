@@ -63,7 +63,7 @@ from farm.core.services.implementations import (
 )
 from farm.core.spatial import SpatialIndex
 from farm.core.state import EnvironmentState
-from farm.core.interfaces import DatabaseFactoryProtocol
+from farm.core.interfaces import DatabaseFactoryProtocol, DatabaseProtocol
 from farm.utils.identity import Identity, IdentityConfig
 from farm.utils.logging_config import get_logger
 
@@ -147,7 +147,7 @@ class Environment(AECEnv):
         spatial_index (SpatialIndex): Efficient spatial query system
         resource_manager (ResourceManager): Handles resource lifecycle
         metrics_tracker (MetricsTracker): Tracks simulation statistics
-        db (Database): Optional database for logging simulation data
+        db (DatabaseProtocol): Optional database implementing DatabaseProtocol
 
     Inherits from:
         AECEnv: PettingZoo's Agent-Environment-Cycle environment base class
@@ -237,16 +237,12 @@ class Environment(AECEnv):
 
         # Setup database and get initialized database instance
         if db_factory is not None:
-            db_result = db_factory.setup_db(db_path, self.simulation_id, config.to_dict() if config else None)
+            self.db = db_factory.setup_db(db_path, self.simulation_id, config.to_dict() if config else None)
         else:
             # Import setup_db only when needed to avoid circular imports
             from farm.database.utilities import setup_db
 
-            db_result = setup_db(db_path, self.simulation_id, config.to_dict() if config else None)
-        if isinstance(db_result, tuple):
-            self.db = db_result[0]  # Extract database object from tuple
-        else:
-            self.db = db_result
+            self.db = setup_db(db_path, self.simulation_id, config.to_dict() if config else None)
 
         # Use self.identity for all ID needs
         self.max_resource = max_resource

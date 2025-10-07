@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from sqlalchemy import create_engine
 
-from farm.database.database import SimulationDatabase
+from farm.core.interfaces import DatabaseProtocol
 
 from .chart_actions import (
     plot_action_frequency_over_time,
@@ -50,7 +50,7 @@ from farm.core.services import EnvConfigService
 class ChartAnalyzer:
     def __init__(
         self,
-        database: "SimulationDatabase",
+        database: DatabaseProtocol,
         output_dir: Optional[Path] = None,
         save_charts: bool = True,
     ):
@@ -58,7 +58,7 @@ class ChartAnalyzer:
         Initialize the chart analyzer.
 
         Args:
-            database: SimulationDatabase instance for data access
+            database: Database instance implementing DatabaseProtocol for data access
             output_dir: Optional directory to save charts and analyses
             save_charts: Whether to save charts to files or keep in memory
         """
@@ -69,7 +69,7 @@ class ChartAnalyzer:
         cfg = EnvConfigService()
         self.llm_client = LLMClient(api_key=None, config_service=cfg)
 
-    def analyze_all_charts(self, output_path: Optional[Path] = None, database: Optional["SimulationDatabase"] = None) -> Dict[str, str]:
+    def analyze_all_charts(self, output_path: Optional[Path] = None, database: Optional[DatabaseProtocol] = None) -> Dict[str, str]:
         """Generate and analyze all charts, returning a dictionary of analyses."""
         analyses = {}
 
