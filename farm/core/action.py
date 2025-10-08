@@ -24,7 +24,7 @@ from enum import IntEnum
 from typing import TYPE_CHECKING, Callable, List
 
 if TYPE_CHECKING:
-    from farm.core.agent import AgentCore as BaseAgent  # Type alias for compatibility
+    from farm.core.agent.core import AgentCore
 
 from farm.utils.logging import get_logger
 
@@ -34,7 +34,7 @@ logger = get_logger(__name__)
 # Helper Functions for Common Action Patterns
 
 
-def validate_agent_config(agent: "BaseAgent", action_name: str) -> bool:
+def validate_agent_config(agent: "AgentCore", action_name: str) -> bool:
     """Validate that agent has a configuration. Logs error and returns False if missing.
 
     Args:
@@ -65,7 +65,7 @@ def calculate_euclidean_distance(pos1: tuple, pos2: tuple) -> float:
     return math.sqrt(dx * dx + dy * dy)
 
 
-def find_closest_entity(agent: "BaseAgent", entities: list, entity_type: str = "target") -> tuple:
+def find_closest_entity(agent: "AgentCore", entities: list, entity_type: str = "target") -> tuple:
     """Find the closest entity to the agent from a list of entities.
 
     Args:
@@ -95,7 +95,7 @@ def find_closest_entity(agent: "BaseAgent", entities: list, entity_type: str = "
     return closest_entity, min_distance
 
 
-def log_interaction_safely(agent: "BaseAgent", **kwargs) -> None:
+def log_interaction_safely(agent: "AgentCore", **kwargs) -> None:
     """Safely log an interaction edge, handling environments without logging infrastructure.
 
     Args:
@@ -114,7 +114,7 @@ def log_interaction_safely(agent: "BaseAgent", **kwargs) -> None:
         )
 
 
-def validate_action_result(agent: "BaseAgent", action_name: str, result: dict) -> dict:
+def validate_action_result(agent: "AgentCore", action_name: str, result: dict) -> dict:
     """Validate the results of an action execution to ensure intended effects occurred.
 
     This function performs post-action validation to verify that the action had the
@@ -171,7 +171,7 @@ def validate_action_result(agent: "BaseAgent", action_name: str, result: dict) -
     return validation_result
 
 
-def _validate_move_action(agent: "BaseAgent", result: dict) -> dict:
+def _validate_move_action(agent: "AgentCore", result: dict) -> dict:
     """Validate move action results."""
     validation = {"valid": True, "issues": [], "warnings": []}
 
@@ -200,7 +200,7 @@ def _validate_move_action(agent: "BaseAgent", result: dict) -> dict:
     return validation
 
 
-def _validate_gather_action(agent: "BaseAgent", result: dict) -> dict:
+def _validate_gather_action(agent: "AgentCore", result: dict) -> dict:
     """Validate gather action results."""
     validation = {"valid": True, "issues": [], "warnings": []}
 
@@ -223,7 +223,7 @@ def _validate_gather_action(agent: "BaseAgent", result: dict) -> dict:
     return validation
 
 
-def _validate_attack_action(agent: "BaseAgent", result: dict) -> dict:
+def _validate_attack_action(agent: "AgentCore", result: dict) -> dict:
     """Validate attack action results."""
     validation = {"valid": True, "issues": [], "warnings": []}
 
@@ -243,7 +243,7 @@ def _validate_attack_action(agent: "BaseAgent", result: dict) -> dict:
     return validation
 
 
-def _validate_share_action(agent: "BaseAgent", result: dict) -> dict:
+def _validate_share_action(agent: "AgentCore", result: dict) -> dict:
     """Validate share action results."""
     validation = {"valid": True, "issues": [], "warnings": []}
 
@@ -266,7 +266,7 @@ def _validate_share_action(agent: "BaseAgent", result: dict) -> dict:
     return validation
 
 
-def _validate_defend_action(agent: "BaseAgent", result: dict) -> dict:
+def _validate_defend_action(agent: "AgentCore", result: dict) -> dict:
     """Validate defend action results."""
     validation = {"valid": True, "issues": [], "warnings": []}
 
@@ -294,7 +294,7 @@ def _validate_defend_action(agent: "BaseAgent", result: dict) -> dict:
     return validation
 
 
-def _validate_reproduce_action(agent: "BaseAgent", result: dict) -> dict:
+def _validate_reproduce_action(agent: "AgentCore", result: dict) -> dict:
     """Validate reproduce action results."""
     validation = {"valid": True, "issues": [], "warnings": []}
 
@@ -317,7 +317,7 @@ def _validate_reproduce_action(agent: "BaseAgent", result: dict) -> dict:
     return validation
 
 
-def _validate_pass_action(agent: "BaseAgent", result: dict) -> dict:
+def _validate_pass_action(agent: "AgentCore", result: dict) -> dict:
     """Validate pass action results."""
     validation = {"valid": True, "issues": [], "warnings": []}
 
@@ -333,7 +333,7 @@ def _validate_pass_action(agent: "BaseAgent", result: dict) -> dict:
 
 
 def check_resource_requirement(
-    agent: "BaseAgent",
+    agent: "AgentCore",
     required_amount: float,
     action_name: str,
     requirement_type: str = "resources",
@@ -499,7 +499,7 @@ class action_registry:
         return actions
 
 
-def attack_action(agent: "BaseAgent") -> dict:
+def attack_action(agent: "AgentCore") -> dict:
     """Execute the attack action for the given agent.
 
     This action implements aggressive behavior where the agent seeks out and attacks
@@ -627,7 +627,7 @@ def attack_action(agent: "BaseAgent") -> dict:
         }
 
 
-def gather_action(agent: "BaseAgent") -> dict:
+def gather_action(agent: "AgentCore") -> dict:
     """Execute the gather action for the given agent.
 
     This action implements resource collection behavior where the agent seeks out
@@ -766,7 +766,7 @@ def gather_action(agent: "BaseAgent") -> dict:
         }
 
 
-def share_action(agent: "BaseAgent") -> dict:
+def share_action(agent: "AgentCore") -> dict:
     """Execute the share action for the given agent.
 
     This action implements cooperative behavior where the agent shares resources
@@ -893,7 +893,7 @@ def share_action(agent: "BaseAgent") -> dict:
         }
 
 
-def move_action(agent: "BaseAgent") -> dict:
+def move_action(agent: "AgentCore") -> dict:
     """Execute the move action for the given agent.
 
     This action implements basic movement behavior where the agent randomly selects
@@ -1027,7 +1027,7 @@ def move_action(agent: "BaseAgent") -> dict:
         }
 
 
-def reproduce_action(agent: "BaseAgent") -> dict:
+def reproduce_action(agent: "AgentCore") -> dict:
     """Execute the reproduce action for the given agent.
 
     This action implements reproductive behavior where the agent attempts to create
@@ -1153,7 +1153,7 @@ def reproduce_action(agent: "BaseAgent") -> dict:
         }
 
 
-def defend_action(agent: "BaseAgent") -> dict:
+def defend_action(agent: "AgentCore") -> dict:
     """Execute the defend action for the given agent.
 
     This action implements defensive behavior where the agent enters a protective
@@ -1272,7 +1272,7 @@ def defend_action(agent: "BaseAgent") -> dict:
         }
 
 
-def pass_action(agent: "BaseAgent") -> dict:
+def pass_action(agent: "AgentCore") -> dict:
     """Execute the pass action for the given agent.
 
     This action implements strategic inaction where the agent chooses to do nothing

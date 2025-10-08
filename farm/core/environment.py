@@ -1313,19 +1313,23 @@ class Environment(AECEnv):
             )
             raise
 
+        # Get component data safely
+        resource_component = agent.get_component("resource")
+        combat_component = agent.get_component("combat")
+        
         agent_data = [
             {
                 "simulation_id": self.simulation_id,
                 "agent_id": agent.agent_id,
                 "birth_time": self.time,
                 "agent_type": agent.__class__.__name__,
-                "position": agent.position,
-                "initial_resources": agent.resource_level,
-                "starting_health": agent.starting_health,
-                "starvation_counter": agent.starvation_counter,
-                "genome_id": getattr(agent, "genome_id", None),
-                "generation": getattr(agent, "generation", 0),
-                "action_weights": agent.get_action_weights(),
+                "position": agent.state_manager.position,
+                "initial_resources": resource_component.level if resource_component else 0,
+                "starting_health": combat_component.max_health if combat_component else 100.0,
+                "starvation_counter": resource_component.starvation_steps if resource_component else 0,
+                "genome_id": getattr(agent.state_manager, "genome_id", None),
+                "generation": getattr(agent.state_manager, "generation", 0),
+                "action_weights": getattr(agent, "get_action_weights", lambda: {})(),
             }
         ]
 
@@ -1365,10 +1369,10 @@ class Environment(AECEnv):
             agent_id=agent.agent_id,
             agent_type=agent.__class__.__name__,
             position=agent.position,
-            initial_resources=agent.resource_level,
-            initial_health=agent.current_health,
-            generation=getattr(agent, "generation", 0),
-            genome_id=getattr(agent, "genome_id", None),
+            initial_resources=resource_component.level if resource_component else 0,
+            initial_health=combat_component.health if combat_component else 100.0,
+            generation=getattr(agent.state_manager, "generation", 0),
+            genome_id=getattr(agent.state_manager, "genome_id", None),
             step=self.time,
             total_agents=len(self.agents),
         )
@@ -1861,7 +1865,12 @@ class Environment(AECEnv):
             "TERRAIN_COST": terrain_cost_local,
         }
 
-        self_hp01 = agent.current_health / agent.starting_health
+        # Get health from combat component
+        combat_component = agent.get_component("combat")
+        if combat_component:
+            self_hp01 = combat_component.health / combat_component.max_health
+        else:
+            self_hp01 = 1.0  # Default to full health if no combat component
 
         obs = self.agent_observations[agent_id]
         obs.perceive_world(

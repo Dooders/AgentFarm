@@ -7,15 +7,12 @@ key performance indicators. It separates tracking concerns from the main
 Environment class and provides a clean interface for metric collection.
 """
 
-from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import Any, Dict
 
 import numpy as np
 
-if TYPE_CHECKING:
-    from farm.core.agent import AgentCore as BaseAgent  # Type alias for compatibility
-
+from farm.core.agent.core import AgentCore
 from farm.core.interfaces import AgentProtocol
 from farm.utils.logging import get_logger
 
@@ -374,7 +371,7 @@ class MetricsTracker:
             total_agents = len(alive_agents)
 
             # Calculate agent type counts
-            system_agents = len([a for a in alive_agents if isinstance(a, BaseAgent)])
+            system_agents = len([a for a in alive_agents if isinstance(a, AgentCore)])
 
             # Get metrics from tracker
             tracker_metrics = self.get_step_metrics()

@@ -4,12 +4,12 @@ This module handles logging of attack-related actions and outcomes in the simula
 including attacks, defenses, and their results.
 """
 
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple
 
 from farm.utils.logging import get_logger
 
 if TYPE_CHECKING:
-    from farm.core.agent import AgentCore as BaseAgent  # Type alias for compatibility
+    from farm.core.agent.core import AgentCore
     from farm.database.database import SimulationDatabase
 
 logger = get_logger(__name__)
@@ -24,7 +24,7 @@ class AttackLogger:
     def log_defense(
         self,
         step_number: int,
-        agent: "BaseAgent",
+        agent: "AgentCore",
         resources_before: float,
         resources_after: float,
     ) -> None:
@@ -61,7 +61,7 @@ class AttackLogger:
     def log_attack_attempt(
         self,
         step_number: int,
-        agent: "BaseAgent",
+        agent: "AgentCore",
         action_target_id: Optional[str],
         target_position: Tuple[float, float],
         resources_before: float,

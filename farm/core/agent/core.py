@@ -5,24 +5,23 @@ The core agent class that delegates to pluggable components and behaviors,
 following the Single Responsibility Principle and Composition over Inheritance.
 """
 
-from typing import Dict, Optional, List, TYPE_CHECKING
-from farm.core.agent.components.base import IAgentComponent
+from typing import TYPE_CHECKING, Dict, List, Optional
+
 from farm.core.agent.behaviors.base_behavior import IAgentBehavior
+from farm.core.agent.components.base import IAgentComponent
 from farm.core.agent.state.state_manager import StateManager
 
 if TYPE_CHECKING:
     from farm.core.services.interfaces import (
-        ISpatialQueryService,
         IAgentLifecycleService,
+        ISpatialQueryService,
         ITimeService,
     )
 
-try:
-    from farm.utils.logging_config import get_logger
-    logger = get_logger(__name__)
-except ImportError:
-    import logging
-    logger = logging.getLogger(__name__)
+
+from farm.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class AgentCore:
@@ -198,10 +197,7 @@ class AgentCore:
         try:
             self._behavior.execute_turn(self)
         except Exception as e:
-            logger.error(
-                f"Agent {self.agent_id} behavior execution failed: {e}",
-                exc_info=True
-            )
+            logger.error(f"Agent {self.agent_id} behavior execution failed: {e}", exc_info=True)
 
         # Post-step: notify all components
         for component in self._components.values():
@@ -234,18 +230,14 @@ class AgentCore:
             try:
                 component.on_terminate()
             except Exception as e:
-                logger.warning(
-                    f"Component {component.name} termination failed for agent {self.agent_id}: {e}"
-                )
+                logger.warning(f"Component {component.name} termination failed for agent {self.agent_id}: {e}")
 
         # Remove from lifecycle service
         if self._lifecycle_service:
             try:
                 self._lifecycle_service.remove_agent(self)
             except Exception as e:
-                logger.error(
-                    f"Failed to remove agent {self.agent_id} from lifecycle service: {e}"
-                )
+                logger.error(f"Failed to remove agent {self.agent_id} from lifecycle service: {e}")
 
         logger.info(f"Agent {self.agent_id} terminated at step {self.state_manager.death_time}")
 
@@ -295,10 +287,7 @@ class AgentCore:
             "agent_id": self.agent_id,
             "alive": self.alive,
             "state_manager": self.state_manager.get_state_dict(),
-            "components": {
-                name: component.get_state()
-                for name, component in self._components.items()
-            },
+            "components": {name: component.get_state() for name, component in self._components.items()},
             "behavior": self._behavior.get_state(),
         }
 
@@ -329,6 +318,108 @@ class AgentCore:
         # Load behavior state
         if "behavior" in state:
             self._behavior.load_state(state["behavior"])
+
+    def get_action_weights(self) -> dict:
+        """
+        Get action weights for this agent.
+
+        Returns a dictionary mapping action names to their weights.
+        This is used for logging and analysis purposes.
+
+        Returns:
+            dict: Action name to weight mapping
+
+        Example:
+            >>> weights = agent.get_action_weights()
+            >>> print(f"Move weight: {weights.get('move', 0)}")
+        """
+        # For now, return empty dict as action weights are typically
+        # managed by the behavior component or decision modules
+        # This can be extended to query the behavior for actual weights
+        # TODO: Implement this
+        return {}
+
+    @property
+    def resource_level(self) -> float:
+        """
+        Get current resource level from resource component.
+
+        Returns:
+            float: Current resource level, or 0.0 if no resource component
+        """
+        resource_component = self.get_component("resource")
+        if resource_component:
+            return float(resource_component.level)
+        return 0.0
+
+    @property
+    def current_health(self) -> float:
+        """
+        Get current health from combat component.
+
+        Returns:
+            float: Current health, or 0.0 if no combat component
+        """
+        combat_component = self.get_component("combat")
+        if combat_component:
+            return combat_component.health
+        return 0.0
+
+    @property
+    def starting_health(self) -> float:
+        """
+        Get starting/max health from combat component.
+
+        Returns:
+            float: Starting health, or 0.0 if no combat component
+        """
+        combat_component = self.get_component("combat")
+        if combat_component:
+            return combat_component.max_health
+        return 0.0
+
+    @property
+    def generation(self) -> int:
+        """
+        Get generation from state manager.
+
+        Returns:
+            int: Generation number
+        """
+        return self.state_manager.generation
+
+    @property
+    def birth_time(self) -> int:
+        """
+        Get birth time from state manager.
+
+        Returns:
+            int: Birth time step
+        """
+        return self.state_manager.birth_time
+
+    @property
+    def total_reward(self) -> float:
+        """
+        Get total reward accumulated by this agent.
+
+        Returns:
+            float: Total reward, defaults to 0.0 if not tracked
+        """
+        # For now, return 0.0 as reward tracking is not implemented in the component system
+        # This can be extended to track rewards through a reward component or behavior
+        # TODO: Implement this
+        return 0.0
+
+    @property
+    def genome_id(self) -> str:
+        """
+        Get genome ID from state manager.
+
+        Returns:
+            str: Genome ID
+        """
+        return self.state_manager.genome_id
 
     def __repr__(self) -> str:
         """String representation for debugging."""

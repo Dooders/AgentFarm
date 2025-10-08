@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, List
 import numpy as np
 
 if TYPE_CHECKING:
-    from farm.core.agent import AgentCore as BaseAgent  # Type alias for compatibility
+    from farm.core.agent.core import AgentCore
     from farm.core.environment import Environment
 
 
@@ -16,15 +16,11 @@ class FeatureEngineer:
     that works well with traditional ML algorithms.
     """
 
-    def extract_features(
-        self, agent: "BaseAgent", environment: "Environment"
-    ) -> np.ndarray:
+    def extract_features(self, agent: "AgentCore", environment: "Environment") -> np.ndarray:
         features: List[float] = []
 
         # Agent state features (normalized where possible)
-        max_resources = max(
-            1.0, float(getattr(agent.config, "min_reproduction_resources", 8)) * 3.0
-        )
+        max_resources = max(1.0, float(getattr(agent.config, "min_reproduction_resources", 8)) * 3.0)
         features.extend(
             [
                 float(agent.current_health) / max(1.0, float(agent.starting_health)),
@@ -54,21 +50,15 @@ class FeatureEngineer:
 
         return np.asarray(features, dtype=float)
 
-    def _extract_environmental_features(
-        self, agent: "BaseAgent", environment: "Environment"
-    ) -> List[float]:
+    def _extract_environmental_features(self, agent: "AgentCore", environment: "Environment") -> List[float]:
         # Nearby resource density normalized
-        gathering_range = (
-            getattr(agent.config, "gathering_range", 30) if agent.config else 30
-        )
+        gathering_range = getattr(agent.config, "gathering_range", 30) if agent.config else 30
 
         # Defensive check for get_nearby_resources method
         nearby_resources = []
         if environment and hasattr(environment, "get_nearby_resources"):
             try:
-                nearby_resources = environment.get_nearby_resources(
-                    agent.position, gathering_range
-                )
+                nearby_resources = environment.get_nearby_resources(agent.position, gathering_range)
             except (AttributeError, TypeError, ValueError):
                 # Fallback to empty list if method fails
                 nearby_resources = []
@@ -77,24 +67,18 @@ class FeatureEngineer:
         resource_density = float(len(nearby_resources)) / float(total_resources)
 
         # Starvation/consumption context
-        starvation_ratio = float(agent.starvation_counter) / max(
-            1.0, float(agent.starvation_threshold)
-        )
+        starvation_ratio = float(agent.starvation_counter) / max(1.0, float(agent.starvation_threshold))
 
         return [resource_density, starvation_ratio]
 
-    def _extract_social_features(
-        self, agent: "BaseAgent", environment: "Environment"
-    ) -> List[float]:
+    def _extract_social_features(self, agent: "AgentCore", environment: "Environment") -> List[float]:
         social_range = getattr(agent.config, "social_range", 30) if agent.config else 30
 
         # Defensive check for get_nearby_agents method
         nearby_agents = []
         if environment and hasattr(environment, "get_nearby_agents"):
             try:
-                nearby_agents = environment.get_nearby_agents(
-                    agent.position, social_range
-                )
+                nearby_agents = environment.get_nearby_agents(agent.position, social_range)
             except (AttributeError, TypeError, ValueError):
                 # Fallback to empty list if method fails
                 nearby_agents = []

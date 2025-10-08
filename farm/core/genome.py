@@ -14,7 +14,7 @@ from farm.core.action import (
 )
 
 if TYPE_CHECKING:
-    from farm.core.agent import AgentCore as BaseAgent  # Type alias for compatibility
+    from farm.core.agent.core import AgentCore
     from farm.core.environment import Environment
 
 
@@ -47,14 +47,14 @@ class Genome:
     """
 
     @staticmethod
-    def from_agent(agent: "BaseAgent") -> dict:
+    def from_agent(agent: "AgentCore") -> dict:
         """Convert agent's current state and configuration into a genome representation.
 
         This method extracts all module states, action configurations, and core properties
         from an agent to create a serializable genome dictionary.
 
         Args:
-            agent (BaseAgent): The agent to convert into a genome representation.
+            agent (AgentCore): The agent to convert into a genome representation.
                              Must have module attributes ending with '_module' that
                              implement get_state_dict().
 
@@ -70,8 +70,7 @@ class Genome:
         module_states = {
             name: getattr(agent, name).get_state_dict()
             for name in dir(agent)
-            if name.endswith("_module")
-            and hasattr(getattr(agent, name), "get_state_dict")
+            if name.endswith("_module") and hasattr(getattr(agent, name), "get_state_dict")
         }
 
         genome = {
@@ -90,7 +89,7 @@ class Genome:
         position: tuple[int, int],
         environment: "Environment",
         agent_factory: Optional[callable] = None,
-    ) -> "BaseAgent":
+    ) -> "AgentCore":
         """Create a new agent from a genome representation.
 
         This method reconstructs an agent instance using the configuration stored
@@ -112,7 +111,7 @@ class Genome:
                                              If None, raises RuntimeError.
 
         Returns:
-            BaseAgent: New agent instance initialized with the genome's properties
+            AgentCore: New agent instance initialized with the genome's properties
                       and ready to operate in the environment
 
         Raises:
@@ -121,14 +120,11 @@ class Genome:
         if agent_factory is None:
             raise RuntimeError(
                 "agent_factory must be provided to avoid circular imports. "
-                "Use BaseAgent.from_genome() instead of Genome.to_agent() directly."
+                "Use AgentCore.from_genome() instead of Genome.to_agent() directly."
             )
 
         # Reconstruct action set
-        action_set = [
-            Action(name, weight, ACTION_FUNCTIONS[name])
-            for name, weight in genome["action_set"]
-        ]
+        action_set = [Action(name, weight, ACTION_FUNCTIONS[name]) for name, weight in genome["action_set"]]
 
         # Create new agent using factory
         agent = agent_factory(
@@ -137,7 +133,7 @@ class Genome:
             resource_level=genome["resource_level"],
             spatial_service=environment.spatial_service,
             environment=environment,
-            agent_type=genome.get("agent_type", "BaseAgent"),
+            agent_type=genome.get("agent_type", "AgentCore"),
             action_set=action_set,
         )
 
@@ -186,9 +182,7 @@ class Genome:
             return path
 
         # Check if it's a JSON string (starts with { or [)
-        if isinstance(path, str) and (
-            path.strip().startswith("{") or path.strip().startswith("[")
-        ):
+        if isinstance(path, str) and (path.strip().startswith("{") or path.strip().startswith("[")):
             return json.loads(path)
 
         # Otherwise treat as file path
@@ -298,7 +292,5 @@ class Genome:
         """
         json_str = Genome.save(genome)
         # Since we're calling save() without a path, it should always return a string
-        assert (
-            json_str is not None
-        ), "Genome.save() should return a string when no path is provided"
+        assert json_str is not None, "Genome.save() should return a string when no path is provided"
         return Genome.load(json_str)

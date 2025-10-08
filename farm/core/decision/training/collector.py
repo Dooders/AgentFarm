@@ -8,7 +8,7 @@ from farm.core.action import action_name_to_index
 from farm.core.decision.feature_engineering import FeatureEngineer
 
 if TYPE_CHECKING:
-    from farm.core.agent import AgentCore as BaseAgent  # Type alias for compatibility
+    from farm.core.agent.core import AgentCore
     from farm.core.environment import Environment
 
 
@@ -22,7 +22,7 @@ class ExperienceCollector:
         self.feature_engineer = FeatureEngineer()
 
     def collect_episode(
-        self, agent: "BaseAgent", environment: "Environment", max_steps: int = 200
+        self, agent: "AgentCore", environment: "Environment", max_steps: int = 200
     ) -> List[Tuple[np.ndarray, int, float]]:
         data: List[Tuple[np.ndarray, int, float]] = []
 
@@ -42,9 +42,7 @@ class ExperienceCollector:
             action_index = action_name_to_index(selected_action.name)
 
             # Apply the action to the environment and get reward
-            next_state, reward, terminated, truncated, info = environment.step(
-                action_index
-            )
+            next_state, reward, terminated, truncated, info = environment.step(action_index)
 
             # Check if episode is done (terminated or truncated)
             done = terminated or truncated
