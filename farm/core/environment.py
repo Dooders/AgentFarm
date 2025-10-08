@@ -1205,8 +1205,8 @@ class Environment(AECEnv):
             "birth_time": self.time,
             "agent_type": agent.__class__.__name__,
             "position": agent.position,
-            "initial_resources": resource_component.level if resource_component else 0,
-            "starting_health": combat_component.max_health if combat_component else 100.0,
+            "initial_resources": agent.resource_level,
+            "starting_health": agent.starting_health,
             "starvation_counter": resource_component.starvation_steps if resource_component else 0,
             "genome_id": getattr(agent.state_manager, "genome_id", None),
             "generation": getattr(agent.state_manager, "generation", 0),
@@ -1488,8 +1488,8 @@ class Environment(AECEnv):
             agent_id=agent.agent_id,
             agent_type=agent.__class__.__name__,
             position=agent.position,
-            initial_resources=resource_component.level if resource_component else 0,
-            initial_health=combat_component.max_health if combat_component else 100.0,
+            initial_resources=agent.resource_level,
+            initial_health=agent.starting_health,
             generation=getattr(agent.state_manager, "generation", 0),
             genome_id=getattr(agent.state_manager, "genome_id", None),
             step=self.time,
@@ -1948,10 +1948,13 @@ class Environment(AECEnv):
             "TERRAIN_COST": terrain_cost_local,
         }
 
-        # Get health from combat component
-        combat_component = agent.get_component("combat")
-        if combat_component:
-            self_hp01 = combat_component.health / combat_component.max_health
+        # Get health ratio using agent's backward compatibility properties
+        # This handles cases where no combat component exists (returns 0.0)
+        current_health = agent.current_health
+        max_health = agent.starting_health
+
+        if max_health > 0:
+            self_hp01 = current_health / max_health
         else:
             self_hp01 = 1.0  # Default to full health if no combat component
 
