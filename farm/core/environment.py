@@ -1168,6 +1168,51 @@ class Environment(AECEnv):
             logger.error("environment_update_error", error=str(e), exc_info=True)
             raise
 
+    def _get_agent_database_record(self, agent: Any) -> Dict[str, Any]:
+        """Extract agent data for database logging.
+
+        Safely extracts all necessary agent data for database logging, handling
+        missing components and attributes gracefully with appropriate defaults.
+
+        Parameters
+        ----------
+        agent : Agent
+            The agent object to extract data from
+
+        Returns
+        -------
+        dict
+            Dictionary containing agent data for database logging with keys:
+            - simulation_id: Current simulation ID
+            - agent_id: Agent's unique identifier
+            - birth_time: Current simulation time
+            - agent_type: Agent's class name
+            - position: Agent's current position
+            - initial_resources: Agent's current resource level
+            - starting_health: Agent's maximum health
+            - starvation_counter: Agent's starvation step counter
+            - genome_id: Agent's genome identifier (if applicable)
+            - generation: Agent's generation number (if applicable)
+            - action_weights: Agent's action weight configuration
+        """
+        # Get component data safely
+        resource_component = agent.get_component("resource")
+        combat_component = agent.get_component("combat")
+
+        return {
+            "simulation_id": self.simulation_id,
+            "agent_id": agent.agent_id,
+            "birth_time": self.time,
+            "agent_type": agent.__class__.__name__,
+            "position": agent.position,
+            "initial_resources": resource_component.level if resource_component else 0,
+            "starting_health": combat_component.max_health if combat_component else 100.0,
+            "starvation_counter": resource_component.starvation_steps if resource_component else 0,
+            "genome_id": getattr(agent.state_manager, "genome_id", None),
+            "generation": getattr(agent.state_manager, "generation", 0),
+            "action_weights": getattr(agent, "get_action_weights", lambda: {})(),
+        }
+
     def _calculate_metrics(self) -> Dict[str, Any]:
         """Calculate various metrics for the current simulation state.
 
@@ -1406,25 +1451,8 @@ class Environment(AECEnv):
             )
             raise
 
-        # Get component data safely
-        resource_component = agent.get_component("resource")
-        combat_component = agent.get_component("combat")
-
-        agent_data = [
-            {
-                "simulation_id": self.simulation_id,
-                "agent_id": agent.agent_id,
-                "birth_time": self.time,
-                "agent_type": agent.__class__.__name__,
-                "position": agent.state_manager.position,
-                "initial_resources": resource_component.level if resource_component else 0,
-                "starting_health": combat_component.max_health if combat_component else 100.0,
-                "starvation_counter": resource_component.starvation_steps if resource_component else 0,
-                "genome_id": getattr(agent.state_manager, "genome_id", None),
-                "generation": getattr(agent.state_manager, "generation", 0),
-                "action_weights": getattr(agent, "get_action_weights", lambda: {})(),
-            }
-        ]
+        # Extract agent data for database logging
+        agent_data = [self._get_agent_database_record(agent)]
 
         # Add to environment
         self._agent_objects[agent.agent_id] = agent
@@ -1453,13 +1481,15 @@ class Environment(AECEnv):
         self.agent_observations[agent.agent_id] = AgentObservation(self.observation_config)
 
         # Log agent addition
+        resource_component = agent.get_component("resource")
+        combat_component = agent.get_component("combat")
         logger.info(
             "agent_added",
             agent_id=agent.agent_id,
             agent_type=agent.__class__.__name__,
             position=agent.position,
             initial_resources=resource_component.level if resource_component else 0,
-            initial_health=combat_component.health if combat_component else 100.0,
+            initial_health=combat_component.max_health if combat_component else 100.0,
             generation=getattr(agent.state_manager, "generation", 0),
             genome_id=getattr(agent.state_manager, "genome_id", None),
             step=self.time,

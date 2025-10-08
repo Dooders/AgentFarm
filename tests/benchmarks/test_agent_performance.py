@@ -1,8 +1,8 @@
 """
-Performance benchmarks comparing BaseAgent and AgentCore.
+Performance benchmarks for the component-based agent system.
 
-These benchmarks verify that the new component-based system performs
-as well or better than the old monolithic system.
+These benchmarks measure the performance of agent creation, execution,
+component access, and state serialization in the current system.
 """
 
 import time

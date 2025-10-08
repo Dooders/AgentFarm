@@ -239,7 +239,7 @@ def create_initial_agents(
         spatial_service=environment.spatial_service,
         time_service=environment.time_service,
         lifecycle_service=environment.lifecycle_service,
-        agent_parameters=environment.config.agent_parameters,
+        agent_parameters=getattr(environment.config, 'agent_parameters', None),
     )
 
     # Create system agents using AgentFactory

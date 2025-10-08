@@ -535,6 +535,45 @@ class AgentCore:
         """
         return self.state_manager.genome_id
 
+    @property
+    def starvation_counter(self) -> int:
+        """
+        Get starvation counter from resource component.
+
+        Returns:
+            int: Number of consecutive steps with zero resources, or 0 if no resource component
+        """
+        resource_component = self.get_component("resource")
+        if resource_component:
+            return resource_component.starvation_steps
+        return 0
+
+    @property
+    def starvation_threshold(self) -> int:
+        """
+        Get starvation threshold from resource component config.
+
+        Returns:
+            int: Number of steps without resources before death, or 100 if no resource component
+        """
+        resource_component = self.get_component("resource")
+        if resource_component:
+            return resource_component._config.starvation_threshold
+        return 100  # Default value
+
+    @property
+    def is_defending(self) -> bool:
+        """
+        Get defending status from combat component.
+
+        Returns:
+            bool: Whether agent is currently defending, or False if no combat component
+        """
+        combat_component = self.get_component("combat")
+        if combat_component:
+            return combat_component.is_defending
+        return False
+
     def __repr__(self) -> str:
         """String representation for debugging."""
         components_list = ", ".join(self._components.keys())

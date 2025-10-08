@@ -20,7 +20,15 @@ class FeatureEngineer:
         features: List[float] = []
 
         # Agent state features (normalized where possible)
-        max_resources = max(1.0, float(getattr(agent.config, "min_reproduction_resources", 8)) * 3.0)
+        # Get max resources from reproduction config if available, otherwise use default
+        max_resources = 24.0  # Default fallback
+        if hasattr(agent, "config") and agent.config:
+            # Try to get from reproduction config
+            if hasattr(agent.config, "reproduction") and hasattr(agent.config.reproduction, "reproduction_threshold"):
+                max_resources = max(1.0, float(agent.config.reproduction.reproduction_threshold) * 3.0)
+            elif hasattr(agent.config, "min_reproduction_resources"):
+                max_resources = max(1.0, float(agent.config.min_reproduction_resources) * 3.0)
+
         features.extend(
             [
                 float(agent.current_health) / max(1.0, float(agent.starting_health)),
@@ -52,7 +60,13 @@ class FeatureEngineer:
 
     def _extract_environmental_features(self, agent: "AgentCore", environment: "Environment") -> List[float]:
         # Nearby resource density normalized
-        gathering_range = getattr(agent.config, "gathering_range", 30) if agent.config else 30
+        gathering_range = 30  # Default fallback
+        if hasattr(agent, "config") and agent.config:
+            # Try to get from movement config or legacy config
+            if hasattr(agent.config, "movement") and hasattr(agent.config.movement, "gathering_range"):
+                gathering_range = agent.config.movement.gathering_range
+            elif hasattr(agent.config, "gathering_range"):
+                gathering_range = agent.config.gathering_range
 
         # Defensive check for get_nearby_resources method
         nearby_resources = []
@@ -72,7 +86,13 @@ class FeatureEngineer:
         return [resource_density, starvation_ratio]
 
     def _extract_social_features(self, agent: "AgentCore", environment: "Environment") -> List[float]:
-        social_range = getattr(agent.config, "social_range", 30) if agent.config else 30
+        social_range = 30  # Default fallback
+        if hasattr(agent, "config") and agent.config:
+            # Try to get from movement config or legacy config
+            if hasattr(agent.config, "movement") and hasattr(agent.config.movement, "social_range"):
+                social_range = agent.config.movement.social_range
+            elif hasattr(agent.config, "social_range"):
+                social_range = agent.config.social_range
 
         # Defensive check for get_nearby_agents method
         nearby_agents = []
