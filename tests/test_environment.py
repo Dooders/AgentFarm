@@ -14,7 +14,7 @@ from stable_baselines3.common.env_util import make_vec_env
 from farm.config import SimulationConfig
 from farm.config.config import EnvironmentConfig, PopulationConfig, ResourceConfig
 from farm.core.action import ActionType
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentFactory
 from farm.core.environment import Environment
 from farm.core.resources import Resource
 
@@ -55,30 +55,22 @@ class TestEnvironment(unittest.TestCase):
         )
 
         # Add a small set of agents explicitly (external agent management)
+        factory = AgentFactory(spatial_service=self.env.spatial_service)
         initial_agents = [
-            BaseAgent(
+            factory.create_default_agent(
                 agent_id=self.env.get_next_agent_id(),
                 position=(10, 10),
-                resource_level=5,
-                environment=self.env,
-                generation=0,
-                spatial_service=self.env.spatial_service,
+                initial_resources=5,
             ),
-            BaseAgent(
+            factory.create_default_agent(
                 agent_id=self.env.get_next_agent_id(),
                 position=(12, 12),
-                resource_level=5,
-                environment=self.env,
-                generation=0,
-                spatial_service=self.env.spatial_service,
+                initial_resources=5,
             ),
-            BaseAgent(
+            factory.create_default_agent(
                 agent_id=self.env.get_next_agent_id(),
                 position=(14, 14),
-                resource_level=5,
-                environment=self.env,
-                generation=0,
-                spatial_service=self.env.spatial_service,
+                initial_resources=5,
             ),
         ]
         for a in initial_agents:
@@ -565,13 +557,11 @@ class TestEnvironment(unittest.TestCase):
         initial_agent_count = len(self.env.agent_objects)
 
         # Test agent addition
-        new_agent = BaseAgent(
+        factory = AgentFactory(spatial_service=self.env.spatial_service)
+        new_agent = factory.create_default_agent(
             agent_id="test_agent_new",
             position=(25, 25),
-            resource_level=5,
-            environment=self.env,
-            generation=1,
-            spatial_service=self.env.spatial_service,
+            initial_resources=5,
         )
 
         self.env.add_agent(new_agent)

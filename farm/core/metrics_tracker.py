@@ -9,11 +9,13 @@ Environment class and provides a clean interface for metric collection.
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import numpy as np
 
-from farm.core.agent import BaseAgent
+if TYPE_CHECKING:
+    from farm.core.agent import AgentCore as BaseAgent  # Type alias for compatibility
+
 from farm.core.interfaces import AgentProtocol
 from farm.utils.logging import get_logger
 

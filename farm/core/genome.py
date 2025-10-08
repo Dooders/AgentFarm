@@ -14,7 +14,7 @@ from farm.core.action import (
 )
 
 if TYPE_CHECKING:
-    from farm.core.agent import BaseAgent
+    from farm.core.agent import AgentCore as BaseAgent  # Type alias for compatibility
     from farm.core.environment import Environment
 
 

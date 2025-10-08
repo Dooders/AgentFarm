@@ -17,7 +17,7 @@ import random
 import torch
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentFactory
 from farm.core.config import SimulationConfig
 from farm.core.services.factory import AgentServiceFactory
 
@@ -56,16 +56,13 @@ def create_basic_simulation():
         config=config
     )
 
-    # 4. Add agents (spatial service is required)
+    # 4. Add agents using AgentFactory
+    factory = AgentFactory(spatial_service=environment.spatial_service)
     for i in range(10):
-        agent = BaseAgent(
+        agent = factory.create_default_agent(
             agent_id=f"agent_{i:02d}",
             position=(random.randint(0, 49), random.randint(0, 49)),
-            resource_level=100,
-            spatial_service=environment.spatial_service,
-            environment=environment,
-            agent_type="IndependentAgent",
-            generation=0,
+            initial_resources=100,
         )
         environment.add_agent(agent)
 

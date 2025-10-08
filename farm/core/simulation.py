@@ -46,7 +46,7 @@ import torch
 from tqdm import tqdm
 
 from farm.config import SimulationConfig
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentFactory
 from farm.core.environment import Environment
 from farm.utils.identity import Identity
 from farm.utils.logging import get_logger, log_simulation, log_step
@@ -101,34 +101,35 @@ def create_initial_agents(
             int(rng.uniform(0, environment.height)),
         )
 
-    # Create system agents (now using BaseAgent)
+    # Create agent factory
+    factory = AgentFactory(
+        spatial_service=environment.spatial_service,
+        time_service=environment.time_service,
+        lifecycle_service=environment.lifecycle_service,
+    )
+
+    # Create system agents using AgentFactory
     for _ in range(num_system_agents):
         position = get_random_position()
-        agent = BaseAgent(
+        agent = factory.create_default_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            resource_level=1,
-            spatial_service=environment.spatial_service,
-            environment=environment,
+            initial_resources=1,
             agent_type="SystemAgent",
-            generation=0,
         )
         environment.add_agent(agent)
         positions.append(position)
 
     logger.info("agents_created", agent_type="system", count=num_system_agents)
 
-    # Create independent agents (now using BaseAgent)
+    # Create independent agents using AgentFactory
     for _ in range(num_independent_agents):
         position = get_random_position()
-        agent = BaseAgent(
+        agent = factory.create_default_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            resource_level=1,
-            spatial_service=environment.spatial_service,
-            environment=environment,
+            initial_resources=1,
             agent_type="IndependentAgent",
-            generation=0,
         )
         environment.add_agent(agent)
         positions.append(position)
@@ -137,17 +138,14 @@ def create_initial_agents(
         "agents_created", agent_type="independent", count=num_independent_agents
     )
 
-    # Create control agents (now using BaseAgent)
+    # Create control agents using AgentFactory
     for _ in range(num_control_agents):
         position = get_random_position()
-        agent = BaseAgent(
+        agent = factory.create_default_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            resource_level=1,
-            spatial_service=environment.spatial_service,
-            environment=environment,
+            initial_resources=1,
             agent_type="ControlAgent",
-            generation=0,
         )
         environment.add_agent(agent)
         positions.append(position)

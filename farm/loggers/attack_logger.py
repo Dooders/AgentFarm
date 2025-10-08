@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 from farm.utils.logging import get_logger
 
 if TYPE_CHECKING:
-    from farm.core.agent import BaseAgent
+    from farm.core.agent import AgentCore as BaseAgent  # Type alias for compatibility
     from farm.database.database import SimulationDatabase
 
 logger = get_logger(__name__)

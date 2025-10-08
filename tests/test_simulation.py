@@ -10,7 +10,7 @@ from farm.config import (
     ResourceConfig,
     SimulationConfig,
 )
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentFactory
 from farm.core.environment import Environment
 from farm.core.resources import Resource
 from farm.database.database import SimulationDatabase
@@ -104,32 +104,35 @@ class TestSimulation(unittest.TestCase):
             db_path=self.db_path,
         )
 
-        # Create agents with proper environment reference and config
-        system_agent = BaseAgent(
-            "test_agent_0",
-            (25, 25),
-            self.config.agent_behavior.initial_resource_level,
-            self.env.spatial_service,
-            environment=self.env,
-            config=self.config,
+        # Create agents with proper environment reference using AgentFactory
+        # Services will be injected by environment when agents are added
+        factory = AgentFactory(
+            spatial_service=self.env.spatial_service,
         )
-        independent_agent = BaseAgent(
-            "test_agent_1",
-            (25, 25),
-            self.config.agent_behavior.initial_resource_level,
-            self.env.spatial_service,
-            environment=self.env,
-            config=self.config,
+        
+        system_agent = factory.create_default_agent(
+            agent_id="test_agent_0",
+            position=(25, 25),
+            initial_resources=self.config.agent_behavior.initial_resource_level,
+        )
+        independent_agent = factory.create_default_agent(
+            agent_id="test_agent_1",
+            position=(25, 25),
+            initial_resources=self.config.agent_behavior.initial_resource_level,
         )
 
         self.assertTrue(system_agent.alive)
         self.assertTrue(independent_agent.alive)
+        
+        # Access resources through component
+        system_resource = system_agent.get_component("resource")
+        independent_resource = independent_agent.get_component("resource")
         self.assertEqual(
-            system_agent.resource_level,
+            system_resource.level,
             self.config.agent_behavior.initial_resource_level,
         )
         self.assertEqual(
-            independent_agent.resource_level,
+            independent_resource.level,
             self.config.agent_behavior.initial_resource_level,
         )
 
@@ -145,28 +148,29 @@ class TestSimulation(unittest.TestCase):
         resource = Resource(0, (25, 25), amount=10)
         self.env.resources = [resource]
 
-        agent = BaseAgent(
-            "test_agent_2",
-            (25, 25),
-            self.config.agent_behavior.initial_resource_level,
-            self.env.spatial_service,
-            environment=self.env,
-            config=self.config,
+        factory = AgentFactory(
+            spatial_service=self.env.spatial_service,
+        )
+        agent = factory.create_default_agent(
+            agent_id="test_agent_2",
+            position=(25, 25),
+            initial_resources=self.config.agent_behavior.initial_resource_level,
         )
         self.env.add_agent(agent)
 
         # Test direct resource consumption through the environment
         initial_amount = resource.amount
-        initial_agent_resources = agent.resource_level
+        resource_comp = agent.get_component("resource")
+        initial_agent_resources = resource_comp.level
 
         # Consume resources directly
         consumed = self.env.consume_resource(resource, 2.0)
-        agent.resource_level += consumed
+        resource_comp.add(consumed)
 
         # Check that resources were consumed and agent received them
         self.assertEqual(consumed, 2.0)
         self.assertLess(resource.amount, initial_amount)
-        self.assertGreater(agent.resource_level, initial_agent_resources)
+        self.assertGreater(resource_comp.level, initial_agent_resources)
 
     def test_agent_death(self):
         """Test that agents die when resources are depleted."""
@@ -229,18 +233,19 @@ class TestSimulation(unittest.TestCase):
             db_path=self.db_path,
         )
 
-        agent = BaseAgent(
-            "test_agent_4",
-            (25, 25),
-            20,
-            self.env.spatial_service,
-            environment=self.env,
-            config=self.config,
+        factory = AgentFactory(
+            spatial_service=self.env.spatial_service,
+        )
+        agent = factory.create_default_agent(
+            agent_id="test_agent_4",
+            position=(25, 25),
+            initial_resources=20,
         )
         self.env.add_agent(agent)
 
         initial_agent_count = len(self.env.agents)
-        agent.reproduce()
+        reproduction_comp = agent.get_component("reproduction")
+        reproduction_comp.reproduce()
 
         self.assertGreater(len(self.env.agents), initial_agent_count)
 
@@ -256,13 +261,13 @@ class TestSimulation(unittest.TestCase):
             db_path=self.db_path,
         )
 
-        agent = BaseAgent(
-            "test_agent_5",
-            (25, 25),
-            self.config.agent_behavior.initial_resource_level,
-            self.env.spatial_service,
-            environment=self.env,
-            config=self.config,
+        factory = AgentFactory(
+            spatial_service=self.env.spatial_service,
+        )
+        agent = factory.create_default_agent(
+            agent_id="test_agent_5",
+            position=(25, 25),
+            initial_resources=self.config.agent_behavior.initial_resource_level,
         )
         self.env.add_agent(agent)
 
@@ -288,14 +293,15 @@ class TestSimulation(unittest.TestCase):
             db_path=self.db_path,
         )
 
+        factory = AgentFactory(
+            spatial_service=self.env.spatial_service,
+        )
+        
         agents = [
-            BaseAgent(
-                f"test_agent_{i}",
-                (25, 25),
-                self.config.agent_behavior.initial_resource_level,
-                self.env.spatial_service,
-                environment=self.env,
-                config=self.config,
+            factory.create_default_agent(
+                agent_id=f"test_agent_{i}",
+                position=(25, 25),
+                initial_resources=self.config.agent_behavior.initial_resource_level,
             )
             for i in range(10)
         ]

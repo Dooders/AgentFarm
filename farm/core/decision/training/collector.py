@@ -8,7 +8,7 @@ from farm.core.action import action_name_to_index
 from farm.core.decision.feature_engineering import FeatureEngineer
 
 if TYPE_CHECKING:
-    from farm.core.agent import BaseAgent
+    from farm.core.agent import AgentCore as BaseAgent  # Type alias for compatibility
     from farm.core.environment import Environment
 
 

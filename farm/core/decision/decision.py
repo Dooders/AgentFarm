@@ -65,7 +65,7 @@ if TIANSHOU_AVAILABLE:
         TIANSHOU_AVAILABLE = False
 
 if TYPE_CHECKING:
-    from farm.core.agent import BaseAgent
+    from farm.core.agent import AgentCore as BaseAgent  # Type alias for compatibility
 
 
 class DecisionModule:
