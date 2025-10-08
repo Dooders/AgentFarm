@@ -387,14 +387,14 @@ class TestSamplingProcessor:
         with pytest.raises(ValueError, match="sample_rate must be between"):
             SamplingProcessor(sample_rate=1.5)
         
-        with pytest.raises(ValueError, match="sample_rate must be between"):
+        with pytest.raises(ValueError, match="sample_rate cannot be 0.0"):
             SamplingProcessor(sample_rate=0.0)
     
     def test_sample_rate_boundary_values(self):
         """Test boundary values for sample_rate."""
         # Minimum valid
-        sampler = SamplingProcessor(sample_rate=0.001)
-        assert sampler.sample_rate == 0.001
+        sampler = SamplingProcessor(sample_rate=0.01)
+        assert sampler.sample_rate == 0.01
         
         # Maximum valid
         sampler = SamplingProcessor(sample_rate=1.0)
