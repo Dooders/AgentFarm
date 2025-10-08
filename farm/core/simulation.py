@@ -49,8 +49,7 @@ from farm.config import SimulationConfig
 from farm.core.agent import BaseAgent
 from farm.core.environment import Environment
 from farm.utils.identity import Identity
-from farm.utils.logging import get_logger
-from farm.utils.logging import log_simulation, log_step
+from farm.utils.logging import get_logger, log_simulation, log_step
 
 # Shared Identity instance for efficiency
 _shared_identity = Identity()
@@ -134,7 +133,9 @@ def create_initial_agents(
         environment.add_agent(agent)
         positions.append(position)
 
-    logger.info("agents_created", agent_type="independent", count=num_independent_agents)
+    logger.info(
+        "agents_created", agent_type="independent", count=num_independent_agents
+    )
 
     # Create control agents (now using BaseAgent)
     for _ in range(num_control_agents):
@@ -183,7 +184,9 @@ def init_random_seeds(seed=None):
                 # torch.backends.cudnn.deterministic = True
                 # torch.backends.cudnn.benchmark = False
         except ImportError:
-            logger.info("pytorch_unavailable", message="Skipping torch seed initialization")
+            logger.info(
+                "pytorch_unavailable", message="Skipping torch seed initialization"
+            )
 
         logger.info("random_seeds_initialized", seed=seed, deterministic=True)
 
@@ -303,7 +306,9 @@ def run_simulation(
                     os.remove(db_path)
                 except PermissionError:
                     # If can't remove, create unique filename
-                    original_db_path = db_path  # Store original path before modification
+                    original_db_path = (
+                        db_path  # Store original path before modification
+                    )
                     base, ext = os.path.splitext(db_path)
                     db_path = f"{base}_{int(time.time())}{ext}"
                     logger.warning(
@@ -374,7 +379,8 @@ def run_simulation(
         # Main simulation loop
         # Disable tqdm progress bar in CI environments to avoid output interference
         disable_tqdm = (
-            os.environ.get("CI", "").lower() in ("true", "1") or os.environ.get("GITHUB_ACTIONS", "").lower() == "true"
+            os.environ.get("CI", "").lower() in ("true", "1")
+            or os.environ.get("GITHUB_ACTIONS", "").lower() == "true"
         )
         for step in tqdm(
             range(num_steps),
@@ -417,7 +423,7 @@ def run_simulation(
 
             # Check for slow steps
             step_duration = time.time() - step_start_time
-            
+
             # Warn if step takes > 1 second
             if step_duration > 1.0:
                 logger.warning(
@@ -428,7 +434,7 @@ def run_simulation(
                     resources_count=len(environment.resources),
                     threshold_seconds=1.0,
                 )
-            
+
             # Also log step timing at DEBUG level for performance analysis
             elif step % 10 == 0:  # Every 10 steps
                 logger.debug(
@@ -449,7 +455,9 @@ def run_simulation(
             if config.database.persist_db_on_completion and db_path is not None:
                 try:
                     # Create directory if it doesn't exist
-                    os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
+                    os.makedirs(
+                        os.path.dirname(os.path.abspath(db_path)), exist_ok=True
+                    )
 
                     logger.info("persisting_in_memory_database", db_path=db_path)
                     # Persist with selected tables or all tables
@@ -519,19 +527,26 @@ def run_simulation(
     elapsed_time = datetime.now() - start_time
     total_duration = elapsed_time.total_seconds()
     avg_step_time_ms = (total_duration * 1000) / max(environment.time, 1)
-    
+
     # Count births and deaths from database or metrics
-    birth_count = getattr(environment.metrics_tracker, 'total_births', 0)
-    death_count = getattr(environment.metrics_tracker, 'total_deaths', 0)
-    reproduction_count = getattr(environment.metrics_tracker, 'total_reproductions', 0)
-    
+    birth_count = getattr(environment.metrics_tracker, "total_births", 0)
+    death_count = getattr(environment.metrics_tracker, "total_deaths", 0)
+    reproduction_count = getattr(environment.metrics_tracker, "total_reproductions", 0)
+
+    # Calculate initial population for logging
+    def calculate_initial_population(config):
+        """Calculate the initial population from configuration."""
+        if config is None:
+            return 0
+        return config.population.system_agents + config.population.independent_agents
+
     logger.info(
         "simulation_completed",
         simulation_id=simulation_id,
         total_steps=environment.time,
         max_steps_configured=num_steps,
         final_population=len(environment.agents),
-        initial_population=config.population.system_agents + config.population.independent_agents if config else 0,
+        initial_population=calculate_initial_population(config),
         total_births=birth_count,
         total_deaths=death_count,
         reproduction_events=reproduction_count,
@@ -542,7 +557,11 @@ def run_simulation(
         steps_per_second=round(environment.time / max(total_duration, 0.001), 2),
         database_path=environment.db.db_path if environment.db else None,
         terminated_early=environment.time < num_steps,
-        termination_reason="resources_depleted" if environment.cached_total_resources == 0 else "agents_extinct" if len(environment.agents) == 0 else "completed",
+        termination_reason=(
+            "resources_depleted"
+            if environment.cached_total_resources == 0
+            else "agents_extinct" if len(environment.agents) == 0 else "completed"
+        ),
     )
     return environment
 

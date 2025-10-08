@@ -7,6 +7,7 @@ Tests for:
 """
 
 import time
+from unittest.mock import patch
 
 import pytest
 
@@ -106,11 +107,13 @@ class TestLogPerformanceDecorator:
 
         @log_performance(slow_threshold_ms=10.0)
         def slow_function():
-            time.sleep(0.02)  # 20ms - exceeds threshold
+            # Simulate work without actual sleep to avoid flaky tests
             return "result"
 
         with capture_logs() as logs:
-            slow_function()
+            # Mock time.perf_counter to simulate a slow operation (20ms)
+            with patch("time.perf_counter", side_effect=[0.0, 0.02]):
+                slow_function()
 
             # Should log warning for slow operation
             slow_logs = [e for e in logs.entries if e.get("event") == "operation_slow"]

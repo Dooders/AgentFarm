@@ -392,23 +392,33 @@ class MetricsProcessor:
 
 class SamplingProcessor:
     """Processor to sample high-frequency logs."""
+    
+    # Configurable minimum sample rate to avoid enormous sampling intervals
+    MIN_SAMPLE_RATE = 0.001
 
     def __init__(
-        self, sample_rate: float = 1.0, events_to_sample: Optional[set] = None
+        self, 
+        sample_rate: float = 1.0, 
+        events_to_sample: Optional[set] = None,
+        min_sample_rate: Optional[float] = None
     ):
         """Initialize sampling processor.
 
         Args:
-            sample_rate: Fraction of events to log (minimum 0.001, maximum 1.0)
+            sample_rate: Fraction of events to log (minimum MIN_SAMPLE_RATE, maximum 1.0)
             events_to_sample: Set of event names to sample (None or empty = sample all)
+            min_sample_rate: Override minimum sample rate (defaults to MIN_SAMPLE_RATE)
 
         Raises:
-            ValueError: If sample_rate is not between 0.001 and 1.0
+            ValueError: If sample_rate is not within valid range
         """
+        # Use provided minimum or class default
+        min_rate = min_sample_rate if min_sample_rate is not None else self.MIN_SAMPLE_RATE
+        
         # Enforce practical minimum to avoid enormous sampling intervals
-        if not 0.001 <= sample_rate <= 1.0:
+        if not min_rate <= sample_rate <= 1.0:
             raise ValueError(
-                f"sample_rate must be between 0.001 and 1.0, got {sample_rate}"
+                f"sample_rate must be between {min_rate} and 1.0, got {sample_rate}"
             )
         self.sample_rate = float(sample_rate)
         # None or empty set means "sample all events"
