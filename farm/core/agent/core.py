@@ -1,8 +1,109 @@
-"""
-AgentCore - Minimal agent coordinating components and behavior.
+"""AgentCore - Minimal agent coordinating components and behavior.
 
-The core agent class that delegates to pluggable components and behaviors,
-following the Single Responsibility Principle and Composition over Inheritance.
+Overview
+--------
+The AgentCore module provides the foundational agent class for AgentFarm multi-agent
+simulations. It implements a component-based architecture where agents are composed
+of pluggable components (movement, combat, resources, etc.) and behaviors (decision-making
+logic), following SOLID design principles and enabling flexible agent composition.
+
+Key Responsibilities
+--------------------
+- Agent identity management: unique IDs, alive status, and lifecycle tracking
+- Component coordination: attaching, accessing, and managing pluggable components
+- Behavior execution: delegating decision-making to behavior strategies
+- State management: maintaining agent state through StateManager
+- Service integration: dependency injection for spatial queries, time, metrics, etc.
+- Metrics compatibility: exposing component state as properties for monitoring
+
+Core Architecture
+-----------------
+- **Component-based Design**: Agents are composed of specialized components rather than
+  inheriting from monolithic base classes. Each component handles one specific capability
+  (movement, combat, resources, perception, reproduction).
+- **Behavior Separation**: Decision-making logic is separated into behavior objects that
+  can be swapped or extended without modifying the core agent.
+- **Service-oriented Dependencies**: Agents receive services (spatial queries, time,
+  metrics, validation) through dependency injection, enabling testability and flexibility.
+- **State Management**: Centralized state management through StateManager for position,
+  generation, birth time, and genome information.
+
+Design Principles
+-----------------
+- **Single Responsibility Principle (SRP)**: AgentCore only coordinates components and
+  behaviors; it doesn't implement specific agent logic.
+- **Open-Closed Principle (OCP)**: New components and behaviors can be added without
+  modifying existing code.
+- **Liskov Substitution Principle (LSP)**: All components implement IAgentComponent
+  interface and can be substituted.
+- **Interface Segregation Principle (ISP)**: Components have focused interfaces for
+  their specific responsibilities.
+- **Dependency Inversion Principle (DIP)**: AgentCore depends on abstractions (interfaces)
+  rather than concrete implementations.
+
+Component System
+----------------
+Components provide specific agent capabilities:
+- **MovementComponent**: Handles agent locomotion and position validation
+- **CombatComponent**: Manages health, attacks, defense, and combat mechanics
+- **ResourceComponent**: Tracks resources, consumption, and starvation
+- **PerceptionComponent**: Provides spatial awareness and observation capabilities
+- **ReproductionComponent**: Handles agent reproduction and offspring creation
+
+Behavior System
+---------------
+Behaviors implement decision-making logic:
+- **IAgentBehavior**: Base interface for all agent behaviors
+- **Behavior Strategies**: Can be swapped at runtime for different decision-making approaches
+- **Action Selection**: Behaviors determine which actions agents take based on observations
+
+Service Integration
+-------------------
+Agents receive services through dependency injection:
+- **ISpatialQueryService**: Spatial queries for nearby agents and resources
+- **ITimeService**: Access to simulation time and timestamps
+- **IAgentLifecycleService**: Agent creation, removal, and lifecycle management
+- **IMetricsService**: Metrics recording and performance tracking
+- **IValidationService**: Position and action validation
+- **ILoggingService**: Event logging and debugging
+
+Metrics Compatibility
+---------------------
+AgentCore exposes component state as properties to maintain compatibility with
+existing metrics tracking systems:
+- **resource_level**: Current resource amount from ResourceComponent
+- **current_health**: Current health from CombatComponent
+- **starting_health**: Maximum health from CombatComponent
+- **generation**: Generation number from StateManager
+- **birth_time**: Birth timestamp from StateManager
+- **genome_id**: Genome identifier from StateManager
+- **total_reward**: Accumulated reward (TODO: implement)
+
+Usage Example
+-------------
+```python
+# Create agent with components
+agent = AgentCore(agent_id="agent_001", config=agent_config)
+
+# Add components
+agent.add_component(MovementComponent(movement_config))
+agent.add_component(ResourceComponent(100, resource_config))
+agent.add_component(CombatComponent(combat_config))
+
+# Set behavior
+agent.set_behavior(MyBehavior())
+
+# Access component state
+health = agent.current_health  # Delegates to CombatComponent
+resources = agent.resource_level  # Delegates to ResourceComponent
+```
+
+Notes
+-----
+- Agents are created through AgentFactory for proper dependency injection
+- Component lifecycle is managed automatically (attach/detach)
+- State is persisted through StateManager for serialization and analysis
+- All agent interactions go through the component system for modularity
 """
 
 from typing import TYPE_CHECKING, Dict, List, Optional
@@ -33,6 +134,7 @@ class AgentCore:
     - Coordinate component lifecycle
     - Execute behavior strategy
     - Provide component access
+    - Expose metrics-compatible properties for monitoring
 
     This class follows:
     - SRP: Only coordinates, doesn't implement logic
@@ -42,7 +144,19 @@ class AgentCore:
 
     The actual agent capabilities (movement, combat, etc.) are implemented
     in components. The decision-making logic is implemented in behaviors.
-    AgentCore simply coordinates these parts.
+    AgentCore simply coordinates these parts and provides a unified interface
+    for accessing component state (e.g., resource_level, health, etc.).
+
+    Metrics Compatibility:
+    The class provides properties that delegate to component state to maintain
+    compatibility with existing metrics tracking systems:
+    - resource_level: Current resource amount from ResourceComponent
+    - current_health: Current health from CombatComponent
+    - starting_health: Maximum health from CombatComponent
+    - generation: Generation number from StateManager
+    - birth_time: Birth timestamp from StateManager
+    - genome_id: Genome identifier from StateManager
+    - total_reward: Accumulated reward (TODO: implement)
     """
 
     def __init__(
@@ -106,7 +220,7 @@ class AgentCore:
 
     def add_component(self, component: IAgentComponent) -> None:
         """
-        Add a behavior component to this agent (Open-Closed Principle).
+        Add a component to this agent (Open-Closed Principle).
 
         Components are attached and can access the agent through their
         _agent reference.
@@ -334,7 +448,7 @@ class AgentCore:
             >>> print(f"Move weight: {weights.get('move', 0)}")
         """
         # For now, return empty dict as action weights are typically
-        # managed by the behavior component or decision modules
+        # managed by the behavior or decision modules
         # This can be extended to query the behavior for actual weights
         # TODO: Implement this
         return {}

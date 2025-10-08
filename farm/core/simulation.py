@@ -1,37 +1,155 @@
-"""
-Simulation Runner for AgentFarm Multi-Agent Simulations
+"""Simulation Runner for AgentFarm Multi-Agent Simulations
 
-This module provides the main simulation execution engine for AgentFarm.
-It handles the complete lifecycle of multi-agent simulations, from initialization
-through execution to finalization and analysis.
+Overview
+--------
+The simulation module provides the main execution engine for AgentFarm multi-agent
+simulations. It orchestrates the complete lifecycle of simulations, from initialization
+through execution to finalization and analysis, using a component-based agent architecture
+with proper service-oriented design.
 
-The simulation runner orchestrates the interaction between agents and their
-environment, managing the simulation loop, agent lifecycle, data collection,
-and result analysis. It supports both single-run simulations and batch processing.
+The simulation runner manages the interaction between agents and their environment,
+handling the simulation loop, agent lifecycle, data collection, and result analysis.
+It supports both single-run simulations and batch processing for parameter studies.
 
-Key Components:
-    - setup_logging: Configure logging system for simulation runs
-    - create_initial_agents: Generate initial agent population
-    - run_simulation: Execute complete simulation with progress tracking
-    - run_simulation_batch: Run multiple simulations with parameter variations
-    - Simulation result collection and analysis
+Key Responsibilities
+--------------------
+- Simulation orchestration: Manages the complete simulation lifecycle
+- Environment initialization: Creates and configures the simulation environment
+- Agent population creation: Generates initial agent populations using AgentFactory
+- Simulation execution: Runs the main simulation loop with progress tracking
+- Data collection: Gathers metrics, logs events, and persists results to database
+- Result analysis: Provides simulation outcomes and performance statistics
 
-Features:
-    - Configurable agent populations and types
-    - Progress tracking with tqdm
-    - Comprehensive logging and metrics collection
-    - Database integration for result persistence
-    - Support for various termination conditions
-    - Batch processing capabilities for parameter studies
+Core Functions
+--------------
+The module provides essential functions for simulation execution:
 
-Usage:
-    # Run a single simulation
-    config = SimulationConfig(...)
-    results = run_simulation(config)
+- **run_simulation()**: Main simulation execution function with complete lifecycle management
+- **create_initial_agents()**: Generates initial agent population with different agent types
+- **init_random_seeds()**: Initializes random number generators for deterministic behavior
+- **main()**: Entry point for direct simulation execution
 
-    # Run multiple simulations with different parameters
-    configs = [SimulationConfig(...), SimulationConfig(...)]
-    batch_results = run_simulation_batch(configs)
+Architecture Integration
+------------------------
+The simulation runner integrates with the component-based agent architecture:
+
+- **AgentFactory Integration**: Uses AgentFactory for consistent agent creation with proper
+  dependency injection and component assembly
+- **Service-Oriented Design**: Ensures all required services (spatial, time, lifecycle,
+  metrics, validation, logging) are properly initialized and injected
+- **Component-Based Agents**: Creates agents with standard components (movement, combat,
+  resources, perception, reproduction) and appropriate behaviors
+- **Environment Services**: Leverages environment-provided services for agent operation
+
+Agent Types and Population
+--------------------------
+The simulation supports different agent types with specialized behaviors:
+
+- **SystemAgent**: Cooperative agents with system-level behavior and reduced efficiency
+- **IndependentAgent**: Self-interested agents with individual behavior and standard efficiency
+- **ControlAgent**: Agents with control or leadership capabilities and enhanced efficiency
+
+Agent populations are created deterministically based on configuration parameters,
+ensuring reproducible simulations when seeds are provided.
+
+Configuration Management
+------------------------
+The simulation handles comprehensive configuration through:
+
+- **SimulationConfig**: Main configuration object containing all simulation parameters
+- **Environment Configuration**: Environment dimensions, resource distribution, spatial indexing
+- **Agent Configuration**: Agent types, populations, behaviors, and component settings
+- **Database Configuration**: Logging settings, database paths, and persistence options
+- **Seed Management**: Deterministic behavior through controlled random number generation
+
+Progress Tracking and Monitoring
+--------------------------------
+The simulation provides comprehensive progress tracking and monitoring:
+
+- **Progress Bars**: Visual progress tracking using tqdm for long-running simulations
+- **Logging**: Structured logging with simulation events, agent actions, and system state
+- **Metrics Collection**: Real-time metrics tracking for population dynamics, resource usage,
+  and interaction patterns
+- **Performance Monitoring**: Simulation performance metrics and timing information
+
+Database Integration
+--------------------
+The simulation integrates with database systems for data persistence:
+
+- **Structured Logging**: Agent actions, interactions, and state changes
+- **Metrics Persistence**: Population statistics, resource dynamics, and performance data
+- **Configuration Storage**: Simulation parameters and settings for reproducibility
+- **Result Analysis**: Queryable data for post-simulation analysis and visualization
+
+Determinism and Reproducibility
+-------------------------------
+The simulation ensures deterministic and reproducible results:
+
+- **Seed Management**: Controlled random number generation across all components
+- **Deterministic Agent Creation**: Consistent agent placement and initialization
+- **Reproducible Execution**: Same inputs produce identical outputs when seeded
+- **Configuration Persistence**: Complete configuration storage for result verification
+
+Error Handling and Robustness
+-----------------------------
+The simulation includes comprehensive error handling:
+
+- **Graceful Degradation**: Continues operation when non-critical components fail
+- **Resource Cleanup**: Proper cleanup of database connections and file handles
+- **Exception Logging**: Detailed error logging with context and stack traces
+- **Recovery Mechanisms**: Attempts to recover from transient failures
+
+Usage Examples
+--------------
+```python
+# Basic simulation execution
+config = SimulationConfig.from_centralized_config()
+environment = run_simulation(num_steps=1000, config=config)
+
+# Simulation with custom parameters
+environment = run_simulation(
+    num_steps=5000,
+    config=config,
+    path="results/simulation_001",
+    save_config=True,
+    seed=42
+)
+
+# Deterministic simulation for research
+environment = run_simulation(
+    num_steps=10000,
+    config=research_config,
+    seed=12345,
+    simulation_id="experiment_001"
+)
+```
+
+Performance Considerations
+--------------------------
+The simulation is optimized for performance and scalability:
+
+- **Efficient Agent Creation**: Batch agent creation with optimized component assembly
+- **Memory Management**: Proper cleanup and resource management throughout execution
+- **Database Optimization**: Efficient database operations with batching and indexing
+- **Progress Tracking**: Minimal overhead progress monitoring with configurable update intervals
+
+Integration Points
+------------------
+The simulation integrates with other AgentFarm components:
+
+- **Environment**: Creates and manages the simulation environment with all services
+- **AgentFactory**: Uses factory for consistent agent creation and dependency injection
+- **Database**: Integrates with database systems for data persistence and analysis
+- **Logging**: Uses structured logging system for comprehensive event tracking
+- **Configuration**: Leverages centralized configuration management
+
+Notes
+-----
+- All simulations use the component-based agent architecture for consistency
+- Services are properly initialized and injected into agents for operation
+- Database logging is optional but recommended for analysis and debugging
+- Seed management ensures reproducible results for research and testing
+- The simulation supports both interactive and batch execution modes
 """
 
 import json
@@ -64,21 +182,36 @@ def create_initial_agents(
     num_control_agents: int,
 ) -> List[Tuple[float, float]]:
     """
-    Create initial population of agents.
+    Create initial population of agents using the AgentFactory.
+
+    This function creates agents with different types (SystemAgent, IndependentAgent,
+    ControlAgent) using the new component-based architecture. Each agent is created
+    with standard components (movement, resource, combat, perception, reproduction)
+    and default behavior.
 
     Parameters
     ----------
     environment : Environment
-        Simulation environment
+        Simulation environment with required services (spatial_service, time_service,
+        lifecycle_service) and agent_parameters configuration
     num_system_agents : int
         Number of system agents to create
     num_independent_agents : int
         Number of independent agents to create
+    num_control_agents : int
+        Number of control agents to create
 
     Returns
     -------
     List[Tuple[float, float]]
-        List of initial agent positions
+        List of initial agent positions for tracking
+
+    Notes
+    -----
+    - Uses AgentFactory for consistent agent creation
+    - Agents are created with deterministic positions based on environment seed
+    - Agent types are passed to factory for future type-specific behavior
+    - All agents are added to the environment and logged to database
     """
     positions = []
     logger.info(
@@ -106,6 +239,7 @@ def create_initial_agents(
         spatial_service=environment.spatial_service,
         time_service=environment.time_service,
         lifecycle_service=environment.lifecycle_service,
+        agent_parameters=environment.config.agent_parameters,
     )
 
     # Create system agents using AgentFactory
@@ -134,9 +268,7 @@ def create_initial_agents(
         environment.add_agent(agent)
         positions.append(position)
 
-    logger.info(
-        "agents_created", agent_type="independent", count=num_independent_agents
-    )
+    logger.info("agents_created", agent_type="independent", count=num_independent_agents)
 
     # Create control agents using AgentFactory
     for _ in range(num_control_agents):
@@ -182,9 +314,7 @@ def init_random_seeds(seed=None):
                 # torch.backends.cudnn.deterministic = True
                 # torch.backends.cudnn.benchmark = False
         except ImportError:
-            logger.info(
-                "pytorch_unavailable", message="Skipping torch seed initialization"
-            )
+            logger.info("pytorch_unavailable", message="Skipping torch seed initialization")
 
         logger.info("random_seeds_initialized", seed=seed, deterministic=True)
 
@@ -199,14 +329,21 @@ def run_simulation(
     identity: Optional[Identity] = None,
 ) -> Environment:
     """
-    Run the main simulation loop.
+    Run the main simulation loop with component-based agent architecture.
+
+    This function orchestrates the complete simulation lifecycle, including:
+    - Environment initialization with service-oriented architecture
+    - Agent creation using AgentFactory with component-based design
+    - Simulation execution with proper agent lifecycle management
+    - Metrics tracking and database logging
 
     Parameters
     ----------
     num_steps : int
         Number of simulation steps to run
     config : SimulationConfig
-        Configuration for the simulation
+        Configuration for the simulation, including agent_parameters for
+        type-specific agent behavior
     path : Optional[str], optional
         Path where to save simulation data, by default None
     save_config : bool, optional
@@ -221,7 +358,18 @@ def run_simulation(
     Returns
     -------
     Environment
-        The simulation environment after completion
+        The simulation environment after completion, with:
+        - All agents created using component-based architecture
+        - Services properly initialized for agent dependency injection
+        - Metrics and database logging completed
+        - Simulation state ready for analysis
+
+    Notes
+    -----
+    This function has been updated to work with the new component-based agent
+    architecture. Agents are now created using AgentFactory with proper service
+    injection, and the environment provides all necessary services for agent
+    operation.
     """
     # Generate simulation_id if not provided
     if simulation_id is None:
@@ -304,9 +452,7 @@ def run_simulation(
                     os.remove(db_path)
                 except PermissionError:
                     # If can't remove, create unique filename
-                    original_db_path = (
-                        db_path  # Store original path before modification
-                    )
+                    original_db_path = db_path  # Store original path before modification
                     base, ext = os.path.splitext(db_path)
                     db_path = f"{base}_{int(time.time())}{ext}"
                     logger.warning(
@@ -377,8 +523,7 @@ def run_simulation(
         # Main simulation loop
         # Disable tqdm progress bar in CI environments to avoid output interference
         disable_tqdm = (
-            os.environ.get("CI", "").lower() in ("true", "1")
-            or os.environ.get("GITHUB_ACTIONS", "").lower() == "true"
+            os.environ.get("CI", "").lower() in ("true", "1") or os.environ.get("GITHUB_ACTIONS", "").lower() == "true"
         )
         for step in tqdm(
             range(num_steps),
@@ -453,9 +598,7 @@ def run_simulation(
             if config.database.persist_db_on_completion and db_path is not None:
                 try:
                     # Create directory if it doesn't exist
-                    os.makedirs(
-                        os.path.dirname(os.path.abspath(db_path)), exist_ok=True
-                    )
+                    os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
 
                     logger.info("persisting_in_memory_database", db_path=db_path)
                     # Persist with selected tables or all tables
@@ -527,9 +670,15 @@ def run_simulation(
     avg_step_time_ms = (total_duration * 1000) / max(environment.time, 1)
 
     # Count births and deaths from database or metrics
-    birth_count = getattr(environment.metrics_tracker, "total_births", 0) if environment.metrics_tracker is not None else 0
-    death_count = getattr(environment.metrics_tracker, "total_deaths", 0) if environment.metrics_tracker is not None else 0
-    reproduction_count = getattr(environment.metrics_tracker, "total_reproductions", 0) if environment.metrics_tracker is not None else 0
+    birth_count = (
+        getattr(environment.metrics_tracker, "total_births", 0) if environment.metrics_tracker is not None else 0
+    )
+    death_count = (
+        getattr(environment.metrics_tracker, "total_deaths", 0) if environment.metrics_tracker is not None else 0
+    )
+    reproduction_count = (
+        getattr(environment.metrics_tracker, "total_reproductions", 0) if environment.metrics_tracker is not None else 0
+    )
 
     # Calculate initial population for logging
     def calculate_initial_population(config):
@@ -558,7 +707,9 @@ def run_simulation(
         termination_reason=(
             "resources_depleted"
             if environment.cached_total_resources == 0
-            else "agents_extinct" if len(environment.agents) == 0 else "completed"
+            else "agents_extinct"
+            if len(environment.agents) == 0
+            else "completed"
         ),
     )
     return environment
