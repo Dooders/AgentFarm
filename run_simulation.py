@@ -15,8 +15,8 @@ from io import StringIO
 # Local imports
 from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
-from farm.utils.logging_config import configure_logging, get_logger
-from farm.utils.logging_utils import log_simulation
+from farm.utils.logging import configure_logging, get_logger
+from farm.utils.logging import log_simulation
 
 # Suppress warnings that might interfere with CI output parsing
 warnings.filterwarnings("ignore", category=RuntimeWarning)

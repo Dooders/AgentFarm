@@ -9,7 +9,7 @@ import pandas as pd
 from farm.database.session_manager import SessionManager
 from farm.database.repositories.learning_repository import LearningRepository
 from farm.database.database import SimulationDatabase
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

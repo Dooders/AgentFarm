@@ -52,7 +52,7 @@ from farm.database.repositories import (
     SimulationRepository,
 )
 from farm.database.session_manager import SessionManager
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 from .data_types import (
     ActionMetrics,
@@ -142,24 +142,31 @@ class DataRetriever:
 
     def population_statistics(self) -> PopulationStatistics:
         """Calculate comprehensive population statistics."""
-        from farm.database.analyzers.population_analyzer import PopulationAnalyzer
+        from farm.analysis.population.analyze import analyze_comprehensive_population
 
-        analyzer = PopulationAnalyzer(self.population_repository)
-        return analyzer.analyze_comprehensive_statistics(scope="simulation")
+        # Get population data from repository
+        with self.session_manager.get_session() as session:
+            population_data = self.population_repository.get_population_data(
+                session, scope="simulation"
+            )
+
+        return analyze_comprehensive_population(population_data)
 
     def resource_statistics(self) -> ResourceAnalysis:
         """Get statistics about resource distribution and consumption."""
-        from farm.database.analyzers.resource_analyzer import ResourceAnalyzer
+        # TODO: Implement resource analysis using farm.analysis.resource module
+        # For now, return empty analysis
+        from farm.database.data_types import ResourceAnalysis
 
-        analyzer = ResourceAnalyzer(self.resource_repository)
-        return analyzer.analyze_comprehensive_statistics(scope="simulation")
+        return ResourceAnalysis()
 
     def learning_statistics(self) -> LearningStatistics:
         """Get statistics about agent learning and adaptation."""
-        from farm.database.analyzers.learning_analyzer import LearningAnalyzer
+        # TODO: Implement learning analysis using farm.analysis.learning module
+        # For now, return empty analysis
+        from farm.database.data_types import LearningStatistics
 
-        analyzer = LearningAnalyzer(self.learning_repository)
-        return analyzer.analyze_comprehensive_statistics(scope="simulation")
+        return LearningStatistics()
 
     def step_actions(self, step_number: int) -> StepActionData:
         """Get all actions performed during a specific simulation step."""

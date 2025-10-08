@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from farm.api.models import ConfigCategory, ConfigTemplate, ValidationResult
 from farm.config import SimulationConfig
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

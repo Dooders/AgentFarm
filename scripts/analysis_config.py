@@ -15,7 +15,7 @@ from sqlalchemy.orm import sessionmaker
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.append(project_root)
 
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -164,10 +164,10 @@ def setup_logging(output_dir):
 
     # Create a timestamp for the log file
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file = os.path.join(output_dir, f"analysis_log.txt")
+    log_file = os.path.join(output_dir, "analysis_log.txt")
 
     # Configure logging
-    from farm.utils.logging_config import configure_logging
+    from farm.utils.logging.config import configure_logging
 
     configure_logging(
         environment="development", log_dir=os.path.dirname(log_file), log_level="INFO"

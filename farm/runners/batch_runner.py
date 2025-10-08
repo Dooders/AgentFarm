@@ -8,7 +8,7 @@ import pandas as pd
 
 from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
-from farm.utils.logging_config import configure_logging, get_logger
+from farm.utils.logging import configure_logging, get_logger
 
 logger = get_logger(__name__)
 

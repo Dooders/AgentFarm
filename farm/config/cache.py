@@ -64,7 +64,10 @@ class ConfigCache:
         self.cache: Dict[str, Dict[str, Any]] = {}
         self.access_times: Dict[str, float] = {}
         self.file_mtimes: Dict[str, float] = {}
-        # Track file sizes alongside mtimes for robust change detection
+        # Track file sizes alongside mtimes for robust change detection.
+        # Rationale: Some filesystems only store modification times (mtime) with second-level granularity,
+        # so rapid file modifications within the same second may not update mtime.
+        # Tracking file size helps detect changes that mtime alone might miss.
         self.file_sizes: Dict[str, int] = {}
         self.memory_usage = 0.0
         self.lock = threading.RLock()

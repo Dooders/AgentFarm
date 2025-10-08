@@ -10,7 +10,7 @@ from farm.database.database import SimulationDatabase
 from farm.database.repositories.action_repository import ActionRepository
 from farm.database.session_manager import SessionManager
 from farm.analysis.common.utils import find_database_path, load_data_with_csv_fallback
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

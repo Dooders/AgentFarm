@@ -22,7 +22,7 @@ from farm.analysis.social_behavior.compute import (
     compute_social_network_metrics,
     compute_spatial_clustering,
 )
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

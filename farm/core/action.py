@@ -19,7 +19,7 @@ Technical Details:
     - Automatic tensor-numpy conversion for state handling
 """
 
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 import math
@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Callable, List
 if TYPE_CHECKING:
     from farm.core.agent import BaseAgent
 
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

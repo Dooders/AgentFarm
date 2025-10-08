@@ -17,7 +17,7 @@ from farm.config import SimulationConfig
 from farm.core.environment import Environment
 from farm.database.database import SimulationDatabase
 from farm.database.models import Simulation
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

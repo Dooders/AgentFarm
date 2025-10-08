@@ -25,7 +25,7 @@ from farm.api.models import (
 )
 from farm.api.session_manager import SessionManager
 from farm.api.unified_adapter import UnifiedAdapter
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

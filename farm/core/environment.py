@@ -50,6 +50,7 @@ from farm.config import ResourceConfig, SimulationConfig
 from farm.core.action import ActionType, action_registry
 from farm.core.channels import NUM_CHANNELS
 from farm.core.geometry import discretize_position_continuous
+from farm.core.interfaces import DatabaseFactoryProtocol, DatabaseProtocol
 from farm.core.metrics_tracker import MetricsTracker
 from farm.core.observations import AgentObservation, ObservationConfig
 from farm.core.resource_manager import ResourceManager
@@ -63,9 +64,8 @@ from farm.core.services.implementations import (
 )
 from farm.core.spatial import SpatialIndex
 from farm.core.state import EnvironmentState
-from farm.core.interfaces import DatabaseFactoryProtocol, DatabaseProtocol
 from farm.utils.identity import Identity, IdentityConfig
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -212,14 +212,20 @@ class Environment(AECEnv):
         """
         super().__init__()
         # Set seed if provided
-        self.seed_value = seed if seed is not None else config.seed if config and config.seed else None
+        self.seed_value = (
+            seed
+            if seed is not None
+            else config.seed if config and config.seed else None
+        )
         if self.seed_value is not None:
             random.seed(self.seed_value)
             np.random.seed(self.seed_value)
             try:
                 torch.manual_seed(self.seed_value)
             except RuntimeError as e:
-                logger.warning("Failed to seed torch with value %s: %s", self.seed_value, e)
+                logger.warning(
+                    "Failed to seed torch with value %s: %s", self.seed_value, e
+                )
 
         # Initialize basic attributes
         self.width = width
@@ -237,18 +243,24 @@ class Environment(AECEnv):
 
         # Setup database and get initialized database instance
         if db_factory is not None:
-            self.db = db_factory.setup_db(db_path, self.simulation_id, config.to_dict() if config else None)
+            self.db = db_factory.setup_db(
+                db_path, self.simulation_id, config.to_dict() if config else None
+            )
         else:
             # Import setup_db only when needed to avoid circular imports
             from farm.database.utilities import setup_db
 
-            self.db = setup_db(db_path, self.simulation_id, config.to_dict() if config else None)
+            self.db = setup_db(
+                db_path, self.simulation_id, config.to_dict() if config else None
+            )
 
         # Use self.identity for all ID needs
         self.max_resource = max_resource
         self.config = config
         self.resource_distribution = resource_distribution
-        self.max_steps = config.max_steps if config and hasattr(config, "max_steps") else 1000
+        self.max_steps = (
+            config.max_steps if config and hasattr(config, "max_steps") else 1000
+        )
 
         # Initialize action mapping based on configuration and available actions
         self._initialize_action_mapping()
@@ -278,7 +290,9 @@ class Environment(AECEnv):
                 enable_batch_updates=spatial_config.enable_batch_updates,
                 region_size=spatial_config.region_size,
                 max_batch_size=spatial_config.max_batch_size,
-                dirty_region_batch_size=getattr(spatial_config, "dirty_region_batch_size", 10),
+                dirty_region_batch_size=getattr(
+                    spatial_config, "dirty_region_batch_size", 10
+                ),
             )
 
             # Enable additional index types if configured
@@ -346,7 +360,9 @@ class Environment(AECEnv):
 
         # Update spatial index references now that resources and agents are initialized
         # Pass a live view of agent objects to avoid accidental string ID lists
-        self.spatial_index.set_references(list(self._agent_objects.values()), self.resources)
+        self.spatial_index.set_references(
+            list(self._agent_objects.values()), self.resources
+        )
         self.spatial_index.update()
 
         # Quadtree and spatial hash indices are already initialized above
@@ -359,6 +375,31 @@ class Environment(AECEnv):
             "bilinear_points": 0,
             "nearest_points": 0,
         }
+
+        # Population milestone tracking
+        self._logged_population_milestones = set()
+
+        # Resource depletion warning tracking
+        self._initial_total_resources = None
+        self._warned_10_percent = False
+        self._warned_25_percent = False
+
+        # Log environment initialization completion
+        logger.info(
+            "environment_initialized",
+            simulation_id=self.simulation_id,
+            dimensions=(self.width, self.height),
+            initial_agents=len(self.agents),
+            initial_resources=len(self.resources),
+            total_resource_amount=sum(r.amount for r in self.resources),
+            seed=self.seed_value,
+            max_steps=self.max_steps,
+            database_path=self.db.db_path if self.db else None,
+            observation_channels=getattr(self, "NUM_CHANNELS", None),
+            action_count=(
+                len(self._action_mapping) if hasattr(self, "_action_mapping") else None
+            ),
+        )
 
     def _initialize_action_mapping(self) -> None:
         """Initialize the action mapping based on configuration and available actions.
@@ -408,9 +449,15 @@ class Environment(AECEnv):
                 missing_actions.append(action_name)
 
         if missing_actions:
-            logger.warning("missing_actions_in_registry", missing_actions=missing_actions)
+            logger.warning(
+                "missing_actions_in_registry", missing_actions=missing_actions
+            )
             # Remove missing actions from mapping
-            self._action_mapping = {k: v for k, v in self._action_mapping.items() if v not in missing_actions}
+            self._action_mapping = {
+                k: v
+                for k, v in self._action_mapping.items()
+                if v not in missing_actions
+            }
 
         # Log the final action mapping
         available_actions = list(self._action_mapping.values())
@@ -461,7 +508,9 @@ class Environment(AECEnv):
 
         return stats
 
-    def enable_batch_spatial_updates(self, region_size: float = 50.0, max_batch_size: int = 100) -> None:
+    def enable_batch_spatial_updates(
+        self, region_size: float = 50.0, max_batch_size: int = 100
+    ) -> None:
         """Enable batch spatial updates with the specified configuration."""
         if hasattr(self.spatial_index, "enable_batch_updates"):
             self.spatial_index.enable_batch_updates(region_size, max_batch_size)
@@ -471,7 +520,9 @@ class Environment(AECEnv):
         if hasattr(self.spatial_index, "disable_batch_updates"):
             self.spatial_index.disable_batch_updates()
 
-    def get_nearby_agents(self, position: Tuple[float, float], radius: float) -> List[Any]:
+    def get_nearby_agents(
+        self, position: Tuple[float, float], radius: float
+    ) -> List[Any]:
         """Find all agents within radius of position.
 
         Parameters
@@ -490,7 +541,9 @@ class Environment(AECEnv):
         nearby = self.spatial_index.get_nearby(position, radius, ["agents"])
         return nearby.get("agents", [])
 
-    def get_nearby_resources(self, position: Tuple[float, float], radius: float) -> List[Any]:
+    def get_nearby_resources(
+        self, position: Tuple[float, float], radius: float
+    ) -> List[Any]:
         """Find all resources within radius of position.
 
         Parameters
@@ -591,7 +644,9 @@ class Environment(AECEnv):
         )
 
         self._spatial_hash_enabled = True
-        logger.info("Spatial hash indices enabled for spatial queries (cell_size=%s)", cell_size)
+        logger.info(
+            "Spatial hash indices enabled for spatial queries (cell_size=%s)", cell_size
+        )
 
     # Resource IDs are managed by ResourceManager
 
@@ -612,7 +667,9 @@ class Environment(AECEnv):
         """
         return self.resource_manager.consume_resource(resource, amount)
 
-    def initialize_resources(self, distribution: Union[Dict[str, Any], Callable]) -> None:
+    def initialize_resources(
+        self, distribution: Union[Dict[str, Any], Callable]
+    ) -> None:
         """Initialize resources in the environment using ResourceManager.
 
         Creates initial resource nodes based on the provided distribution
@@ -665,12 +722,54 @@ class Environment(AECEnv):
         - Marks spatial index as dirty for next update
         - Cleans up agent observation data
         """
+        # Log agent removal before processing
+        logger.info(
+            "agent_removed",
+            agent_id=agent.agent_id,
+            agent_type=agent.__class__.__name__,
+            cause=getattr(agent, "death_cause", "unknown"),
+            lifespan=self.time - getattr(agent, "birth_time", 0),
+            final_resources=getattr(agent, "resource_level", 0),
+            final_health=getattr(agent, "current_health", 0),
+            generation=getattr(agent, "generation", 0),
+            step=self.time,
+            remaining_agents=len(self.agents) - 1,
+        )
+
         agent_id = agent.agent_id
         self.record_death()
         if agent_id in self._agent_objects:
             del self._agent_objects[agent_id]
         if agent_id in self.agents:
             self.agents.remove(agent_id)  # Remove from PettingZoo agents list
+
+        # Check for population milestones after removal
+        current_population = len(self.agents)
+        milestones = [1, 10, 25, 50, 100, 250, 500, 1000, 5000, 10000]
+
+        # Find the closest milestone (checking for decline)
+        for milestone in milestones:
+            if milestone not in self._logged_population_milestones:
+                if current_population < milestone:
+                    # Log this milestone
+                    agent_type_counts = {}
+                    for agent in self._agent_objects.values():
+                        agent_type = agent.__class__.__name__
+                        agent_type_counts[agent_type] = (
+                            agent_type_counts.get(agent_type, 0) + 1
+                        )
+
+                    logger.info(
+                        "population_milestone_reached",
+                        milestone=milestone,
+                        current_population=current_population,
+                        step=self.time,
+                        agent_types=agent_type_counts,
+                        direction="decline",
+                    )
+
+                    self._logged_population_milestones.add(milestone)
+                    break
 
         # Clean up PettingZoo state dictionaries to prevent stale references
         if agent_id in self._cumulative_rewards:
@@ -864,6 +963,40 @@ class Environment(AECEnv):
                     resource_stats["regeneration_events"],
                 )
 
+            # Check resource levels periodically
+            if self.time % 50 == 0:  # Check every 50 steps
+                if self._initial_total_resources is None:
+                    self._initial_total_resources = self.cached_total_resources
+
+                if self._initial_total_resources > 0:
+                    resource_ratio = (
+                        self.cached_total_resources / self._initial_total_resources
+                    )
+                    active_resources = len([r for r in self.resources if r.amount > 0])
+
+                    # Warn at different thresholds
+                    if resource_ratio < 0.1 and not self._warned_10_percent:
+                        logger.warning(
+                            "resources_critically_low",
+                            remaining_ratio=round(resource_ratio, 3),
+                            remaining_total=round(self.cached_total_resources, 2),
+                            active_nodes=active_resources,
+                            total_nodes=len(self.resources),
+                            step=self.time,
+                            agents=len(self.agents),
+                        )
+                        self._warned_10_percent = True
+
+                    elif resource_ratio < 0.25 and not self._warned_25_percent:
+                        logger.warning(
+                            "resources_running_low",
+                            remaining_ratio=round(resource_ratio, 3),
+                            remaining_total=round(self.cached_total_resources, 2),
+                            active_nodes=active_resources,
+                            step=self.time,
+                        )
+                        self._warned_25_percent = True
+
             # Calculate and log metrics
             metrics = self._calculate_metrics()
             self.metrics_tracker.update_metrics(
@@ -888,6 +1021,42 @@ class Environment(AECEnv):
             self.resources_shared_this_step = 0
             self.combat_encounters_this_step = 0
             self.successful_attacks_this_step = 0
+
+            # Log milestone every 100 steps
+            if self.time % 100 == 0 and self.time > 0:
+                # Calculate agent statistics
+                agents_alive = len(self.agents)
+                avg_health = (
+                    np.mean([a.current_health for a in self._agent_objects.values()])
+                    if self._agent_objects
+                    else 0
+                )
+                avg_resources = (
+                    np.mean([a.resource_level for a in self._agent_objects.values()])
+                    if self._agent_objects
+                    else 0
+                )
+
+                # Agent type distribution
+                agent_type_counts = {}
+                for agent in self._agent_objects.values():
+                    agent_type = agent.__class__.__name__
+                    agent_type_counts[agent_type] = (
+                        agent_type_counts.get(agent_type, 0) + 1
+                    )
+
+                logger.info(
+                    "simulation_milestone",
+                    step=self.time,
+                    agents_alive=agents_alive,
+                    total_resources=self.cached_total_resources,
+                    resource_nodes=len([r for r in self.resources if r.amount > 0]),
+                    avg_agent_health=round(avg_health, 2),
+                    avg_agent_resources=round(avg_resources, 2),
+                    agent_types=agent_type_counts,
+                    combat_encounters=getattr(self, "combat_encounters_this_step", 0),
+                    resources_shared=getattr(self, "resources_shared_this_step", 0),
+                )
 
             # Increment time step
             self.time += 1
@@ -920,7 +1089,9 @@ class Environment(AECEnv):
         This method delegates to MetricsTracker for actual calculations,
         passing the current agent objects, resources, time, and configuration.
         """
-        return self.metrics_tracker.calculate_metrics(self._agent_objects, self.resources, self.time, self.config)
+        return self.metrics_tracker.calculate_metrics(
+            self._agent_objects, self.resources, self.time, self.config
+        )
 
     def get_next_agent_id(self) -> str:
         """Generate a unique short ID for an agent using environment's seed.
@@ -1049,7 +1220,9 @@ class Environment(AECEnv):
         """
         if hasattr(self, "resource_manager") and self.resource_manager is not None:
             # Ensure memmap file is flushed; delete based on config (default: keep for reuse)
-            delete_memmap = getattr(self.config, "resources", ResourceConfig()).memmap_delete_on_close
+            delete_memmap = getattr(
+                self.config, "resources", ResourceConfig()
+            ).memmap_delete_on_close
             try:
                 self.resource_manager.cleanup_memmap(delete_file=delete_memmap)
             except Exception as e:
@@ -1107,7 +1280,10 @@ class Environment(AECEnv):
                 agent.metrics_service = self.metrics_service
             if hasattr(agent, "logging_service") and agent.logging_service is None:
                 agent.logging_service = EnvironmentLoggingService(self)
-            if hasattr(agent, "validation_service") and agent.validation_service is None:
+            if (
+                hasattr(agent, "validation_service")
+                and agent.validation_service is None
+            ):
                 agent.validation_service = EnvironmentValidationService(self)
             if hasattr(agent, "time_service") and agent.time_service is None:
                 agent.time_service = EnvironmentTimeService(self)
@@ -1124,7 +1300,10 @@ class Environment(AECEnv):
 
             # Validate required dependencies after injection
             if getattr(agent, "spatial_service", None) is None:
-                raise ValueError("Agent %s missing spatial_service after injection" % getattr(agent, "agent_id", "?"))
+                raise ValueError(
+                    "Agent %s missing spatial_service after injection"
+                    % getattr(agent, "agent_id", "?")
+                )
         except (AttributeError, ValueError, TypeError) as e:
             logger.error(
                 "service_injection_failed",
@@ -1161,7 +1340,9 @@ class Environment(AECEnv):
         self.truncations[agent.agent_id] = False
         self.infos[agent.agent_id] = {}
         # Initialize observation with zeros since agent_observations isn't set up yet
-        self.observations[agent.agent_id] = np.zeros(self._observation_space.shape, dtype=self._observation_space.dtype)
+        self.observations[agent.agent_id] = np.zeros(
+            self._observation_space.shape, dtype=self._observation_space.dtype
+        )
 
         # Mark positions as dirty when new agent is added
         self.spatial_index.mark_positions_dirty()
@@ -1174,7 +1355,52 @@ class Environment(AECEnv):
             if flush_immediately:
                 self.db.logger.flush_all_buffers()
 
-        self.agent_observations[agent.agent_id] = AgentObservation(self.observation_config)
+        self.agent_observations[agent.agent_id] = AgentObservation(
+            self.observation_config
+        )
+
+        # Log agent addition
+        logger.info(
+            "agent_added",
+            agent_id=agent.agent_id,
+            agent_type=agent.__class__.__name__,
+            position=agent.position,
+            initial_resources=agent.resource_level,
+            initial_health=agent.current_health,
+            generation=getattr(agent, "generation", 0),
+            genome_id=getattr(agent, "genome_id", None),
+            step=self.time,
+            total_agents=len(self.agents),
+        )
+
+        # Check for population milestones
+        current_population = len(self.agents)
+        milestones = [1, 10, 25, 50, 100, 250, 500, 1000, 5000, 10000]
+
+        # Find the closest milestone
+        for milestone in milestones:
+            # Check if we just crossed this milestone (either direction)
+            if milestone not in self._logged_population_milestones:
+                if current_population >= milestone:
+                    # Log this milestone
+                    agent_type_counts = {}
+                    for agent in self._agent_objects.values():
+                        agent_type = agent.__class__.__name__
+                        agent_type_counts[agent_type] = (
+                            agent_type_counts.get(agent_type, 0) + 1
+                        )
+
+                    logger.info(
+                        "population_milestone_reached",
+                        milestone=milestone,
+                        current_population=current_population,
+                        step=self.time,
+                        agent_types=agent_type_counts,
+                        direction="growth",
+                    )
+
+                    self._logged_population_milestones.add(milestone)
+                    break
 
     def cleanup(self) -> None:
         """Clean up environment resources.
@@ -1334,7 +1560,9 @@ class Environment(AECEnv):
             np_dtype = np.float32
         else:
             np_dtype = np.float32
-        self._observation_space = spaces.Box(low=0.0, high=1.0, shape=(NUM_CHANNELS, S, S), dtype=np_dtype)
+        self._observation_space = spaces.Box(
+            low=0.0, high=1.0, shape=(NUM_CHANNELS, S, S), dtype=np_dtype
+        )
 
     def _setup_action_space(self) -> None:
         """Setup the action space with all available actions."""
@@ -1345,7 +1573,9 @@ class Environment(AECEnv):
         # This ensures consistent ordering: action index 0 maps to first enabled action, etc.
         self._enabled_action_types = list(self._action_mapping.keys())
 
-    def update_action_space(self, new_enabled_actions: Optional[List[str]] = None) -> None:
+    def update_action_space(
+        self, new_enabled_actions: Optional[List[str]] = None
+    ) -> None:
         """Update the action space when enabled actions configuration changes.
 
         This method should be called when the curriculum or configuration
@@ -1418,7 +1648,13 @@ class Environment(AECEnv):
         agents, so it only includes agents that are still alive. Dead agents
         are not counted even if they were part of the initial population.
         """
-        return len([agent for agent in self._agent_objects.values() if getattr(agent, "birth_time", 0) == 0])
+        return len(
+            [
+                agent
+                for agent in self._agent_objects.values()
+                if getattr(agent, "birth_time", 0) == 0
+            ]
+        )
 
     # _create_initial_agents removed: agents should be created outside the environment
 
@@ -1456,7 +1692,9 @@ class Environment(AECEnv):
         """
         agent = self._agent_objects.get(agent_id)
         if agent is None or not agent.alive:
-            return np.zeros(self._observation_space.shape, dtype=self._observation_space.dtype)
+            return np.zeros(
+                self._observation_space.shape, dtype=self._observation_space.dtype
+            )
 
         # Assume width and height are integers for grid
         height, width = int(self.height), int(self.width)
@@ -1464,17 +1702,29 @@ class Environment(AECEnv):
         # Get discretization method from config
         # Resolve discretization/interpolation from nested environment config when available
         if self.config and getattr(self.config, "environment", None) is not None:
-            discretization_method = getattr(self.config.environment, "position_discretization_method", "floor")
-            use_bilinear = getattr(self.config.environment, "use_bilinear_interpolation", True)
+            discretization_method = getattr(
+                self.config.environment, "position_discretization_method", "floor"
+            )
+            use_bilinear = getattr(
+                self.config.environment, "use_bilinear_interpolation", True
+            )
         else:
             discretization_method = (
-                getattr(self.config, "position_discretization_method", "floor") if self.config else "floor"
+                getattr(self.config, "position_discretization_method", "floor")
+                if self.config
+                else "floor"
             )
-            use_bilinear = getattr(self.config, "use_bilinear_interpolation", True) if self.config else True
+            use_bilinear = (
+                getattr(self.config, "use_bilinear_interpolation", True)
+                if self.config
+                else True
+            )
 
         # Agent position as (y, x) using configured discretization method
         grid_size = (width, height)
-        ax, ay = discretize_position_continuous(agent.position, grid_size, discretization_method)
+        ax, ay = discretize_position_continuous(
+            agent.position, grid_size, discretization_method
+        )
 
         # Ensure spatial index is up to date before observation generation
         self.spatial_index.update()
@@ -1519,7 +1769,9 @@ class Environment(AECEnv):
                 y1 = ay + R + 1
                 x0 = ax - R
                 x1 = ax + R + 1
-                window_np = self.resource_manager.get_resource_window(y0, y1, x0, x1, normalize=True)
+                window_np = self.resource_manager.get_resource_window(
+                    y0, y1, x0, x1, normalize=True
+                )
                 # Convert to torch tensor of correct dtype/device with minimal copies
                 if (
                     self.observation_config.device == "cpu"
@@ -1536,10 +1788,14 @@ class Environment(AECEnv):
                     )
             else:
                 _tq0 = _time.perf_counter()
-                nearby = self.spatial_index.get_nearby(agent.position, R + 1, ["resources"])
+                nearby = self.spatial_index.get_nearby(
+                    agent.position, R + 1, ["resources"]
+                )
                 nearby_resources = nearby.get("resources", [])
                 _tq1 = _time.perf_counter()
-                self._perception_profile["spatial_query_time_s"] += max(0.0, _tq1 - _tq0)
+                self._perception_profile["spatial_query_time_s"] += max(
+                    0.0, _tq1 - _tq0
+                )
         except AttributeError as e:
             logger.warning(
                 "spatial_resource_init_issue",
@@ -1582,11 +1838,15 @@ class Environment(AECEnv):
         elif not used_memmap:
             _tn0 = _time.perf_counter()
             for res in nearby_resources:
-                rx, ry = discretize_position_continuous(res.position, (width, height), discretization_method)
+                rx, ry = discretize_position_continuous(
+                    res.position, (width, height), discretization_method
+                )
                 lx = rx - (ax - R)
                 ly = ry - (ay - R)
                 if 0 <= lx < S and 0 <= ly < S:
-                    resource_local[int(ly), int(lx)] += float(res.amount) / float(max_amount)
+                    resource_local[int(ly), int(lx)] += float(res.amount) / float(
+                        max_amount
+                    )
                     self._perception_profile["nearest_points"] += 1
             _tn1 = _time.perf_counter()
             self._perception_profile["nearest_time_s"] += max(0.0, _tn1 - _tn0)
@@ -1693,7 +1953,11 @@ class Environment(AECEnv):
                             resources_before=resources_before,
                             resources_after=agent.resource_level,
                             reward=0,  # Reward will be calculated later
-                            details=(action_result.get("details", {}) if isinstance(action_result, dict) else {}),
+                            details=(
+                                action_result.get("details", {})
+                                if isinstance(action_result, dict)
+                                else {}
+                            ),
                         )
                     except Exception as e:
                         logger.warning(
@@ -1704,7 +1968,9 @@ class Environment(AECEnv):
                         )
                         logger.warning(f"Failed to log agent action {action_name}: {e}")
             else:
-                logger.warning("action_not_found_in_action_registry", action_name=action_name)
+                logger.warning(
+                    "action_not_found_in_action_registry", action_name=action_name
+                )
         else:
             logger.debug(
                 "Action %s (mapped to %s) not available in current simulation configuration",
@@ -1712,7 +1978,9 @@ class Environment(AECEnv):
                 action_type,
             )
 
-    def _calculate_reward(self, agent_id: str, pre_action_state: Optional[Dict[str, Any]] = None) -> float:
+    def _calculate_reward(
+        self, agent_id: str, pre_action_state: Optional[Dict[str, Any]] = None
+    ) -> float:
         """Calculate the reward for a specific agent.
 
         Computes a reward signal for reinforcement learning based on the agent's
@@ -1823,7 +2091,10 @@ class Environment(AECEnv):
         for i in range(1, len(self.agents) + 1):
             next_idx = (current_idx + i) % len(self.agents)
             next_agent = self.agents[next_idx]
-            if not (self.terminations.get(next_agent, False) or self.truncations.get(next_agent, False)):
+            if not (
+                self.terminations.get(next_agent, False)
+                or self.truncations.get(next_agent, False)
+            ):
                 self.agent_selection = next_agent
 
                 # Detect if we've completed a full cycle
@@ -1952,9 +2223,13 @@ class Environment(AECEnv):
             # Preserve existing agents and refresh observations
             self.agent_observations = {}
             for agent in self._agent_objects.values():
-                self.agent_observations[agent.agent_id] = AgentObservation(self.observation_config)
+                self.agent_observations[agent.agent_id] = AgentObservation(
+                    self.observation_config
+                )
 
-        self.spatial_index.set_references(list(self._agent_objects.values()), self.resources)
+        self.spatial_index.set_references(
+            list(self._agent_objects.values()), self.resources
+        )
         self.spatial_index.update()
 
         # Reset cycle tracking for proper timestep semantics
@@ -1972,12 +2247,16 @@ class Environment(AECEnv):
         self.observations = {a: self._get_observation(a) for a in self.agents}
 
         if self.agent_selection is None:
-            dummy_obs = np.zeros(self._observation_space.shape, dtype=self._observation_space.dtype)
+            dummy_obs = np.zeros(
+                self._observation_space.shape, dtype=self._observation_space.dtype
+            )
             return dummy_obs, {}
 
         return self.observations[self.agent_selection], self.infos[self.agent_selection]
 
-    def step(self, action: Optional[int] = None) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
+    def step(
+        self, action: Optional[int] = None
+    ) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
         """Execute one step in the environment for the currently selected agent.
 
         Parameters
@@ -2047,7 +2326,9 @@ class Environment(AECEnv):
         observation = (
             self._get_observation(agent_id)
             if agent
-            else np.zeros(self._observation_space.shape, dtype=self._observation_space.dtype)
+            else np.zeros(
+                self._observation_space.shape, dtype=self._observation_space.dtype
+            )
         )
 
         # Update agent state and advance to next agent

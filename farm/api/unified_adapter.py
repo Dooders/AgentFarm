@@ -29,7 +29,7 @@ from farm.api.models import (
 )
 from farm.api.simulation_controller import SimulationController
 from farm.core.analysis import SimulationAnalyzer
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
