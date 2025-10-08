@@ -433,7 +433,9 @@ class DecisionModule:
             def store_experience(self, **kwargs):
                 """Store experience method for compatibility with Tianshou-style algorithms."""
                 # Store experiences for testing - this enables database logging tests
-                self.experiences.append(kwargs)
+                # For performance, only store a limited number of experiences
+                if len(self.experiences) < 100:  # Limit to prevent memory growth
+                    self.experiences.append(kwargs)
 
         self.algorithm = FallbackAlgorithm(self.num_actions, self.config.epsilon_start)
 
@@ -670,19 +672,39 @@ class DecisionModule:
                 # Log learning experience to database if available
                 if self._has_database_logger():
                     try:
-                        step_number = None
-                        if hasattr(self.agent, "time_service") and self.agent.time_service:
-                            step_number = self.agent.time_service.current_time()
+                        # For fallback algorithm, optimize by caching time service and action mapping
+                        if self.config.algorithm_type == "fallback":
+                            # Use a simple counter for step_number to avoid expensive time service calls
+                            if not hasattr(self, "_fallback_step_counter"):
+                                self._fallback_step_counter = 0
+                            step_number = self._fallback_step_counter
+                            self._fallback_step_counter += 1
 
-                        action_taken_mapped = None
-                        # check if full_action_index is not None and if it is, check if it is less than the length of the actions list
-                        if (
-                            hasattr(self.agent, "actions")
-                            and full_action_index is not None
-                            and isinstance(full_action_index, int)
-                            and full_action_index < len(self.agent.actions)
-                        ):
-                            action_taken_mapped = self.agent.actions[full_action_index].name
+                            # Use proper action name mapping if available, otherwise fallback to generic name
+                            if (
+                                hasattr(self.agent, "actions")
+                                and full_action_index is not None
+                                and isinstance(full_action_index, int)
+                                and full_action_index < len(self.agent.actions)
+                            ):
+                                action_taken_mapped = self.agent.actions[full_action_index].name
+                            else:
+                                action_taken_mapped = f"action_{full_action_index}"
+                        else:
+                            # For real algorithms, use the full logging logic
+                            step_number = None
+                            if hasattr(self.agent, "time_service") and self.agent.time_service:
+                                step_number = self.agent.time_service.current_time()
+
+                            action_taken_mapped = None
+                            # check if full_action_index is not None and if it is, check if it is less than the length of the actions list
+                            if (
+                                hasattr(self.agent, "actions")
+                                and full_action_index is not None
+                                and isinstance(full_action_index, int)
+                                and full_action_index < len(self.agent.actions)
+                            ):
+                                action_taken_mapped = self.agent.actions[full_action_index].name
 
                         if step_number is not None and action_taken_mapped is not None:
                             self.agent.environment.db.logger.log_learning_experience(
