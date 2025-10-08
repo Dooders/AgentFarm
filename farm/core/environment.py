@@ -1195,9 +1195,14 @@ class Environment(AECEnv):
             - generation: Agent's generation number (if applicable)
             - action_weights: Agent's action weight configuration
         """
-        # Get component data safely
+        # Get component data safely - components may not exist
         resource_component = agent.get_component("resource")
         combat_component = agent.get_component("combat")
+
+        # Safely access component properties with fallbacks
+        starvation_counter = 0
+        if resource_component:
+            starvation_counter = getattr(resource_component, "starvation_steps", 0)
 
         return {
             "simulation_id": self.simulation_id,
@@ -1207,7 +1212,7 @@ class Environment(AECEnv):
             "position": agent.position,
             "initial_resources": agent.resource_level,
             "starting_health": agent.starting_health,
-            "starvation_counter": resource_component.starvation_steps if resource_component else 0,
+            "starvation_counter": starvation_counter,
             "genome_id": getattr(agent.state_manager, "genome_id", None),
             "generation": getattr(agent.state_manager, "generation", 0),
             "action_weights": getattr(agent, "get_action_weights", lambda: {})(),

@@ -4,28 +4,33 @@ Perception component for agent environment observation.
 Handles gathering information about nearby entities and environment state.
 """
 
-from typing import TYPE_CHECKING, Optional, Dict, List, Any
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 try:
     import numpy as np
+
     HAS_NUMPY = True
 except ImportError:
     HAS_NUMPY = False
+
     # Fallback numpy-like interface for basic testing
     class np:
         int8 = int
+
         @staticmethod
         def zeros(shape, dtype=None):
             """Simple fallback zeros implementation."""
             if isinstance(shape, tuple) and len(shape) == 2:
                 return [[0 for _ in range(shape[1])] for _ in range(shape[0])]
             return []
+
         @staticmethod
         def all(arr):
             """Simple fallback all implementation."""
             if isinstance(arr, list):
                 return all(all(row) if isinstance(row, list) else row for row in arr)
             return bool(arr)
+
 
 from farm.core.agent.components.base import IAgentComponent
 from farm.core.agent.config.agent_config import PerceptionConfig
@@ -76,9 +81,7 @@ class PerceptionComponent(IAgentComponent):
         return self._config.perception_grid_size
 
     def get_nearby_entities(
-        self,
-        entity_types: Optional[List[str]] = None,
-        radius: Optional[float] = None
+        self, entity_types: Optional[List[str]] = None, radius: Optional[float] = None
     ) -> Dict[str, List[Any]]:
         """
         Get nearby entities from spatial service.
@@ -103,18 +106,11 @@ class PerceptionComponent(IAgentComponent):
         position = self._agent.state_manager.position
 
         try:
-            return self._spatial_service.get_nearby(
-                position=position,
-                radius=query_radius,
-                index_names=entity_types
-            )
+            return self._spatial_service.get_nearby(position=position, radius=query_radius, index_names=entity_types)
         except Exception:
             return {}
 
-    def get_nearest_entity(
-        self,
-        entity_types: Optional[List[str]] = None
-    ) -> Dict[str, Optional[Any]]:
+    def get_nearest_entity(self, entity_types: Optional[List[str]] = None) -> Dict[str, Optional[Any]]:
         """
         Get nearest entity of each type.
 
@@ -135,10 +131,7 @@ class PerceptionComponent(IAgentComponent):
         position = self._agent.state_manager.position
 
         try:
-            return self._spatial_service.get_nearest(
-                position=position,
-                index_names=entity_types
-            )
+            return self._spatial_service.get_nearest(position=position, index_names=entity_types)
         except Exception:
             return {}
 
@@ -169,7 +162,7 @@ class PerceptionComponent(IAgentComponent):
 
         size = self._config.perception_grid_size
         radius = self._config.perception_radius
-        
+
         if HAS_NUMPY:
             perception = np.zeros((size, size), dtype=np.int8)
         else:
@@ -191,16 +184,36 @@ class PerceptionComponent(IAgentComponent):
 
         # Add resources to grid
         for resource in nearby_resources:
-            gx, gy = world_to_grid(resource.position[0], resource.position[1])
-            if 0 <= gx < size and 0 <= gy < size:
-                perception[gy, gx] = 1
+            # Validate position attribute exists and is properly structured
+            if not hasattr(resource, "position") or not resource.position:
+                continue
+            try:
+                pos = resource.position
+                if not isinstance(pos, (list, tuple)) or len(pos) < 2:
+                    continue
+                gx, gy = world_to_grid(float(pos[0]), float(pos[1]))
+                if 0 <= gx < size and 0 <= gy < size:
+                    perception[gy, gx] = 1
+            except (TypeError, ValueError, IndexError):
+                # Skip invalid positions
+                continue
 
         # Add other agents to grid
         for agent in nearby_agents:
             if agent.agent_id != self._agent.agent_id:
-                gx, gy = world_to_grid(agent.position[0], agent.position[1])
-                if 0 <= gx < size and 0 <= gy < size:
-                    perception[gy, gx] = 2
+                # Validate position attribute exists and is properly structured
+                if not hasattr(agent, "position") or not agent.position:
+                    continue
+                try:
+                    pos = agent.position
+                    if not isinstance(pos, (list, tuple)) or len(pos) < 2:
+                        continue
+                    gx, gy = world_to_grid(float(pos[0]), float(pos[1]))
+                    if 0 <= gx < size and 0 <= gy < size:
+                        perception[gy, gx] = 2
+                except (TypeError, ValueError, IndexError):
+                    # Skip invalid positions
+                    continue
 
         # Mark boundaries (if we have validation service)
         # This would require access to environment bounds
@@ -232,11 +245,7 @@ class PerceptionComponent(IAgentComponent):
 
         return distance <= self._config.perception_radius
 
-    def count_nearby(
-        self,
-        entity_type: str,
-        radius: Optional[float] = None
-    ) -> int:
+    def count_nearby(self, entity_type: str, radius: Optional[float] = None) -> int:
         """
         Count entities of a specific type nearby.
 
