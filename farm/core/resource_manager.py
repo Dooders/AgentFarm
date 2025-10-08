@@ -285,7 +285,7 @@ class ResourceManager:
             distribution_type = distribution.get("type", "random")
         else:
             distribution_type = "random"
-            
+
         logger.info(
             "resources_initializing",
             amount=amount,
@@ -345,7 +345,21 @@ class ResourceManager:
         if self.has_memmap:
             self._rebuild_memmap_from_resources()
 
-        logger.info(f"Successfully initialized {len(self.resources)} resources")
+        # Log resource initialization completion
+        total_amount = sum(r.amount for r in self.resources)
+        avg_amount = total_amount / len(self.resources) if self.resources else 0
+
+        logger.info(
+            "resources_initialized",
+            count=len(self.resources),
+            total_amount=round(total_amount, 2),
+            avg_amount=round(avg_amount, 2),
+            distribution_type=distribution_type,
+            area=self.width * self.height,
+            density=len(self.resources) / (self.width * self.height),
+            use_memmap=self._use_memmap,
+            memmap_shape=self._memmap_shape if self._use_memmap else None,
+        )
         return self.resources
 
     def _create_random_distribution(

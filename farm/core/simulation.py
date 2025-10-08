@@ -384,6 +384,9 @@ def run_simulation(
         ):
             logger.debug("step_starting", step=step, total_steps=num_steps)
 
+            # Time the step processing
+            step_start_time = time.time()
+
             # Process agents in batches
             alive_agents = [agent for agent in environment.agent_objects if agent.alive]
 
@@ -411,6 +414,29 @@ def run_simulation(
 
             # Update environment once per step
             environment.update()
+
+            # Check for slow steps
+            step_duration = time.time() - step_start_time
+            
+            # Warn if step takes > 1 second
+            if step_duration > 1.0:
+                logger.warning(
+                    "slow_step_detected",
+                    step=step,
+                    duration_seconds=round(step_duration, 3),
+                    agents_count=len(environment.agents),
+                    resources_count=len(environment.resources),
+                    threshold_seconds=1.0,
+                )
+            
+            # Also log step timing at DEBUG level for performance analysis
+            elif step % 10 == 0:  # Every 10 steps
+                logger.debug(
+                    "step_timing",
+                    step=step,
+                    duration_ms=round(step_duration * 1000, 2),
+                    agents_count=len(environment.agents),
+                )
 
         # Ensure final state is saved
         environment.update()
@@ -489,12 +515,34 @@ def run_simulation(
                     error_message=str(e),
                 )
 
+    # Calculate summary statistics
     elapsed_time = datetime.now() - start_time
+    total_duration = elapsed_time.total_seconds()
+    avg_step_time_ms = (total_duration * 1000) / max(environment.time, 1)
+    
+    # Count births and deaths from database or metrics
+    birth_count = getattr(environment.metrics_tracker, 'total_births', 0)
+    death_count = getattr(environment.metrics_tracker, 'total_deaths', 0)
+    reproduction_count = getattr(environment.metrics_tracker, 'total_reproductions', 0)
+    
     logger.info(
         "simulation_completed",
         simulation_id=simulation_id,
-        duration_seconds=round(elapsed_time.total_seconds(), 2),
-        total_steps=num_steps,
+        total_steps=environment.time,
+        max_steps_configured=num_steps,
+        final_population=len(environment.agents),
+        initial_population=config.population.system_agents + config.population.independent_agents if config else 0,
+        total_births=birth_count,
+        total_deaths=death_count,
+        reproduction_events=reproduction_count,
+        final_resources=environment.cached_total_resources,
+        resource_nodes=len(environment.resources),
+        duration_seconds=round(total_duration, 2),
+        avg_step_time_ms=round(avg_step_time_ms, 2),
+        steps_per_second=round(environment.time / max(total_duration, 0.001), 2),
+        database_path=environment.db.db_path if environment.db else None,
+        terminated_early=environment.time < num_steps,
+        termination_reason="resources_depleted" if environment.cached_total_resources == 0 else "agents_extinct" if len(environment.agents) == 0 else "completed",
     )
     return environment
 
