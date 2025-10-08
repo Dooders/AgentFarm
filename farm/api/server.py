@@ -231,7 +231,7 @@ async def create_simulation(
         config = base_config
 
         # Create database
-        await asyncio.to_thread(os.makedirs, os.path.dirname(db_path), exist_ok=True)
+        os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
         # Store simulation info (pending)
         async with AsyncLock(_active_simulations_async_lock):

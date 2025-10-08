@@ -392,39 +392,52 @@ class MetricsProcessor:
 
 class SamplingProcessor:
     """Processor to sample high-frequency logs."""
-    
+
     # Configurable minimum sample rate to avoid enormous sampling intervals
-    MIN_SAMPLE_RATE = 0.001
+    # Increased from 0.001 to 0.01 to reduce sampling interval from 1000 to 100
+    MIN_SAMPLE_RATE = 0.01
 
     def __init__(
-        self, 
-        sample_rate: float = 1.0, 
+        self,
+        sample_rate: float = 1.0,
         events_to_sample: Optional[set] = None,
-        min_sample_rate: Optional[float] = None
+        min_sample_rate: Optional[float] = None,
     ):
         """Initialize sampling processor.
 
         Args:
-            sample_rate: Fraction of events to log (minimum MIN_SAMPLE_RATE, maximum 1.0)
+            sample_rate: Fraction of events to log (minimum 0.01, maximum 1.0)
             events_to_sample: Set of event names to sample (None or empty = sample all)
-            min_sample_rate: Override minimum sample rate (defaults to MIN_SAMPLE_RATE)
+            min_sample_rate: Override minimum sample rate (defaults to 0.01)
 
         Raises:
-            ValueError: If sample_rate is not within valid range
+            ValueError: If sample_rate is not within valid range or is 0.0
         """
         # Use provided minimum or class default
-        min_rate = min_sample_rate if min_sample_rate is not None else self.MIN_SAMPLE_RATE
-        
+        min_rate = (
+            min_sample_rate if min_sample_rate is not None else self.MIN_SAMPLE_RATE
+        )
+
+        # Explicit check for zero to provide clear error message
+        if sample_rate == 0.0:
+            raise ValueError(
+                "sample_rate cannot be 0.0 as it would cause division by zero. "
+                f"Use a value between {min_rate} and 1.0"
+            )
+
         # Enforce practical minimum to avoid enormous sampling intervals
         if not min_rate <= sample_rate <= 1.0:
             raise ValueError(
-                f"sample_rate must be between {min_rate} and 1.0, got {sample_rate}"
+                f"sample_rate must be between {min_rate} and 1.0, got {sample_rate}. "
+                "Note: sample_rate cannot be 0.0 as it would cause division by zero"
             )
+
         self.sample_rate = float(sample_rate)
         # None or empty set means "sample all events"
         self.events_to_sample = set(events_to_sample) if events_to_sample else set()
         self.counter: Dict[str, int] = {}
         # Pre-compute interval once for performance; 1 means log all
+        # Safe division since we've validated sample_rate > 0
         self._sample_interval: int = (
             1 if self.sample_rate >= 1.0 else max(1, int(round(1.0 / self.sample_rate)))
         )
