@@ -8,7 +8,7 @@ and imports them into a structured SQLite database using SQLAlchemy models.
 
 import argparse
 import logging
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 import sys
 from typing import Dict

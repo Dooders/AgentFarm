@@ -13,11 +13,11 @@ Features:
 import functools
 import time
 from contextlib import contextmanager
-from typing import Any, Callable, Optional, TypeVar, cast
+from typing import Any, Callable, List, Optional, Tuple, TypeVar, cast
 
 import structlog
 
-from farm.utils.logging_config import bind_context, get_logger, unbind_context
+from farm.utils.logging.config import get_logger, bind_context, unbind_context
 
 # Type variable for generic function decoration
 F = TypeVar('F', bound=Callable[..., Any])

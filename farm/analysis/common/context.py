@@ -11,7 +11,7 @@ from typing import Any, Callable, Dict, Optional
 
 import structlog
 
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 
 @dataclass

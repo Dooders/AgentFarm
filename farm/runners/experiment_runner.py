@@ -20,8 +20,8 @@ from farm.core.interfaces import ChartAnalyzerProtocol
 from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
 from farm.database.database import SimulationDatabase
-from farm.utils.logging_config import get_logger
-from farm.utils.logging_utils import log_experiment
+from farm.utils.logging import get_logger
+from farm.utils.logging import log_experiment
 
 DEFAULT_NUM_STEPS = 1000
 

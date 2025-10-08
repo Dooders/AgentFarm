@@ -52,7 +52,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 from farm.core.device_utils import get_device
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 import pandas as pd
 
 from farm.database.models import AgentModel, SimulationStepModel
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 if TYPE_CHECKING:
     from farm.analysis.dominance.interfaces import DominanceAnalyzerProtocol

@@ -18,7 +18,7 @@ from farm.charts.chart_analyzer import ChartAnalyzer
 from farm.config import SimulationConfig
 from farm.database.database import SimulationDatabase
 from farm.research.research import ResearchProject
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -109,7 +109,7 @@ class ExperimentController:
 
     def _setup_logging(self) -> None:
         """Configure experiment-specific logging."""
-        from farm.utils.logging_config import get_logger
+        from farm.utils.logging import get_logger
 
         # Create experiment-specific logger with bound context
         self.logger = get_logger(f"experiment.{self.name}").bind(

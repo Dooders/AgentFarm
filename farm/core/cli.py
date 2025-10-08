@@ -8,7 +8,7 @@ from farm.core.analysis import SimulationAnalyzer
 from farm.config import SimulationConfig
 from farm.core.visualization import SimulationVisualizer
 from farm.runners.experiment_runner import ExperimentRunner
-from farm.utils.logging_config import configure_logging, get_logger
+from farm.utils.logging import configure_logging, get_logger
 
 logger = get_logger(__name__)
 

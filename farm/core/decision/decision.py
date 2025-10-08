@@ -20,7 +20,7 @@ import numpy as np
 import torch
 
 from farm.core.decision.config import DecisionConfig
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

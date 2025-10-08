@@ -16,7 +16,7 @@ import pandas as pd
 from farm.analysis.exceptions import ConfigurationError, ModuleNotFoundError
 from farm.analysis.registry import get_module, get_module_names, register_modules
 from farm.core.services import IConfigService
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

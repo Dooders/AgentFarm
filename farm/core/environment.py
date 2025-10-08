@@ -65,7 +65,7 @@ from farm.core.services.implementations import (
 from farm.core.spatial import SpatialIndex
 from farm.core.state import EnvironmentState
 from farm.utils.identity import Identity, IdentityConfig
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

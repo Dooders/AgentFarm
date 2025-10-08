@@ -11,7 +11,7 @@ from typing import Optional, Union
 
 import torch
 
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -249,7 +249,9 @@ class DeviceManager:
         try:
             return tensor.to(target_device)
         except Exception as e:
-            raise RuntimeError(f"Failed to move tensor to device {target_device}: {e}") from e
+            raise RuntimeError(
+                f"Failed to move tensor to device {target_device}: {e}"
+            ) from e
 
     def get_optimal_device_for_model(
         self, model_size_mb: Optional[float] = None

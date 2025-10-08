@@ -17,7 +17,7 @@ from farm.analysis.dominance.features import (
     analyze_reproduction_efficiency,
     analyze_reproduction_timing,
 )
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 from scripts.analysis_config import setup_and_process_simulations
 
 logger = get_logger(__name__)

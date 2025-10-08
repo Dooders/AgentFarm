@@ -49,8 +49,8 @@ from farm.config import SimulationConfig
 from farm.core.agent import BaseAgent
 from farm.core.environment import Environment
 from farm.utils.identity import Identity
-from farm.utils.logging_config import get_logger
-from farm.utils.logging_utils import log_simulation, log_step
+from farm.utils.logging import get_logger
+from farm.utils.logging import log_simulation, log_step
 
 # Shared Identity instance for efficiency
 _shared_identity = Identity()

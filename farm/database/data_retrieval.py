@@ -52,7 +52,7 @@ from farm.database.repositories import (
     SimulationRepository,
 )
 from farm.database.session_manager import SessionManager
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 from .data_types import (
     ActionMetrics,

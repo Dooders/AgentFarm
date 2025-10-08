@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Optional, Callable, Iterator
 from pathlib import Path
 from enum import Enum
 import pandas as pd
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 from farm.analysis.protocols import (
     DataProcessor,

@@ -7,7 +7,7 @@ from farm.analysis.dominance.sqlalchemy_models import (
     get_session,
     init_db,
 )
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

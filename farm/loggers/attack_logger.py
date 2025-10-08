@@ -6,7 +6,7 @@ including attacks, defenses, and their results.
 
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 if TYPE_CHECKING:
     from farm.core.agent import BaseAgent

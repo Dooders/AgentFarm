@@ -23,7 +23,7 @@ import redis
 from farm.core.perception import PerceptionData
 from farm.core.state import AgentState
 from farm.memory.base_memory import MemorySearchMixin
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

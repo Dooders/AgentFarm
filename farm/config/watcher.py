@@ -14,8 +14,7 @@ from pathlib import Path
 from typing import Callable, Dict, Optional, Set, Union
 
 from .config import SimulationConfig
-# Import via facade to avoid coupling this module to a specific logging config
-from farm.utils.logger import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

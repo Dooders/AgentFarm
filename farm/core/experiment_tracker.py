@@ -29,7 +29,7 @@ from typing import Any, Dict, List
 from jinja2 import Environment, FileSystemLoader
 
 from farm.utils.identity import Identity
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 # Shared Identity instance for efficiency
 _shared_identity = Identity()

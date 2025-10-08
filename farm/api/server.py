@@ -22,7 +22,7 @@ from farm.core.analysis import analyze_simulation
 from farm.core.services import EnvConfigService
 from farm.core.simulation import run_simulation
 from farm.database.database import SimulationDatabase
-from farm.utils.logging_config import configure_logging, get_logger
+from farm.utils.logging import configure_logging, get_logger
 
 # Configure structured logging
 configure_logging(
