@@ -6,22 +6,23 @@ defined in protocols.py. These classes provide default functionality that
 can be extended by specific analysis modules.
 """
 
-from typing import List, Dict, Any, Optional, Callable, Iterator
-from pathlib import Path
 from enum import Enum
+from pathlib import Path
+from typing import Any, Callable, Dict, Iterator, List, Optional
+
 import pandas as pd
-from farm.utils.logging import get_logger
 
-from farm.analysis.protocols import (
-    DataProcessor,
-    DataValidator,
-    AnalysisFunction,
-    AnalysisModule as AnalysisModuleProtocol,
-)
 from farm.analysis.common.context import AnalysisContext
-from farm.analysis.exceptions import AnalysisFunctionError, ConfigurationError, DataProcessingError
+from farm.analysis.exceptions import (
+    AnalysisFunctionError,
+    ConfigurationError,
+    DataProcessingError,
+)
+from farm.analysis.protocols import AnalysisFunction
+from farm.analysis.protocols import AnalysisModule as AnalysisModuleProtocol
+from farm.analysis.protocols import DataProcessor, DataValidator
 from farm.analysis.validation import CompositeValidator
-
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -260,7 +261,7 @@ class BaseAnalysisModule:
             # Handle database if module supports it
             if self.supports_database():
                 db_filename = self.get_db_filename()
-                if db_filename:
+                if db_filename is not None:
                     db_path = output_path / db_filename
                     db_uri = f"sqlite:///{db_path}"
                     processor_kwargs["save_to_db"] = True
@@ -272,12 +273,14 @@ class BaseAnalysisModule:
             # Load from database if needed
             if df is None and self.supports_database():
                 db_loader = self.get_db_loader()
-                if db_loader:
+                if db_loader is not None:
                     ctx.logger.info("Loading data from database...")
                     df = db_loader(db_uri)
 
         except Exception as e:
-            raise DataProcessingError(f"Data processing failed: {e}", step="processing") from e
+            raise DataProcessingError(
+                f"Data processing failed: {e}", step="processing"
+            ) from e
 
         # Validate data if validator is set (even if empty, to catch insufficient data)
         validator = self.get_validator()
@@ -297,7 +300,11 @@ class BaseAnalysisModule:
             is_empty = df.empty
         elif isinstance(df, dict):
             # For dict structures (like spatial data), check if all DataFrames are empty
-            is_empty = all(pd.DataFrame(v).empty for v in df.values() if isinstance(v, (pd.DataFrame, list)))
+            is_empty = all(
+                pd.DataFrame(v).empty
+                for v in df.values()
+                if isinstance(v, (pd.DataFrame, list))
+            )
         else:
             # For other types, assume not empty
             is_empty = False
@@ -310,7 +317,11 @@ class BaseAnalysisModule:
         if isinstance(df, pd.DataFrame):
             record_count = len(df)
         elif isinstance(df, dict):
-            record_count = sum(len(pd.DataFrame(v)) for v in df.values() if isinstance(v, (pd.DataFrame, list)))
+            record_count = sum(
+                len(pd.DataFrame(v))
+                for v in df.values()
+                if isinstance(v, (pd.DataFrame, list))
+            )
         else:
             record_count = 1  # Fallback for other types
 
@@ -323,7 +334,9 @@ class BaseAnalysisModule:
         elif isinstance(df, dict):
             for key, value in df.items():
                 if isinstance(value, pd.DataFrame):
-                    ctx.logger.info(f"DataFrame '{key}': {len(value)} rows, columns: {list(value.columns)}")
+                    ctx.logger.info(
+                        f"DataFrame '{key}': {len(value)} rows, columns: {list(value.columns)}"
+                    )
                 else:
                     ctx.logger.info(f"Data '{key}': {type(value)}")
 
@@ -365,16 +378,22 @@ class BaseAnalysisModule:
                     raise error
                 elif active_error_mode == ErrorHandlingMode.COLLECT:
                     errors_collected.append(error)
-                    ctx.logger.warning("Collected error, continuing with remaining functions")
+                    ctx.logger.warning(
+                        "Collected error, continuing with remaining functions"
+                    )
                 else:  # CONTINUE mode (default)
-                    ctx.logger.warning(f"Skipping {func_name}, continuing with remaining functions")
+                    ctx.logger.warning(
+                        f"Skipping {func_name}, continuing with remaining functions"
+                    )
                     continue
 
         ctx.report_progress("Analysis complete", 1.0)
         ctx.logger.info(f"Results saved to: {output_path}")
 
         if errors_collected:
-            ctx.logger.warning(f"Analysis completed with {len(errors_collected)} error(s)")
+            ctx.logger.warning(
+                f"Analysis completed with {len(errors_collected)} error(s)"
+            )
 
         return output_path, df
 
@@ -452,7 +471,9 @@ class ChainedDataProcessor:
         return result
 
 
-def make_analysis_function(func: Callable, name: Optional[str] = None) -> AnalysisFunction:
+def make_analysis_function(
+    func: Callable, name: Optional[str] = None
+) -> AnalysisFunction:
     """Wrap a function to match the AnalysisFunction protocol.
 
     Args:
@@ -480,10 +501,17 @@ def make_analysis_function(func: Callable, name: Optional[str] = None) -> Analys
                 call_kwargs[param_name] = str(ctx.output_path)
             elif param_name == "experiment_path":
                 # Get experiment path from context metadata
-                call_kwargs[param_name] = ctx.metadata.get("experiment_path", str(ctx.output_path.parent))
+                call_kwargs[param_name] = ctx.metadata.get(
+                    "experiment_path", str(ctx.output_path.parent)
+                )
             elif param_name in ["df", "data", "dataframe"]:
                 call_kwargs[param_name] = df
-            elif param_name in ["patterns_df", "spatial_data", "segmentation_data", "efficiency_data"]:
+            elif param_name in [
+                "patterns_df",
+                "spatial_data",
+                "segmentation_data",
+                "efficiency_data",
+            ]:
                 # These are computed dataframes/dicts that should be derived from df
                 # For now, pass the main df and let the function handle it
                 call_kwargs[param_name] = df

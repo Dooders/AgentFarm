@@ -7,12 +7,10 @@ and export results to CSV files.
 """
 
 import argparse
-from farm.utils.logging import get_logger
-
-logger = get_logger(__name__)
+import logging
 import os
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 import pandas as pd
 from sqlalchemy import text
@@ -29,16 +27,18 @@ from farm.analysis.advantage.sqlalchemy_models import (
     get_session,
     init_db,
 )
+from farm.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def setup_logging(verbose: bool = False) -> None:
     """Set up logging configuration."""
-    level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[logging.StreamHandler()],
-    )
+    # Use the existing logger configuration
+    if verbose:
+        logger.setLevel(logging.DEBUG)
+    else:
+        logger.setLevel(logging.INFO)
 
 
 def query_resource_advantages(
