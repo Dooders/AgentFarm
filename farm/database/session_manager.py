@@ -225,5 +225,5 @@ class SessionManager:
                 "session_cleanup_error",
                 error_type=type(e).__name__,
                 error_message=str(e),
-                exc_info=True
+                exception=str(e)
             )
