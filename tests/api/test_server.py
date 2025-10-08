@@ -19,7 +19,7 @@ from farm.api.server import (
     SimulationCreateRequest,
     SimulationResponse,
     SimulationStatus,
-    _active_simulations_lock,
+    _active_simulations_thread_lock,
     active_simulations,
     app,
     manager,
@@ -46,12 +46,12 @@ class TestFastAPIServer:
 
     def setup_method(self):
         """Clear active simulations before each test."""
-        with _active_simulations_lock:
+        with _active_simulations_thread_lock:
             active_simulations.clear()
 
     def teardown_method(self):
         """Clean up after each test."""
-        with _active_simulations_lock:
+        with _active_simulations_thread_lock:
             active_simulations.clear()
 
     def test_create_simulation_success(
@@ -97,7 +97,7 @@ class TestFastAPIServer:
 
             # Verify simulation was added to active simulations
             sim_id = data["sim_id"]
-            with _active_simulations_lock:
+            with _active_simulations_thread_lock:
                 assert sim_id in active_simulations
                 assert active_simulations[sim_id]["status"] == "pending"
 
@@ -118,7 +118,7 @@ class TestFastAPIServer:
         sim_id = "test_sim_123"
 
         # Add simulation to active simulations
-        with _active_simulations_lock:
+        with _active_simulations_thread_lock:
             active_simulations[sim_id] = {
                 "db_path": temp_db_path,
                 "config": {},
@@ -157,7 +157,7 @@ class TestFastAPIServer:
         sim_id = "test_sim_123"
 
         # Add simulation to active simulations
-        with _active_simulations_lock:
+        with _active_simulations_thread_lock:
             active_simulations[sim_id] = {
                 "db_path": temp_db_path,
                 "config": {},
@@ -224,7 +224,7 @@ class TestFastAPIServer:
     def test_list_simulations(self, client):
         """Test listing active simulations."""
         # Add some test simulations
-        with _active_simulations_lock:
+        with _active_simulations_thread_lock:
             active_simulations["sim1"] = {
                 "db_path": "test1.db",
                 "config": {"steps": 100},
@@ -253,7 +253,7 @@ class TestFastAPIServer:
         sim_id = "test_sim_123"
 
         # Add simulation to active simulations
-        with _active_simulations_lock:
+        with _active_simulations_thread_lock:
             active_simulations[sim_id] = {
                 "db_path": temp_db_path,
                 "config": {},
@@ -286,7 +286,7 @@ class TestFastAPIServer:
         }
 
         # Add simulation to active simulations
-        with _active_simulations_lock:
+        with _active_simulations_thread_lock:
             active_simulations[sim_id] = sim_data
 
         response = client.get(f"/api/simulation/{sim_id}/status")
@@ -316,7 +316,7 @@ class TestFastAPIServer:
         sim_id = "test_sim_123"
 
         # Add simulation to active simulations
-        with _active_simulations_lock:
+        with _active_simulations_thread_lock:
             active_simulations[sim_id] = {
                 "db_path": "test.db",
                 "config": {},
@@ -373,7 +373,7 @@ class TestFastAPIServer:
         config.simulation_steps = 100
 
         # Add simulation to active simulations
-        with _active_simulations_lock:
+        with _active_simulations_thread_lock:
             active_simulations[sim_id] = {
                 "db_path": temp_db_path,
                 "config": {},
@@ -391,7 +391,7 @@ class TestFastAPIServer:
             _run_simulation_background(sim_id, config, temp_db_path)
 
             # Verify simulation status was updated
-            with _active_simulations_lock:
+            with _active_simulations_thread_lock:
                 assert active_simulations[sim_id]["status"] == "completed"
                 assert "ended_at" in active_simulations[sim_id]
 
@@ -402,7 +402,7 @@ class TestFastAPIServer:
         config.simulation_steps = 100
 
         # Add simulation to active simulations
-        with _active_simulations_lock:
+        with _active_simulations_thread_lock:
             active_simulations[sim_id] = {
                 "db_path": temp_db_path,
                 "config": {},
@@ -420,7 +420,7 @@ class TestFastAPIServer:
             _run_simulation_background(sim_id, config, temp_db_path)
 
             # Verify error status was set
-            with _active_simulations_lock:
+            with _active_simulations_thread_lock:
                 assert active_simulations[sim_id]["status"] == "error"
                 assert "error_message" in active_simulations[sim_id]
                 assert (
@@ -432,7 +432,7 @@ class TestFastAPIServer:
         sim_id = "test_sim_123"
 
         # Add simulation to active simulations
-        with _active_simulations_lock:
+        with _active_simulations_thread_lock:
             active_simulations[sim_id] = {
                 "db_path": "test.db",
                 "config": {},
