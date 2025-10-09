@@ -23,7 +23,7 @@ import redis
 from farm.core.perception import PerceptionData
 from farm.core.state import AgentState
 from farm.memory.base_memory import MemorySearchMixin
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -152,8 +152,14 @@ class AgentMemory(MemorySearchMixin):
                 return obj.as_serializable()
             else:
                 return vars(obj)
-        except Exception:
+        except Exception as e:
             # Fallback to vars() if serialization methods fail
+            logger.debug(
+                "object_serialization_fallback",
+                object_type=type(obj).__name__,
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
             return vars(obj)
 
     @property

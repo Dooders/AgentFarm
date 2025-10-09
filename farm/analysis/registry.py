@@ -5,7 +5,7 @@ Provides centralized registration and discovery of analysis modules.
 """
 
 import importlib
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 from typing import Any, Dict, List, Optional
 
 from farm.analysis.protocols import AnalysisModule

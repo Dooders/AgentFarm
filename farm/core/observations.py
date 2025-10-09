@@ -80,7 +80,7 @@ from typing import Dict, List, Optional, Set, Tuple
 import torch
 import torch.nn.functional as F
 
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 from pydantic import BaseModel, Field, field_validator

@@ -18,7 +18,7 @@ from farm.research.analysis.util import (
     validate_population_data,
     validate_resource_level_data,
 )
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 # EXPERIMENT_DATA_PATH = "results/one_of_a_kind_v1/experiments/data"
 

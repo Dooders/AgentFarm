@@ -10,6 +10,9 @@ import numpy as np
 
 from farm.analysis.common.utils import calculate_statistics, calculate_trend
 from farm.analysis.config import population_config
+from farm.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def compute_population_statistics(df: pd.DataFrame) -> Dict[str, Any]:
@@ -183,8 +186,12 @@ def compute_growth_rate_analysis(
             # Doubling time: t_d = ln(2) / r
             if slope > 0:
                 doubling_time = float(np.log(2) / slope)
-    except (ValueError, RuntimeError):
-        pass
+    except (ValueError, RuntimeError) as e:
+        logger.debug(
+            "exponential_fit_failed",
+            error_type=type(e).__name__,
+            error_message=str(e),
+        )
     
     # Identify growth phases using threshold on smoothed growth rate
     phases = []

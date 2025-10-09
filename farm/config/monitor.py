@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from .config import SimulationConfig
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -51,7 +51,7 @@ class ConfigMonitor:
         Args:
             logger: Logger instance to use (creates default if None)
         """
-        from farm.utils.logging_config import get_logger
+        from farm.utils.logging import get_logger
         self.logger = logger or get_logger("config_monitor")
         self.metrics: List[ConfigMetrics] = []
         self.max_metrics_history = 1000

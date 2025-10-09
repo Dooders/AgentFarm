@@ -9,6 +9,9 @@ import pandas as pd
 from farm.database.session_manager import SessionManager
 from farm.database.repositories.learning_repository import LearningRepository
 from farm.database.database import SimulationDatabase
+from farm.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def process_learning_data(experiment_path: Path, use_database: bool = True, **kwargs) -> pd.DataFrame:
@@ -72,7 +75,12 @@ def process_learning_data(experiment_path: Path, use_database: bool = True, **kw
 
     except Exception as e:
         # If database loading fails, try to load from CSV files
-        pass
+        logger.warning(
+            "learning_data_database_load_failed",
+            experiment_path=str(experiment_path),
+            error_type=type(e).__name__,
+            error_message=str(e),
+        )
 
     if df is None or df.empty:
         # For learning analysis, we don't have CSV fallback files available
@@ -139,7 +147,12 @@ def process_learning_progress_data(experiment_path: Path) -> pd.DataFrame:
                 db.close()
     except Exception as e:
         # If database loading fails, try to load from CSV files
-        pass
+        logger.warning(
+            "aggregate_learning_data_database_load_failed",
+            experiment_path=str(experiment_path),
+            error_type=type(e).__name__,
+            error_message=str(e),
+        )
 
     if df is None:
         # Return empty DataFrame with correct structure

@@ -15,7 +15,7 @@ from typing import Callable, Dict, Optional, Any, List
 
 from farm.analysis.service import AnalysisRequest, AnalysisResult, AnalysisService
 from farm.core.services import IConfigService
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 

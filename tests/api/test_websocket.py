@@ -6,7 +6,12 @@ from unittest.mock import Mock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from farm.api.server import _active_simulations_lock, active_simulations, app, manager
+from farm.api.server import (
+    _active_simulations_thread_lock,
+    active_simulations,
+    app,
+    manager,
+)
 
 
 class TestWebSocketFunctionality:
@@ -19,12 +24,12 @@ class TestWebSocketFunctionality:
 
     def setup_method(self):
         """Clear active simulations before each test."""
-        with _active_simulations_lock:
+        with _active_simulations_thread_lock:
             active_simulations.clear()
 
     def teardown_method(self):
         """Clean up after each test."""
-        with _active_simulations_lock:
+        with _active_simulations_thread_lock:
             active_simulations.clear()
 
     def test_websocket_connection_establishment(self, client):
@@ -67,7 +72,7 @@ class TestWebSocketFunctionality:
         sim_id = "test_sim_123"
 
         # Add simulation to active simulations
-        with _active_simulations_lock:
+        with _active_simulations_thread_lock:
             active_simulations[sim_id] = {
                 "db_path": "test.db",
                 "config": {"steps": 100},
@@ -176,7 +181,7 @@ class TestWebSocketFunctionality:
         sim_id = "test_sim_status"
 
         # Add simulation to active simulations
-        with _active_simulations_lock:
+        with _active_simulations_thread_lock:
             active_simulations[sim_id] = {
                 "db_path": "test.db",
                 "config": {"steps": 100},
@@ -195,7 +200,7 @@ class TestWebSocketFunctionality:
             assert response_data["type"] == "subscription_success"
 
             # Update simulation status
-            with _active_simulations_lock:
+            with _active_simulations_thread_lock:
                 active_simulations[sim_id]["status"] = "running"
 
             # Note: In a real implementation, status updates would be broadcast

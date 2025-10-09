@@ -4,7 +4,7 @@ import tkinter as tk
 
 from farm.database.models import Base
 from farm.database.session_manager import SessionManager
-from farm.utils.logging_config import configure_logging, get_logger
+from farm.utils.logging import configure_logging, get_logger
 
 # Configure structured logging
 configure_logging(

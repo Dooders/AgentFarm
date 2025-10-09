@@ -1,3 +1,4 @@
+import asyncio
 import os
 import threading
 from datetime import datetime
@@ -21,7 +22,7 @@ from farm.core.analysis import analyze_simulation
 from farm.core.services import EnvConfigService
 from farm.core.simulation import run_simulation
 from farm.database.database import SimulationDatabase
-from farm.utils.logging_config import configure_logging, get_logger
+from farm.utils.logging import configure_logging, get_logger
 
 # Configure structured logging
 configure_logging(
@@ -79,17 +80,68 @@ class SimulationStatus(BaseModel):
 
 # Store active simulations
 active_simulations = {}
-_active_simulations_lock = threading.Lock()
 
 # Store active analyses
 active_analyses = {}
-_active_analyses_lock = threading.Lock()
 
 # Configuration for analysis resource management
 MAX_COMPLETED_ANALYSES = 100
 ANALYSIS_RETENTION_HOURS = 24
 MAX_CONCURRENT_ANALYSES = 10
+
+# IMPORTANT: Locking Strategy
+# ===========================
+# We use threading.Lock for all shared data structures (active_simulations, active_analyses)
+# because these are accessed from BOTH:
+#   1. Async endpoints (event loop context)
+#   2. Background tasks (thread pool context via BackgroundTasks)
+#
+# Problem: asyncio.Lock and threading.Lock don't coordinate with each other!
+# Solution: Use asyncio.Lock for async operations and threading.Lock for thread pool operations
+#          This prevents deadlock scenarios that can occur with asyncio.to_thread()
+
+# Async locks for use in async endpoints
+_active_simulations_async_lock = asyncio.Lock()
+_active_analyses_async_lock = asyncio.Lock()
+
+# Thread locks for use in background tasks (thread pool context)
+_active_simulations_thread_lock = threading.Lock()
+_active_analyses_thread_lock = threading.Lock()
+
+# Semaphore for controlling concurrent analyses (threading-based)
 _analysis_semaphore = threading.Semaphore(MAX_CONCURRENT_ANALYSES)
+
+
+# Helper for acquiring asyncio locks in async code
+class AsyncLock:
+    """Context manager to acquire asyncio.Lock in async code."""
+
+    def __init__(self, lock: asyncio.Lock):
+        self.lock = lock
+
+    async def __aenter__(self):
+        await self.lock.acquire()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        self.lock.release()
+        return False
+
+
+# Helper for acquiring threading locks in thread pool code
+class ThreadLock:
+    """Context manager to acquire threading.Lock in thread pool code."""
+
+    def __init__(self, lock: threading.Lock):
+        self.lock = lock
+
+    def __enter__(self):
+        self.lock.acquire()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.lock.release()
+        return False
 
 
 # WebSocket connection manager
@@ -123,7 +175,7 @@ manager = ConnectionManager()
 
 def _run_simulation_background(sim_id, config, db_path):
     try:
-        with _active_simulations_lock:
+        with ThreadLock(_active_simulations_thread_lock):
             if sim_id in active_simulations:
                 active_simulations[sim_id]["status"] = "running"
 
@@ -134,7 +186,7 @@ def _run_simulation_background(sim_id, config, db_path):
             path=os.path.dirname(db_path),
         )
 
-        with _active_simulations_lock:
+        with ThreadLock(_active_simulations_thread_lock):
             if sim_id in active_simulations:
                 active_simulations[sim_id]["status"] = "completed"
                 active_simulations[sim_id]["ended_at"] = datetime.now().isoformat()
@@ -146,7 +198,7 @@ def _run_simulation_background(sim_id, config, db_path):
             error_message=str(e),
             exc_info=True,
         )
-        with _active_simulations_lock:
+        with ThreadLock(_active_simulations_thread_lock):
             if sim_id in active_simulations:
                 active_simulations[sim_id]["status"] = "error"
                 active_simulations[sim_id]["error_message"] = str(e)
@@ -182,7 +234,7 @@ async def create_simulation(
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
 
         # Store simulation info (pending)
-        with _active_simulations_lock:
+        async with AsyncLock(_active_simulations_async_lock):
             active_simulations[sim_id] = {
                 "db_path": db_path,
                 "config": config_data,
@@ -212,15 +264,17 @@ async def create_simulation(
 async def get_step(sim_id: str, step: int):
     """Get simulation state for a specific step."""
     try:
-        with _active_simulations_lock:
+        async with AsyncLock(_active_simulations_async_lock):
             if sim_id not in active_simulations:
                 raise HTTPException(
                     status_code=404, detail=f"Simulation {sim_id} not found"
                 )
             db_path = active_simulations[sim_id]["db_path"]
 
-        db = SimulationDatabase(db_path)
-        data = db.query.gui_repository.get_simulation_data(step)
+        db = await asyncio.to_thread(SimulationDatabase, db_path)
+        data = await asyncio.to_thread(
+            db.query.gui_repository.get_simulation_data, step
+        )
 
         return {"status": "success", "data": data}
 
@@ -241,15 +295,15 @@ async def get_step(sim_id: str, step: int):
 async def get_analysis(sim_id: str):
     """Get detailed simulation analysis."""
     try:
-        with _active_simulations_lock:
+        async with AsyncLock(_active_simulations_async_lock):
             if sim_id not in active_simulations:
                 raise HTTPException(
                     status_code=404, detail=f"Simulation {sim_id} not found"
                 )
             db_path = active_simulations[sim_id]["db_path"]
 
-        db = SimulationDatabase(db_path)
-        analysis_results = analyze_simulation(db)
+        db = await asyncio.to_thread(SimulationDatabase, db_path)
+        analysis_results = await asyncio.to_thread(analyze_simulation, db)
 
         return {"status": "success", "data": analysis_results}
 
@@ -267,7 +321,7 @@ async def get_analysis(sim_id: str):
 
 def _cleanup_old_analyses():
     """Remove completed analyses older than retention period to prevent memory leaks."""
-    with _active_analyses_lock:
+    with ThreadLock(_active_analyses_thread_lock):
         now = datetime.now()
         to_remove = []
 
@@ -320,7 +374,7 @@ def _run_analysis_background(analysis_id: str, controller: AnalysisController):
     try:
         # Acquire semaphore to limit concurrent analyses
         with _analysis_semaphore:
-            with _active_analyses_lock:
+            with ThreadLock(_active_analyses_thread_lock):
                 if analysis_id in active_analyses:
                     active_analyses[analysis_id]["status"] = "running"
 
@@ -332,7 +386,7 @@ def _run_analysis_background(analysis_id: str, controller: AnalysisController):
 
             # Update final state
             result = controller.get_result()
-            with _active_analyses_lock:
+            with ThreadLock(_active_analyses_thread_lock):
                 if analysis_id in active_analyses:
                     if result and result.success:
                         active_analyses[analysis_id]["status"] = "completed"
@@ -368,7 +422,7 @@ def _run_analysis_background(analysis_id: str, controller: AnalysisController):
             error_message=str(e),
             exc_info=True,
         )
-        with _active_analyses_lock:
+        with ThreadLock(_active_analyses_thread_lock):
             if analysis_id in active_analyses:
                 active_analyses[analysis_id]["status"] = "error"
                 active_analyses[analysis_id]["error"] = str(e)
@@ -423,7 +477,7 @@ async def run_analysis_module(
         controller.initialize_analysis(req)
 
         # Store analysis info
-        with _active_analyses_lock:
+        async with AsyncLock(_active_analyses_async_lock):
             active_analyses[analysis_id] = {
                 "controller": controller,
                 "module_name": module_name,
@@ -461,7 +515,7 @@ async def run_analysis_module(
 async def get_analysis_status(analysis_id: str):
     """Get status of a specific analysis job."""
     try:
-        with _active_analyses_lock:
+        async with AsyncLock(_active_analyses_async_lock):
             if analysis_id not in active_analyses:
                 raise HTTPException(
                     status_code=404, detail=f"Analysis {analysis_id} not found"
@@ -492,7 +546,7 @@ async def get_analysis_status(analysis_id: str):
 async def pause_analysis(analysis_id: str):
     """Pause a running analysis."""
     try:
-        with _active_analyses_lock:
+        async with AsyncLock(_active_analyses_async_lock):
             if analysis_id not in active_analyses:
                 raise HTTPException(
                     status_code=404, detail=f"Analysis {analysis_id} not found"
@@ -523,7 +577,7 @@ async def pause_analysis(analysis_id: str):
 async def resume_analysis(analysis_id: str):
     """Resume a paused analysis."""
     try:
-        with _active_analyses_lock:
+        async with AsyncLock(_active_analyses_async_lock):
             if analysis_id not in active_analyses:
                 raise HTTPException(
                     status_code=404, detail=f"Analysis {analysis_id} not found"
@@ -554,7 +608,8 @@ async def resume_analysis(analysis_id: str):
 async def stop_analysis(analysis_id: str):
     """Stop a running analysis."""
     try:
-        with _active_analyses_lock:
+        # Get controller reference while holding lock
+        async with AsyncLock(_active_analyses_async_lock):
             if analysis_id not in active_analyses:
                 raise HTTPException(
                     status_code=404, detail=f"Analysis {analysis_id} not found"
@@ -566,9 +621,11 @@ async def stop_analysis(analysis_id: str):
                 status_code=400, detail="Analysis controller not available"
             )
 
+        # Stop the controller (can be done without lock)
         controller.stop()
 
-        with _active_analyses_lock:
+        # Update status while holding lock
+        async with AsyncLock(_active_analyses_async_lock):
             if analysis_id in active_analyses:
                 active_analyses[analysis_id]["status"] = "stopped"
 
@@ -590,7 +647,7 @@ async def stop_analysis(analysis_id: str):
 async def list_analyses():
     """Get list of all analysis jobs."""
     try:
-        with _active_analyses_lock:
+        async with AsyncLock(_active_analyses_async_lock):
             # Create safe copy without controller objects
             analyses_data = {}
             for analysis_id, info in active_analyses.items():
@@ -679,7 +736,7 @@ async def cleanup_old_analyses_endpoint():
 async def get_analysis_statistics():
     """Get statistics about analysis system resource usage."""
     try:
-        with _active_analyses_lock:
+        async with AsyncLock(_active_analyses_async_lock):
             total = len(active_analyses)
             by_status = {}
             running_count = 0
@@ -717,7 +774,7 @@ async def get_analysis_statistics():
 @app.get("/api/simulations")
 async def list_simulations():
     """Get list of active simulations."""
-    with _active_simulations_lock:
+    async with AsyncLock(_active_simulations_async_lock):
         data = dict(active_simulations)
     return {"status": "success", "data": data}
 
@@ -726,16 +783,16 @@ async def list_simulations():
 async def export_simulation(sim_id: str):
     """Export simulation data."""
     try:
-        with _active_simulations_lock:
+        async with AsyncLock(_active_simulations_async_lock):
             if sim_id not in active_simulations:
                 raise HTTPException(
                     status_code=404, detail=f"Simulation {sim_id} not found"
                 )
             db_path = active_simulations[sim_id]["db_path"]
 
-        db = SimulationDatabase(db_path)
+        db = await asyncio.to_thread(SimulationDatabase, db_path)
         export_path = f"results/export_{sim_id}.csv"
-        db.export_data(export_path)
+        await asyncio.to_thread(db.export_data, export_path)
 
         return {
             "status": "success",
@@ -774,7 +831,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 message = json.loads(data)
                 if message.get("type") == "subscribe_simulation":
                     sim_id = message.get("sim_id")
-                    with _active_simulations_lock:
+                    async with AsyncLock(_active_simulations_async_lock):
                         exists = sim_id in active_simulations
 
                     if exists:
@@ -813,7 +870,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 @app.get("/api/simulation/{sim_id}/status", response_model=SimulationStatus)
 async def get_simulation_status(sim_id: str):
     try:
-        with _active_simulations_lock:
+        async with AsyncLock(_active_simulations_async_lock):
             if sim_id not in active_simulations:
                 raise HTTPException(
                     status_code=404, detail=f"Simulation {sim_id} not found"

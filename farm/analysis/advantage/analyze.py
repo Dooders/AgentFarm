@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -480,7 +480,13 @@ def analyze_advantage_patterns(df: pd.DataFrame) -> Dict[str, Any]:
                                 )
                             )
                             effect_size = (dominant_avg - non_dominant_avg) / pooled_std
-                        except Exception:
+                        except Exception as e:
+                            logger.debug(
+                                "effect_size_calculation_failed",
+                                column=col,
+                                error_type=type(e).__name__,
+                                error_message=str(e),
+                            )
                             effect_size = 0
 
                         # Store results

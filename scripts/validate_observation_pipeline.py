@@ -27,7 +27,7 @@ from farm.core.decision.config import DecisionConfig
 from farm.core.decision.decision import DecisionModule
 from farm.core.observations import AgentObservation, ObservationConfig
 from farm.core.services.factory import AgentServiceFactory
-from farm.utils.logging_config import get_logger
+from farm.utils.logging import get_logger
 
 # from farm.core.services.spatial.mock_spatial_service import MockSpatialService
 

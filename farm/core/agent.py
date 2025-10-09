@@ -59,8 +59,8 @@ from farm.core.services.interfaces import (
 from farm.core.state import AgentState
 from farm.database.data_types import GenomeId
 from farm.utils.config_utils import get_nested_then_flat
-from farm.utils.logging_config import get_logger
-from farm.utils.logging_utils import AgentLogger
+from farm.utils.logging import get_logger
+from farm.utils.logging import AgentLogger
 
 try:
     from farm.memory.redis_memory import AgentMemoryManager, RedisMemoryConfig
