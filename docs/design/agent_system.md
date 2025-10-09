@@ -20,7 +20,12 @@ from farm.core.agent import AgentFactory, AgentConfig
 
 ```python
 # Create factory
-factory = AgentFactory(spatial_service=spatial_service)
+factory = AgentFactory(
+    spatial_service=spatial_service,
+    default_config=AgentConfig(),  # Optional: custom default config
+    time_service=time_service,      # Optional: for time tracking
+    lifecycle_service=lifecycle_service  # Optional: for agent lifecycle
+)
 
 # Create agent
 agent = factory.create_default_agent(
@@ -62,7 +67,7 @@ from farm.core.agent.components import (
 
 # Add to agent
 agent.add_component(MovementComponent(config.movement))
-agent.add_component(ResourceComponent(100, config.resource))
+agent.add_component(ResourceComponent(initial_resources=100, config=config.resource))
 
 # Access component
 movement = agent.get_component("movement")
@@ -120,8 +125,10 @@ from farm.core.agent import AgentFactory
 
 factory = AgentFactory(
     spatial_service=spatial_service,
-    time_service=time_service,
-    lifecycle_service=lifecycle_service,
+    default_config=AgentConfig(),  # Optional: custom default config
+    time_service=time_service,      # Optional: for time tracking
+    lifecycle_service=lifecycle_service,  # Optional: for agent lifecycle
+    agent_parameters=None  # Optional: agent type-specific parameters
 )
 
 # Create different agent types
@@ -139,7 +146,10 @@ minimal_agent = factory.create_minimal_agent(...)
 ```python
 from farm.core.agent import AgentFactory, AgentConfig
 
-factory = AgentFactory(spatial_service=spatial_service)
+factory = AgentFactory(
+    spatial_service=spatial_service,
+    default_config=AgentConfig()  # Optional
+)
 
 # Create 100 agents
 agents = []
@@ -300,8 +310,10 @@ from farm.core.agent import AgentFactory
 # Setup
 factory = AgentFactory(
     spatial_service=spatial_service,
-    time_service=time_service,
-    lifecycle_service=lifecycle_service,
+    default_config=AgentConfig(),  # Optional: custom default config
+    time_service=time_service,      # Optional: for time tracking
+    lifecycle_service=lifecycle_service,  # Optional: for agent lifecycle
+    agent_parameters=None  # Optional: agent type-specific parameters
 )
 
 # Create population
@@ -466,7 +478,10 @@ agent = BaseAgent(agent_id="001", position=(0,0), resource_level=100, ...)
 
 # New way (use this)
 from farm.core.agent import AgentFactory
-factory = AgentFactory(spatial_service=spatial_service)
+factory = AgentFactory(
+    spatial_service=spatial_service,
+    default_config=AgentConfig()  # Optional
+)
 agent = factory.create_default_agent(agent_id="001", position=(0,0), initial_resources=100)
 ```
 
@@ -480,7 +495,10 @@ The new system is cleaner, more testable, and follows SOLID principles.
 
 ✅ **Do**: Use AgentFactory for construction
 ```python
-factory = AgentFactory(spatial_service=spatial_service)
+factory = AgentFactory(
+    spatial_service=spatial_service,
+    default_config=AgentConfig()  # Optional
+)
 agent = factory.create_default_agent(...)
 ```
 
@@ -562,11 +580,21 @@ class AgentCore:
 
 ```python
 class AgentFactory:
+    def __init__(
+        self,
+        spatial_service: ISpatialQueryService,  # Required
+        default_config: Optional[AgentConfig] = None,  # Optional
+        time_service: Optional[ITimeService] = None,  # Optional
+        lifecycle_service: Optional[IAgentLifecycleService] = None,  # Optional
+        agent_parameters: Optional[Dict[str, Dict[str, float]]] = None  # Optional
+    )
+    
     def create_default_agent(
         agent_id: str,
         position: tuple[float, float],
         initial_resources: int = 100,
-        config: Optional[AgentConfig] = None
+        config: Optional[AgentConfig] = None,
+        agent_type: Optional[str] = None  # For future agent type specialization
     ) -> AgentCore
     
     def create_learning_agent(
@@ -589,15 +617,16 @@ class AgentFactory:
 ```python
 # MovementComponent
 movement = agent.get_component("movement")
-movement.move_to(position: tuple) -> bool
-movement.move_by(delta_x: float, delta_y: float) -> bool
-movement.random_move(distance: Optional[float] = None) -> bool
-movement.move_toward_entity(target: tuple, stop_distance: float = 0.0) -> bool
-movement.can_reach(target: tuple) -> bool
-movement.distance_to(target: tuple) -> float
+movement.move_to(position: tuple) -> bool  # Returns True if move was successful
+movement.move_by(delta_x: float, delta_y: float) -> bool  # Returns True if move was successful
+movement.random_move(distance: Optional[float] = None) -> bool  # Returns True if move was successful
+movement.move_toward_entity(target: tuple, stop_distance: float = 0.0) -> bool  # Returns True if move was successful
+movement.can_reach(target: tuple) -> bool  # Returns True if target is reachable
+movement.distance_to(target: tuple) -> float  # Returns distance to target
 
 # ResourceComponent
 resource = agent.get_component("resource")
+# Constructor: ResourceComponent(initial_resources: int, config: ResourceConfig)
 resource.level: int
 resource.add(amount: int) -> None
 resource.consume(amount: int) -> bool
@@ -611,8 +640,8 @@ combat.health: float
 combat.max_health: float
 combat.health_ratio: float
 combat.attack(target: AgentCore) -> dict  # Returns: success, damage_dealt, target_killed, target_health, error
-combat.take_damage(damage: float) -> float
-combat.heal(amount: float) -> float
+combat.take_damage(damage: float) -> float  # Returns actual damage taken
+combat.heal(amount: float) -> float  # Returns actual healing done
 combat.start_defense(duration: Optional[int] = None) -> None
 combat.is_defending: bool
 
@@ -626,10 +655,10 @@ perception.count_nearby(entity_type: str, radius: Optional[float] = None) -> int
 
 # ReproductionComponent
 reproduction = agent.get_component("reproduction")
-reproduction.can_reproduce() -> bool
+reproduction.can_reproduce() -> bool  # Returns True if agent can reproduce
 reproduction.reproduce() -> dict  # Returns: success, offspring_id, cost, error
-reproduction.get_reproduction_info() -> dict
-reproduction.reproduction_count: int
+reproduction.get_reproduction_info() -> dict  # Returns reproduction status info
+reproduction.reproduction_count: int  # Number of times agent has reproduced
 ```
 
 ---
@@ -640,7 +669,10 @@ reproduction.reproduction_count: int
 
 ```python
 # Create agent
-factory = AgentFactory(spatial_service=spatial_service)
+factory = AgentFactory(
+    spatial_service=spatial_service,
+    default_config=AgentConfig()  # Optional
+)
 agent = factory.create_default_agent(
     agent_id="simple_001",
     position=(0, 0),
@@ -883,7 +915,10 @@ Start using it today with just a few lines of code:
 ```python
 from farm.core.agent import AgentFactory
 
-factory = AgentFactory(spatial_service=spatial_service)
+factory = AgentFactory(
+    spatial_service=spatial_service,
+    default_config=AgentConfig()  # Optional
+)
 agent = factory.create_default_agent(agent_id="001", position=(0, 0))
 agent.act()
 ```
