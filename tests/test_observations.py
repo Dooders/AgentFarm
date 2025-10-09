@@ -707,6 +707,7 @@ class TestObservationFrequency(unittest.TestCase):
         from farm.config.config import EnvironmentConfig, PopulationConfig, ResourceConfig
         from farm.core.environment import Environment
         from farm.core.agent import BaseAgent
+        from farm.core.physics import create_physics_engine
 
         self.test_dir = tempfile.mkdtemp()
         self.db_path = f"{self.test_dir}/test.db"
@@ -719,10 +720,12 @@ class TestObservationFrequency(unittest.TestCase):
             max_steps=5,  # Small number of steps for testing
         )
 
+        # Create physics engine
+        physics_engine = create_physics_engine(self.config)
+        
         # Create environment
         self.env = Environment(
-            width=50,
-            height=50,
+            physics_engine=physics_engine,
             resource_distribution={"amount": 10},
             config=self.config,
             db_path=self.db_path,

@@ -128,10 +128,13 @@ class SimulationController:
                 parameters=self.config.to_dict(),
             )
 
+            # Create physics engine from config
+            from farm.core.physics.factory import create_physics_engine
+            physics_engine = create_physics_engine(self.config, seed=self.config.seed)
+            
             # Initialize environment
             self.environment = Environment(
-                width=self.config.width,
-                height=self.config.height,
+                physics_engine=physics_engine,
                 resource_distribution={
                     "type": "random",
                     "amount": self.config.initial_resources,

@@ -7,6 +7,7 @@ import numpy as np
 
 from farm.config import SimulationConfig
 from farm.core.environment import Environment
+from farm.core.physics import create_physics_engine
 
 
 class TestMemmapResources(unittest.TestCase):
@@ -26,9 +27,12 @@ class TestMemmapResources(unittest.TestCase):
         self.cfg.memmap_dir = self.tmpdir
         self.cfg.memmap_dtype = "float32"
         self.cfg.memmap_mode = "w+"
+        
+        # Create physics engine
+        physics_engine = create_physics_engine(self.cfg)
+        
         self.env = Environment(
-            width=self.cfg.environment.width,
-            height=self.cfg.environment.height,
+            physics_engine=physics_engine,
             resource_distribution={},
             config=self.cfg,
             db_path=":memory:",
@@ -55,14 +59,14 @@ class TestMemmapResources(unittest.TestCase):
 
     def test_observation_uses_memmap_without_spatial_query(self):
         # Track calls to spatial_index.get_nearby to ensure resources don't use spatial queries
-        original_get_nearby = self.env.spatial_index.get_nearby
+        original_get_nearby = self.env.physics.spatial_index.get_nearby
         calls = []
 
         def track_calls(*args, **kwargs):
             calls.append(args)
             return original_get_nearby(*args, **kwargs)
 
-        self.env.spatial_index.get_nearby = track_calls
+        self.env.physics.spatial_index.get_nearby = track_calls
 
         # Add an agent and request observation
         from farm.core.agent import BaseAgent

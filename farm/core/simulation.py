@@ -48,6 +48,7 @@ from tqdm import tqdm
 from farm.config import SimulationConfig
 from farm.core.agent import BaseAgent
 from farm.core.environment import Environment
+from farm.core.physics import create_physics_engine
 from farm.utils.identity import Identity
 from farm.utils.logging import get_logger, log_simulation, log_step
 
@@ -267,10 +268,12 @@ def run_simulation(
             )
             from farm.database.database import InMemorySimulationDatabase
 
+            # Create physics engine
+            physics_engine = create_physics_engine(config, seed=seed)
+            
             # Create environment with in-memory database
             environment = Environment(
-                width=config.environment.width,
-                height=config.environment.height,
+                physics_engine=physics_engine,
                 resource_distribution={
                     "type": "random",
                     "amount": config.resources.initial_resources,
@@ -323,10 +326,12 @@ def run_simulation(
 
             # Note: Database tables and simulation record are already created in setup_db
 
+            # Create physics engine
+            physics_engine = create_physics_engine(config, seed=seed)
+            
             # Create environment with disk-based database
             environment = Environment(
-                width=config.environment.width,
-                height=config.environment.height,
+                physics_engine=physics_engine,
                 resource_distribution={
                     "type": "random",
                     "amount": config.resources.initial_resources,

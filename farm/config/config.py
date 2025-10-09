@@ -143,6 +143,23 @@ class SpatialIndexConfig:
 
 
 @dataclass
+class PhysicsConfig:
+    """Configuration for physics engine settings."""
+
+    type: str = "grid_2d"  # Physics engine type: "grid_2d", "static", "continuous"
+    width: Optional[int] = None  # Override environment width if specified
+    height: Optional[int] = None  # Override environment height if specified
+    spatial_config: Optional[SpatialIndexConfig] = None
+    observation_config: Optional[ObservationConfig] = None
+
+    def __post_init__(self):
+        """Validate physics configuration."""
+        valid_types = ["grid_2d", "static", "continuous"]
+        if self.type not in valid_types:
+            raise ValueError(f"Physics type must be one of {valid_types}, got {self.type}")
+
+
+@dataclass
 class EnvironmentConfig:
     """Configuration for simulation environment settings."""
 
@@ -153,6 +170,7 @@ class EnvironmentConfig:
         True  # Whether to use bilinear interpolation for resources
     )
     spatial_index: Optional[SpatialIndexConfig] = None
+    physics: Optional[PhysicsConfig] = None
 
 
 @dataclass
@@ -836,9 +854,9 @@ class SimulationConfig:
             "attack_kill_reward",
         }
 
-        for field in module_specific_fields:
-            if field in nested_data:
-                module_fields[field] = nested_data.pop(field)
+        for field_name in module_specific_fields:
+            if field_name in nested_data:
+                module_fields[field_name] = nested_data.pop(field_name)
 
         if module_fields:
             nested_data["modules"] = ModuleConfig(**module_fields)
@@ -993,9 +1011,9 @@ class SimulationConfig:
 
         for config_name, (config_class, fields) in config_mappings.items():
             config_dict = {}
-            for field in fields:
-                if field in nested_data:
-                    config_dict[field] = nested_data.pop(field)
+            for field_name in fields:
+                if field_name in nested_data:
+                    config_dict[field_name] = nested_data.pop(field_name)
 
             if config_dict:
                 nested_data[config_name] = config_class(**config_dict)

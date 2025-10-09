@@ -99,12 +99,12 @@ def db(tmp_db_path):
 @pytest.fixture()
 def env():
     """Provide a lightweight Environment suitable for fast tests."""
-    from farm.config.config import SimulationConfig
+    from farm.config.config import SimulationConfig, EnvironmentConfig
     from farm.core.environment import Environment
+    from farm.core.physics.factory import create_physics_engine
 
     config = SimulationConfig(
-        width=20,
-        height=20,
+        environment=EnvironmentConfig(width=20, height=20),
         system_agents=0,
         independent_agents=0,
         control_agents=0,
@@ -113,9 +113,11 @@ def env():
         seed=1234,
     )
 
+    # Create physics engine from config
+    physics_engine = create_physics_engine(config, seed=1234)
+
     environment = Environment(
-        width=config.width,
-        height=config.height,
+        physics_engine=physics_engine,
         resource_distribution={"amount": 3},
         config=config,
         db_path=":memory:",

@@ -121,27 +121,57 @@ def create_agent(self, agent_type: str, **kwargs) -> BaseAgent:
 
 ### Environment Class Architecture
 
-The `Environment` class extends PettingZoo's `AECEnv` and serves as the central coordinator:
+The `Environment` class extends PettingZoo's `AECEnv` and serves as the central coordinator. It now uses a physics abstraction layer for spatial operations:
 
 ```python
 class Environment(AECEnv):
-    def __init__(self, width: int, height: int, resource_distribution: str, **kwargs):
+    def __init__(self, physics_engine: IPhysicsEngine, resource_distribution: str, **kwargs):
         super().__init__()
 
         # Core components
-        self._grid = np.zeros((height, width))  # Spatial world representation
-        self._agents = {}                       # Agent registry
-        self._resources = ResourceManager()     # Resource system
-        self._spatial_index = SpatialIndex()    # Performance optimization
-        self._metrics_tracker = MetricsTracker() # Data collection
+        self.physics = physics_engine              # Physics engine for spatial operations
+        self._agents = {}                          # Agent registry
+        self._resources = ResourceManager()        # Resource system (uses physics)
+        self._metrics_tracker = MetricsTracker()   # Data collection
         self._observation_config = kwargs.get('obs_config', ObservationConfig())
 
         # Simulation state
         self._current_step = 0
         self._terminated_agents = set()
         self._action_space = self._create_action_space()
-        self._observation_space = self._create_observation_space()
+        # Observation space now provided by physics engine
 ```
+
+### Physics Abstraction Layer
+
+The physics abstraction layer provides a clean separation between environment orchestration and spatial/physics operations:
+
+```python
+# Physics engine interface
+class IPhysicsEngine(Protocol):
+    def validate_position(self, position: Any) -> bool: ...
+    def get_nearby_entities(self, position: Any, radius: float, entity_type: str) -> List[Any]: ...
+    def compute_distance(self, pos1: Any, pos2: Any) -> float: ...
+    def get_observation_space(self, agent_id: str) -> spaces.Space: ...
+    def sample_position(self) -> Any: ...
+    def get_bounds(self) -> Tuple[Any, Any]: ...
+    def get_config(self) -> Dict[str, Any]: ...
+
+# Grid2D implementation
+class Grid2DPhysics(IPhysicsEngine):
+    def __init__(self, width: int, height: int, spatial_config: Optional[Any] = None):
+        self.width = width
+        self.height = height
+        self.spatial_index = SpatialIndex(width, height, **spatial_config)
+        # ... implementation
+```
+
+**Benefits of Physics Abstraction:**
+- **Flexibility**: Easy to swap between different environment types (2D grid, static, continuous)
+- **Testability**: Mock physics engines for unit tests
+- **Extensibility**: Add custom physics engines without modifying core code
+- **Maintainability**: Clear separation of concerns
+- **Future-proofing**: Ready for new environment types
 
 ### Simulation Loop
 

@@ -12,6 +12,7 @@ from farm.config import SimulationConfig
 from farm.config.config import EnvironmentConfig, ResourceConfig
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
+from farm.core.physics.factory import create_physics_engine
 
 
 class TestCombatMetrics(unittest.TestCase):
@@ -53,10 +54,12 @@ class TestCombatMetrics(unittest.TestCase):
             observation=observation_config,
         )
 
+        # Create physics engine
+        physics_engine = create_physics_engine(simulation_config, seed=42)
+        
         # Create a test environment
         self.env = Environment(
-            width=10,
-            height=10,
+            physics_engine=physics_engine,
             resource_distribution={"amount": 5},
             db_path=":memory:",  # Use in-memory database
             config=simulation_config,

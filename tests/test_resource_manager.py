@@ -9,6 +9,7 @@ This module tests the ResourceManager functionality including:
 - Database integration
 """
 
+import math
 import os
 import random
 import tempfile
@@ -37,14 +38,58 @@ class TestResourceManager(unittest.TestCase):
         self.config.resources.default_spawn_amount = 5.0
         # Ensure memmap_dir returns None to use temp directory
         self.config.memmap_dir = None
+        # Disable memmap to avoid configuration issues in tests
+        self.config.use_memmap_resources = False
+        self.config.memmap_mode = "w+"
 
         # Mock database logger
         self.mock_logger = Mock()
 
+        # Mock physics engine that provides bounds and spatial queries
+        self.mock_physics = Mock()
+        self.mock_physics.get_bounds.return_value = ((0, 0), (self.width, self.height))
+        
+        # Store resources list for spatial queries
+        self.test_resources = []
+        
+        # Mock spatial query methods
+        def mock_get_nearby_entities(position, radius, entity_type):
+            if entity_type == "resources":
+                # Return resources within radius of position
+                nearby = []
+                for resource in self.test_resources:
+                    if hasattr(resource, 'position'):
+                        distance = math.sqrt(
+                            (resource.position[0] - position[0])**2 + 
+                            (resource.position[1] - position[1])**2
+                        )
+                        if distance <= radius:
+                            nearby.append(resource)
+                return nearby
+            return []
+        
+        def mock_get_nearest_resource(position):
+            if not self.test_resources:
+                return None
+            nearest = None
+            min_distance = float('inf')
+            for resource in self.test_resources:
+                if hasattr(resource, 'position'):
+                    distance = math.sqrt(
+                        (resource.position[0] - position[0])**2 + 
+                        (resource.position[1] - position[1])**2
+                    )
+                    if distance < min_distance:
+                        min_distance = distance
+                        nearest = resource
+            return nearest
+        
+        self.mock_physics.get_nearby_entities = mock_get_nearby_entities
+        self.mock_physics.get_nearest_resource = mock_get_nearest_resource
+
         # Create resource manager without seed for non-deterministic tests
         self.resource_manager = ResourceManager(
-            width=self.width,
-            height=self.height,
+            physics_engine=self.mock_physics,
             config=self.config,
             seed=None,
             database_logger=self.mock_logger,
@@ -71,8 +116,7 @@ class TestResourceManager(unittest.TestCase):
         """Test ResourceManager initialization with seed."""
         seed = 42
         resource_manager = ResourceManager(
-            width=self.width,
-            height=self.height,
+            physics_engine=self.mock_physics,
             config=self.config,
             seed=seed,
             database_logger=self.mock_logger,
@@ -141,8 +185,7 @@ class TestResourceManager(unittest.TestCase):
     def test_create_resource_deterministic(self):
         """Test resource creation with deterministic seed."""
         resource_manager = ResourceManager(
-            width=self.width,
-            height=self.height,
+            physics_engine=self.mock_physics,
             config=self.config,
             seed=42,
             database_logger=self.mock_logger,
@@ -193,8 +236,7 @@ class TestResourceManager(unittest.TestCase):
     def test_update_resources_deterministic(self):
         """Test resource updates with deterministic regeneration."""
         resource_manager = ResourceManager(
-            width=self.width,
-            height=self.height,
+            physics_engine=self.mock_physics,
             config=self.config,
             seed=42,
             database_logger=self.mock_logger,
@@ -276,6 +318,7 @@ class TestResourceManager(unittest.TestCase):
             Resource(2, (50.0, 50.0), 5.0),
         ]
         self.resource_manager.resources = resources
+        self.test_resources = resources
 
         # Get resources within radius 10 of (12, 12)
         nearby = self.resource_manager.get_nearby_resources((12.0, 12.0), 10.0)
@@ -292,6 +335,7 @@ class TestResourceManager(unittest.TestCase):
             Resource(2, (90.0, 90.0), 5.0),
         ]
         self.resource_manager.resources = resources
+        self.test_resources = resources
 
         # Get nearest resource to (15, 15)
         nearest = self.resource_manager.get_nearest_resource((15.0, 15.0))
@@ -301,6 +345,8 @@ class TestResourceManager(unittest.TestCase):
 
     def test_get_nearest_resource_empty(self):
         """Test getting nearest resource when no resources exist."""
+        # Ensure no resources exist
+        self.test_resources = []
         nearest = self.resource_manager.get_nearest_resource((50.0, 50.0))
 
         self.assertIsNone(nearest)
@@ -396,8 +442,7 @@ class TestResourceManager(unittest.TestCase):
 
         # Create two resource managers with the same seed
         rm1 = ResourceManager(
-            width=self.width,
-            height=self.height,
+            physics_engine=self.mock_physics,
             config=self.config,
             seed=seed,
             database_logger=self.mock_logger,
@@ -405,8 +450,7 @@ class TestResourceManager(unittest.TestCase):
         )
 
         rm2 = ResourceManager(
-            width=self.width,
-            height=self.height,
+            physics_engine=self.mock_physics,
             config=self.config,
             seed=seed,
             database_logger=self.mock_logger,

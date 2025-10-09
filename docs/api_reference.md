@@ -64,16 +64,18 @@ The main simulation environment that manages the world state, agents, and simula
 #### Constructor
 
 ```python
-Environment(width: int, height: int, resource_distribution: str = "uniform",
+Environment(physics_engine: IPhysicsEngine, resource_distribution: Union[Dict[str, Any], Callable],
            obs_config: ObservationConfig = None, **kwargs)
 ```
 
 **Parameters:**
-- `width` (int): Grid width in cells
-- `height` (int): Grid height in cells
-- `resource_distribution` (str): Resource distribution pattern ("uniform", "clustered", "scattered")
-- `obs_config` (ObservationConfig): Observation system configuration
-- `**kwargs`: Additional configuration parameters
+- `physics_engine` (IPhysicsEngine): Physics engine implementing spatial operations
+- `resource_distribution` (Union[Dict[str, Any], Callable]): Resource distribution configuration
+- `db_path` (str): Path to SQLite database file (default: "simulation.db")
+- `config` (object): Configuration object containing simulation parameters
+- `simulation_id` (str): Unique identifier for this simulation
+- `seed` (int): Random seed for deterministic simulation
+- `initial_agents` (list): Pre-instantiated agents to add at initialization
 
 #### Key Methods
 

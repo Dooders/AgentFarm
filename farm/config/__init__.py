@@ -15,6 +15,7 @@ from .cache import ConfigCache, LazyConfigLoader, OptimizedConfigLoader
 from .config import (
     AgentBehaviorConfig,
     EnvironmentConfig,
+    PhysicsConfig,
     PopulationConfig,
     RedisMemoryConfig,
     ResourceConfig,
@@ -46,6 +47,7 @@ __all__ = [
     # Sub-configuration classes
     "AgentBehaviorConfig",
     "EnvironmentConfig",
+    "PhysicsConfig",
     "PopulationConfig",
     "ResourceConfig",
     # Caching
