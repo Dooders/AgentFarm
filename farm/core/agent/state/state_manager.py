@@ -10,13 +10,10 @@ from typing import TYPE_CHECKING, Optional, Tuple
 if TYPE_CHECKING:
     from farm.core.agent.core import AgentCore
 
-# Optional logging support
-try:
-    from farm.utils.logging_config import get_logger
-    logger = get_logger(__name__)
-except ImportError:
-    import logging
-    logger = logging.getLogger(__name__)
+
+from farm.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class StateManager:
@@ -87,7 +84,7 @@ class StateManager:
         return self._position
 
     def set_position(
-        self, position: Tuple[float, float, Optional[float]] = None
+        self, position: Optional[Tuple[float, float]] | Optional[Tuple[float, float, float]] = None
     ) -> None:
         """
         Update agent position and notify spatial service.
@@ -107,7 +104,9 @@ class StateManager:
         if len(position) == 2:
             self._position = (position[0], position[1], 0.0)
         else:
-            self._position = (position[0], position[1], position[2])
+            # For 3D position, ensure Z coordinate is not None
+            z_coord = position[2] if position[2] is not None else 0.0
+            self._position = (position[0], position[1], z_coord)
 
         # Notify spatial service if position changed
         if old_position != self._position:

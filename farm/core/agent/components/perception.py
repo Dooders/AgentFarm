@@ -34,10 +34,13 @@ except ImportError:
 
 from farm.core.agent.components.base import IAgentComponent
 from farm.core.agent.config.agent_config import PerceptionConfig
+from farm.utils.logging import get_logger
 
 if TYPE_CHECKING:
     from farm.core.agent.core import AgentCore
     from farm.core.services.interfaces import ISpatialQueryService
+
+logger = get_logger(__name__)
 
 
 class PerceptionComponent(IAgentComponent):
@@ -186,16 +189,21 @@ class PerceptionComponent(IAgentComponent):
         for resource in nearby_resources:
             # Validate position attribute exists and is properly structured
             if not hasattr(resource, "position") or not resource.position:
+                logger.warning(f"Resource {getattr(resource, 'id', 'unknown')} missing position attribute")
                 continue
             try:
                 pos = resource.position
                 if not isinstance(pos, (list, tuple)) or len(pos) < 2:
+                    logger.warning(f"Resource {getattr(resource, 'id', 'unknown')} has invalid position format: {pos}")
                     continue
                 gx, gy = world_to_grid(float(pos[0]), float(pos[1]))
                 if 0 <= gx < size and 0 <= gy < size:
-                    perception[gy, gx] = 1
-            except (TypeError, ValueError, IndexError):
-                # Skip invalid positions
+                    if HAS_NUMPY:
+                        perception[gy, gx] = 1
+                    else:
+                        perception[gy][gx] = 1
+            except (TypeError, ValueError, IndexError) as e:
+                logger.warning(f"Resource {getattr(resource, 'id', 'unknown')} position conversion failed: {e}, position: {getattr(resource, 'position', 'None')}")
                 continue
 
         # Add other agents to grid
@@ -203,16 +211,21 @@ class PerceptionComponent(IAgentComponent):
             if agent.agent_id != self._agent.agent_id:
                 # Validate position attribute exists and is properly structured
                 if not hasattr(agent, "position") or not agent.position:
+                    logger.warning(f"Agent {getattr(agent, 'agent_id', 'unknown')} missing position attribute")
                     continue
                 try:
                     pos = agent.position
                     if not isinstance(pos, (list, tuple)) or len(pos) < 2:
+                        logger.warning(f"Agent {getattr(agent, 'agent_id', 'unknown')} has invalid position format: {pos}")
                         continue
                     gx, gy = world_to_grid(float(pos[0]), float(pos[1]))
                     if 0 <= gx < size and 0 <= gy < size:
-                        perception[gy, gx] = 2
-                except (TypeError, ValueError, IndexError):
-                    # Skip invalid positions
+                        if HAS_NUMPY:
+                            perception[gy, gx] = 2
+                        else:
+                            perception[gy][gx] = 2
+                except (TypeError, ValueError, IndexError) as e:
+                    logger.warning(f"Agent {getattr(agent, 'agent_id', 'unknown')} position conversion failed: {e}, position: {getattr(agent, 'position', 'None')}")
                     continue
 
         # Mark boundaries (if we have validation service)

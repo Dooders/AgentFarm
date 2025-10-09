@@ -433,9 +433,10 @@ class DecisionModule:
             def store_experience(self, **kwargs):
                 """Store experience method for compatibility with Tianshou-style algorithms."""
                 # Store experiences for testing - this enables database logging tests
-                # For performance, only store a limited number of experiences
-                if len(self.experiences) < 100:  # Limit to prevent memory growth
-                    self.experiences.append(kwargs)
+                # Implement proper rotation to maintain a true limited buffer
+                self.experiences.append(kwargs)
+                if len(self.experiences) > 100:  # Remove oldest when exceeding limit
+                    self.experiences.pop(0)  # Remove first (oldest) item
 
         self.algorithm = FallbackAlgorithm(self.num_actions, self.config.epsilon_start)
 
@@ -675,10 +676,13 @@ class DecisionModule:
                         # For fallback algorithm, optimize by caching time service and action mapping
                         if self.config.algorithm_type == "fallback":
                             # Use a simple counter for step_number to avoid expensive time service calls
+                            # Reset counter periodically to prevent integer overflow and misleading log entries
                             if not hasattr(self, "_fallback_step_counter"):
                                 self._fallback_step_counter = 0
                             step_number = self._fallback_step_counter
-                            self._fallback_step_counter += 1
+                            self._fallback_step_counter = (
+                                self._fallback_step_counter + 1
+                            ) % 1000000  # Reset every 1M steps
 
                             # Use proper action name mapping if available, otherwise fallback to generic name
                             if (

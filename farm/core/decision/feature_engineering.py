@@ -20,14 +20,13 @@ class FeatureEngineer:
         features: List[float] = []
 
         # Agent state features (normalized where possible)
-        # Get max resources from reproduction config if available, otherwise use default
-        max_resources = 24.0  # Default fallback
-        if hasattr(agent, "config") and agent.config:
-            # Try to get from reproduction config
-            if hasattr(agent.config, "reproduction") and hasattr(agent.config.reproduction, "reproduction_threshold"):
-                max_resources = max(1.0, float(agent.config.reproduction.reproduction_threshold) * 3.0)
-            elif hasattr(agent.config, "min_reproduction_resources"):
-                max_resources = max(1.0, float(agent.config.min_reproduction_resources) * 3.0)
+        # Get max resources from reproduction component if available, otherwise use default
+        max_resources = 24.0  # Default fallback # TODO: Get from config
+        reproduction_component = agent.get_component("reproduction")
+        if reproduction_component and hasattr(reproduction_component, "_config"):
+            reproduction_config = reproduction_component._config
+            if hasattr(reproduction_config, "reproduction_threshold"):
+                max_resources = max(1.0, float(reproduction_config.reproduction_threshold) * 3.0)
 
         features.extend(
             [
@@ -61,12 +60,12 @@ class FeatureEngineer:
     def _extract_environmental_features(self, agent: "AgentCore", environment: "Environment") -> List[float]:
         # Nearby resource density normalized
         gathering_range = 30  # Default fallback
-        if hasattr(agent, "config") and agent.config:
-            # Try to get from movement config or legacy config
-            if hasattr(agent.config, "movement") and hasattr(agent.config.movement, "gathering_range"):
-                gathering_range = agent.config.movement.gathering_range
-            elif hasattr(agent.config, "gathering_range"):
-                gathering_range = agent.config.gathering_range
+        movement_component = agent.get_component("movement")
+        if movement_component and hasattr(movement_component, "_config"):
+            movement_config = movement_component._config
+            # Use max_movement as gathering range (common pattern)
+            if hasattr(movement_config, "max_movement"):
+                gathering_range = movement_config.max_movement
 
         # Defensive check for get_nearby_resources method
         nearby_resources = []
@@ -87,12 +86,12 @@ class FeatureEngineer:
 
     def _extract_social_features(self, agent: "AgentCore", environment: "Environment") -> List[float]:
         social_range = 30  # Default fallback
-        if hasattr(agent, "config") and agent.config:
-            # Try to get from movement config or legacy config
-            if hasattr(agent.config, "movement") and hasattr(agent.config.movement, "social_range"):
-                social_range = agent.config.movement.social_range
-            elif hasattr(agent.config, "social_range"):
-                social_range = agent.config.social_range
+        movement_component = agent.get_component("movement")
+        if movement_component and hasattr(movement_component, "_config"):
+            movement_config = movement_component._config
+            # Use max_movement as social range (common pattern)
+            if hasattr(movement_config, "max_movement"):
+                social_range = movement_config.max_movement
 
         # Defensive check for get_nearby_agents method
         nearby_agents = []
