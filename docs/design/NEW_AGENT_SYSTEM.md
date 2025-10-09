@@ -167,7 +167,8 @@ movement.move_to((100.0, 100.0))
 movement.move_by(10.0, -5.0)
 
 # Random movement
-movement.random_move()
+movement.random_move()  # Random distance up to max_movement
+movement.random_move(5.0)  # Random move exactly 5 units
 
 # Move toward target with stop distance
 movement.move_toward_entity(target.position, stop_distance=5.0)
@@ -212,8 +213,11 @@ combat = agent.get_component("combat")
 result = combat.attack(target_agent)
 if result['success']:
     print(f"Dealt {result['damage_dealt']} damage!")
+    print(f"Target health: {result['target_health']}")
     if result['target_killed']:
         print("Target eliminated!")
+else:
+    print(f"Attack failed: {result.get('error', 'Unknown error')}")
 
 # Take damage
 damage_taken = combat.take_damage(25.0)
@@ -242,6 +246,9 @@ nearby = perception.get_nearby_entities(["resources", "agents"])
 resources = nearby["resources"]
 agents = nearby["agents"]
 
+# Find nearby entities with custom radius
+nearby_custom = perception.get_nearby_entities(["resources"], radius=15.0)
+
 # Find nearest
 nearest = perception.get_nearest_entity(["resources"])
 if nearest["resources"]:
@@ -256,8 +263,10 @@ if perception.can_see(target.position):
     print("Target is visible!")
 
 # Count nearby
-count = perception.count_nearby("resources", radius=10)
-print(f"Found {count} resources within 10 units")
+count = perception.count_nearby("resources")  # Uses default radius
+count_custom = perception.count_nearby("resources", radius=10)
+print(f"Found {count} resources within default radius")
+print(f"Found {count_custom} resources within 10 units")
 ```
 
 ### Task 6: Reproduction
@@ -273,6 +282,8 @@ if reproduction.can_reproduce():
     if result['success']:
         print(f"Created offspring {result['offspring_id']}")
         print(f"Cost: {result['cost']} resources")
+    else:
+        print(f"Reproduction failed: {result.get('error', 'Unknown error')}")
 
 # Get reproduction info
 info = reproduction.get_reproduction_info()
@@ -599,24 +610,24 @@ combat = agent.get_component("combat")
 combat.health: float
 combat.max_health: float
 combat.health_ratio: float
-combat.attack(target: AgentCore) -> dict
+combat.attack(target: AgentCore) -> dict  # Returns: success, damage_dealt, target_killed, target_health, error
 combat.take_damage(damage: float) -> float
 combat.heal(amount: float) -> float
-combat.start_defense(duration: int = 1) -> None
+combat.start_defense(duration: Optional[int] = None) -> None
 combat.is_defending: bool
 
 # PerceptionComponent
 perception = agent.get_component("perception")
-perception.get_nearby_entities(types: List[str], radius: float = None) -> dict
-perception.get_nearest_entity(types: List[str]) -> dict
+perception.get_nearby_entities(types: Optional[List[str]], radius: Optional[float] = None) -> dict
+perception.get_nearest_entity(types: Optional[List[str]]) -> dict
 perception.create_perception_grid() -> np.ndarray
 perception.can_see(position: tuple) -> bool
-perception.count_nearby(entity_type: str, radius: float = None) -> int
+perception.count_nearby(entity_type: str, radius: Optional[float] = None) -> int
 
 # ReproductionComponent
 reproduction = agent.get_component("reproduction")
 reproduction.can_reproduce() -> bool
-reproduction.reproduce() -> dict
+reproduction.reproduce() -> dict  # Returns: success, offspring_id, cost, error
 reproduction.get_reproduction_info() -> dict
 reproduction.reproduction_count: int
 ```
@@ -789,16 +800,15 @@ def test_agent_integration():
 
 ## Performance
 
-Benchmarks show excellent performance:
+Performance characteristics:
 
-| Operation | Time | Throughput |
-|-----------|------|------------|
-| Agent creation | 0.123ms | 8,130 agents/sec |
-| Agent turn | 45.6μs | 21,930 turns/sec |
-| Component access | 0.77μs | 1.3M accesses/sec |
-| 100 agents × 100 turns | 1.23s | 8,103 turns/sec |
+- **Component-based architecture**: Minimal overhead from composition
+- **Type-safe configuration**: Compile-time validation, no runtime config parsing
+- **Efficient component access**: O(1) component lookup by name
+- **Memory efficient**: Components only created when needed
+- **Scalable**: Supports large populations with minimal memory overhead
 
-**No performance regression vs BaseAgent!** ✅
+**Note**: For specific performance benchmarks, run the benchmark suite in `tests/benchmarks/`.
 
 ---
 
