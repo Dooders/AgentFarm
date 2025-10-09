@@ -186,6 +186,23 @@ class IPhysicsEngine(Protocol):
         """
         ...
     
+    def get_bounds(self) -> Tuple[Any, Any]:
+        """Get environment bounds for this physics engine.
+        
+        Returns:
+            Tuple of (min_bounds, max_bounds) where each bound is appropriate
+            for the physics engine type:
+            - Grid2D: ((0, 0), (width, height))
+            - Static: (min_position, max_position) from valid_positions
+            - Continuous: (min_bounds_array, max_bounds_array)
+            
+        Example:
+            >>> physics = Grid2DPhysics(width=100, height=100)
+            >>> bounds = physics.get_bounds()
+            >>> print(bounds)  # ((0, 0), (100, 100))
+        """
+        ...
+    
     def get_config(self) -> Dict[str, Any]:
         """Get configuration dictionary for this physics engine.
         

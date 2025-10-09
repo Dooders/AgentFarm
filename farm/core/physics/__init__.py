@@ -38,16 +38,24 @@ from farm.core.physics.interface import (
     PhysicsEngine,
 )
 
-# Note: Actual implementations (Grid2DPhysics, StaticPhysics, etc.) will be
-# added in future commits as part of the refactoring process
+# Import factory
+from .factory import create_physics_engine
+
+# Import implementations when they exist
+try:
+    from .grid_2d import Grid2DPhysics
+    _GRID2D_AVAILABLE = True
+except ImportError:
+    _GRID2D_AVAILABLE = False
 
 __all__ = [
     "IPhysicsEngine",
     "IObservationBuilder",
     "PhysicsEngine",
     "ObservationBuilder",
-    # Implementations will be added here:
-    # "Grid2DPhysics",
-    # "StaticPhysics", 
-    # "ContinuousPhysics",
+    "create_physics_engine",
 ]
+
+# Add implementations when available
+if _GRID2D_AVAILABLE:
+    __all__.append("Grid2DPhysics")

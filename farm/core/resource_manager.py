@@ -7,6 +7,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import numpy as np
 
 from farm.core.geometry import discretize_position_continuous
+from farm.core.physics.interface import IPhysicsEngine
 from farm.core.resources import Resource
 from farm.utils.logging import get_logger
 
@@ -31,12 +32,10 @@ class ResourceManager:
 
     def __init__(
         self,
-        width: float,
-        height: float,
+        physics_engine: "IPhysicsEngine",
         config=None,
         seed: Optional[int] = None,
         database_logger=None,
-        spatial_index=None,
         simulation_id: Optional[str] = None,
     ):
         """
@@ -44,25 +43,21 @@ class ResourceManager:
 
         Parameters
         ----------
-        width : float
-            Environment width
-        height : float
-            Environment height
+        physics_engine : IPhysicsEngine
+            Physics engine for spatial operations and position validation
         config : object, optional
             Configuration object containing resource parameters
         seed : int, optional
             Random seed for deterministic behavior
         database_logger : object, optional
             Database logger for resource logging
-        spatial_index : SpatialIndex, optional
-            Spatial index for efficient spatial queries
+        simulation_id : str, optional
+            Unique identifier for this simulation
         """
-        self.width = width
-        self.height = height
+        self.physics = physics_engine
         self.config = config
         self.seed_value = seed
         self.database_logger = database_logger
-        self.spatial_index = spatial_index
         self.simulation_id = simulation_id
 
         # Resource tracking
@@ -82,7 +77,24 @@ class ResourceManager:
         if self.seed_value is not None:
             random.seed(self.seed_value)
             np.random.seed(self.seed_value)
+        
+        # Initialize memmap attributes
+        self._init_memmap_attributes()
 
+    @property
+    def width(self) -> float:
+        """Get environment width from physics engine."""
+        bounds = self.physics.get_bounds()
+        return bounds[1][0]
+
+    @property
+    def height(self) -> float:
+        """Get environment height from physics engine."""
+        bounds = self.physics.get_bounds()
+        return bounds[1][1]
+
+    def _init_memmap_attributes(self):
+        """Initialize memmap-related attributes."""
         # Memmap-backed resource grid (optional)
         self._use_memmap: bool = bool(
             getattr(self.config, "use_memmap_resources", False)
@@ -235,20 +247,11 @@ class ResourceManager:
         except Exception as e:
             logger.warning("Failed to cleanup resource memmap: %s", e)
 
-    def set_spatial_index(self, spatial_index):
-        """Set the spatial index reference for efficient spatial queries.
-
-        Parameters
-        ----------
-        spatial_index : SpatialIndex
-            Spatial index instance to use for queries
-        """
-        self.spatial_index = spatial_index
 
     def mark_positions_dirty(self):
         """Mark that resource positions have changed and spatial index needs updating."""
-        if self.spatial_index is not None:
-            self.spatial_index.mark_positions_dirty()
+        if hasattr(self.physics, 'mark_positions_dirty'):
+            self.physics.mark_positions_dirty()
 
     def initialize_resources(
         self, distribution: Union[Dict[str, Any], Callable]
@@ -719,19 +722,7 @@ class ResourceManager:
             List of resources within radius
         """
         # Use spatial index if available for O(log n) performance
-        if self.spatial_index is not None:
-            return self.spatial_index.get_nearby_resources(position, radius)
-
-        # Fallback to linear search if no spatial index
-        nearby = []
-        for resource in self.resources:
-            distance = np.sqrt(
-                (resource.position[0] - position[0]) ** 2
-                + (resource.position[1] - position[1]) ** 2
-            )
-            if distance <= radius:
-                nearby.append(resource)
-        return nearby
+        return self.physics.get_nearby_entities(position, radius, "resources")
 
     def get_nearest_resource(self, position: Tuple[float, float]) -> Optional[Resource]:
         """
@@ -747,27 +738,13 @@ class ResourceManager:
         Resource or None
             Nearest resource if any exist
         """
-        # Use spatial index if available for O(log n) performance
-        if self.spatial_index is not None:
-            return self.spatial_index.get_nearest_resource(position)
-
-        # Fallback to linear search if no spatial index
-        if not self.resources:
-            return None
-
-        nearest = None
-        min_distance = float("inf")
-
-        for resource in self.resources:
-            distance = np.sqrt(
-                (resource.position[0] - position[0]) ** 2
-                + (resource.position[1] - position[1]) ** 2
-            )
-            if distance < min_distance:
-                min_distance = distance
-                nearest = resource
-
-        return nearest
+        # Use physics engine for nearest resource query
+        if hasattr(self.physics, 'get_nearest_resource'):
+            return self.physics.get_nearest_resource(position)
+        else:
+            # Fall back to nearby entities with small radius
+            nearby = self.physics.get_nearby_entities(position, 1.0, "resources")
+            return nearby[0] if nearby else None
 
     def add_resource(
         self, position: Tuple[float, float], amount: Optional[float] = None
@@ -811,8 +788,8 @@ class ResourceManager:
         self.resources.append(resource)
 
         # Mark spatial index as dirty when resources change
-        if self.spatial_index is not None:
-            self.spatial_index.mark_positions_dirty()
+        if hasattr(self.physics, 'mark_positions_dirty'):
+            self.physics.mark_positions_dirty()
 
         # Log to database if available
         if self.database_logger:
@@ -842,8 +819,8 @@ class ResourceManager:
             self.resources.remove(resource)
 
             # Mark spatial index as dirty when resources change
-            if self.spatial_index is not None:
-                self.spatial_index.mark_positions_dirty()
+            if hasattr(self.physics, 'mark_positions_dirty'):
+                self.physics.mark_positions_dirty()
 
             return True
         return False

@@ -15,6 +15,7 @@ import pytest
 
 from farm.config.config import EnvironmentConfig, SimulationConfig, SpatialIndexConfig
 from farm.core.environment import Environment
+from farm.core.physics import create_physics_engine
 from farm.core.spatial import DirtyRegion, DirtyRegionTracker, SpatialIndex
 
 
@@ -578,33 +579,39 @@ class TestEnvironmentBatchUpdates:
         )
         config = SimulationConfig()
         config.environment = env_config
+        physics = create_physics_engine(config)
         env = Environment(
-            width=200, height=200, resource_distribution="uniform", config=config
+            physics_engine=physics, resource_distribution="uniform", config=config
         )
-        assert env.spatial_index._batch_update_enabled is True
-        assert env.spatial_index._dirty_region_tracker.region_size == 30.0
-        assert env.spatial_index.max_batch_size == 25
+        assert env.physics.spatial_index._batch_update_enabled is True
+        assert env.physics.spatial_index._dirty_region_tracker.region_size == 30.0
+        assert env.physics.spatial_index.max_batch_size == 25
 
     def test_environment_initialization_without_spatial_config(self):
         config = SimulationConfig()
+        physics = create_physics_engine(config)
         env = Environment(
-            width=100, height=100, resource_distribution="uniform", config=config
+            physics_engine=physics, resource_distribution="uniform", config=config
         )
-        assert env.spatial_index._initial_batch_updates_enabled is True
-        assert env.spatial_index._dirty_region_tracker.region_size == 50.0
-        assert env.spatial_index.max_batch_size == 100
+        assert env.physics.spatial_index._initial_batch_updates_enabled is True
+        assert env.physics.spatial_index._dirty_region_tracker.region_size == 50.0
+        assert env.physics.spatial_index.max_batch_size == 100
 
     def test_process_batch_spatial_updates(self):
-        env = Environment(width=100, height=100, resource_distribution="uniform")
+        config = SimulationConfig()
+        physics = create_physics_engine(config)
+        env = Environment(physics_engine=physics, resource_distribution="uniform")
         entity = Mock()
-        env.spatial_index.add_position_update(
+        env.physics.spatial_index.add_position_update(
             entity, (25.0, 25.0), (75.0, 75.0), "agent"
         )
         env.process_batch_spatial_updates(force=True)
-        assert len(env.spatial_index._pending_position_updates) == 0
+        assert len(env.physics.spatial_index._pending_position_updates) == 0
 
     def test_get_spatial_performance_stats(self):
-        env = Environment(width=100, height=100, resource_distribution="uniform")
+        config = SimulationConfig()
+        physics = create_physics_engine(config)
+        env = Environment(physics_engine=physics, resource_distribution="uniform")
         stats = env.get_spatial_performance_stats()
         assert "agent_count" in stats
         assert "resource_count" in stats
@@ -612,13 +619,15 @@ class TestEnvironmentBatchUpdates:
         assert "perception" in stats
 
     def test_enable_disable_batch_spatial_updates(self):
-        env = Environment(width=100, height=100, resource_distribution="uniform")
+        config = SimulationConfig()
+        physics = create_physics_engine(config)
+        env = Environment(physics_engine=physics, resource_distribution="uniform")
         env.disable_batch_spatial_updates()
-        assert env.spatial_index._batch_update_enabled is False
+        assert env.physics.spatial_index._batch_update_enabled is False
         env.enable_batch_spatial_updates(region_size=40.0, max_batch_size=30)
-        assert env.spatial_index._batch_update_enabled is True
-        assert env.spatial_index._dirty_region_tracker.region_size == 40.0
-        assert env.spatial_index.max_batch_size == 30
+        assert env.physics.spatial_index._batch_update_enabled is True
+        assert env.physics.spatial_index._dirty_region_tracker.region_size == 40.0
+        assert env.physics.spatial_index.max_batch_size == 30
 
 
 class TestPerformanceImprovements:
