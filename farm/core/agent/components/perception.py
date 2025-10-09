@@ -359,17 +359,38 @@ class PerceptionComponent(IAgentComponent):
         """
         Attach this component to an agent.
         
-        This method is called when the component is added to an agent.
+        Implements the attach method from the IAgentComponent interface.
+        This method is called during the agent component lifecycle when the component
+        is added to an agent instance. It allows the component to establish a reference
+        to its owning agent and perform any necessary initialization.
+        
+        Args:
+            agent (AgentCore): The agent to which this component is being attached.
         """
         self._agent = agent
 
-    def sync_with_environment(self, environment) -> None:
+    def sync_with_environment(self, environment: Any) -> None:
         """
         Synchronize observation config with environment's observation config.
         
         This method is called by the Environment when an agent is added to ensure
         consistent observation shapes between the PerceptionComponent and Environment.
+        
+        Args:
+            environment: The environment instance containing observation configuration.
+                        Must have an 'observation_config' attribute.
+        
+        Raises:
+            AttributeError: If environment doesn't have required observation_config attribute.
+            ValueError: If observation_config is None or invalid.
+            TypeError: If environment parameter is not the expected type.
         """
+        if not hasattr(environment, 'observation_config'):
+            raise AttributeError(f"Environment {type(environment).__name__} missing required 'observation_config' attribute")
+        
+        if environment.observation_config is None:
+            raise ValueError("Environment observation_config cannot be None")
+            
         if hasattr(environment, 'observation_config') and environment.observation_config is not None:
             # Recreate observation with environment's radius to ensure consistency
             if HAS_AGENT_OBSERVATION and self._observation is not None:

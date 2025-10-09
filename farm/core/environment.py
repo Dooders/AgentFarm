@@ -1445,7 +1445,16 @@ class Environment(AECEnv):
             # Sync perception component observation config with environment config
             perception = agent.get_component("perception")
             if perception and hasattr(perception, "sync_with_environment"):
-                perception.sync_with_environment(self)
+                try:
+                    perception.sync_with_environment(self)
+                except (AttributeError, ValueError, TypeError) as e:
+                    logger.error(
+                        "perception_sync_failed",
+                        agent_id=getattr(agent, "agent_id", "unknown"),
+                        error_type=type(e).__name__,
+                        error_message=str(e),
+                    )
+                    raise
 
             # Validate required dependencies after injection
             if getattr(agent, "spatial_service", None) is None:
