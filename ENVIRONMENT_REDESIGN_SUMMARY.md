@@ -69,11 +69,15 @@ IPhysicsEngine (Protocol)
 
 ## 🚀 Quick Start Guide
 
-### Current System (Still Works!)
+### New System (Required)
 
 ```python
-# Your existing code works unchanged
-env = Environment(width=100, height=100, config=config)
+# Create physics engine from config
+from farm.core.physics.factory import create_physics_engine
+physics_engine = create_physics_engine(config, seed=config.seed)
+
+# Create environment with physics engine
+env = Environment(physics_engine=physics_engine, resource_distribution=config.resources, config=config)
 ```
 
 ### New Grid2D (When Implemented)
@@ -257,25 +261,26 @@ This minimal interface allows:
 
 ## 🚨 Important Notes
 
-### Backward Compatibility
+### Migration Required
 
-**Existing code continues to work:**
+**All code must be updated to use the new API:**
 
 ```python
-# This STILL WORKS after refactor
-env = Environment(width=100, height=100, config=config)
+# OLD (no longer works):
+# env = Environment(width=100, height=100, config=config)
 
-# Internally becomes:
-# physics = Grid2DPhysics(width=100, height=100)
-# env = Environment(physics_engine=physics, config=config)
+# NEW (required):
+from farm.core.physics.factory import create_physics_engine
+physics_engine = create_physics_engine(config, seed=config.seed)
+env = Environment(physics_engine=physics_engine, resource_distribution=config.resources, config=config)
 ```
 
 ### Migration Path
 
-- **No Breaking Changes** - Old API preserved
-- **Incremental** - Adopt new API gradually  
-- **Safe** - Existing tests pass
-- **Optional** - Use new features when ready
+- **Breaking Changes** - Old API removed
+- **Required Update** - All Environment instantiations must be updated
+- **Physics Engine Required** - Must create physics engine explicitly
+- **Clean API** - No backward compatibility layer
 
 ---
 
@@ -326,7 +331,7 @@ env = Environment(width=100, height=100, config=config)
 ### Common Questions
 
 **Q: Will this break existing code?**  
-A: No! Backward compatibility is maintained.
+A: Yes! All Environment instantiations must be updated to use the new API.
 
 **Q: Do I have to change my agents?**  
 A: No! Agents work with any physics engine.

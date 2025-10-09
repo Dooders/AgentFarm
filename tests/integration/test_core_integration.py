@@ -26,10 +26,13 @@ class TestCoreIntegration(unittest.TestCase):
             seed=1234,
         )
 
+        # Create physics engine from config
+        from farm.core.physics.factory import create_physics_engine
+        physics_engine = create_physics_engine(self.config, seed=1234)
+        
         # Start environment with no initial agents; we'll add them explicitly
         self.env = Environment(
-            width=self.config.environment.width,
-            height=self.config.environment.height,
+            physics_engine=physics_engine,
             resource_distribution={"amount": 5},
             config=self.config,
             db_path=":memory:",

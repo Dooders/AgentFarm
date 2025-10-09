@@ -10,8 +10,9 @@ The physics abstraction layer introduces a clean separation between environment 
 
 ### Environment Constructor
 
-**Old API:**
+**Old API (No Longer Supported):**
 ```python
+# This will now raise an error
 env = Environment(
     width=100,
     height=100,
@@ -20,9 +21,9 @@ env = Environment(
 )
 ```
 
-**New API:**
+**New API (Required):**
 ```python
-from farm.core.physics import create_physics_engine
+from farm.core.physics.factory import create_physics_engine
 
 physics = create_physics_engine(config, seed=config.seed)
 env = Environment(
@@ -55,11 +56,11 @@ env.physics.mark_positions_dirty()
 Replace direct Environment instantiation with physics engine creation:
 
 ```python
-# Before
-env = Environment(width=100, height=100, ...)
+# Before (No longer works)
+# env = Environment(width=100, height=100, ...)
 
-# After
-from farm.core.physics import create_physics_engine
+# After (Required)
+from farm.core.physics.factory import create_physics_engine
 physics = create_physics_engine(config, seed=config.seed)
 env = Environment(physics_engine=physics, ...)
 ```

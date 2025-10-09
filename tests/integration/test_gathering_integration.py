@@ -29,10 +29,13 @@ def _get_gather_action_index(env: Environment) -> int:
 
 
 def test_env_step_agent_gathers_from_colocated_resource(simple_config: SimulationConfig):
+    # Create physics engine from config
+    from farm.core.physics.factory import create_physics_engine
+    physics_engine = create_physics_engine(simple_config)
+    
     # Build environment with no auto-spawned resources
     env = Environment(
-        width=50,
-        height=50,
+        physics_engine=physics_engine,
         resource_distribution={"amount": 0},
         config=simple_config,
         db_path=":memory:",
@@ -75,10 +78,13 @@ def test_env_step_agent_gathers_from_colocated_resource(simple_config: Simulatio
 
 
 def test_agent_act_gathers_when_decision_returns_gather(simple_config: SimulationConfig, monkeypatch: pytest.MonkeyPatch):
+    # Create physics engine from config
+    from farm.core.physics.factory import create_physics_engine
+    physics_engine = create_physics_engine(simple_config)
+    
     # Build environment with a single resource and agent colocated
     env = Environment(
-        width=30,
-        height=30,
+        physics_engine=physics_engine,
         resource_distribution={"amount": 0},
         config=simple_config,
         db_path=":memory:",
@@ -122,10 +128,13 @@ def test_agent_act_gathers_when_decision_returns_gather(simple_config: Simulatio
 
 
 def test_spatial_index_references_accept_agent_objects(simple_config: SimulationConfig):
+    # Create physics engine from config
+    from farm.core.physics.factory import create_physics_engine
+    physics_engine = create_physics_engine(simple_config)
+    
     # Minimal spatial index usage through the environment
     env = Environment(
-        width=20,
-        height=20,
+        physics_engine=physics_engine,
         resource_distribution={"amount": 0},
         config=simple_config,
         db_path=":memory:",
@@ -154,10 +163,13 @@ def test_spatial_index_references_accept_agent_objects(simple_config: Simulation
 
 
 def test_decision_prioritizes_gather_nearby(simple_config: SimulationConfig, monkeypatch: pytest.MonkeyPatch):
+    # Create physics engine from config
+    from farm.core.physics.factory import create_physics_engine
+    physics_engine = create_physics_engine(simple_config)
+    
     # Environment with one agent and a resource in immediate proximity
     env = Environment(
-        width=30,
-        height=30,
+        physics_engine=physics_engine,
         resource_distribution={"amount": 0},
         config=simple_config,
         db_path=":memory:",

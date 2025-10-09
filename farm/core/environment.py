@@ -173,7 +173,8 @@ class Environment(AECEnv):
         Parameters
         ----------
         physics_engine : IPhysicsEngine
-            Physics engine implementing spatial operations and state representation
+            Physics engine implementing spatial operations and state representation.
+            Required parameter - use create_physics_engine() to create from config.
         resource_distribution : dict or callable
             Configuration for initial resource placement. Can be a dictionary
             specifying resource parameters or a callable that generates resources.
@@ -202,11 +203,12 @@ class Environment(AECEnv):
         Raises
         ------
         ValueError
-            If width or height are non-positive
+            If physics_engine is None or invalid
         Exception
             If database setup fails or resource initialization fails
         """
         super().__init__()
+        
         # Set seed if provided
         self.seed_value = seed if seed is not None else config.seed if config and config.seed else None
         if self.seed_value is not None:
