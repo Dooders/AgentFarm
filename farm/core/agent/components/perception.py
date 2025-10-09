@@ -36,6 +36,15 @@ from farm.core.agent.components.base import IAgentComponent
 from farm.core.agent.config.agent_config import PerceptionConfig
 from farm.utils.logging import get_logger
 
+# Import AgentObservation for multi-channel observations
+try:
+    from farm.core.observations import AgentObservation, ObservationConfig
+    HAS_AGENT_OBSERVATION = True
+except ImportError:
+    HAS_AGENT_OBSERVATION = False
+    AgentObservation = None
+    ObservationConfig = None
+
 if TYPE_CHECKING:
     from farm.core.agent.core import AgentCore
     from farm.core.services.interfaces import ISpatialQueryService
@@ -67,6 +76,22 @@ class PerceptionComponent(IAgentComponent):
         self._spatial_service = spatial_service
         self._config = config
         self._agent: Optional["AgentCore"] = None
+        
+        # Initialize AgentObservation for multi-channel observations
+        self._observation: Optional[Any] = None
+        if HAS_AGENT_OBSERVATION:
+            try:
+                obs_config = ObservationConfig(
+                    R=config.perception_radius,
+                    fov_radius=config.perception_radius,
+                    device=config.device,
+                    storage_mode=config.storage_mode,
+                    sparse_backend=config.sparse_backend
+                )
+                self._observation = AgentObservation(obs_config)
+            except Exception as e:
+                logger.warning(f"Failed to initialize AgentObservation: {e}")
+                self._observation = None
 
     @property
     def name(self) -> str:
@@ -138,8 +163,56 @@ class PerceptionComponent(IAgentComponent):
         except Exception:
             return {}
 
+    def get_observation(self) -> Optional[Any]:
+        """
+        Get the advanced multi-channel observation.
+
+        Returns:
+            AgentObservation instance or None if not available
+
+        Example:
+            >>> observation = perception.get_observation()
+            >>> if observation:
+            ...     tensor = observation.tensor()  # Multi-channel tensor
+        """
+        return self._observation
+
+    def update_observation(self, world_layers: Dict[str, Any], **kwargs) -> None:
+        """
+        Update the observation with current world state.
+
+        Args:
+            world_layers: Dictionary mapping layer names to world tensors
+            **kwargs: Additional parameters for perceive_world
+
+        Example:
+            >>> perception.update_observation(
+            ...     world_layers={"RESOURCES": resource_tensor, "OBSTACLES": obstacle_tensor}
+            ... )
+        """
+        if self._agent is None or self._observation is None:
+            return
+        
+        try:
+            # Get agent health ratio
+            combat = self._agent.get_component("combat")
+            self_hp01 = 1.0
+            if combat:
+                self_hp01 = combat.health / combat.max_health
+            
+            self._observation.perceive_world(
+                world_layers=world_layers,
+                agent_world_pos=tuple(int(x) for x in self._agent.state_manager.position),
+                self_hp01=self_hp01,
+                **kwargs
+            )
+        except Exception as e:
+            logger.warning(f"Failed to update observation: {e}")
+
     def create_perception_grid(self):
         """
+        [DEPRECATED] Use get_observation() for multi-channel observations.
+        
         Create a grid representation of nearby environment.
 
         Grid encoding:
@@ -156,6 +229,12 @@ class PerceptionComponent(IAgentComponent):
             >>> print(f"Grid shape: {grid.shape}")
             >>> print(f"Resources visible: {(grid == 1).sum()}")
         """
+        import warnings
+        warnings.warn(
+            "create_perception_grid() is deprecated. Use get_observation() for multi-channel observations.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         if self._agent is None:
             size = self._config.perception_grid_size
             if HAS_NUMPY:
@@ -275,6 +354,37 @@ class PerceptionComponent(IAgentComponent):
         """
         nearby = self.get_nearby_entities([entity_type], radius)
         return len(nearby.get(entity_type, []))
+
+    def attach(self, agent: "AgentCore") -> None:
+        """
+        Attach this component to an agent.
+        
+        This method is called when the component is added to an agent.
+        """
+        self._agent = agent
+
+    def sync_with_environment(self, environment) -> None:
+        """
+        Synchronize observation config with environment's observation config.
+        
+        This method is called by the Environment when an agent is added to ensure
+        consistent observation shapes between the PerceptionComponent and Environment.
+        """
+        if hasattr(environment, 'observation_config') and environment.observation_config is not None:
+            # Recreate observation with environment's radius to ensure consistency
+            if HAS_AGENT_OBSERVATION and self._observation is not None:
+                try:
+                    obs_config = ObservationConfig(
+                        R=environment.observation_config.R,
+                        fov_radius=environment.observation_config.fov_radius,
+                        device=self._config.device,
+                        storage_mode=self._config.storage_mode,
+                        sparse_backend=self._config.sparse_backend
+                    )
+                    self._observation = AgentObservation(obs_config)
+                    logger.debug(f"Updated PerceptionComponent observation config to match environment: R={environment.observation_config.R}")
+                except Exception as e:
+                    logger.warning(f"Failed to update AgentObservation with environment config: {e}")
 
     def get_state(self) -> dict:
         """

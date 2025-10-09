@@ -123,9 +123,15 @@ class PerceptionConfig:
     Attributes:
         perception_radius: How far agent can perceive environment
         perception_grid_size: Size of perception grid (derived from radius)
+        storage_mode: Storage mode for AgentObservation ("hybrid" or "dense")
+        sparse_backend: Backend for sparse storage ("scatter" or "coo")
+        device: Device for tensor operations ("cpu" or "cuda")
     """
 
     perception_radius: int = 5
+    storage_mode: str = "hybrid"
+    sparse_backend: str = "scatter"
+    device: str = "cpu"
 
     @property
     def perception_grid_size(self) -> int:
@@ -136,6 +142,12 @@ class PerceptionConfig:
         """Validate configuration values."""
         if self.perception_radius < 0:
             raise ValueError("perception_radius must be non-negative")
+        if self.storage_mode not in ["hybrid", "dense"]:
+            raise ValueError("storage_mode must be 'hybrid' or 'dense'")
+        if self.sparse_backend not in ["scatter", "coo"]:
+            raise ValueError("sparse_backend must be 'scatter' or 'coo'")
+        if self.device not in ["cpu", "cuda"]:
+            raise ValueError("device must be 'cpu' or 'cuda'")
 
 
 @dataclass(frozen=True)

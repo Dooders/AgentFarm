@@ -152,7 +152,7 @@ class LearningAgentBehavior(IAgentBehavior):
 
     def _create_state_observation(self, agent: "AgentCore") -> Any:
         """
-        Create state observation for decision module.
+        Create state observation for decision module using multi-channel perception.
 
         Combines information from various components into a single observation.
 
@@ -169,7 +169,26 @@ class LearningAgentBehavior(IAgentBehavior):
         # Get perception component
         perception = agent.get_component("perception")
         if perception:
-            # Use perception grid as observation
+            # Try to use multi-channel observation first
+            observation = perception.get_observation()
+            if observation is not None:
+                try:
+                    # Get multi-channel observation tensor
+                    state = observation.tensor()  # Shape: (num_channels, 2R+1, 2R+1)
+                    
+                    # For now, maintain compatibility by flattening all channels
+                    # Future: pass full multi-channel observation to decision module
+                    if state.ndim == 3:
+                        state = state.flatten()
+                    elif state.ndim == 2:
+                        state = state.unsqueeze(0).flatten()  # Add channel dimension then flatten
+                    
+                    return state
+                except Exception as e:
+                    # Fall back to old method if multi-channel fails
+                    logger.warning(f"Multi-channel observation failed, falling back to grid: {e}")
+            
+            # Fallback to old perception grid method
             grid = perception.create_perception_grid()
 
             # Convert to tensor

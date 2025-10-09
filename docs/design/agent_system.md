@@ -264,9 +264,25 @@ nearest = perception.get_nearest_entity(["resources"])
 if nearest["resources"]:
     target_resource = nearest["resources"]
 
-# Create perception grid (for neural networks)
-grid = perception.create_perception_grid()
-print(f"Grid shape: {grid.shape}")
+# Multi-channel observation (recommended for learning agents)
+observation = perception.get_observation()
+if observation:
+    tensor = observation.tensor()  # Shape: (num_channels, 2R+1, 2R+1)
+    print(f"Multi-channel observation shape: {tensor.shape}")
+    
+    # Update observation with world state
+    world_layers = {
+        "RESOURCES": resource_tensor,
+        "OBSTACLES": obstacle_tensor
+    }
+    perception.update_observation(world_layers)
+
+# Legacy perception grid (deprecated)
+import warnings
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", DeprecationWarning)
+    grid = perception.create_perception_grid()
+    print(f"Grid shape: {grid.shape}")
 
 # Check visibility
 if perception.can_see(target.position):
@@ -649,7 +665,9 @@ combat.is_defending: bool
 perception = agent.get_component("perception")
 perception.get_nearby_entities(types: Optional[List[str]], radius: Optional[float] = None) -> dict
 perception.get_nearest_entity(types: Optional[List[str]]) -> dict
-perception.create_perception_grid() -> np.ndarray
+perception.get_observation() -> Optional[AgentObservation]  # Multi-channel observation
+perception.update_observation(world_layers: Dict[str, Any], **kwargs) -> None
+perception.create_perception_grid() -> np.ndarray  # [DEPRECATED] Use get_observation()
 perception.can_see(position: tuple) -> bool
 perception.count_nearby(entity_type: str, radius: Optional[float] = None) -> int
 

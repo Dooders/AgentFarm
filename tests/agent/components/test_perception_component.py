@@ -202,6 +202,39 @@ class TestPerceptionComponent:
         state = perception_component.get_state()
         assert state["perception_radius"] == 5
     
+    def test_get_observation(self, perception_component):
+        """Test getting multi-channel observation."""
+        observation = perception_component.get_observation()
+        # May be None if AgentObservation is not available
+        assert observation is None or hasattr(observation, 'tensor')
+    
+    def test_update_observation(self, perception_component, mock_agent):
+        """Test updating observation with world state."""
+        # Mock world layers
+        world_layers = {
+            "RESOURCES": np.zeros((100, 100), dtype=np.float32),
+            "OBSTACLES": np.zeros((100, 100), dtype=np.float32)
+        }
+        
+        # Should not raise exception even if AgentObservation is not available
+        perception_component.update_observation(world_layers)
+    
+    def test_deprecated_create_perception_grid_warning(self, perception_component):
+        """Test that create_perception_grid shows deprecation warning."""
+        import warnings
+        
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            grid = perception_component.create_perception_grid()
+            
+            # Should show deprecation warning
+            assert len(w) == 1
+            assert issubclass(w[0].category, DeprecationWarning)
+            assert "deprecated" in str(w[0].message).lower()
+            
+            # Should still return valid grid
+            assert grid.shape == (11, 11)
+
     def test_component_without_agent(self, mock_spatial_service):
         """Test component methods without attached agent."""
         config = PerceptionConfig(perception_radius=5)
@@ -212,6 +245,10 @@ class TestPerceptionComponent:
         assert component.get_nearest_entity() == {}
         assert component.can_see((10.0, 10.0)) is False
         
-        grid = component.create_perception_grid()
-        assert grid.shape == (11, 11)
-        assert np.all(grid == 0)
+        # Test deprecated method still works
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            grid = component.create_perception_grid()
+            assert grid.shape == (11, 11)
+            assert np.all(grid == 0)
