@@ -80,27 +80,23 @@ class Grid2DPhysics(IPhysicsEngine):
     def _setup_spatial_index(self, spatial_config: Optional[Any]) -> None:
         """Initialize spatial indexing system."""
         if spatial_config:
-            resolved_config = resolve_spatial_index_config(spatial_config)
-        else:
-            resolved_config = None
-        
-        if resolved_config:
+            # spatial_config is already the resolved SpatialIndexConfig object
             self.spatial_index = SpatialIndex(
                 self.width,
                 self.height,
-                enable_batch_updates=resolved_config.enable_batch_updates,
-                region_size=resolved_config.region_size,
-                max_batch_size=resolved_config.max_batch_size,
+                enable_batch_updates=spatial_config.enable_batch_updates,
+                region_size=spatial_config.region_size,
+                max_batch_size=spatial_config.max_batch_size,
                 dirty_region_batch_size=getattr(
-                    resolved_config, "dirty_region_batch_size", 10
+                    spatial_config, "dirty_region_batch_size", 10
                 ),
             )
             
             # Enable additional index types if configured
-            if resolved_config.enable_quadtree_indices:
+            if spatial_config.enable_quadtree_indices:
                 self._enable_quadtree_indices()
-            if resolved_config.enable_spatial_hash_indices:
-                self._enable_spatial_hash_indices(resolved_config.spatial_hash_cell_size)
+            if spatial_config.enable_spatial_hash_indices:
+                self._enable_spatial_hash_indices(spatial_config.spatial_hash_cell_size)
         else:
             # Default configuration with batch updates enabled
             self.spatial_index = SpatialIndex(
@@ -316,6 +312,10 @@ class Grid2DPhysics(IPhysicsEngine):
         if hasattr(self.spatial_index, "get_stats"):
             stats.update(self.spatial_index.get_stats())
         
+        # Get batch update stats
+        if hasattr(self.spatial_index, "get_batch_update_stats"):
+            stats["batch_updates"] = self.spatial_index.get_batch_update_stats()
+        
         # Add physics-specific stats
         stats.update({
             "width": self.width,
@@ -324,6 +324,12 @@ class Grid2DPhysics(IPhysicsEngine):
             "agents_count": len(self._entities["agents"]),
             "resources_count": len(self._entities["resources"]),
         })
+        
+        # Add perception stats (placeholder for now)
+        stats["perception"] = {
+            "observation_space_size": self.observation_config.R * 2 + 1 if hasattr(self.observation_config, 'R') else 0,
+            "channels": NUM_CHANNELS,
+        }
         
         return stats
     

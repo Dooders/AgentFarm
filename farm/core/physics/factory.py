@@ -86,16 +86,17 @@ def _create_grid_2d_physics(config: SimulationConfig, seed: Optional[int]) -> Gr
         width = getattr(env_config, 'width', 100)
         height = getattr(env_config, 'height', 100)
         
+        # Get spatial config from environment config
+        spatial_config = getattr(env_config, 'spatial_index', None)
+        
         # Get physics-specific config if available
         if hasattr(env_config, 'physics') and env_config.physics:
             physics_config = env_config.physics
             # Override dimensions if specified in physics config
             width = getattr(physics_config, 'width', width)
             height = getattr(physics_config, 'height', height)
-            spatial_config = getattr(physics_config, 'spatial_config', None)
             observation_config = getattr(physics_config, 'observation_config', None)
         else:
-            spatial_config = None
             observation_config = None
     else:
         # Default dimensions

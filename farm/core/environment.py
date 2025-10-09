@@ -328,6 +328,10 @@ class Environment(AECEnv):
         self._warned_10_percent = False
         self._warned_25_percent = False
 
+        # Spatial index feature flags
+        self._quadtree_enabled = False
+        self._spatial_hash_enabled = False
+
         # Log environment initialization completion
         logger.info(
             "environment_initialized",
@@ -1725,7 +1729,7 @@ class Environment(AECEnv):
             recent_damage_world=[],  # TODO: Implement if needed
             ally_signals_world=[],  # TODO: Implement if needed
             trails_world_points=[],  # TODO: Implement if needed
-            spatial_index=self.spatial_index,
+            spatial_index=self.physics.spatial_index,
             agent_object=agent,
             agent_orientation=getattr(agent, "orientation", 0.0),
         )

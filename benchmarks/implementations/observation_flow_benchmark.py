@@ -102,9 +102,13 @@ class ObservationFlowBenchmark(Experiment):
                 use_in_memory_db=True, persist_db_on_completion=False
             ),
         )
+        
+        # Create physics engine using the factory
+        from farm.core.physics.factory import create_physics_engine
+        physics_engine = create_physics_engine(sim_cfg, seed=42)
+        
         env = Environment(
-            width=self._width,
-            height=self._height,
+            physics_engine=physics_engine,
             resource_distribution={"amount": 10},
             db_path=":memory:",
             config=sim_cfg,
@@ -144,10 +148,10 @@ class ObservationFlowBenchmark(Experiment):
             self._agent_ids.append(agent.agent_id)
 
         # Update spatial index to include all new agents
-        env.spatial_index.set_references(
+        env.physics.spatial_index.set_references(
             list(env._agent_objects.values()), env.resources
         )
-        env.spatial_index.update()
+        env.physics.spatial_index.update()
 
     def setup(self, context: ExperimentContext) -> None:
         env = self._make_env()
