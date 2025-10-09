@@ -372,17 +372,18 @@ class TestGrid2DPhysics(unittest.TestCase):
 
     def test_initialization_with_spatial_config(self):
         """Test initialization with spatial configuration."""
+        from farm.config.config import SpatialIndexConfig
+        
         # Create spatial config with proper structure
-        spatial_config = Mock()
-        spatial_config.environment = Mock()
-        spatial_config.environment.spatial_index = Mock()
-        spatial_config.environment.spatial_index.enable_batch_updates = True
-        spatial_config.environment.spatial_index.region_size = 25.0
-        spatial_config.environment.spatial_index.max_batch_size = 50
-        spatial_config.environment.spatial_index.dirty_region_batch_size = 5
-        spatial_config.environment.spatial_index.enable_quadtree_indices = True
-        spatial_config.environment.spatial_index.enable_spatial_hash_indices = True
-        spatial_config.environment.spatial_index.spatial_hash_cell_size = 10.0
+        spatial_config = SpatialIndexConfig(
+            enable_batch_updates=True,
+            region_size=25.0,
+            max_batch_size=50,
+            dirty_region_batch_size=5,
+            enable_quadtree_indices=True,
+            enable_spatial_hash_indices=True,
+            spatial_hash_cell_size=10.0
+        )
         
         # Create physics with spatial config
         physics = Grid2DPhysics(

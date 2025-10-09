@@ -5,8 +5,10 @@ introduce any behavioral changes to existing simulations.
 """
 
 import json
+import os
 import pickle
 import random
+import tempfile
 import unittest
 from typing import Any, Dict, List
 
@@ -18,6 +20,7 @@ from farm.core.agent import BaseAgent
 from farm.core.environment import Environment
 from farm.core.physics import create_physics_engine
 from farm.core.resources import Resource
+from farm.core.simulation import create_initial_agents
 
 
 class TestGrid2DEquivalence(unittest.TestCase):
@@ -36,20 +39,32 @@ class TestGrid2DEquivalence(unittest.TestCase):
         # Create physics engine
         self.physics = create_physics_engine(self.config, seed=42)
         
+        # Create unique database path for this test
+        self.db_path = tempfile.mktemp(suffix='.db', prefix='test_env_')
+        
         # Create environment with physics engine
         self.env = Environment(
             physics_engine=self.physics,
             resource_distribution={"type": "random", "amount": 5},
             config=self.config,
-            seed=42
+            seed=42,
+            db_path=self.db_path
+        )
+        
+        # Add agents to the environment based on config
+        create_initial_agents(
+            self.env,
+            self.config.population.system_agents,
+            self.config.population.independent_agents,
+            self.config.population.control_agents,
         )
 
     def test_deterministic_simulation_equivalence(self):
         """Test that simulations produce identical results with same seed."""
         # Run simulation for a few steps
         for step in range(5):
-            # Step through environment
-            self.env.step()
+            # Update environment state
+            self.env.update()
             
             # Check that environment state is consistent
             self.assertIsNotNone(self.env.time)
@@ -311,20 +326,38 @@ class TestGrid2DEquivalence(unittest.TestCase):
             physics_engine=physics1,
             resource_distribution={"type": "random", "amount": 3},
             config=config1,
-            seed=123
+            seed=123,
+            db_path="test_env1.db"
         )
         
         env2 = Environment(
             physics_engine=physics2,
             resource_distribution={"type": "random", "amount": 3},
             config=config2,
-            seed=123
+            seed=123,
+            db_path="test_env2.db"
+        )
+        
+        # Add agents to both environments based on config
+        create_initial_agents(
+            env1,
+            config1.population.system_agents,
+            config1.population.independent_agents,
+            config1.population.control_agents,
+        )
+        
+        create_initial_agents(
+            env2,
+            config2.population.system_agents,
+            config2.population.independent_agents,
+            config2.population.control_agents,
         )
         
         # Run both environments for a few steps
         for step in range(3):
-            env1.step()
-            env2.step()
+            # Use update() method to advance the environment state
+            env1.update()
+            env2.update()
             
             # Check that both environments have same number of agents
             self.assertEqual(len(env1.agents), len(env2.agents))
@@ -366,6 +399,23 @@ class TestGrid2DEquivalence(unittest.TestCase):
         self.assertEqual(len(deserialized["agents"]), len(state["agents"]))
         self.assertEqual(len(deserialized["resources"]), len(state["resources"]))
         self.assertEqual(deserialized["physics_config"]["type"], "grid_2d")
+
+    def tearDown(self):
+        """Clean up test database files."""
+        # Clean up the unique database file for this test
+        if hasattr(self, 'db_path') and os.path.exists(self.db_path):
+            try:
+                os.remove(self.db_path)
+            except OSError:
+                pass  # Ignore errors if file is locked or doesn't exist
+        
+        # Clean up any other database files created during tests
+        for db_file in ["test_env1.db", "test_env2.db", "simulation.db"]:
+            if os.path.exists(db_file):
+                try:
+                    os.remove(db_file)
+                except OSError:
+                    pass  # Ignore errors if file is locked or doesn't exist
 
 
 if __name__ == "__main__":

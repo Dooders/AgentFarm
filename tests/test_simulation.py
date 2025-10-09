@@ -12,6 +12,7 @@ from farm.config import (
 )
 from farm.core.agent import BaseAgent
 from farm.core.environment import Environment
+from farm.core.physics import create_physics_engine
 from farm.core.resources import Resource
 from farm.database.database import SimulationDatabase
 from farm.database.models import AgentModel
@@ -25,6 +26,17 @@ class TestSimulation(unittest.TestCase):
             os.makedirs(self.test_dir)
         self.config = SimulationConfig.from_centralized_config(environment="testing")
         self.db_path = os.path.join(self.test_dir, "test_simulation.db")
+
+    def _create_environment(self, resource_distribution, **kwargs):
+        """Helper method to create an environment with physics engine."""
+        physics_engine = create_physics_engine(self.config)
+        return Environment(
+            physics_engine=physics_engine,
+            resource_distribution=resource_distribution,
+            db_path=self.db_path,
+            config=self.config,
+            **kwargs
+        )
 
     def tearDown(self):
         """Clean up test environment."""
@@ -77,15 +89,10 @@ class TestSimulation(unittest.TestCase):
 
     def test_environment_initialization(self):
         """Test that environment is initialized correctly."""
-        env = Environment(
-            width=self.config.environment.width,
-            height=self.config.environment.height,
-            resource_distribution={
-                "type": "random",
-                "amount": self.config.resources.initial_resources,
-            },
-            db_path=self.db_path,
-        )
+        env = self._create_environment({
+            "type": "random",
+            "amount": self.config.resources.initial_resources,
+        })
 
         self.assertEqual(len(env.resources), self.config.resources.initial_resources)
         self.assertEqual(len(env.agents), 0)
@@ -94,15 +101,10 @@ class TestSimulation(unittest.TestCase):
 
     def test_agent_creation(self):
         """Test that agents are created with correct attributes."""
-        self.env = Environment(
-            width=self.config.environment.width,
-            height=self.config.environment.height,
-            resource_distribution={
-                "type": "random",
-                "amount": self.config.resources.initial_resources,
-            },
-            db_path=self.db_path,
-        )
+        self.env = self._create_environment({
+            "type": "random",
+            "amount": self.config.resources.initial_resources,
+        })
 
         # Create agents with proper environment reference and config
         system_agent = BaseAgent(
@@ -135,12 +137,7 @@ class TestSimulation(unittest.TestCase):
 
     def test_resource_consumption(self):
         """Test that resources are consumed correctly."""
-        self.env = Environment(
-            width=self.config.environment.width,
-            height=self.config.environment.height,
-            resource_distribution={"type": "random", "amount": 1},
-            db_path=self.db_path,
-        )
+        self.env = self._create_environment({"type": "random", "amount": 1})
 
         resource = Resource(0, (25, 25), amount=10)
         self.env.resources = [resource]
@@ -170,12 +167,7 @@ class TestSimulation(unittest.TestCase):
 
     def test_agent_death(self):
         """Test that agents die when resources are depleted."""
-        self.env = Environment(
-            width=self.config.environment.width,
-            height=self.config.environment.height,
-            resource_distribution={"type": "random", "amount": 0},
-            db_path=self.db_path,
-        )
+        self.env = self._create_environment({"type": "random", "amount": 0})
 
         # Create a test-specific config object to avoid mutating shared state
         test_config = SimulationConfig(
@@ -219,15 +211,10 @@ class TestSimulation(unittest.TestCase):
 
     def test_agent_reproduction(self):
         """Test that agents reproduce when conditions are met."""
-        self.env = Environment(
-            width=self.config.environment.width,
-            height=self.config.environment.height,
-            resource_distribution={
-                "type": "random",
-                "amount": self.config.resources.initial_resources,
-            },
-            db_path=self.db_path,
-        )
+        self.env = self._create_environment({
+            "type": "random",
+            "amount": self.config.resources.initial_resources,
+        })
 
         agent = BaseAgent(
             "test_agent_4",
@@ -246,15 +233,10 @@ class TestSimulation(unittest.TestCase):
 
     def test_database_logging(self):
         """Test that simulation state is correctly logged to database."""
-        self.env = Environment(
-            width=self.config.environment.width,
-            height=self.config.environment.height,
-            resource_distribution={
-                "type": "random",
-                "amount": self.config.resources.initial_resources,
-            },
-            db_path=self.db_path,
-        )
+        self.env = self._create_environment({
+            "type": "random",
+            "amount": self.config.resources.initial_resources,
+        })
 
         agent = BaseAgent(
             "test_agent_5",
@@ -278,15 +260,10 @@ class TestSimulation(unittest.TestCase):
 
     def test_batch_agent_addition(self):
         """Test that multiple agents can be added efficiently in batch."""
-        self.env = Environment(
-            width=self.config.environment.width,
-            height=self.config.environment.height,
-            resource_distribution={
-                "type": "random",
-                "amount": self.config.resources.initial_resources,
-            },
-            db_path=self.db_path,
-        )
+        self.env = self._create_environment({
+            "type": "random",
+            "amount": self.config.resources.initial_resources,
+        })
 
         agents = [
             BaseAgent(
