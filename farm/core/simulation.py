@@ -165,6 +165,7 @@ from tqdm import tqdm
 
 from farm.config import SimulationConfig
 from farm.core.agent import AgentFactory
+from farm.core.agent.config.agent_config import ResourceConfig
 from farm.core.environment import Environment
 from farm.utils.identity import Identity
 from farm.utils.logging import get_logger, log_simulation, log_step
@@ -248,7 +249,7 @@ def create_initial_agents(
         agent = factory.create_default_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            initial_resources=1,
+            initial_resources=ResourceConfig().initial_resources,  # Use config default
             agent_type="SystemAgent",
         )
         environment.add_agent(agent)
@@ -262,7 +263,7 @@ def create_initial_agents(
         agent = factory.create_default_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            initial_resources=1,
+            initial_resources=ResourceConfig().initial_resources,  # Use config default
             agent_type="IndependentAgent",
         )
         environment.add_agent(agent)
@@ -276,7 +277,7 @@ def create_initial_agents(
         agent = factory.create_default_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            initial_resources=1,
+            initial_resources=ResourceConfig().initial_resources,  # Use config default
             agent_type="ControlAgent",
         )
         environment.add_agent(agent)

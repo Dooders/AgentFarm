@@ -103,7 +103,7 @@ class ReproductionConfig:
 
     offspring_cost: int = 5
     offspring_initial_resources: int = 10
-    reproduction_threshold: int = 20
+    reproduction_threshold: int = 8  # Reduced from 20 to 8 to allow reproduction with starting resources
 
     def __post_init__(self):
         """Validate configuration values."""

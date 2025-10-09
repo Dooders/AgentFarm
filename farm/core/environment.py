@@ -2377,7 +2377,17 @@ class Environment(AECEnv):
             }
 
         # Process the action
-        self._process_action(agent_id, action)
+        if action is None and agent and agent.alive:
+            # If no action provided, let the agent choose its own action through behavior
+            agent.act()
+        else:
+            # Process the provided action
+            self._process_action(agent_id, action)
+        
+        # Call component lifecycle methods (on_step_end for resource consumption, etc.)
+        if agent and agent.alive:
+            for component in agent._components.values():
+                component.on_step_end()
 
         # Initialize terminated to False (will be updated when cycle completes)
         terminated = False

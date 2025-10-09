@@ -131,7 +131,7 @@ class TestReproductionConfig:
         config = ReproductionConfig()
         assert config.offspring_cost == 5
         assert config.offspring_initial_resources == 10
-        assert config.reproduction_threshold == 20
+        assert config.reproduction_threshold == 8
 
     def test_custom_values(self):
         """Test custom configuration values."""
