@@ -175,9 +175,11 @@ class Grid2DPhysics(IPhysicsEngine):
         
         # Use spatial index for efficient queries
         if entity_type == "agents":
-            return self.spatial_index.get_nearby_range(position, radius, "agents")
+            results = self.spatial_index.get_nearby(position, radius, ["agents"])
+            return results.get("agents", [])
         elif entity_type == "resources":
-            return self.spatial_index.get_nearby_range(position, radius, "resources")
+            results = self.spatial_index.get_nearby(position, radius, ["resources"])
+            return results.get("resources", [])
         else:
             # For other entity types, fall back to brute force
             nearby = []

@@ -208,24 +208,18 @@ class Environment(AECEnv):
         """
         super().__init__()
         # Set seed if provided
-        self.seed_value = (
-            seed
-            if seed is not None
-            else config.seed if config and config.seed else None
-        )
+        self.seed_value = seed if seed is not None else config.seed if config and config.seed else None
         if self.seed_value is not None:
             random.seed(self.seed_value)
             np.random.seed(self.seed_value)
             try:
                 torch.manual_seed(self.seed_value)
             except RuntimeError as e:
-                logger.warning(
-                    "Failed to seed torch with value %s: %s", self.seed_value, e
-                )
+                logger.warning("Failed to seed torch with value %s: %s", self.seed_value, e)
 
         # Store physics engine
         self.physics = physics_engine
-        
+
         # Initialize basic attributes
         self.agents = []
         self._agent_objects = {}  # Internal mapping: agent_id -> agent object
@@ -240,24 +234,18 @@ class Environment(AECEnv):
 
         # Setup database and get initialized database instance
         if db_factory is not None:
-            self.db = db_factory.setup_db(
-                db_path, self.simulation_id, config.to_dict() if config else None
-            )
+            self.db = db_factory.setup_db(db_path, self.simulation_id, config.to_dict() if config else None)
         else:
             # Import setup_db only when needed to avoid circular imports
             from farm.database.utilities import setup_db
 
-            self.db = setup_db(
-                db_path, self.simulation_id, config.to_dict() if config else None
-            )
+            self.db = setup_db(db_path, self.simulation_id, config.to_dict() if config else None)
 
         # Use self.identity for all ID needs
         self.max_resource = max_resource
         self.config = config
         self.resource_distribution = resource_distribution
-        self.max_steps = (
-            config.max_steps if config and hasattr(config, "max_steps") else 1000
-        )
+        self.max_steps = config.max_steps if config and hasattr(config, "max_steps") else 1000
 
         # Initialize action mapping based on configuration and available actions
         self._initialize_action_mapping()
@@ -304,6 +292,9 @@ class Environment(AECEnv):
 
         # Add action space setup call:
         self._setup_action_space()
+        
+        # Add observation space setup call:
+        self._setup_observation_space(config)
 
         # Initialize agent observations mapping before adding any agents
         self.agent_observations = {}
@@ -315,10 +306,8 @@ class Environment(AECEnv):
 
         # Update physics engine entity references now that resources and agents are initialized
         # Pass a live view of agent objects to avoid accidental string ID lists
-        if hasattr(self.physics, 'set_entity_references'):
-            self.physics.set_entity_references(
-                list(self._agent_objects.values()), self.resources
-            )
+        if hasattr(self.physics, "set_entity_references"):
+            self.physics.set_entity_references(list(self._agent_objects.values()), self.resources)
 
         # Quadtree and spatial hash indices are already initialized above
 
@@ -351,9 +340,7 @@ class Environment(AECEnv):
             max_steps=self.max_steps,
             database_path=self.db.db_path if self.db else None,
             observation_channels=getattr(self, "NUM_CHANNELS", None),
-            action_count=(
-                len(self._action_mapping) if hasattr(self, "_action_mapping") else None
-            ),
+            action_count=(len(self._action_mapping) if hasattr(self, "_action_mapping") else None),
         )
 
     @property
@@ -362,7 +349,7 @@ class Environment(AECEnv):
         bounds = self.physics.get_bounds()
         return int(bounds[1][0])
 
-    @property  
+    @property
     def height(self) -> int:
         """Get environment height from physics engine."""
         bounds = self.physics.get_bounds()
@@ -416,15 +403,9 @@ class Environment(AECEnv):
                 missing_actions.append(action_name)
 
         if missing_actions:
-            logger.warning(
-                "missing_actions_in_registry", missing_actions=missing_actions
-            )
+            logger.warning("missing_actions_in_registry", missing_actions=missing_actions)
             # Remove missing actions from mapping
-            self._action_mapping = {
-                k: v
-                for k, v in self._action_mapping.items()
-                if v not in missing_actions
-            }
+            self._action_mapping = {k: v for k, v in self._action_mapping.items() if v not in missing_actions}
 
         # Log the final action mapping
         available_actions = list(self._action_mapping.values())
@@ -441,7 +422,7 @@ class Environment(AECEnv):
 
     def mark_positions_dirty(self) -> None:
         """Public method for agents to mark positions as dirty when they move."""
-        if hasattr(self.physics, 'mark_positions_dirty'):
+        if hasattr(self.physics, "mark_positions_dirty"):
             self.physics.mark_positions_dirty()
 
     def process_batch_spatial_updates(self, force: bool = False) -> None:
@@ -453,31 +434,27 @@ class Environment(AECEnv):
         force : bool
             Force processing even if batch is not full
         """
-        if hasattr(self.physics, 'process_batch_spatial_updates'):
+        if hasattr(self.physics, "process_batch_spatial_updates"):
             self.physics.process_batch_spatial_updates(force=force)
 
     def get_spatial_performance_stats(self) -> Dict[str, Any]:
         """Get performance statistics for spatial indexing and batch updates."""
-        if hasattr(self.physics, 'get_spatial_performance_stats'):
+        if hasattr(self.physics, "get_spatial_performance_stats"):
             return self.physics.get_spatial_performance_stats()
         else:
             return {}
 
-    def enable_batch_spatial_updates(
-        self, region_size: float = 50.0, max_batch_size: int = 100
-    ) -> None:
+    def enable_batch_spatial_updates(self, region_size: float = 50.0, max_batch_size: int = 100) -> None:
         """Enable batch spatial updates with the specified configuration."""
-        if hasattr(self.physics, 'enable_batch_spatial_updates'):
+        if hasattr(self.physics, "enable_batch_spatial_updates"):
             self.physics.enable_batch_spatial_updates(region_size, max_batch_size)
 
     def disable_batch_spatial_updates(self) -> None:
         """Disable batch spatial updates and process any pending updates."""
-        if hasattr(self.physics, 'disable_batch_spatial_updates'):
+        if hasattr(self.physics, "disable_batch_spatial_updates"):
             self.physics.disable_batch_spatial_updates()
 
-    def get_nearby_agents(
-        self, position: Tuple[float, float], radius: float
-    ) -> List[Any]:
+    def get_nearby_agents(self, position: Tuple[float, float], radius: float) -> List[Any]:
         """Find all agents within radius of position.
 
         Parameters
@@ -495,9 +472,7 @@ class Environment(AECEnv):
         # Delegate to physics engine
         return self.physics.get_nearby_entities(position, radius, "agents")
 
-    def get_nearby_resources(
-        self, position: Tuple[float, float], radius: float
-    ) -> List[Any]:
+    def get_nearby_resources(self, position: Tuple[float, float], radius: float) -> List[Any]:
         """Find all resources within radius of position.
 
         Parameters
@@ -529,7 +504,7 @@ class Environment(AECEnv):
             Nearest resource if any exist
         """
         # Delegate to physics engine
-        if hasattr(self.physics, 'get_nearest_resource'):
+        if hasattr(self.physics, "get_nearest_resource"):
             return self.physics.get_nearest_resource(position)
         else:
             # Fall back to nearby entities with small radius
@@ -547,7 +522,7 @@ class Environment(AECEnv):
             return  # Already enabled
 
         # Delegate to physics engine
-        if hasattr(self.physics, '_enable_quadtree_indices'):
+        if hasattr(self.physics, "_enable_quadtree_indices"):
             self.physics._enable_quadtree_indices()
 
         self._quadtree_enabled = True
@@ -570,13 +545,11 @@ class Environment(AECEnv):
             return
 
         # Delegate to physics engine
-        if hasattr(self.physics, '_enable_spatial_hash_indices'):
+        if hasattr(self.physics, "_enable_spatial_hash_indices"):
             self.physics._enable_spatial_hash_indices(cell_size)
 
         self._spatial_hash_enabled = True
-        logger.info(
-            "Spatial hash indices enabled for spatial queries (cell_size=%s)", cell_size
-        )
+        logger.info("Spatial hash indices enabled for spatial queries (cell_size=%s)", cell_size)
 
     # Resource IDs are managed by ResourceManager
 
@@ -597,9 +570,7 @@ class Environment(AECEnv):
         """
         return self.resource_manager.consume_resource(resource, amount)
 
-    def initialize_resources(
-        self, distribution: Union[Dict[str, Any], Callable]
-    ) -> None:
+    def initialize_resources(self, distribution: Union[Dict[str, Any], Callable]) -> None:
         """Initialize resources in the environment using ResourceManager.
 
         Creates initial resource nodes based on the provided distribution
@@ -685,9 +656,7 @@ class Environment(AECEnv):
                     agent_type_counts = {}
                     for agent in self._agent_objects.values():
                         agent_type = agent.__class__.__name__
-                        agent_type_counts[agent_type] = (
-                            agent_type_counts.get(agent_type, 0) + 1
-                        )
+                        agent_type_counts[agent_type] = agent_type_counts.get(agent_type, 0) + 1
 
                     logger.info(
                         "population_milestone_reached",
@@ -719,7 +688,7 @@ class Environment(AECEnv):
         if self.agent_selection == agent_id or not self.agents:
             self._next_agent()
 
-        if hasattr(self.physics, 'mark_positions_dirty'):
+        if hasattr(self.physics, "mark_positions_dirty"):
             self.physics.mark_positions_dirty()  # Mark positions as dirty when agent is removed
         if agent_id in self.agent_observations:
             del self.agent_observations[agent_id]
@@ -900,9 +869,7 @@ class Environment(AECEnv):
                     self._initial_total_resources = self.cached_total_resources
 
                 if self._initial_total_resources > 0:
-                    resource_ratio = (
-                        self.cached_total_resources / self._initial_total_resources
-                    )
+                    resource_ratio = self.cached_total_resources / self._initial_total_resources
                     active_resources = len([r for r in self.resources if r.amount > 0])
 
                     # Warn at different thresholds
@@ -943,7 +910,7 @@ class Environment(AECEnv):
             self.metrics_tracker.update_spatial_performance_metrics(spatial_stats)
 
             # Update spatial index (this will process any pending batch updates)
-            if hasattr(self.physics, 'update'):
+            if hasattr(self.physics, "update"):
                 self.physics.update()
 
             # Process any remaining batch updates to ensure all position changes are applied
@@ -959,23 +926,17 @@ class Environment(AECEnv):
                 # Calculate agent statistics
                 agents_alive = len(self.agents)
                 avg_health = (
-                    np.mean([a.current_health for a in self._agent_objects.values()])
-                    if self._agent_objects
-                    else 0
+                    np.mean([a.current_health for a in self._agent_objects.values()]) if self._agent_objects else 0
                 )
                 avg_resources = (
-                    np.mean([a.resource_level for a in self._agent_objects.values()])
-                    if self._agent_objects
-                    else 0
+                    np.mean([a.resource_level for a in self._agent_objects.values()]) if self._agent_objects else 0
                 )
 
                 # Agent type distribution
                 agent_type_counts = {}
                 for agent in self._agent_objects.values():
                     agent_type = agent.__class__.__name__
-                    agent_type_counts[agent_type] = (
-                        agent_type_counts.get(agent_type, 0) + 1
-                    )
+                    agent_type_counts[agent_type] = agent_type_counts.get(agent_type, 0) + 1
 
                 logger.info(
                     "simulation_milestone",
@@ -1021,9 +982,7 @@ class Environment(AECEnv):
         This method delegates to MetricsTracker for actual calculations,
         passing the current agent objects, resources, time, and configuration.
         """
-        return self.metrics_tracker.calculate_metrics(
-            self._agent_objects, self.resources, self.time, self.config
-        )
+        return self.metrics_tracker.calculate_metrics(self._agent_objects, self.resources, self.time, self.config)
 
     def get_next_agent_id(self) -> str:
         """Generate a unique short ID for an agent using environment's seed.
@@ -1151,9 +1110,7 @@ class Environment(AECEnv):
         """
         if hasattr(self, "resource_manager") and self.resource_manager is not None:
             # Ensure memmap file is flushed; delete based on config (default: keep for reuse)
-            delete_memmap = getattr(
-                self.config, "resources", ResourceConfig()
-            ).memmap_delete_on_close
+            delete_memmap = getattr(self.config, "resources", ResourceConfig()).memmap_delete_on_close
             try:
                 self.resource_manager.cleanup_memmap(delete_file=delete_memmap)
             except Exception as e:
@@ -1211,10 +1168,7 @@ class Environment(AECEnv):
                 agent.metrics_service = self.metrics_service
             if hasattr(agent, "logging_service") and agent.logging_service is None:
                 agent.logging_service = EnvironmentLoggingService(self)
-            if (
-                hasattr(agent, "validation_service")
-                and agent.validation_service is None
-            ):
+            if hasattr(agent, "validation_service") and agent.validation_service is None:
                 agent.validation_service = EnvironmentValidationService(self)
             if hasattr(agent, "time_service") and agent.time_service is None:
                 agent.time_service = EnvironmentTimeService(self)
@@ -1231,10 +1185,7 @@ class Environment(AECEnv):
 
             # Validate required dependencies after injection
             if getattr(agent, "spatial_service", None) is None:
-                raise ValueError(
-                    "Agent %s missing spatial_service after injection"
-                    % getattr(agent, "agent_id", "?")
-                )
+                raise ValueError("Agent %s missing spatial_service after injection" % getattr(agent, "agent_id", "?"))
         except (AttributeError, ValueError, TypeError) as e:
             logger.error(
                 "service_injection_failed",
@@ -1271,12 +1222,17 @@ class Environment(AECEnv):
         self.truncations[agent.agent_id] = False
         self.infos[agent.agent_id] = {}
         # Initialize observation with zeros since agent_observations isn't set up yet
-        self.observations[agent.agent_id] = np.zeros(
-            self._observation_space.shape, dtype=self._observation_space.dtype
-        )
+        obs_space = self.observation_space(agent.agent_id)
+        self.observations[agent.agent_id] = np.zeros(obs_space.shape, dtype=obs_space.dtype)
 
+        # Update physics engine entity references to include the new agent
+        if hasattr(self.physics, "set_entity_references"):
+            self.physics.set_entity_references(
+                list(self._agent_objects.values()), self.resources
+            )
+        
         # Mark positions as dirty when new agent is added
-        if hasattr(self.physics, 'mark_positions_dirty'):
+        if hasattr(self.physics, "mark_positions_dirty"):
             self.physics.mark_positions_dirty()
 
         # Batch log to database using SQLAlchemy
@@ -1287,9 +1243,7 @@ class Environment(AECEnv):
             if flush_immediately:
                 self.db.logger.flush_all_buffers()
 
-        self.agent_observations[agent.agent_id] = AgentObservation(
-            self.observation_config
-        )
+        self.agent_observations[agent.agent_id] = AgentObservation(self.observation_config)
 
         # Log agent addition
         logger.info(
@@ -1318,9 +1272,7 @@ class Environment(AECEnv):
                     agent_type_counts = {}
                     for agent in self._agent_objects.values():
                         agent_type = agent.__class__.__name__
-                        agent_type_counts[agent_type] = (
-                            agent_type_counts.get(agent_type, 0) + 1
-                        )
+                        agent_type_counts[agent_type] = agent_type_counts.get(agent_type, 0) + 1
 
                     logger.info(
                         "population_milestone_reached",
@@ -1492,9 +1444,7 @@ class Environment(AECEnv):
             np_dtype = np.float32
         else:
             np_dtype = np.float32
-        self._observation_space = spaces.Box(
-            low=0.0, high=1.0, shape=(NUM_CHANNELS, S, S), dtype=np_dtype
-        )
+        self._observation_space = spaces.Box(low=0.0, high=1.0, shape=(NUM_CHANNELS, S, S), dtype=np_dtype)
 
     def _setup_action_space(self) -> None:
         """Setup the action space with all available actions."""
@@ -1505,9 +1455,7 @@ class Environment(AECEnv):
         # This ensures consistent ordering: action index 0 maps to first enabled action, etc.
         self._enabled_action_types = list(self._action_mapping.keys())
 
-    def update_action_space(
-        self, new_enabled_actions: Optional[List[str]] = None
-    ) -> None:
+    def update_action_space(self, new_enabled_actions: Optional[List[str]] = None) -> None:
         """Update the action space when enabled actions configuration changes.
 
         This method should be called when the curriculum or configuration
@@ -1580,13 +1528,7 @@ class Environment(AECEnv):
         agents, so it only includes agents that are still alive. Dead agents
         are not counted even if they were part of the initial population.
         """
-        return len(
-            [
-                agent
-                for agent in self._agent_objects.values()
-                if getattr(agent, "birth_time", 0) == 0
-            ]
-        )
+        return len([agent for agent in self._agent_objects.values() if getattr(agent, "birth_time", 0) == 0])
 
     # _create_initial_agents removed: agents should be created outside the environment
 
@@ -1624,9 +1566,8 @@ class Environment(AECEnv):
         """
         agent = self._agent_objects.get(agent_id)
         if agent is None or not agent.alive:
-            return np.zeros(
-                self._observation_space.shape, dtype=self._observation_space.dtype
-            )
+            obs_space = self.observation_space(agent_id)
+            return np.zeros(obs_space.shape, dtype=obs_space.dtype)
 
         # Assume width and height are integers for grid
         height, width = int(self.height), int(self.width)
@@ -1634,32 +1575,20 @@ class Environment(AECEnv):
         # Get discretization method from config
         # Resolve discretization/interpolation from nested environment config when available
         if self.config and getattr(self.config, "environment", None) is not None:
-            discretization_method = getattr(
-                self.config.environment, "position_discretization_method", "floor"
-            )
-            use_bilinear = getattr(
-                self.config.environment, "use_bilinear_interpolation", True
-            )
+            discretization_method = getattr(self.config.environment, "position_discretization_method", "floor")
+            use_bilinear = getattr(self.config.environment, "use_bilinear_interpolation", True)
         else:
             discretization_method = (
-                getattr(self.config, "position_discretization_method", "floor")
-                if self.config
-                else "floor"
+                getattr(self.config, "position_discretization_method", "floor") if self.config else "floor"
             )
-            use_bilinear = (
-                getattr(self.config, "use_bilinear_interpolation", True)
-                if self.config
-                else True
-            )
+            use_bilinear = getattr(self.config, "use_bilinear_interpolation", True) if self.config else True
 
         # Agent position as (y, x) using configured discretization method
         grid_size = (width, height)
-        ax, ay = discretize_position_continuous(
-            agent.position, grid_size, discretization_method
-        )
+        ax, ay = discretize_position_continuous(agent.position, grid_size, discretization_method)
 
         # Ensure spatial index is up to date before observation generation
-        if hasattr(self.physics, 'update'):
+        if hasattr(self.physics, "update"):
             self.physics.update()
 
         # Build local resource layer directly (avoid full-world grids)
@@ -1702,9 +1631,7 @@ class Environment(AECEnv):
                 y1 = ay + R + 1
                 x0 = ax - R
                 x1 = ax + R + 1
-                window_np = self.resource_manager.get_resource_window(
-                    y0, y1, x0, x1, normalize=True
-                )
+                window_np = self.resource_manager.get_resource_window(y0, y1, x0, x1, normalize=True)
                 # Convert to torch tensor of correct dtype/device with minimal copies
                 if (
                     self.observation_config.device == "cpu"
@@ -1721,13 +1648,9 @@ class Environment(AECEnv):
                     )
             else:
                 _tq0 = _time.perf_counter()
-                nearby_resources = self.physics.get_nearby_entities(
-                    agent.position, R + 1, "resources"
-                )
+                nearby_resources = self.physics.get_nearby_entities(agent.position, R + 1, "resources")
                 _tq1 = _time.perf_counter()
-                self._perception_profile["spatial_query_time_s"] += max(
-                    0.0, _tq1 - _tq0
-                )
+                self._perception_profile["spatial_query_time_s"] += max(0.0, _tq1 - _tq0)
         except AttributeError as e:
             logger.warning(
                 "spatial_resource_init_issue",
@@ -1770,15 +1693,11 @@ class Environment(AECEnv):
         elif not used_memmap:
             _tn0 = _time.perf_counter()
             for res in nearby_resources:
-                rx, ry = discretize_position_continuous(
-                    res.position, (width, height), discretization_method
-                )
+                rx, ry = discretize_position_continuous(res.position, (width, height), discretization_method)
                 lx = rx - (ax - R)
                 ly = ry - (ay - R)
                 if 0 <= lx < S and 0 <= ly < S:
-                    resource_local[int(ly), int(lx)] += float(res.amount) / float(
-                        max_amount
-                    )
+                    resource_local[int(ly), int(lx)] += float(res.amount) / float(max_amount)
                     self._perception_profile["nearest_points"] += 1
             _tn1 = _time.perf_counter()
             self._perception_profile["nearest_time_s"] += max(0.0, _tn1 - _tn0)
@@ -1885,11 +1804,7 @@ class Environment(AECEnv):
                             resources_before=resources_before,
                             resources_after=agent.resource_level,
                             reward=0,  # Reward will be calculated later
-                            details=(
-                                action_result.get("details", {})
-                                if isinstance(action_result, dict)
-                                else {}
-                            ),
+                            details=(action_result.get("details", {}) if isinstance(action_result, dict) else {}),
                         )
                     except Exception as e:
                         logger.warning(
@@ -1900,9 +1815,7 @@ class Environment(AECEnv):
                         )
                         logger.warning(f"Failed to log agent action {action_name}: {e}")
             else:
-                logger.warning(
-                    "action_not_found_in_action_registry", action_name=action_name
-                )
+                logger.warning("action_not_found_in_action_registry", action_name=action_name)
         else:
             logger.debug(
                 "Action %s (mapped to %s) not available in current simulation configuration",
@@ -1910,9 +1823,7 @@ class Environment(AECEnv):
                 action_type,
             )
 
-    def _calculate_reward(
-        self, agent_id: str, pre_action_state: Optional[Dict[str, Any]] = None
-    ) -> float:
+    def _calculate_reward(self, agent_id: str, pre_action_state: Optional[Dict[str, Any]] = None) -> float:
         """Calculate the reward for a specific agent.
 
         Computes a reward signal for reinforcement learning based on the agent's
@@ -2023,10 +1934,7 @@ class Environment(AECEnv):
         for i in range(1, len(self.agents) + 1):
             next_idx = (current_idx + i) % len(self.agents)
             next_agent = self.agents[next_idx]
-            if not (
-                self.terminations.get(next_agent, False)
-                or self.truncations.get(next_agent, False)
-            ):
+            if not (self.terminations.get(next_agent, False) or self.truncations.get(next_agent, False)):
                 self.agent_selection = next_agent
 
                 # Detect if we've completed a full cycle
@@ -2155,15 +2063,11 @@ class Environment(AECEnv):
             # Preserve existing agents and refresh observations
             self.agent_observations = {}
             for agent in self._agent_objects.values():
-                self.agent_observations[agent.agent_id] = AgentObservation(
-                    self.observation_config
-                )
+                self.agent_observations[agent.agent_id] = AgentObservation(self.observation_config)
 
-        if hasattr(self.physics, 'set_entity_references'):
-            self.physics.set_entity_references(
-                list(self._agent_objects.values()), self.resources
-            )
-        if hasattr(self.physics, 'update'):
+        if hasattr(self.physics, "set_entity_references"):
+            self.physics.set_entity_references(list(self._agent_objects.values()), self.resources)
+        if hasattr(self.physics, "update"):
             self.physics.update()
 
         # Reset cycle tracking for proper timestep semantics
@@ -2181,16 +2085,13 @@ class Environment(AECEnv):
         self.observations = {a: self._get_observation(a) for a in self.agents}
 
         if self.agent_selection is None:
-            dummy_obs = np.zeros(
-                self._observation_space.shape, dtype=self._observation_space.dtype
-            )
+            obs_space = self.observation_space("default")
+            dummy_obs = np.zeros(obs_space.shape, dtype=obs_space.dtype)
             return dummy_obs, {}
 
         return self.observations[self.agent_selection], self.infos[self.agent_selection]
 
-    def step(
-        self, action: Optional[int] = None
-    ) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
+    def step(self, action: Optional[int] = None) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
         """Execute one step in the environment for the currently selected agent.
 
         Parameters
@@ -2260,9 +2161,7 @@ class Environment(AECEnv):
         observation = (
             self._get_observation(agent_id)
             if agent
-            else np.zeros(
-                self._observation_space.shape, dtype=self._observation_space.dtype
-            )
+            else np.zeros(self.observation_space(agent_id).shape, dtype=self.observation_space(agent_id).dtype)
         )
 
         # Update agent state and advance to next agent

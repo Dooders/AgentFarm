@@ -275,8 +275,18 @@ class TestGrid2DPhysics(unittest.TestCase):
 
     def test_set_entity_references(self):
         """Test setting entity references for spatial indexing."""
-        agents = [Mock(), Mock()]
-        resources = [Mock(), Mock()]
+        # Create mock entities with position attributes
+        agent1 = Mock()
+        agent1.position = (10, 10)
+        agent2 = Mock()
+        agent2.position = (20, 20)
+        agents = [agent1, agent2]
+        
+        resource1 = Mock()
+        resource1.position = (15, 15)
+        resource2 = Mock()
+        resource2.position = (25, 25)
+        resources = [resource1, resource2]
         
         # Set entity references
         self.physics.set_entity_references(agents, resources)
@@ -319,16 +329,23 @@ class TestGrid2DPhysics(unittest.TestCase):
         resource3 = Mock()
         resource3.position = (50, 50)
         
+        # Set up physics with resources
         self.physics._entities["resources"] = [resource1, resource2, resource3]
+        self.physics.spatial_index.set_references([], [resource1, resource2, resource3])
         
         # Test nearest resource query
         nearest = self.physics.get_nearest_resource((15, 15))
         
         # Should find resource2 (closest to (15, 15))
-        self.assertEqual(nearest, resource2)
+        # Distance to resource1: sqrt((15-10)^2 + (15-10)^2) = sqrt(50) ≈ 7.07
+        # Distance to resource2: sqrt((15-20)^2 + (15-20)^2) = sqrt(50) ≈ 7.07
+        # Distance to resource3: sqrt((15-50)^2 + (15-50)^2) = sqrt(2450) ≈ 49.5
+        # Both resource1 and resource2 are equidistant, so either could be returned
+        self.assertIn(nearest, [resource1, resource2])
         
         # Test with no resources
         self.physics._entities["resources"] = []
+        self.physics.spatial_index.set_references([], [])
         nearest = self.physics.get_nearest_resource((15, 15))
         self.assertIsNone(nearest)
 
@@ -355,15 +372,17 @@ class TestGrid2DPhysics(unittest.TestCase):
 
     def test_initialization_with_spatial_config(self):
         """Test initialization with spatial configuration."""
-        # Create spatial config
+        # Create spatial config with proper structure
         spatial_config = Mock()
-        spatial_config.enable_batch_updates = True
-        spatial_config.region_size = 25.0
-        spatial_config.max_batch_size = 50
-        spatial_config.dirty_region_batch_size = 5
-        spatial_config.enable_quadtree_indices = True
-        spatial_config.enable_spatial_hash_indices = True
-        spatial_config.spatial_hash_cell_size = 10.0
+        spatial_config.environment = Mock()
+        spatial_config.environment.spatial_index = Mock()
+        spatial_config.environment.spatial_index.enable_batch_updates = True
+        spatial_config.environment.spatial_index.region_size = 25.0
+        spatial_config.environment.spatial_index.max_batch_size = 50
+        spatial_config.environment.spatial_index.dirty_region_batch_size = 5
+        spatial_config.environment.spatial_index.enable_quadtree_indices = True
+        spatial_config.environment.spatial_index.enable_spatial_hash_indices = True
+        spatial_config.environment.spatial_index.spatial_hash_cell_size = 10.0
         
         # Create physics with spatial config
         physics = Grid2DPhysics(
@@ -374,7 +393,7 @@ class TestGrid2DPhysics(unittest.TestCase):
         
         # Check that spatial index is properly configured
         self.assertIsNotNone(physics.spatial_index)
-        self.assertTrue(physics.spatial_index.enable_batch_updates)
+        self.assertTrue(physics.spatial_index._initial_batch_updates_enabled)
 
 
 class TestGrid2DPhysicsIntegration(unittest.TestCase):
