@@ -90,7 +90,7 @@ From simple parameter adjustments to complete behavioral overhauls, customize ag
 **Quick Example:**
 ```python
 # Custom agent with personality traits
-class CooperativeAgent(BaseAgent):
+class CooperativeAgent(AgentCore):
     def __init__(self, *args, generosity=0.7, **kwargs):
         super().__init__(*args, **kwargs)
         self.generosity = generosity
@@ -444,7 +444,7 @@ create_reproducibility_report(analysis_params, results)
 **Quick Start:**
 ```python
 # 1. Create domain-specific agents
-class CustomerAgent(BaseAgent):
+class CustomerAgent(AgentCore):
     def decide_action(self):
         # Custom business logic
         pass

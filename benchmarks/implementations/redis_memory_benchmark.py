@@ -13,9 +13,8 @@ import redis
 
 from benchmarks.core.experiments import Experiment, ExperimentContext
 from benchmarks.core.registry import register_experiment
-from farm.core.perception import PerceptionData
 from farm.core.state import AgentState
-from farm.memory.redis_memory import AgentMemory, AgentMemoryManager, RedisMemoryConfig
+from farm.memory.redis_memory import AgentMemoryManager, RedisMemoryConfig
 
 
 @register_experiment("redis_memory")
@@ -147,13 +146,13 @@ class RedisMemoryBenchmark(Experiment):
                 age=random.randint(0, 100),
             )
 
-            # Create synthetic perception data (11x11 observation grid)
+            # Create synthetic perception data (13x11x11 multi-channel observation)
             import numpy as np
 
-            perception_grid = np.zeros(
-                (11, 11), dtype=np.int8
-            )  # Standard observation size
-            perception = PerceptionData(grid=perception_grid)
+            # Create multi-channel observation tensor (13 channels, 11x11 grid)
+            perception_tensor = np.zeros(
+                (13, 11, 11), dtype=np.float32
+            )  # Multi-channel observation size
 
             # Create realistic metadata for memory entries
             metadata = {
@@ -185,7 +184,7 @@ class RedisMemoryBenchmark(Experiment):
                     "state": state,
                     "action": action,
                     "reward": reward,
-                    "perception": perception,
+                    "perception": perception_tensor,
                     "metadata": metadata,
                     "priority": random.uniform(0, 1),
                 }

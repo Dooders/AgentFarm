@@ -19,7 +19,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
 import redis
 
-from farm.core.perception import PerceptionData
 from farm.core.state import AgentState
 from farm.memory.base_memory import MemorySearchMixin
 from farm.utils.logging import get_logger
@@ -136,7 +135,7 @@ class AgentMemory(MemorySearchMixin):
         state: AgentState,
         action: Optional[str] = None,
         reward: Optional[float] = None,
-        perception: Optional[PerceptionData] = None,
+        perception: Optional[Any] = None,  # Multi-channel observation tensor
         metadata: Optional[Dict[str, Any]] = None,
         priority: float = 1.0,
         ttl: Optional[int] = None,
@@ -149,7 +148,7 @@ class AgentMemory(MemorySearchMixin):
             state (AgentState): Agent's current state
             action (str, optional): Action that led to this state
             reward (float, optional): Reward received for the action
-            perception (PerceptionData, optional): Agent's perception data
+            perception (Any, optional): Agent's multi-channel observation tensor
             metadata (Dict, optional): Additional information to store
             priority (float): Memory importance (higher values persist longer)
             ttl (int, optional): Time-to-live in seconds, or None for default

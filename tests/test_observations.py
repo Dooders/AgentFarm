@@ -706,7 +706,7 @@ class TestObservationFrequency(unittest.TestCase):
         from farm.config import SimulationConfig
         from farm.config.config import EnvironmentConfig, PopulationConfig, ResourceConfig
         from farm.core.environment import Environment
-        from farm.core.agent import BaseAgent
+        from farm.core.agent import AgentFactory
 
         self.test_dir = tempfile.mkdtemp()
         self.db_path = f"{self.test_dir}/test.db"
@@ -730,14 +730,12 @@ class TestObservationFrequency(unittest.TestCase):
 
         # Add agents
         self.agents = []
+        factory = AgentFactory(spatial_service=self.env.spatial_service)
         for i in range(3):  # 2 system + 1 independent = 3 total
-            agent = BaseAgent(
+            agent = factory.create_default_agent(
                 agent_id=self.env.get_next_agent_id(),
                 position=(10 + i * 5, 10 + i * 5),
-                resource_level=5,
-                environment=self.env,
-                generation=0,
-                spatial_service=self.env.spatial_service,
+                initial_resources=5,
             )
             self.agents.append(agent)
             self.env.add_agent(agent)

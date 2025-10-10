@@ -12,7 +12,7 @@ from benchmarks.core.experiments import Experiment, ExperimentContext
 from benchmarks.core.registry import register_experiment
 from farm.config import EnvironmentConfig, SimulationConfig
 from farm.config.config import DatabaseConfig
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentCore, AgentFactory
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 from farm.core.services.implementations import SpatialIndexAdapter
@@ -75,7 +75,7 @@ class ObservationFlowBenchmark(Experiment):
         }
         super().__init__(params)
         self._env: Optional[Environment] = None
-        self._agents: list[BaseAgent] = []
+        self._agents: list[AgentCore] = []
         self._agent_ids: list[str] = []
         self._spatial: Optional[SpatialIndexAdapter] = None
         self._steps = steps
@@ -98,9 +98,7 @@ class ObservationFlowBenchmark(Experiment):
             seed=42,
             observation=obs_cfg,
             environment=EnvironmentConfig(width=self._width, height=self._height),
-            database=DatabaseConfig(
-                use_in_memory_db=True, persist_db_on_completion=False
-            ),
+            database=DatabaseConfig(use_in_memory_db=True, persist_db_on_completion=False),
         )
         env = Environment(
             width=self._width,
@@ -112,41 +110,46 @@ class ObservationFlowBenchmark(Experiment):
         return env
 
     def _spawn_agents(self, env: Environment) -> None:
-        """Spawn agents with uniform random placement across the environment."""
+        """Spawn agents with uniform random placement across the environment.
+        
+        Creates the specified number of agents with random positions within the environment
+        bounds. Uses a fixed seed (123) for reproducible results. Each agent is created
+        with zero initial resources and added to the environment's spatial index.
+        """
         # Use numpy for better random number generation if available, fallback to standard random
         if np is not None:
             rng = np.random.default_rng(123)  # Fixed seed for reproducibility
-            rand_int = lambda low, high: int(rng.integers(low, high))
+
+            def rand_int(low: int, high: int) -> int:
+                return int(rng.integers(low, high))
         else:
             import random
 
             random.seed(123)  # Fixed seed for reproducibility
-            rand_int = lambda low, high: random.randint(low, high - 1)
+
+            def rand_int(low: int, high: int) -> int:
+                return random.randint(low, high - 1)
 
         # Clear any existing agents
         self._agents.clear()
         self._agent_ids.clear()
 
         # Create agents with random positions
+        factory = AgentFactory(spatial_service=env.spatial_service)
         for i in range(self._num_agents):
             x = float(rand_int(0, self._width))
             y = float(rand_int(0, self._height))
-            agent = BaseAgent(
+            agent = factory.create_default_agent(
                 agent_id=f"A{i}",
                 position=(x, y),
-                resource_level=0,
-                spatial_service=env.spatial_service,
-                environment=env,
-                config=env.config,
+                initial_resources=0,
             )
             env.add_agent(agent)
             self._agents.append(agent)
             self._agent_ids.append(agent.agent_id)
 
         # Update spatial index to include all new agents
-        env.spatial_index.set_references(
-            list(env._agent_objects.values()), env.resources
-        )
+        env.spatial_index.set_references(list(env._agent_objects.values()), env.resources)
         env.spatial_index.update()
 
     def setup(self, context: ExperimentContext) -> None:
@@ -180,14 +183,10 @@ class ObservationFlowBenchmark(Experiment):
         obs_per_sec = total_observes / total_time if total_time > 0 else 0.0
         if np is not None:
             mean_step = float(np.mean(per_step_times)) if per_step_times else 0.0
-            p95_step = (
-                float(np.percentile(per_step_times, 95)) if per_step_times else 0.0
-            )
+            p95_step = float(np.percentile(per_step_times, 95)) if per_step_times else 0.0
         else:
             # Simple approximations without numpy
-            mean_step = (
-                sum(per_step_times) / len(per_step_times) if per_step_times else 0.0
-            )
+            mean_step = sum(per_step_times) / len(per_step_times) if per_step_times else 0.0
             sorted_times = sorted(per_step_times)
             if sorted_times:
                 k = int(0.95 * (len(sorted_times) - 1))
@@ -217,17 +216,11 @@ class ObservationFlowBenchmark(Experiment):
         # Estimate computational load (GFLOPs) for observation tensor construction
         # This provides insight into the computational complexity of observations
         S = 2 * self._radius + 1  # Observation grid size (e.g., 13x13 for radius=6)
-        C = 13  # Number of observation channels
-        k_ops_per_cell = (
-            2.0  # Estimated operations per cell during dense reconstruction
-        )
+        C = 13  # Number of observation channels (SELF_HP, ALLIES_HP, ENEMIES_HP, RESOURCES, OBSTACLES, TERRAIN_COST, VISIBILITY, KNOWN_EMPTY, DAMAGE_HEAT, TRAILS, ALLY_SIGNAL, GOAL, LANDMARKS)
+        k_ops_per_cell = 2.0  # Estimated operations per cell during dense reconstruction
         total_cells = float(C * S * S)
         dense_rebuilds = float(obs_metrics.get("dense_rebuilds", 0))
-        gflops_est = (
-            (total_cells * k_ops_per_cell * dense_rebuilds)
-            / 1e9
-            / max(total_time, 1e-9)
-        )
+        gflops_est = (total_cells * k_ops_per_cell * dense_rebuilds) / 1e9 / max(total_time, 1e-9)
 
         return {
             "total_observes": total_observes,
@@ -239,14 +232,10 @@ class ObservationFlowBenchmark(Experiment):
             "num_agents": self._num_agents,
             "obs_dense_bytes": int(obs_metrics.get("dense_bytes", 0)),
             "obs_sparse_bytes": int(obs_metrics.get("sparse_logical_bytes", 0)),
-            "obs_memory_reduction_percent": float(
-                obs_metrics.get("memory_reduction_percent", 0.0)
-            ),
+            "obs_memory_reduction_percent": float(obs_metrics.get("memory_reduction_percent", 0.0)),
             "obs_cache_hit_rate": float(obs_metrics.get("cache_hit_rate", 1.0)),
             "obs_dense_rebuilds": int(obs_metrics.get("dense_rebuilds", 0)),
-            "obs_dense_rebuild_time_s_total": float(
-                obs_metrics.get("dense_rebuild_time_s_total", 0.0)
-            ),
+            "obs_dense_rebuild_time_s_total": float(obs_metrics.get("dense_rebuild_time_s_total", 0.0)),
             "gflops_observation_est": float(max(0.0, gflops_est)),
             "perception_profile": perc_profile,
         }

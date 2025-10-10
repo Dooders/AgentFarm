@@ -14,7 +14,7 @@ from farm.core.action import (
 )
 
 if TYPE_CHECKING:
-    from farm.core.agent import BaseAgent
+    from farm.core.agent.core import AgentCore
     from farm.core.environment import Environment
 
 
@@ -47,14 +47,14 @@ class Genome:
     """
 
     @staticmethod
-    def from_agent(agent: "BaseAgent") -> dict:
+    def from_agent(agent: "AgentCore") -> dict:
         """Convert agent's current state and configuration into a genome representation.
 
         This method extracts all module states, action configurations, and core properties
         from an agent to create a serializable genome dictionary.
 
         Args:
-            agent (BaseAgent): The agent to convert into a genome representation.
+            agent (AgentCore): The agent to convert into a genome representation.
                              Must have module attributes ending with '_module' that
                              implement get_state_dict().
 
@@ -66,20 +66,42 @@ class Genome:
                 - resource_level: Current resource level
                 - current_health: Current health value
         """
-        # Get all attributes that end with '_module'
-        module_states = {
-            name: getattr(agent, name).get_state_dict()
-            for name in dir(agent)
-            if name.endswith("_module")
-            and hasattr(getattr(agent, name), "get_state_dict")
-        }
+        # Get all component states
+        component_states = {}
+        if hasattr(agent, "_components"):
+            for name, component in agent._components.items():
+                if hasattr(component, "get_state"):
+                    component_states[name] = component.get_state()
+
+        # Preserve current action weights if the agent exposes them; fall back to registry order with equal weights
+        try:
+            get_weights = getattr(agent, "get_action_weights", None)
+            if callable(get_weights):
+                weights_dict = get_weights() or {}
+                # normalize and convert to list of tuples
+                total = sum(float(w) for w in weights_dict.values()) or 1.0
+                action_set = [(name, float(w) / total) for name, w in weights_dict.items()]
+            else:
+                # Fallback: derive from centralized action space with uniform weights
+                from farm.core.action import get_action_names
+                names = get_action_names()
+                if names:
+                    uniform = 1.0 / float(len(names))
+                    action_set = [(n, uniform) for n in names]
+                else:
+                    action_set = []
+        except Exception:
+            action_set = []
+
+        res_comp = agent.get_component("resource")
+        com_comp = agent.get_component("combat")
 
         genome = {
-            "action_set": [(action.name, action.weight) for action in agent.actions],
-            "module_states": module_states,
+            "action_set": action_set,
+            "module_states": component_states,  # Use component states instead of module states
             "agent_type": getattr(agent, "agent_type", agent.__class__.__name__),
-            "resource_level": agent.resource_level,
-            "current_health": agent.current_health,
+            "resource_level": (res_comp.level if res_comp else 0.0),
+            "current_health": (com_comp.health if com_comp else 0.0),
         }
         return genome
 
@@ -90,7 +112,7 @@ class Genome:
         position: tuple[int, int],
         environment: "Environment",
         agent_factory: Optional[callable] = None,
-    ) -> "BaseAgent":
+    ) -> "AgentCore":
         """Create a new agent from a genome representation.
 
         This method reconstructs an agent instance using the configuration stored
@@ -112,7 +134,7 @@ class Genome:
                                              If None, raises RuntimeError.
 
         Returns:
-            BaseAgent: New agent instance initialized with the genome's properties
+            AgentCore: New agent instance initialized with the genome's properties
                       and ready to operate in the environment
 
         Raises:
@@ -121,14 +143,18 @@ class Genome:
         if agent_factory is None:
             raise RuntimeError(
                 "agent_factory must be provided to avoid circular imports. "
-                "Use BaseAgent.from_genome() instead of Genome.to_agent() directly."
+                "Use AgentCore.from_genome() instead of Genome.to_agent() directly."
             )
 
-        # Reconstruct action set
-        action_set = [
-            Action(name, weight, ACTION_FUNCTIONS[name])
-            for name, weight in genome["action_set"]
-        ]
+        # Reconstruct action set (tolerate empty or missing)
+        action_set = []
+        try:
+            for name, weight in genome.get("action_set", []) or []:
+                func = ACTION_FUNCTIONS.get(name)
+                if func is not None:
+                    action_set.append(Action(name, float(weight), func))
+        except Exception:
+            action_set = []
 
         # Create new agent using factory
         agent = agent_factory(
@@ -137,19 +163,36 @@ class Genome:
             resource_level=genome["resource_level"],
             spatial_service=environment.spatial_service,
             environment=environment,
-            agent_type=genome.get("agent_type", "BaseAgent"),
+            agent_type=genome.get("agent_type", "AgentCore"),
             action_set=action_set,
         )
 
-        # Load all module states
-        for module_name, state_dict in genome["module_states"].items():
-            if hasattr(agent, module_name):
-                module = getattr(agent, module_name)
-                if hasattr(module, "load_state_dict"):
-                    module.load_state_dict(state_dict)
+        # Load all module/component states
+        for module_name, state_dict in (genome.get("module_states") or {}).items():
+            try:
+                if hasattr(agent, module_name):
+                    module = getattr(agent, module_name)
+                    if hasattr(module, "load_state_dict"):
+                        module.load_state_dict(state_dict)
+                else:
+                    # Try component-based restoration if agent exposes component by name
+                    comp = agent.get_component(module_name)
+                    if comp and hasattr(comp, "load_state") and isinstance(state_dict, dict):
+                        comp.load_state(state_dict)
+            except Exception:
+                # Best-effort loading; continue on errors to avoid breaking deserialization
+                continue
 
-        # Set health
-        agent.current_health = genome["current_health"]
+        # Set health via combat component if present
+        try:
+            combat = agent.get_component("combat")
+            if combat and hasattr(combat, "set_health"):
+                combat.set_health(float(genome.get("current_health", 0.0)))
+            else:
+                # Fallback legacy attribute when available
+                setattr(agent, "current_health", float(genome.get("current_health", 0.0)))
+        except Exception:
+            pass
 
         return agent
 
@@ -186,9 +229,7 @@ class Genome:
             return path
 
         # Check if it's a JSON string (starts with { or [)
-        if isinstance(path, str) and (
-            path.strip().startswith("{") or path.strip().startswith("[")
-        ):
+        if isinstance(path, str) and (path.strip().startswith("{") or path.strip().startswith("[")):
             return json.loads(path)
 
         # Otherwise treat as file path
@@ -298,7 +339,5 @@ class Genome:
         """
         json_str = Genome.save(genome)
         # Since we're calling save() without a path, it should always return a string
-        assert (
-            json_str is not None
-        ), "Genome.save() should return a string when no path is provided"
+        assert json_str is not None, "Genome.save() should return a string when no path is provided"
         return Genome.load(json_str)

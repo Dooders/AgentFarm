@@ -508,7 +508,20 @@ class TestAlgorithmBenchmark(unittest.TestCase):
     @patch("time.time")
     def test_run_single_algorithm(self, mock_time):
         """Test running benchmark for a single algorithm."""
-        mock_time.side_effect = [0.0, 1.5]  # Start and end times
+        # Use a side effect that returns predictable values for the benchmark timing
+        # and arbitrary values for logging calls
+        call_count = 0
+        def time_side_effect():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return 0.0  # Start time
+            elif call_count == 2:
+                return 1.5  # End time (gives 1.5 training time)
+            else:
+                return 1.0  # Any additional calls (e.g., from logging)
+        
+        mock_time.side_effect = time_side_effect
 
         result = self.benchmark.run_single_algorithm(
             "mlp", {"hidden_layer_sizes": (4,), "max_iter": 10}, seed=42
@@ -522,7 +535,20 @@ class TestAlgorithmBenchmark(unittest.TestCase):
 
     def test_run_benchmark(self):
         """Test running full benchmark."""
-        with patch("time.time", side_effect=[0.0, 1.0, 2.0, 3.0]):
+        # Use a side effect that can handle unlimited calls from logging
+        # while providing predictable timing for the benchmark
+        call_count = 0
+        def time_side_effect():
+            nonlocal call_count
+            call_count += 1
+            # For benchmark timing calls (start/end of each algorithm run)
+            # We have 2 algorithms × 2 seeds = 4 runs, each with 2 time calls = 8 calls
+            if call_count <= 8:
+                return float(call_count)  # 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0
+            else:
+                return 1.0  # Any additional calls (e.g., from logging)
+        
+        with patch("time.time", side_effect=time_side_effect):
             results = self.benchmark.run_benchmark(seeds=[42, 43])
 
         self.assertEqual(len(results), 2)

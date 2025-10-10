@@ -21,7 +21,7 @@ import torch
 # Add the farm module to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "farm"))
 
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentFactory
 from farm.core.channels import NUM_CHANNELS, get_channel_registry
 from farm.core.decision.config import DecisionConfig
 from farm.core.decision.decision import DecisionModule
@@ -167,11 +167,11 @@ class PipelineValidator:
 
                     # Create mock agent
                     mock_spatial = MockSpatialService()
-                    mock_agent = BaseAgent(
+                    factory = AgentFactory(spatial_service=mock_spatial)
+                    mock_agent = factory.create_default_agent(
                         agent_id=f"test_agent_{algorithm}",
                         position=(50.0, 50.0),
-                        resource_level=10,
-                        spatial_service=mock_spatial,
+                        initial_resources=10,
                     )
 
                     # Create decision module
@@ -274,11 +274,11 @@ class PipelineValidator:
         try:
             config = DecisionConfig(algorithm_type="ppo")
             mock_spatial = MockSpatialService()
-            mock_agent = BaseAgent(
+            factory = AgentFactory(spatial_service=mock_spatial)
+            mock_agent = factory.create_default_agent(
                 agent_id="test_agent_masking",
                 position=(50.0, 50.0),
-                resource_level=10,
-                spatial_service=mock_spatial,
+                initial_resources=10,
             )
 
             # Create decision module
@@ -331,11 +331,11 @@ class PipelineValidator:
             obs = AgentObservation(config)
 
             mock_spatial = MockSpatialService()
-            mock_agent = BaseAgent(
+            factory = AgentFactory(spatial_service=mock_spatial)
+            mock_agent = factory.create_default_agent(
                 agent_id="test_agent_pipeline",
                 position=(50.0, 50.0),
-                resource_level=10,
-                spatial_service=mock_spatial,
+                initial_resources=10,
             )
 
             decision_config = DecisionConfig(algorithm_type="ppo")
@@ -447,11 +447,11 @@ class PipelineValidator:
             try:
                 config = DecisionConfig(algorithm_type="invalid_algorithm")
                 mock_spatial = MockSpatialService()
-                mock_agent = BaseAgent(
+                factory = AgentFactory(spatial_service=mock_spatial)
+                mock_agent = factory.create_default_agent(
                     agent_id="test_agent_error",
                     position=(50.0, 50.0),
-                    resource_level=10,
-                    spatial_service=mock_spatial,
+                    initial_resources=10,
                 )
 
                 decision_module = DecisionModule(

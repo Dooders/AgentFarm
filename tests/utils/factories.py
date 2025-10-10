@@ -5,15 +5,18 @@ from typing import Tuple
 
 
 def make_agent(environment, position: Tuple[float, float] = (0.0, 0.0), resource_level: float = 1.0):
-    """Create and register a BaseAgent in the provided environment."""
-    from farm.core.agent import BaseAgent
+    """Create and register an agent in the provided environment using AgentFactory."""
+    from farm.core.agent import AgentFactory
 
-    agent = BaseAgent(
+    # Services will be injected by environment when agent is added
+    factory = AgentFactory(
+        spatial_service=environment.spatial_service,
+    )
+    
+    agent = factory.create_default_agent(
         agent_id=environment.get_next_agent_id(),
         position=position,
-        resource_level=resource_level,
-        environment=environment,
-        spatial_service=environment.spatial_service,
+        initial_resources=int(resource_level),
     )
     environment.add_agent(agent)
     return agent

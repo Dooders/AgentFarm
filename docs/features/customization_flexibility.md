@@ -279,10 +279,10 @@ Customize agent behaviors to match your research requirements, from simple trait
 Extend `BaseAgent` to create specialized agent types:
 
 ```python
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentCore
 from typing import Tuple, Optional, List
 
-class ResearcherAgent(BaseAgent):
+class ResearcherAgent(AgentCore):
     """Agent specialized in exploration and knowledge gathering."""
     
     def __init__(self, *args, **kwargs):
@@ -345,7 +345,7 @@ class ResearcherAgent(BaseAgent):
         }
 
 
-class TraderAgent(BaseAgent):
+class TraderAgent(AgentCore):
     """Agent specialized in resource trading and exchange."""
     
     def __init__(self, *args, **kwargs):
@@ -408,7 +408,7 @@ class TraderAgent(BaseAgent):
                 
         return best_partner, best_offer
         
-    def _evaluate_trade_with(self, agent: BaseAgent) -> Dict:
+    def _evaluate_trade_with(self, agent: AgentCore) -> Dict:
         """Evaluate potential trade value with agent."""
         # Complex trading logic based on:
         # - Our needs vs their surplus
@@ -439,7 +439,7 @@ class TraderAgent(BaseAgent):
         self.trading_partners.add(partner_id)
 
 
-class LeaderAgent(BaseAgent):
+class LeaderAgent(AgentCore):
     """Agent that can coordinate and direct other agents."""
     
     def __init__(self, *args, **kwargs):
@@ -596,7 +596,7 @@ class AgentPersonality:
         return weights
 
 
-class PersonalizedAgent(BaseAgent):
+class PersonalizedAgent(AgentCore):
     """Agent with personality-driven behavior."""
     
     def __init__(self, *args, personality: Optional[AgentPersonality] = None, **kwargs):
@@ -1019,7 +1019,7 @@ class ResearchAction(Action):
 action_registry.register("research", ResearchAction)
 
 # Use in agent
-class ResearcherAgent(BaseAgent):
+class ResearcherAgent(AgentCore):
     def decide_action(self):
         if self._should_research():
             target = self._choose_research_location()
@@ -1231,7 +1231,7 @@ species (agent types) with different strategies compete and cooperate.
 
 from farm.config import SimulationConfig
 from farm.core.environment import Environment
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentCore
 from farm.core.simulation import run_simulation
 import numpy as np
 import random
@@ -1317,7 +1317,7 @@ class EcosystemEnvironment(Environment):
 # STEP 2: Define Custom Agent Types
 # ============================================================================
 
-class PioneerSpecies(BaseAgent):
+class PioneerSpecies(AgentCore):
     """Fast-growing, resource-inefficient species for early succession."""
     
     def __init__(self, *args, **kwargs):
@@ -1338,7 +1338,7 @@ class PioneerSpecies(BaseAgent):
         return super().decide_action()
 
 
-class IntermediateSpecies(BaseAgent):
+class IntermediateSpecies(AgentCore):
     """Balanced species for mid-succession."""
     
     def __init__(self, *args, **kwargs):
@@ -1350,7 +1350,7 @@ class IntermediateSpecies(BaseAgent):
         self.stress_tolerance = 0.5
 
 
-class ClimaxSpecies(BaseAgent):
+class ClimaxSpecies(AgentCore):
     """Slow-growing, resource-efficient species for late succession."""
     
     def __init__(self, *args, **kwargs):
@@ -1540,7 +1540,7 @@ if __name__ == "__main__":
 ### API Reference
 - [SimulationConfig](api_reference.md#simulationconfig) - Configuration API
 - [Environment](api_reference.md#environment) - Environment API
-- [BaseAgent](api_reference.md#baseagent) - Agent API
+- [AgentCore](api_reference.md#agentcore) - Agent API
 
 ---
 

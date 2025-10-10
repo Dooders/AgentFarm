@@ -2,6 +2,7 @@
 """
 Simple script to run a single simulation using the farm simulation framework.
 """
+
 # Standard library imports
 import argparse
 import cProfile
@@ -16,7 +17,6 @@ from io import StringIO
 from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
 from farm.utils.logging import configure_logging, get_logger
-from farm.utils.logging import log_simulation
 
 # Suppress warnings that might interfere with CI output parsing
 warnings.filterwarnings("ignore", category=RuntimeWarning)
@@ -27,9 +27,7 @@ def run_profiled_simulation(num_steps, config, output_dir):
     """
     Run the simulation with profiling and return the environment.
     """
-    return run_simulation(
-        num_steps=num_steps, config=config, path=output_dir, save_config=True
-    )
+    return run_simulation(num_steps=num_steps, config=config, path=output_dir, save_config=True)
 
 
 def main():
@@ -63,9 +61,7 @@ def main():
         choices=["benchmark", "simulation", "research"],
         help="Profile to use (benchmark/simulation/research)",
     )
-    parser.add_argument(
-        "--steps", type=int, default=100, help="Number of simulation steps to run"
-    )
+    parser.add_argument("--steps", type=int, default=100, help="Number of simulation steps to run")
     parser.add_argument(
         "--seed",
         type=int,
@@ -117,9 +113,7 @@ def main():
 
     # Load configuration
     try:
-        config = SimulationConfig.from_centralized_config(
-            environment=args.environment, profile=args.profile
-        )
+        config = SimulationConfig.from_centralized_config(environment=args.environment, profile=args.profile)
         logger.info(
             "configuration_loaded",
             environment=args.environment,
@@ -129,9 +123,7 @@ def main():
         # Apply in-memory database settings if requested
         if args.in_memory:
             config.database.use_in_memory_db = True
-            config.database.in_memory_db_memory_limit_mb = (
-                args.memory_limit if args.memory_limit else 1000
-            )
+            config.database.in_memory_db_memory_limit_mb = args.memory_limit if args.memory_limit else 1000
             config.database.persist_db_on_completion = not args.no_persist
             logger.info(
                 "in_memory_db_configured",
@@ -140,7 +132,7 @@ def main():
             )
             if args.no_persist:
                 logger.warning("in_memory_db_no_persist", message="Database will not be persisted to disk")
-        
+
         # Apply seed override if provided
         if args.seed is not None:
             try:
@@ -227,12 +219,10 @@ def main():
                     )
         else:
             # Run without profiling
-            environment = run_simulation(
-                num_steps=args.steps, config=config, path=output_dir, save_config=True
-            )
+            environment = run_simulation(num_steps=args.steps, config=config, path=output_dir, save_config=True)
 
         elapsed_time = time.time() - start_time
-        
+
         # Log completion
         logger.info(
             "simulation_completed",
@@ -240,7 +230,7 @@ def main():
             final_agent_count=len(environment.agents),
             output_dir=output_dir,
         )
-        
+
         # Check for empty simulation
         if len(environment.agents) == 0:
             logger.warning(
@@ -253,15 +243,15 @@ def main():
             for agent in environment.agent_objects:
                 agent_type = agent.__class__.__name__
                 agent_types[agent_type] = agent_types.get(agent_type, 0) + 1
-            
+
             logger.info("simulation_agent_distribution", agent_types=agent_types)
-        
+
         # Print summary for CI/console (keeping print for backward compatibility)
         print("\n=== SIMULATION COMPLETED SUCCESSFULLY ===", flush=True)
         print(f"Simulation completed in {elapsed_time:.2f} seconds", flush=True)
         print(f"Final agent count: {len(environment.agents)}", flush=True)
         print(f"Results saved to {output_dir}", flush=True)
-        
+
     except Exception as e:
         logger.error(
             "simulation_failed",

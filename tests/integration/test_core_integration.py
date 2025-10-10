@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 
 from farm.config import SimulationConfig
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentFactory
 from farm.core.environment import Environment
 
 
@@ -36,19 +36,16 @@ class TestCoreIntegration(unittest.TestCase):
         )
 
         # Add two agents
-        a1 = BaseAgent(
+        factory = AgentFactory(spatial_service=self.env.spatial_service)
+        a1 = factory.create_default_agent(
             agent_id=self.env.get_next_agent_id(),
             position=(5, 5),
-            resource_level=5,
-            environment=self.env,
-            spatial_service=self.env.spatial_service,
+            initial_resources=5,
         )
-        a2 = BaseAgent(
+        a2 = factory.create_default_agent(
             agent_id=self.env.get_next_agent_id(),
             position=(7, 7),
-            resource_level=5,
-            environment=self.env,
-            spatial_service=self.env.spatial_service,
+            initial_resources=5,
         )
         self.env.add_agent(a1)
         self.env.add_agent(a2)

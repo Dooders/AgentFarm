@@ -64,24 +64,24 @@ class CustomScenarioEnvironment(Environment):
 
 **Agent Specialization Strategy:**
 ```python
-# Example: Extend BaseAgent for different agent types
-from farm.core.agent import BaseAgent
+# Example: Create specialized agent types using AgentFactory
+from farm.core.agent import AgentFactory, AgentCore
 
-class SpecialistAgent(BaseAgent):
+class SpecialistAgent(AgentCore):
     def __init__(self, specialization="general", **kwargs):
         super().__init__(**kwargs)
         self.specialization = specialization
         self.special_abilities = self._get_special_abilities()
         self.behavior_patterns = self._get_behavior_patterns()
 
-class CooperativeAgent(BaseAgent):
+class CooperativeAgent(AgentCore):
     def __init__(self, cooperation_level=0.5, **kwargs):
         super().__init__(**kwargs)
         self.cooperation_level = cooperation_level
         self.trust_network = {}
         self.shared_goals = []
 
-class CompetitiveAgent(BaseAgent):
+class CompetitiveAgent(AgentCore):
     def __init__(self, aggression_level=0.5, **kwargs):
         super().__init__(**kwargs)
         self.aggression_level = aggression_level
@@ -349,14 +349,14 @@ from farm.core.decision.decision import DecisionModule
 from farm.core.decision.config import DecisionConfig
 
 # Your custom agent can use the existing decision system
-class CustomAgent(BaseAgent):
+class CustomAgent(AgentCore):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # The decision module is automatically initialized by BaseAgent
+        # The decision module is automatically initialized by AgentCore
         # You can customize the decision config if needed
         
     def decide_action(self):
-        # This method is already implemented in BaseAgent
+        # This method is already implemented in AgentCore
         # It uses the DecisionModule to select actions
         return super().decide_action()
 ```
@@ -375,7 +375,7 @@ from farm.memory.redis_memory import AgentMemoryManager
 ## Common Patterns and Best Practices
 
 ### Agent Design Patterns
-- **Inheritance**: Extend `BaseAgent` from `farm.core.agent` for specialized behavior
+- **Inheritance**: Extend `AgentCore` from `farm.core.agent` for specialized behavior
 - **Composition**: Use existing action modules from `farm.core.action` when possible
 - **Configuration**: Make behavior configurable via YAML in `config/default.yaml`
 - **Learning**: Implement adaptive behavior mechanisms using existing decision modules
@@ -442,7 +442,7 @@ This framework provides a solid foundation for creating diverse simulation scena
 
 ### Key Integration Points:
 - **Environment**: Extend `Environment` class from `farm.core.environment`
-- **Agents**: Extend `BaseAgent` class from `farm.core.agent`
+- **Agents**: Extend `AgentCore` class from `farm.core.agent`
 - **Actions**: Use existing action system in `farm.core.action` or add new actions
 - **Decisions**: Leverage existing DQN-based decision system in `farm.core.decision`
 - **Configuration**: Extend `SimulationConfig` in `farm.core.config`
