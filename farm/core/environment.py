@@ -483,8 +483,7 @@ class Environment(AECEnv):
         # Add action space setup call:
         self._setup_action_space()
 
-        # Initialize agent observations mapping before adding any agents
-        self.agent_observations = {}
+        # Note: Agent observations are now handled by PerceptionComponent
 
         # If pre-instantiated agents are provided, add them now
         if initial_agents:
@@ -901,8 +900,7 @@ class Environment(AECEnv):
             self._next_agent()
 
         self.spatial_index.mark_positions_dirty()  # Mark positions as dirty when agent is removed
-        if agent_id in self.agent_observations:
-            del self.agent_observations[agent_id]
+        # Note: Agent observations are now handled by PerceptionComponent
 
     def log_interaction_edge(
         self,
@@ -1443,6 +1441,20 @@ class Environment(AECEnv):
                 agent.environment = self
             else:
                 setattr(agent, "environment", self)
+            
+            # Sync perception component observation config with environment config
+            perception = agent.get_component("perception")
+            if perception and hasattr(perception, "sync_with_environment"):
+                try:
+                    perception.sync_with_environment(self)
+                except (AttributeError, ValueError, TypeError) as e:
+                    logger.error(
+                        "perception_sync_failed",
+                        agent_id=getattr(agent, "agent_id", "unknown"),
+                        error_type=type(e).__name__,
+                        error_message=str(e),
+                    )
+                    raise
 
             # Validate required dependencies after injection
             if getattr(agent, "spatial_service", None) is None:
@@ -1483,7 +1495,7 @@ class Environment(AECEnv):
             if flush_immediately:
                 self.db.logger.flush_all_buffers()
 
-        self.agent_observations[agent.agent_id] = AgentObservation(self.observation_config)
+        # Note: AgentObservation is now handled by PerceptionComponent, not Environment
 
         # Log agent addition
         resource_component = agent.get_component("resource")
@@ -1963,24 +1975,46 @@ class Environment(AECEnv):
         else:
             self_hp01 = 1.0  # Default to full health if no combat component
 
-        obs = self.agent_observations[agent_id]
-        obs.perceive_world(
-            world_layers=world_layers,
-            agent_world_pos=(ay, ax),
-            self_hp01=self_hp01,
-            allies=None,  # Let observation system use spatial index for efficiency
-            enemies=None,  # Let observation system use spatial index for efficiency
-            goal_world_pos=None,  # TODO: Set if needed
-            recent_damage_world=[],  # TODO: Implement if needed
-            ally_signals_world=[],  # TODO: Implement if needed
-            trails_world_points=[],  # TODO: Implement if needed
-            spatial_index=self.spatial_index,
-            agent_object=agent,
-            agent_orientation=getattr(agent, "orientation", 0.0),
-        )
-
-        tensor = obs.tensor().cpu().numpy()
-        return tensor
+        # Use PerceptionComponent observation instead of separate Environment observation
+        perception = agent.get_component("perception")
+        if perception and perception.get_observation() is not None:
+            # Update the perception component's observation with current world state
+            perception.update_observation(
+                world_layers=world_layers,
+                allies=None,  # Let observation system use spatial index for efficiency
+                enemies=None,  # Let observation system use spatial index for efficiency
+                goal_world_pos=None,  # TODO: Set if needed
+                recent_damage_world=[],  # TODO: Implement if needed
+                ally_signals_world=[],  # TODO: Implement if needed
+                trails_world_points=[],  # TODO: Implement if needed
+                spatial_index=self.spatial_index,
+                agent_object=agent,
+                agent_orientation=getattr(agent, "orientation", 0.0),
+            )
+            
+            obs = perception.get_observation()
+            tensor = obs.tensor().cpu().numpy()
+            return tensor
+        else:
+            # Fallback: create temporary observation if perception component not available
+            obs = AgentObservation(self.observation_config)
+            obs.perceive_world(
+                world_layers=world_layers,
+                agent_world_pos=(ay, ax),
+                self_hp01=self_hp01,
+                allies=None,  # Let observation system use spatial index for efficiency
+                enemies=None,  # Let observation system use spatial index for efficiency
+                goal_world_pos=None,  # TODO: Set if needed
+                recent_damage_world=[],  # TODO: Implement if needed
+                ally_signals_world=[],  # TODO: Implement if needed
+                trails_world_points=[],  # TODO: Implement if needed
+                spatial_index=self.spatial_index,
+                agent_object=agent,
+                agent_orientation=getattr(agent, "orientation", 0.0),
+            )
+            
+            tensor = obs.tensor().cpu().numpy()
+            return tensor
 
     def _process_action(self, agent_id: str, action: Optional[int]) -> None:
         """Process an action for a specific agent.
@@ -2305,14 +2339,11 @@ class Environment(AECEnv):
             # Clear existing agents and re-add provided ones
             self._agent_objects = {}
             self.agents = []
-            self.agent_observations = {}
             for agent in options.get("agents", []):
                 self.add_agent(agent)
         else:
-            # Preserve existing agents and refresh observations
-            self.agent_observations = {}
-            for agent in self._agent_objects.values():
-                self.agent_observations[agent.agent_id] = AgentObservation(self.observation_config)
+            # Preserve existing agents - observations are now handled by PerceptionComponent
+            pass
 
         self.spatial_index.set_references(list(self._agent_objects.values()), self.resources)
         self.spatial_index.update()

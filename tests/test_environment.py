@@ -315,7 +315,7 @@ class TestEnvironment(unittest.TestCase):
         self.env.remove_agent(agent)
 
         self.assertEqual(len(self.env.agent_objects), initial_count - 1)
-        self.assertNotIn(agent.agent_id, self.env.agent_observations)
+        self.assertNotIn(agent.agent_id, self.env.observations)
 
     def test_spatial_queries(self):
         """Test spatial query methods"""
@@ -567,13 +567,13 @@ class TestEnvironment(unittest.TestCase):
         self.env.add_agent(new_agent)
         self.assertEqual(len(self.env.agent_objects), initial_agent_count + 1)
         self.assertIn(new_agent.agent_id, self.env.agents)
-        self.assertIn(new_agent.agent_id, self.env.agent_observations)
+        self.assertIn(new_agent.agent_id, self.env.observations)
 
         # Test agent removal
         self.env.remove_agent(new_agent)
         self.assertEqual(len(self.env.agent_objects), initial_agent_count)
         self.assertNotIn(new_agent.agent_id, self.env.agents)
-        self.assertNotIn(new_agent.agent_id, self.env.agent_observations)
+        self.assertNotIn(new_agent.agent_id, self.env.observations)
 
     def test_environment_state_management(self):
         """Test environment state capture and management"""
