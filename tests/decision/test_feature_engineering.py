@@ -115,13 +115,13 @@ class TestFeatureEngineering:
         """Test that agent properties correctly delegate to components."""
         agent = self.factory.create_default_agent(agent_id="test_agent", position=(50, 50), initial_resources=100)
 
-        # Test that properties delegate to components
-        assert agent.current_health == 100.0  # From combat component
-        assert agent.starting_health == 100.0  # From combat component
-        assert agent.resource_level == 100  # From resource component
-        assert agent.starvation_counter == 0  # From resource component
-        assert agent.starvation_threshold == 100  # From resource component config
-        assert not agent.is_defending  # From combat component
+        # Test that components are accessible directly
+        assert agent.get_component("combat").health == 100.0  # From combat component
+        assert agent.get_component("combat").max_health == 100.0  # From combat component
+        assert agent.get_component("resource").level == 100  # From resource component
+        assert agent.get_component("resource").starvation_steps == 0  # From resource component
+        assert agent.get_component("resource")._config.starvation_threshold == 100  # From resource component config
+        assert not agent.get_component("combat").is_defending  # From combat component
 
     def test_feature_engineering_robustness(self):
         """Test that feature engineering handles missing components gracefully."""

@@ -126,9 +126,9 @@ for episode in range(num_episodes):
 AgentFarm uses specialized DQN modules for different action types:
 
 ```python
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentCore
 
-class LearningAgent(BaseAgent):
+class LearningAgent(AgentCore):
     """Agent with hierarchical RL decision-making."""
     
     def __init__(self, *args, **kwargs):
@@ -691,7 +691,7 @@ offspring = Genome.to_agent(
     agent_id="offspring_001",
     position=(50, 50),
     environment=environment,
-    agent_factory=BaseAgent
+    agent_factory=AgentCore
 )
 ```
 
@@ -815,14 +815,14 @@ def run_evolutionary_simulation(
                 f"gen{generation}_child{len(new_population)}",
                 random_position(),
                 environment,
-                BaseAgent
+                AgentCore
             )
             child2 = Genome.to_agent(
                 child2_genome,
                 f"gen{generation}_child{len(new_population)+1}",
                 random_position(),
                 environment,
-                BaseAgent
+                AgentCore
             )
             
             new_population.extend([child1, child2])
@@ -947,7 +947,7 @@ fine_tune_agent(transfer_agent, complex_env, episodes=100)
 Coordinate multiple agents:
 
 ```python
-class CoordinatedLearningAgent(BaseAgent):
+class CoordinatedLearningAgent(AgentCore):
     """Agent that learns with awareness of other agents."""
     
     def __init__(self, *args, **kwargs):
@@ -1058,7 +1058,7 @@ agent.move_module.target_network.to(device)
 Train multiple agents simultaneously:
 
 ```python
-def batch_train_agents(agents: List[BaseAgent], batch_size: int = 32):
+def batch_train_agents(agents: List[AgentCore], batch_size: int = 32):
     """Train multiple agents in parallel."""
     
     # Collect experiences from all agents
@@ -1094,7 +1094,7 @@ Complete example: ML-enhanced agent simulation with automated analysis.
 
 from farm.config import SimulationConfig
 from farm.core.simulation import run_simulation
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentCore
 from farm.analysis.service import AnalysisService, AnalysisRequest
 import torch
 

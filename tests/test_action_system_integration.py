@@ -288,8 +288,8 @@ class TestActionSystemIntegration:
         
         # Record initial state
         initial_position = agent.position
-        initial_health = agent.current_health
-        initial_resources = agent.resource_level
+        initial_health = agent.get_component("combat").health
+        initial_resources = agent.get_component("resource").level
         
         # Execute move action
         move_action = action_registry.get("move")
@@ -299,8 +299,8 @@ class TestActionSystemIntegration:
         
         # Position should change, health and resources should remain the same
         assert agent.position != initial_position
-        assert agent.current_health == initial_health
-        assert agent.resource_level == initial_resources
+        assert agent.get_component("combat").health == initial_health
+        assert agent.get_component("resource").level == initial_resources
 
 
 class TestActionSystemPerformance:

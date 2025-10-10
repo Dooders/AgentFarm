@@ -840,10 +840,10 @@ class Environment(AECEnv):
             agent_id=agent.agent_id,
             agent_type=agent.__class__.__name__,
             cause=getattr(agent, "death_cause", "unknown"),
-            lifespan=self.time - getattr(agent, "birth_time", 0),
-            final_resources=getattr(agent, "resource_level", 0),
-            final_health=getattr(agent, "current_health", 0),
-            generation=getattr(agent, "generation", 0),
+            lifespan=self.time - agent.state_manager.birth_time,
+            final_resources=(agent.get_component("resource").level if agent.get_component("resource") else 0.0),
+            final_health=(agent.get_component("combat").health if agent.get_component("combat") else 0.0),
+            generation=agent.state_manager.generation,
             step=self.time,
             remaining_agents=len(self.agents) - 1,
         )
@@ -1208,8 +1208,8 @@ class Environment(AECEnv):
             "birth_time": self.time,
             "agent_type": agent.__class__.__name__,
             "position": agent.position,
-            "initial_resources": agent.resource_level,
-            "starting_health": agent.starting_health,
+            "initial_resources": (agent.get_component("resource").level if agent.get_component("resource") else 0.0),
+            "starting_health": (agent.get_component("combat").max_health if agent.get_component("combat") else 0.0),
             "starvation_counter": starvation_counter,
             "genome_id": getattr(agent.state_manager, "genome_id", None),
             "generation": getattr(agent.state_manager, "generation", 0),
@@ -1441,7 +1441,7 @@ class Environment(AECEnv):
                 agent.environment = self
             else:
                 setattr(agent, "environment", self)
-            
+
             # Sync perception component observation config with environment config
             perception = agent.get_component("perception")
             if perception and hasattr(perception, "sync_with_environment"):
@@ -1505,8 +1505,8 @@ class Environment(AECEnv):
             agent_id=agent.agent_id,
             agent_type=agent.__class__.__name__,
             position=agent.position,
-            initial_resources=agent.resource_level,
-            initial_health=agent.starting_health,
+            initial_resources=(agent.get_component("resource").level if agent.get_component("resource") else 0.0),
+            initial_health=(agent.get_component("combat").max_health if agent.get_component("combat") else 0.0),
             generation=getattr(agent.state_manager, "generation", 0),
             genome_id=getattr(agent.state_manager, "genome_id", None),
             step=self.time,
@@ -1965,10 +1965,10 @@ class Environment(AECEnv):
             "TERRAIN_COST": terrain_cost_local,
         }
 
-        # Get health ratio using agent's backward compatibility properties
-        # This handles cases where no combat component exists (returns 0.0)
-        current_health = agent.current_health
-        max_health = agent.starting_health
+        # Get health ratio using combat component when present
+        combat_component = agent.get_component("combat")
+        current_health = combat_component.health if combat_component else 0.0
+        max_health = combat_component.max_health if combat_component else 0.0
 
         if max_health > 0:
             self_hp01 = current_health / max_health
@@ -1991,7 +1991,7 @@ class Environment(AECEnv):
                 agent_object=agent,
                 agent_orientation=getattr(agent, "orientation", 0.0),
             )
-            
+
             obs = perception.get_observation()
             tensor = obs.tensor().cpu().numpy()
             return tensor
@@ -2012,7 +2012,7 @@ class Environment(AECEnv):
                 agent_object=agent,
                 agent_orientation=getattr(agent, "orientation", 0.0),
             )
-            
+
             tensor = obs.tensor().cpu().numpy()
             return tensor
 
@@ -2072,7 +2072,7 @@ class Environment(AECEnv):
             action_obj = action_registry.get(action_name)
             if action_obj:
                 # Capture resource level before action
-                resources_before = agent.resource_level if agent else None
+                resources_before = (agent.get_component("resource").level if (agent and agent.get_component("resource")) else None)
 
                 # Execute the action
                 action_result = action_obj.execute(agent)
@@ -2085,7 +2085,7 @@ class Environment(AECEnv):
                             agent_id=agent_id,
                             action_type=action_name,
                             resources_before=resources_before,
-                            resources_after=agent.resource_level,
+                            resources_after=(agent.get_component("resource").level if agent.get_component("resource") else 0.0),
                             reward=0,  # Reward will be calculated later
                             details=(action_result.get("details", {}) if isinstance(action_result, dict) else {}),
                         )
@@ -2147,8 +2147,10 @@ class Environment(AECEnv):
 
         # Use delta-based rewards if pre-action state is available
         if pre_action_state is not None:
-            resource_delta = agent.resource_level - pre_action_state["resource_level"]
-            health_delta = agent.current_health - pre_action_state["health"]
+            r_comp = agent.get_component("resource")
+            c_comp = agent.get_component("combat")
+            resource_delta = (r_comp.level if r_comp else 0.0) - pre_action_state["resource_level"]
+            health_delta = (c_comp.health if c_comp else 0.0) - pre_action_state["health"]
             was_alive = pre_action_state["alive"]
 
             # Base delta rewards
@@ -2172,9 +2174,13 @@ class Environment(AECEnv):
         if not agent.alive:
             return -10.0
 
-        resource_reward = agent.resource_level * 0.1
+        r_comp = agent.get_component("resource")
+        resource_reward = (r_comp.level if r_comp else 0.0) * 0.1
         survival_reward = 0.1
-        health_reward = agent.current_health / agent.starting_health
+        c_comp = agent.get_component("combat")
+        health_reward = (
+            (c_comp.health / max(1.0, float(c_comp.max_health))) if c_comp and c_comp.max_health > 0 else 0.0
+        )
 
         reward = resource_reward + survival_reward + health_reward
 
@@ -2401,9 +2407,11 @@ class Environment(AECEnv):
         #! This will likely depend on the reward system
         pre_action_state = None
         if agent:
+            r_comp = agent.get_component("resource")
+            c_comp = agent.get_component("combat")
             pre_action_state = {
-                "resource_level": agent.resource_level,
-                "health": agent.current_health,
+                "resource_level": (r_comp.level if r_comp else 0.0),
+                "health": (c_comp.health if c_comp else 0.0),
                 "alive": agent.alive,
             }
 
@@ -2414,7 +2422,7 @@ class Environment(AECEnv):
         else:
             # Process the provided action
             self._process_action(agent_id, action)
-        
+
         # Call component lifecycle methods (on_step_end for resource consumption, etc.)
         if agent and agent.alive:
             for component in agent._components.values():

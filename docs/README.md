@@ -141,7 +141,7 @@ Step-by-step guides for specific use cases:
 
 ### Basic Usage Patterns
 1. **Simple Simulation**: Load config → Create environment → Add agents → Run simulation
-2. **Custom Agents**: Extend BaseAgent → Implement custom decision logic → Register behaviors
+2. **Custom Agents**: Use AgentFactory → Create custom components → Implement custom behaviors
 3. **Extended Observations**: Create ChannelHandler → Register channel → Process observations
 4. **Parameter Studies**: Define parameter ranges → Run experiment → Analyze results
 

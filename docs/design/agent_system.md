@@ -482,16 +482,11 @@ agent = AgentCore(
 
 ---
 
-## Replacing Old BaseAgent Code
+## Creating Agents
 
-If you have code using the old `BaseAgent`, replace it with the new system:
+Use the AgentFactory to create agents with proper component setup:
 
 ```python
-# Old way (don't use)
-from farm.core.agent import BaseAgent
-agent = BaseAgent(agent_id="001", position=(0,0), resource_level=100, ...)
-
-# New way (use this)
 from farm.core.agent import AgentFactory
 factory = AgentFactory(
     spatial_service=spatial_service,

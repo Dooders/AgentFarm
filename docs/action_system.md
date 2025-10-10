@@ -86,7 +86,7 @@ Actions are registered with default weights:
 
 Action selection is handled by the `DecisionModule` in `farm/core/decision/decision.py`, which uses reinforcement learning (default: DQN via Stable Baselines3) to choose actions based on the current state.
 
-In `BaseAgent.decide_action()`:
+In agent behavior strategies:
 
 1. Create state representation (position, resources, health, etc.)
 2. Determine enabled actions based on curriculum phase

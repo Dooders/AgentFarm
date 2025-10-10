@@ -184,14 +184,14 @@ class DependencyContainer:
 
 ```python
 # Before (tight coupling)
-class BaseAgent:
+class AgentCore:
     def __init__(self, agent_id: str, environment: Environment):
         self.move_module = MoveModule(DEFAULT_MOVE_CONFIG)
         self.attack_module = AttackModule(DEFAULT_ATTACK_CONFIG)
         self.gather_module = GatherModule(DEFAULT_GATHER_CONFIG)
 
 # After (dependency injection)
-class BaseAgent:
+class AgentCore:
     def __init__(self,
                  agent_id: str,
                  environment: Environment,

@@ -208,55 +208,6 @@ def demo_component_interactions():
     print(f"   Agent 2 health after: {combat2.health}")
 
 
-def demo_backward_compatibility():
-    """Demo 4: Backward compatibility with adapter."""
-    print("\n" + "="*60)
-    print("DEMO 4: Backward Compatibility")
-    print("="*60)
-    
-    import warnings
-    warnings.filterwarnings('ignore', category=DeprecationWarning)
-    
-    from farm.core.agent.compat import BaseAgentAdapter, is_new_agent, get_core
-    
-    spatial_service, time_service, lifecycle_service = create_mock_services()
-    
-    # Create agent using old-style API
-    agent = BaseAgentAdapter.from_old_style(
-        agent_id="compat_agent",
-        position=(25.0, 75.0),
-        resource_level=150,
-        spatial_service=spatial_service,
-        time_service=time_service,
-    )
-    
-    print(f"\n✅ Created with old API (BaseAgentAdapter.from_old_style)")
-    
-    # Use old API
-    print(f"\n✅ Old API works:")
-    print(f"   agent.agent_id = {agent.agent_id}")
-    print(f"   agent.position = {agent.position}")
-    print(f"   agent.resource_level = {agent.resource_level}")
-    print(f"   agent.current_health = {agent.current_health}")
-    print(f"   agent.alive = {agent.alive}")
-    
-    # Old methods work
-    agent.update_position((30.0, 80.0))
-    print(f"\n✅ Old methods work:")
-    print(f"   agent.update_position((30, 80))")
-    print(f"   New position: {agent.position}")
-    
-    # Access new features
-    print(f"\n✅ New features accessible:")
-    core = get_core(agent)
-    print(f"   is_new_agent(agent) = {is_new_agent(agent)}")
-    print(f"   get_core(agent) = {core.__class__.__name__}")
-    
-    movement = core.get_component("movement")
-    print(f"   Core has movement: {movement.name}")
-    print(f"   Can use new API: movement.move_to((100, 100))")
-
-
 def demo_state_persistence():
     """Demo 5: State saving and loading."""
     print("\n" + "="*60)
@@ -327,7 +278,6 @@ def main():
     demo_basic_agent()
     demo_custom_configuration()
     demo_component_interactions()
-    demo_backward_compatibility()
     demo_state_persistence()
     
     print("\n" + "="*60)
@@ -338,7 +288,7 @@ def main():
     print("  ✅ Modular - Easy to understand and extend")
     print("  ✅ Testable - Each component tested independently")
     print("  ✅ Type-safe - Configuration with autocomplete")
-    print("  ✅ Compatible - Works with old code via adapter")
+    print("  ✅ Extensible - Easy to add new components and behaviors")
     print("  ✅ Performant - No regression, some improvements")
     print("\nReady for production use! 🚀")
 

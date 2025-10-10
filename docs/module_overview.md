@@ -54,7 +54,8 @@ The Environment class is the heart of the simulation, managing:
 Agents are autonomous entities with learning capabilities:
 
 **Basic Agent Types:**
-- **BaseAgent**: Unified agent class that handles all agent behaviors including movement, resource gathering, sharing, and combat
+- **AgentCore**: Component-based agent class that coordinates behaviors through pluggable components
+- **AgentFactory**: Factory for creating agents with proper component setup and service injection
 
 **Capabilities:**
 - Movement and navigation
@@ -183,7 +184,7 @@ observation:
 ```python
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentFactory
 from farm.core.config import SimulationConfig
 import random
 
@@ -209,11 +210,11 @@ env = Environment(
 
 # Add agents (environment is accepted and services are auto-injected)
 for i in range(10):
-    agent = BaseAgent(
+    factory = AgentFactory(spatial_service=env.spatial_service)
+    agent = factory.create_default_agent(
         agent_id=f"agent_{i}",
         position=(random.randint(0, 49), random.randint(0, 49)),
-        resource_level=100,
-        environment=env
+        initial_resources=100
     )
     env.add_agent(agent)
 
@@ -226,10 +227,10 @@ for step in range(1000):
 ### Custom Agent Implementation
 
 ```python
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentFactory
 from farm.core.channels import ChannelHandler, ChannelBehavior
 
-class CustomAgent(BaseAgent):
+class CustomAgent(AgentCore):
     def __init__(self, agent_id, position, resource_level, environment, **kwargs):
         super().__init__(agent_id, position, resource_level, environment, **kwargs)
 
@@ -529,7 +530,8 @@ class CustomAnalyzer(BaseAnalyzer):
 
 ### Core Classes
 - `Environment`: Main simulation environment
-- `BaseAgent`: Abstract agent base class
+- `AgentCore`: Component-based agent coordinator
+- `AgentFactory`: Factory for creating agents with proper setup
 - `AgentObservation`: Agent observation management
 - `ChannelHandler`: Channel processing interface
 - `ChannelRegistry`: Global channel management

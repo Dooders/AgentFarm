@@ -183,19 +183,22 @@ class TestEnvironment(unittest.TestCase):
         assert agent is not None  # Type assertion for type checker
 
         # Ensure agent has proper health and resource values
-        if hasattr(agent, "current_health") and agent.current_health is None:
-            agent.current_health = 100.0
-        if hasattr(agent, "starting_health") and agent.starting_health is None:
-            agent.starting_health = 100.0
-        if hasattr(agent, "resource_level") and agent.resource_level is None:
-            agent.resource_level = 10
+        combat_component = agent.get_component("combat")
+        resource_component = agent.get_component("resource")
+        
+        if combat_component and combat_component.health is None:
+            combat_component.health = 100.0
+        if combat_component and combat_component.max_health is None:
+            combat_component.max_health = 100.0
+        if resource_component and resource_component.level is None:
+            resource_component.level = 10
 
-        initial_health = agent.current_health
-        initial_resources = agent.resource_level
+        initial_health = combat_component.health
+        initial_resources = resource_component.level
 
         # Test defend action (skip if agent has mock attributes that cause comparison issues)
         try:
-            initial_defending = getattr(agent, "is_defending", False)
+            initial_defending = combat_component.is_defending
             self.env._process_action(agent_id, ActionType.DEFEND)
             # Only check is_defending if the action succeeded and attribute exists
             if hasattr(agent, "is_defending"):
@@ -228,12 +231,15 @@ class TestEnvironment(unittest.TestCase):
         assert agent is not None  # Type assertion for type checker
 
         # Ensure agent has proper health and resource values
-        if hasattr(agent, "current_health") and agent.current_health is None:
-            agent.current_health = 100.0
-        if hasattr(agent, "starting_health") and agent.starting_health is None:
-            agent.starting_health = 100.0
-        if hasattr(agent, "resource_level") and agent.resource_level is None:
-            agent.resource_level = 10
+        combat_component = agent.get_component("combat")
+        resource_component = agent.get_component("resource")
+        
+        if combat_component and combat_component.health is None:
+            combat_component.health = 100.0
+        if combat_component and combat_component.max_health is None:
+            combat_component.max_health = 100.0
+        if resource_component and resource_component.level is None:
+            resource_component.level = 10
 
         # Test reward for alive agent
         reward = self.env._calculate_reward(agent_id)
