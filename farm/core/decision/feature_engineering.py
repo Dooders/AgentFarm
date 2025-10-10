@@ -87,7 +87,10 @@ class FeatureEngineer:
         resource_component = agent.get_component("resource")
         if resource_component:
             starvation_counter = getattr(resource_component, "starvation_steps", 0)
-            starvation_threshold = getattr(resource_component, "starvation_threshold", 10)
+            starvation_threshold = 10
+            rc_config = getattr(resource_component, "_config", None)
+            if rc_config is not None and hasattr(rc_config, "starvation_threshold"):
+                starvation_threshold = getattr(rc_config, "starvation_threshold")
             starvation_ratio = float(starvation_counter) / max(1.0, float(starvation_threshold))
         else:
             starvation_ratio = 0.0

@@ -323,17 +323,20 @@ class MetricsTracker:
 
     def _prepare_agent_state(self, agent: AgentProtocol, time: int):
         """Prepare agent state for database logging."""
+        resource_component = agent.get_component("resource")
+        combat_component = agent.get_component("combat")
+        birth_time = getattr(getattr(agent, "state_manager", None), "birth_time", 0)
         return (
             agent.agent_id,
             agent.position[0],  # x coordinate
             agent.position[1],  # y coordinate
-            agent.get_component("resource").level,
-            agent.get_component("combat").health,
-            agent.get_component("combat").max_health,
-            agent.get_component("resource").starvation_steps,
-            int(agent.get_component("combat").is_defending),
+            (resource_component.level if resource_component else 0.0),
+            (combat_component.health if combat_component else 0.0),
+            (combat_component.max_health if combat_component else 0.0),
+            (getattr(resource_component, "starvation_steps", 0) if resource_component else 0),
+            (int(combat_component.is_defending) if combat_component else 0),
             0.0,  # total_reward not tracked in component system
-            time - agent.state_manager.birth_time,  # age
+            time - birth_time,  # age
         )
 
     def _prepare_resource_state(self, resource):
@@ -382,15 +385,19 @@ class MetricsTracker:
             current_max_generation = max([a.state_manager.generation for a in alive_agents]) if alive_agents else 0
 
             # Calculate health and age metrics
-            average_health = sum(a.get_component("combat").health for a in alive_agents) / total_agents if total_agents > 0 else 0
+            def _health(a):
+                c = a.get_component("combat")
+                return c.health if c else 0.0
+            average_health = sum(_health(a) for a in alive_agents) / total_agents if total_agents > 0 else 0
             average_age = sum(time - a.state_manager.birth_time for a in alive_agents) / total_agents if total_agents > 0 else 0
             average_reward = 0.0  # total_reward not tracked in component system
 
             # Calculate resource metrics
             total_resources = sum(r.amount for r in resources)
-            average_agent_resources = (
-                sum(a.get_component("resource").level for a in alive_agents) / total_agents if total_agents > 0 else 0
-            )
+            def _res(a):
+                r = a.get_component("resource")
+                return r.level if r else 0.0
+            average_agent_resources = (sum(_res(a) for a in alive_agents) / total_agents if total_agents > 0 else 0)
             resource_efficiency = (
                 total_resources / (len(resources) * (config.resources.max_resource_amount if config else 30))
                 if resources
