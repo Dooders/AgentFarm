@@ -105,7 +105,7 @@ Agents are created through a factory system allowing runtime configuration:
 
 ```python
 # Agent factory in environment.py
-def create_agent(self, agent_type: str, **kwargs) -> BaseAgent:
+def create_agent(self, agent_type: str, **kwargs) -> AgentCore:
     """Create agent of specified type with configuration."""
     if agent_type == "system":
         return SystemAgent(**kwargs)

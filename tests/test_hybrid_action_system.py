@@ -257,7 +257,7 @@ class TestActionFunctionRefactoring:
             ]
         )
         
-        original_resources = agent.resource_level
+        original_resources = agent.get_component("resource").level
         original_resource_amount = resource.amount
         
         result = gather_action(agent)
@@ -268,7 +268,7 @@ class TestActionFunctionRefactoring:
         assert "agent_resources_after" in result["details"]
         
         # Agent should have more resources
-        assert agent.resource_level > original_resources
+        assert agent.get_component("resource").level > original_resources
         # Resource should have less amount
         assert resource.amount < original_resource_amount
     
@@ -313,8 +313,8 @@ class TestActionFunctionRefactoring:
             ]
         )
         
-        original_sharer_resources = sharer.resource_level
-        original_target_resources = target.resource_level
+        original_sharer_resources = sharer.get_component("resource").level
+        original_target_resources = target.get_component("resource").level
         
         result = share_action(sharer)
         
@@ -326,9 +326,9 @@ class TestActionFunctionRefactoring:
         assert "target_resources_after" in result["details"]
         
         # Sharer should have fewer resources
-        assert sharer.resource_level < original_sharer_resources
+        assert sharer.get_component("resource").level < original_sharer_resources
         # Target should have more resources
-        assert target.resource_level > original_target_resources
+        assert target.get_component("resource").level > original_target_resources
     
     def test_share_action_fails_without_resource_component(self):
         """Test that share_action fails when agent has no resource component."""
@@ -381,7 +381,7 @@ class TestActionFunctionRefactoring:
             lifecycle_service=lifecycle_service,
         )
         
-        original_resources = agent.resource_level
+        original_resources = agent.get_component("resource").level
         
         result = reproduce_action(agent)
         
@@ -390,7 +390,7 @@ class TestActionFunctionRefactoring:
             assert "offspring_id" in result["details"]
             assert "cost" in result["details"]
             # Parent should have fewer resources
-            assert agent.resource_level < original_resources
+            assert agent.get_component("resource").level < original_resources
         else:
             # Might fail due to reproduction chance
             assert "Reproduction chance not met" in result["error"] or "Insufficient resources" in result["error"]

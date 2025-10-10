@@ -213,7 +213,7 @@ def _validate_gather_action(agent: "AgentCore", result: dict) -> dict:
     # Check resource increase
     if "agent_resources_before" in details and "amount_gathered" in details:
         expected_resources = details["agent_resources_before"] + details["amount_gathered"]
-        actual_resources = agent.resource_level
+        actual_resources = agent.get_component("resource").level
 
         if abs(actual_resources - expected_resources) > 0.01:  # Allow small floating point differences
             validation["issues"].append(f"Resource mismatch: expected {expected_resources}, got {actual_resources}")
@@ -256,7 +256,7 @@ def _validate_share_action(agent: "AgentCore", result: dict) -> dict:
     # Check resource decrease
     if "agent_resources_before" in details and "amount_shared" in details:
         expected_resources = details["agent_resources_before"] - details["amount_shared"]
-        actual_resources = agent.resource_level
+        actual_resources = agent.get_component("resource").level
 
         if abs(actual_resources - expected_resources) > 0.01:
             validation["issues"].append(f"Resource mismatch: expected {expected_resources}, got {actual_resources}")
@@ -277,14 +277,14 @@ def _validate_defend_action(agent: "AgentCore", result: dict) -> dict:
     details = result["details"]
 
     # Check defensive state
-    if not getattr(agent, "is_defending", False):
+    if not agent.get_component("combat").is_defending:
         validation["issues"].append("Agent is not in defensive state after defend action")
         validation["valid"] = False
 
     # Check resource cost
     if "resources_before" in details and "cost" in details:
         expected_resources = details["resources_before"] - details["cost"]
-        actual_resources = agent.resource_level
+        actual_resources = agent.get_component("resource").level
 
         if abs(actual_resources - expected_resources) > 0.01:
             validation["issues"].append(f"Resource mismatch: expected {expected_resources}, got {actual_resources}")
@@ -307,7 +307,7 @@ def _validate_reproduce_action(agent: "AgentCore", result: dict) -> dict:
     # Check resource cost
     if "resources_before" in details and "offspring_cost" in details:
         expected_resources = details["resources_before"] - details["offspring_cost"]
-        actual_resources = agent.resource_level
+        actual_resources = agent.get_component("resource").level
 
         if abs(actual_resources - expected_resources) > 0.01:
             validation["issues"].append(f"Resource mismatch: expected {expected_resources}, got {actual_resources}")
@@ -348,10 +348,10 @@ def check_resource_requirement(
     Returns:
         bool: True if agent has sufficient resources, False otherwise
     """
-    if agent.resource_level < required_amount:
+    if agent.get_component("resource").level < required_amount:
         logger.debug(
             f"Agent {agent.agent_id} has insufficient {requirement_type} "
-            f"({agent.resource_level} < {required_amount}) for {action_name}"
+            f"({agent.get_component('resource').level} < {required_amount}) for {action_name}"
         )
         return False
     return True
@@ -615,7 +615,7 @@ def attack_action(agent: "AgentCore") -> dict:
                 "target_position": closest_target.position,
                 "attacker_position": agent.position,
                 "attack_direction": attack_direction,
-                "target_defending": closest_target.is_defending,
+                "target_defending": closest_target.get_component("combat").is_defending,
                 "target_alive": closest_target.alive,
                 "target_killed": target_killed,
             },
@@ -829,7 +829,7 @@ def share_action(agent: "AgentCore") -> dict:
             }
 
         # Find the agent with the lowest resource level (simple need-based selection)
-        target = min(valid_targets, key=lambda a: a.resource_level)
+        target = min(valid_targets, key=lambda a: a.get_component("resource").level)
 
         # Get target's resource component
         target_resource = target.get_component("resource")
@@ -1062,9 +1062,9 @@ def reproduce_action(agent: "AgentCore") -> dict:
         if not check_resource_requirement(agent, total_required, "reproduce"):
             return {
                 "success": False,
-                "error": f"Insufficient resources for reproduction (need {total_required}, have {agent.resource_level})",
+                "error": f"Insufficient resources for reproduction (need {total_required}, have {agent.get_component('resource').level})",
                 "details": {
-                    "agent_resources": agent.resource_level,
+                    "agent_resources": agent.get_component("resource").level,
                     "min_resources": min_resources,
                     "offspring_cost": offspring_cost,
                     "total_required": total_required,
@@ -1083,13 +1083,13 @@ def reproduce_action(agent: "AgentCore") -> dict:
                 "details": {
                     "reproduction_roll": reproduction_roll,
                     "reproduction_chance": reproduction_chance,
-                    "agent_resources": agent.resource_level,
+                    "agent_resources": agent.get_component("resource").level,
                     "total_required": total_required,
                 },
             }
 
         # Record state before reproduction
-        resources_before = agent.resource_level
+        resources_before = agent.get_component("resource").level
         generation_before = agent.generation
 
         # Attempt reproduction using component
@@ -1117,7 +1117,7 @@ def reproduce_action(agent: "AgentCore") -> dict:
                 "error": None,
                 "details": {
                     "resources_before": resources_before,
-                    "resources_after": agent.resource_level,
+                    "resources_after": agent.get_component("resource").level,
                     "offspring_cost": offspring_cost,
                     "min_resources": min_resources,
                     "parent_generation": generation_before,
@@ -1134,7 +1134,7 @@ def reproduce_action(agent: "AgentCore") -> dict:
                 "error": f"Reproduction failed: {error_msg}",
                 "details": {
                     "resources_before": resources_before,
-                    "resources_after": agent.resource_level,
+                    "resources_after": agent.get_component("resource").level,
                     "offspring_cost": offspring_cost,
                     "min_resources": min_resources,
                     "parent_generation": generation_before,
@@ -1193,17 +1193,17 @@ def defend_action(agent: "AgentCore") -> dict:
         if not check_resource_requirement(agent, defense_cost, "defend"):
             return {
                 "success": False,
-                "error": f"Insufficient resources for defense cost (need {defense_cost}, have {agent.resource_level})",
+                "error": f"Insufficient resources for defense cost (need {defense_cost}, have {agent.get_component('resource').level})",
                 "details": {
-                    "agent_resources": agent.resource_level,
+                    "agent_resources": agent.get_component("resource").level,
                     "defense_cost": defense_cost,
                     "defense_duration": defense_duration,
                 },
             }
 
         # Record state before defense
-        resources_before = agent.resource_level
-        health_before = agent.current_health
+        resources_before = agent.get_component("resource").level
+        health_before = agent.get_component("combat").health
         was_defending_before = combat.is_defending
         defense_timer_before = combat.defense_turns_remaining
 
@@ -1229,8 +1229,7 @@ def defend_action(agent: "AgentCore") -> dict:
         )
 
         logger.debug(
-            f"Agent {agent.agent_id} entered defensive stance for {defense_duration} turns "
-            f"(cost: {defense_cost})"
+            f"Agent {agent.agent_id} entered defensive stance for {defense_duration} turns (cost: {defense_cost})"
         )
 
         return {
@@ -1240,9 +1239,9 @@ def defend_action(agent: "AgentCore") -> dict:
                 "duration": defense_duration,
                 "cost": defense_cost,
                 "resources_before": resources_before,
-                "resources_after": agent.resource_level,
+                "resources_after": agent.get_component("resource").level,
                 "health_before": health_before,
-                "health_after": agent.current_health,
+                "health_after": agent.get_component("combat").health,
                 "was_defending_before": was_defending_before,
                 "defense_timer_before": defense_timer_before,
             },
@@ -1302,14 +1301,18 @@ def pass_action(agent: "AgentCore") -> dict:
 
         logger.debug(f"Agent {agent.agent_id} chose to pass this turn")
 
+        # Get agent state safely, handling missing components
+        resource_component = agent.get_component("resource")
+        combat_component = agent.get_component("combat")
+
         return {
             "success": True,
             "error": None,
             "details": {
                 "reason": "strategic_inaction",
                 "reward_earned": reward,
-                "agent_resources": agent.resource_level,
-                "agent_health": getattr(agent, "current_health", 0),
+                "agent_resources": resource_component.level if resource_component else 0.0,
+                "agent_health": combat_component.health if combat_component else 0.0,
                 "agent_position": agent.position,
             },
         }

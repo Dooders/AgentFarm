@@ -62,7 +62,7 @@ def mock_agents():
         agent = MagicMock()
         agent.agent_id = f"agent_{i}"
         agent.agent_type = ["system", "independent", "control"][i % 3]
-        agent.birth_time = i
+        agent.state_manager.birth_time = i
         agent.death_time = i + 50 if i % 2 == 0 else None
         agents.append(agent)
     return agents
@@ -801,7 +801,7 @@ class TestEdgeCases:
         for i in range(30):
             agent = MagicMock()
             agent.agent_type = ["system", "independent", "control"][i % 3]
-            agent.birth_time = i
+            agent.state_manager.birth_time = i
             agent.death_time = None  # All alive
             agents.append(agent)
 

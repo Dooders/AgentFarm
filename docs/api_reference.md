@@ -278,97 +278,84 @@ Returns metrics related to dense construction and sparse storage, including:
 
 Unified agent class that handles all agent behaviors including movement, resource gathering, sharing, and combat.
 
+#### Creating Agents
+
+Use the AgentFactory to create agents with proper component setup:
+
+```python
+from farm.core.agent import AgentFactory
+
+factory = AgentFactory(
+    spatial_service=spatial_service,
+    default_config=AgentConfig()  # Optional
+)
+agent = factory.create_default_agent(agent_id="001", position=(0,0), initial_resources=100)
+```
+
+#### AgentCore Class
+
+The new component-based agent class that coordinates components and behaviors.
+
 #### Constructor
 
 ```python
-BaseAgent(agent_id: str, position: Tuple[int, int],
-         resource_level: int, environment: Environment, **kwargs)
+AgentCore(agent_id: str, position: Tuple[float, float],
+          spatial_service: ISpatialQueryService,
+          components: List[IAgentComponent] = [],
+          behavior: Optional[IAgentBehavior] = None,
+          state_manager: Optional[StateManager] = None,
+          **kwargs)
 ```
 
-#### Abstract Methods
+#### Key Methods
 
 ```python
-decide_action() -> Dict[str, Any]
+get_component(component_name: str) -> Optional[IAgentComponent]
 ```
-Decide next action based on current state.
-
-#### Concrete Methods
+Get a specific component by name.
 
 ```python
-move(target_position: Tuple[int, int]) -> bool
+act() -> None
 ```
-Move to target position.
+Execute one simulation turn using the behavior strategy.
 
 ```python
-gather() -> int
+get_action_weights() -> Dict[str, float]
 ```
-Gather resources from current position.
-
-```python
-attack(target_agent: BaseAgent) -> bool
-```
-Attack target agent.
-
-```python
-share(target_agent: BaseAgent, amount: int) -> bool
-```
-Share resources with target agent.
-
-```python
-reproduce() -> BaseAgent
-```
-Create offspring agent.
+Get action weights for the agent.
 
 #### Properties
 
 - `agent_id` (str): Unique agent identifier
-- `position` (Tuple[int, int]): Current position
-- `resource_level` (int): Current resource level
-- `age` (int): Agent age in steps
-- `is_terminated` (bool): Whether agent is terminated
-- `observation` (AgentObservation): Agent's observation system
+- `position` (Tuple[float, float]): Current position
+- `alive` (bool): Whether agent is alive
+- `state_manager` (StateManager): Manages agent state
 
-### BaseAgent Class
+### AgentFactory Class
 
-Unified agent class that handles all agent behaviors including movement, resource gathering, sharing, and combat.
+Factory for creating agents with proper component setup and service injection.
 
 #### Constructor
 
 ```python
-BaseAgent(agent_id: str, position: Tuple[int, int],
-          resource_level: int, environment: Environment,
-          action_set: list[Action] = [], parent_ids: list[str] = [],
-          generation: int = 0, use_memory: bool = False,
-          memory_config: Optional[dict] = None)
+AgentFactory(spatial_service: ISpatialQueryService,
+             default_config: Optional[AgentConfig] = None,
+             **kwargs)
 ```
 
-#### Additional Methods
+#### Key Methods
 
 ```python
-learn(experience: Tuple) -> None
+create_default_agent(agent_id: str, position: Tuple[float, float],
+                    initial_resources: float = 100.0) -> AgentCore
 ```
-Learn from experience tuple.
+Create a default agent with standard components.
 
 ```python
-get_action_probabilities(state: torch.Tensor) -> torch.Tensor
+create_learning_agent(agent_id: str, position: Tuple[float, float],
+                     initial_resources: float = 100.0) -> AgentCore
 ```
-Get action probabilities for current state.
-
-```python
-update_target_network() -> None
-```
-Update target network for stable learning.
-
-### IndependentAgent Class
-
-Self-interested agent that prioritizes individual survival.
-
-#### Constructor
-
-```python
-IndependentAgent(agent_id: str, position: Tuple[int, int],
-                resource_level: int, environment: Environment, **kwargs)
-```
+Create a learning agent with RL capabilities.
 
 ### ControlAgent Class
 

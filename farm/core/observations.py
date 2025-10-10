@@ -1394,8 +1394,8 @@ class AgentObservation:
                 nx = int(math.floor(position[0]))
                 ny = int(math.floor(position[1]))
 
-            starting_health = getattr(other, "starting_health", 0)
-            current_health = getattr(other, "current_health", 0)
+            starting_health = other.get_component("combat").max_health
+            current_health = other.get_component("combat").health
             hp01 = (
                 float(current_health) / float(starting_health)
                 if starting_health and starting_health > 0

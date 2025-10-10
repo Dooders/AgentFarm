@@ -66,19 +66,19 @@ class Genome:
                 - resource_level: Current resource level
                 - current_health: Current health value
         """
-        # Get all attributes that end with '_module'
-        module_states = {
-            name: getattr(agent, name).get_state_dict()
-            for name in dir(agent)
-            if name.endswith("_module") and hasattr(getattr(agent, name), "get_state_dict")
-        }
+        # Get all component states
+        component_states = {}
+        if hasattr(agent, "_components"):
+            for name, component in agent._components.items():
+                if hasattr(component, "get_state"):
+                    component_states[name] = component.get_state()
 
         genome = {
-            "action_set": [(action.name, action.weight) for action in agent.actions],
-            "module_states": module_states,
+            "action_set": [],  # Actions are now managed by behavior, not stored on agent
+            "module_states": component_states,  # Use component states instead of module states
             "agent_type": getattr(agent, "agent_type", agent.__class__.__name__),
-            "resource_level": agent.resource_level,
-            "current_health": agent.current_health,
+            "resource_level": agent.get_component("resource").level if agent.get_component("resource") else 0.0,
+            "current_health": agent.get_component("combat").health if agent.get_component("combat") else 0.0,
         }
         return genome
 

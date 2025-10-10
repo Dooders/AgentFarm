@@ -327,13 +327,13 @@ class MetricsTracker:
             agent.agent_id,
             agent.position[0],  # x coordinate
             agent.position[1],  # y coordinate
-            agent.resource_level,
-            agent.current_health,
-            agent.starting_health,
-            agent.starvation_counter,
-            int(agent.is_defending),
-            agent.total_reward,
-            time - agent.birth_time,  # age
+            agent.get_component("resource").level,
+            agent.get_component("combat").health,
+            agent.get_component("combat").max_health,
+            agent.get_component("resource").starvation_steps,
+            int(agent.get_component("combat").is_defending),
+            0.0,  # total_reward not tracked in component system
+            time - agent.state_manager.birth_time,  # age
         )
 
     def _prepare_resource_state(self, resource):
@@ -379,17 +379,17 @@ class MetricsTracker:
             deaths = tracker_metrics["deaths"]
 
             # Calculate generation metrics
-            current_max_generation = max([a.generation for a in alive_agents]) if alive_agents else 0
+            current_max_generation = max([a.state_manager.generation for a in alive_agents]) if alive_agents else 0
 
             # Calculate health and age metrics
-            average_health = sum(a.current_health for a in alive_agents) / total_agents if total_agents > 0 else 0
-            average_age = sum(time - a.birth_time for a in alive_agents) / total_agents if total_agents > 0 else 0
-            average_reward = sum(a.total_reward for a in alive_agents) / total_agents if total_agents > 0 else 0
+            average_health = sum(a.get_component("combat").health for a in alive_agents) / total_agents if total_agents > 0 else 0
+            average_age = sum(time - a.state_manager.birth_time for a in alive_agents) / total_agents if total_agents > 0 else 0
+            average_reward = 0.0  # total_reward not tracked in component system
 
             # Calculate resource metrics
             total_resources = sum(r.amount for r in resources)
             average_agent_resources = (
-                sum(a.resource_level for a in alive_agents) / total_agents if total_agents > 0 else 0
+                sum(a.get_component("resource").level for a in alive_agents) / total_agents if total_agents > 0 else 0
             )
             resource_efficiency = (
                 total_resources / (len(resources) * (config.resources.max_resource_amount if config else 30))
@@ -400,7 +400,7 @@ class MetricsTracker:
             # Calculate genetic diversity
             genome_counts = {}
             for agent in alive_agents:
-                genome_counts[agent.genome_id] = genome_counts.get(agent.genome_id, 0) + 1
+                genome_counts[agent.state_manager.genome_id] = genome_counts.get(agent.state_manager.genome_id, 0) + 1
             genetic_diversity = len(genome_counts) / total_agents if total_agents > 0 else 0
             dominant_genome_ratio = max(genome_counts.values()) / total_agents if genome_counts else 0
 

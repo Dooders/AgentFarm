@@ -28,10 +28,14 @@ class FeatureEngineer:
             if hasattr(reproduction_config, "reproduction_threshold"):
                 max_resources = max(1.0, float(reproduction_config.reproduction_threshold) * 3.0)
 
+        # Get components safely, handling missing components
+        combat_component = agent.get_component("combat")
+        resource_component = agent.get_component("resource")
+        
         features.extend(
             [
-                float(agent.current_health) / max(1.0, float(agent.starting_health)),
-                float(agent.resource_level) / max_resources,
+                float(combat_component.health) / max(1.0, float(combat_component.max_health)) if combat_component else 0.0,
+                float(resource_component.level) / max_resources if resource_component else 0.0,
             ]
         )
 
@@ -80,7 +84,13 @@ class FeatureEngineer:
         resource_density = float(len(nearby_resources)) / float(total_resources)
 
         # Starvation/consumption context
-        starvation_ratio = float(agent.starvation_counter) / max(1.0, float(agent.starvation_threshold))
+        resource_component = agent.get_component("resource")
+        if resource_component:
+            starvation_counter = getattr(resource_component, "starvation_steps", 0)
+            starvation_threshold = getattr(resource_component, "starvation_threshold", 10)
+            starvation_ratio = float(starvation_counter) / max(1.0, float(starvation_threshold))
+        else:
+            starvation_ratio = 0.0
 
         return [resource_density, starvation_ratio]
 
@@ -106,6 +116,7 @@ class FeatureEngineer:
         agent_density = float(len(nearby_agents)) / float(total_agents)
 
         # Defensive status flag
-        is_defending = 1.0 if getattr(agent, "is_defending", False) else 0.0
+        combat_component = agent.get_component("combat")
+        is_defending = 1.0 if (combat_component and combat_component.is_defending) else 0.0
 
         return [agent_density, is_defending]

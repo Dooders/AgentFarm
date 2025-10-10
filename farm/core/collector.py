@@ -17,7 +17,7 @@ class DataCollector:
         for agent in alive_agents:
             if agent.agent_id not in self.agent_resource_history:
                 self.agent_resource_history[agent.agent_id] = []
-            self.agent_resource_history[agent.agent_id].append(agent.resource_level)
+            self.agent_resource_history[agent.agent_id].append(agent.get_component("resource").level)
 
         data_point = {
             "step": step,
@@ -25,9 +25,9 @@ class DataCollector:
             "total_resources": sum(
                 resource.amount for resource in environment.resources
             ),
-            "total_consumption": sum(agent.resource_level for agent in alive_agents),
+            "total_consumption": sum(agent.get_component("resource").level for agent in alive_agents),
             "average_resource_per_agent": (
-                sum(agent.resource_level for agent in alive_agents) / len(alive_agents)
+                sum(agent.get_component("resource").level for agent in alive_agents) / len(alive_agents)
                 if alive_agents
                 else 0
             ),
@@ -68,7 +68,7 @@ class DataCollector:
         if not agents:
             return 0
         return sum(
-            agent.total_reward / max(agent.resource_level, 1) for agent in agents
+            0.0 / max(agent.get_component("resource").level, 1) for agent in agents  # total_reward not tracked
         ) / len(agents)
 
     def _calculate_territory_control(self, agents, environment):
@@ -89,7 +89,7 @@ class DataCollector:
         alive_agents = [agent for agent in environment.agent_objects if agent.alive]
         if not alive_agents:
             return 0
-        return sum(agent.resource_level for agent in alive_agents) / len(alive_agents)
+        return sum(agent.get_component("resource").level for agent in alive_agents) / len(alive_agents)
 
     def _estimate_agent_territory(self, agent, environment):
         nearest_distance = float("inf")
@@ -131,7 +131,7 @@ class DataCollector:
         if not agents:
             return 0
 
-        resources = np.array([agent.resource_level for agent in agents])
+        resources = np.array([agent.get_component("resource").level for agent in agents])
         if np.all(resources == 0):
             return 0
 

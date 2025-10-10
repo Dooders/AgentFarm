@@ -46,9 +46,9 @@ def get_simulation_state_hash(environment, debug=False):
             "id": agent.agent_id,
             "type": agent.__class__.__name__,
             "position": agent.position,
-            "resource_level": agent.resource_level,
+            "resource_level": agent.get_component("resource").level,
             "alive": agent.alive,
-            "generation": agent.generation,
+            "generation": agent.state_manager.generation,
         }
         state["agents"].append(agent_state)
     

@@ -61,12 +61,12 @@ def test_env_step_agent_gathers_from_colocated_resource(simple_config: Simulatio
     assert gather_idx >= 0, "gather action must be enabled in the current action mapping"
 
     # Take a step selecting gather for the current agent
-    before_agent = agent.resource_level
+    before_agent = agent.get_component("resource").level
     before_res = resource.amount
     obs, reward, terminated, truncated, info = env.step(gather_idx)
 
     # Validate that gather had an effect
-    assert agent.resource_level > before_agent
+    assert agent.get_component("resource").level > before_agent
     assert resource.amount < before_res
     assert obs is not None
     assert isinstance(terminated, bool) and isinstance(truncated, bool)
@@ -107,13 +107,13 @@ def test_agent_act_gathers_when_decision_returns_gather(simple_config: Simulatio
 
     monkeypatch.setattr(agent.decision_module, "decide_action", fake_decide_action)
 
-    before_agent = agent.resource_level
+    before_agent = agent.get_component("resource").level
     before_res = resource.amount
 
     # Execute one full agent act() cycle
     agent.act()
 
-    assert agent.resource_level > before_agent
+    assert agent.get_component("resource").level > before_agent
     assert resource.amount < before_res
 
 
@@ -171,7 +171,7 @@ def test_decision_prioritizes_gather_nearby(simple_config: SimulationConfig, mon
 
     # Force decision to use full mapping but we expect gather index will be used
     # by mapping through enabled action indices in BaseAgent
-    before_agent = agent.resource_level
+    before_agent = agent.get_component("resource").level
     before_res = resource.amount
 
     # Let BaseAgent decide; ensure the mapping returns gather action
@@ -182,5 +182,5 @@ def test_decision_prioritizes_gather_nearby(simple_config: SimulationConfig, mon
     result = action.execute(agent)
     if action.name == "gather":
         assert result.get("success", False)
-        assert agent.resource_level > before_agent
+        assert agent.get_component("resource").level > before_agent
         assert resource.amount < before_res
