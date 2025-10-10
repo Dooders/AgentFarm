@@ -1,10 +1,9 @@
-# New Agent System - Complete Guide
+# Agent System - Complete Guide
 
 ## Overview
 
 The agent module is a modern, component-based architecture following SOLID principles. This guide shows you everything you can do with the new system.
 
-**Note**: This system replaces the old `BaseAgent`. Use `AgentCore` and components directly.
 
 ---
 
