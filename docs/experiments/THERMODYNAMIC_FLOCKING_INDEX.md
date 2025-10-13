@@ -2,27 +2,71 @@
 
 ## Overview
 
-This is your complete guide to implementing the **Thermodynamic Flocking Simulation** in AgentFarm. The documentation is organized for different use cases and experience levels.
+This is your complete guide to implementing the **Thermodynamic Flocking Simulation** in AgentFarm. The documentation covers **two approaches** based on your needs.
 
 ---
 
-## Quick Start
+## 🚦 Choose Your Approach
 
-**New to the project? Start here:**
+### ⚡ Fast & Simple: **Standalone Approach**
+**Best for**: Single scenario, quick prototyping, learning  
+**Time**: ~4 hours to working simulation  
+**Start here**: [Quick Reference](thermodynamic_flocking_quick_reference.md)
 
-1. **Read**: [Quick Reference](thermodynamic_flocking_quick_reference.md) (5 min)
-2. **Run**: `python examples/flocking_simulation_starter.py` (2 min)
+### 🏗️ Scalable & Reusable: **Modular Approach**  
+**Best for**: Multiple scenarios, research, production systems  
+**Time**: ~8 hours initial, then 6 hours per scenario  
+**Start here**: [Modular Architecture](modular_scenario_architecture.md)
+
+### 🤔 Not Sure?
+**Read**: [Approach Comparison](IMPLEMENTATION_APPROACH_COMPARISON.md) (10 min)
+
+---
+
+## Quick Start (Standalone)
+
+**Fastest path to working simulation:**
+
+1. **Run**: `python examples/flocking_simulation_starter.py` (2 min)
+2. **Read**: [Quick Reference](thermodynamic_flocking_quick_reference.md) (5 min)
 3. **Modify**: Change parameters in the starter code
 4. **Follow**: [Implementation Roadmap](thermodynamic_flocking_roadmap.md)
 
 ---
 
+## Quick Start (Modular)
+
+**Build reusable scenario system:**
+
+1. **Read**: [Approach Comparison](IMPLEMENTATION_APPROACH_COMPARISON.md) (10 min)
+2. **Learn**: [Modular Architecture](modular_scenario_architecture.md) (20 min)
+3. **Follow**: [Modular Implementation Plan](MODULAR_IMPLEMENTATION_PLAN.md)
+4. **Example**: [Flocking Scenario Implementation](flocking_scenario_modular.md)
+
+---
+
 ## Documentation Files
 
-### 📘 [Implementation Guide](thermodynamic_flocking_implementation_guide.md)
-**Comprehensive technical documentation**
+### 🔀 Decision Documents
 
-- **When to use**: Building the full implementation
+#### 📊 [Approach Comparison](IMPLEMENTATION_APPROACH_COMPARISON.md)
+**Which approach should you use?**
+
+- **When to use**: Before starting implementation
+- **Length**: 15 minutes
+- **Helps you decide**: Standalone vs Modular
+- **Includes**: Time estimates, feature comparison, decision matrix
+
+**Best for**: Making the right architectural choice
+
+---
+
+### Standalone Approach Docs
+
+#### 📘 [Implementation Guide](thermodynamic_flocking_implementation_guide.md)
+**Comprehensive technical documentation (Standalone)**
+
+- **When to use**: Building standalone implementation
 - **Length**: ~50 pages
 - **Topics**:
   - Conceptual mapping to AgentFarm
@@ -32,7 +76,7 @@ This is your complete guide to implementing the **Thermodynamic Flocking Simulat
   - All three variants (classic, aware, evolutionary)
   - Visualization tools
 
-**Best for**: Developers implementing the full system
+**Best for**: Developers building standalone version
 
 ---
 
@@ -48,7 +92,57 @@ This is your complete guide to implementing the **Thermodynamic Flocking Simulat
   - Debugging tips
   - Common issues and solutions
 
-**Best for**: Quick lookups during development
+**Best for**: Quick lookups during standalone development
+
+---
+
+### Modular Approach Docs
+
+#### 🏗️ [Modular Architecture](modular_scenario_architecture.md)
+**Scenario system design and protocols**
+
+- **When to use**: Understanding modular system
+- **Length**: ~30 pages
+- **Topics**:
+  - Scenario protocol design
+  - Registry pattern
+  - Factory and runner systems
+  - Standard interfaces
+  - Component reusability
+
+**Best for**: Understanding the modular architecture
+
+---
+
+#### 🔧 [Flocking Scenario (Modular)](flocking_scenario_modular.md)
+**Flocking implementation using modular system**
+
+- **When to use**: Implementing flocking with modular approach
+- **Length**: ~20 pages
+- **Topics**:
+  - FlockingScenario class
+  - Scenario-specific metrics
+  - Modular visualizer
+  - Configuration structure
+  - Usage examples
+
+**Best for**: Implementing modular flocking
+
+---
+
+#### 📋 [Modular Implementation Plan](MODULAR_IMPLEMENTATION_PLAN.md)
+**Phase-by-phase modular development plan**
+
+- **When to use**: Building modular system
+- **Length**: ~25 pages
+- **Topics**:
+  - Phase 0: Infrastructure (4 hours)
+  - Phase 1: Flocking scenario (4-6 hours)
+  - Phase 2: Universal runner (1-2 hours)
+  - Phase 3: Variants (3-4 hours)
+  - Migration guide
+
+**Best for**: Following modular development process
 
 ---
 
@@ -86,61 +180,110 @@ This is your complete guide to implementing the **Thermodynamic Flocking Simulat
 
 ## File Locations
 
+### Documentation
 ```
-AgentFarm/
-├── docs/
-│   └── experiments/
-│       ├── THERMODYNAMIC_FLOCKING_INDEX.md          # This file
-│       ├── thermodynamic_flocking_implementation_guide.md
-│       ├── thermodynamic_flocking_quick_reference.md
-│       └── thermodynamic_flocking_roadmap.md
+docs/experiments/
+├── THERMODYNAMIC_FLOCKING_INDEX.md              # This file
+├── IMPLEMENTATION_APPROACH_COMPARISON.md        # Choose your approach
 │
-├── examples/
-│   └── flocking_simulation_starter.py               # Working code
+├── Standalone Approach:
+│   ├── thermodynamic_flocking_implementation_guide.md
+│   ├── thermodynamic_flocking_quick_reference.md
+│   └── thermodynamic_flocking_roadmap.md
 │
-└── farm/
-    └── core/
-        └── flocking_agent.py                        # Create this (Phase 1)
+└── Modular Approach:
+    ├── modular_scenario_architecture.md
+    ├── flocking_scenario_modular.md
+    └── MODULAR_IMPLEMENTATION_PLAN.md
+```
+
+### Code (Standalone)
+```
+examples/
+└── flocking_simulation_starter.py               # Ready to run
+
+farm/core/
+└── flocking_agent.py                            # Create this
+```
+
+### Code (Modular)
+```
+farm/
+├── core/
+│   └── scenarios/                               # Create this
+│       ├── protocol.py
+│       ├── registry.py
+│       ├── base.py
+│       ├── factory.py
+│       └── runner.py
+│
+├── scenarios/                                   # Create this
+│   └── flocking_scenario.py
+│
+├── analysis/
+│   └── flocking_metrics.py
+│
+└── visualization/
+    └── flocking_viz.py
+
+scripts/
+└── run_scenario.py                              # Universal runner
 ```
 
 ---
 
 ## Implementation Paths
 
-### Path 1: Quick Start (Recommended for Most)
-**Time**: 30 minutes to working prototype
+### Path 1: Standalone Quick Start
+**Time**: 30 minutes to working prototype  
+**Best for**: Learning, prototyping, single scenario
 
 1. Copy and run `examples/flocking_simulation_starter.py`
 2. Read the code comments to understand how it works
 3. Modify parameters and observe behavior
 4. Use Quick Reference for troubleshooting
 
-**Result**: Working flocking simulation
+**Result**: Working standalone flocking simulation
 
 ---
 
-### Path 2: Full Implementation
-**Time**: 2-3 days to complete system
+### Path 2: Standalone Full Implementation
+**Time**: 2-3 days to complete system  
+**Best for**: Single comprehensive scenario
 
-1. Read Implementation Guide (Phase 1-3)
+1. Read Implementation Guide (standalone version)
 2. Follow Roadmap phases sequentially
 3. Use Quick Reference for lookups
 4. Implement all three variants (classic, aware, evo)
 
-**Result**: Production-ready implementation with all features
+**Result**: Production-ready standalone implementation
 
 ---
 
-### Path 3: Research-Grade Implementation
-**Time**: 1-2 weeks for publication-quality
+### Path 3: Modular System
+**Time**: 1-2 weeks for infrastructure + scenarios  
+**Best for**: Multiple scenarios, research platform
 
-1. Complete Full Implementation path
-2. Add advanced metrics (Roadmap Phase 10)
-3. Optimize for large populations
-4. Create publication-quality visualizations
-5. Write research paper
+1. Build modular infrastructure (Phase 0)
+2. Implement flocking scenario (Phase 1)
+3. Create universal runner (Phase 2)
+4. Add scenario variants (Phase 3)
+5. Build additional scenarios (Phase 4)
 
-**Result**: Research-grade flocking simulation
+**Result**: Reusable scenario platform
+
+---
+
+### Path 4: Hybrid (Recommended for Uncertain)
+**Time**: Start fast, migrate later  
+**Best for**: Uncertain about future needs
+
+1. Start with standalone quick start (4 hours)
+2. Validate concept and requirements
+3. Migrate to modular if needed (2 hours)
+4. Expand with new scenarios
+
+**Result**: Flexibility to adapt
 
 ---
 
@@ -296,21 +439,51 @@ If you improve this implementation or add new features, consider:
 
 ---
 
+## Decision Tree
+
+```
+Are you building multiple scenarios?
+│
+├─ YES → Use Modular Approach
+│         Read: modular_scenario_architecture.md
+│         Follow: MODULAR_IMPLEMENTATION_PLAN.md
+│
+└─ NO → Are you planning variants (adaptive, evo)?
+        │
+        ├─ YES → Consider Modular (easier variants)
+        │         Read: IMPLEMENTATION_APPROACH_COMPARISON.md
+        │
+        └─ NO → Use Standalone Approach
+                  Run: examples/flocking_simulation_starter.py
+                  Follow: thermodynamic_flocking_roadmap.md
+```
+
+---
+
 ## Next Steps
 
 **Choose your path**:
 
-✅ **Just want to see it work?**  
-→ Run `examples/flocking_simulation_starter.py`
+### 🎯 Just Want It Working (Fastest)
+→ Run `examples/flocking_simulation_starter.py`  
+→ Read [Quick Reference](thermodynamic_flocking_quick_reference.md)
 
-✅ **Want to understand the implementation?**  
-→ Read [Implementation Guide](thermodynamic_flocking_implementation_guide.md)
+### 🤔 Not Sure Which Approach
+→ Read [Approach Comparison](IMPLEMENTATION_APPROACH_COMPARISON.md)  
+→ Make informed decision
 
-✅ **Ready to start building?**  
-→ Follow [Implementation Roadmap](thermodynamic_flocking_roadmap.md)
+### ⚡ Standalone Approach
+→ Read [Implementation Guide](thermodynamic_flocking_implementation_guide.md)  
+→ Follow [Roadmap](thermodynamic_flocking_roadmap.md)
 
-✅ **Need quick answers?**  
-→ Check [Quick Reference](thermodynamic_flocking_quick_reference.md)
+### 🏗️ Modular Approach  
+→ Read [Modular Architecture](modular_scenario_architecture.md)  
+→ Follow [Modular Plan](MODULAR_IMPLEMENTATION_PLAN.md)
+
+### 📚 Want Deep Understanding
+→ Read all documentation  
+→ Compare both approaches  
+→ Choose based on needs
 
 ---
 
