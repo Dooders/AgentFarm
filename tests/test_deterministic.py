@@ -175,8 +175,8 @@ def run_determinism_test(environment, num_steps, seed=42, use_snapshot_steps=Non
     config.seed = seed
     
     # Use in-memory database to avoid external state issues but allow persistence testing
-    config.use_in_memory_db = True
-    config.persist_db_on_completion = False
+    config.database.use_in_memory_db = True
+    config.database.persist_db_on_completion = False
     
     # Snapshot steps for comparison
     if use_snapshot_steps is None:

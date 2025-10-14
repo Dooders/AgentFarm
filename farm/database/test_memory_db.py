@@ -532,23 +532,23 @@ class TestInMemorySimulationDatabase(unittest.TestCase):
         """Test integration with SimulationConfig."""
         # Create a simulation config with in-memory database settings
         config = SimulationConfig()
-        config.use_in_memory_db = True
-        config.in_memory_db_memory_limit_mb = 2048
-        config.persist_db_on_completion = True
+        config.database.use_in_memory_db = True
+        config.database.in_memory_db_memory_limit_mb = 2048
+        config.database.persist_db_on_completion = True
 
         # Verify settings
-        self.assertTrue(config.use_in_memory_db)
-        self.assertEqual(config.in_memory_db_memory_limit_mb, 2048)
-        self.assertTrue(config.persist_db_on_completion)
+        self.assertTrue(config.database.use_in_memory_db)
+        self.assertEqual(config.database.in_memory_db_memory_limit_mb, 2048)
+        self.assertTrue(config.database.persist_db_on_completion)
 
         # Convert to dict and back to ensure serialization works
         config_dict = config.to_dict()
         new_config = SimulationConfig.from_dict(config_dict)
 
         # Verify settings are preserved
-        self.assertTrue(new_config.use_in_memory_db)
-        self.assertEqual(new_config.in_memory_db_memory_limit_mb, 2048)
-        self.assertTrue(new_config.persist_db_on_completion)
+        self.assertTrue(new_config.database.use_in_memory_db)
+        self.assertEqual(new_config.database.in_memory_db_memory_limit_mb, 2048)
+        self.assertTrue(new_config.database.persist_db_on_completion)
 
 
 if __name__ == "__main__":

@@ -21,12 +21,17 @@ class FeatureEngineer:
 
         # Agent state features (normalized where possible)
         # Get max resources from reproduction component if available, otherwise use default
-        max_resources = 24.0  # Default fallback # TODO: Get from config
+        max_resources = 24.0  # Default fallback
         reproduction_component = agent.get_component("reproduction")
         if reproduction_component and hasattr(reproduction_component, "_config"):
             reproduction_config = reproduction_component._config
             if hasattr(reproduction_config, "reproduction_threshold"):
                 max_resources = max(1.0, float(reproduction_config.reproduction_threshold) * 3.0)
+        
+        # Try to get max resources from environment config if available
+        if hasattr(environment, "config") and hasattr(environment.config, "resources"):
+            if hasattr(environment.config.resources, "max_resource_amount"):
+                max_resources = max(1.0, float(environment.config.resources.max_resource_amount))
 
         # Get components safely, handling missing components
         combat_component = agent.get_component("combat")
@@ -64,6 +69,13 @@ class FeatureEngineer:
     def _extract_environmental_features(self, agent: "AgentCore", environment: "Environment") -> List[float]:
         # Nearby resource density normalized
         gathering_range = 30  # Default fallback
+        
+        # Try to get gathering range from agent behavior config first
+        if hasattr(environment, "config") and hasattr(environment.config, "agent_behavior"):
+            if hasattr(environment.config.agent_behavior, "gathering_range"):
+                gathering_range = environment.config.agent_behavior.gathering_range
+        
+        # Fallback to movement component config
         movement_component = agent.get_component("movement")
         if movement_component and hasattr(movement_component, "_config"):
             movement_config = movement_component._config
@@ -99,6 +111,13 @@ class FeatureEngineer:
 
     def _extract_social_features(self, agent: "AgentCore", environment: "Environment") -> List[float]:
         social_range = 30  # Default fallback
+        
+        # Try to get social range from agent behavior config first
+        if hasattr(environment, "config") and hasattr(environment.config, "agent_behavior"):
+            if hasattr(environment.config.agent_behavior, "social_range"):
+                social_range = environment.config.agent_behavior.social_range
+        
+        # Fallback to movement component config
         movement_component = agent.get_component("movement")
         if movement_component and hasattr(movement_component, "_config"):
             movement_config = movement_component._config

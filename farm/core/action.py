@@ -675,6 +675,12 @@ def gather_action(agent: "AgentCore") -> dict:
 
     # Get gathering range from config (default 30)
     gathering_range = 30
+    
+    # Try to get gathering range from environment config
+    if hasattr(agent, "_environment") and hasattr(agent._environment, "config"):
+        if hasattr(agent._environment.config, "agent_behavior"):
+            if hasattr(agent._environment.config.agent_behavior, "gathering_range"):
+                gathering_range = agent._environment.config.agent_behavior.gathering_range
 
     try:
         # Find nearby resources using spatial service

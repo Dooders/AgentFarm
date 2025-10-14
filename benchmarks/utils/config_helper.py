@@ -31,8 +31,8 @@ def configure_for_performance_with_persistence(
         config = SimulationConfig()
 
     # Enable in-memory database with persistence
-    config.use_in_memory_db = True
-    config.persist_db_on_completion = True
+    config.database.use_in_memory_db = True
+    config.database.persist_db_on_completion = True
 
     return config
 
@@ -62,16 +62,16 @@ def get_recommended_config(
     config = SimulationConfig()
 
     # Set basic simulation parameters
-    config.width = 100
-    config.height = 100
+    config.environment.width = 100
+    config.environment.height = 100
 
-    config.system_agents = num_agents // 3
-    config.independent_agents = num_agents // 3
-    config.control_agents = num_agents - (
+    config.population.system_agents = num_agents // 3
+    config.population.independent_agents = num_agents // 3
+    config.population.control_agents = num_agents - (
         2 * (num_agents // 3)
     )  # Ensure total is num_agents
 
-    config.initial_resources = 20
+    config.resources.initial_resources = 20
     config.simulation_steps = num_steps
 
     # Set additional parameters
