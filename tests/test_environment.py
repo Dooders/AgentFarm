@@ -200,11 +200,12 @@ class TestEnvironment(unittest.TestCase):
         try:
             initial_defending = combat_component.is_defending
             self.env._process_action(agent_id, ActionType.DEFEND)
-            # Only check is_defending if the action succeeded and attribute exists
-            if hasattr(agent, "is_defending"):
+            # Check is_defending through combat component
+            combat = agent.get_component("combat")
+            if combat:
                 # The defend action may not change state if agent is already defending
                 # Just verify the action doesn't crash
-                current_defending = agent.is_defending
+                current_defending = combat.is_defending
                 self.assertIsInstance(current_defending, bool)
         except (TypeError, AttributeError):
             # Skip defend test if Mock objects cause comparison issues

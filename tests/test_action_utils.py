@@ -99,7 +99,7 @@ def test_validate_attack_defend_pass_paths():
     out = validate_action_result(agent, "attack", {"success": True, "details": {"damage_dealt": 0}})
     assert out["valid"] is True
 
-    # Defend must set agent.is_defending True and apply cost correctly
+    # Defend must set combat component is_defending True and apply cost correctly
     agent.get_component.return_value.level = 8
     res = {"success": True, "details": {"resources_before": 10, "cost": 2}}
     out = validate_action_result(agent, "defend", res)

@@ -1133,12 +1133,13 @@ class Environment(AECEnv):
             if self.time % 100 == 0 and self.time > 0:
                 # Calculate agent statistics
                 agents_alive = len(self.agents)
-                avg_health = (
-                    np.mean([a.current_health for a in self._agent_objects.values()]) if self._agent_objects else 0
-                )
-                avg_resources = (
-                    np.mean([a.resource_level for a in self._agent_objects.values()]) if self._agent_objects else 0
-                )
+                # Calculate average health using walrus operator to avoid duplicate lookups
+                health_values = [combat.health for a in self._agent_objects.values() if (combat := a.get_component("combat"))]
+                avg_health = np.mean(health_values) if health_values else 0.0
+                
+                # Calculate average resources using walrus operator to avoid duplicate lookups
+                resource_values = [resource.level for a in self._agent_objects.values() if (resource := a.get_component("resource"))]
+                avg_resources = np.mean(resource_values) if resource_values else 0.0
 
                 # Agent type distribution
                 agent_type_counts = {}
