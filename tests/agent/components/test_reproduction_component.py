@@ -228,4 +228,4 @@ class TestReproductionComponent:
         
         result = component.reproduce()
         assert result["success"] is False
-        assert "not attached" in result["error"].lower()
+        assert "Component not attached to agent" in result["error"]

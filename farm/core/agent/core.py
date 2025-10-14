@@ -384,6 +384,58 @@ class AgentCore:
         """
         return self.state_manager.position_3d
 
+    @property
+    def generation(self) -> int:
+        """
+        Get agent's generation number.
+
+        Returns:
+            int: Generation number from StateManager
+
+        Example:
+            >>> gen = agent.generation
+        """
+        return self.state_manager.generation
+
+    @property
+    def birth_time(self) -> int:
+        """
+        Get agent's birth time.
+
+        Returns:
+            int: Birth timestamp from StateManager
+
+        Example:
+            >>> birth = agent.birth_time
+        """
+        return self.state_manager.birth_time
+
+    @property
+    def genome_id(self) -> str:
+        """
+        Get agent's genome identifier.
+
+        Returns:
+            str: Genome ID from StateManager
+
+        Example:
+            >>> genome = agent.genome_id
+        """
+        return self.state_manager.genome_id
+
+    @property
+    def death_time(self) -> Optional[int]:
+        """
+        Get agent's death time.
+
+        Returns:
+            Optional[int]: Death timestamp from StateManager, None if alive
+
+        Example:
+            >>> death = agent.death_time
+        """
+        return self.state_manager.death_time
+
     def get_state_dict(self) -> dict:
         """
         Get complete agent state for serialization.
@@ -455,6 +507,91 @@ class AgentCore:
         # This can be extended to query the behavior for actual weights
         # TODO: Implement this
         return {}
+
+    def get_spatial_service(self) -> "ISpatialQueryService":
+        """
+        Get the spatial query service for this agent.
+
+        Returns:
+            ISpatialQueryService: The spatial service for spatial queries
+
+        Example:
+            >>> spatial_service = agent.get_spatial_service()
+            >>> nearby = spatial_service.get_nearby(agent.position, 10.0, ["agents"])
+        """
+        return self._spatial_service
+
+    def get_time_service(self) -> Optional["ITimeService"]:
+        """
+        Get the time service for this agent.
+
+        Returns:
+            Optional[ITimeService]: The time service or None if not available
+
+        Example:
+            >>> time_service = agent.get_time_service()
+            >>> if time_service:
+            ...     current_time = time_service.current_time()
+        """
+        return self._time_service
+
+    def get_lifecycle_service(self) -> Optional["IAgentLifecycleService"]:
+        """
+        Get the lifecycle service for this agent.
+
+        Returns:
+            Optional[IAgentLifecycleService]: The lifecycle service or None if not available
+
+        Example:
+            >>> lifecycle_service = agent.get_lifecycle_service()
+            >>> if lifecycle_service:
+            ...     lifecycle_service.remove_agent(agent)
+        """
+        return self._lifecycle_service
+
+    @property
+    def metrics_service(self):
+        """
+        Get the metrics service for this agent.
+
+        This property provides access to the metrics service for recording
+        agent performance metrics. Returns None if no metrics service is available.
+
+        Returns:
+            Optional[IMetricsService]: The metrics service or None if not available
+
+        Example:
+            >>> if agent.metrics_service:
+            ...     agent.metrics_service.record_combat_encounter()
+        """
+        return getattr(self, '_metrics_service', None)
+
+    @metrics_service.setter
+    def metrics_service(self, value):
+        """Set the metrics service for this agent."""
+        self._metrics_service = value
+
+    @property
+    def logging_service(self):
+        """
+        Get the logging service for this agent.
+
+        This property provides access to the logging service for recording
+        agent interactions and events. Returns None if no logging service is available.
+
+        Returns:
+            Optional[ILoggingService]: The logging service or None if not available
+
+        Example:
+            >>> if agent.logging_service:
+            ...     agent.logging_service.log_interaction_edge(...)
+        """
+        return getattr(self, '_logging_service', None)
+
+    @logging_service.setter
+    def logging_service(self, value):
+        """Set the logging service for this agent."""
+        self._logging_service = value
 
 
     def __repr__(self) -> str:

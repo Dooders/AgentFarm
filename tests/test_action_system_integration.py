@@ -150,7 +150,7 @@ class TestActionSystemIntegration:
             result = action.execute(agent)
             
             assert result["success"] is False
-            assert "no combat component" in result["error"]
+            assert "Agent has no combat component" in result["error"]
     
     def test_action_result_consistency(self):
         """Test that all actions return consistent result formats."""

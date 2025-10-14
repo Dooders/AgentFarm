@@ -162,7 +162,7 @@ class TestActionFunctionRefactoring:
         result = move_action(agent)
         
         assert result["success"] is False
-        assert "no movement component" in result["error"]
+        assert "Agent has no movement component" in result["error"]
     
     def test_attack_action_delegates_to_combat_component(self):
         """Test that attack_action delegates to CombatComponent."""
@@ -201,7 +201,7 @@ class TestActionFunctionRefactoring:
         result = attack_action(agent)
         
         assert result["success"] is False
-        assert "no combat component" in result["error"]
+        assert "Agent has no combat component" in result["error"]
     
     def test_attack_action_fails_with_no_targets(self):
         """Test that attack_action fails when no targets are nearby."""
@@ -238,7 +238,7 @@ class TestActionFunctionRefactoring:
         result = defend_action(agent)
         
         assert result["success"] is False
-        assert "no combat component" in result["error"]
+        assert "Agent has no combat component" in result["error"]
     
     def test_gather_action_delegates_to_resource_component(self):
         """Test that gather_action delegates to ResourceComponent."""

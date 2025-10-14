@@ -208,7 +208,7 @@ class TestCombatComponent:
         result = combat_component.attack(target)
         
         assert result["success"] is False
-        assert "no combat component" in result["error"].lower()
+        assert "Target has no combat component" in result["error"]
     
     def test_get_state(self, combat_component):
         """Test state serialization."""

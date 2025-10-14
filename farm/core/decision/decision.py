@@ -14,6 +14,7 @@ Key Features:
 """
 
 import os
+from collections import deque
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import numpy as np
@@ -389,8 +390,8 @@ class DecisionModule:
             def __init__(self, num_actions, epsilon=0.1):
                 self.num_actions = num_actions
                 self.epsilon = epsilon
-                # Store experiences for testing purposes
-                self.experiences = []
+                # Store experiences for testing purposes - use deque for O(1) operations
+                self.experiences = deque(maxlen=100)  # Automatically maintains size limit
                 self._has_trained = False  # Track if we've already trained once
 
             def predict(self, observation, deterministic=False):
@@ -433,10 +434,8 @@ class DecisionModule:
             def store_experience(self, **kwargs):
                 """Store experience method for compatibility with Tianshou-style algorithms."""
                 # Store experiences for testing - this enables database logging tests
-                # Implement proper rotation to maintain a true limited buffer
-                self.experiences.append(kwargs)
-                if len(self.experiences) > 100:  # Remove oldest when exceeding limit
-                    self.experiences.pop(0)  # Remove first (oldest) item
+                # Use deque with maxlen for O(1) operations and automatic size management
+                self.experiences.append(kwargs)  # Automatically removes oldest if at maxlen
 
         self.algorithm = FallbackAlgorithm(self.num_actions, self.config.epsilon_start)
 
@@ -676,13 +675,11 @@ class DecisionModule:
                         # For fallback algorithm, optimize by caching time service and action mapping
                         if self.config.algorithm_type == "fallback":
                             # Use a simple counter for step_number to avoid expensive time service calls
-                            # Reset counter periodically to prevent integer overflow and misleading log entries
+                            # Keep counter monotonically increasing for proper simulation progression tracking
                             if not hasattr(self, "_fallback_step_counter"):
                                 self._fallback_step_counter = 0
                             step_number = self._fallback_step_counter
-                            self._fallback_step_counter = (
-                                self._fallback_step_counter + 1
-                            ) % 1000000  # Reset every 1M steps
+                            self._fallback_step_counter += 1
 
                             # Use proper action name mapping if available, otherwise fallback to generic name
                             if (

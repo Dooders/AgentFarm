@@ -102,7 +102,7 @@ def log_interaction_safely(agent: "AgentCore", **kwargs) -> None:
         **kwargs: Arguments to pass to log_interaction_edge
     """
     try:
-        if hasattr(agent, "logging_service") and agent.logging_service:
+        if agent.logging_service:
             agent.logging_service.log_interaction_edge(**kwargs)
     except Exception as e:
         logger.debug(
@@ -544,7 +544,7 @@ def attack_action(agent: "AgentCore") -> dict:
 
     try:
         # Find nearby agents using spatial service
-        nearby = agent._spatial_service.get_nearby(agent.position, attack_range, ["agents"])
+        nearby = agent.get_spatial_service().get_nearby(agent.position, attack_range, ["agents"])
         nearby_agents = nearby.get("agents", [])
 
         # Filter out self and find valid targets
@@ -587,7 +587,7 @@ def attack_action(agent: "AgentCore") -> dict:
         target_killed = attack_result.get("target_killed", False)
 
         # Update combat statistics
-        if actual_damage > 0 and hasattr(agent, "metrics_service") and agent.metrics_service:
+        if actual_damage > 0 and agent.metrics_service:
             try:
                 agent.metrics_service.record_combat_encounter()
                 agent.metrics_service.record_successful_attack()
@@ -622,7 +622,11 @@ def attack_action(agent: "AgentCore") -> dict:
                 "target_position": closest_target.position,
                 "attacker_position": agent.position,
                 "attack_direction": attack_direction,
-                "target_defending": (closest_target.get_component("combat").is_defending if closest_target.get_component("combat") else False),
+                "target_defending": (
+                    closest_target.get_component("combat").is_defending
+                    if closest_target.get_component("combat")
+                    else False
+                ),
                 "target_alive": closest_target.alive,
                 "target_killed": target_killed,
             },
@@ -678,7 +682,7 @@ def gather_action(agent: "AgentCore") -> dict:
 
     try:
         # Find nearby resources using spatial service
-        nearby = agent._spatial_service.get_nearby(agent.position, gathering_range, ["resources"])
+        nearby = agent.get_spatial_service().get_nearby(agent.position, gathering_range, ["resources"])
         nearby_resources = nearby.get("resources", [])
 
         # Filter out depleted resources
@@ -821,7 +825,7 @@ def share_action(agent: "AgentCore") -> dict:
 
     try:
         # Find nearby agents using spatial service
-        nearby = agent._spatial_service.get_nearby(agent.position, share_range, ["agents"])
+        nearby = agent.get_spatial_service().get_nearby(agent.position, share_range, ["agents"])
         nearby_agents = nearby.get("agents", [])
 
         # Filter out self and find valid targets
@@ -838,7 +842,9 @@ def share_action(agent: "AgentCore") -> dict:
         # Find the agent with the lowest resource level (simple need-based selection)
         candidates = [a for a in valid_targets if a.get_component("resource")]
         if not candidates:
-            logger.debug(f"Agent {agent.agent_id} found no valid targets with resource component within range {share_range}")
+            logger.debug(
+                f"Agent {agent.agent_id} found no valid targets with resource component within range {share_range}"
+            )
             return {
                 "success": False,
                 "error": "No valid targets with resource component",
@@ -881,7 +887,7 @@ def share_action(agent: "AgentCore") -> dict:
         target_resource.add(share_amount)
 
         # Update environment's resources_shared counter
-        if hasattr(agent, "metrics_service") and agent.metrics_service:
+        if agent.metrics_service:
             try:
                 agent.metrics_service.record_resources_shared(share_amount)
             except Exception as e:
@@ -1079,7 +1085,9 @@ def reproduce_action(agent: "AgentCore") -> dict:
                 "success": False,
                 "error": f"Insufficient resources for reproduction (need {total_required}, have {(agent.get_component('resource').level if agent.get_component('resource') else 0.0)})",
                 "details": {
-                    "agent_resources": (agent.get_component("resource").level if agent.get_component("resource") else 0.0),
+                    "agent_resources": (
+                        agent.get_component("resource").level if agent.get_component("resource") else 0.0
+                    ),
                     "min_resources": min_resources,
                     "offspring_cost": offspring_cost,
                     "total_required": total_required,
@@ -1098,7 +1106,9 @@ def reproduce_action(agent: "AgentCore") -> dict:
                 "details": {
                     "reproduction_roll": reproduction_roll,
                     "reproduction_chance": reproduction_chance,
-                    "agent_resources": (agent.get_component("resource").level if agent.get_component("resource") else 0.0),
+                    "agent_resources": (
+                        agent.get_component("resource").level if agent.get_component("resource") else 0.0
+                    ),
                     "total_required": total_required,
                 },
             }
@@ -1211,7 +1221,9 @@ def defend_action(agent: "AgentCore") -> dict:
                 "success": False,
                 "error": f"Insufficient resources for defense cost (need {defense_cost}, have {(agent.get_component('resource').level if agent.get_component('resource') else 0.0)})",
                 "details": {
-                    "agent_resources": (agent.get_component("resource").level if agent.get_component("resource") else 0.0),
+                    "agent_resources": (
+                        agent.get_component("resource").level if agent.get_component("resource") else 0.0
+                    ),
                     "defense_cost": defense_cost,
                     "defense_duration": defense_duration,
                 },
@@ -1246,10 +1258,7 @@ def defend_action(agent: "AgentCore") -> dict:
         )
 
         logger.debug(
-            (
-                f"Agent {agent.agent_id} entered defensive stance for {defense_duration} turns\n"
-                f"    Cost: {defense_cost}"
-            )
+            (f"Agent {agent.agent_id} entered defensive stance for {defense_duration} turns\n    Cost: {defense_cost}")
         )
 
         return {
