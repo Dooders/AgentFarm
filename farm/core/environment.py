@@ -1134,10 +1134,10 @@ class Environment(AECEnv):
                 # Calculate agent statistics
                 agents_alive = len(self.agents)
                 avg_health = (
-                    np.mean([a.current_health for a in self._agent_objects.values()]) if self._agent_objects else 0
+                    np.mean([a.get_component("combat").health for a in self._agent_objects.values() if a.get_component("combat")]) if self._agent_objects else 0
                 )
                 avg_resources = (
-                    np.mean([a.resource_level for a in self._agent_objects.values()]) if self._agent_objects else 0
+                    np.mean([a.get_component("resource").level for a in self._agent_objects.values() if a.get_component("resource")]) if self._agent_objects else 0
                 )
 
                 # Agent type distribution

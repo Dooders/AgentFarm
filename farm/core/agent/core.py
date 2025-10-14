@@ -71,9 +71,10 @@ Metrics Compatibility
 ---------------------
 AgentCore exposes component state as properties to maintain compatibility with
 existing metrics tracking systems:
-- **resource_level**: Current resource amount from ResourceComponent
-- **current_health**: Current health from CombatComponent
-- **starting_health**: Maximum health from CombatComponent
+- **Components**: Access via `get_component(name)` method
+- **Resource**: `agent.get_component("resource").level`
+- **Health**: `agent.get_component("combat").health`
+- **Max Health**: `agent.get_component("combat").max_health`
 - **generation**: Generation number from StateManager
 - **birth_time**: Birth timestamp from StateManager
 - **genome_id**: Genome identifier from StateManager
@@ -94,8 +95,10 @@ agent.add_component(CombatComponent(combat_config))
 agent.set_behavior(MyBehavior())
 
 # Access component state
-health = agent.current_health  # Delegates to CombatComponent
-resources = agent.resource_level  # Delegates to ResourceComponent
+combat = agent.get_component("combat")
+health = combat.health if combat else 0.0
+resource = agent.get_component("resource")
+resources = resource.level if resource else 0.0
 ```
 
 Notes
@@ -145,14 +148,14 @@ class AgentCore:
     The actual agent capabilities (movement, combat, etc.) are implemented
     in components. The decision-making logic is implemented in behaviors.
     AgentCore simply coordinates these parts and provides a unified interface
-    for accessing component state (e.g., resource_level, health, etc.).
+    for accessing component state (e.g., resource level, health, etc.).
 
-    Metrics Compatibility:
-    The class provides properties that delegate to component state to maintain
-    compatibility with existing metrics tracking systems:
-    - resource_level: Current resource amount from ResourceComponent
-    - current_health: Current health from CombatComponent
-    - starting_health: Maximum health from CombatComponent
+    Component Access:
+    The class provides methods to access component state:
+    - get_component(name): Get component by name
+    - has_component(name): Check if component exists
+    - add_component(component): Add new component
+    - remove_component(name): Remove component
     - generation: Generation number from StateManager
     - birth_time: Birth timestamp from StateManager
     - genome_id: Genome identifier from StateManager
