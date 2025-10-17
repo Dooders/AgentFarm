@@ -6,6 +6,7 @@ across different test files.
 """
 
 import subprocess
+from contextlib import contextmanager
 from unittest.mock import Mock, patch
 from typing import Dict, Any, Optional
 
@@ -157,6 +158,7 @@ class MemoryTestHelper:
         return mock_memory
 
     @staticmethod
+    @contextmanager
     def setup_memory_failure_test(agent, exception_message: str = "Connection failed"):
         """Set up a test for memory initialization failure.
 
@@ -167,10 +169,10 @@ class MemoryTestHelper:
         Returns:
             Context manager for the patched memory manager
         """
-        return patch("farm.core.agent.AgentMemoryManager") as mock_memory_manager:
+        with patch("farm.core.agent.AgentMemoryManager") as mock_memory_manager:
             mock_memory_manager.get_instance.side_effect = Exception(exception_message)
             agent._init_memory()
-            return mock_memory_manager
+            yield mock_memory_manager
 
 
 def assert_pragma_setting(pragmas: Dict[str, str], setting: str, expected_value: Any,
