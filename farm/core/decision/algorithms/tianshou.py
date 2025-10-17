@@ -433,49 +433,77 @@ class TianshouWrapper(RLAlgorithm):
                 from tianshou.policy import DQNPolicy
                 import torch.nn as nn
 
-                # Create CNN-based Q-network for spatial observations
-                class SpatialQNet(nn.Module):
+                # Create Q-network that handles 1D, 2D, and 3D observations
+                class AdaptiveQNet(nn.Module):
                     def __init__(self, observation_shape, num_actions, device):
                         super().__init__()
                         self.observation_shape = observation_shape
+                        # Only treat as spatial if we have 3D observations (C, H, W)
+                        # 2D observations are flattened feature vectors, not spatial
+                        self.is_spatial = len(observation_shape) == 3
 
-                        # CNN layers for spatial processing
-                        self.conv_layers = nn.Sequential(
-                            nn.Conv2d(observation_shape[0], 32, kernel_size=3, stride=1, padding=1),
-                            nn.ReLU(),
-                            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
-                            nn.ReLU(),
-                            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
-                            nn.ReLU(),
-                        )
+                        if self.is_spatial:
+                            # CNN layers for spatial processing (3D observations: C, H, W)
+                            self.conv_layers = nn.Sequential(
+                                nn.Conv2d(observation_shape[0], 32, kernel_size=3, stride=1, padding=1),
+                                nn.ReLU(),
+                                nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),
+                                nn.ReLU(),
+                                nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+                                nn.ReLU(),
+                            )
 
-                        # Calculate flattened size after CNN
-                        with torch.no_grad():
-                            dummy_input = torch.zeros(1, *observation_shape)
-                            conv_output = self.conv_layers(dummy_input)
-                            self.flattened_size = conv_output.numel()
+                            # Calculate flattened size after CNN
+                            with torch.no_grad():
+                                dummy_input = torch.zeros(1, *observation_shape)
+                                conv_output = self.conv_layers(dummy_input)
+                                self.flattened_size = conv_output.numel()
 
-                        # Q-value output layers
-                        self.q_layers = nn.Sequential(
-                            nn.Flatten(),
-                            nn.Linear(self.flattened_size, 512),
-                            nn.ReLU(),
-                            nn.Linear(512, 256),
-                            nn.ReLU(),
-                            nn.Linear(256, num_actions),  # Q-values for each action
-                        )
+                            # Q-value output layers for spatial observations
+                            self.q_layers = nn.Sequential(
+                                nn.Flatten(),
+                                nn.Linear(self.flattened_size, 512),
+                                nn.ReLU(),
+                                nn.Linear(512, 256),
+                                nn.ReLU(),
+                                nn.Linear(256, num_actions),  # Q-values for each action
+                            )
+                        else:
+                            # Fully connected layers for 1D and 2D observations
+                            # 2D observations are flattened feature vectors
+                            input_size = observation_shape[0]
+                            self.q_layers = nn.Sequential(
+                                nn.Linear(input_size, 512),
+                                nn.ReLU(),
+                                nn.Linear(512, 256),
+                                nn.ReLU(),
+                                nn.Linear(256, 128),
+                                nn.ReLU(),
+                                nn.Linear(128, num_actions),  # Q-values for each action
+                            )
 
                     def forward(self, obs, state=None, info=None):
-                        # Handle both batched and single observations
-                        if obs.dim() == 3:  # Single observation (C, H, W)
+                        # Handle different observation dimensions
+                        if obs.dim() == 1:  # Single 1D observation
+                            obs = obs.unsqueeze(0)  # Add batch dimension
+                        elif obs.dim() == 2:  # Single 2D observation (batch_size, features) or (features,)
+                            if obs.shape[0] == self.observation_shape[0]:
+                                # This is a single observation with shape (features,)
+                                obs = obs.unsqueeze(0)  # Add batch dimension
+                            # Otherwise, it's already batched (batch_size, features)
+                        elif obs.dim() == 3:  # Single 3D observation (C, H, W)
                             obs = obs.unsqueeze(0)  # Add batch dimension
 
-                        x = self.conv_layers(obs)
-                        q_values = self.q_layers(x)
+                        if self.is_spatial:
+                            x = self.conv_layers(obs)
+                            q_values = self.q_layers(x)
+                        else:
+                            q_values = self.q_layers(obs)
+                        
                         return q_values
 
-                # Create spatial Q-network
-                q_net = SpatialQNet(self.observation_shape, self.num_actions, self.algorithm_config["device"])
+                # Create adaptive Q-network
+                q_net = AdaptiveQNet(self.observation_shape, self.num_actions, self.algorithm_config["device"])
 
                 # Move to device
                 q_net.to(self.algorithm_config["device"])
@@ -744,8 +772,6 @@ class TianshouWrapper(RLAlgorithm):
                 )
             else:
                 raise ValueError(f"Unsupported algorithm: {self.algorithm_name}")
-
-            logger.info(f"Initialized {self.algorithm_name} policy with Tianshou")
 
         except Exception as e:
             logger.error(f"Failed to initialize {self.algorithm_name} policy: {e}")

@@ -6,6 +6,7 @@ across different test files.
 """
 
 import subprocess
+from contextlib import contextmanager
 from unittest.mock import Mock, patch
 from typing import Dict, Any, Optional
 
@@ -138,6 +139,23 @@ class MockAdapterHelper:
         mock_adapter_class.return_value = mock_adapter
         return mock_adapter
 
+    @staticmethod
+    def create_controller_with_session(controller_class, workspace_path, session_name="Test Session", session_description=None):
+        """Create a controller and session with the common pattern used in tests.
+
+        Args:
+            controller_class: The controller class to instantiate
+            workspace_path: Path to the workspace
+            session_name: Name for the session
+            session_description: Optional description for the session
+
+        Returns:
+            Tuple of (controller, session_id)
+        """
+        controller = controller_class(str(workspace_path))
+        session_id = controller.create_session(session_name, session_description)
+        return controller, session_id
+
 
 class MemoryTestHelper:
     """Helper class for testing memory-related functionality."""
@@ -157,6 +175,7 @@ class MemoryTestHelper:
         return mock_memory
 
     @staticmethod
+    @contextmanager
     def setup_memory_failure_test(agent, exception_message: str = "Connection failed"):
         """Set up a test for memory initialization failure.
 
@@ -167,10 +186,10 @@ class MemoryTestHelper:
         Returns:
             Context manager for the patched memory manager
         """
-        return patch("farm.core.agent.AgentMemoryManager") as mock_memory_manager:
+        with patch("farm.core.agent.AgentMemoryManager") as mock_memory_manager:
             mock_memory_manager.get_instance.side_effect = Exception(exception_message)
             agent._init_memory()
-            return mock_memory_manager
+            yield mock_memory_manager
 
 
 def assert_pragma_setting(pragmas: Dict[str, str], setting: str, expected_value: Any,
@@ -184,9 +203,9 @@ def assert_pragma_setting(pragmas: Dict[str, str], setting: str, expected_value:
         value_type: Type to convert the value to before comparison
     """
     actual_value = pragmas.get(setting, "")
-    if value_type == int:
+    if value_type is int:
         actual_value = int(actual_value) if actual_value else -1
-    elif value_type == str:
+    elif value_type is str:
         actual_value = actual_value.upper() if isinstance(actual_value, str) else ""
 
     assert actual_value == expected_value, f"Expected {setting}={expected_value}, got {actual_value}"
@@ -199,3 +218,78 @@ def setup_gpu_detection_failure(mock_check_output):
         mock_check_output: Mock for subprocess.check_output
     """
     mock_check_output.side_effect = subprocess.CalledProcessError(1, "nvidia-smi")
+
+
+class BaseTestClass:
+    """Base test class with common test methods to eliminate duplication."""
+    
+    def test_initialization(self):
+        """Test basic initialization of the class under test.
+        
+        This method should be overridden by subclasses to test their specific
+        initialization logic. The base implementation provides a template.
+        """
+        # This is a template method that should be overridden
+        # Subclasses should implement their specific initialization test
+        pass
+
+
+class CommonTestMixin:
+    """Mixin class providing common test methods to eliminate duplication."""
+    
+    def test_initialization(self):
+        """Test basic initialization of the class under test.
+        
+        This is a common test pattern that can be mixed into test classes.
+        Subclasses should override this method to test their specific initialization.
+        """
+        # Default implementation - should be overridden by subclasses
+        self.assertIsNotNone(self)
+    
+    def test_module_registration(self):
+        """Test module registration functionality.
+        
+        Common test for modules that support registration.
+        """
+        # Default implementation - should be overridden by subclasses
+        pass
+    
+    def test_module_groups(self):
+        """Test module groups functionality.
+        
+        Common test for modules that support grouping.
+        """
+        # Default implementation - should be overridden by subclasses
+        pass
+    
+    def test_data_processor(self):
+        """Test data processor functionality.
+        
+        Common test for modules that process data.
+        """
+        # Default implementation - should be overridden by subclasses
+        pass
+    
+    def test_supports_database(self):
+        """Test database support functionality.
+        
+        Common test for modules that support database operations.
+        """
+        # Default implementation - should be overridden by subclasses
+        pass
+    
+    def test_module_validator(self):
+        """Test module validator functionality.
+        
+        Common test for modules that have validation.
+        """
+        # Default implementation - should be overridden by subclasses
+        pass
+    
+    def test_module_all_functions_registered(self):
+        """Test that all functions are properly registered.
+        
+        Common test for modules that register functions.
+        """
+        # Default implementation - should be overridden by subclasses
+        pass

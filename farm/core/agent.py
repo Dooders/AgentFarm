@@ -992,7 +992,7 @@ class BaseAgent:
         if action_result.get("success", False):
             logger.debug(f"Agent {self.agent_id} successfully executed {action.name}")
         else:
-            logger.info(
+            logger.debug(
                 f"Agent {self.agent_id} failed to execute {action.name}: {action_result.get('error', 'Unknown error')}"
             )
 
