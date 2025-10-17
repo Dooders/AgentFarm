@@ -6,14 +6,38 @@ import pandas as pd
 # Define the analysis functions
 
 
+def _create_base_plot(figsize=(10, 6), title="", xlabel="", ylabel=""):
+    """Create a base plot with common styling.
+    
+    Args:
+        figsize: Figure size tuple
+        title: Plot title
+        xlabel: X-axis label
+        ylabel: Y-axis label
+        
+    Returns:
+        matplotlib.pyplot instance
+    """
+    plt.figure(figsize=figsize)
+    if title:
+        plt.title(title)
+    if xlabel:
+        plt.xlabel(xlabel)
+    if ylabel:
+        plt.ylabel(ylabel)
+    return plt
+
+
 def plot_action_type_distribution(dataframe):
     """Plot the distribution of different action types."""
     action_counts = dataframe["action_type"].value_counts()
-    plt.figure(figsize=(10, 6))
+    _create_base_plot(
+        figsize=(10, 6),
+        title="Action Type Distribution",
+        xlabel="Action Type",
+        ylabel="Frequency"
+    )
     action_counts.plot(kind="bar", color="skyblue", edgecolor="k")
-    plt.title("Action Type Distribution")
-    plt.xlabel("Action Type")
-    plt.ylabel("Frequency")
     plt.xticks(rotation=45)
     return plt
 
@@ -21,11 +45,13 @@ def plot_action_type_distribution(dataframe):
 def plot_rewards_by_action_type(dataframe):
     """Plot average rewards for each action type."""
     avg_rewards = dataframe.groupby("action_type")["reward"].mean()
-    plt.figure(figsize=(10, 6))
+    _create_base_plot(
+        figsize=(10, 6),
+        title="Average Rewards by Action Type",
+        xlabel="Action Type",
+        ylabel="Average Reward"
+    )
     avg_rewards.plot(kind="bar", color="orange", edgecolor="k")
-    plt.title("Average Rewards by Action Type")
-    plt.xlabel("Action Type")
-    plt.ylabel("Average Reward")
     plt.xticks(rotation=45)
     return plt
 
@@ -51,17 +77,18 @@ def plot_action_frequency_over_time(dataframe):
         dataframe.groupby(["step_number", "action_type"]).size().unstack(fill_value=0)
     )
 
-    plt.figure(figsize=(12, 6))
+    _create_base_plot(
+        figsize=(12, 6),
+        title="Action Frequency Over Time by Action Type",
+        xlabel="Step Number",
+        ylabel="Number of Actions"
+    )
     plt.stackplot(
         action_counts.index,
         action_counts.T.values,
         labels=action_counts.columns,
         alpha=0.8,
     )
-
-    plt.title("Action Frequency Over Time by Action Type")
-    plt.xlabel("Step Number")
-    plt.ylabel("Number of Actions")
     plt.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
     plt.tight_layout()
     return plt

@@ -221,9 +221,9 @@ class TestAgentFarmController:
     @patch("farm.api.unified_controller.UnifiedAdapter")
     def test_resume_simulation_success(self, mock_adapter_class, temp_workspace):
         """Test resuming a simulation successfully."""
-        controller = AgentFarmController(str(temp_workspace))
-
-        session_id = controller.create_session("Test Session")
+        controller, session_id = MockAdapterHelper.create_controller_with_session(
+            AgentFarmController, temp_workspace
+        )
 
         # Mock the adapter
         mock_adapter = Mock()
@@ -238,9 +238,9 @@ class TestAgentFarmController:
     @patch("farm.api.unified_controller.UnifiedAdapter")
     def test_stop_simulation_success(self, mock_adapter_class, temp_workspace):
         """Test stopping a simulation successfully."""
-        controller = AgentFarmController(str(temp_workspace))
-
-        session_id = controller.create_session("Test Session")
+        controller, session_id = MockAdapterHelper.create_controller_with_session(
+            AgentFarmController, temp_workspace
+        )
 
         # Mock the adapter
         mock_adapter = Mock()
@@ -255,9 +255,9 @@ class TestAgentFarmController:
     @patch("farm.api.unified_controller.UnifiedAdapter")
     def test_get_simulation_status_success(self, mock_adapter_class, temp_workspace):
         """Test getting simulation status successfully."""
-        controller = AgentFarmController(str(temp_workspace))
-
-        session_id = controller.create_session("Test Session")
+        controller, session_id = MockAdapterHelper.create_controller_with_session(
+            AgentFarmController, temp_workspace
+        )
 
         # Mock the adapter
         mock_adapter = Mock()
@@ -272,9 +272,9 @@ class TestAgentFarmController:
     @patch("farm.api.unified_controller.UnifiedAdapter")
     def test_get_simulation_results_success(self, mock_adapter_class, temp_workspace):
         """Test getting simulation results successfully."""
-        controller = AgentFarmController(str(temp_workspace))
-
-        session_id = controller.create_session("Test Session")
+        controller, session_id = MockAdapterHelper.create_controller_with_session(
+            AgentFarmController, temp_workspace
+        )
 
         # Mock the adapter using helper
         mock_results = MockAdapterHelper.create_simulation_results_mock()
@@ -325,9 +325,9 @@ class TestAgentFarmController:
     @patch("farm.api.unified_controller.UnifiedAdapter")
     def test_start_experiment_success(self, mock_adapter_class, temp_workspace):
         """Test starting an experiment successfully."""
-        controller = AgentFarmController(str(temp_workspace))
-
-        session_id = controller.create_session("Test Session")
+        controller, session_id = MockAdapterHelper.create_controller_with_session(
+            AgentFarmController, temp_workspace
+        )
 
         # Mock the adapter
         mock_adapter = Mock()
@@ -342,9 +342,9 @@ class TestAgentFarmController:
     @patch("farm.api.unified_controller.UnifiedAdapter")
     def test_get_experiment_status_success(self, mock_adapter_class, temp_workspace):
         """Test getting experiment status successfully."""
-        controller = AgentFarmController(str(temp_workspace))
-
-        session_id = controller.create_session("Test Session")
+        controller, session_id = MockAdapterHelper.create_controller_with_session(
+            AgentFarmController, temp_workspace
+        )
 
         # Mock the adapter
         mock_adapter = Mock()
@@ -359,9 +359,9 @@ class TestAgentFarmController:
     @patch("farm.api.unified_controller.UnifiedAdapter")
     def test_get_experiment_results_success(self, mock_adapter_class, temp_workspace):
         """Test getting experiment results successfully."""
-        controller = AgentFarmController(str(temp_workspace))
-
-        session_id = controller.create_session("Test Session")
+        controller, session_id = MockAdapterHelper.create_controller_with_session(
+            AgentFarmController, temp_workspace
+        )
 
         # Mock the adapter
         mock_adapter = Mock()
@@ -497,9 +497,9 @@ class TestAgentFarmController:
     @patch("farm.api.unified_controller.UnifiedAdapter")
     def test_subscribe_to_events_success(self, mock_adapter_class, temp_workspace):
         """Test subscribing to events successfully."""
-        controller = AgentFarmController(str(temp_workspace))
-
-        session_id = controller.create_session("Test Session")
+        controller, session_id = MockAdapterHelper.create_controller_with_session(
+            AgentFarmController, temp_workspace
+        )
 
         # Mock the adapter
         mock_adapter = Mock()
@@ -520,9 +520,9 @@ class TestAgentFarmController:
     @patch("farm.api.unified_controller.UnifiedAdapter")
     def test_get_event_history_success(self, mock_adapter_class, temp_workspace):
         """Test getting event history successfully."""
-        controller = AgentFarmController(str(temp_workspace))
-
-        session_id = controller.create_session("Test Session")
+        controller, session_id = MockAdapterHelper.create_controller_with_session(
+            AgentFarmController, temp_workspace
+        )
 
         # Mock the adapter
         mock_adapter = Mock()
@@ -545,9 +545,9 @@ class TestAgentFarmController:
 
     def test_get_session_stats_success(self, temp_workspace):
         """Test getting session statistics successfully."""
-        controller = AgentFarmController(str(temp_workspace))
-
-        session_id = controller.create_session("Test Session")
+        controller, session_id = MockAdapterHelper.create_controller_with_session(
+            AgentFarmController, temp_workspace
+        )
 
         stats = controller.get_session_stats(session_id)
 
@@ -565,9 +565,9 @@ class TestAgentFarmController:
 
     def test_list_simulations_success(self, temp_workspace):
         """Test listing simulations in a session."""
-        controller = AgentFarmController(str(temp_workspace))
-
-        session_id = controller.create_session("Test Session")
+        controller, session_id = MockAdapterHelper.create_controller_with_session(
+            AgentFarmController, temp_workspace
+        )
 
         # Add some simulations to the session
         session = controller.get_session(session_id)
@@ -586,9 +586,9 @@ class TestAgentFarmController:
 
     def test_list_experiments_success(self, temp_workspace):
         """Test listing experiments in a session."""
-        controller = AgentFarmController(str(temp_workspace))
-
-        session_id = controller.create_session("Test Session")
+        controller, session_id = MockAdapterHelper.create_controller_with_session(
+            AgentFarmController, temp_workspace
+        )
 
         # Add some experiments to the session
         session = controller.get_session(session_id)
@@ -607,10 +607,9 @@ class TestAgentFarmController:
 
     def test_cleanup_success(self, temp_workspace):
         """Test cleaning up controller resources."""
-        controller = AgentFarmController(str(temp_workspace))
-
-        # Create a session and adapter
-        session_id = controller.create_session("Test Session")
+        controller, session_id = MockAdapterHelper.create_controller_with_session(
+            AgentFarmController, temp_workspace
+        )
         controller._get_adapter(session_id)
 
         assert len(controller._adapters) == 1
@@ -666,9 +665,9 @@ class TestAgentFarmController:
 
     def test_adapter_creation_and_caching(self, temp_workspace):
         """Test that adapters are created and cached properly."""
-        controller = AgentFarmController(str(temp_workspace))
-
-        session_id = controller.create_session("Test Session")
+        controller, session_id = MockAdapterHelper.create_controller_with_session(
+            AgentFarmController, temp_workspace
+        )
 
         # First call should create adapter
         adapter1 = controller._get_adapter(session_id)
