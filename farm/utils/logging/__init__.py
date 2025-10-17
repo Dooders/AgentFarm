@@ -7,7 +7,7 @@ This package provides structured logging capabilities using structlog with:
 
 Basic Usage:
     from farm.utils.logging import configure_logging, get_logger
-    
+
     configure_logging(environment="development", log_dir="logs")
     logger = get_logger(__name__)
     logger.info("event_occurred", detail="some detail")
@@ -20,15 +20,15 @@ Advanced Usage:
         enable_metrics=True,
         enable_sampling=True
     )
-    
+
     # Correlation IDs
     from farm.utils.logging.correlation import add_correlation_id
     corr_id = add_correlation_id()
-    
+
     # Async logging
     from farm.utils.logging.async_logger import get_async_logger
     async_logger = get_async_logger(__name__)
-    
+
     # Testing
     from farm.utils.logging.test_helpers import capture_logs
     with capture_logs() as logs:

@@ -84,14 +84,14 @@ class ComparativeModule(BaseAnalysisModule):
             """Validate that data has required columns for comparative analysis."""
             if df.empty:
                 return False, "Data is empty"
-            
+
             # Check for at least one numeric column
             numeric_cols = df.select_dtypes(include=['number']).columns
             if len(numeric_cols) == 0:
                 return False, "No numeric columns found for analysis"
-            
+
             return True, "Data is valid for comparative analysis"
-        
+
         return validate_data
 
 

@@ -270,8 +270,8 @@ def create_prepared_statements(session):
     # Prepare statement for agent state insertion
     statements["insert_agent_state"] = connection.prepare(
         """
-        INSERT INTO agent_states 
-        (id, step_number, agent_id, position_x, position_y, position_z, 
+        INSERT INTO agent_states
+        (id, step_number, agent_id, position_x, position_y, position_z,
          resource_level, current_health, is_defending, total_reward, age)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """

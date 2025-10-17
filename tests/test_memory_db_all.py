@@ -16,14 +16,14 @@ import time
 def run_tests(test_type="all", verbose=False):
     """
     Run the specified tests.
-    
+
     Parameters
     ----------
     test_type : str
         Type of tests to run: "unit", "integration", or "all"
     verbose : bool
         Whether to show verbose output
-    
+
     Returns
     -------
     bool
@@ -32,10 +32,10 @@ def run_tests(test_type="all", verbose=False):
     # Set up test discovery
     loader = unittest.TestLoader()
     suite = unittest.TestSuite()
-    
+
     # Get the absolute path to the project root
     project_root = os.path.dirname(os.path.abspath(__file__))
-    
+
     # Determine which tests to run
     if test_type in ["unit", "all"]:
         print("Discovering unit tests...")
@@ -43,30 +43,30 @@ def run_tests(test_type="all", verbose=False):
         unit_tests = loader.discover(unit_tests_path, pattern="test_memory_db.py")
         suite.addTests(unit_tests)
         print(f"Found {unit_tests.countTestCases()} unit tests")
-    
+
     if test_type in ["integration", "all"]:
         print("Discovering integration tests...")
         integration_tests_path = os.path.join(project_root, "farm", "core")
         integration_tests = loader.discover(integration_tests_path, pattern="test_memory_db_integration.py")
         suite.addTests(integration_tests)
         print(f"Found {integration_tests.countTestCases()} integration tests")
-    
+
     # Run tests
     verbosity = 2 if verbose else 1
     runner = unittest.TextTestRunner(verbosity=verbosity)
-    
+
     print(f"\nRunning {suite.countTestCases()} tests...")
     start_time = time.time()
     result = runner.run(suite)
     end_time = time.time()
-    
+
     # Print summary
     print("\nTest Summary:")
     print(f"Ran {result.testsRun} tests in {end_time - start_time:.2f} seconds")
     print(f"Failures: {len(result.failures)}")
     print(f"Errors: {len(result.errors)}")
     print(f"Skipped: {len(result.skipped)}")
-    
+
     # Return True if all tests passed
     return len(result.failures) == 0 and len(result.errors) == 0
 
@@ -90,17 +90,17 @@ def main():
         action="store_true",
         help="Run only quick tests (skip performance tests)",
     )
-    
+
     args = parser.parse_args()
-    
+
     # Set environment variable for quick tests if requested
     if args.quick:
         os.environ["QUICK_TEST"] = "1"
         print("Running in quick mode (skipping performance tests)")
-    
+
     # Run tests
     success = run_tests(args.type, args.verbose)
-    
+
     # Return appropriate exit code
     sys.exit(0 if success else 1)
 

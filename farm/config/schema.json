@@ -48,7 +48,7 @@
         },
         "starvation_threshold": {
           "type": "integer",
-          "default": 100
+          "default": 10
         },
         "offspring_cost": {
           "type": "integer",

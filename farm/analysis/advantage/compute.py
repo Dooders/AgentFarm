@@ -1013,7 +1013,7 @@ def compute_advantage_dominance_correlation(sim_session):
 
     from farm.analysis.dominance import get_orchestrator
     from farm.database.models import SimulationStepModel
-    
+
     orchestrator = get_orchestrator()
 
     # First, calculate comprehensive dominance

@@ -33,6 +33,7 @@ from farm.core.services.interfaces import (
 from farm.core.state import AgentState
 from farm.database.data_types import GenomeId
 from farm.memory.redis_memory import AgentMemoryManager, RedisMemoryConfig
+from tests.utils.test_helpers import MemoryTestHelper
 
 
 @pytest.fixture
@@ -914,8 +915,7 @@ class TestBaseAgentMemorySystem:
         self, sample_base_agent, mock_time_service
     ):
         """Test experience recording with memory system."""
-        mock_memory = Mock()
-        mock_memory.remember_state.return_value = True
+        mock_memory = MemoryTestHelper.create_mock_memory(remember_state_return=True)
         sample_base_agent.memory = mock_memory
 
         perception = PerceptionData(np.zeros((5, 5)))

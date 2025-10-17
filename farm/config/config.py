@@ -42,7 +42,7 @@ class SpatialIndexConfig:
     def preset_dense_population(cls) -> "SpatialIndexConfig":
         """
         Preset configuration optimized for dense populations.
-        
+
         Use for: High agent density, frequent neighbor queries
         - Smaller regions for finer granularity
         - More frequent updates
@@ -64,7 +64,7 @@ class SpatialIndexConfig:
     def preset_sparse_realtime(cls) -> "SpatialIndexConfig":
         """
         Preset configuration optimized for sparse, real-time scenarios.
-        
+
         Use for: Real-time responsiveness, low agent count
         - Larger regions to reduce tracking overhead
         - Smaller batches for immediate updates
@@ -86,7 +86,7 @@ class SpatialIndexConfig:
     def preset_large_environment(cls) -> "SpatialIndexConfig":
         """
         Preset configuration optimized for large environments.
-        
+
         Use for: Large worlds, range queries, moderate agent count
         - Balanced region tracking
         - Higher throughput batching
@@ -108,7 +108,7 @@ class SpatialIndexConfig:
     def preset_high_throughput(cls) -> "SpatialIndexConfig":
         """
         Preset configuration optimized for high throughput batch processing.
-        
+
         Use for: Maximum throughput, offline analysis, latency-tolerant scenarios
         - Balanced region size
         - Large batches for maximum throughput
@@ -198,10 +198,10 @@ class LearningConfig:
     training_frequency: int = 4
     dqn_hidden_size: int = 24
     tau: float = 0.005
-    
+
     # Caching settings
     dqn_state_cache_size: int = 100  # Maximum size of DQN state tensor cache
-    
+
     # Gradient clipping
     gradient_clip_norm: float = 1.0  # Max norm for gradient clipping
     enable_gradient_clipping: bool = True  # Whether to clip gradients during training
@@ -230,7 +230,7 @@ class AgentBehaviorConfig:
     base_attack_strength: int = 2
     base_defense_strength: int = 2
     initial_resource_level: int = 0
-    starvation_threshold: float = 100
+    starvation_threshold: float = 10
     offspring_cost: int = 3
     min_reproduction_resources: int = 8
     offspring_initial_resources: int = 5
@@ -272,16 +272,16 @@ class DatabaseConfig:
     db_custom_pragmas: Dict[str, str] = field(
         default_factory=dict
     )  # Custom pragma overrides
-    
+
     # Connection pooling settings
     connection_pool_size: int = 10  # Size of the connection pool
     connection_pool_recycle: int = 3600  # Recycle connections after this many seconds
     connection_timeout: int = 30  # Timeout for database operations in seconds
-    
+
     # Buffering and commit settings
     log_buffer_size: int = 1000  # Maximum size of log buffers before auto-flush
     commit_interval_seconds: int = 30  # Maximum time between commits in seconds
-    
+
     # Export settings
     export_batch_size: int = 1000  # Batch size for data export operations
 

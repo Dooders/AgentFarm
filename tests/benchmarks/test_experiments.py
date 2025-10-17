@@ -25,7 +25,7 @@ class TestExperimentContext(unittest.TestCase):
             instruments=[Mock(), Mock()],
             extras={"key": "value"}
         )
-        
+
         self.assertEqual(context.run_id, "test_run_123")
         self.assertEqual(context.output_dir, "/tmp/output")
         self.assertEqual(context.run_dir, "/tmp/output/test_run_123")
@@ -41,7 +41,7 @@ class TestExperimentContext(unittest.TestCase):
             output_dir="/tmp/output",
             run_dir="/tmp/output/test_run_456"
         )
-        
+
         self.assertEqual(context.run_id, "test_run_456")
         self.assertEqual(context.output_dir, "/tmp/output")
         self.assertEqual(context.run_dir, "/tmp/output/test_run_456")
@@ -60,7 +60,7 @@ class TestExperimentContext(unittest.TestCase):
             seed=123,
             extras={"test": "data"}
         )
-        
+
         context_dict = asdict(context)
         self.assertIn("run_id", context_dict)
         self.assertIn("output_dir", context_dict)
@@ -72,17 +72,17 @@ class TestExperimentContext(unittest.TestCase):
 
 class ConcreteExperiment(Experiment):
     """Concrete implementation of Experiment for testing."""
-    
+
     def __init__(self, params=None):
         super().__init__(params)
         self.setup_called = False
         self.teardown_called = False
         self.execute_count = 0
-    
+
     def setup(self, context):
         """Track that setup was called."""
         self.setup_called = True
-    
+
     def execute_once(self, context):
         """Track execution and return test metrics."""
         self.execute_count += 1
@@ -91,7 +91,7 @@ class ConcreteExperiment(Experiment):
             "run_id": context.run_id,
             "iteration_index": context.iteration_index
         }
-    
+
     def teardown(self, context):
         """Track that teardown was called."""
         self.teardown_called = True
@@ -104,7 +104,7 @@ class TestExperiment(unittest.TestCase):
         """Test Experiment initialization with parameters."""
         params = {"param1": "value1", "param2": 42}
         experiment = ConcreteExperiment(params)
-        
+
         self.assertEqual(experiment.params, params)
         self.assertFalse(experiment.setup_called)
         self.assertFalse(experiment.teardown_called)
@@ -113,7 +113,7 @@ class TestExperiment(unittest.TestCase):
     def test_initialization_without_params(self):
         """Test Experiment initialization without parameters."""
         experiment = ConcreteExperiment()
-        
+
         self.assertEqual(experiment.params, {})
         self.assertFalse(experiment.setup_called)
         self.assertFalse(experiment.teardown_called)
@@ -122,7 +122,7 @@ class TestExperiment(unittest.TestCase):
     def test_initialization_with_none_params(self):
         """Test Experiment initialization with None parameters."""
         experiment = ConcreteExperiment(None)
-        
+
         self.assertEqual(experiment.params, {})
         self.assertFalse(experiment.setup_called)
         self.assertFalse(experiment.teardown_called)
@@ -136,7 +136,7 @@ class TestExperiment(unittest.TestCase):
             output_dir="/tmp",
             run_dir="/tmp/test"
         )
-        
+
         experiment.setup(context)
         self.assertTrue(experiment.setup_called)
 
@@ -149,9 +149,9 @@ class TestExperiment(unittest.TestCase):
             run_dir="/tmp/test_run",
             iteration_index=0
         )
-        
+
         result = experiment.execute_once(context)
-        
+
         self.assertEqual(experiment.execute_count, 1)
         self.assertEqual(result["iteration"], 1)
         self.assertEqual(result["run_id"], "test_run")
@@ -165,7 +165,7 @@ class TestExperiment(unittest.TestCase):
             output_dir="/tmp",
             run_dir="/tmp/test"
         )
-        
+
         experiment.teardown(context)
         self.assertTrue(experiment.teardown_called)
 
@@ -177,23 +177,23 @@ class TestExperiment(unittest.TestCase):
             output_dir="/tmp",
             run_dir="/tmp/test_run"
         )
-        
+
         # Execute multiple times
         for i in range(3):
             context.iteration_index = i
             result = experiment.execute_once(context)
             self.assertEqual(result["iteration"], i + 1)
             self.assertEqual(result["iteration_index"], i)
-        
+
         self.assertEqual(experiment.execute_count, 3)
 
 
 class AbstractExperiment(Experiment):
     """Abstract experiment that doesn't implement execute_once."""
-    
+
     def setup(self, context):
         pass
-    
+
     def teardown(self, context):
         pass
 
@@ -216,7 +216,7 @@ class TestAbstractExperiment(unittest.TestCase):
 
 class TestExperimentWithParamSchema(unittest.TestCase):
     """Test Experiment with custom param_schema."""
-    
+
     class ExperimentWithSchema(Experiment):
         param_schema = {
             "properties": {
@@ -225,10 +225,10 @@ class TestExperimentWithParamSchema(unittest.TestCase):
             },
             "required": ["param1"]
         }
-        
+
         def execute_once(self, context):
             return {"param1": self.params.get("param1"), "param2": self.params.get("param2")}
-    
+
     def test_param_schema_attribute(self):
         """Test that param_schema is accessible."""
         experiment = self.ExperimentWithSchema()

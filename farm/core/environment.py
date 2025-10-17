@@ -1359,6 +1359,10 @@ class Environment(AECEnv):
             self.observation_config
         )
 
+        # Record birth in metrics tracker (only for agents created during simulation, not initial population)
+        if self.time > 0:  # Only record births for agents created after simulation starts
+            self.record_birth()
+
         # Log agent addition
         logger.info(
             "agent_added",

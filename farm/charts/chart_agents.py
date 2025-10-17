@@ -56,7 +56,7 @@ def plot_reproduction_success_rate(dataframe, connection_string=None):
 
         # Query reproduction events data grouped by parent generation
         repro_query = """
-        SELECT 
+        SELECT
             parent_generation,
             COUNT(*) as attempts,
             SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successes

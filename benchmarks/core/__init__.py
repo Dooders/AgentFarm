@@ -5,7 +5,7 @@ This module provides the foundational components for creating, running, and anal
 benchmarks in the AgentFarm system. It includes:
 
 - Experiment abstractions for defining benchmark workloads
-- Registry system for experiment discovery and instantiation  
+- Registry system for experiment discovery and instantiation
 - Runner for orchestrating experiment execution with instrumentation
 - Results handling for metrics collection and reporting
 - Specification system for YAML/JSON-driven benchmark configuration

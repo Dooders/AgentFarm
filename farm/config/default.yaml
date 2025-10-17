@@ -15,7 +15,7 @@ independent_agents: 10
 control_agents: 10
 initial_resource_level: 5
 max_population: 300
-starvation_threshold: 100
+starvation_threshold: 10
 offspring_cost: 3
 min_reproduction_resources: 8
 offspring_initial_resources: 5
