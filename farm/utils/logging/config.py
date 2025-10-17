@@ -562,14 +562,14 @@ def configure_logging(
     # Configure standard library logging
     if disable_console:
         # When console is disabled, use a null stream to suppress output
-        # Use a context manager to ensure the file handle is properly closed
-        with open(os.devnull, "w") as null_stream:
-            logging.basicConfig(
-                format="%(message)s",
-                level=numeric_level,
-                stream=null_stream,
-                force=True,
-            )
+        # Keep the file handle open for the duration of the logging session
+        null_stream = open(os.devnull, "w")
+        logging.basicConfig(
+            format="%(message)s",
+            level=numeric_level,
+            stream=null_stream,
+            force=True,
+        )
     else:
         logging.basicConfig(
             format="%(message)s",
