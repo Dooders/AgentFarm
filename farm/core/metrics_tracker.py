@@ -330,7 +330,7 @@ class MetricsTracker:
             agent.resource_level,
             agent.current_health,
             agent.starting_health,
-            agent.starvation_counter,
+            agent.get_component("resource").starvation_counter if agent.get_component("resource") else 0,
             int(agent.is_defending),
             agent.total_reward,
             time - agent.birth_time,  # age

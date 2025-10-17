@@ -120,7 +120,7 @@ def create_initial_agents(
         agent = factory.create_default_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            initial_resources=int(environment.config.agent_behavior.initial_resources),
+            initial_resources=int(environment.config.agent_behavior.initial_resource_level),
             environment=environment,
         )
         environment.add_agent(agent)
@@ -132,7 +132,7 @@ def create_initial_agents(
         agent = factory.create_default_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            initial_resources=int(environment.config.agent_behavior.initial_resources),
+            initial_resources=int(environment.config.agent_behavior.initial_resource_level),
             environment=environment,
         )
         environment.add_agent(agent)
@@ -144,7 +144,7 @@ def create_initial_agents(
         agent = factory.create_default_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            initial_resources=int(environment.config.agent_behavior.initial_resources),
+            initial_resources=int(environment.config.agent_behavior.initial_resource_level),
             environment=environment,
         )
         environment.add_agent(agent)

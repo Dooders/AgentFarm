@@ -1321,11 +1321,11 @@ class Environment(AECEnv):
                 "agent_type": agent.__class__.__name__,
                 "position": agent.position,
                 "initial_resources": agent.resource_level,
-                "starting_health": agent.starting_health,
-                "starvation_counter": agent.starvation_counter,
+                "starting_health": agent.get_component("combat").config.starting_health if agent.get_component("combat") else 100.0,
+                "starvation_counter": agent.get_component("resource").starvation_counter if agent.get_component("resource") else 0,
                 "genome_id": getattr(agent, "genome_id", None),
                 "generation": getattr(agent, "generation", 0),
-                "action_weights": agent.get_action_weights(),
+                "action_weights": getattr(agent, "get_action_weights", lambda: {})() if hasattr(agent, "get_action_weights") else {},
             }
         ]
 

@@ -73,6 +73,8 @@ class AgentCore:
         self.config = config
         self.environment = environment
         self.alive = True
+        self.total_reward = 0.0
+        self.generation = generation
         
         # Device setup
         if device is not None:
@@ -378,11 +380,41 @@ class AgentCore:
         combat_comp = self.get_component("combat")
         return combat_comp.is_defending if combat_comp else False
     
+    @is_defending.setter
+    def is_defending(self, value: bool) -> None:
+        """Set agent defending status."""
+        combat_comp = self.get_component("combat")
+        if combat_comp:
+            combat_comp.is_defending = value
+    
     @property
     def defense_timer(self) -> int:
         """Get defense timer."""
         combat_comp = self.get_component("combat")
         return combat_comp.defense_timer if combat_comp else 0
+    
+    @defense_timer.setter
+    def defense_timer(self, value: int) -> None:
+        """Set defense timer."""
+        combat_comp = self.get_component("combat")
+        if combat_comp:
+            combat_comp.defense_timer = value
+    
+    @property
+    def birth_time(self) -> int:
+        """Get birth time."""
+        return self.state.birth_time
+    
+    @property
+    def genome_id(self) -> str:
+        """Get genome ID."""
+        return self.state.genome_id
+    
+    @property
+    def starting_health(self) -> float:
+        """Get starting health."""
+        combat_comp = self.get_component("combat")
+        return combat_comp.config.starting_health if combat_comp else 100.0
     
     def get_state(self) -> StateSnapshot:
         """Get complete state snapshot."""
