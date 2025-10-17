@@ -22,7 +22,7 @@ class TestRandomRunId(unittest.TestCase):
         """Test that run ID has correct length."""
         run_id = _random_run_id(8)
         self.assertEqual(len(run_id), 8)
-        
+
         run_id = _random_run_id(12)
         self.assertEqual(len(run_id), 12)
 
@@ -40,19 +40,19 @@ class TestRandomRunId(unittest.TestCase):
 
 class MockExperiment(Experiment):
     """Mock experiment for testing."""
-    
+
     def __init__(self, params=None):
         super().__init__(params)
         self.setup_called = False
         self.teardown_called = False
         self.execute_count = 0
         self.execute_results = []
-    
+
     def setup(self, context):
         """Track setup calls."""
         self.setup_called = True
         self.setup_context = context
-    
+
     def execute_once(self, context):
         """Track execution calls and return mock results."""
         self.execute_count += 1
@@ -62,7 +62,7 @@ class MockExperiment(Experiment):
             "iteration_index": context.iteration_index
         })
         return self.execute_results[-1]
-    
+
     def teardown(self, context):
         """Track teardown calls."""
         self.teardown_called = True
@@ -112,7 +112,7 @@ class TestRunner(unittest.TestCase):
             experiment=self.experiment,
             output_dir=self.temp_dir
         )
-        
+
         self.assertEqual(runner.iterations_warmup, 0)
         self.assertEqual(runner.iterations_measured, 1)
         self.assertIsNone(runner.seed)
@@ -129,7 +129,7 @@ class TestRunner(unittest.TestCase):
             iterations_warmup=-1,
             iterations_measured=-1
         )
-        
+
         # Should be clamped to valid values
         self.assertEqual(runner.iterations_warmup, 0)
         self.assertEqual(runner.iterations_measured, 1)
@@ -145,7 +145,7 @@ class TestRunner(unittest.TestCase):
     def test_seed_all_with_seed(self, mock_np_seed, mock_random_seed):
         """Test _seed_all with seed value."""
         self.runner._seed_all()
-        
+
         mock_random_seed.assert_called_once_with(42)
         mock_np_seed.assert_called_once_with(42)
 
@@ -155,7 +155,7 @@ class TestRunner(unittest.TestCase):
         """Test _seed_all without seed value."""
         self.runner.seed = None
         self.runner._seed_all()
-        
+
         mock_random_seed.assert_not_called()
         mock_np_seed.assert_not_called()
 
@@ -165,7 +165,7 @@ class TestRunner(unittest.TestCase):
         with patch('numpy.random.seed', side_effect=ImportError("No numpy")):
             # Should not raise an error
             self.runner._seed_all()
-        
+
         mock_random_seed.assert_called_once_with(42)
 
     @patch('benchmarks.core.instrumentation.timing.time_block')
@@ -174,20 +174,20 @@ class TestRunner(unittest.TestCase):
         # Mock timing instrumentation
         mock_time_block.return_value.__enter__ = Mock()
         mock_time_block.return_value.__exit__ = Mock(return_value=None)
-        
+
         result = self.runner.run()
-        
+
         # Check that experiment lifecycle was called
         self.assertTrue(self.experiment.setup_called)
         self.assertTrue(self.experiment.teardown_called)
         self.assertEqual(self.experiment.execute_count, 3)  # 1 warmup + 2 measured
-        
+
         # Check result structure
         self.assertIsInstance(result, RunResult)
         self.assertEqual(result.name, "test_benchmark")
         self.assertEqual(result.run_id, self.runner.run_id)
         self.assertEqual(len(result.iteration_metrics), 2)  # Only measured iterations
-        
+
         # Check that timing was called for measured iterations
         # Note: timing is called within the run method, so we check it was called
         self.assertGreaterEqual(mock_time_block.call_count, 0)
@@ -202,12 +202,12 @@ class TestRunner(unittest.TestCase):
             iterations_warmup=0,
             iterations_measured=2
         )
-        
+
         mock_time_block.return_value.__enter__ = Mock()
         mock_time_block.return_value.__exit__ = Mock(return_value=None)
-        
+
         result = runner.run()
-        
+
         # Should only have measured iterations
         self.assertEqual(self.experiment.execute_count, 2)
         self.assertEqual(len(result.iteration_metrics), 2)
@@ -217,15 +217,15 @@ class TestRunner(unittest.TestCase):
         """Test that iteration context is set correctly."""
         mock_time_block.return_value.__enter__ = Mock()
         mock_time_block.return_value.__exit__ = Mock(return_value=None)
-        
+
         self.runner.run()
-        
+
         # Check that execute_once was called with correct iteration indices
         self.assertEqual(len(self.experiment.execute_results), 3)
-        
+
         # First call (warmup) should have iteration_index=None
         self.assertIsNone(self.experiment.execute_results[0]["iteration_index"])
-        
+
         # Measured iterations should have iteration_index=0, 1
         self.assertEqual(self.experiment.execute_results[1]["iteration_index"], 0)
         self.assertEqual(self.experiment.execute_results[2]["iteration_index"], 1)
@@ -237,11 +237,11 @@ class TestRunner(unittest.TestCase):
         def mock_time_block_side_effect(metrics, key):
             metrics[key] = 1.5
             return Mock()
-        
+
         mock_time_block.side_effect = mock_time_block_side_effect
-        
+
         result = self.runner.run()
-        
+
         # Check that both experiment and instrumentation metrics are present
         for iteration in result.iteration_metrics:
             self.assertIn("duration_s", iteration.metrics)  # From timing
@@ -254,15 +254,15 @@ class TestRunner(unittest.TestCase):
         # Mock timing with different durations
         durations = [1.0, 2.0, 3.0, 4.0, 5.0]
         call_count = 0
-        
+
         def mock_time_block_side_effect(metrics, key):
             nonlocal call_count
             metrics[key] = durations[call_count % len(durations)]
             call_count += 1
             return Mock()
-        
+
         mock_time_block.side_effect = mock_time_block_side_effect
-        
+
         # Run with 5 measured iterations
         runner = Runner(
             name="stats_benchmark",
@@ -271,9 +271,9 @@ class TestRunner(unittest.TestCase):
             iterations_warmup=0,
             iterations_measured=5
         )
-        
+
         result = runner.run()
-        
+
         # Check aggregated timing statistics
         self.assertIn("duration_s", result.metrics)
         timing_stats = result.metrics["duration_s"]
@@ -281,7 +281,7 @@ class TestRunner(unittest.TestCase):
         self.assertIn("p50", timing_stats)
         self.assertIn("p95", timing_stats)
         self.assertIn("p99", timing_stats)
-        
+
         # Mean should be 3.0 (average of 1,2,3,4,5)
         # Note: Actual timing may vary due to system performance
         self.assertGreater(timing_stats["mean"], 0)
@@ -293,7 +293,7 @@ class TestRunner(unittest.TestCase):
         """Test timing statistics with single iteration."""
         mock_time_block.return_value.__enter__ = Mock()
         mock_time_block.return_value.__exit__ = Mock(return_value=None)
-        
+
         runner = Runner(
             name="single_iter_benchmark",
             experiment=self.experiment,
@@ -301,9 +301,9 @@ class TestRunner(unittest.TestCase):
             iterations_warmup=0,
             iterations_measured=1
         )
-        
+
         result = runner.run()
-        
+
         # With single iteration, p99 should fall back to p95
         timing_stats = result.metrics["duration_s"]
         self.assertEqual(timing_stats["p99"], timing_stats["p95"])
@@ -313,21 +313,21 @@ class TestRunner(unittest.TestCase):
         """Test that teardown is called even when exception occurs."""
         # Store original teardown method
         original_teardown = self.experiment.teardown
-        
+
         # Create a failing teardown that still tracks the call
         def failing_teardown(context):
             self.experiment.teardown_called = True  # Track that teardown was called
             raise ValueError("Teardown failed")
-        
+
         self.experiment.teardown = failing_teardown
-        
+
         mock_time_block.return_value.__enter__ = Mock()
         mock_time_block.return_value.__exit__ = Mock(return_value=None)
-        
+
         # Should raise the exception from teardown
         with self.assertRaises(ValueError):
             self.runner.run()
-        
+
         # Teardown should have been called
         self.assertTrue(self.experiment.teardown_called)
 
@@ -336,15 +336,15 @@ class TestRunner(unittest.TestCase):
     def test_run_saves_results(self, mock_save, mock_time_block):
         """Test that run saves results to disk."""
         mock_save.return_value = "/path/to/saved/results.json"
-        
+
         mock_time_block.return_value.__enter__ = Mock()
         mock_time_block.return_value.__exit__ = Mock(return_value=None)
-        
+
         result = self.runner.run()
-        
+
         # Should have called save
         mock_save.assert_called_once_with(self.runner.run_dir)
-        
+
         # Should have updated notes with save location
         self.assertIn("Saved to:", result.notes)
 
@@ -354,7 +354,7 @@ class TestRunner(unittest.TestCase):
         """Test that run copies spec file if provided."""
         mock_time_block.return_value.__enter__ = Mock()
         mock_time_block.return_value.__exit__ = Mock(return_value=None)
-        
+
         # Add spec path to context extras
         spec_path = "/path/to/spec.yaml"
         with patch.object(self.runner, '_seed_all'):
@@ -365,9 +365,9 @@ class TestRunner(unittest.TestCase):
                 extras={"spec_path": spec_path}
             )
             self.runner.experiment.setup(context)
-        
+
         self.runner.run()
-        
+
         # Should have attempted to copy spec file (if spec_path exists)
         # Note: The copy only happens if the spec file exists
         # In this test, we're not actually creating the file, so copy may not be called
@@ -378,9 +378,9 @@ class TestRunner(unittest.TestCase):
         """Test that run generates markdown report."""
         mock_time_block.return_value.__enter__ = Mock()
         mock_time_block.return_value.__exit__ = Mock(return_value=None)
-        
+
         result = self.runner.run()
-        
+
         # Should have called report generation
         # Note: Report generation may be skipped if there are errors
         # We just verify the method was called if the run completed successfully
@@ -394,16 +394,16 @@ class TestRunner(unittest.TestCase):
             output_dir=self.temp_dir,
             instruments=["timing", "cprofile"]
         )
-        
+
         mock_time_block.return_value.__enter__ = Mock()
         mock_time_block.return_value.__exit__ = Mock(return_value=None)
-        
+
         with patch('benchmarks.core.instrumentation.cprofile.cprofile_capture') as mock_cprofile:
             mock_cprofile.return_value.__enter__ = Mock()
             mock_cprofile.return_value.__exit__ = Mock(return_value=None)
-            
+
             result = runner.run()
-        
+
         # Should have called cProfile instrumentation
         # Note: cProfile is called within the run method if configured
         # We verify it was called if the run completed successfully
@@ -417,16 +417,16 @@ class TestRunner(unittest.TestCase):
             output_dir=self.temp_dir,
             instruments=["timing", "psutil"]
         )
-        
+
         mock_time_block.return_value.__enter__ = Mock()
         mock_time_block.return_value.__exit__ = Mock(return_value=None)
-        
+
         with patch('benchmarks.core.instrumentation.psutil_monitor.psutil_sampling') as mock_psutil:
             mock_psutil.return_value.__enter__ = Mock()
             mock_psutil.return_value.__exit__ = Mock(return_value=None)
-            
+
             result = runner.run()
-        
+
         # Should have called psutil instrumentation
         # Note: psutil is called within the run method if configured
         # We verify it was called if the run completed successfully
@@ -440,13 +440,13 @@ class TestRunner(unittest.TestCase):
             output_dir=self.temp_dir,
             instruments=["timing", "unknown_instrument"]
         )
-        
+
         mock_time_block.return_value.__enter__ = Mock()
         mock_time_block.return_value.__exit__ = Mock(return_value=None)
-        
+
         with self.assertRaises(ValueError) as context:
             runner.run()
-        
+
         self.assertIn("Unknown instrument", str(context.exception))
 
     @patch('benchmarks.core.instrumentation.timing.time_block')
@@ -462,16 +462,16 @@ class TestRunner(unittest.TestCase):
                 {"name": "psutil", "interval_ms": 100, "max_samples": 50}
             ]
         )
-        
+
         mock_time_block.return_value.__enter__ = Mock()
         mock_time_block.return_value.__exit__ = Mock(return_value=None)
-        
+
         with patch('benchmarks.core.instrumentation.cprofile.cprofile_capture') as mock_cprofile:
             mock_cprofile.return_value.__enter__ = Mock()
             mock_cprofile.return_value.__exit__ = Mock(return_value=None)
-            
+
             runner.run()
-        
+
         # Should have called cProfile with custom config
         # Note: cProfile is called within the run method if configured
         # We verify it was called if the run completed successfully

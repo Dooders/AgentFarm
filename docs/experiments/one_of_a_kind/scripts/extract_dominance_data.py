@@ -97,7 +97,7 @@ def extract_dominance_data(db_path):
         # Query for dominance switching metrics
         cursor.execute(
             """
-            SELECT AVG(total_switches) as avg_switches, 
+            SELECT AVG(total_switches) as avg_switches,
                    AVG(switches_per_step) as switches_per_step,
                    AVG(early_phase_switches) as early_switches,
                    AVG(middle_phase_switches) as middle_switches,

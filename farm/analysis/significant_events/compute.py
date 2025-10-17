@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, or_
+from sqlalchemy import and_, or_
 
 from farm.analysis.common.utils import calculate_statistics
 from farm.database.models import (

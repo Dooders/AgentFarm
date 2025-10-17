@@ -31,7 +31,7 @@ class TestRunSpec(unittest.TestCase):
             strategy="cartesian",
             samples=100
         )
-        
+
         self.assertEqual(spec.experiment, "test_experiment")
         self.assertEqual(spec.params, {"param1": "value1", "param2": 42})
         self.assertEqual(spec.iterations, {"warmup": 1, "measured": 3})
@@ -61,7 +61,7 @@ class TestRunSpec(unittest.TestCase):
             strategy="cartesian",
             samples=None
         )
-        
+
         self.assertEqual(spec.experiment, "test_experiment")
         self.assertEqual(spec.params, {})
         self.assertEqual(spec.iterations, {"warmup": 0, "measured": 1})
@@ -82,11 +82,11 @@ class TestLoadRaw(unittest.TestCase):
     def test_load_json_file(self):
         """Test loading JSON file."""
         data = {"experiment": "test", "params": {"param1": "value1"}}
-        
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             json.dump(data, f)
             temp_path = f.name
-        
+
         try:
             result = _load_raw(temp_path)
             self.assertEqual(result, data)
@@ -98,11 +98,11 @@ class TestLoadRaw(unittest.TestCase):
         """Test loading YAML file."""
         data = {"experiment": "test", "params": {"param1": "value1"}}
         yaml_content = "experiment: test\nparams:\n  param1: value1\n"
-        
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
             f.write(yaml_content)
             temp_path = f.name
-        
+
         try:
             result = _load_raw(temp_path)
             self.assertEqual(result, data)
@@ -114,11 +114,11 @@ class TestLoadRaw(unittest.TestCase):
         """Test loading .yml file."""
         data = {"experiment": "test", "params": {"param1": "value1"}}
         yaml_content = "experiment: test\nparams:\n  param1: value1\n"
-        
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
             f.write(yaml_content)
             temp_path = f.name
-        
+
         try:
             result = _load_raw(temp_path)
             self.assertEqual(result, data)
@@ -129,11 +129,11 @@ class TestLoadRaw(unittest.TestCase):
     def test_load_fallback_to_json(self):
         """Test fallback to JSON when extension is unknown."""
         data = {"experiment": "test", "params": {"param1": "value1"}}
-        
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.unknown', delete=False) as f:
             json.dump(data, f)
             temp_path = f.name
-        
+
         try:
             result = _load_raw(temp_path)
             self.assertEqual(result, data)
@@ -153,7 +153,7 @@ class TestLoadRaw(unittest.TestCase):
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
             f.write("invalid: yaml: content: [")
             temp_path = f.name
-        
+
         try:
             with self.assertRaises(Exception):
                 _load_raw(temp_path)
@@ -167,7 +167,7 @@ class TestLoadRaw(unittest.TestCase):
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             f.write("invalid json content")
             temp_path = f.name
-        
+
         try:
             with self.assertRaises(json.JSONDecodeError):
                 _load_raw(temp_path)
@@ -182,14 +182,14 @@ class TestLoadSpec(unittest.TestCase):
     def test_load_spec_minimal(self):
         """Test loading minimal spec."""
         data = {"experiment": "test_experiment"}
-        
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             json.dump(data, f)
             temp_path = f.name
-        
+
         try:
             spec = load_spec(temp_path)
-            
+
             self.assertEqual(spec.experiment, "test_experiment")
             self.assertEqual(spec.params, {})
             self.assertEqual(spec.iterations, {"warmup": 0, "measured": 1})
@@ -222,14 +222,14 @@ class TestLoadSpec(unittest.TestCase):
             "strategy": "random",
             "samples": 50
         }
-        
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             json.dump(data, f)
             temp_path = f.name
-        
+
         try:
             spec = load_spec(temp_path)
-            
+
             self.assertEqual(spec.experiment, "complete_experiment")
             self.assertEqual(spec.params, {"param1": "value1", "param2": 42})
             self.assertEqual(spec.iterations, {"warmup": 2, "measured": 5})
@@ -259,14 +259,14 @@ class TestLoadSpec(unittest.TestCase):
             "sweep": None,
             "samples": None
         }
-        
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             json.dump(data, f)
             temp_path = f.name
-        
+
         try:
             spec = load_spec(temp_path)
-            
+
             self.assertEqual(spec.experiment, "none_test")
             self.assertEqual(spec.iterations, {"warmup": 0, "measured": 1})  # defaults
             self.assertEqual(spec.instrumentation, ["timing"])  # defaults
@@ -283,15 +283,15 @@ class TestLoadSpec(unittest.TestCase):
     def test_load_spec_missing_experiment_raises_error(self):
         """Test that missing experiment field raises ValueError."""
         data = {"params": {"param1": "value1"}}
-        
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             json.dump(data, f)
             temp_path = f.name
-        
+
         try:
             with self.assertRaises(ValueError) as context:
                 load_spec(temp_path)
-            
+
             self.assertIn("missing required 'experiment' field", str(context.exception))
         finally:
             import os
@@ -303,15 +303,15 @@ class TestLoadSpec(unittest.TestCase):
             "experiment": "test",
             "iterations": {"warmup": 1, "measured": 0}  # measured must be >= 1
         }
-        
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             json.dump(data, f)
             temp_path = f.name
-        
+
         try:
             with self.assertRaises(ValueError) as context:
                 load_spec(temp_path)
-            
+
             self.assertIn("'iterations.measured' must be >= 1", str(context.exception))
         finally:
             import os
@@ -323,15 +323,15 @@ class TestLoadSpec(unittest.TestCase):
             "experiment": "test",
             "iterations": {"warmup": 1, "measured": -1}
         }
-        
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             json.dump(data, f)
             temp_path = f.name
-        
+
         try:
             with self.assertRaises(ValueError) as context:
                 load_spec(temp_path)
-            
+
             self.assertIn("'iterations.measured' must be >= 1", str(context.exception))
         finally:
             import os
@@ -346,14 +346,14 @@ class TestLoadSpec(unittest.TestCase):
             "parallelism": 4,  # integer
             "samples": 100  # integer
         }
-        
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             json.dump(data, f)
             temp_path = f.name
-        
+
         try:
             spec = load_spec(temp_path)
-            
+
             self.assertEqual(spec.iterations, {"warmup": 2, "measured": 3})
             self.assertEqual(spec.seed, 42)
             self.assertEqual(spec.parallelism, 4)
@@ -367,11 +367,11 @@ class TestLoadSpec(unittest.TestCase):
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             f.write("{}")
             temp_path = f.name
-        
+
         try:
             with self.assertRaises(ValueError) as context:
                 load_spec(temp_path)
-            
+
             self.assertIn("missing required 'experiment' field", str(context.exception))
         finally:
             import os
@@ -382,11 +382,11 @@ class TestLoadSpec(unittest.TestCase):
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             f.write("null")
             temp_path = f.name
-        
+
         try:
             with self.assertRaises(ValueError) as context:
                 load_spec(temp_path)
-            
+
             self.assertIn("missing required 'experiment' field", str(context.exception))
         finally:
             import os
@@ -396,9 +396,9 @@ class TestLoadSpec(unittest.TestCase):
     def test_load_spec_calls_load_raw(self, mock_load_raw):
         """Test that load_spec calls _load_raw."""
         mock_load_raw.return_value = {"experiment": "test"}
-        
+
         spec = load_spec("test.json")
-        
+
         mock_load_raw.assert_called_once_with("test.json")
         self.assertEqual(spec.experiment, "test")
 
@@ -413,7 +413,7 @@ class TestSpecDefaults(unittest.TestCase):
         self.assertIn("output_dir", SPEC_DEFAULTS)
         self.assertIn("strategy", SPEC_DEFAULTS)
         self.assertIn("parallelism", SPEC_DEFAULTS)
-        
+
         self.assertEqual(SPEC_DEFAULTS["iterations"], {"warmup": 0, "measured": 1})
         self.assertEqual(SPEC_DEFAULTS["instrumentation"], ["timing"])
         self.assertEqual(SPEC_DEFAULTS["output_dir"], "benchmarks/results")

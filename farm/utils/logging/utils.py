@@ -30,13 +30,13 @@ def log_performance(
     slow_threshold_ms: float = 100.0,
 ) -> Callable[[F], F]:
     """Decorator to log function performance metrics.
-    
+
     Args:
         operation_name: Name of the operation (defaults to function name)
         log_args: Whether to log function arguments
         log_result: Whether to log function result
         slow_threshold_ms: Threshold in ms to log slow operations
-        
+
     Example:
         @log_performance(operation_name="agent_step", slow_threshold_ms=50.0)
         def step(self, action):
@@ -48,31 +48,31 @@ def log_performance(
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             logger = get_logger(func.__module__)
             op_name = operation_name or func.__name__
-            
+
             # Prepare log context
             log_context = {"operation": op_name}
             if log_args:
                 # Be careful with large objects
                 log_context["args"] = str(args)[:200]  # Truncate
                 log_context["kwargs"] = {k: str(v)[:100] for k, v in kwargs.items()}
-            
+
             start_time = time.perf_counter()
             try:
                 result = func(*args, **kwargs)
                 duration_ms = (time.perf_counter() - start_time) * 1000
-                
+
                 log_context["duration_ms"] = round(duration_ms, 2)
                 log_context["status"] = "success"
-                
+
                 if log_result and result is not None:
                     log_context["result"] = str(result)[:200]  # Truncate
-                
+
                 # Log at different levels based on duration
                 if duration_ms > slow_threshold_ms:
                     logger.warning("operation_slow", **log_context)
                 else:
                     logger.debug("operation_complete", **log_context)
-                
+
                 return result
             except Exception as e:
                 duration_ms = (time.perf_counter() - start_time) * 1000
@@ -80,20 +80,20 @@ def log_performance(
                 log_context["status"] = "error"
                 log_context["error"] = str(e)
                 log_context["error_type"] = type(e).__name__
-                
+
                 logger.error("operation_failed", **log_context, exc_info=True)
                 raise
-        
+
         return cast(F, wrapper)
     return decorator
 
 
 def log_errors(logger_name: Optional[str] = None) -> Callable[[F], F]:
     """Decorator to automatically log errors with context.
-    
+
     Args:
         logger_name: Name for logger (defaults to function module)
-        
+
     Example:
         @log_errors()
         def risky_operation(self, data):
@@ -122,10 +122,10 @@ def log_errors(logger_name: Optional[str] = None) -> Callable[[F], F]:
 @contextmanager
 def log_context(**kwargs: Any):
     """Context manager to temporarily bind logging context.
-    
+
     Args:
         **kwargs: Context key-value pairs to bind
-        
+
     Example:
         with log_context(simulation_id="sim_001", step=42):
             # All logs here will include simulation_id and step
@@ -141,11 +141,11 @@ def log_context(**kwargs: Any):
 @contextmanager
 def log_step(step_number: int, **extra_context: Any):
     """Context manager for logging a simulation step.
-    
+
     Args:
         step_number: Current step number
         **extra_context: Additional context to bind
-        
+
     Example:
         with log_step(step_number=42, simulation_id="sim_001"):
             # All logs will include step_number and simulation_id
@@ -153,7 +153,7 @@ def log_step(step_number: int, **extra_context: Any):
     """
     logger = get_logger("farm.simulation")
     context = {"step": step_number, **extra_context}
-    
+
     try:
         bind_context(**context)
         logger.debug("step_started", step=step_number)
@@ -177,17 +177,17 @@ def log_step(step_number: int, **extra_context: Any):
 @contextmanager
 def log_simulation(simulation_id: str, **config: Any):
     """Context manager for logging an entire simulation run.
-    
+
     Args:
         simulation_id: Unique simulation identifier
         **config: Simulation configuration to log
-        
+
     Example:
         with log_simulation(simulation_id="sim_001", num_agents=100, num_steps=1000):
             run_simulation()
     """
     logger = get_logger("farm.simulation")
-    
+
     try:
         bind_context(simulation_id=simulation_id)
         logger.info("simulation_started", simulation_id=simulation_id, **config)
@@ -215,12 +215,12 @@ def log_simulation(simulation_id: str, **config: Any):
 @contextmanager
 def log_experiment(experiment_id: str, experiment_name: str, **config: Any):
     """Context manager for logging an experiment (multiple simulations).
-    
+
     Args:
         experiment_id: Unique experiment identifier
         experiment_name: Human-readable experiment name
         **config: Experiment configuration to log
-        
+
     Example:
         with log_experiment(
             experiment_id="exp_001",
@@ -230,7 +230,7 @@ def log_experiment(experiment_id: str, experiment_name: str, **config: Any):
             run_experiment()
     """
     logger = get_logger("farm.experiment")
-    
+
     try:
         bind_context(experiment_id=experiment_id, experiment_name=experiment_name)
         logger.info(
@@ -264,18 +264,18 @@ def log_experiment(experiment_id: str, experiment_name: str, **config: Any):
 
 class LogSampler:
     """Sample high-frequency logs to reduce noise.
-    
+
     Example:
         sampler = LogSampler(sample_rate=0.1)  # Log 10% of events
-        
+
         for i in range(1000):
             if sampler.should_log():
                 logger.debug("high_frequency_event", iteration=i)
     """
-    
+
     def __init__(self, sample_rate: float = 1.0, min_interval_ms: float = 0):
         """Initialize log sampler.
-        
+
         Args:
             sample_rate: Fraction of events to log (0.0 to 1.0)
             min_interval_ms: Minimum time between logs in milliseconds
@@ -284,25 +284,25 @@ class LogSampler:
         self.min_interval_ms = min_interval_ms
         self.last_log_time = 0.0
         self.counter = 0
-    
+
     def should_log(self) -> bool:
         """Determine if this event should be logged."""
         self.counter += 1
-        
+
         # Check time-based sampling
         if self.min_interval_ms > 0:
             current_time = time.perf_counter() * 1000
             if current_time - self.last_log_time < self.min_interval_ms:
                 return False
             self.last_log_time = current_time
-        
+
         # Check rate-based sampling
         if self.sample_rate < 1.0:
             import random
             return random.random() < self.sample_rate
-        
+
         return True
-    
+
     def reset(self) -> None:
         """Reset sampler state."""
         self.counter = 0
@@ -311,10 +311,10 @@ class LogSampler:
 
 class AgentLogger:
     """Specialized logger for agent-related events with automatic context binding."""
-    
+
     def __init__(self, agent_id: str, agent_type: str = "unknown"):
         """Initialize agent logger.
-        
+
         Args:
             agent_id: Unique agent identifier
             agent_type: Type of agent (system, independent, control, etc.)
@@ -325,7 +325,7 @@ class AgentLogger:
             agent_id=agent_id,
             agent_type=agent_type,
         )
-    
+
     def log_action(
         self,
         action_type: str,
@@ -334,7 +334,7 @@ class AgentLogger:
         **details: Any,
     ) -> None:
         """Log an agent action.
-        
+
         Args:
             action_type: Type of action taken
             success: Whether action was successful
@@ -348,7 +348,7 @@ class AgentLogger:
             reward=reward,
             **details,
         )
-    
+
     def log_state_change(
         self,
         state_type: str,
@@ -357,7 +357,7 @@ class AgentLogger:
         **context: Any,
     ) -> None:
         """Log a state change.
-        
+
         Args:
             state_type: Type of state that changed
             old_value: Previous value
@@ -371,7 +371,7 @@ class AgentLogger:
             new_value=new_value,
             **context,
         )
-    
+
     def log_interaction(
         self,
         interaction_type: str,
@@ -379,7 +379,7 @@ class AgentLogger:
         **details: Any,
     ) -> None:
         """Log an interaction with another agent or resource.
-        
+
         Args:
             interaction_type: Type of interaction
             target_id: ID of interaction target
@@ -391,19 +391,19 @@ class AgentLogger:
             target_id=target_id,
             **details,
         )
-    
+
     def log_death(self, cause: str, **context: Any) -> None:
         """Log agent death.
-        
+
         Args:
             cause: Cause of death
             **context: Additional context
         """
         self.logger.info("agent_died", cause=cause, **context)
-    
+
     def log_birth(self, parent_ids: Optional[list[str]] = None, **context: Any) -> None:
         """Log agent birth/creation.
-        
+
         Args:
             parent_ids: IDs of parent agents (if any)
             **context: Additional context
@@ -413,10 +413,10 @@ class AgentLogger:
 
 class DatabaseLogger:
     """Specialized logger for database operations with automatic context binding."""
-    
+
     def __init__(self, db_path: str, simulation_id: Optional[str] = None):
         """Initialize database logger.
-        
+
         Args:
             db_path: Path to database file
             simulation_id: Optional simulation ID to bind
@@ -428,7 +428,7 @@ class DatabaseLogger:
         )
         if simulation_id:
             self.logger = self.logger.bind(simulation_id=simulation_id)
-    
+
     def log_query(
         self,
         query_type: str,
@@ -438,7 +438,7 @@ class DatabaseLogger:
         **details: Any,
     ) -> None:
         """Log a database query.
-        
+
         Args:
             query_type: Type of query (select, insert, update, delete)
             table: Table name
@@ -454,7 +454,7 @@ class DatabaseLogger:
             rows=rows,
             **details,
         )
-    
+
     def log_transaction(
         self,
         status: str,
@@ -462,7 +462,7 @@ class DatabaseLogger:
         **details: Any,
     ) -> None:
         """Log a database transaction.
-        
+
         Args:
             status: Transaction status (commit, rollback, begin)
             duration_ms: Transaction duration
@@ -478,10 +478,10 @@ class DatabaseLogger:
 
 class PerformanceMonitor:
     """Context manager for detailed performance monitoring."""
-    
+
     def __init__(self, operation: str, logger_name: str = "farm.performance"):
         """Initialize performance monitor.
-        
+
         Args:
             operation: Name of operation being monitored
             logger_name: Logger to use
@@ -490,16 +490,16 @@ class PerformanceMonitor:
         self.logger = get_logger(logger_name)
         self.start_time = 0.0
         self.checkpoints: List[Tuple[str, float]] = []
-    
+
     def __enter__(self):
         """Start monitoring."""
         self.start_time = time.perf_counter()
         self.logger.debug(f"{self.operation}_started")
         return self
-    
+
     def checkpoint(self, name: str) -> None:
         """Record a checkpoint.
-        
+
         Args:
             name: Checkpoint name
         """
@@ -511,11 +511,11 @@ class PerformanceMonitor:
             checkpoint=name,
             elapsed_ms=round(elapsed, 2),
         )
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         """End monitoring and log results."""
         total_ms = (time.perf_counter() - self.start_time) * 1000
-        
+
         if exc_type is None:
             self.logger.info(
                 "operation_completed",

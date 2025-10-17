@@ -87,8 +87,8 @@ def query_database(db_path: str) -> None:
             # Query actions by type
             cursor.execute(
                 f"""
-                SELECT action_type, COUNT(*) 
-                FROM agent_actions 
+                SELECT action_type, COUNT(*)
+                FROM agent_actions
                 WHERE simulation_id = ?
                 GROUP BY action_type
             """,

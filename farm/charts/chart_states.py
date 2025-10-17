@@ -142,7 +142,7 @@ if __name__ == "__main__":
     try:
         # Modified query to include starting_health from agents table
         query = """
-        SELECT s.*, a.starting_health, a.starvation_counter 
+        SELECT s.*, a.starting_health, a.starvation_counter
         FROM agent_states s
         JOIN agents a ON s.agent_id = a.agent_id
         """

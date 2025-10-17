@@ -43,11 +43,11 @@ def process_social_behavior_data(
             'value': [1.5, 100, 0.3],
             'description': ['Overall cooperation-competition ratio: 1.500', 'Total social interactions: 100', 'Clustering ratio: 0.300']
         })
-    
+
     # Convert to Path if it's a string
     if isinstance(experiment_path, str):
         experiment_path = Path(experiment_path)
-    
+
     # Find simulation database
     db_path = experiment_path / "simulation.db"
     if not db_path.exists():

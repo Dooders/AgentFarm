@@ -129,12 +129,12 @@ class TestLearningExperienceLoggingIntegration(unittest.TestCase):
 
         # Verify data structure
         cursor.execute("""
-            SELECT 
-                step_number, 
-                agent_id, 
-                module_type, 
-                action_taken, 
-                action_taken_mapped, 
+            SELECT
+                step_number,
+                agent_id,
+                module_type,
+                action_taken,
+                action_taken_mapped,
                 reward
             FROM learning_experiences
             ORDER BY step_number

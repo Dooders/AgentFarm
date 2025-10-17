@@ -114,4 +114,3 @@ def analyze_hotspots(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> None:
     ctx.logger.info(f"Saved hotspot analysis to {output_file}")
     ctx.report_progress("Hotspot analysis complete", 0.9)
 
-

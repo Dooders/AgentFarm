@@ -672,7 +672,7 @@ def _build_interactive_html(
 </head>
 <body>
   <div class=\"container\">
-    <div class=\"row\" style=\"gap: 16px\"> 
+    <div class=\"row\" style=\"gap: 16px\">
       <div class=\"col\">
         <div class=\"card\">
           <div class=\"panel\">

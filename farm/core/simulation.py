@@ -168,7 +168,7 @@ from farm.core.agent import AgentFactory
 from farm.core.agent.config.agent_config import ResourceConfig
 from farm.core.environment import Environment
 from farm.utils.identity import Identity
-from farm.utils.logging import get_logger, log_simulation, log_step
+from farm.utils.logging import configure_logging, get_logger, log_simulation, log_step
 
 # Shared Identity instance for efficiency
 _shared_identity = Identity()
@@ -328,6 +328,7 @@ def run_simulation(
     seed: Optional[int] = None,
     simulation_id: Optional[str] = None,
     identity: Optional[Identity] = None,
+    disable_console_logging: bool = False,
 ) -> Environment:
     """
     Run the main simulation loop with component-based agent architecture.
@@ -355,6 +356,8 @@ def run_simulation(
         Unique ID for this simulation run. If None, one will be generated.
     identity : Optional[Identity], optional
         Identity service instance for ID generation. If None, uses shared instance.
+    disable_console_logging : bool, optional
+        Whether to disable console logging during simulation (useful with tqdm), by default False
 
     Returns
     -------
@@ -384,6 +387,10 @@ def run_simulation(
 
         # Initialize all random seeds
         init_random_seeds(seed)
+
+    # Configure logging with console control if requested
+    if disable_console_logging:
+        configure_logging(disable_console=True)
 
     # Log simulation start
     logger.info(
@@ -526,6 +533,7 @@ def run_simulation(
         disable_tqdm = (
             os.environ.get("CI", "").lower() in ("true", "1") or os.environ.get("GITHUB_ACTIONS", "").lower() == "true"
         )
+
         for step in tqdm(
             range(num_steps),
             desc="Simulation progress",
@@ -671,15 +679,18 @@ def run_simulation(
     avg_step_time_ms = (total_duration * 1000) / max(environment.time, 1)
 
     # Count births and deaths from database or metrics
-    birth_count = (
-        getattr(environment.metrics_tracker, "total_births", 0) if environment.metrics_tracker is not None else 0
-    )
-    death_count = (
-        getattr(environment.metrics_tracker, "total_deaths", 0) if environment.metrics_tracker is not None else 0
-    )
-    reproduction_count = (
-        getattr(environment.metrics_tracker, "total_reproductions", 0) if environment.metrics_tracker is not None else 0
-    )
+    birth_count = 0
+    death_count = 0
+    reproduction_count = 0
+
+    if (
+        environment.metrics_tracker is not None
+        and hasattr(environment.metrics_tracker, "cumulative_metrics")
+        and environment.metrics_tracker.cumulative_metrics is not None
+    ):
+        birth_count = getattr(environment.metrics_tracker.cumulative_metrics, "total_births", 0)
+        death_count = getattr(environment.metrics_tracker.cumulative_metrics, "total_deaths", 0)
+        reproduction_count = getattr(environment.metrics_tracker.cumulative_metrics, "total_reproduction_successes", 0)
 
     # Calculate initial population for logging
     def calculate_initial_population(config):

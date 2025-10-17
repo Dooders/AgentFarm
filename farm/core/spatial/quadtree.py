@@ -38,13 +38,13 @@ class QuadtreeNode:
         x, y, width, height = self.bounds
         half_width = width / 2
         half_height = height / 2
-        
+
         # Prevent infinite subdivision by checking minimum size
         if half_width < 1e-10 or half_height < 1e-10:
             # Keep entities in this node if subdivision would create nodes too small
             self.is_divided = False
             return
-            
+
         # Subdivide the region into four equal quadrants
         self.children = [
             QuadtreeNode((x, y, half_width, half_height), self.capacity),

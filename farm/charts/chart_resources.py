@@ -109,7 +109,7 @@ if __name__ == "__main__":
 
     # Create engine
     engine = create_engine(connection_string)
-    
+
     df = pd.read_sql("SELECT * FROM Resource_States", engine)
 
     main(df)

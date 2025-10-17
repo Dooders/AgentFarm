@@ -11,13 +11,13 @@ Basic comparison with text output:
       status:
         Simulation 1: completed
         Simulation 2: completed
-    
+
     Parameter Changes:
       Changed parameters:
         environment.resource_density:
           From: 0.1
           To:   0.2
-    
+
     Metric Differences:
       total_agents:
         Mean difference: +5.321
@@ -120,58 +120,58 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Compare two simulation runs and display their differences"
     )
-    
+
     parser.add_argument(
         "sim1_id",
         type=int,
         help="ID of first simulation to compare"
     )
-    
+
     parser.add_argument(
         "sim2_id",
         type=int,
         help="ID of second simulation to compare"
     )
-    
+
     parser.add_argument(
         "--db-path",
         type=str,
         default="sqlite:///farm_simulation.db",
         help="Path to simulation database (default: farm_simulation.db)"
     )
-    
+
     parser.add_argument(
         "--format",
         choices=["text", "json"],
         default="text",
         help="Output format (default: text)"
     )
-    
+
     parser.add_argument(
         "--output",
         type=str,
         help="Output file path (default: stdout)"
     )
-    
+
     parser.add_argument(
         "--threshold",
         type=float,
         default=0.1,
         help="Threshold for significant changes (default: 0.1)"
     )
-    
+
     parser.add_argument(
         "--metrics-only",
         action="store_true",
         help="Show only metric differences"
     )
-    
+
     parser.add_argument(
         "--significant-only",
         action="store_true",
         help="Show only significant differences"
     )
-    
+
     return parser.parse_args()
 
 def format_json_output(
@@ -188,10 +188,10 @@ def format_json_output(
             if abs(stats["mean_difference"]) > threshold
         }
         differences["metrics"] = filtered_metrics
-        
+
         # Remove empty sections
         return {k: v for k, v in differences.items() if v}
-    
+
     return differences
 
 def format_text_output(
@@ -202,7 +202,7 @@ def format_text_output(
 ) -> List[str]:
     """Format comparison results as text."""
     lines = []
-    
+
     if not metrics_only:
         # Metadata differences
         if differences["metadata"]:
@@ -212,7 +212,7 @@ def format_text_output(
                 lines.append(f"    Simulation 1: {values['simulation_1']}")
                 lines.append(f"    Simulation 2: {values['simulation_2']}")
             lines.append("")
-        
+
         # Parameter differences
         if any(differences["parameters"].values()):
             lines.append("Parameter Changes:")
@@ -231,7 +231,7 @@ def format_text_output(
                     lines.append(f"      From: {change['old_value']}")
                     lines.append(f"      To:   {change['new_value']}")
             lines.append("")
-    
+
     # Metric differences
     if differences["metrics"]:
         lines.append("Metric Differences:")
@@ -244,22 +244,22 @@ def format_text_output(
                 lines.append(f"    Min difference:  {stats['min_difference']:+.3f}")
                 lines.append(f"    Std deviation difference: {stats['std_dev_difference']:+.3f}")
                 lines.append("")
-    
+
     return lines
 
 def main():
     """Main entry point for the comparison tool."""
     args = parse_args()
-    
+
     # Set up database connection
     engine = create_engine(args.db_path)
     Session = sessionmaker(bind=engine)
     session = Session()
-    
+
     try:
         # Get comparison data
         differences = compare_simulations(session, args.sim1_id, args.sim2_id)
-        
+
         # Format output
         if args.format == "json":
             output = format_json_output(
@@ -276,14 +276,14 @@ def main():
                 metrics_only=args.metrics_only
             )
             formatted_output = "\n".join(lines)
-        
+
         # Write output
         if args.output:
             with open(args.output, 'w') as f:
                 f.write(formatted_output)
         else:
             print(formatted_output)
-            
+
     except Exception as e:
         print(f"Error: {str(e)}", file=sys.stderr)
         sys.exit(1)

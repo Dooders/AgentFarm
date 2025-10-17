@@ -94,7 +94,7 @@ def register_analysis():
     Register all analysis functions for the dominance module.
     This makes it easy to get all functions or specific groups of functions.
     """
-    global _ANALYSIS_FUNCTIONS, _ANALYSIS_GROUPS
+    global _ANALYSIS_FUNCTIONS, _ANALYSIS_GROUPS  # noqa: F824
 
     # Register all plot functions
     _ANALYSIS_FUNCTIONS.update(

@@ -14,7 +14,7 @@ class AnalysisError(Exception):
 
 class DataValidationError(AnalysisError):
     """Raised when data doesn't meet required schema or constraints."""
-    
+
     def __init__(
         self,
         message: str,
@@ -24,7 +24,7 @@ class DataValidationError(AnalysisError):
         super().__init__(message)
         self.missing_columns = missing_columns or set()
         self.invalid_columns = invalid_columns or {}
-    
+
     def __str__(self) -> str:
         parts = [super().__str__()]
         if self.missing_columns:
@@ -36,7 +36,7 @@ class DataValidationError(AnalysisError):
 
 class ModuleNotFoundError(AnalysisError):
     """Raised when requested analysis module doesn't exist."""
-    
+
     def __init__(self, module_name: str, available_modules: List[str]):
         self.module_name = module_name
         self.available_modules = available_modules
@@ -53,7 +53,7 @@ class DataLoaderError(AnalysisError):
 
 class DataProcessingError(AnalysisError):
     """Raised when data processing fails."""
-    
+
     def __init__(self, message: str, step: Optional[str] = None):
         self.step = step
         if step:
@@ -63,7 +63,7 @@ class DataProcessingError(AnalysisError):
 
 class AnalysisFunctionError(AnalysisError):
     """Raised when an analysis function fails."""
-    
+
     def __init__(self, function_name: str, original_error: Exception):
         self.function_name = function_name
         self.original_error = original_error
@@ -79,7 +79,7 @@ class ConfigurationError(AnalysisError):
 
 class InsufficientDataError(AnalysisError):
     """Raised when there's not enough data to perform analysis."""
-    
+
     def __init__(self, message: str, required_rows: Optional[int] = None, actual_rows: Optional[int] = None):
         self.required_rows = required_rows
         self.actual_rows = actual_rows
@@ -95,7 +95,7 @@ class VisualizationError(AnalysisError):
 
 class DatabaseError(AnalysisError):
     """Raised when database operations fail."""
-    
+
     def __init__(self, message: str, db_path: Optional[str] = None):
         self.db_path = db_path
         if db_path:

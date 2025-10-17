@@ -35,7 +35,7 @@ class DominanceModule(BaseAnalysisModule):
             name="dominance",
             description="Analysis of agent dominance patterns in simulations",
         )
-        
+
         # Set up validation
         validator = CompositeValidator([
             ColumnValidator(
@@ -55,7 +55,7 @@ class DominanceModule(BaseAnalysisModule):
             ),
             name="plot_correlation_matrix"
         )
-        
+
         # Register all functions with wrapping
         self._functions = {
             "plot_dominance_distribution": make_analysis_function(plot_dominance_distribution),

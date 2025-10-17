@@ -122,7 +122,7 @@ def run_basic_benchmark():
 
     # Discover experiments
     REGISTRY.discover_package("benchmarks.implementations")
-    
+
     params = {
         "width": 200,      # Standard environment
         "height": 200,     # Standard environment
@@ -148,7 +148,7 @@ def run_basic_benchmark():
         output_dir="benchmark_results",
         iterations_measured=1,
     )
-    
+
     results = runner.run()
     display_results(results, params, "Basic Benchmark")
     document_results(results, params, "Basic Benchmark")
@@ -190,7 +190,7 @@ def run_high_stress_benchmark():
         output_dir="benchmark_results",
         iterations_measured=1,
     )
-    
+
     results = runner.run()
     display_results(results, params, "High-Stress Benchmark")
 
@@ -234,7 +234,7 @@ def run_ultra_stress_benchmark():
         output_dir="benchmark_results",
         iterations_measured=1,
     )
-    
+
     results = runner.run()
     display_results(results, params, "Ultra-Stress Benchmark")
 

@@ -11,7 +11,7 @@ T = TypeVar("T")
 
 class BaseRepository(Generic[T]):
     """Base repository class with common CRUD operations and session management.
-    
+
     This class implements the RepositoryProtocol[T] interface, providing standard
     CRUD operations with transaction safety and error handling.
     """

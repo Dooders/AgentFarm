@@ -198,7 +198,7 @@ class TestSimulationIDPropagation(unittest.TestCase):
 
         cursor.execute(
             """
-            SELECT simulation_id FROM agent_actions 
+            SELECT simulation_id FROM agent_actions
             WHERE agent_id = ? AND step_number = ?
         """,
             (agent_id, step_number),

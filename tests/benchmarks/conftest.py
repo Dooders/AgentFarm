@@ -26,17 +26,17 @@ def mock_experiment():
             self.setup_called = False
             self.teardown_called = False
             self.execute_count = 0
-        
+
         def setup(self, context):
             self.setup_called = True
-        
+
         def execute_once(self, context):
             self.execute_count += 1
             return {"iteration": self.execute_count, "run_id": context.run_id}
-        
+
         def teardown(self, context):
             self.teardown_called = True
-    
+
     return MockExperiment
 
 
@@ -59,15 +59,15 @@ def mock_instrumentation():
     """Mock instrumentation tools."""
     with pytest.MonkeyPatch().context() as m:
         # Mock timing instrumentation
-        m.setattr('benchmarks.core.instrumentation.timing.time_block', 
+        m.setattr('benchmarks.core.instrumentation.timing.time_block',
                  lambda metrics, key: Mock())
-        
+
         # Mock cProfile instrumentation
         m.setattr('benchmarks.core.instrumentation.cprofile.cprofile_capture',
                  lambda *args, **kwargs: Mock())
-        
+
         # Mock psutil instrumentation
         m.setattr('benchmarks.core.instrumentation.psutil_monitor.psutil_sampling',
                  lambda *args, **kwargs: Mock())
-        
+
         yield m

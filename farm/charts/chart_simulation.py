@@ -85,25 +85,25 @@ def plot_births_and_deaths_by_type(dataframe, connection_string=None):
     try:
         engine = create_engine(connection_string)
         events_query = """
-        SELECT 
+        SELECT
             time_point as step_number,
             agent_type,
             COUNT(CASE WHEN event_type = 'birth' THEN 1 END) as births,
             COUNT(CASE WHEN event_type = 'death' THEN 1 END) as deaths
         FROM (
-            SELECT 
+            SELECT
                 birth_time as time_point,
                 agent_type,
                 'birth' as event_type
-            FROM agents 
+            FROM agents
             WHERE birth_time >= 20
             UNION ALL
-            SELECT 
+            SELECT
                 death_time as time_point,
                 agent_type,
                 'death' as event_type
-            FROM agents 
-            WHERE death_time IS NOT NULL 
+            FROM agents
+            WHERE death_time IS NOT NULL
             AND death_time >= 20
         ) events
         GROUP BY time_point, agent_type
@@ -410,7 +410,7 @@ def plot_agent_type_comparison(dataframe, connection_string=None):
 
     # Calculate average resources per agent type
     resources_query = """
-    SELECT 
+    SELECT
         a.agent_type,
         COALESCE(AVG(CAST(s.resource_level AS FLOAT)), 0) as avg_resources,
         COALESCE(AVG(CAST(s.current_health AS FLOAT)), 0) as avg_health,
@@ -515,7 +515,7 @@ def plot_reproduction_success_rate(dataframe, connection_string=None):
     # Query reproduction events data
     engine = create_engine(connection_string)
     repro_query = """
-    SELECT 
+    SELECT
         step_number,
         COUNT(*) as total_attempts,
         SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successful_attempts
@@ -566,7 +566,7 @@ def plot_reproduction_resources(dataframe, connection_string=None):
     # Query reproduction events data
     engine = create_engine(connection_string)
     resource_query = """
-    SELECT 
+    SELECT
         parent_resources_before,
         parent_resources_after,
         offspring_initial_resources
@@ -603,7 +603,7 @@ def plot_generational_analysis(dataframe, connection_string=None):
     # Query generation data
     engine = create_engine(connection_string)
     gen_query = """
-    SELECT 
+    SELECT
         parent_generation,
         COUNT(*) as total_attempts,
         SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successful_attempts,
@@ -650,12 +650,12 @@ def plot_reproduction_failure_reasons(dataframe, connection_string=None):
     # Query reproduction events data for failures
     engine = create_engine(connection_string)
     failure_query = """
-    SELECT 
+    SELECT
         step_number,
         failure_reason,
         COUNT(*) as count
     FROM reproduction_events
-    WHERE success = 0 
+    WHERE success = 0
         AND failure_reason IS NOT NULL
     GROUP BY step_number, failure_reason
     ORDER BY step_number
