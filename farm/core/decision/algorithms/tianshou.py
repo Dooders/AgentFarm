@@ -433,15 +433,17 @@ class TianshouWrapper(RLAlgorithm):
                 from tianshou.policy import DQNPolicy
                 import torch.nn as nn
 
-                # Create Q-network that handles both 1D and 3D observations
+                # Create Q-network that handles 1D, 2D, and 3D observations
                 class AdaptiveQNet(nn.Module):
                     def __init__(self, observation_shape, num_actions, device):
                         super().__init__()
                         self.observation_shape = observation_shape
-                        self.is_spatial = len(observation_shape) > 1
+                        # Only treat as spatial if we have 3D observations (C, H, W)
+                        # 2D observations are flattened feature vectors, not spatial
+                        self.is_spatial = len(observation_shape) == 3
 
                         if self.is_spatial:
-                            # CNN layers for spatial processing (3D observations)
+                            # CNN layers for spatial processing (3D observations: C, H, W)
                             self.conv_layers = nn.Sequential(
                                 nn.Conv2d(observation_shape[0], 32, kernel_size=3, stride=1, padding=1),
                                 nn.ReLU(),
@@ -467,7 +469,8 @@ class TianshouWrapper(RLAlgorithm):
                                 nn.Linear(256, num_actions),  # Q-values for each action
                             )
                         else:
-                            # Fully connected layers for 1D observations
+                            # Fully connected layers for 1D and 2D observations
+                            # 2D observations are flattened feature vectors
                             input_size = observation_shape[0]
                             self.q_layers = nn.Sequential(
                                 nn.Linear(input_size, 512),
@@ -480,9 +483,14 @@ class TianshouWrapper(RLAlgorithm):
                             )
 
                     def forward(self, obs, state=None, info=None):
-                        # Handle both batched and single observations
+                        # Handle different observation dimensions
                         if obs.dim() == 1:  # Single 1D observation
                             obs = obs.unsqueeze(0)  # Add batch dimension
+                        elif obs.dim() == 2:  # Single 2D observation (batch_size, features) or (features,)
+                            if obs.shape[0] == self.observation_shape[0]:
+                                # This is a single observation with shape (features,)
+                                obs = obs.unsqueeze(0)  # Add batch dimension
+                            # Otherwise, it's already batched (batch_size, features)
                         elif obs.dim() == 3:  # Single 3D observation (C, H, W)
                             obs = obs.unsqueeze(0)  # Add batch dimension
 
