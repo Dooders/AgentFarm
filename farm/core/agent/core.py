@@ -50,6 +50,7 @@ class AgentCore:
         initial_resources: float = 100.0,
         generation: int = 0,
         parent_ids: Optional[list[str]] = None,
+        agent_type: str = "AgentCore",
     ):
         """
         Initialize agent core.
@@ -66,8 +67,10 @@ class AgentCore:
             initial_resources: Starting resource level
             generation: Generation number
             parent_ids: IDs of parent agents
+            agent_type: Type of agent (e.g., 'system', 'independent', 'control')
         """
         self.agent_id = agent_id
+        self.agent_type = agent_type
         self.services = services
         self.behavior = behavior
         self.config = config

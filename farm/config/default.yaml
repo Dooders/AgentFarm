@@ -221,6 +221,11 @@ commit_interval_seconds: 30
 # Database export settings
 export_batch_size: 1000
 
+# Database validation settings
+enable_validation: true
+validation_include_integrity: true
+validation_include_statistical: true
+
 # Curriculum learning phases
 curriculum_phases:
   - steps: 100

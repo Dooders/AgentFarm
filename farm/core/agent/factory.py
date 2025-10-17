@@ -47,6 +47,7 @@ class AgentFactory:
         initial_resources: float = 100.0,
         config: Optional[AgentComponentConfig] = None,
         environment=None,
+        agent_type: str = "AgentCore",
     ) -> AgentCore:
         """
         Create a default agent with random action selection.
@@ -62,6 +63,7 @@ class AgentFactory:
             initial_resources: Starting resources
             config: Agent configuration (uses default if None)
             environment: Optional environment reference
+            agent_type: Type of agent (e.g., 'system', 'independent', 'control')
             
         Returns:
             AgentCore instance with default behavior
@@ -91,6 +93,7 @@ class AgentFactory:
             config=config,
             environment=environment,
             initial_resources=initial_resources,
+            agent_type=agent_type,
         )
         
         return agent

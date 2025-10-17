@@ -1318,7 +1318,7 @@ class Environment(AECEnv):
                 "simulation_id": self.simulation_id,
                 "agent_id": agent.agent_id,
                 "birth_time": self.time,
-                "agent_type": agent.__class__.__name__,
+                "agent_type": getattr(agent, "agent_type", agent.__class__.__name__),
                 "position": agent.position,
                 "initial_resources": agent.resource_level,
                 "starting_health": (

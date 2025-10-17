@@ -122,6 +122,7 @@ def create_initial_agents(
             position=position,
             initial_resources=int(environment.config.agent_behavior.initial_resource_level),
             environment=environment,
+            agent_type="system",
         )
         environment.add_agent(agent)
         positions.append(position)
@@ -134,6 +135,7 @@ def create_initial_agents(
             position=position,
             initial_resources=int(environment.config.agent_behavior.initial_resource_level),
             environment=environment,
+            agent_type="independent",
         )
         environment.add_agent(agent)
         positions.append(position)
@@ -146,6 +148,7 @@ def create_initial_agents(
             position=position,
             initial_resources=int(environment.config.agent_behavior.initial_resource_level),
             environment=environment,
+            agent_type="control",
         )
         environment.add_agent(agent)
         positions.append(position)
@@ -572,6 +575,41 @@ def run_simulation(
             else "completed"
         ),
     )
+
+    # Validate database (runs by default if enabled in config)
+    if config.database.enable_validation and hasattr(environment, 'db') and environment.db and hasattr(environment.db, 'db_path'):
+        try:
+            from farm.database.validation import validate_simulation_database
+            logger.info("simulation_database_validation_starting", database_path=environment.db.db_path)
+            
+            validation_report = validate_simulation_database(
+                environment.db.db_path,
+                simulation_id=simulation_id,
+                include_integrity=config.database.validation_include_integrity,
+                include_statistical=config.database.validation_include_statistical
+            )
+            
+            if not validation_report.is_clean():
+                logger.warning(
+                    "simulation_validation_issues",
+                    warnings=validation_report.warning_count,
+                    errors=validation_report.error_count,
+                    duration_seconds=round(validation_report.end_time - validation_report.start_time, 2)
+                )
+            else:
+                logger.info(
+                    "simulation_database_validation_passed",
+                    checks_performed=validation_report.total_checks,
+                    duration_seconds=round(validation_report.end_time - validation_report.start_time, 2)
+                )
+        except Exception as e:
+            logger.warning("simulation_validation_error", error=str(e))
+    else:
+        if not config.database.enable_validation:
+            logger.info("simulation_database_validation_skipped", reason="Validation disabled in configuration")
+        else:
+            logger.info("simulation_database_validation_skipped", reason="No database available")
+
     return environment
 
 

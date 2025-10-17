@@ -371,9 +371,10 @@ class MetricsTracker:
             total_agents = len(alive_agents)
 
             # Calculate agent type counts
-            # Count "system" agents as those with agent_type containing "System" or just count BaseAgent instances
-            # Since both BaseAgent and AgentCore are used now, check by agent_type attribute
-            system_agents = len([a for a in alive_agents if hasattr(a, 'agent_type') and 'System' in str(a.agent_type)])
+            # Count agents by their agent_type attribute
+            system_agents = len([a for a in alive_agents if hasattr(a, 'agent_type') and str(a.agent_type) == 'system'])
+            independent_agents = len([a for a in alive_agents if hasattr(a, 'agent_type') and str(a.agent_type) == 'independent'])
+            control_agents = len([a for a in alive_agents if hasattr(a, 'agent_type') and str(a.agent_type) == 'control'])
 
             # Get metrics from tracker
             tracker_metrics = self.get_step_metrics()
@@ -436,6 +437,8 @@ class MetricsTracker:
             metrics = {
                 "total_agents": total_agents,
                 "system_agents": system_agents,
+                "independent_agents": independent_agents,
+                "control_agents": control_agents,
                 "total_resources": total_resources,
                 "average_agent_resources": average_agent_resources,
                 "resources_consumed": resources_consumed,

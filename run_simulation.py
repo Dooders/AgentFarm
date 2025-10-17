@@ -106,6 +106,11 @@ def main():
         action="store_true",
         help="Enable console logging during simulation (disabled by default for clean tqdm output)",
     )
+    parser.add_argument(
+        "--skip-validation",
+        action="store_true",
+        help="Skip database validation after simulation completes",
+    )
     args = parser.parse_args()
 
     # Ensure simulations directory exists
@@ -248,6 +253,64 @@ def main():
             final_agent_count=len(environment.agents),
             output_dir=output_dir,
         )
+
+        # Validate database integrity (runs by default unless skipped)
+        should_validate = not args.skip_validation and config.database.enable_validation
+        if should_validate:
+            if environment.db and hasattr(environment.db, 'db_path'):
+                try:
+                    from farm.database.validation import validate_simulation_database
+                    logger.info("database_validation_starting", database_path=environment.db.db_path)
+                    print("🔍 Running database validation...", flush=True)
+                    
+                    validation_report = validate_simulation_database(
+                        environment.db.db_path,
+                        simulation_id=environment.simulation_id,
+                        include_integrity=config.database.validation_include_integrity,
+                        include_statistical=config.database.validation_include_statistical
+                    )
+                    
+                    if validation_report.has_warnings():
+                        logger.warning(
+                            "database_validation_warnings",
+                            warnings=validation_report.warning_count,
+                            details=validation_report.get_summary()
+                        )
+                        print(f"⚠️  Database validation found {validation_report.warning_count} warnings", flush=True)
+                    
+                    if validation_report.has_errors():
+                        logger.error(
+                            "database_validation_errors",
+                            errors=validation_report.error_count,
+                            details=validation_report.get_summary()
+                        )
+                        print(f"❌ Database validation found {validation_report.error_count} errors", flush=True)
+                    else:
+                        logger.info(
+                            "database_validation_passed",
+                            checks_performed=validation_report.total_checks,
+                            duration_seconds=round(validation_report.end_time - validation_report.start_time, 2)
+                        )
+                        print(f"✅ Database validation passed ({validation_report.total_checks} checks)", flush=True)
+                except Exception as e:
+                    logger.warning(
+                        "database_validation_failed",
+                        error=str(e),
+                        message="Validation could not complete but simulation succeeded"
+                    )
+                    print(f"⚠️  Database validation failed: {str(e)}", flush=True)
+            else:
+                logger.info(
+                    "database_validation_skipped",
+                    reason="No database found or database path not available"
+                )
+        else:
+            if args.skip_validation:
+                logger.info("database_validation_skipped", reason="Validation disabled by user")
+                print("⏭️  Database validation skipped (disabled by user)", flush=True)
+            elif not config.database.enable_validation:
+                logger.info("database_validation_skipped", reason="Validation disabled in configuration")
+                print("⏭️  Database validation skipped (disabled in configuration)", flush=True)
 
         # Check for empty simulation
         if len(environment.agents) == 0:
