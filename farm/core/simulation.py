@@ -237,6 +237,10 @@ def run_simulation(
         # Initialize all random seeds
         init_random_seeds(seed)
 
+    # Configure logging with console control if requested
+    if disable_console_logging:
+        configure_logging(disable_console=True)
+
     # Log simulation start
     logger.info(
         "simulation_starting",
@@ -378,8 +382,6 @@ def run_simulation(
         disable_tqdm = (
             os.environ.get("CI", "").lower() in ("true", "1") or os.environ.get("GITHUB_ACTIONS", "").lower() == "true"
         )
-
-        # Note: Console logging is already disabled if requested at the beginning of the function
 
         for step in tqdm(
             range(num_steps),
