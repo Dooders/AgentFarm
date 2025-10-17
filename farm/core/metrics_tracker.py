@@ -323,6 +323,16 @@ class MetricsTracker:
 
     def _prepare_agent_state(self, agent: AgentProtocol, time: int):
         """Prepare agent state for database logging."""
+        # Get starvation_counter from component-based agent
+        starvation_counter = 0
+        try:
+            resource_component = agent.get_component("resource")
+            if resource_component and hasattr(resource_component, 'starvation_counter'):
+                starvation_counter = resource_component.starvation_counter
+        except (AttributeError, TypeError, ValueError):
+            # Fallback to 0 if component access fails
+            pass
+        
         return (
             agent.agent_id,
             agent.position[0],  # x coordinate
@@ -330,7 +340,7 @@ class MetricsTracker:
             agent.resource_level,
             agent.current_health,
             agent.starting_health,
-            agent.get_component("resource").starvation_counter if agent.get_component("resource") else 0,
+            starvation_counter,
             int(agent.is_defending),
             agent.total_reward,
             time - agent.birth_time,  # age

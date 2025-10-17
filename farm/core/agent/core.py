@@ -198,7 +198,7 @@ class AgentCore:
     
     def act(self) -> None:
         """
-        Alias for step() for backward compatibility with BaseAgent.
+        Alias for step() for consistency with agent lifecycle.
         
         Executes one simulation step orchestrating component lifecycle,
         decision-making, and action execution.

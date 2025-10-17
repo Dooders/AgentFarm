@@ -1321,19 +1321,11 @@ class Environment(AECEnv):
                 "agent_type": getattr(agent, "agent_type", agent.__class__.__name__),
                 "position": agent.position,
                 "initial_resources": agent.resource_level,
-                "starting_health": (
-                    agent.get_component("combat").config.starting_health 
-                    if hasattr(agent, "get_component") and agent.get_component("combat") 
-                    else getattr(agent, "starting_health", 100.0)
-                ),
-                "starvation_counter": (
-                    agent.get_component("resource").starvation_counter 
-                    if hasattr(agent, "get_component") and agent.get_component("resource") 
-                    else getattr(agent, "starvation_counter", 0)
-                ),
+                "starting_health": self._get_agent_starting_health(agent),
+                "starvation_counter": self._get_agent_starvation_counter(agent),
                 "genome_id": getattr(agent, "genome_id", None),
                 "generation": getattr(agent, "generation", 0),
-                "action_weights": getattr(agent, "get_action_weights", lambda: {})() if hasattr(agent, "get_action_weights") else {},
+                "action_weights": self._get_agent_action_weights(agent),
             }
         ]
 
@@ -2349,6 +2341,75 @@ class Environment(AECEnv):
         )
 
         return observation, reward, terminated, truncated, {}
+
+    def _get_agent_starting_health(self, agent: Any) -> float:
+        """Get starting health from an AgentCore component-based agent.
+        
+        Args:
+            agent: AgentCore instance to get starting health from
+            
+        Returns:
+            Starting health value, or 100.0 as default
+        """
+        try:
+            combat_component = agent.get_component("combat")
+            if combat_component and hasattr(combat_component, "config") and hasattr(combat_component.config, "starting_health"):
+                return combat_component.config.starting_health
+            return 100.0
+        except (AttributeError, TypeError, ValueError) as e:
+            logger.debug(
+                "failed_to_get_starting_health",
+                agent_id=getattr(agent, "agent_id", "unknown"),
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
+            return 100.0
+
+    def _get_agent_starvation_counter(self, agent: Any) -> int:
+        """Get starvation counter from an AgentCore component-based agent.
+        
+        Args:
+            agent: AgentCore instance to get starvation counter from
+            
+        Returns:
+            Starvation counter value, or 0 as default
+        """
+        try:
+            resource_component = agent.get_component("resource")
+            if resource_component and hasattr(resource_component, "starvation_counter"):
+                return resource_component.starvation_counter
+            return 0
+        except (AttributeError, TypeError, ValueError) as e:
+            logger.debug(
+                "failed_to_get_starvation_counter",
+                agent_id=getattr(agent, "agent_id", "unknown"),
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
+            return 0
+
+    def _get_agent_action_weights(self, agent: Any) -> Dict[str, Any]:
+        """Get action weights from an AgentCore component-based agent.
+        
+        Args:
+            agent: AgentCore instance to get action weights from
+            
+        Returns:
+            Dict containing action weights, or empty dict if not available
+        """
+        try:
+            if hasattr(agent, "get_action_weights") and callable(agent.get_action_weights):
+                return agent.get_action_weights()
+            else:
+                return {}
+        except (AttributeError, TypeError, ValueError) as e:
+            logger.debug(
+                "failed_to_get_action_weights",
+                agent_id=getattr(agent, "agent_id", "unknown"),
+                error_type=type(e).__name__,
+                error_message=str(e),
+            )
+            return {}
 
     def get_perception_profile(self, reset: bool = False) -> Dict[str, float]:
         """Return aggregated perception profiling stats.

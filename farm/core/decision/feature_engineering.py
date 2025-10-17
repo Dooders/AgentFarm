@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, List
 import numpy as np
 
 if TYPE_CHECKING:
-    from farm.core.agent import BaseAgent
+    from farm.core.agent import AgentCore
     from farm.core.environment import Environment
 
 
@@ -17,7 +17,7 @@ class FeatureEngineer:
     """
 
     def extract_features(
-        self, agent: "BaseAgent", environment: "Environment"
+        self, agent: "AgentCore", environment: "Environment"
     ) -> np.ndarray:
         features: List[float] = []
 
@@ -55,7 +55,7 @@ class FeatureEngineer:
         return np.asarray(features, dtype=float)
 
     def _extract_environmental_features(
-        self, agent: "BaseAgent", environment: "Environment"
+        self, agent: "AgentCore", environment: "Environment"
     ) -> List[float]:
         # Nearby resource density normalized
         gathering_range = (
@@ -84,7 +84,7 @@ class FeatureEngineer:
         return [resource_density, starvation_ratio]
 
     def _extract_social_features(
-        self, agent: "BaseAgent", environment: "Environment"
+        self, agent: "AgentCore", environment: "Environment"
     ) -> List[float]:
         social_range = getattr(agent.config, "social_range", 30) if agent.config else 30
 
