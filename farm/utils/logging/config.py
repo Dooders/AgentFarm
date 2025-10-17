@@ -34,6 +34,7 @@ Usage:
 """
 
 import logging
+import os
 import statistics
 import sys
 import time
@@ -185,9 +186,7 @@ class MemoryEfficientContext(dict):
         self._frozen = True
         return self
 
-    def new_child(
-        self, child: Optional[Dict[str, Any]] = None
-    ) -> "MemoryEfficientContext":
+    def new_child(self, child: Optional[Dict[str, Any]] = None) -> "MemoryEfficientContext":
         """Create child context efficiently.
 
         Args:
@@ -264,9 +263,7 @@ def add_log_level(logger: Any, method_name: str, event_dict: EventDict) -> Event
     return event_dict
 
 
-def add_log_level_number(
-    logger: Any, method_name: str, event_dict: EventDict
-) -> EventDict:
+def add_log_level_number(logger: Any, method_name: str, event_dict: EventDict) -> EventDict:
     """Add numeric log level for filtering in log aggregation tools."""
     level_map = {
         "debug": 10,
@@ -301,9 +298,7 @@ def add_process_info(logger: Any, method_name: str, event_dict: EventDict) -> Ev
     return event_dict
 
 
-def censor_sensitive_data(
-    logger: Any, method_name: str, event_dict: EventDict
-) -> EventDict:
+def censor_sensitive_data(logger: Any, method_name: str, event_dict: EventDict) -> EventDict:
     """Censor sensitive information from logs."""
     sensitive_keys = {"password", "token", "secret", "api_key", "auth", "key"}
 
@@ -325,9 +320,7 @@ class PerformanceLogger:
     def __init__(self, slow_threshold_ms: float = 100.0):
         self.slow_threshold_ms = slow_threshold_ms
 
-    def __call__(
-        self, logger: Any, method_name: str, event_dict: EventDict
-    ) -> EventDict:
+    def __call__(self, logger: Any, method_name: str, event_dict: EventDict) -> EventDict:
         """Add performance warning for slow operations."""
         duration_ms = event_dict.get("duration_ms")
         if duration_ms and duration_ms > self.slow_threshold_ms:
@@ -343,9 +336,7 @@ class MetricsProcessor:
         self.start_time = time.time()
         self.event_counts: Dict[str, int] = {}
 
-    def __call__(
-        self, logger: Any, method_name: str, event_dict: EventDict
-    ) -> EventDict:
+    def __call__(self, logger: Any, method_name: str, event_dict: EventDict) -> EventDict:
         """Track metrics and add runtime."""
         event_name = event_dict.get("event", event_dict.get("message", "unknown"))
 
@@ -414,15 +405,12 @@ class SamplingProcessor:
             ValueError: If sample_rate is not within valid range or is 0.0
         """
         # Use provided minimum or class default
-        min_rate = (
-            min_sample_rate if min_sample_rate is not None else self.MIN_SAMPLE_RATE
-        )
+        min_rate = min_sample_rate if min_sample_rate is not None else self.MIN_SAMPLE_RATE
 
         # Explicit check for zero to provide clear error message
         if sample_rate == 0.0:
             raise ValueError(
-                "sample_rate cannot be 0.0 as it would cause division by zero. "
-                f"Use a value between {min_rate} and 1.0"
+                f"sample_rate cannot be 0.0 as it would cause division by zero. Use a value between {min_rate} and 1.0"
             )
 
         # Enforce practical minimum to avoid enormous sampling intervals
@@ -438,17 +426,13 @@ class SamplingProcessor:
         self.counter: Dict[str, int] = {}
         # Pre-compute interval once for performance; 1 means log all
         # Safe division since we've validated sample_rate > 0
-        self._sample_interval: int = (
-            1 if self.sample_rate >= 1.0 else max(1, int(round(1.0 / self.sample_rate)))
-        )
+        self._sample_interval: int = 1 if self.sample_rate >= 1.0 else max(1, int(round(1.0 / self.sample_rate)))
 
     def _should_sample(self, event: str) -> bool:
         # If events_to_sample is empty, sample all events; otherwise only those included
         return not self.events_to_sample or event in self.events_to_sample
 
-    def __call__(
-        self, logger: Any, method_name: str, event_dict: EventDict
-    ) -> EventDict:
+    def __call__(self, logger: Any, method_name: str, event_dict: EventDict) -> EventDict:
         event = event_dict.get("event", event_dict.get("message", ""))
 
         if not event:
@@ -540,6 +524,8 @@ def configure_logging(
     backup_count: int = 5,
     # Performance
     slow_threshold_ms: float = 100.0,
+    # Console output control
+    disable_console: bool = False,
 ) -> None:
     """Configure unified structured logging with core and optional features.
 
@@ -561,6 +547,7 @@ def configure_logging(
         max_log_size_mb: Max log file size before rotation
         backup_count: Number of backup log files to keep
         slow_threshold_ms: Threshold for slow operation warnings
+        disable_console: Disable console output (useful when using tqdm progress bars)
     """
     # Determine log level
     level_map = {
@@ -573,12 +560,21 @@ def configure_logging(
     numeric_level = level_map.get(log_level.upper(), logging.INFO)
 
     # Configure standard library logging
-    logging.basicConfig(
-        format="%(message)s",
-        level=numeric_level,
-        stream=sys.stdout,
-        force=True,
-    )
+    if disable_console:
+        # When console is disabled, use a null stream to suppress output
+        logging.basicConfig(
+            format="%(message)s",
+            level=numeric_level,
+            stream=open(os.devnull, "w"),
+            force=True,
+        )
+    else:
+        logging.basicConfig(
+            format="%(message)s",
+            level=numeric_level,
+            stream=sys.stdout,
+            force=True,
+        )
 
     # Create metrics processor if enabled
     if enable_metrics:
@@ -587,22 +583,14 @@ def configure_logging(
     # Build optimized processor chain
     processors: list[Processor] = [
         # PHASE 1: Context merging (cheap)
-        (
-            structlog.threadlocal.merge_threadlocal
-            if use_threadlocal
-            else structlog.contextvars.merge_contextvars
-        ),
+        (structlog.threadlocal.merge_threadlocal if use_threadlocal else structlog.contextvars.merge_contextvars),
         # PHASE 2: Early metadata (cheap)
         add_log_level,
         add_log_level_number,
         # PHASE 3: Filter disabled levels ASAP (performance optimization)
         structlog.stdlib.filter_by_level,
         # PHASE 4: Sampling (if enabled)
-        *(
-            [SamplingProcessor(sample_rate, events_to_sample)]
-            if enable_sampling
-            else []
-        ),
+        *([SamplingProcessor(sample_rate, events_to_sample)] if enable_sampling else []),
         # PHASE 5: Unicode safety
         structlog.processors.UnicodeDecoder(),
         # PHASE 6: Add metadata
@@ -635,7 +623,13 @@ def configure_logging(
     ]
 
     # Add final renderer based on environment
-    if environment == "production" or json_logs:
+    if disable_console:
+        # When console is disabled, use a null renderer that doesn't output anything
+        def null_renderer(logger, method_name, event_dict):
+            return ""  # Return empty string to suppress output
+
+        processors.append(null_renderer)
+    elif environment == "production" or json_logs:
         processors.append(structlog.processors.JSONRenderer())
     elif environment == "testing":
         processors.append(structlog.dev.ConsoleRenderer(colors=False))
@@ -643,11 +637,7 @@ def configure_logging(
         processors.append(
             structlog.dev.ConsoleRenderer(
                 colors=enable_colors,
-                exception_formatter=(
-                    structlog.dev.rich_traceback
-                    if enable_colors
-                    else structlog.dev.plain_traceback
-                ),
+                exception_formatter=(structlog.dev.rich_traceback if enable_colors else structlog.dev.plain_traceback),
             )
         )
 
@@ -694,6 +684,7 @@ def configure_logging(
             "metrics": enable_metrics,
             "sampling": enable_sampling,
             "rotation": enable_log_rotation,
+            "disable_console": disable_console,
             "threadlocal": use_threadlocal,
             "custom_context": context_class is not None,
         },

@@ -976,7 +976,7 @@ class Environment(AECEnv):
 
                     # Warn at different thresholds
                     if resource_ratio < 0.1 and not self._warned_10_percent:
-                        logger.warning(
+                        logger.debug(
                             "resources_critically_low",
                             remaining_ratio=round(resource_ratio, 3),
                             remaining_total=round(self.cached_total_resources, 2),
@@ -988,7 +988,7 @@ class Environment(AECEnv):
                         self._warned_10_percent = True
 
                     elif resource_ratio < 0.25 and not self._warned_25_percent:
-                        logger.warning(
+                        logger.debug(
                             "resources_running_low",
                             remaining_ratio=round(resource_ratio, 3),
                             remaining_total=round(self.cached_total_resources, 2),

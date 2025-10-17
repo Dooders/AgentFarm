@@ -23,11 +23,17 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 warnings.filterwarnings("ignore", category=UserWarning, module="tianshou")
 
 
-def run_profiled_simulation(num_steps, config, output_dir):
+def run_profiled_simulation(num_steps, config, output_dir, enable_console_logging=False):
     """
     Run the simulation with profiling and return the environment.
     """
-    return run_simulation(num_steps=num_steps, config=config, path=output_dir, save_config=True)
+    return run_simulation(
+        num_steps=num_steps,
+        config=config,
+        path=output_dir,
+        save_config=True,
+        disable_console_logging=not enable_console_logging,
+    )
 
 
 def main():
@@ -95,6 +101,11 @@ def main():
         action="store_true",
         help="Don't persist in-memory database to disk after simulation",
     )
+    parser.add_argument(
+        "--enable-console-logging",
+        action="store_true",
+        help="Enable console logging during simulation (disabled by default for clean tqdm output)",
+    )
     args = parser.parse_args()
 
     # Ensure simulations directory exists
@@ -108,6 +119,7 @@ def main():
         log_level=args.log_level,
         json_logs=args.json_logs,
         enable_colors=not args.json_logs,
+        disable_console=not args.enable_console_logging,
     )
     logger = get_logger(__name__)
 
@@ -172,7 +184,7 @@ def main():
             profiler = cProfile.Profile()
             profiler.enable()
 
-            environment = run_profiled_simulation(args.steps, config, output_dir)
+            environment = run_profiled_simulation(args.steps, config, output_dir, args.enable_console_logging)
 
             profiler.disable()
 
@@ -219,7 +231,13 @@ def main():
                     )
         else:
             # Run without profiling
-            environment = run_simulation(num_steps=args.steps, config=config, path=output_dir, save_config=True)
+            environment = run_simulation(
+                num_steps=args.steps,
+                config=config,
+                path=output_dir,
+                save_config=True,
+                disable_console_logging=not args.enable_console_logging,
+            )
 
         elapsed_time = time.time() - start_time
 

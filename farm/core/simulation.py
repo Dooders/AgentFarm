@@ -49,7 +49,7 @@ from farm.config import SimulationConfig
 from farm.core.agent import BaseAgent
 from farm.core.environment import Environment
 from farm.utils.identity import Identity
-from farm.utils.logging import get_logger, log_simulation, log_step
+from farm.utils.logging import configure_logging, get_logger, log_simulation, log_step
 
 # Shared Identity instance for efficiency
 _shared_identity = Identity()
@@ -133,9 +133,7 @@ def create_initial_agents(
         environment.add_agent(agent)
         positions.append(position)
 
-    logger.info(
-        "agents_created", agent_type="independent", count=num_independent_agents
-    )
+    logger.info("agents_created", agent_type="independent", count=num_independent_agents)
 
     # Create control agents (now using BaseAgent)
     for _ in range(num_control_agents):
@@ -184,9 +182,7 @@ def init_random_seeds(seed=None):
                 # torch.backends.cudnn.deterministic = True
                 # torch.backends.cudnn.benchmark = False
         except ImportError:
-            logger.info(
-                "pytorch_unavailable", message="Skipping torch seed initialization"
-            )
+            logger.info("pytorch_unavailable", message="Skipping torch seed initialization")
 
         logger.info("random_seeds_initialized", seed=seed, deterministic=True)
 
@@ -199,6 +195,7 @@ def run_simulation(
     seed: Optional[int] = None,
     simulation_id: Optional[str] = None,
     identity: Optional[Identity] = None,
+    disable_console_logging: bool = False,
 ) -> Environment:
     """
     Run the main simulation loop.
@@ -219,6 +216,8 @@ def run_simulation(
         Unique ID for this simulation run. If None, one will be generated.
     identity : Optional[Identity], optional
         Identity service instance for ID generation. If None, uses shared instance.
+    disable_console_logging : bool, optional
+        Whether to disable console logging during simulation (useful with tqdm), by default False
 
     Returns
     -------
@@ -306,9 +305,7 @@ def run_simulation(
                     os.remove(db_path)
                 except PermissionError:
                     # If can't remove, create unique filename
-                    original_db_path = (
-                        db_path  # Store original path before modification
-                    )
+                    original_db_path = db_path  # Store original path before modification
                     base, ext = os.path.splitext(db_path)
                     db_path = f"{base}_{int(time.time())}{ext}"
                     logger.warning(
@@ -379,9 +376,11 @@ def run_simulation(
         # Main simulation loop
         # Disable tqdm progress bar in CI environments to avoid output interference
         disable_tqdm = (
-            os.environ.get("CI", "").lower() in ("true", "1")
-            or os.environ.get("GITHUB_ACTIONS", "").lower() == "true"
+            os.environ.get("CI", "").lower() in ("true", "1") or os.environ.get("GITHUB_ACTIONS", "").lower() == "true"
         )
+
+        # Note: Console logging is already disabled if requested at the beginning of the function
+
         for step in tqdm(
             range(num_steps),
             desc="Simulation progress",
@@ -455,9 +454,7 @@ def run_simulation(
             if config.database.persist_db_on_completion and db_path is not None:
                 try:
                     # Create directory if it doesn't exist
-                    os.makedirs(
-                        os.path.dirname(os.path.abspath(db_path)), exist_ok=True
-                    )
+                    os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
 
                     logger.info("persisting_in_memory_database", db_path=db_path)
                     # Persist with selected tables or all tables
@@ -532,10 +529,12 @@ def run_simulation(
     birth_count = 0
     death_count = 0
     reproduction_count = 0
-    
-    if (environment.metrics_tracker is not None and 
-        hasattr(environment.metrics_tracker, 'cumulative_metrics') and 
-        environment.metrics_tracker.cumulative_metrics is not None):
+
+    if (
+        environment.metrics_tracker is not None
+        and hasattr(environment.metrics_tracker, "cumulative_metrics")
+        and environment.metrics_tracker.cumulative_metrics is not None
+    ):
         birth_count = getattr(environment.metrics_tracker.cumulative_metrics, "total_births", 0)
         death_count = getattr(environment.metrics_tracker.cumulative_metrics, "total_deaths", 0)
         reproduction_count = getattr(environment.metrics_tracker.cumulative_metrics, "total_reproduction_successes", 0)
@@ -567,7 +566,9 @@ def run_simulation(
         termination_reason=(
             "resources_depleted"
             if environment.cached_total_resources == 0
-            else "agents_extinct" if len(environment.agents) == 0 else "completed"
+            else "agents_extinct"
+            if len(environment.agents) == 0
+            else "completed"
         ),
     )
     return environment

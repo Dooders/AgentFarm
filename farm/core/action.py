@@ -330,8 +330,19 @@ def _validate_reproduce_action(agent: "BaseAgent", result: dict) -> dict:
 
     details = result["details"]
 
-    # Check resource cost
-    if "resources_before" in details and "offspring_cost" in details:
+    # Check resource cost - the offspring_cost is already deducted in _create_offspring()
+    # so we expect the actual resources to match resources_after from the details
+    if "resources_after" in details:
+        expected_resources = details["resources_after"]
+        actual_resources = agent.resource_level
+
+        if abs(actual_resources - expected_resources) > 0.01:
+            validation["issues"].append(
+                f"Resource mismatch: expected {expected_resources}, got {actual_resources}"
+            )
+            validation["valid"] = False
+    elif "resources_before" in details and "offspring_cost" in details:
+        # Fallback to old logic if resources_after is not available
         expected_resources = details["resources_before"] - details["offspring_cost"]
         actual_resources = agent.resource_level
 
