@@ -296,7 +296,7 @@ class PragmaProfileBenchmark(Experiment):
         # 4. Joins (if applicable)
         cursor.execute(
             f"""
-            SELECT t1.id, t1.data, t2.value 
+            SELECT t1.id, t1.data, t2.value
             FROM {table_name} t1
             JOIN {table_name} t2 ON t1.id = t2.id
             LIMIT 1000

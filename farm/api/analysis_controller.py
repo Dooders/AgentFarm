@@ -32,7 +32,7 @@ class AnalysisController:
     Example usage:
         ```python
         from farm.core.services import EnvConfigService
-        
+
         # Initialize controller
         config_service = EnvConfigService()
         controller = AnalysisController(config_service)
@@ -296,7 +296,7 @@ class AnalysisController:
 
             # Run the analysis (no lock held to avoid deadlock with _progress_handler)
             result = self.service.run(self.request)
-            
+
             # Update result with lock
             with self._thread_lock:
                 self.result = result
@@ -634,7 +634,7 @@ class AnalysisController:
 
     def __del__(self):
         """Ensure cleanup on deletion.
-        
+
         Note: __del__ is not guaranteed to be called in Python, and the context
         manager pattern (__enter__/__exit__) is the preferred cleanup method.
         This method is provided as a safety net for cases where the context

@@ -161,4 +161,3 @@ def plot_resource_hotspots(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> 
 
     ctx.logger.info(f"Saved plot to {output_file}")
 
-

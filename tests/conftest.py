@@ -69,7 +69,7 @@ def tmp_db_path(tmp_path):
 @pytest.fixture()
 def db(tmp_db_path):
     """Provide a database instance implementing DatabaseProtocol.
-    
+
     Returns a SimulationDatabase with a seeded simulation record.
     The returned instance satisfies DatabaseProtocol for type-safe testing.
     """

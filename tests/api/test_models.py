@@ -161,7 +161,7 @@ class TestSimulationStatusInfo:
         """Test SimulationStatusInfo to_dict method."""
         start_time = datetime(2024, 1, 1, 12, 0, 0)
         end_time = datetime(2024, 1, 1, 13, 0, 0)
-        
+
         status_info = SimulationStatusInfo(
             simulation_id="sim-123",
             status=SimulationStatus.COMPLETED,
@@ -287,7 +287,7 @@ class TestExperimentStatusInfo:
     def test_experiment_status_info_to_dict(self):
         """Test ExperimentStatusInfo to_dict method."""
         start_time = datetime(2024, 1, 1, 12, 0, 0)
-        
+
         status_info = ExperimentStatusInfo(
             experiment_id="exp-123",
             status=ExperimentStatus.RUNNING,

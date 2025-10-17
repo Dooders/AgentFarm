@@ -1080,7 +1080,7 @@ def compute_critical_period_metrics(
     """
     if critical_period_end is None:
         critical_period_end = genesis_config.critical_period_end
-    
+
     metrics = {}
 
     # Get initial state

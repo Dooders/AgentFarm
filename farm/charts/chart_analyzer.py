@@ -493,7 +493,7 @@ Agent Type Comparison:
             # Connect to database to get reproduction events data
             engine = create_engine("sqlite:///simulations/simulation.db")
             repro_query = """
-            SELECT 
+            SELECT
                 COUNT(*) as total_attempts,
                 SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as successful_attempts
             FROM reproduction_events

@@ -25,7 +25,6 @@ from farm.analysis.agents.analyze import (
 )
 from farm.analysis.agents.plot import (
     plot_lifespan_distributions,
-    plot_behavior_clusters,
     plot_performance_metrics,
     plot_learning_curves,
 )

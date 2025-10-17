@@ -16,6 +16,7 @@ from benchmarks.core.results import (
     RunResult, IterationResult, Artifact,
     capture_environment, capture_vcs, _safe_git
 )
+from tests.utils.test_helpers import PlatformMockHelper, setup_gpu_detection_failure
 
 
 class TestArtifact(unittest.TestCase):
@@ -28,7 +29,7 @@ class TestArtifact(unittest.TestCase):
             type="json",
             path="/tmp/test.json"
         )
-        
+
         self.assertEqual(artifact.name, "test_artifact")
         self.assertEqual(artifact.type, "json")
         self.assertEqual(artifact.path, "/tmp/test.json")
@@ -40,7 +41,7 @@ class TestArtifact(unittest.TestCase):
             type="profile",
             path="/tmp/test.prof"
         )
-        
+
         artifact_dict = asdict(artifact)
         self.assertEqual(artifact_dict["name"], "test_artifact")
         self.assertEqual(artifact_dict["type"], "profile")
@@ -58,7 +59,7 @@ class TestIterationResult(unittest.TestCase):
             duration_s=1.5,
             metrics=metrics
         )
-        
+
         self.assertEqual(result.index, 0)
         self.assertEqual(result.duration_s, 1.5)
         self.assertEqual(result.metrics, metrics)
@@ -66,7 +67,7 @@ class TestIterationResult(unittest.TestCase):
     def test_iteration_result_default_metrics(self):
         """Test IterationResult creation with default metrics."""
         result = IterationResult(index=1, duration_s=2.0)
-        
+
         self.assertEqual(result.index, 1)
         self.assertEqual(result.duration_s, 2.0)
         self.assertEqual(result.metrics, {})
@@ -79,7 +80,7 @@ class TestIterationResult(unittest.TestCase):
             duration_s=3.0,
             metrics=metrics
         )
-        
+
         result_dict = asdict(result)
         self.assertEqual(result_dict["index"], 2)
         self.assertEqual(result_dict["duration_s"], 3.0)
@@ -118,7 +119,7 @@ class TestRunResult(unittest.TestCase):
             parameters={},
             iterations={"warmup": 0, "measured": 1}
         )
-        
+
         self.assertEqual(result.metrics, {})
         self.assertEqual(result.iteration_metrics, [])
         self.assertEqual(result.artifacts, [])
@@ -132,7 +133,7 @@ class TestRunResult(unittest.TestCase):
         """Test adding iteration results."""
         metrics = {"duration": 1.5, "memory": 1024}
         self.run_result.add_iteration(0, 1.5, metrics)
-        
+
         self.assertEqual(len(self.run_result.iteration_metrics), 1)
         iteration = self.run_result.iteration_metrics[0]
         self.assertEqual(iteration.index, 0)
@@ -144,7 +145,7 @@ class TestRunResult(unittest.TestCase):
         for i in range(3):
             metrics = {"iteration": i, "duration": float(i + 1)}
             self.run_result.add_iteration(i, float(i + 1), metrics)
-        
+
         self.assertEqual(len(self.run_result.iteration_metrics), 3)
         for i, iteration in enumerate(self.run_result.iteration_metrics):
             self.assertEqual(iteration.index, i)
@@ -154,7 +155,7 @@ class TestRunResult(unittest.TestCase):
     def test_add_artifact(self):
         """Test adding artifacts."""
         self.run_result.add_artifact("test_artifact", "json", "/tmp/test.json")
-        
+
         self.assertEqual(len(self.run_result.artifacts), 1)
         artifact = self.run_result.artifacts[0]
         self.assertEqual(artifact.name, "test_artifact")
@@ -168,10 +169,10 @@ class TestRunResult(unittest.TestCase):
             ("artifact2", "profile", "/tmp/artifact2.prof"),
             ("artifact3", "log", "/tmp/artifact3.log")
         ]
-        
+
         for name, type_, path in artifacts:
             self.run_result.add_artifact(name, type_, path)
-        
+
         self.assertEqual(len(self.run_result.artifacts), 3)
         for i, (name, type_, path) in enumerate(artifacts):
             artifact = self.run_result.artifacts[i]
@@ -189,7 +190,7 @@ class TestRunResult(unittest.TestCase):
         durations = [1.0, 2.0, 3.0, 4.0]
         for i, duration in enumerate(durations):
             self.run_result.add_iteration(i, duration, {})
-        
+
         mean_duration = self.run_result.get_mean_duration()
         self.assertEqual(mean_duration, 2.5)
 
@@ -203,7 +204,7 @@ class TestRunResult(unittest.TestCase):
         durations = [1.0, 2.0, 3.0, 4.0, 5.0]
         for i, duration in enumerate(durations):
             self.run_result.add_iteration(i, duration, {})
-        
+
         median_duration = self.run_result.get_median_duration()
         self.assertEqual(median_duration, 3.0)
 
@@ -212,7 +213,7 @@ class TestRunResult(unittest.TestCase):
         durations = [1.0, 2.0, 3.0, 4.0]
         for i, duration in enumerate(durations):
             self.run_result.add_iteration(i, duration, {})
-        
+
         median_duration = self.run_result.get_median_duration()
         self.assertEqual(median_duration, 2.5)
 
@@ -222,9 +223,9 @@ class TestRunResult(unittest.TestCase):
         self.run_result.add_iteration(0, 1.5, {"test": "value"})
         self.run_result.add_artifact("test_artifact", "json", "/tmp/test.json")
         self.run_result.metrics["duration_s"] = {"mean": 1.5}
-        
+
         result_dict = self.run_result.to_dict()
-        
+
         # Check basic fields
         self.assertEqual(result_dict["name"], "test_benchmark")
         self.assertEqual(result_dict["run_id"], "test_run_123")
@@ -233,24 +234,24 @@ class TestRunResult(unittest.TestCase):
         self.assertEqual(result_dict["tags"], ["test", "benchmark"])
         self.assertEqual(result_dict["notes"], "Test run")
         self.assertEqual(result_dict["status"], "success")
-        
+
         # Check iteration metrics
         self.assertEqual(len(result_dict["iteration_metrics"]), 1)
         iteration_dict = result_dict["iteration_metrics"][0]
         self.assertEqual(iteration_dict["index"], 0)
         self.assertEqual(iteration_dict["duration_s"], 1.5)
         self.assertEqual(iteration_dict["metrics"], {"test": "value"})
-        
+
         # Check artifacts
         self.assertEqual(len(result_dict["artifacts"]), 1)
         artifact_dict = result_dict["artifacts"][0]
         self.assertEqual(artifact_dict["name"], "test_artifact")
         self.assertEqual(artifact_dict["type"], "json")
         self.assertEqual(artifact_dict["path"], "/tmp/test.json")
-        
+
         # Check metrics
         self.assertEqual(result_dict["metrics"]["duration_s"]["mean"], 1.5)
-        
+
         # Check environment and vcs are present
         self.assertIn("environment", result_dict)
         self.assertIn("vcs", result_dict)
@@ -261,18 +262,18 @@ class TestRunResult(unittest.TestCase):
             # Add some test data
             self.run_result.add_iteration(0, 1.5, {"test": "value"})
             self.run_result.add_artifact("test_artifact", "json", "/tmp/test.json")
-            
+
             # Save the result
             saved_path = self.run_result.save(tmpdir)
-            
+
             # Check that file was created
             self.assertTrue(os.path.exists(saved_path))
             self.assertTrue(saved_path.endswith(".json"))
-            
+
             # Check file contents
             with open(saved_path, "r", encoding="utf-8") as f:
                 saved_data = json.load(f)
-            
+
             self.assertEqual(saved_data["name"], "test_benchmark")
             self.assertEqual(saved_data["run_id"], "test_run_123")
             self.assertEqual(len(saved_data["iteration_metrics"]), 1)
@@ -282,10 +283,10 @@ class TestRunResult(unittest.TestCase):
         """Test that save creates the output directory if it doesn't exist."""
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = os.path.join(tmpdir, "nonexistent", "subdir")
-            
+
             # Save should create the directory
             saved_path = self.run_result.save(output_dir)
-            
+
             self.assertTrue(os.path.exists(output_dir))
             self.assertTrue(os.path.exists(saved_path))
 
@@ -297,12 +298,12 @@ class TestUtilityFunctions(unittest.TestCase):
     def test_safe_git_success(self, mock_check_output):
         """Test _safe_git with successful git command."""
         mock_check_output.return_value = b"abc123\n"
-        
+
         result = _safe_git(["git", "rev-parse", "HEAD"])
-        
+
         self.assertEqual(result, "abc123")
         mock_check_output.assert_called_once_with(
-            ["git", "rev-parse", "HEAD"], 
+            ["git", "rev-parse", "HEAD"],
             stderr=subprocess.DEVNULL
         )
 
@@ -310,9 +311,9 @@ class TestUtilityFunctions(unittest.TestCase):
     def test_safe_git_failure(self, mock_check_output):
         """Test _safe_git with failed git command."""
         mock_check_output.side_effect = subprocess.CalledProcessError(1, "git")
-        
+
         result = _safe_git(["git", "rev-parse", "HEAD"])
-        
+
         self.assertIsNone(result)
 
     @patch('platform.platform')
@@ -320,7 +321,7 @@ class TestUtilityFunctions(unittest.TestCase):
     @patch('platform.machine')
     @patch('platform.processor')
     @patch('socket.gethostname')
-    def test_capture_environment_basic(self, mock_hostname, mock_processor, 
+    def test_capture_environment_basic(self, mock_hostname, mock_processor,
                                       mock_machine, mock_python, mock_platform):
         """Test capture_environment with basic platform info."""
         mock_platform.return_value = "Windows-10-10.0.19041-SP0"
@@ -328,9 +329,9 @@ class TestUtilityFunctions(unittest.TestCase):
         mock_machine.return_value = "AMD64"
         mock_processor.return_value = "Intel64 Family 6 Model 142 Stepping 10, GenuineIntel"
         mock_hostname.return_value = "test-machine"
-        
+
         env = capture_environment()
-        
+
         self.assertEqual(env["os"], "Windows-10-10.0.19041-SP0")
         self.assertEqual(env["python"], "3.9.7")
         self.assertEqual(env["machine"], "AMD64")
@@ -353,9 +354,9 @@ class TestUtilityFunctions(unittest.TestCase):
         mock_processor.return_value = "x86_64"
         mock_hostname.return_value = "gpu-machine"
         mock_check_output.return_value = b"NVIDIA GeForce RTX 3080, 10240 MiB\n"
-        
+
         env = capture_environment()
-        
+
         self.assertIn("gpus", env)
         self.assertEqual(len(env["gpus"]), 1)
         self.assertEqual(env["gpus"][0]["name"], "NVIDIA GeForce RTX 3080")
@@ -371,15 +372,13 @@ class TestUtilityFunctions(unittest.TestCase):
                                             mock_machine, mock_python, mock_platform,
                                             mock_check_output):
         """Test capture_environment when GPU detection fails."""
-        mock_platform.return_value = "Linux-5.4.0-74-generic-x86_64-with-glibc2.29"
-        mock_python.return_value = "3.8.10"
-        mock_machine.return_value = "x86_64"
-        mock_processor.return_value = "x86_64"
-        mock_hostname.return_value = "cpu-machine"
-        mock_check_output.side_effect = subprocess.CalledProcessError(1, "nvidia-smi")
-        
+        PlatformMockHelper.setup_platform_mocks(
+            mock_platform, mock_python, mock_machine, mock_processor, mock_hostname
+        )
+        setup_gpu_detection_failure(mock_check_output)
+
         env = capture_environment()
-        
+
         # Should not have gpus key when nvidia-smi fails
         self.assertNotIn("gpus", env)
 
@@ -391,9 +390,9 @@ class TestUtilityFunctions(unittest.TestCase):
             "main",          # branch
             "M file1.py\nA file2.py"  # status
         ]
-        
+
         vcs = capture_vcs()
-        
+
         self.assertEqual(vcs["commit"], "abc123def456")
         self.assertEqual(vcs["branch"], "main")
         self.assertTrue(vcs["dirty"])
@@ -406,9 +405,9 @@ class TestUtilityFunctions(unittest.TestCase):
             "main",          # branch
             ""               # status (empty = clean)
         ]
-        
+
         vcs = capture_vcs()
-        
+
         self.assertEqual(vcs["commit"], "abc123def456")
         self.assertEqual(vcs["branch"], "main")
         self.assertFalse(vcs["dirty"])
@@ -417,9 +416,9 @@ class TestUtilityFunctions(unittest.TestCase):
     def test_capture_vcs_git_failure(self, mock_safe_git):
         """Test capture_vcs when git commands fail."""
         mock_safe_git.return_value = None
-        
+
         vcs = capture_vcs()
-        
+
         self.assertEqual(vcs["commit"], "")
         self.assertEqual(vcs["branch"], "")
         self.assertFalse(vcs["dirty"])

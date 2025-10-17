@@ -78,7 +78,7 @@ def analyze_experience_details(dataframe):
 
 # Load the dataset
 def main(dataframe):
-    
+
     try:
 
         # Specify an agent ID for focused analysis
@@ -118,7 +118,7 @@ if __name__ == "__main__":
 
     # Create engine
     engine = create_engine(connection_string)
-    
+
     df = pd.read_sql("SELECT * FROM LearningExperiences", engine)
 
     main(df)

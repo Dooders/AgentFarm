@@ -11,7 +11,6 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-from sqlalchemy.orm import Session
 
 from farm.analysis.common.context import AnalysisContext
 from farm.analysis.social_behavior.compute import (

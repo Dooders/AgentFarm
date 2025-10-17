@@ -124,17 +124,17 @@ class SimulationAnalyzer:
         <head><title>Simulation Analysis Report</title></head>
         <body>
             <h1>Simulation Analysis Report</h1>
-            
+
             <h2>Survival Rates</h2>
             <table>
                 <tr><th>Agent Type</th><th>Survival Rate</th></tr>
-                {''.join(f"<tr><td>{k}</td><td>{v:.2%}</td></tr>" 
+                {''.join(f"<tr><td>{k}</td><td>{v:.2%}</td></tr>"
                         for k, v in survival_rates.iloc[-1].items())}
             </table>
-            
+
             <h2>Resource Efficiency</h2>
             <img src="efficiency_plot.png" />
-            
+
             <h2>Summary Statistics</h2>
             <pre>{efficiency_data.describe().to_string()}</pre>
         </body>

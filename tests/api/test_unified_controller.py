@@ -20,6 +20,7 @@ from farm.api.models import (
     ValidationResult,
 )
 from farm.api.unified_controller import AgentFarmController
+from tests.utils.test_helpers import MockAdapterHelper
 
 
 class TestAgentFarmController:
@@ -275,17 +276,9 @@ class TestAgentFarmController:
 
         session_id = controller.create_session("Test Session")
 
-        # Mock the adapter
-        mock_adapter = Mock()
-        mock_results = SimulationResults(
-            simulation_id="sim-123",
-            status=SimulationStatus.COMPLETED,
-            total_steps=1000,
-            final_agent_count=20,
-            final_resource_count=50,
-        )
-        mock_adapter.get_simulation_results.return_value = mock_results
-        mock_adapter_class.return_value = mock_adapter
+        # Mock the adapter using helper
+        mock_results = MockAdapterHelper.create_simulation_results_mock()
+        mock_adapter = MockAdapterHelper.setup_adapter_mock(mock_adapter_class, return_value=mock_results)
 
         results = controller.get_simulation_results(session_id, "sim-123")
 

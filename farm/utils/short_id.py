@@ -133,7 +133,7 @@ seed = ShortUUID()
 
 def generate_simulation_id(prefix: str = "sim") -> str:
     """Generate a unique simulation ID with an optional prefix.
-    
+
     This is now a thin shim that delegates to the Identity class for consistency.
 
     Parameters

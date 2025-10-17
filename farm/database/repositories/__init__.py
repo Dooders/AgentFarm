@@ -9,7 +9,7 @@ from farm.database.repositories.simulation_repository import SimulationRepositor
 
 __all__ = [
     "ActionRepository",
-    "AgentRepository", 
+    "AgentRepository",
     "BaseRepository",
     "GUIRepository",
     "LearningRepository",

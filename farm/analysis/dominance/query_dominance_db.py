@@ -382,7 +382,7 @@ def load_data_from_db(db_path="sqlite:///dominance.db"):
 
         # SQL query to join all tables with explicit column selection to avoid duplicates
         query = """
-        SELECT 
+        SELECT
             s.iteration,
             dm.population_dominance,
             dm.survival_dominance,
@@ -405,7 +405,7 @@ def load_data_from_db(db_path="sqlite:///dominance.db"):
             dm.system_final_ratio,
             dm.independent_final_ratio,
             dm.control_final_ratio,
-            
+
             ap.system_agents,
             ap.independent_agents,
             ap.control_agents,
@@ -431,7 +431,7 @@ def load_data_from_db(db_path="sqlite:///dominance.db"):
             ap.initial_control_count,
             ap.initial_resource_count,
             ap.initial_resource_amount,
-            
+
             rs.system_reproduction_attempts,
             rs.system_reproduction_successes,
             rs.system_reproduction_failures,
@@ -465,7 +465,7 @@ def load_data_from_db(db_path="sqlite:///dominance.db"):
             rs.system_vs_control_first_reproduction_advantage,
             rs.system_vs_independent_first_reproduction_advantage,
             rs.system_vs_control_reproduction_efficiency_advantage,
-            
+
             ds.total_switches,
             ds.switches_per_step,
             ds.dominance_stability,
@@ -487,7 +487,7 @@ def load_data_from_db(db_path="sqlite:///dominance.db"):
             ds.control_to_system,
             ds.control_to_independent,
             ds.control_to_control,
-            
+
             rd.systemagent_avg_resource_dist,
             rd.systemagent_weighted_resource_dist,
             rd.systemagent_nearest_resource_dist,
@@ -513,21 +513,21 @@ def load_data_from_db(db_path="sqlite:///dominance.db"):
             rd.negative_corr_independentagent_resource_amount_in_range,
             rd.negative_corr_controlagent_avg_resource_dist,
             rd.negative_corr_controlagent_nearest_resource_dist
-        FROM 
+        FROM
             simulations s
-        LEFT JOIN 
+        LEFT JOIN
             dominance_metrics dm ON s.id = dm.simulation_id
-        LEFT JOIN 
+        LEFT JOIN
             agent_populations ap ON s.id = ap.simulation_id
-        LEFT JOIN 
+        LEFT JOIN
             reproduction_stats rs ON s.id = rs.simulation_id
-        LEFT JOIN 
+        LEFT JOIN
             dominance_switching ds ON s.id = ds.simulation_id
-        LEFT JOIN 
+        LEFT JOIN
             resource_distribution rd ON s.id = rd.simulation_id
-        LEFT JOIN 
+        LEFT JOIN
             high_low_switching_comparison hl ON s.id = hl.simulation_id
-        LEFT JOIN 
+        LEFT JOIN
             correlation_analysis ca ON s.id = ca.simulation_id
         """
 

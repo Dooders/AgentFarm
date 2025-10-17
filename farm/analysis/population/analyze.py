@@ -84,7 +84,7 @@ def analyze_comprehensive_population(df: pd.DataFrame, ctx: AnalysisContext, **k
     - Population stability metrics
     - Growth rate analysis
     - Demographic composition metrics
-    
+
     Args:
         df: Population data
         ctx: Analysis context
@@ -93,28 +93,28 @@ def analyze_comprehensive_population(df: pd.DataFrame, ctx: AnalysisContext, **k
             - include_demographic_analysis: bool (default: True)
     """
     ctx.logger.info("Performing comprehensive population analysis...")
-    
+
     include_growth = kwargs.get('include_growth_analysis', True)
     include_demographics = kwargs.get('include_demographic_analysis', True)
-    
+
     # Compute all available metrics
     results = {
         'statistics': compute_population_statistics(df),
         'stability': compute_population_stability(df),
     }
-    
+
     # Add birth/death rates if available
     birth_death = compute_birth_death_rates(df)
     if birth_death:
         results['birth_death_rates'] = birth_death
-    
+
     # Add growth rate analysis
     if include_growth:
         try:
             results['growth_analysis'] = compute_growth_rate_analysis(df)
         except Exception as e:
             ctx.logger.warning(f"Could not compute growth analysis: {e}")
-    
+
     # Add demographic metrics
     if include_demographics:
         try:
@@ -123,7 +123,7 @@ def analyze_comprehensive_population(df: pd.DataFrame, ctx: AnalysisContext, **k
                 results['demographics'] = demographics
         except Exception as e:
             ctx.logger.warning(f"Could not compute demographic metrics: {e}")
-    
+
     # Generate summary statistics
     summary = {
         'simulation_duration': len(df),
@@ -135,39 +135,39 @@ def analyze_comprehensive_population(df: pd.DataFrame, ctx: AnalysisContext, **k
             ((df['total_agents'].iloc[-1] - df['total_agents'].iloc[0]) / df['total_agents'].iloc[0]) * 100
         ) if df['total_agents'].iloc[0] > 0 else 0.0,
     }
-    
+
     results['summary'] = summary
-    
+
     # Save comprehensive results
     output_file = ctx.get_output_file("comprehensive_population_analysis.json")
     with open(output_file, 'w') as f:
         json.dump(results, f, indent=2)
-    
+
     ctx.logger.info(f"Saved comprehensive analysis to {output_file}")
-    
+
     # Also save a human-readable report
     report_file = ctx.get_output_file("population_report.txt")
     with open(report_file, 'w') as f:
         f.write("=" * 80 + "\n")
         f.write("COMPREHENSIVE POPULATION ANALYSIS REPORT\n")
         f.write("=" * 80 + "\n\n")
-        
+
         f.write("SUMMARY\n")
         f.write("-" * 80 + "\n")
         for key, value in summary.items():
             f.write(f"{key.replace('_', ' ').title()}: {value}\n")
-        
+
         f.write("\n\nSTATISTICS\n")
         f.write("-" * 80 + "\n")
         stats = results['statistics']['total']
         for key, value in stats.items():
             f.write(f"{key.title()}: {value:.2f}\n")
-        
+
         f.write("\n\nSTABILITY METRICS\n")
         f.write("-" * 80 + "\n")
         for key, value in results['stability'].items():
             f.write(f"{key.replace('_', ' ').title()}: {value:.4f}\n")
-        
+
         if 'growth_analysis' in results:
             f.write("\n\nGROWTH ANALYSIS\n")
             f.write("-" * 80 + "\n")
@@ -175,24 +175,24 @@ def analyze_comprehensive_population(df: pd.DataFrame, ctx: AnalysisContext, **k
             f.write(f"Average Growth Rate: {ga['average_growth_rate']:.2f}%\n")
             f.write(f"Max Growth Rate: {ga['max_growth_rate']:.2f}%\n")
             f.write(f"Min Growth Rate: {ga['min_growth_rate']:.2f}%\n")
-            
+
             if ga['doubling_time']:
                 f.write(f"Population Doubling Time: {ga['doubling_time']:.1f} steps\n")
-            
+
             f.write(f"\nTime in Growth: {ga['time_in_growth']} steps\n")
             f.write(f"Time in Decline: {ga['time_in_decline']} steps\n")
             f.write(f"Time Stable: {ga['time_stable']} steps\n")
-        
+
         if 'demographics' in results:
             f.write("\n\nDEMOGRAPHIC COMPOSITION\n")
             f.write("-" * 80 + "\n")
             demo = results['demographics']
             f.write(f"Diversity Index (mean): {demo['diversity_index']['mean']:.4f}\n")
             f.write(f"Dominance Index (mean): {demo['dominance_index']['mean']:.4f}\n")
-            
+
             f.write("\nType Proportions:\n")
             for agent_type, prop in demo['type_proportions'].items():
                 f.write(f"  {agent_type.replace('_', ' ').title()}: {prop*100:.1f}%\n")
-    
+
     ctx.logger.info(f"Saved human-readable report to {report_file}")
     ctx.report_progress("Comprehensive analysis complete", 1.0)

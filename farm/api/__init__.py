@@ -13,27 +13,27 @@ Main Components:
 Usage:
     ```python
     from farm.api import AgentFarmController
-    
+
     # Initialize controller
     controller = AgentFarmController()
-    
+
     # Create a session
     session_id = controller.create_session("My Research", "Testing agent behaviors")
-    
+
     # Create and run a simulation
     simulation_id = controller.create_simulation(session_id, {
         "name": "Basic Test",
         "steps": 1000,
         "agents": {"system_agents": 10, "independent_agents": 10}
     })
-    
+
     # Start simulation
     controller.start_simulation(session_id, simulation_id)
-    
+
     # Monitor progress
     status = controller.get_simulation_status(session_id, simulation_id)
     print(f"Progress: {status.progress_percentage:.1f}%")
-    
+
     # Get results
     results = controller.get_simulation_results(session_id, simulation_id)
     print(f"Final agents: {results.final_agent_count}")
@@ -56,10 +56,10 @@ __author__ = "AgentFarm Team"
 __all__ = [
     # Main controller
     "AgentFarmController",
-    
+
     # Data models
     "SessionInfo",
-    "SimulationStatus", 
+    "SimulationStatus",
     "SimulationResults",
     "ExperimentStatus",
     "ExperimentResults",
@@ -69,9 +69,9 @@ __all__ = [
     "ComparisonResults",
     "Event",
     "EventSubscription",
-    
+
     # Supporting classes
     "SessionManager",
-    "UnifiedAdapter", 
+    "UnifiedAdapter",
     "ConfigTemplateManager",
 ]
