@@ -252,6 +252,9 @@ class AgentCore:
         # Store pre-action state
         pre_action_state = self.state.snapshot(self.services.get_current_time())
         
+        # Capture resource level before action execution for accurate logging
+        resources_before = pre_action_state.resource_level
+        
         # Execute action
         try:
             action_result = action.execute(self)
@@ -260,6 +263,36 @@ class AgentCore:
         
         # Get post-action state
         post_action_state = self.state.snapshot(self.services.get_current_time())
+        
+        # Capture resource level after action execution
+        resources_after = post_action_state.resource_level
+        
+        # Log action to database if logger is available
+        if (
+            self.environment
+            and hasattr(self.environment, "db")
+            and self.environment.db
+            and hasattr(self.environment.db, "logger")
+        ):
+            try:
+                # Get current time step
+                current_time = self.services.get_current_time()
+
+                # Log the agent action
+                self.environment.db.logger.log_agent_action(
+                    step_number=current_time,
+                    agent_id=self.agent_id,
+                    action_type=action.name,
+                    resources_before=resources_before,
+                    resources_after=resources_after,
+                    reward=0,  # Reward will be calculated later
+                    details=action_result.get("details", {}) if isinstance(action_result, dict) else {},
+                )
+            except Exception as e:
+                # Log warning but don't crash on database logging failure
+                from farm.utils.logging import get_logger
+                logger = get_logger(__name__)
+                logger.warning(f"Failed to log agent action {action.name}: {e}")
         
         # Calculate reward (simple: based on state changes)
         reward = self._calculate_reward(pre_action_state, post_action_state, action)
