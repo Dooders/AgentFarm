@@ -13,7 +13,6 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
-from farm.core.agent import BaseAgent
 from farm.core.interfaces import AgentProtocol
 from farm.utils.logging import get_logger
 
@@ -372,7 +371,9 @@ class MetricsTracker:
             total_agents = len(alive_agents)
 
             # Calculate agent type counts
-            system_agents = len([a for a in alive_agents if isinstance(a, BaseAgent)])
+            # Count "system" agents as those with agent_type containing "System" or just count BaseAgent instances
+            # Since both BaseAgent and AgentCore are used now, check by agent_type attribute
+            system_agents = len([a for a in alive_agents if hasattr(a, 'agent_type') and 'System' in str(a.agent_type)])
 
             # Get metrics from tracker
             tracker_metrics = self.get_step_metrics()

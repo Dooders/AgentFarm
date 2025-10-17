@@ -46,7 +46,7 @@ import torch
 from tqdm import tqdm
 
 from farm.config import SimulationConfig
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentFactory, AgentServices
 from farm.core.environment import Environment
 from farm.utils.identity import Identity
 from farm.utils.logging import configure_logging, get_logger, log_simulation, log_step
@@ -88,6 +88,19 @@ def create_initial_agents(
         num_control_agents=num_control_agents,
     )
 
+    # Create services from environment
+    services = AgentServices(
+        spatial_service=environment.spatial_service,
+        time_service=environment.time_service if hasattr(environment, 'time_service') else None,
+        metrics_service=environment.metrics_service if hasattr(environment, 'metrics_service') else None,
+        logging_service=environment.logging_service if hasattr(environment, 'logging_service') else None,
+        validation_service=environment.validation_service if hasattr(environment, 'validation_service') else None,
+        lifecycle_service=environment.lifecycle_service if hasattr(environment, 'lifecycle_service') else None,
+    )
+    
+    # Create factory
+    factory = AgentFactory(services)
+
     # Use a seeded random number generator for deterministic agent creation
     if hasattr(environment, "seed_value") and environment.seed_value is not None:
         rng = random.Random(environment.seed_value)
@@ -101,56 +114,42 @@ def create_initial_agents(
             int(rng.uniform(0, environment.height)),
         )
 
-    # Create system agents (now using BaseAgent)
+    # Create system agents
     for _ in range(num_system_agents):
         position = get_random_position()
-        agent = BaseAgent(
+        agent = factory.create_default_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            resource_level=1,
-            spatial_service=environment.spatial_service,
+            initial_resources=int(environment.config.agent_behavior.initial_resources),
             environment=environment,
-            agent_type="SystemAgent",
-            generation=0,
         )
         environment.add_agent(agent)
         positions.append(position)
 
-    logger.info("agents_created", agent_type="system", count=num_system_agents)
-
-    # Create independent agents (now using BaseAgent)
+    # Create independent agents
     for _ in range(num_independent_agents):
         position = get_random_position()
-        agent = BaseAgent(
+        agent = factory.create_default_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            resource_level=1,
-            spatial_service=environment.spatial_service,
+            initial_resources=int(environment.config.agent_behavior.initial_resources),
             environment=environment,
-            agent_type="IndependentAgent",
-            generation=0,
         )
         environment.add_agent(agent)
         positions.append(position)
 
-    logger.info("agents_created", agent_type="independent", count=num_independent_agents)
-
-    # Create control agents (now using BaseAgent)
+    # Create control agents
     for _ in range(num_control_agents):
         position = get_random_position()
-        agent = BaseAgent(
+        agent = factory.create_default_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            resource_level=1,
-            spatial_service=environment.spatial_service,
+            initial_resources=int(environment.config.agent_behavior.initial_resources),
             environment=environment,
-            agent_type="ControlAgent",
-            generation=0,
         )
         environment.add_agent(agent)
         positions.append(position)
 
-    logger.info("agents_created", agent_type="control", count=num_control_agents)
     logger.info("initial_agents_complete", total_agents=len(environment.agents))
 
     return positions

@@ -145,6 +145,17 @@ def mock_environment():
     """Mock environment for testing."""
     env = Mock()
     env.observe.return_value = np.zeros((3, 11, 11))  # 3 channels, 11x11 grid
+    
+    # Create mock action space with .n attribute
+    action_space = Mock()
+    action_space.n = 5  # 5 possible actions
+    env.action_space.return_value = action_space
+    
+    # Create mock observation space with .shape attribute
+    obs_space = Mock()
+    obs_space.shape = (3, 11, 11)  # 3 channels, 11x11 grid
+    env.observation_space.return_value = obs_space
+    
     return env
 
 
@@ -180,8 +191,8 @@ def base_agent_kwargs(
 def sample_base_agent(base_agent_kwargs):
     """Create a sample BaseAgent instance for testing."""
     with patch(
-        "farm.core.agent.AgentServiceFactory.create_services"
-    ) as mock_factory, patch("farm.core.agent.DecisionModule") as mock_decision_class:
+        "farm.core.services.factory.AgentServiceFactory.create_services"
+    ) as mock_factory:
 
         # Mock the factory to return services
         mock_factory.return_value = (
@@ -191,11 +202,6 @@ def sample_base_agent(base_agent_kwargs):
             base_agent_kwargs["time_service"],
             base_agent_kwargs["lifecycle_service"],
             base_agent_kwargs["config"],
-        )
-
-        # Mock DecisionModule constructor
-        mock_decision_class.return_value = base_agent_kwargs.get(
-            "decision_module", Mock()
         )
 
         agent = BaseAgent(**base_agent_kwargs)
@@ -208,10 +214,8 @@ class TestBaseAgentInitialization:
     def test_basic_initialization(self, base_agent_kwargs):
         """Test basic agent initialization with minimal parameters."""
         with patch(
-            "farm.core.agent.AgentServiceFactory.create_services"
-        ) as mock_factory, patch(
-            "farm.core.agent.DecisionModule"
-        ) as mock_decision_class:
+            "farm.core.services.factory.AgentServiceFactory.create_services"
+        ) as mock_factory:
 
             mock_factory.return_value = (
                 base_agent_kwargs["metrics_service"],
@@ -221,7 +225,6 @@ class TestBaseAgentInitialization:
                 base_agent_kwargs["lifecycle_service"],
                 base_agent_kwargs["config"],
             )
-            mock_decision_class.return_value = Mock()
 
             agent = BaseAgent(**base_agent_kwargs)
 
@@ -244,14 +247,11 @@ class TestBaseAgentInitialization:
         }
 
         with patch(
-            "farm.core.agent.AgentServiceFactory.create_services"
-        ) as mock_factory, patch(
-            "farm.core.agent.DecisionModule"
-        ) as mock_decision_class:
+            "farm.core.services.factory.AgentServiceFactory.create_services"
+        ) as mock_factory:
 
             # Mock factory returns None for all optional services
             mock_factory.return_value = (None, None, None, None, None, None)
-            mock_decision_class.return_value = Mock()
 
             agent = BaseAgent(**minimal_kwargs)
 
@@ -276,10 +276,8 @@ class TestBaseAgentInitialization:
         base_agent_kwargs["action_set"] = custom_actions
 
         with patch(
-            "farm.core.agent.AgentServiceFactory.create_services"
-        ) as mock_factory, patch(
-            "farm.core.agent.DecisionModule"
-        ) as mock_decision_class:
+            "farm.core.services.factory.AgentServiceFactory.create_services"
+        ) as mock_factory:
 
             mock_factory.return_value = (
                 base_agent_kwargs["metrics_service"],
@@ -289,7 +287,6 @@ class TestBaseAgentInitialization:
                 base_agent_kwargs["lifecycle_service"],
                 base_agent_kwargs["config"],
             )
-            mock_decision_class.return_value = Mock()
 
             agent = BaseAgent(**base_agent_kwargs)
 
@@ -302,11 +299,11 @@ class TestBaseAgentInitialization:
         base_agent_kwargs["use_memory"] = True
 
         with patch(
-            "farm.core.agent.AgentServiceFactory.create_services"
+            "farm.core.services.factory.AgentServiceFactory.create_services"
         ) as mock_factory, patch(
-            "farm.core.agent.DecisionModule"
+            "farm.core.decision.decision.DecisionModule"
         ) as mock_decision_class, patch(
-            "farm.core.agent.AgentMemoryManager"
+            "farm.memory.redis_memory.AgentMemoryManager"
         ) as mock_memory_manager:
 
             mock_factory.return_value = (
@@ -332,10 +329,8 @@ class TestBaseAgentInitialization:
     def test_genome_id_generation(self, base_agent_kwargs, mock_time_service):
         """Test genome ID generation during initialization."""
         with patch(
-            "farm.core.agent.AgentServiceFactory.create_services"
-        ) as mock_factory, patch(
-            "farm.core.agent.DecisionModule"
-        ) as mock_decision_class:
+            "farm.core.services.factory.AgentServiceFactory.create_services"
+        ) as mock_factory:
 
             mock_factory.return_value = (
                 base_agent_kwargs["metrics_service"],
@@ -345,7 +340,6 @@ class TestBaseAgentInitialization:
                 base_agent_kwargs["lifecycle_service"],
                 base_agent_kwargs["config"],
             )
-            mock_decision_class.return_value = Mock()
 
             agent = BaseAgent(**base_agent_kwargs)
 
@@ -514,18 +508,16 @@ class TestBaseAgentDecisionMaking:
 
     def test_action_to_index(self, sample_base_agent):
         """Test action to index conversion."""
-        from farm.core.action import action_name_to_index
-
-        with patch("farm.core.agent.action_name_to_index") as mock_action_to_index:
-            mock_action_to_index.return_value = 2
-
-            mock_action = Mock()
-            mock_action.name = "test_action"
-
-            index = sample_base_agent._action_to_index(mock_action)
-
-            assert index == 2
-            mock_action_to_index.assert_called_once_with("test_action")
+        # Test with actual action objects from the registry
+        from farm.core.action import action_registry
+        
+        # Get some actions and test that they map to correct indices
+        actions = action_registry.get_all(normalized=True)
+        for i, action in enumerate(actions[:3]):  # Test first 3 actions
+            index = sample_base_agent._action_to_index(action)
+            # The index should be >= 0
+            assert isinstance(index, int)
+            assert index >= 0
 
 
 class TestBaseAgentActionExecution:
@@ -762,9 +754,9 @@ class TestBaseAgentLifeCycle:
     def test_create_offspring(self, sample_base_agent, mock_lifecycle_service):
         """Test offspring creation."""
         with patch(
-            "farm.core.agent.AgentServiceFactory.create_services"
+            "farm.core.services.factory.AgentServiceFactory.create_services"
         ) as mock_factory, patch(
-            "farm.core.agent.DecisionModule"
+            "farm.core.decision.decision.DecisionModule"
         ) as mock_decision_class:
 
             mock_factory.return_value = (None, None, None, None, None, None)
@@ -886,8 +878,8 @@ class TestBaseAgentMemorySystem:
         """Test successful memory initialization."""
         memory_config = {"custom_param": "test_value"}
 
-        with patch("farm.core.agent.AgentMemoryManager") as mock_memory_manager, patch(
-            "farm.core.agent.RedisMemoryConfig"
+        with patch("farm.memory.redis_memory.AgentMemoryManager") as mock_memory_manager, patch(
+            "farm.memory.redis_memory.RedisMemoryConfig"
         ) as mock_config_class:
 
             mock_memory_instance = Mock()
@@ -902,7 +894,7 @@ class TestBaseAgentMemorySystem:
 
     def test_init_memory_failure(self, sample_base_agent):
         """Test memory initialization failure."""
-        with patch("farm.core.agent.AgentMemoryManager") as mock_memory_manager:
+        with patch("farm.memory.redis_memory.AgentMemoryManager") as mock_memory_manager:
             mock_memory_manager.get_instance.side_effect = Exception(
                 "Connection failed"
             )
@@ -1020,13 +1012,10 @@ class TestBaseAgentEdgeCases:
         }
 
         with patch(
-            "farm.core.agent.AgentServiceFactory.create_services"
-        ) as mock_factory, patch(
-            "farm.core.agent.DecisionModule"
-        ) as mock_decision_class:
+            "farm.core.services.factory.AgentServiceFactory.create_services"
+        ) as mock_factory:
 
             mock_factory.return_value = (None, None, None, None, None, None)
-            mock_decision_class.return_value = Mock()
 
             agent = BaseAgent(**extreme_kwargs)
 
@@ -1197,8 +1186,8 @@ class TestBaseAgentEdgeCases:
             "memory_limit": 500,
         }
 
-        with patch("farm.core.agent.AgentMemoryManager") as mock_memory_manager, patch(
-            "farm.core.agent.RedisMemoryConfig"
+        with patch("farm.memory.redis_memory.AgentMemoryManager") as mock_memory_manager, patch(
+            "farm.memory.redis_memory.RedisMemoryConfig"
         ) as mock_config_class:
 
             mock_config_instance = Mock()

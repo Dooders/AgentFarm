@@ -191,6 +191,11 @@ class DecisionConfig(BaseDQNConfig):
         default=0.7, description="Threshold for reproduction resource requirements"
     )
 
+    # Curriculum learning
+    curriculum_phases: Optional[List[Dict[str, Any]]] = Field(
+        default=None, description="List of curriculum learning phases with restricted action sets"
+    )
+
     @field_validator(
         "move_weight",
         "gather_weight",
