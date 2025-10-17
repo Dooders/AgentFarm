@@ -202,9 +202,9 @@ class TestDecisionModule(unittest.TestCase):
             self.config,
         )
 
-        # Mock algorithm to raise exception
+        # Mock algorithm to raise exception - patch select_action_with_mask since it's called first
         with patch.object(
-            module.algorithm, "select_action", side_effect=Exception("Test error")
+            module.algorithm, "select_action_with_mask", side_effect=Exception("Test error")
         ):
             state = torch.randn(8)
             action = module.decide_action(state)
