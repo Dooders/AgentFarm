@@ -529,9 +529,9 @@ def run_simulation(
     avg_step_time_ms = (total_duration * 1000) / max(environment.time, 1)
 
     # Count births and deaths from database or metrics
-    birth_count = getattr(environment.metrics_tracker, "total_births", 0) if environment.metrics_tracker is not None else 0
-    death_count = getattr(environment.metrics_tracker, "total_deaths", 0) if environment.metrics_tracker is not None else 0
-    reproduction_count = getattr(environment.metrics_tracker, "total_reproductions", 0) if environment.metrics_tracker is not None else 0
+    birth_count = getattr(environment.metrics_tracker.cumulative_metrics, "total_births", 0) if environment.metrics_tracker is not None else 0
+    death_count = getattr(environment.metrics_tracker.cumulative_metrics, "total_deaths", 0) if environment.metrics_tracker is not None else 0
+    reproduction_count = getattr(environment.metrics_tracker.cumulative_metrics, "total_reproduction_successes", 0) if environment.metrics_tracker is not None else 0
 
     # Calculate initial population for logging
     def calculate_initial_population(config):

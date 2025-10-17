@@ -230,7 +230,7 @@ class AgentBehaviorConfig:
     base_attack_strength: int = 2
     base_defense_strength: int = 2
     initial_resource_level: int = 0
-    starvation_threshold: float = 100
+    starvation_threshold: float = 10
     offspring_cost: int = 3
     min_reproduction_resources: int = 8
     offspring_initial_resources: int = 5
