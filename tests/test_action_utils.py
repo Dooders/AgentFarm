@@ -68,25 +68,25 @@ def test_validate_action_result_move_success_and_inconsistency():
 def test_validate_action_result_gather_and_share_consistency_checks():
     agent = Mock()
     agent.agent_id = "a1"
-    agent.resource_level = 10
+    agent.get_component = Mock(return_value=Mock(level=10))
 
     # Gather should increase resources by amount_gathered
     res = {"success": True, "details": {"agent_resources_before": 5, "amount_gathered": 3}}
-    agent.resource_level = 8  # Should be 5 + 3 = 8 OK
+    agent.get_component.return_value.level = 8  # Should be 5 + 3 = 8 OK
     out = validate_action_result(agent, "gather", res)
     assert out["valid"] is True
 
-    agent.resource_level = 7  # Mismatch
+    agent.get_component.return_value.level = 7  # Mismatch
     out = validate_action_result(agent, "gather", res)
     assert out["valid"] is False
 
     # Share should decrease resources by amount_shared
     res = {"success": True, "details": {"agent_resources_before": 9, "amount_shared": 2}}
-    agent.resource_level = 7  # 9 - 2
+    agent.get_component.return_value.level = 7  # 9 - 2
     out = validate_action_result(agent, "share", res)
     assert out["valid"] is True
 
-    agent.resource_level = 6  # mismatch
+    agent.get_component.return_value.level = 6  # mismatch
     out = validate_action_result(agent, "share", res)
     assert out["valid"] is False
 
@@ -94,20 +94,20 @@ def test_validate_action_result_gather_and_share_consistency_checks():
 def test_validate_attack_defend_pass_paths():
     agent = Mock()
     agent.agent_id = "a1"
-    agent.is_defending = True
+    agent.get_component = Mock(return_value=Mock(is_defending=True, level=8))
     # Attack with non-positive damage just raises a warning, still valid
     out = validate_action_result(agent, "attack", {"success": True, "details": {"damage_dealt": 0}})
     assert out["valid"] is True
 
-    # Defend must set agent.is_defending True and apply cost correctly
-    agent.resource_level = 8
+    # Defend must set combat component is_defending True and apply cost correctly
+    agent.get_component.return_value.level = 8
     res = {"success": True, "details": {"resources_before": 10, "cost": 2}}
     out = validate_action_result(agent, "defend", res)
     # resources match: 10-2 = 8, so validation should pass
     assert out["valid"] is True
 
     # Test actual resource mismatch scenario
-    agent.resource_level = 6  # Should be 8 (10-2), but is 6
+    agent.get_component.return_value.level = 6  # Should be 8 (10-2), but is 6
     out = validate_action_result(agent, "defend", res)
     assert out["valid"] is False
     assert any("Resource mismatch" in issue for issue in out["issues"])

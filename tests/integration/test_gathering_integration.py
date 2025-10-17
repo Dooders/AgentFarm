@@ -5,7 +5,7 @@ import importlib.util
 if importlib.util.find_spec("torch") is None:
     pytest.skip("integration gathering tests require torch; skipping in lightweight env", allow_module_level=True)
 
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentFactory
 from farm.config import SimulationConfig
 from farm.core.environment import Environment
 from farm.core.resources import Resource
@@ -39,13 +39,11 @@ def test_env_step_agent_gathers_from_colocated_resource(simple_config: Simulatio
     )
 
     # Create a single agent at (25,25)
-    agent = BaseAgent(
+    factory = AgentFactory(spatial_service=env.spatial_service)
+    agent = factory.create_default_agent(
         agent_id="a-1",
         position=(25, 25),
-        resource_level=0,
-        spatial_service=env.spatial_service,
-        environment=env,
-        config=simple_config,
+        initial_resources=0,
     )
 
     # Reset to initialize PettingZoo bookkeeping and add our agent
@@ -63,12 +61,12 @@ def test_env_step_agent_gathers_from_colocated_resource(simple_config: Simulatio
     assert gather_idx >= 0, "gather action must be enabled in the current action mapping"
 
     # Take a step selecting gather for the current agent
-    before_agent = agent.resource_level
+    before_agent = agent.get_component("resource").level
     before_res = resource.amount
     obs, reward, terminated, truncated, info = env.step(gather_idx)
 
     # Validate that gather had an effect
-    assert agent.resource_level > before_agent
+    assert agent.get_component("resource").level > before_agent
     assert resource.amount < before_res
     assert obs is not None
     assert isinstance(terminated, bool) and isinstance(truncated, bool)
@@ -88,13 +86,11 @@ def test_agent_act_gathers_when_decision_returns_gather(simple_config: Simulatio
     env.spatial_index.set_references([], env.resources)
     env.spatial_index.update()
 
-    agent = BaseAgent(
+    factory = AgentFactory(spatial_service=env.spatial_service)
+    agent = factory.create_default_agent(
         agent_id="a-2",
         position=(10, 10),
-        resource_level=0.0,
-        spatial_service=env.spatial_service,
-        environment=env,
-        config=simple_config,
+        initial_resources=0,
     )
     env.add_agent(agent)
 
@@ -111,13 +107,13 @@ def test_agent_act_gathers_when_decision_returns_gather(simple_config: Simulatio
 
     monkeypatch.setattr(agent.decision_module, "decide_action", fake_decide_action)
 
-    before_agent = agent.resource_level
+    before_agent = agent.get_component("resource").level
     before_res = resource.amount
 
     # Execute one full agent act() cycle
     agent.act()
 
-    assert agent.resource_level > before_agent
+    assert agent.get_component("resource").level > before_agent
     assert resource.amount < before_res
 
 
@@ -131,13 +127,11 @@ def test_spatial_index_references_accept_agent_objects(simple_config: Simulation
         db_path=":memory:",
     )
     # One agent and one resource
-    agent = BaseAgent(
+    factory = AgentFactory(spatial_service=env.spatial_service)
+    agent = factory.create_default_agent(
         agent_id="a-3",
         position=(5, 5),
-        resource_level=1.0,
-        spatial_service=env.spatial_service,
-        environment=env,
-        config=simple_config,
+        initial_resources=1,
     )
     resource = Resource(resource_id=2, position=(6, 5), amount=3.0, max_amount=3.0, regeneration_rate=0.0)
     env.add_agent(agent)
@@ -162,13 +156,11 @@ def test_decision_prioritizes_gather_nearby(simple_config: SimulationConfig, mon
         config=simple_config,
         db_path=":memory:",
     )
-    agent = BaseAgent(
+    factory = AgentFactory(spatial_service=env.spatial_service)
+    agent = factory.create_default_agent(
         agent_id="a-4",
         position=(12, 12),
-        resource_level=0.0,
-        spatial_service=env.spatial_service,
-        environment=env,
-        config=simple_config,
+        initial_resources=0,
     )
     env.add_agent(agent)
 
@@ -179,7 +171,7 @@ def test_decision_prioritizes_gather_nearby(simple_config: SimulationConfig, mon
 
     # Force decision to use full mapping but we expect gather index will be used
     # by mapping through enabled action indices in BaseAgent
-    before_agent = agent.resource_level
+    before_agent = agent.get_component("resource").level
     before_res = resource.amount
 
     # Let BaseAgent decide; ensure the mapping returns gather action
@@ -190,5 +182,5 @@ def test_decision_prioritizes_gather_nearby(simple_config: SimulationConfig, mon
     result = action.execute(agent)
     if action.name == "gather":
         assert result.get("success", False)
-        assert agent.resource_level > before_agent
+        assert agent.get_component("resource").level > before_agent
         assert resource.amount < before_res

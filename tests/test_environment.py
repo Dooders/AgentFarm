@@ -14,7 +14,7 @@ from stable_baselines3.common.env_util import make_vec_env
 from farm.config import SimulationConfig
 from farm.config.config import EnvironmentConfig, PopulationConfig, ResourceConfig
 from farm.core.action import ActionType
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentFactory
 from farm.core.environment import Environment
 from farm.core.resources import Resource
 
@@ -55,30 +55,22 @@ class TestEnvironment(unittest.TestCase):
         )
 
         # Add a small set of agents explicitly (external agent management)
+        factory = AgentFactory(spatial_service=self.env.spatial_service)
         initial_agents = [
-            BaseAgent(
+            factory.create_default_agent(
                 agent_id=self.env.get_next_agent_id(),
                 position=(10, 10),
-                resource_level=5,
-                environment=self.env,
-                generation=0,
-                spatial_service=self.env.spatial_service,
+                initial_resources=5,
             ),
-            BaseAgent(
+            factory.create_default_agent(
                 agent_id=self.env.get_next_agent_id(),
                 position=(12, 12),
-                resource_level=5,
-                environment=self.env,
-                generation=0,
-                spatial_service=self.env.spatial_service,
+                initial_resources=5,
             ),
-            BaseAgent(
+            factory.create_default_agent(
                 agent_id=self.env.get_next_agent_id(),
                 position=(14, 14),
-                resource_level=5,
-                environment=self.env,
-                generation=0,
-                spatial_service=self.env.spatial_service,
+                initial_resources=5,
             ),
         ]
         for a in initial_agents:
@@ -191,25 +183,29 @@ class TestEnvironment(unittest.TestCase):
         assert agent is not None  # Type assertion for type checker
 
         # Ensure agent has proper health and resource values
-        if hasattr(agent, "current_health") and agent.current_health is None:
-            agent.current_health = 100.0
-        if hasattr(agent, "starting_health") and agent.starting_health is None:
-            agent.starting_health = 100.0
-        if hasattr(agent, "resource_level") and agent.resource_level is None:
-            agent.resource_level = 10
+        combat_component = agent.get_component("combat")
+        resource_component = agent.get_component("resource")
+        
+        if combat_component and combat_component.health is None:
+            combat_component.health = 100.0
+        if combat_component and combat_component.max_health is None:
+            combat_component.max_health = 100.0
+        if resource_component and resource_component.level is None:
+            resource_component.level = 10
 
-        initial_health = agent.current_health
-        initial_resources = agent.resource_level
+        initial_health = combat_component.health
+        initial_resources = resource_component.level
 
         # Test defend action (skip if agent has mock attributes that cause comparison issues)
         try:
-            initial_defending = getattr(agent, "is_defending", False)
+            initial_defending = combat_component.is_defending
             self.env._process_action(agent_id, ActionType.DEFEND)
-            # Only check is_defending if the action succeeded and attribute exists
-            if hasattr(agent, "is_defending"):
+            # Check is_defending through combat component
+            combat = agent.get_component("combat")
+            if combat:
                 # The defend action may not change state if agent is already defending
                 # Just verify the action doesn't crash
-                current_defending = agent.is_defending
+                current_defending = combat.is_defending
                 self.assertIsInstance(current_defending, bool)
         except (TypeError, AttributeError):
             # Skip defend test if Mock objects cause comparison issues
@@ -236,12 +232,15 @@ class TestEnvironment(unittest.TestCase):
         assert agent is not None  # Type assertion for type checker
 
         # Ensure agent has proper health and resource values
-        if hasattr(agent, "current_health") and agent.current_health is None:
-            agent.current_health = 100.0
-        if hasattr(agent, "starting_health") and agent.starting_health is None:
-            agent.starting_health = 100.0
-        if hasattr(agent, "resource_level") and agent.resource_level is None:
-            agent.resource_level = 10
+        combat_component = agent.get_component("combat")
+        resource_component = agent.get_component("resource")
+        
+        if combat_component and combat_component.health is None:
+            combat_component.health = 100.0
+        if combat_component and combat_component.max_health is None:
+            combat_component.max_health = 100.0
+        if resource_component and resource_component.level is None:
+            resource_component.level = 10
 
         # Test reward for alive agent
         reward = self.env._calculate_reward(agent_id)
@@ -323,7 +322,7 @@ class TestEnvironment(unittest.TestCase):
         self.env.remove_agent(agent)
 
         self.assertEqual(len(self.env.agent_objects), initial_count - 1)
-        self.assertNotIn(agent.agent_id, self.env.agent_observations)
+        self.assertNotIn(agent.agent_id, self.env.observations)
 
     def test_spatial_queries(self):
         """Test spatial query methods"""
@@ -565,25 +564,23 @@ class TestEnvironment(unittest.TestCase):
         initial_agent_count = len(self.env.agent_objects)
 
         # Test agent addition
-        new_agent = BaseAgent(
+        factory = AgentFactory(spatial_service=self.env.spatial_service)
+        new_agent = factory.create_default_agent(
             agent_id="test_agent_new",
             position=(25, 25),
-            resource_level=5,
-            environment=self.env,
-            generation=1,
-            spatial_service=self.env.spatial_service,
+            initial_resources=5,
         )
 
         self.env.add_agent(new_agent)
         self.assertEqual(len(self.env.agent_objects), initial_agent_count + 1)
         self.assertIn(new_agent.agent_id, self.env.agents)
-        self.assertIn(new_agent.agent_id, self.env.agent_observations)
+        self.assertIn(new_agent.agent_id, self.env.observations)
 
         # Test agent removal
         self.env.remove_agent(new_agent)
         self.assertEqual(len(self.env.agent_objects), initial_agent_count)
         self.assertNotIn(new_agent.agent_id, self.env.agents)
-        self.assertNotIn(new_agent.agent_id, self.env.agent_observations)
+        self.assertNotIn(new_agent.agent_id, self.env.observations)
 
     def test_environment_state_management(self):
         """Test environment state capture and management"""

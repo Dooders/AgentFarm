@@ -201,7 +201,7 @@ class TestAlgorithmRegistryIntegration(unittest.TestCase):
 
         num_actions = 3
 
-        with patch("time.time", side_effect=[0.0, 1.0, 2.0, 3.0]):
+        with patch("time.time", side_effect=range(100)):
             benchmark = AlgorithmBenchmark(
                 algorithms=algorithms,
                 num_actions=num_actions,
@@ -250,7 +250,7 @@ class TestAlgorithmBenchmarkingIntegration(unittest.TestCase):
         )
 
         # Mock time to avoid delays
-        with patch("time.time", side_effect=range(10)):
+        with patch("time.time", side_effect=range(100)):
             results = benchmark.run_benchmark()
 
         self.assertEqual(len(results), 3)
@@ -276,10 +276,10 @@ class TestAlgorithmBenchmarkingIntegration(unittest.TestCase):
 
         # Run with different seeds - these should produce different results
         # because the algorithm will use different random states
-        with patch("time.time", side_effect=range(10)):
+        with patch("time.time", side_effect=range(100)):
             results1 = benchmark.run_benchmark(seeds=[42])
 
-        with patch("time.time", side_effect=range(10, 20)):
+        with patch("time.time", side_effect=range(100, 200)):
             results2 = benchmark.run_benchmark(seeds=[123])
 
         # Results should be different due to different seeds affecting algorithm initialization

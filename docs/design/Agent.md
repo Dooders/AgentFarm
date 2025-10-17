@@ -52,7 +52,7 @@ This document describes the comprehensive agent design in AgentFarm, covering ar
 
 AgentFarm agents are autonomous entities designed for multi-agent simulations. They follow the **Observation → Perception → Cognition → Action** loop described in the [Agent Loop Design](agent_loop.md), providing a structured approach to modeling intelligent behavior in complex environments.
 
-The agent system is built around the `BaseAgent` class, which serves as the foundation for all agent types in the simulation. Agents are designed to be modular, extensible, and capable of learning through various decision-making algorithms.
+The agent system is built around the new component-based architecture using `AgentCore` and `AgentFactory`, which provides a modular, extensible foundation for all agent types in the simulation. Agents are designed to be composable, testable, and capable of learning through various decision-making algorithms.
 
 ## Architecture
 
@@ -60,16 +60,16 @@ The agent system is built around the `BaseAgent` class, which serves as the foun
 
 The agent architecture consists of several key components:
 
-1. **BaseAgent Class**: The fundamental agent implementation
-2. **DecisionModule**: Pluggable decision-making algorithms
-3. **Perception System**: Multi-channel observation capabilities
-4. **Memory Systems**: Redis-backed persistent memory
-5. **Genome System**: Genetic representation and evolution
-6. **Service Integration**: Modular service architecture
+1. **AgentCore Class**: The minimal agent coordinator that manages components
+2. **AgentFactory**: Factory for creating agents with proper component setup
+3. **Component System**: Pluggable components for specific capabilities
+4. **Behavior System**: Strategy pattern for decision-making algorithms
+5. **State Management**: Centralized state tracking and lifecycle management
+6. **Service Integration**: Dependency injection for external services
 
 ### Agent Types
 
-AgentFarm supports five primary agent types, all inheriting from `BaseAgent`:
+AgentFarm supports various agent types created through the AgentFactory:
 
 - **SystemAgent**: Cooperative agents that prioritize collective goals with high resource sharing (0.3) and low aggression (0.05)
 - **IndependentAgent**: Self-interested agents that prioritize individual survival with low resource sharing (0.05) and high aggression (0.25)

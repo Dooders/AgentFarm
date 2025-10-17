@@ -4,12 +4,12 @@ This module handles logging of attack-related actions and outcomes in the simula
 including attacks, defenses, and their results.
 """
 
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple
 
 from farm.utils.logging import get_logger
 
 if TYPE_CHECKING:
-    from farm.core.agent import BaseAgent
+    from farm.core.agent.core import AgentCore
     from farm.database.database import SimulationDatabase
 
 logger = get_logger(__name__)
@@ -21,10 +21,17 @@ class AttackLogger:
     def __init__(self, db: Optional["SimulationDatabase"] = None):
         self.db = db
 
+    def _get_health_ratio(self, agent: "AgentCore") -> float:
+        """Get agent's current health ratio from combat component."""
+        combat = agent.get_component("combat")
+        if combat and combat.max_health > 0:
+            return combat.health / combat.max_health
+        return 0.0
+
     def log_defense(
         self,
         step_number: int,
-        agent: "BaseAgent",
+        agent: "AgentCore",
         resources_before: float,
         resources_after: float,
     ) -> None:
@@ -41,7 +48,7 @@ class AttackLogger:
             reward=0,
             details={
                 "is_defending": True,
-                "health_ratio": agent.current_health / agent.starting_health,
+                "health_ratio": self._get_health_ratio(agent),
             },
         )
 
@@ -61,7 +68,7 @@ class AttackLogger:
     def log_attack_attempt(
         self,
         step_number: int,
-        agent: "BaseAgent",
+        agent: "AgentCore",
         action_target_id: Optional[str],
         target_position: Tuple[float, float],
         resources_before: float,
@@ -80,7 +87,7 @@ class AttackLogger:
             "target_position": target_position,
             "targets_found": targets_found,
             "damage_dealt": damage_dealt,
-            "health_ratio": agent.current_health / agent.starting_health,
+            "health_ratio": self._get_health_ratio(agent),
         }
 
         if reason:

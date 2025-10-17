@@ -19,15 +19,12 @@ Technical Details:
     - Automatic tensor-numpy conversion for state handling
 """
 
-from farm.utils.logging import get_logger
-
-logger = get_logger(__name__)
 import math
 from enum import IntEnum
 from typing import TYPE_CHECKING, Callable, List
 
 if TYPE_CHECKING:
-    from farm.core.agent import BaseAgent
+    from farm.core.agent.core import AgentCore
 
 from farm.utils.logging import get_logger
 
@@ -37,7 +34,7 @@ logger = get_logger(__name__)
 # Helper Functions for Common Action Patterns
 
 
-def validate_agent_config(agent: "BaseAgent", action_name: str) -> bool:
+def validate_agent_config(agent: "AgentCore", action_name: str) -> bool:
     """Validate that agent has a configuration. Logs error and returns False if missing.
 
     Args:
@@ -47,11 +44,8 @@ def validate_agent_config(agent: "BaseAgent", action_name: str) -> bool:
     Returns:
         bool: True if config is valid, False otherwise
     """
-    if agent.config is None:
-        logger.error(
-            f"Agent {agent.agent_id} has no config, skipping {action_name} action"
-        )
-        return False
+    # For AgentCore, we don't require a config attribute since components have their own configs
+    # This function is kept for compatibility but always returns True for AgentCore
     return True
 
 
@@ -70,9 +64,7 @@ def calculate_euclidean_distance(pos1: tuple, pos2: tuple) -> float:
     return math.sqrt(dx * dx + dy * dy)
 
 
-def find_closest_entity(
-    agent: "BaseAgent", entities: list, entity_type: str = "target"
-) -> tuple:
+def find_closest_entity(agent: "AgentCore", entities: list, entity_type: str = "target") -> tuple:
     """Find the closest entity to the agent from a list of entities.
 
     Args:
@@ -102,7 +94,7 @@ def find_closest_entity(
     return closest_entity, min_distance
 
 
-def log_interaction_safely(agent: "BaseAgent", **kwargs) -> None:
+def log_interaction_safely(agent: "AgentCore", **kwargs) -> None:
     """Safely log an interaction edge, handling environments without logging infrastructure.
 
     Args:
@@ -110,7 +102,7 @@ def log_interaction_safely(agent: "BaseAgent", **kwargs) -> None:
         **kwargs: Arguments to pass to log_interaction_edge
     """
     try:
-        if hasattr(agent, "logging_service") and agent.logging_service:
+        if agent.logging_service:
             agent.logging_service.log_interaction_edge(**kwargs)
     except Exception as e:
         logger.debug(
@@ -121,7 +113,7 @@ def log_interaction_safely(agent: "BaseAgent", **kwargs) -> None:
         )
 
 
-def validate_action_result(agent: "BaseAgent", action_name: str, result: dict) -> dict:
+def validate_action_result(agent: "AgentCore", action_name: str, result: dict) -> dict:
     """Validate the results of an action execution to ensure intended effects occurred.
 
     This function performs post-action validation to verify that the action had the
@@ -178,7 +170,7 @@ def validate_action_result(agent: "BaseAgent", action_name: str, result: dict) -
     return validation_result
 
 
-def _validate_move_action(agent: "BaseAgent", result: dict) -> dict:
+def _validate_move_action(agent: "AgentCore", result: dict) -> dict:
     """Validate move action results."""
     validation = {"valid": True, "issues": [], "warnings": []}
 
@@ -197,21 +189,17 @@ def _validate_move_action(agent: "BaseAgent", result: dict) -> dict:
 
         # Position should have changed if move was successful
         if old_pos == new_pos and old_pos == actual_pos:
-            validation["warnings"].append(
-                "Agent position did not change after successful move"
-            )
+            validation["warnings"].append("Agent position did not change after successful move")
 
         # Current position should match reported new position
         if actual_pos != new_pos:
-            validation["issues"].append(
-                f"Agent position mismatch: expected {new_pos}, got {actual_pos}"
-            )
+            validation["issues"].append(f"Agent position mismatch: expected {new_pos}, got {actual_pos}")
             validation["valid"] = False
 
     return validation
 
 
-def _validate_gather_action(agent: "BaseAgent", result: dict) -> dict:
+def _validate_gather_action(agent: "AgentCore", result: dict) -> dict:
     """Validate gather action results."""
     validation = {"valid": True, "issues": [], "warnings": []}
 
@@ -224,23 +212,18 @@ def _validate_gather_action(agent: "BaseAgent", result: dict) -> dict:
 
     # Check resource increase
     if "agent_resources_before" in details and "amount_gathered" in details:
-        expected_resources = (
-            details["agent_resources_before"] + details["amount_gathered"]
-        )
-        actual_resources = agent.resource_level
+        expected_resources = details["agent_resources_before"] + details["amount_gathered"]
+        _res = agent.get_component("resource")
+        actual_resources = _res.level if _res else 0.0
 
-        if (
-            abs(actual_resources - expected_resources) > 0.01
-        ):  # Allow small floating point differences
-            validation["issues"].append(
-                f"Resource mismatch: expected {expected_resources}, got {actual_resources}"
-            )
+        if abs(actual_resources - expected_resources) > 0.01:  # Allow small floating point differences
+            validation["issues"].append(f"Resource mismatch: expected {expected_resources}, got {actual_resources}")
             validation["valid"] = False
 
     return validation
 
 
-def _validate_attack_action(agent: "BaseAgent", result: dict) -> dict:
+def _validate_attack_action(agent: "AgentCore", result: dict) -> dict:
     """Validate attack action results."""
     validation = {"valid": True, "issues": [], "warnings": []}
 
@@ -260,7 +243,7 @@ def _validate_attack_action(agent: "BaseAgent", result: dict) -> dict:
     return validation
 
 
-def _validate_share_action(agent: "BaseAgent", result: dict) -> dict:
+def _validate_share_action(agent: "AgentCore", result: dict) -> dict:
     """Validate share action results."""
     validation = {"valid": True, "issues": [], "warnings": []}
 
@@ -273,21 +256,18 @@ def _validate_share_action(agent: "BaseAgent", result: dict) -> dict:
 
     # Check resource decrease
     if "agent_resources_before" in details and "amount_shared" in details:
-        expected_resources = (
-            details["agent_resources_before"] - details["amount_shared"]
-        )
-        actual_resources = agent.resource_level
+        expected_resources = details["agent_resources_before"] - details["amount_shared"]
+        _res = agent.get_component("resource")
+        actual_resources = _res.level if _res else 0.0
 
         if abs(actual_resources - expected_resources) > 0.01:
-            validation["issues"].append(
-                f"Resource mismatch: expected {expected_resources}, got {actual_resources}"
-            )
+            validation["issues"].append(f"Resource mismatch: expected {expected_resources}, got {actual_resources}")
             validation["valid"] = False
 
     return validation
 
 
-def _validate_defend_action(agent: "BaseAgent", result: dict) -> dict:
+def _validate_defend_action(agent: "AgentCore", result: dict) -> dict:
     """Validate defend action results."""
     validation = {"valid": True, "issues": [], "warnings": []}
 
@@ -299,27 +279,25 @@ def _validate_defend_action(agent: "BaseAgent", result: dict) -> dict:
     details = result["details"]
 
     # Check defensive state
-    if not getattr(agent, "is_defending", False):
-        validation["issues"].append(
-            "Agent is not in defensive state after defend action"
-        )
+    _combat = agent.get_component("combat")
+    if not (_combat and _combat.is_defending):
+        validation["issues"].append("Agent is not in defensive state after defend action")
         validation["valid"] = False
 
     # Check resource cost
     if "resources_before" in details and "cost" in details:
         expected_resources = details["resources_before"] - details["cost"]
-        actual_resources = agent.resource_level
+        _res = agent.get_component("resource")
+        actual_resources = _res.level if _res else 0.0
 
         if abs(actual_resources - expected_resources) > 0.01:
-            validation["issues"].append(
-                f"Resource mismatch: expected {expected_resources}, got {actual_resources}"
-            )
+            validation["issues"].append(f"Resource mismatch: expected {expected_resources}, got {actual_resources}")
             validation["valid"] = False
 
     return validation
 
 
-def _validate_reproduce_action(agent: "BaseAgent", result: dict) -> dict:
+def _validate_reproduce_action(agent: "AgentCore", result: dict) -> dict:
     """Validate reproduce action results."""
     validation = {"valid": True, "issues": [], "warnings": []}
 
@@ -344,18 +322,17 @@ def _validate_reproduce_action(agent: "BaseAgent", result: dict) -> dict:
     elif "resources_before" in details and "offspring_cost" in details:
         # Fallback to old logic if resources_after is not available
         expected_resources = details["resources_before"] - details["offspring_cost"]
-        actual_resources = agent.resource_level
+        _res = agent.get_component("resource")
+        actual_resources = _res.level if _res else 0.0
 
         if abs(actual_resources - expected_resources) > 0.01:
-            validation["issues"].append(
-                f"Resource mismatch: expected {expected_resources}, got {actual_resources}"
-            )
+            validation["issues"].append(f"Resource mismatch: expected {expected_resources}, got {actual_resources}")
             validation["valid"] = False
 
     return validation
 
 
-def _validate_pass_action(agent: "BaseAgent", result: dict) -> dict:
+def _validate_pass_action(agent: "AgentCore", result: dict) -> dict:
     """Validate pass action results."""
     validation = {"valid": True, "issues": [], "warnings": []}
 
@@ -371,7 +348,7 @@ def _validate_pass_action(agent: "BaseAgent", result: dict) -> dict:
 
 
 def check_resource_requirement(
-    agent: "BaseAgent",
+    agent: "AgentCore",
     required_amount: float,
     action_name: str,
     requirement_type: str = "resources",
@@ -387,10 +364,12 @@ def check_resource_requirement(
     Returns:
         bool: True if agent has sufficient resources, False otherwise
     """
-    if agent.resource_level < required_amount:
+    res_comp = agent.get_component("resource")
+    current = res_comp.level if res_comp else 0.0
+    if current < required_amount:
         logger.debug(
             f"Agent {agent.agent_id} has insufficient {requirement_type} "
-            f"({agent.resource_level} < {required_amount}) for {action_name}"
+            f"({current} < {required_amount}) for {action_name}"
         )
         return False
     return True
@@ -485,9 +464,7 @@ class Action:
                 return {"success": True, "error": None, "details": {}}
 
         except Exception as e:
-            logger.error(
-                f"Action {self.name} failed for agent {agent.agent_id}: {str(e)}"
-            )
+            logger.error(f"Action {self.name} failed for agent {agent.agent_id}: {str(e)}")
             return {
                 "success": False,
                 "error": str(e),
@@ -539,21 +516,19 @@ class action_registry:
         return actions
 
 
-def attack_action(agent: "BaseAgent") -> dict:
+def attack_action(agent: "AgentCore") -> dict:
     """Execute the attack action for the given agent.
 
     This action implements aggressive behavior where the agent seeks out and attacks
-    the nearest enemy within its attack range. The action uses spatial indexing for
-    efficient proximity queries to find valid targets.
+    the nearest enemy within its attack range. The action delegates to the agent's
+    CombatComponent for actual attack execution.
 
     Behavior details:
     - Uses configurable attack_range (default: 20.0 units) to find nearby agents
     - Filters targets to exclude self and non-living agents
     - Selects the closest valid target using Euclidean distance
-    - Calculates damage based on agent's attack strength and current health ratio
-    - Applies defensive damage reduction (50% reduction when target is defending)
+    - Delegates attack execution to CombatComponent.attack()
     - Records combat metrics and logs the interaction for analysis
-    - Provides small reward bonus for successful attacks
 
     Returns:
         dict: Action result containing success status and details
@@ -566,27 +541,28 @@ def attack_action(agent: "BaseAgent") -> dict:
             "details": {},
         }
 
-    # Get attack range from config
-    attack_range = getattr(agent.config, "attack_range", 20.0)
+    # Get combat component
+    combat = agent.get_component("combat")
+    if not combat:
+        return {
+            "success": False,
+            "error": "Agent has no combat component",
+            "details": {},
+        }
+
+    # Get attack range from config (default 20.0)
+    attack_range = 20.0
 
     try:
-        # Find nearby agents using spatial index
-        nearby = agent.spatial_service.get_nearby(
-            agent.position, attack_range, ["agents"]
-        )
+        # Find nearby agents using spatial service
+        nearby = agent.get_spatial_service().get_nearby(agent.position, attack_range, ["agents"])
         nearby_agents = nearby.get("agents", [])
 
         # Filter out self and find valid targets
-        valid_targets = [
-            target
-            for target in nearby_agents
-            if target.agent_id != agent.agent_id and target.alive
-        ]
+        valid_targets = [target for target in nearby_agents if target.agent_id != agent.agent_id and target.alive]
 
         if not valid_targets:
-            logger.debug(
-                f"Agent {agent.agent_id} found no valid targets within range {attack_range}"
-            )
+            logger.debug(f"Agent {agent.agent_id} found no valid targets within range {attack_range}")
             return {
                 "success": False,
                 "error": "No valid targets found within attack range",
@@ -594,9 +570,7 @@ def attack_action(agent: "BaseAgent") -> dict:
             }
 
         # Find the closest target using helper function
-        closest_target, min_distance = find_closest_entity(
-            agent, valid_targets, "target"
-        )
+        closest_target, min_distance = find_closest_entity(agent, valid_targets, "target")
 
         if closest_target is None:
             return {
@@ -615,24 +589,16 @@ def attack_action(agent: "BaseAgent") -> dict:
         else:
             attack_direction = "vertical"
 
-        # Calculate damage based on agent's attack strength and health ratio
-        health_ratio = agent.current_health / agent.starting_health
-        base_damage = agent.attack_strength * health_ratio
+        # Execute attack using combat component
+        attack_result = combat.attack(closest_target)
 
-        # Apply defensive damage reduction if target is defending
-        if closest_target.is_defending:
-            defense_reduction = getattr(closest_target, "defense_strength", 0.5)
-            base_damage *= 1.0 - defense_reduction
-
-        # Apply damage to target
-        actual_damage = closest_target.take_damage(base_damage)
+        # Extract results from component
+        success = attack_result.get("success", False)
+        actual_damage = attack_result.get("damage_dealt", 0.0)
+        target_killed = attack_result.get("target_killed", False)
 
         # Update combat statistics
-        if (
-            actual_damage > 0
-            and hasattr(agent, "metrics_service")
-            and agent.metrics_service
-        ):
+        if actual_damage > 0 and agent.metrics_service:
             try:
                 agent.metrics_service.record_combat_encounter()
                 agent.metrics_service.record_successful_attack()
@@ -648,7 +614,7 @@ def attack_action(agent: "BaseAgent") -> dict:
             target_id=closest_target.agent_id,
             interaction_type="attack" if actual_damage > 0 else "attack_failed",
             action_type="attack",
-            details={},  # Minimal details to avoid duplication with action-specific logging
+            details={},
         )
 
         logger.debug(
@@ -657,8 +623,8 @@ def attack_action(agent: "BaseAgent") -> dict:
         )
 
         return {
-            "success": actual_damage > 0,
-            "error": None if actual_damage > 0 else "Attack dealt no damage",
+            "success": success,
+            "error": None if success else "Attack failed",
             "details": {
                 "damage_dealt": actual_damage,
                 "target_id": closest_target.agent_id,
@@ -667,8 +633,13 @@ def attack_action(agent: "BaseAgent") -> dict:
                 "target_position": closest_target.position,
                 "attacker_position": agent.position,
                 "attack_direction": attack_direction,
-                "target_defending": closest_target.is_defending,
+                "target_defending": (
+                    closest_target.get_component("combat").is_defending
+                    if closest_target.get_component("combat")
+                    else False
+                ),
                 "target_alive": closest_target.alive,
+                "target_killed": target_killed,
             },
         }
 
@@ -681,20 +652,20 @@ def attack_action(agent: "BaseAgent") -> dict:
         }
 
 
-def gather_action(agent: "BaseAgent") -> dict:
+def gather_action(agent: "AgentCore") -> dict:
     """Execute the gather action for the given agent.
 
     This action implements resource collection behavior where the agent seeks out
     and gathers resources from the nearest available resource node. The action uses
-    spatial indexing for efficient proximity queries to find resource locations.
+    spatial indexing for efficient proximity queries and delegates resource management
+    to the agent's ResourceComponent.
 
     Behavior details:
     - Uses configurable gathering_range (default: 30 units) to find nearby resources
     - Filters resources to exclude depleted or empty resource nodes
     - Selects the closest available resource using Euclidean distance
     - Gathers up to max_gather amount (configurable, default: 10) or available amount
-    - Transfers gathered resources directly to agent's resource pool
-    - Calculates reward based on amount gathered (0.1 per unit)
+    - Transfers gathered resources using ResourceComponent.add()
     - Records resource gathering metrics and logs the interaction for analysis
 
     Returns:
@@ -708,25 +679,28 @@ def gather_action(agent: "BaseAgent") -> dict:
             "details": {},
         }
 
-    # Get gathering range from config
-    gathering_range = getattr(agent.config, "gathering_range", 30)
+    # Get resource component
+    resource = agent.get_component("resource")
+    if not resource:
+        return {
+            "success": False,
+            "error": "Agent has no resource component",
+            "details": {},
+        }
+
+    # Get gathering range from config (default 30)
+    gathering_range = 30
 
     try:
-        # Find nearby resources using spatial index
-        nearby = agent.spatial_service.get_nearby(
-            agent.position, gathering_range, ["resources"]
-        )
+        # Find nearby resources using spatial service
+        nearby = agent.get_spatial_service().get_nearby(agent.position, gathering_range, ["resources"])
         nearby_resources = nearby.get("resources", [])
 
         # Filter out depleted resources
-        available_resources = [
-            r for r in nearby_resources if not r.is_depleted() and r.amount > 0
-        ]
+        available_resources = [r for r in nearby_resources if not r.is_depleted() and r.amount > 0]
 
         if not available_resources:
-            logger.debug(
-                f"Agent {agent.agent_id} found no available resources within range {gathering_range}"
-            )
+            logger.debug(f"Agent {agent.agent_id} found no available resources within range {gathering_range}")
             return {
                 "success": False,
                 "error": "No available resources found within gathering range",
@@ -734,9 +708,7 @@ def gather_action(agent: "BaseAgent") -> dict:
             }
 
         # Find the closest resource using helper function
-        closest_resource, min_distance = find_closest_entity(
-            agent, available_resources, "resource"
-        )
+        closest_resource, min_distance = find_closest_entity(agent, available_resources, "resource")
 
         if closest_resource is None:
             return {
@@ -746,12 +718,11 @@ def gather_action(agent: "BaseAgent") -> dict:
             }
 
         # Record initial resource levels
-        initial_agent_resources = agent.resource_level
+        initial_agent_resources = resource.level
         resource_amount_before = closest_resource.amount
 
-        # Determine how much to gather
-        # Prefer config.max_gather_amount if present; fall back to 10
-        max_gather = getattr(agent.config, "max_gather_amount", 10)
+        # Determine how much to gather (default 10)
+        max_gather = 10
         gather_amount = min(max_gather, closest_resource.amount)
 
         if gather_amount <= 0:
@@ -769,12 +740,8 @@ def gather_action(agent: "BaseAgent") -> dict:
         # Consume from resource
         actual_gathered = closest_resource.consume(gather_amount)
 
-        # Add to agent's resources
-        agent.resource_level += actual_gathered
-
-        # Calculate simple reward based on amount gathered
-        reward = actual_gathered * 0.1  # Simple reward per unit gathered
-        agent.total_reward += reward
+        # Add to agent's resources using component
+        resource.add(actual_gathered)
 
         # Log successful gather action using helper function
         log_interaction_safely(
@@ -785,24 +752,20 @@ def gather_action(agent: "BaseAgent") -> dict:
             target_id=str(getattr(closest_resource, "resource_id", "unknown")),
             interaction_type="gather",
             action_type="gather",
-            details={},  # Minimal details to avoid duplication with action-specific logging
+            details={},
         )
 
-        logger.debug(
-            f"Agent {agent.agent_id} gathered {actual_gathered} resources from {min_distance:.2f} units away"
-        )
+        logger.debug(f"Agent {agent.agent_id} gathered {actual_gathered} resources from {min_distance:.2f} units away")
 
         return {
             "success": actual_gathered > 0,
-            "error": (
-                None if actual_gathered > 0 else "No resources were actually gathered"
-            ),
+            "error": (None if actual_gathered > 0 else "No resources were actually gathered"),
             "details": {
                 "amount_gathered": actual_gathered,
                 "resource_before": resource_amount_before,
                 "resource_after": closest_resource.amount,
                 "agent_resources_before": initial_agent_resources,
-                "agent_resources_after": agent.resource_level,
+                "agent_resources_after": resource.level,
                 "distance": min_distance,
                 "gathering_range": gathering_range,
                 "resource_id": getattr(closest_resource, "resource_id", "unknown"),
@@ -822,7 +785,7 @@ def gather_action(agent: "BaseAgent") -> dict:
             target_id="unknown",
             interaction_type="gather_failed",
             action_type="gather",
-            details={},  # Minimal details to avoid duplication
+            details={},
         )
 
         return {
@@ -832,7 +795,7 @@ def gather_action(agent: "BaseAgent") -> dict:
         }
 
 
-def share_action(agent: "BaseAgent") -> dict:
+def share_action(agent: "AgentCore") -> dict:
     """Execute the share action for the given agent.
 
     This action implements cooperative behavior where the agent shares resources
@@ -845,8 +808,7 @@ def share_action(agent: "BaseAgent") -> dict:
     - Selects the agent with the lowest resource level (greatest need)
     - Shares a fixed share_amount (configurable, default: 2) or available amount
     - Requires agent to keep minimum resources (min_keep_resources, default: 5)
-    - Transfers resources directly from agent's pool to target's pool
-    - Calculates small reward for cooperative behavior (0.05 per resource shared)
+    - Transfers resources using ResourceComponent methods
     - Records resource sharing metrics and logs the interaction for analysis
 
     Returns:
@@ -860,27 +822,28 @@ def share_action(agent: "BaseAgent") -> dict:
             "details": {},
         }
 
-    # Get sharing range from config
-    share_range = getattr(agent.config, "share_range", 30)
+    # Get resource component
+    resource = agent.get_component("resource")
+    if not resource:
+        return {
+            "success": False,
+            "error": "Agent has no resource component",
+            "details": {},
+        }
+
+    # Get sharing range from config (default 30)
+    share_range = 30
 
     try:
-        # Find nearby agents using spatial index
-        nearby = agent.spatial_service.get_nearby(
-            agent.position, share_range, ["agents"]
-        )
+        # Find nearby agents using spatial service
+        nearby = agent.get_spatial_service().get_nearby(agent.position, share_range, ["agents"])
         nearby_agents = nearby.get("agents", [])
 
         # Filter out self and find valid targets
-        valid_targets = [
-            target
-            for target in nearby_agents
-            if target.agent_id != agent.agent_id and target.alive
-        ]
+        valid_targets = [target for target in nearby_agents if target.agent_id != agent.agent_id and target.alive]
 
         if not valid_targets:
-            logger.debug(
-                f"Agent {agent.agent_id} found no valid targets within range {share_range}"
-            )
+            logger.debug(f"Agent {agent.agent_id} found no valid targets within range {share_range}")
             return {
                 "success": False,
                 "error": "No valid targets found within sharing range",
@@ -888,21 +851,38 @@ def share_action(agent: "BaseAgent") -> dict:
             }
 
         # Find the agent with the lowest resource level (simple need-based selection)
-        target = min(valid_targets, key=lambda a: a.resource_level)
+        candidates = [a for a in valid_targets if a.get_component("resource")]
+        if not candidates:
+            logger.debug(
+                f"Agent {agent.agent_id} found no valid targets with resource component within range {share_range}"
+            )
+            return {
+                "success": False,
+                "error": "No valid targets with resource component",
+                "details": {"share_range": share_range},
+            }
+        target = min(candidates, key=lambda a: a.get_component("resource").level)
+
+        # Get target's resource component
+        target_resource = target.get_component("resource")
+        if not target_resource:
+            return {
+                "success": False,
+                "error": "Target agent has no resource component",
+                "details": {"target_id": target.agent_id},
+            }
 
         # Determine share amount (simple fixed amount if agent has enough resources)
-        share_amount = getattr(agent.config, "share_amount", 2)
-        min_keep = getattr(agent.config, "min_keep_resources", 5)
+        share_amount = 2
+        min_keep = 5
 
         # Only share if agent has enough resources to keep minimum and share
-        if not check_resource_requirement(
-            agent, min_keep + share_amount, "share", "resources to share"
-        ):
+        if not check_resource_requirement(agent, min_keep + share_amount, "share", "resources to share"):
             return {
                 "success": False,
                 "error": f"Insufficient resources to share while maintaining minimum of {min_keep}",
                 "details": {
-                    "agent_resources": agent.resource_level,
+                    "agent_resources": resource.level,
                     "required_total": min_keep + share_amount,
                     "share_amount": share_amount,
                     "min_keep": min_keep,
@@ -910,19 +890,15 @@ def share_action(agent: "BaseAgent") -> dict:
             }
 
         # Record initial resource levels
-        agent_resources_before = agent.resource_level
-        target_resources_before = target.resource_level
+        agent_resources_before = resource.level
+        target_resources_before = target_resource.level
 
-        # Execute sharing
-        agent.resource_level -= share_amount
-        target.resource_level += share_amount
-
-        # Calculate simple reward
-        reward = share_amount * 0.05  # Small reward per resource shared
-        agent.total_reward += reward
+        # Execute sharing using components
+        resource.consume(share_amount)
+        target_resource.add(share_amount)
 
         # Update environment's resources_shared counter
-        if hasattr(agent, "metrics_service") and agent.metrics_service:
+        if agent.metrics_service:
             try:
                 agent.metrics_service.record_resources_shared(share_amount)
             except Exception as e:
@@ -937,12 +913,12 @@ def share_action(agent: "BaseAgent") -> dict:
             target_id=target.agent_id,
             interaction_type="share",
             action_type="share",
-            details={},  # Minimal details to avoid duplication with action-specific logging
+            details={},
         )
 
         logger.debug(
             f"Agent {agent.agent_id} shared {share_amount} resources with {target.agent_id} "
-            f"(target now has {target.resource_level} resources)"
+            f"(target now has {target_resource.level} resources)"
         )
 
         return {
@@ -951,12 +927,11 @@ def share_action(agent: "BaseAgent") -> dict:
             "details": {
                 "amount_shared": share_amount,
                 "agent_resources_before": agent_resources_before,
-                "agent_resources_after": agent.resource_level,
+                "agent_resources_after": resource.level,
                 "target_resources_before": target_resources_before,
-                "target_resources_after": target.resource_level,
+                "target_resources_after": target_resource.level,
                 "target_id": target.agent_id,
                 "share_range": share_range,
-                "reward_earned": reward,
             },
         }
 
@@ -969,20 +944,18 @@ def share_action(agent: "BaseAgent") -> dict:
         }
 
 
-def move_action(agent: "BaseAgent") -> dict:
+def move_action(agent: "AgentCore") -> dict:
     """Execute the move action for the given agent.
 
     This action implements basic movement behavior where the agent randomly selects
     a direction and attempts to move to a new position within the environment.
-    The movement is constrained by environment boundaries and validation rules.
+    The movement is delegated to the agent's MovementComponent.
 
     Behavior details:
     - Randomly selects from four cardinal directions (up, down, left, right)
-    - Uses configurable max_movement distance (default: 1 unit) for movement magnitude
-    - Calculates new position by applying movement vector to current position
-    - Validates new position against environment boundaries and obstacles
-    - Updates agent's position if the move is valid, otherwise logs failure
-    - Marks spatial index as dirty to trigger updates for nearby agent queries
+    - Uses MovementComponent.move_by() for actual movement
+    - Movement is constrained by component's max_movement configuration
+    - Records movement for logging and analysis
 
     Returns:
         dict: Action result containing success status and details
@@ -994,6 +967,15 @@ def move_action(agent: "BaseAgent") -> dict:
         return {
             "success": False,
             "error": "Invalid agent configuration for move action",
+            "details": {},
+        }
+
+    # Get movement component
+    movement = agent.get_component("movement")
+    if not movement:
+        return {
+            "success": False,
+            "error": "Agent has no movement component",
             "details": {},
         }
 
@@ -1009,94 +991,51 @@ def move_action(agent: "BaseAgent") -> dict:
         # Randomly select a direction
         dx, dy = random.choice(directions)
 
-        # Get movement distance from config
-        move_distance = getattr(agent.config, "max_movement", 1)
+        # Get movement distance from component config
+        move_distance = movement.max_movement
 
-        # Calculate new position
-        new_x = agent.position[0] + dx * move_distance
-        new_y = agent.position[1] + dy * move_distance
+        # Calculate movement vector
+        delta_x = dx * move_distance
+        delta_y = dy * move_distance
 
         # Record original position
         original_position = agent.position
 
-        # Ensure position stays within environment bounds
-        # Bound by config width/height if provided
-        if hasattr(agent, "config") and agent.config:
-            env_width = getattr(agent.config, "width", None)
-            env_height = getattr(agent.config, "height", None)
-            if env_width is not None and env_height is not None:
-                new_x = max(0, min(int(env_width) - 1, new_x))
-                new_y = max(0, min(int(env_height) - 1, new_y))
+        # Execute movement using component
+        success = movement.move_by(delta_x, delta_y)
 
-        new_position = (new_x, new_y)
+        # Get new position
+        new_position = agent.position
 
-        # Check if the new position is valid
-        if (
-            hasattr(agent, "validation_service")
-            and agent.validation_service
-            and agent.validation_service.is_valid_position(new_position)
-        ):
-            # Move the agent
-            agent.update_position(new_position)
+        # Log the movement
+        log_interaction_safely(
+            agent,
+            source_type="agent",
+            source_id=agent.agent_id,
+            target_type="position",
+            target_id=f"{new_position[0]},{new_position[1]}",
+            interaction_type="move" if success else "move_failed",
+            action_type="move",
+            details={},
+        )
 
-            # Log successful move
-            log_interaction_safely(
-                agent,
-                source_type="agent",
-                source_id=agent.agent_id,
-                target_type="position",
-                target_id=f"{new_position[0]},{new_position[1]}",
-                interaction_type="move",
-                action_type="move",
-                details={},  # Minimal details to avoid duplication with action-specific logging
-            )
-
-            logger.debug(
-                f"Agent {agent.agent_id} moved from {original_position} to {new_position}"
-            )
-
-            return {
-                "success": True,
-                "error": None,
-                "details": {
-                    "old_position": original_position,
-                    "new_position": new_position,
-                    "distance": move_distance,
-                    "direction": (dx, dy),
-                    "movement_vector": (dx * move_distance, dy * move_distance),
-                    "position_changed": original_position != new_position,
-                },
-            }
+        if success:
+            logger.debug(f"Agent {agent.agent_id} moved from {original_position} to {new_position}")
         else:
-            # Log failed move
-            log_interaction_safely(
-                agent,
-                source_type="agent",
-                source_id=agent.agent_id,
-                target_type="position",
-                target_id=f"{new_position[0]},{new_position[1]}",
-                interaction_type="move_failed",
-                action_type="move",
-                details={},  # Minimal details to avoid duplication
-            )
+            logger.debug(f"Agent {agent.agent_id} move failed from {original_position}")
 
-            logger.debug(
-                f"Agent {agent.agent_id} could not move to invalid position {new_position}"
-            )
-
-            return {
-                "success": False,
-                "error": "Invalid position - move blocked by boundaries or obstacles",
-                "details": {
-                    "attempted_position": new_position,
-                    "current_position": original_position,
-                    "distance": move_distance,
-                    "direction": (dx, dy),
-                    "movement_vector": (dx * move_distance, dy * move_distance),
-                    "validation_service_available": hasattr(agent, "validation_service")
-                    and agent.validation_service is not None,
-                },
-            }
+        return {
+            "success": success,
+            "error": None if success else "Movement component failed to move",
+            "details": {
+                "old_position": original_position,
+                "new_position": new_position,
+                "distance": move_distance,
+                "direction": (dx, dy),
+                "movement_vector": (delta_x, delta_y),
+                "position_changed": original_position != new_position,
+            },
+        }
 
     except Exception as e:
         logger.error(f"Move action failed for agent {agent.agent_id}: {str(e)}")
@@ -1107,21 +1046,19 @@ def move_action(agent: "BaseAgent") -> dict:
         }
 
 
-def reproduce_action(agent: "BaseAgent") -> dict:
+def reproduce_action(agent: "AgentCore") -> dict:
     """Execute the reproduce action for the given agent.
 
     This action implements reproductive behavior where the agent attempts to create
-    offspring if it has sufficient resources. The action consolidates resource checking,
-    probability-based decision making, and offspring creation into a complete lifecycle.
+    offspring if it has sufficient resources. The action delegates to the agent's
+    ReproductionComponent for actual reproduction logic.
 
     Behavior details:
     - Checks minimum resource requirements (min_reproduction_resources, default: 8)
     - Verifies total cost including offspring_cost (default: 5) can be met
     - Applies reproduction chance probability (reproduction_chance, default: 0.5)
-    - Creates offspring using agent's _create_offspring method if conditions met
-    - Transfers offspring_cost from parent to pay for reproduction
+    - Delegates reproduction to ReproductionComponent.reproduce()
     - Records reproduction event with detailed metrics and logging
-    - Offspring inherits parent's position and receives initial resources
 
     Returns:
         dict: Action result containing success status and details
@@ -1136,10 +1073,19 @@ def reproduce_action(agent: "BaseAgent") -> dict:
             "details": {},
         }
 
-    # Get reproduction parameters from config
-    min_resources = getattr(agent.config, "min_reproduction_resources", 8)
-    offspring_cost = getattr(agent.config, "offspring_cost", 5)
-    reproduction_chance = getattr(agent.config, "reproduction_chance", 0.5)
+    # Get reproduction component
+    reproduction = agent.get_component("reproduction")
+    if not reproduction:
+        return {
+            "success": False,
+            "error": "Agent has no reproduction component",
+            "details": {},
+        }
+
+    # Get reproduction parameters from config (defaults)
+    min_resources = 8
+    offspring_cost = 5
+    reproduction_chance = 0.5
 
     # Check total resource requirements (minimum + offspring cost)
     total_required = min_resources + offspring_cost
@@ -1148,9 +1094,11 @@ def reproduce_action(agent: "BaseAgent") -> dict:
         if not check_resource_requirement(agent, total_required, "reproduce"):
             return {
                 "success": False,
-                "error": f"Insufficient resources for reproduction (need {total_required}, have {agent.resource_level})",
+                "error": f"Insufficient resources for reproduction (need {total_required}, have {(agent.get_component('resource').level if agent.get_component('resource') else 0.0)})",
                 "details": {
-                    "agent_resources": agent.resource_level,
+                    "agent_resources": (
+                        agent.get_component("resource").level if agent.get_component("resource") else 0.0
+                    ),
                     "min_resources": min_resources,
                     "offspring_cost": offspring_cost,
                     "total_required": total_required,
@@ -1169,17 +1117,23 @@ def reproduce_action(agent: "BaseAgent") -> dict:
                 "details": {
                     "reproduction_roll": reproduction_roll,
                     "reproduction_chance": reproduction_chance,
-                    "agent_resources": agent.resource_level,
+                    "agent_resources": (
+                        agent.get_component("resource").level if agent.get_component("resource") else 0.0
+                    ),
                     "total_required": total_required,
                 },
             }
 
         # Record state before reproduction
-        resources_before = agent.resource_level
-        generation_before = getattr(agent, "generation", 0)
+        _res = agent.get_component("resource")
+        resources_before = _res.level if _res else 0.0
+        generation_before = agent.generation
 
-        # Attempt reproduction using the agent's method
-        success = agent.reproduce()
+        # Attempt reproduction using component
+        reproduction_result = reproduction.reproduce()
+
+        success = reproduction_result.get("success", False)
+        offspring_id = reproduction_result.get("offspring_id", "unknown")
 
         if success:
             # Log successful reproduction
@@ -1188,34 +1142,36 @@ def reproduce_action(agent: "BaseAgent") -> dict:
                 source_type="agent",
                 source_id=agent.agent_id,
                 target_type="agent",
-                target_id="offspring",  # Will be replaced with actual ID in reproduce method
+                target_id=offspring_id,
                 interaction_type="reproduce",
                 action_type="reproduce",
-                details={},  # Minimal details to avoid duplication with reproduction event logging
+                details={},
             )
 
-            logger.debug(f"Agent {agent.agent_id} successfully reproduced")
+            logger.debug(f"Agent {agent.agent_id} successfully reproduced offspring {offspring_id}")
             return {
                 "success": True,
                 "error": None,
                 "details": {
                     "resources_before": resources_before,
-                    "resources_after": agent.resource_level,
+                    "resources_after": (_res.level if _res else 0.0),
                     "offspring_cost": offspring_cost,
                     "min_resources": min_resources,
                     "parent_generation": generation_before,
                     "reproduction_roll": reproduction_roll,
                     "reproduction_chance": reproduction_chance,
+                    "offspring_id": offspring_id,
                 },
             }
         else:
-            logger.debug(f"Agent {agent.agent_id} reproduction attempt failed")
+            error_msg = reproduction_result.get("error", "Reproduction failed")
+            logger.debug(f"Agent {agent.agent_id} reproduction attempt failed: {error_msg}")
             return {
                 "success": False,
-                "error": "Reproduction failed - offspring creation unsuccessful",
+                "error": f"Reproduction failed: {error_msg}",
                 "details": {
                     "resources_before": resources_before,
-                    "resources_after": agent.resource_level,  # May have changed if partial creation occurred
+                    "resources_after": (_res.level if _res else 0.0),
                     "offspring_cost": offspring_cost,
                     "min_resources": min_resources,
                     "parent_generation": generation_before,
@@ -1233,20 +1189,16 @@ def reproduce_action(agent: "BaseAgent") -> dict:
         }
 
 
-def defend_action(agent: "BaseAgent") -> dict:
+def defend_action(agent: "AgentCore") -> dict:
     """Execute the defend action for the given agent.
 
     This action implements defensive behavior where the agent enters a protective
-    stance that reduces incoming damage and provides healing benefits. The defense
-    lasts for a configurable duration and consumes resources to activate.
+    stance that reduces incoming damage. The action delegates to the agent's
+    CombatComponent for defense activation.
 
     Behavior details:
     - Checks and pays defense cost (defense_cost, default: 0) if configured
-    - Activates defensive stance by setting is_defending flag to True
-    - Sets defense timer to configured duration (defense_duration, default: 3 turns)
-    - Applies healing effect (defense_healing, default: 1 health) if configured
-    - Healing is capped by maximum health to prevent overhealing
-    - Provides small reward (0.02) for successful defensive action
+    - Delegates defense activation to CombatComponent.start_defense()
     - Records defense activation with detailed logging and metrics
 
     Returns:
@@ -1260,57 +1212,49 @@ def defend_action(agent: "BaseAgent") -> dict:
             "details": {},
         }
 
-    # Get defense parameters from config
-    defense_duration = getattr(agent.config, "defense_duration", 3)
-    defense_healing = getattr(agent.config, "defense_healing", 1)
-    defense_cost = getattr(agent.config, "defense_cost", 0)
+    # Get combat component
+    combat = agent.get_component("combat")
+    if not combat:
+        return {
+            "success": False,
+            "error": "Agent has no combat component",
+            "details": {},
+        }
+
+    # Get defense parameters from config (defaults)
+    defense_duration = 3
+    defense_cost = 0
 
     try:
         # Check if agent has enough resources for defense cost
         if not check_resource_requirement(agent, defense_cost, "defend"):
             return {
                 "success": False,
-                "error": f"Insufficient resources for defense cost (need {defense_cost}, have {agent.resource_level})",
+                "error": f"Insufficient resources for defense cost (need {defense_cost}, have {(agent.get_component('resource').level if agent.get_component('resource') else 0.0)})",
                 "details": {
-                    "agent_resources": agent.resource_level,
+                    "agent_resources": (
+                        agent.get_component("resource").level if agent.get_component("resource") else 0.0
+                    ),
                     "defense_cost": defense_cost,
                     "defense_duration": defense_duration,
-                    "defense_healing": defense_healing,
                 },
             }
 
         # Record state before defense
-        resources_before = agent.resource_level
-        health_before = getattr(agent, "current_health", 0)
-        was_defending_before = getattr(agent, "is_defending", False)
-        defense_timer_before = getattr(agent, "defense_timer", 0)
+        _res = agent.get_component("resource")
+        resources_before = _res.level if _res else 0.0
+        health_before = agent.get_component("combat").health
+        was_defending_before = combat.is_defending
+        defense_timer_before = combat.defense_turns_remaining
 
-        # Pay the defense cost
+        # Pay the defense cost using resource component
         if defense_cost > 0:
-            agent.resource_level -= defense_cost
+            resource = agent.get_component("resource")
+            if resource:
+                resource.consume(defense_cost)
 
-        # Enter defensive state
-        agent.is_defending = True
-        agent.defense_timer = defense_duration
-
-        # Apply healing/recovery effect
-        healing_applied = 0
-        if defense_healing > 0 and hasattr(agent, "current_health"):
-            max_health = getattr(agent, "starting_health", agent.current_health)
-            healing_amount = min(defense_healing, max_health - agent.current_health)
-            if healing_amount > 0:
-                agent.current_health += healing_amount
-                healing_applied = healing_amount
-                logger.debug(
-                    f"Agent {agent.agent_id} healed {healing_amount} health while defending"
-                )
-
-        # Calculate simple reward for defensive action
-        # Use config value if available, otherwise fall back to default
-        reward = getattr(
-            getattr(agent.config, "action_rewards", None), "defend_success_reward", 0.02
-        )
-        agent.total_reward += reward
+        # Enter defensive state using combat component
+        combat.start_defense(defense_duration)
 
         # Log the defend action using helper function
         log_interaction_safely(
@@ -1321,12 +1265,11 @@ def defend_action(agent: "BaseAgent") -> dict:
             target_id=agent.agent_id,  # Self-targeted for defense
             interaction_type="defend",
             action_type="defend",
-            details={},  # Minimal details to avoid duplication with action-specific logging
+            details={},
         )
 
         logger.debug(
-            f"Agent {agent.agent_id} entered defensive stance for {defense_duration} turns "
-            f"(cost: {defense_cost}, healing: {healing_applied})"
+            (f"Agent {agent.agent_id} entered defensive stance for {defense_duration} turns\n    Cost: {defense_cost}")
         )
 
         return {
@@ -1334,16 +1277,13 @@ def defend_action(agent: "BaseAgent") -> dict:
             "error": None,
             "details": {
                 "duration": defense_duration,
-                "healing": defense_healing,
-                "healing_applied": healing_applied,
                 "cost": defense_cost,
                 "resources_before": resources_before,
-                "resources_after": agent.resource_level,
+                "resources_after": (_res.level if _res else 0.0),
                 "health_before": health_before,
-                "health_after": getattr(agent, "current_health", 0),
+                "health_after": agent.get_component("combat").health,
                 "was_defending_before": was_defending_before,
                 "defense_timer_before": defense_timer_before,
-                "reward_earned": reward,
             },
         }
 
@@ -1356,7 +1296,7 @@ def defend_action(agent: "BaseAgent") -> dict:
         }
 
 
-def pass_action(agent: "BaseAgent") -> dict:
+def pass_action(agent: "AgentCore") -> dict:
     """Execute the pass action for the given agent.
 
     This action implements strategic inaction where the agent chooses to do nothing
@@ -1383,12 +1323,9 @@ def pass_action(agent: "BaseAgent") -> dict:
         }
 
     try:
-        # Calculate small reward for strategic inaction
-        # Use config value if available, otherwise fall back to default
-        reward = getattr(
-            getattr(agent.config, "action_rewards", None), "pass_action_reward", 0.01
-        )
-        agent.total_reward += reward
+        # Calculate small reward for strategic inaction (default 0.01)
+        reward = 0.01
+        # Note: total_reward is not implemented in AgentCore yet
 
         # Log the pass action using helper function
         log_interaction_safely(
@@ -1404,14 +1341,18 @@ def pass_action(agent: "BaseAgent") -> dict:
 
         logger.debug(f"Agent {agent.agent_id} chose to pass this turn")
 
+        # Get agent state safely, handling missing components
+        resource_component = agent.get_component("resource")
+        combat_component = agent.get_component("combat")
+
         return {
             "success": True,
             "error": None,
             "details": {
                 "reason": "strategic_inaction",
                 "reward_earned": reward,
-                "agent_resources": agent.resource_level,
-                "agent_health": getattr(agent, "current_health", 0),
+                "agent_resources": resource_component.level if resource_component else 0.0,
+                "agent_health": combat_component.health if combat_component else 0.0,
                 "agent_position": agent.position,
             },
         }

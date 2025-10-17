@@ -1,18 +1,23 @@
 
-# Action System
+# Hybrid Action System
 
-The action system manages agent behaviors in the multi-agent simulation environment. It defines possible actions agents can take, how they are selected using learning algorithms, and how they are executed in the environment.
+The hybrid action system manages agent behaviors in the multi-agent simulation environment. It combines the environment's action registry (for PettingZoo compatibility) with agent component-based execution, providing a clean separation between external interfaces and internal capabilities.
 
 ## Overview
 
-Agents in the system can perform various actions such as moving, gathering resources, attacking, sharing, reproducing, defending, or passing. The system uses a combination of rule-based execution and learning-based selection (primarily Deep Q-Learning) to enable intelligent agent behavior.
+The system uses a hybrid architecture where:
+- **Environment Layer**: Maintains the action registry for external compatibility (PettingZoo, RL frameworks)
+- **Agent Layer**: Uses component-based architecture for actual action execution
+- **Delegation Pattern**: Action registry functions delegate to agent components
+
+Agents can perform various actions such as moving, gathering resources, attacking, sharing, reproducing, defending, or passing. The system supports both learning-based selection (via behaviors) and direct component interaction.
 
 Key features:
-- Modular action definitions with weights for selection
-- Deep Q-Learning for action selection via DecisionModule
-- Curriculum learning support for progressive capability unlocking
-- Integration with agent state, perception, and memory systems
-- Reward-based learning for adaptive behavior
+- **Hybrid Architecture**: Environment registry + agent components
+- **Component-Based Execution**: Actions delegate to specialized agent components
+- **PettingZoo Compatibility**: Maintains external RL framework interfaces
+- **Clean Separation**: Environment owns registry, agents own capabilities
+- **Flexible Behaviors**: Both registry-based and direct component access
 
 ## Core Components
 
@@ -81,7 +86,7 @@ Actions are registered with default weights:
 
 Action selection is handled by the `DecisionModule` in `farm/core/decision/decision.py`, which uses reinforcement learning (default: DQN via Stable Baselines3) to choose actions based on the current state.
 
-In `BaseAgent.decide_action()`:
+In agent behavior strategies:
 
 1. Create state representation (position, resources, health, etc.)
 2. Determine enabled actions based on curriculum phase
@@ -98,17 +103,32 @@ Curriculum learning progressively enables actions through phases defined in conf
 
 ## Action Execution
 
-Each action has a dedicated function in `farm/core/action.py` that implements the behavior:
+The hybrid system uses a delegation pattern where action functions in `farm/core/action.py` delegate to agent components:
 
-- **defend_action**: Enter defensive stance, reduce damage, optional healing
-- **attack_action**: Find closest target in range, calculate and apply damage
-- **gather_action**: Collect from nearest resource node
-- **share_action**: Share resources with neediest nearby agent
-- **move_action**: Move in random direction within bounds
-- **reproduce_action**: Create offspring if resources sufficient
-- **pass_action**: Do nothing, small reward
+### Action-Component Mapping
 
-Actions use environment services like spatial indexing for efficiency and log interactions.
+- **move_action** → `MovementComponent.move_by()`
+- **attack_action** → `CombatComponent.attack()`
+- **defend_action** → `CombatComponent.start_defense()`
+- **gather_action** → `ResourceComponent.add()` + spatial queries
+- **share_action** → `ResourceComponent.consume()` + target `ResourceComponent.add()`
+- **reproduce_action** → `ReproductionComponent.reproduce()`
+- **pass_action** → No-op (minimal implementation)
+
+### Execution Flow
+
+1. **Environment**: `Environment.step(action_index)` calls action registry
+2. **Registry**: Action function delegates to agent component
+3. **Component**: Performs actual behavior (movement, combat, etc.)
+4. **Result**: Standardized result format returned
+
+### Component Integration
+
+Actions access agent components via `agent.get_component(component_name)`:
+- Components manage their own state and configuration
+- Actions validate component availability before execution
+- Spatial services accessed through `agent._spatial_service`
+- Lifecycle services for reproduction and agent creation
 
 ## Learning Integration
 
@@ -117,17 +137,38 @@ Actions use environment services like spatial indexing for efficiency and log in
 - Specialized DQN modules in `farm/core/decision/` for behaviors like movement
 - Training occurs after each action via `DecisionModule.update()`
 
-## Usage Example
+## Usage Examples
 
-In agent lifecycle:
+### Environment Integration (PettingZoo)
 
 ```python
-# In BaseAgent.act()
-action = self.decide_action()  # Uses DecisionModule with externally provided state
-action.execute(self)  # Performs the action
-reward = self._calculate_reward()
-# State management handled externally
-)
+# Environment calls action registry
+action = action_registry.get("move")
+result = action.execute(agent)
+# Result: {"success": bool, "error": str, "details": dict}
+```
+
+### Agent Behavior Integration
+
+```python
+# Behaviors can call components directly (bypassing registry)
+class DefaultAgentBehavior:
+    def select_action(self, agent):
+        movement = agent.get_component("movement")
+        if movement:
+            movement.move_by(5.0, 0.0)  # Direct component call
+```
+
+### Component-Based Execution
+
+```python
+# Actions delegate to components
+def move_action(agent):
+    movement = agent.get_component("movement")
+    if not movement:
+        return {"success": False, "error": "No movement component", "details": {}}
+    
+    return movement.move_by(5.0, 0.0)  # Component handles the logic
 ```
 
 ## Related Components
@@ -142,42 +183,97 @@ For implementation details, refer to `farm/core/action.py` and `farm/core/agent.
 
 ## Adding New Actions
 
-To extend the action system with new behaviors:
+To extend the hybrid action system with new behaviors:
 
-1. **Define the Action Function**:
-   Create a function that implements the behavior. It must take `agent: BaseAgent` as the first parameter.
+### 1. Create Agent Component (if needed)
 
-   Example:
-   ```python
-   def new_action(agent: "BaseAgent") -> None:
-       # Implementation here
-       pass
-   ```
+If the action requires new capabilities, create a component:
 
-2. **Register the Action**:
-   In `farm/core/action.py`, register the action with a unique name and selection weight (0.0-1.0).
+```python
+# farm/core/agent/components/new_capability.py
+class NewCapabilityComponent(AgentComponent):
+    def __init__(self, config: NewCapabilityConfig):
+        super().__init__("new_capability", config)
+        # Initialize component state
+    
+    def perform_new_action(self, param1, param2):
+        # Implement the behavior
+        return {"success": True, "details": {...}}
+```
 
-   ```python
-   action_registry.register("new_action", 0.1, new_action)
-   ```
+### 2. Define the Action Function
 
-3. **Update ActionType Enum** (Optional):
-   If the action represents a new fundamental type, add it to `ActionType` in `farm/core/action.py`.
+Create a function that delegates to the component:
 
-   ```python
-   class ActionType(IntEnum):
-       # ... existing ...
-       NEW_ACTION = 7
-   ```
+```python
+# farm/core/action.py
+def new_action(agent: "AgentCore") -> Dict[str, Any]:
+    """New action that delegates to NewCapabilityComponent."""
+    component = agent.get_component("new_capability")
+    if not component:
+        return {
+            "success": False,
+            "error": "Agent has no new_capability component",
+            "details": {}
+        }
+    
+    # Delegate to component
+    return component.perform_new_action(param1, param2)
+```
 
-4. **Integrate with Learning**:
-   - The DecisionModule will automatically handle the new action as its `num_actions` is based on registered actions.
-   - Update reward calculations in `BaseAgent._calculate_reward()` if needed.
-   - If specialized learning is required, create a new module in `farm/core/decision/`.
+### 3. Register the Action
 
-5. **Test and Balance**:
-   - Add unit tests in `tests/core/test_actions.py`.
-   - Adjust weight to balance selection probability.
-   - Monitor in simulations to ensure proper integration.
+Register with the action registry:
 
-New actions are automatically available to all agents via the registry.
+```python
+# farm/core/action.py
+action_registry.register("new_action", 0.1, new_action)
+```
+
+### 4. Update ActionType Enum (Optional)
+
+Add to the enum if it's a fundamental action type:
+
+```python
+class ActionType(IntEnum):
+    # ... existing ...
+    NEW_ACTION = 7
+```
+
+### 5. Add Agent Configuration
+
+Update agent configuration to include the new component:
+
+```python
+# farm/core/agent/config/agent_config.py
+@dataclass
+class NewCapabilityConfig:
+    param1: float = 1.0
+    param2: int = 10
+
+# In AgentConfig
+new_capability: NewCapabilityConfig = field(default_factory=NewCapabilityConfig)
+```
+
+### 6. Test the Integration
+
+Add comprehensive tests:
+
+```python
+# tests/test_hybrid_action_system.py
+def test_new_action_delegates_to_component(self):
+    agent = self.create_test_agent(components=[
+        NewCapabilityComponent(NewCapabilityConfig()),
+    ])
+    
+    result = new_action(agent)
+    assert result["success"] is True
+```
+
+### 7. Update Documentation
+
+- Update this documentation with the new action
+- Add examples of usage
+- Document any special requirements
+
+The new action will be automatically available through both the action registry (for environment integration) and direct component access (for behaviors).

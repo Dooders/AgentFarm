@@ -17,7 +17,7 @@ import random
 import torch
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentFactory
 from farm.core.config import SimulationConfig
 from farm.core.services.factory import AgentServiceFactory
 
@@ -56,16 +56,13 @@ def create_basic_simulation():
         config=config
     )
 
-    # 4. Add agents (spatial service is required)
+    # 4. Add agents using AgentFactory
+    factory = AgentFactory(spatial_service=environment.spatial_service)
     for i in range(10):
-        agent = BaseAgent(
+        agent = factory.create_default_agent(
             agent_id=f"agent_{i:02d}",
             position=(random.randint(0, 49), random.randint(0, 49)),
-            resource_level=100,
-            spatial_service=environment.spatial_service,
-            environment=environment,
-            agent_type="IndependentAgent",
-            generation=0,
+            initial_resources=100,
         )
         environment.add_agent(agent)
 
@@ -151,17 +148,33 @@ This tutorial shows how to create agents with specialized behaviors.
 import random
 import numpy as np
 from typing import Tuple, Optional
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentCore, AgentFactory, AgentConfig
+from farm.core.agent.components.resource import ResourceComponent
+from farm.core.agent.components.combat import CombatComponent
+from farm.core.agent.components.movement import MovementComponent
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 from farm.core.config import SimulationConfig
 
-class CooperativeAgent(BaseAgent):
+class CooperativeAgent(AgentCore):
     """An agent that prioritizes cooperation and resource sharing."""
 
     def __init__(self, agent_id: str, position: Tuple[int, int],
-                 resource_level: int, spatial_service, environment: Environment = None, **kwargs):
-        super().__init__(agent_id, position, resource_level, spatial_service, environment, **kwargs)
+                 initial_resources: int, spatial_service, environment: Environment = None, **kwargs):
+        # Create components
+        config = AgentConfig()
+        components = [
+            ResourceComponent(initial_resources, config.resource),
+            CombatComponent(config.combat),
+            MovementComponent(config.movement)
+        ]
+        
+        super().__init__(
+            agent_id=agent_id,
+            position=position,
+            spatial_service=spatial_service,
+            components=components
+        )
 
         # Cooperative behavior parameters
         self.sharing_threshold = kwargs.get('sharing_threshold', 150)
@@ -201,8 +214,8 @@ class CooperativeAgent(BaseAgent):
                 continue
 
             agent = self.environment.agents[agent_id]
-            if agent.alive and agent.resource_level < 80:
-                needy_allies.append((agent_id, agent.resource_level))
+            if agent.alive and agent.get_component("resource").level < 80:
+                needy_allies.append((agent_id, agent.get_component("resource").level))
 
         # Return ally with lowest resources
         if needy_allies:
@@ -211,12 +224,25 @@ class CooperativeAgent(BaseAgent):
 
         return None
 
-class CompetitiveAgent(BaseAgent):
+class CompetitiveAgent(AgentCore):
     """An agent that prioritizes competition and resource hoarding."""
 
     def __init__(self, agent_id: str, position: Tuple[int, int],
-                 resource_level: int, spatial_service, environment: Environment = None, **kwargs):
-        super().__init__(agent_id, position, resource_level, spatial_service, environment, **kwargs)
+                 initial_resources: int, spatial_service, environment: Environment = None, **kwargs):
+        # Create components
+        config = AgentConfig()
+        components = [
+            ResourceComponent(initial_resources, config.resource),
+            CombatComponent(config.combat),
+            MovementComponent(config.movement)
+        ]
+        
+        super().__init__(
+            agent_id=agent_id,
+            position=position,
+            spatial_service=spatial_service,
+            components=components
+        )
 
         self.competitive_radius = kwargs.get('competitive_radius', 4)
         self.attack_threshold = kwargs.get('attack_threshold', 120)
@@ -238,7 +264,8 @@ class CompetitiveAgent(BaseAgent):
 
     def _should_attack(self) -> bool:
         """Determine if agent should attack."""
-        return (self.resource_level > self.attack_threshold and
+        resource_component = self.get_component("resource")
+        return (resource_component.level > self.attack_threshold and
                 random.random() < 0.4)  # 40% chance when strong
 
     def _find_weak_target(self) -> Optional[str]:
@@ -385,7 +412,7 @@ from typing import Tuple
 from farm.core.channels import ChannelHandler, ChannelBehavior, register_channel
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentCore
 from farm.core.config import SimulationConfig
 
 class WeatherChannel(ChannelHandler):
@@ -514,12 +541,25 @@ class ResourceDensityChannel(ChannelHandler):
             # Fill channel with density information
             observation[channel_idx].fill_(normalized_density)
 
-class WeatherAwareAgent(BaseAgent):
+class WeatherAwareAgent(AgentCore):
     """Agent that uses weather information for decision making."""
 
     def __init__(self, agent_id: str, position: Tuple[int, int],
-                 resource_level: int, spatial_service, environment: Environment = None, **kwargs):
-        super().__init__(agent_id, position, resource_level, spatial_service, environment, **kwargs)
+                 initial_resources: int, spatial_service, environment: Environment = None, **kwargs):
+        # Create components
+        config = AgentConfig()
+        components = [
+            ResourceComponent(initial_resources, config.resource),
+            CombatComponent(config.combat),
+            MovementComponent(config.movement)
+        ]
+        
+        super().__init__(
+            agent_id=agent_id,
+            position=position,
+            spatial_service=spatial_service,
+            components=components
+        )
         self.weather_aversion = kwargs.get('weather_aversion', 0.5)
 
     def decide_action(self):
@@ -676,7 +716,7 @@ from typing import Dict, List, Any
 from pathlib import Path
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentCore
 from farm.core.config import SimulationConfig
 from farm.runners.experiment_runner import ExperimentRunner
 

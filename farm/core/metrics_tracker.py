@@ -7,13 +7,12 @@ key performance indicators. It separates tracking concerns from the main
 Environment class and provides a clean interface for metric collection.
 """
 
-from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import numpy as np
 
-from farm.core.agent import BaseAgent
+from farm.core.agent.core import AgentCore
 from farm.core.interfaces import AgentProtocol
 from farm.utils.logging import get_logger
 
@@ -324,17 +323,20 @@ class MetricsTracker:
 
     def _prepare_agent_state(self, agent: AgentProtocol, time: int):
         """Prepare agent state for database logging."""
+        resource_component = agent.get_component("resource")
+        combat_component = agent.get_component("combat")
+        birth_time = getattr(getattr(agent, "state_manager", None), "birth_time", 0)
         return (
             agent.agent_id,
             agent.position[0],  # x coordinate
             agent.position[1],  # y coordinate
-            agent.resource_level,
-            agent.current_health,
-            agent.starting_health,
-            agent.starvation_counter,
-            int(agent.is_defending),
-            agent.total_reward,
-            time - agent.birth_time,  # age
+            (resource_component.level if resource_component else 0.0),
+            (combat_component.health if combat_component else 0.0),
+            (combat_component.max_health if combat_component else 0.0),
+            (getattr(resource_component, "starvation_steps", 0) if resource_component else 0),
+            (int(combat_component.is_defending) if combat_component else 0),
+            0.0,  # total_reward not tracked in component system
+            time - birth_time,  # age
         )
 
     def _prepare_resource_state(self, resource):
@@ -372,7 +374,7 @@ class MetricsTracker:
             total_agents = len(alive_agents)
 
             # Calculate agent type counts
-            system_agents = len([a for a in alive_agents if isinstance(a, BaseAgent)])
+            system_agents = len([a for a in alive_agents if isinstance(a, AgentCore)])
 
             # Get metrics from tracker
             tracker_metrics = self.get_step_metrics()
@@ -380,18 +382,22 @@ class MetricsTracker:
             deaths = tracker_metrics["deaths"]
 
             # Calculate generation metrics
-            current_max_generation = max([a.generation for a in alive_agents]) if alive_agents else 0
+            current_max_generation = max([a.state_manager.generation for a in alive_agents]) if alive_agents else 0
 
             # Calculate health and age metrics
-            average_health = sum(a.current_health for a in alive_agents) / total_agents if total_agents > 0 else 0
-            average_age = sum(time - a.birth_time for a in alive_agents) / total_agents if total_agents > 0 else 0
-            average_reward = sum(a.total_reward for a in alive_agents) / total_agents if total_agents > 0 else 0
+            def _health(a):
+                c = a.get_component("combat")
+                return c.health if c else 0.0
+            average_health = sum(_health(a) for a in alive_agents) / total_agents if total_agents > 0 else 0
+            average_age = sum(time - a.state_manager.birth_time for a in alive_agents) / total_agents if total_agents > 0 else 0
+            average_reward = 0.0  # total_reward not tracked in component system
 
             # Calculate resource metrics
             total_resources = sum(r.amount for r in resources)
-            average_agent_resources = (
-                sum(a.resource_level for a in alive_agents) / total_agents if total_agents > 0 else 0
-            )
+            def _res(a):
+                r = a.get_component("resource")
+                return r.level if r else 0.0
+            average_agent_resources = (sum(_res(a) for a in alive_agents) / total_agents if total_agents > 0 else 0)
             resource_efficiency = (
                 total_resources / (len(resources) * (config.resources.max_resource_amount if config else 30))
                 if resources
@@ -401,7 +407,7 @@ class MetricsTracker:
             # Calculate genetic diversity
             genome_counts = {}
             for agent in alive_agents:
-                genome_counts[agent.genome_id] = genome_counts.get(agent.genome_id, 0) + 1
+                genome_counts[agent.state_manager.genome_id] = genome_counts.get(agent.state_manager.genome_id, 0) + 1
             genetic_diversity = len(genome_counts) / total_agents if total_agents > 0 else 0
             dominant_genome_ratio = max(genome_counts.values()) / total_agents if genome_counts else 0
 

@@ -24,7 +24,7 @@ import torch
 
 
 from farm.config import SimulationConfig
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentFactory
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 
@@ -60,16 +60,15 @@ class ObservationProfiler:
         )
 
         # Create agents
+        factory = AgentFactory(spatial_service=env.spatial_service)
         for i in range(num_agents):
-            agent = BaseAgent(
+            agent = factory.create_default_agent(
                 agent_id=env.get_next_agent_id(),
                 position=(
                     np.random.uniform(0, env.width),
                     np.random.uniform(0, env.height),
                 ),
-                resource_level=10,
-                spatial_service=env.spatial_service,
-                environment=env,
+                initial_resources=10,
             )
             env.add_agent(agent)
 
