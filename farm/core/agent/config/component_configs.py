@@ -157,3 +157,52 @@ class AgentComponentConfig:
                 starting_health=80.0,
             ),
         )
+    
+    @classmethod
+    def from_simulation_config(cls, sim_config) -> "AgentComponentConfig":
+        """
+        Create component configuration from main simulation configuration.
+        
+        Args:
+            sim_config: Main simulation configuration object
+            
+        Returns:
+            AgentComponentConfig with values from simulation config
+        """
+        # Extract values from simulation config with fallbacks
+        agent_behavior = getattr(sim_config, 'agent_behavior', None)
+        
+        if agent_behavior:
+            # Use values from agent_behavior config
+            base_consumption_rate = getattr(agent_behavior, 'base_consumption_rate', 1.0)
+            starvation_threshold = getattr(agent_behavior, 'starvation_threshold', 10)
+            offspring_cost = getattr(agent_behavior, 'offspring_cost', 5.0)
+            offspring_initial_resources = getattr(agent_behavior, 'offspring_initial_resources', 10.0)
+            
+            # Combat config
+            starting_health = getattr(agent_behavior, 'starting_health', 100.0)
+            base_attack_strength = getattr(agent_behavior, 'base_attack_strength', 10.0)
+            base_defense_strength = getattr(agent_behavior, 'base_defense_strength', 5.0)
+        else:
+            # Fallback to default values
+            base_consumption_rate = 1.0
+            starvation_threshold = 10
+            offspring_cost = 5.0
+            offspring_initial_resources = 10.0
+            starting_health = 100.0
+            base_attack_strength = 10.0
+            base_defense_strength = 5.0
+        
+        return cls(
+            resource=ResourceConfig(
+                base_consumption_rate=base_consumption_rate,
+                starvation_threshold=starvation_threshold,
+                offspring_cost=offspring_cost,
+                offspring_initial_resources=offspring_initial_resources,
+            ),
+            combat=CombatConfig(
+                starting_health=starting_health,
+                base_attack_strength=base_attack_strength,
+                base_defense_strength=base_defense_strength,
+            ),
+        )

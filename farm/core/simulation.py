@@ -101,6 +101,12 @@ def create_initial_agents(
     # Create factory
     factory = AgentFactory(services)
 
+    # Create agent component configuration from simulation config
+    from farm.core.agent.config.component_configs import AgentComponentConfig
+    agent_config = None
+    if environment.config is not None:
+        agent_config = AgentComponentConfig.from_simulation_config(environment.config)
+
     # Use a seeded random number generator for deterministic agent creation
     if hasattr(environment, "seed_value") and environment.seed_value is not None:
         rng = random.Random(environment.seed_value)
@@ -126,6 +132,7 @@ def create_initial_agents(
             agent_id=environment.get_next_agent_id(),
             position=position,
             initial_resources=int(initial_resource_level),
+            config=agent_config,
             environment=environment,
             agent_type="system",
         )
@@ -139,6 +146,7 @@ def create_initial_agents(
             agent_id=environment.get_next_agent_id(),
             position=position,
             initial_resources=int(initial_resource_level),
+            config=agent_config,
             environment=environment,
             agent_type="independent",
         )
@@ -152,6 +160,7 @@ def create_initial_agents(
             agent_id=environment.get_next_agent_id(),
             position=position,
             initial_resources=int(initial_resource_level),
+            config=agent_config,
             environment=environment,
             agent_type="control",
         )
