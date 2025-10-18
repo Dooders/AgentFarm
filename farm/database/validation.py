@@ -542,9 +542,9 @@ class StatisticalValidator:
         if latest_step is None:
             self.report.add_result(ValidationResult(
                 check_name="population_consistency",
-                severity=ValidationSeverity.WARNING,
-                passed=False,
-                message="No simulation steps found"
+                severity=ValidationSeverity.INFO,
+                passed=True,
+                message="No simulation steps found - database is empty"
             ))
             return
         
@@ -631,9 +631,9 @@ class StatisticalValidator:
         if not steps:
             self.report.add_result(ValidationResult(
                 check_name="step_continuity",
-                severity=ValidationSeverity.WARNING,
-                passed=False,
-                message="No simulation steps found"
+                severity=ValidationSeverity.INFO,
+                passed=True,
+                message="No simulation steps found - database is empty"
             ))
             return
         

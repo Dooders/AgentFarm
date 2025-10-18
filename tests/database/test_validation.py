@@ -459,10 +459,19 @@ class TestStatisticalValidator(unittest.TestCase):
     def test_validate_population_consistency(self):
         """Test population consistency validation."""
         # Add test data
-        from farm.database.models import AgentModel, SimulationStepModel
+        from farm.database.models import AgentModel, SimulationStepModel, Simulation
+        
+        # Create simulation record first
+        simulation = Simulation(
+            simulation_id="test_sim",
+            parameters={"test": "data"},
+            simulation_db_path="test.db"
+        )
+        self.session.add(simulation)
         
         agent = AgentModel(
             agent_id="test_agent",
+            simulation_id="test_sim",
             birth_time=0,
             agent_type="system",
             position_x=0.0,
@@ -475,6 +484,7 @@ class TestStatisticalValidator(unittest.TestCase):
         
         step = SimulationStepModel(
             step_number=0,
+            simulation_id="test_sim",
             total_agents=1,
             system_agents=1,
             independent_agents=0,
@@ -511,11 +521,20 @@ class TestStatisticalValidator(unittest.TestCase):
     def test_validate_step_continuity(self):
         """Test step continuity validation."""
         # Add test data with continuous steps
-        from farm.database.models import SimulationStepModel
+        from farm.database.models import SimulationStepModel, Simulation
+        
+        # Create simulation record first
+        simulation = Simulation(
+            simulation_id="test_sim",
+            parameters={"test": "data"},
+            simulation_db_path="test.db"
+        )
+        self.session.add(simulation)
         
         for i in range(3):
             step = SimulationStepModel(
                 step_number=i,
+                simulation_id="test_sim",
                 total_agents=1,
                 system_agents=1,
                 independent_agents=0,

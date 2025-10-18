@@ -14,17 +14,13 @@ Usage:
     python -m benchmarks.implementations.profiling.observation_profiler
 """
 
-import sys
 import time
-from pathlib import Path
-from typing import Dict, List
+from typing import List
 
 import numpy as np
-import torch
-
 
 from farm.config import SimulationConfig
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentFactory, AgentServices
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 
@@ -59,17 +55,30 @@ class ObservationProfiler:
             config=config,
         )
 
+        # Create services for agent factory
+        services = AgentServices(
+            spatial_service=env.spatial_service,
+            time_service=getattr(env, "time_service", None),
+            metrics_service=getattr(env, "metrics_service", None),
+            logging_service=getattr(env, "logging_service", None),
+            validation_service=getattr(env, "validation_service", None),
+            lifecycle_service=getattr(env, "lifecycle_service", None),
+        )
+
+        # Create agent factory
+        factory = AgentFactory(services)
+
         # Create agents
         for i in range(num_agents):
-            agent = BaseAgent(
+            agent = factory.create_default_agent(
                 agent_id=env.get_next_agent_id(),
                 position=(
                     np.random.uniform(0, env.width),
                     np.random.uniform(0, env.height),
                 ),
-                resource_level=10,
-                spatial_service=env.spatial_service,
+                initial_resources=10.0,
                 environment=env,
+                agent_type="profiler",
             )
             env.add_agent(agent)
 
@@ -78,9 +87,7 @@ class ObservationProfiler:
 
         return env
 
-    def profile_observation_generation(
-        self, agent_counts: List[int], obs_radius: int = 5
-    ):
+    def profile_observation_generation(self, agent_counts: List[int], obs_radius: int = 5):
         """Profile observation generation time for different agent counts."""
         print("\n" + "=" * 60)
         print(f"Profiling Observation Generation (radius={obs_radius})")
@@ -107,18 +114,12 @@ class ObservationProfiler:
             results[num_agents] = {
                 "total_time": total_time,
                 "time_per_observation": total_time / num_agents,
-                "observations_per_second": (
-                    num_agents / total_time if total_time > 0 else 0
-                ),
+                "observations_per_second": (num_agents / total_time if total_time > 0 else 0),
             }
 
             per_obs_ms = (total_time * 1000 / num_agents) if num_agents > 0 else 0
             rate = (num_agents / total_time) if total_time > 0 else 0
-            print(
-                f"  Total: {total_time*1000:.2f}ms, "
-                f"Per obs: {per_obs_ms:.2f}ms, "
-                f"Rate: {rate:.0f} obs/s"
-            )
+            print(f"  Total: {total_time * 1000:.2f}ms, Per obs: {per_obs_ms:.2f}ms, Rate: {rate:.0f} obs/s")
 
             # Clean up
             env.cleanup()
@@ -161,8 +162,8 @@ class ObservationProfiler:
 
             per_obs_ms = (total_time * 1000 / num_agents) if num_agents > 0 else 0
             print(
-                f"  Size: {obs_size}x{obs_size} ({obs_size*obs_size} cells), "
-                f"Time: {total_time*1000:.2f}ms, "
+                f"  Size: {obs_size}x{obs_size} ({obs_size * obs_size} cells), "
+                f"Time: {total_time * 1000:.2f}ms, "
                 f"Per obs: {per_obs_ms:.2f}ms"
             )
 
@@ -201,7 +202,7 @@ class ObservationProfiler:
         }
 
         per_obs_ms = (spatial_time * 1000 / num_agents) if num_agents > 0 else 0
-        print(f"  Time: {spatial_time*1000:.2f}ms, " f"Per obs: {per_obs_ms:.2f}ms")
+        print(f"  Time: {spatial_time * 1000:.2f}ms, Per obs: {per_obs_ms:.2f}ms")
 
         env_spatial.cleanup()
 
@@ -225,15 +226,13 @@ class ObservationProfiler:
         }
 
         per_obs_ms = (memmap_time * 1000 / num_agents) if num_agents > 0 else 0
-        print(f"  Time: {memmap_time*1000:.2f}ms, " f"Per obs: {per_obs_ms:.2f}ms")
+        print(f"  Time: {memmap_time * 1000:.2f}ms, Per obs: {per_obs_ms:.2f}ms")
 
         # Calculate speedup
         speedup = spatial_time / memmap_time if memmap_time > 0 else 0
         results["speedup"] = speedup
 
-        print(
-            f"\n  Speedup: {speedup:.2f}x ({'memmap faster' if speedup > 1 else 'spatial faster'})"
-        )
+        print(f"\n  Speedup: {speedup:.2f}x ({'memmap faster' if speedup > 1 else 'spatial faster'})")
 
         env_memmap.cleanup()
 
@@ -253,9 +252,7 @@ class ObservationProfiler:
         )
 
         # Reset perception profile (accumulated during observation generation) in a robust way
-        if hasattr(env, "reset_perception_profile") and callable(
-            getattr(env, "reset_perception_profile")
-        ):
+        if hasattr(env, "reset_perception_profile") and callable(getattr(env, "reset_perception_profile")):
             env.reset_perception_profile()
         elif hasattr(env, "_perception_profile"):
             env._perception_profile = {
@@ -277,9 +274,7 @@ class ObservationProfiler:
         total_time = time.perf_counter() - total_start
 
         # Get accumulated profile
-        if hasattr(env, "get_perception_profile") and callable(
-            getattr(env, "get_perception_profile")
-        ):
+        if hasattr(env, "get_perception_profile") and callable(getattr(env, "get_perception_profile")):
             profile = env.get_perception_profile(reset=False)
         elif hasattr(env, "_perception_profile"):
             profile = env._perception_profile
@@ -297,29 +292,23 @@ class ObservationProfiler:
 
         # Calculate percentages
         if total_time > 0:
-            results["spatial_query_pct"] = (
-                profile.get("spatial_query_time_s", 0) / total_time
-            ) * 100
-            results["bilinear_pct"] = (
-                profile.get("bilinear_time_s", 0) / total_time
-            ) * 100
-            results["nearest_pct"] = (
-                profile.get("nearest_time_s", 0) / total_time
-            ) * 100
+            results["spatial_query_pct"] = (profile.get("spatial_query_time_s", 0) / total_time) * 100
+            results["bilinear_pct"] = (profile.get("bilinear_time_s", 0) / total_time) * 100
+            results["nearest_pct"] = (profile.get("nearest_time_s", 0) / total_time) * 100
 
-        print(f"Total observation time: {total_time*1000:.2f}ms")
+        print(f"Total observation time: {total_time * 1000:.2f}ms")
         print("\nBreakdown:")
         print(
-            f"  Spatial queries: {results.get('spatial_query_time', 0)*1000:.2f}ms "
+            f"  Spatial queries: {results.get('spatial_query_time', 0) * 1000:.2f}ms "
             f"({results.get('spatial_query_pct', 0):.1f}%)"
         )
         print(
-            f"  Bilinear interp: {results.get('bilinear_time', 0)*1000:.2f}ms "
+            f"  Bilinear interp: {results.get('bilinear_time', 0) * 1000:.2f}ms "
             f"({results.get('bilinear_pct', 0):.1f}%) "
             f"[{results['bilinear_points']} points]"
         )
         print(
-            f"  Nearest neighbor: {results.get('nearest_time', 0)*1000:.2f}ms "
+            f"  Nearest neighbor: {results.get('nearest_time', 0) * 1000:.2f}ms "
             f"({results.get('nearest_pct', 0):.1f}%) "
             f"[{results['nearest_points']} points]"
         )
@@ -342,7 +331,7 @@ class ObservationProfiler:
                 print(f"## Observation Generation (radius={radius})\n")
                 for num_agents, data in sorted(self.results[key].items()):
                     print(
-                        f"  {num_agents:>4} agents: {data['time_per_observation']*1000:.2f}ms per obs, "
+                        f"  {num_agents:>4} agents: {data['time_per_observation'] * 1000:.2f}ms per obs, "
                         f"{data['observations_per_second']:.0f} obs/s"
                     )
                 print()
@@ -353,7 +342,7 @@ class ObservationProfiler:
             for radius, data in sorted(self.results["radius_impact"].items()):
                 print(
                     f"  Radius {radius:>2} ({data['observation_size']:>2}x{data['observation_size']:>2}): "
-                    f"{data['time_per_observation']*1000:.2f}ms per obs"
+                    f"{data['time_per_observation'] * 1000:.2f}ms per obs"
                 )
             print()
 
@@ -361,12 +350,8 @@ class ObservationProfiler:
         if "memmap_comparison" in self.results:
             print("## Memmap vs Spatial Queries\n")
             data = self.results["memmap_comparison"]
-            print(
-                f"  Spatial queries: {data['spatial_queries']['time_per_observation']*1000:.2f}ms per obs"
-            )
-            print(
-                f"  Memmap:          {data['memmap']['time_per_observation']*1000:.2f}ms per obs"
-            )
+            print(f"  Spatial queries: {data['spatial_queries']['time_per_observation'] * 1000:.2f}ms per obs")
+            print(f"  Memmap:          {data['memmap']['time_per_observation'] * 1000:.2f}ms per obs")
             print(f"  Speedup:         {data['speedup']:.2f}x")
             print()
 
@@ -391,9 +376,7 @@ def main():
     print("=" * 60)
 
     # Profile observation generation scaling
-    profiler.profile_observation_generation(
-        agent_counts=[10, 50, 100, 200], obs_radius=5
-    )
+    profiler.profile_observation_generation(agent_counts=[10, 50, 100, 200], obs_radius=5)
 
     # Profile radius impact
     profiler.profile_observation_radius(num_agents=50, radii=[3, 5, 10, 15, 20])

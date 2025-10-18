@@ -6,9 +6,9 @@ from typing import Tuple
 
 def make_agent(environment, position: Tuple[float, float] = (0.0, 0.0), resource_level: float = 1.0):
     """Create and register a BaseAgent in the provided environment."""
-    from farm.core.agent import BaseAgent
+    from farm.core.agent import AgentCore
 
-    agent = BaseAgent(
+    agent = AgentCore(
         agent_id=environment.get_next_agent_id(),
         position=position,
         resource_level=resource_level,
