@@ -121,7 +121,7 @@ class Genome:
         if agent_factory is None:
             raise RuntimeError(
                 "agent_factory must be provided to avoid circular imports. "
-                "Use AgentCore.from_genome() instead of Genome.to_agent() directly."
+                "Use the intended factory method (e.g., AgentFactory) instead of calling Genome.to_agent() directly."
             )
 
         # Reconstruct action set

@@ -672,7 +672,7 @@ class TestCLITool(unittest.TestCase):
         
         result = subprocess.run([
             sys.executable, 
-            "/home/peril10/Dropbox/Development/AgentFarm/scripts/validate_simulation_db.py",
+            "../../scripts/validate_simulation_db.py",
             "--help"
         ], capture_output=True, text=True)
         
@@ -686,7 +686,7 @@ class TestCLITool(unittest.TestCase):
         
         result = subprocess.run([
             sys.executable,
-            "/home/peril10/Dropbox/Development/AgentFarm/scripts/validate_simulation_db.py",
+            "../../scripts/validate_simulation_db.py",
             "/nonexistent/database.db"
         ], capture_output=True, text=True)
         
@@ -709,7 +709,7 @@ class TestCLITool(unittest.TestCase):
             
             result = subprocess.run([
                 sys.executable,
-                "/home/peril10/Dropbox/Development/AgentFarm/scripts/validate_simulation_db.py",
+                "../../scripts/validate_simulation_db.py",
                 tmp_path
             ], capture_output=True, text=True)
             
@@ -735,7 +735,7 @@ class TestCLITool(unittest.TestCase):
             
             result = subprocess.run([
                 sys.executable,
-                "/home/peril10/Dropbox/Development/AgentFarm/scripts/validate_simulation_db.py",
+                "../../scripts/validate_simulation_db.py",
                 "--json",
                 tmp_path
             ], capture_output=True, text=True)

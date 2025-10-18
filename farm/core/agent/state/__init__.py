@@ -1,9 +1,9 @@
 """Agent state management module."""
 
-from .state_manager import AgentGeaology, StateManager, StateSnapshot
+from .state_manager import AgentGenealogy, StateManager, StateSnapshot
 
 __all__ = [
     "StateManager",
     "StateSnapshot",
-    "AgentGeaology",
+    "AgentGenealogy",
 ]

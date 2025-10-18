@@ -10,7 +10,7 @@ from typing import Optional
 
 
 @dataclass
-class AgentGeaology:
+class AgentGenealogy:
     """Genealogy information for tracking agent lineage."""
     
     generation: int = 0
