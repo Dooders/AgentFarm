@@ -140,9 +140,6 @@ class AgentFactory:
         
         # Create behavior first (with placeholder decision module if needed)
         if decision_module is None:
-            # Create a temporary placeholder decision module
-            decision_config = config.decision if config else AgentComponentConfig.default().decision
-            
             # We'll update this after agent creation
             decision_module = None
         

@@ -10,8 +10,11 @@ import torch
 
 from farm.core.action import Action, action_registry, action_name_to_index
 from farm.core.decision.decision import DecisionModule
+from farm.utils.logging import get_logger
 
 from .base import IAgentBehavior
+
+logger = get_logger(__name__)
 
 
 class LearningAgentBehavior(IAgentBehavior):
@@ -107,7 +110,7 @@ class LearningAgentBehavior(IAgentBehavior):
             )
         except Exception as e:
             # Log but don't crash on update failure
-            pass
+            logger.warning(f"Failed to update decision module: {e}", exc_info=True)
     
     def reset(self) -> None:
         """Reset behavior state."""

@@ -23,7 +23,6 @@ from farm.core.agent.components import (
     ReproductionComponent,
 )
 from farm.core.agent.config import ResourceConfig
-from farm.core.action import Action
 
 
 class TestAgentCoreBasics:

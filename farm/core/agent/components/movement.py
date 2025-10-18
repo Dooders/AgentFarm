@@ -111,6 +111,11 @@ class MovementComponent(AgentComponent):
         
         try:
             nearby = self.spatial_service.get_nearby(self.position, radius, [])
+            if isinstance(nearby, dict):
+                positions = []
+                for items in nearby.values():
+                    positions.extend([item.position for item in items if hasattr(item, 'position')])
+                return positions
             return [item.position for item in nearby if hasattr(item, 'position')]
         except Exception:
             return []
