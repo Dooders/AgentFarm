@@ -669,10 +669,14 @@ class TestCLITool(unittest.TestCase):
         """Test CLI help output."""
         import subprocess
         import sys
+        from pathlib import Path
+        
+        # Use absolute path to avoid working directory issues
+        script_path = Path(__file__).parent.parent.parent / "scripts" / "validate_simulation_db.py"
         
         result = subprocess.run([
             sys.executable, 
-            "../../scripts/validate_simulation_db.py",
+            str(script_path),
             "--help"
         ], capture_output=True, text=True)
         
@@ -683,10 +687,14 @@ class TestCLITool(unittest.TestCase):
         """Test CLI with non-existent file."""
         import subprocess
         import sys
+        from pathlib import Path
+        
+        # Use absolute path to avoid working directory issues
+        script_path = Path(__file__).parent.parent.parent / "scripts" / "validate_simulation_db.py"
         
         result = subprocess.run([
             sys.executable,
-            "../../scripts/validate_simulation_db.py",
+            str(script_path),
             "/nonexistent/database.db"
         ], capture_output=True, text=True)
         
@@ -697,6 +705,10 @@ class TestCLITool(unittest.TestCase):
         """Test CLI with valid database."""
         import subprocess
         import sys
+        from pathlib import Path
+        
+        # Use absolute path to avoid working directory issues
+        script_path = Path(__file__).parent.parent.parent / "scripts" / "validate_simulation_db.py"
         
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
             tmp_path = tmp.name
@@ -709,7 +721,7 @@ class TestCLITool(unittest.TestCase):
             
             result = subprocess.run([
                 sys.executable,
-                "../../scripts/validate_simulation_db.py",
+                str(script_path),
                 tmp_path
             ], capture_output=True, text=True)
             
@@ -723,6 +735,10 @@ class TestCLITool(unittest.TestCase):
         """Test CLI with JSON output."""
         import subprocess
         import sys
+        from pathlib import Path
+        
+        # Use absolute path to avoid working directory issues
+        script_path = Path(__file__).parent.parent.parent / "scripts" / "validate_simulation_db.py"
         
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
             tmp_path = tmp.name
@@ -735,7 +751,7 @@ class TestCLITool(unittest.TestCase):
             
             result = subprocess.run([
                 sys.executable,
-                "../../scripts/validate_simulation_db.py",
+                str(script_path),
                 "--json",
                 tmp_path
             ], capture_output=True, text=True)
