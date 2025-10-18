@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 
 from farm.config import SimulationConfig
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentCore
 from farm.core.environment import Environment
 
 
@@ -36,19 +36,34 @@ class TestCoreIntegration(unittest.TestCase):
         )
 
         # Add two agents
-        a1 = BaseAgent(
+        from farm.core.agent import AgentFactory, AgentServices
+        from farm.core.agent.config.component_configs import AgentComponentConfig
+        
+        services = AgentServices(
+            spatial_service=self.env.spatial_service,
+            time_service=getattr(self.env, 'time_service', None),
+            metrics_service=getattr(self.env, 'metrics_service', None),
+            logging_service=getattr(self.env, 'logging_service', None),
+            validation_service=getattr(self.env, 'validation_service', None),
+            lifecycle_service=getattr(self.env, 'lifecycle_service', None),
+        )
+        
+        factory = AgentFactory(services)
+        agent_config = AgentComponentConfig.from_simulation_config(self.config) if self.config else None
+        
+        a1 = factory.create_default_agent(
             agent_id=self.env.get_next_agent_id(),
             position=(5, 5),
-            resource_level=5,
+            initial_resources=5,
+            config=agent_config,
             environment=self.env,
-            spatial_service=self.env.spatial_service,
         )
-        a2 = BaseAgent(
+        a2 = factory.create_default_agent(
             agent_id=self.env.get_next_agent_id(),
             position=(7, 7),
-            resource_level=5,
+            initial_resources=5,
+            config=agent_config,
             environment=self.env,
-            spatial_service=self.env.spatial_service,
         )
         self.env.add_agent(a1)
         self.env.add_agent(a2)

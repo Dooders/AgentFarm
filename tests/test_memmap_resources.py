@@ -65,14 +65,25 @@ class TestMemmapResources(unittest.TestCase):
         self.env.spatial_index.get_nearby = track_calls
 
         # Add an agent and request observation
-        from farm.core.agent import BaseAgent
+        from farm.core.agent import AgentFactory, AgentServices
 
-        agent = BaseAgent(
+        # Create services from environment
+        services = AgentServices(
+            spatial_service=self.env.spatial_service,
+            time_service=getattr(self.env, 'time_service', None),
+            metrics_service=getattr(self.env, 'metrics_service', None),
+            logging_service=getattr(self.env, 'logging_service', None),
+            validation_service=getattr(self.env, 'validation_service', None),
+            lifecycle_service=getattr(self.env, 'lifecycle_service', None),
+        )
+        
+        # Create factory and agent
+        factory = AgentFactory(services)
+        agent = factory.create_default_agent(
             agent_id=self.env.get_next_agent_id(),
             position=(int(self.cfg.environment.width // 2), int(self.cfg.environment.height // 2)),
-            resource_level=5,
+            initial_resources=5,
             environment=self.env,
-            spatial_service=self.env.spatial_service,
         )
         self.env.add_agent(agent)
 

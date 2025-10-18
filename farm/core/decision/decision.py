@@ -65,7 +65,7 @@ if TIANSHOU_AVAILABLE:
         TIANSHOU_AVAILABLE = False
 
 if TYPE_CHECKING:
-    from farm.core.agent import BaseAgent
+    from farm.core.agent import AgentCore
 
 
 class DecisionModule:
@@ -86,7 +86,7 @@ class DecisionModule:
 
     def __init__(
         self,
-        agent: "BaseAgent",
+        agent: "AgentCore",
         action_space: Any,
         observation_space: Any,
         config: DecisionConfig = DecisionConfig(),
@@ -94,7 +94,7 @@ class DecisionModule:
         """Initialize the DecisionModule.
 
         Args:
-            agent: The BaseAgent instance this module serves
+            agent: The AgentCore instance this module serves
             action_space: The action space for the agent (required)
             observation_space: The observation space for the agent (required)
             config: Configuration object with algorithm parameters

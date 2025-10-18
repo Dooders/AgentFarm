@@ -57,6 +57,14 @@ from .pragma_docs import (
     PRAGMA_PROFILES,
     PRAGMA_INFO,
 )
+from .validation import (
+    validate_simulation_database,
+    ValidationReport,
+    ValidationResult,
+    ValidationSeverity,
+    IntegrityValidator,
+    StatisticalValidator,
+)
 
 __all__ = [
     # Concrete implementations
@@ -77,4 +85,11 @@ __all__ = [
     "analyze_pragma_value",
     "PRAGMA_PROFILES",
     "PRAGMA_INFO",
+    # Validation utilities
+    "validate_simulation_database",
+    "ValidationReport",
+    "ValidationResult",
+    "ValidationSeverity",
+    "IntegrityValidator",
+    "StatisticalValidator",
 ]

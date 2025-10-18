@@ -9,7 +9,7 @@ from benchmarks.core.experiments import Experiment, ExperimentContext
 from benchmarks.core.registry import register_experiment
 from farm.config import EnvironmentConfig, SimulationConfig
 from farm.config.config import DatabaseConfig
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentCore, AgentFactory, AgentServices
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 
@@ -114,16 +114,29 @@ class PerceptionMetricsBenchmark(Experiment):
     def _spawn_agents(self, env: Environment, num_agents: int) -> List[str]:
         rng = np.random.default_rng(123)
         agent_ids: List[str] = []
+        
+        # Create services for agent factory
+        services = AgentServices(
+            spatial_service=env.spatial_service,
+            time_service=getattr(env, 'time_service', None),
+            metrics_service=getattr(env, 'metrics_service', None),
+            logging_service=getattr(env, 'logging_service', None),
+            validation_service=getattr(env, 'validation_service', None),
+            lifecycle_service=getattr(env, 'lifecycle_service', None),
+        )
+        
+        # Create agent factory
+        factory = AgentFactory(services)
+        
         for i in range(num_agents):
             x = float(rng.integers(0, env.width))
             y = float(rng.integers(0, env.height))
-            agent = BaseAgent(
+            agent = factory.create_default_agent(
                 agent_id=f"A{i}",
                 position=(x, y),
-                resource_level=0,
-                spatial_service=env.spatial_service,
+                initial_resources=0.0,
                 environment=env,
-                config=env.config,
+                agent_type="benchmark",
             )
             env.add_agent(agent)
             agent_ids.append(agent.agent_id)

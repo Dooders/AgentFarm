@@ -285,6 +285,11 @@ class DatabaseConfig:
     # Export settings
     export_batch_size: int = 1000  # Batch size for data export operations
 
+    # Validation settings
+    enable_validation: bool = True  # Whether to run database validation by default
+    validation_include_integrity: bool = True  # Whether to run integrity checks
+    validation_include_statistical: bool = True  # Whether to run statistical checks
+
 
 @dataclass
 class DeviceConfig:
@@ -946,6 +951,9 @@ class SimulationConfig:
                     "log_buffer_size",
                     "commit_interval_seconds",
                     "export_batch_size",
+                    "enable_validation",
+                    "validation_include_integrity",
+                    "validation_include_statistical",
                 ],
             ),
             "device": (

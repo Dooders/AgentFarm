@@ -12,7 +12,7 @@ from benchmarks.core.experiments import Experiment, ExperimentContext
 from benchmarks.core.registry import register_experiment
 from farm.config import EnvironmentConfig, SimulationConfig
 from farm.config.config import DatabaseConfig
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentCore, AgentFactory, AgentServices
 from farm.core.environment import Environment
 from farm.core.observations import ObservationConfig
 from farm.core.services.implementations import SpatialIndexAdapter
@@ -75,7 +75,7 @@ class ObservationFlowBenchmark(Experiment):
         }
         super().__init__(params)
         self._env: Optional[Environment] = None
-        self._agents: list[BaseAgent] = []
+        self._agents: list[AgentCore] = []
         self._agent_ids: list[str] = []
         self._spatial: Optional[SpatialIndexAdapter] = None
         self._steps = steps
@@ -116,28 +116,42 @@ class ObservationFlowBenchmark(Experiment):
         # Use numpy for better random number generation if available, fallback to standard random
         if np is not None:
             rng = np.random.default_rng(123)  # Fixed seed for reproducibility
-            rand_int = lambda low, high: int(rng.integers(low, high))
+            def rand_int(low, high):
+                return int(rng.integers(low, high))
         else:
             import random
 
             random.seed(123)  # Fixed seed for reproducibility
-            rand_int = lambda low, high: random.randint(low, high - 1)
+            def rand_int(low, high):
+                return random.randint(low, high - 1)
 
         # Clear any existing agents
         self._agents.clear()
         self._agent_ids.clear()
 
+        # Create services for agent factory
+        services = AgentServices(
+            spatial_service=env.spatial_service,
+            time_service=getattr(env, 'time_service', None),
+            metrics_service=getattr(env, 'metrics_service', None),
+            logging_service=getattr(env, 'logging_service', None),
+            validation_service=getattr(env, 'validation_service', None),
+            lifecycle_service=getattr(env, 'lifecycle_service', None),
+        )
+        
+        # Create agent factory
+        factory = AgentFactory(services)
+
         # Create agents with random positions
         for i in range(self._num_agents):
             x = float(rand_int(0, self._width))
             y = float(rand_int(0, self._height))
-            agent = BaseAgent(
+            agent = factory.create_default_agent(
                 agent_id=f"A{i}",
                 position=(x, y),
-                resource_level=0,
-                spatial_service=env.spatial_service,
+                initial_resources=0.0,
                 environment=env,
-                config=env.config,
+                agent_type="benchmark",
             )
             env.add_agent(agent)
             self._agents.append(agent)
