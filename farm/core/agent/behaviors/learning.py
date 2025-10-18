@@ -8,7 +8,7 @@ from typing import Optional
 
 import torch
 
-from farm.core.action import Action, action_registry
+from farm.core.action import Action, action_registry, action_name_to_index
 from farm.core.decision.decision import DecisionModule
 
 from .base import IAgentBehavior
@@ -95,7 +95,7 @@ class LearningAgentBehavior(IAgentBehavior):
         """
         try:
             # Convert action to index
-            action_index = self.action_registry.get_action_index(action.name)
+            action_index = action_name_to_index(action.name)
             
             # Update decision module
             self.decision_module.update(
