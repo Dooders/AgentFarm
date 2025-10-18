@@ -114,13 +114,18 @@ def create_initial_agents(
             int(rng.uniform(0, environment.height)),
         )
 
+    # Get initial resource level with fallback for when config is None
+    initial_resource_level = 100.0  # Default fallback value
+    if environment.config is not None and hasattr(environment.config, 'agent_behavior'):
+        initial_resource_level = environment.config.agent_behavior.initial_resource_level
+
     # Create system agents
     for _ in range(num_system_agents):
         position = get_random_position()
         agent = factory.create_default_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            initial_resources=int(environment.config.agent_behavior.initial_resource_level),
+            initial_resources=int(initial_resource_level),
             environment=environment,
             agent_type="system",
         )
@@ -133,7 +138,7 @@ def create_initial_agents(
         agent = factory.create_default_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            initial_resources=int(environment.config.agent_behavior.initial_resource_level),
+            initial_resources=int(initial_resource_level),
             environment=environment,
             agent_type="independent",
         )
@@ -146,7 +151,7 @@ def create_initial_agents(
         agent = factory.create_default_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            initial_resources=int(environment.config.agent_behavior.initial_resource_level),
+            initial_resources=int(initial_resource_level),
             environment=environment,
             agent_type="control",
         )

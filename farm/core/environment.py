@@ -257,6 +257,15 @@ class Environment(AECEnv):
         # Use self.identity for all ID needs
         self.max_resource = max_resource
         self.config = config
+        
+        # Warn if config is None as it may cause issues in some scenarios
+        if config is None:
+            logger.warning(
+                "environment_created_without_config",
+                message="Environment created with config=None. Some features may not work as expected.",
+                simulation_id=self.simulation_id
+            )
+        
         self.resource_distribution = resource_distribution
         self.max_steps = (
             config.max_steps if config and hasattr(config, "max_steps") else 1000
