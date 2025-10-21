@@ -729,14 +729,25 @@ class SimulationConfig:
         Recursively instantiate a dataclass from a dictionary, converting nested dicts to their respective dataclasses.
         """
         from dataclasses import is_dataclass, fields
+        from pydantic import BaseModel
+        
         if not isinstance(data, dict):
             return data
+        
+        # Handle Pydantic models
+        if issubclass(dataclass_type, BaseModel):
+            return dataclass_type(**data)
+        
+        # Handle dataclasses
         kwargs = {}
         for f in fields(dataclass_type):
             value = data.get(f.name)
             if value is not None:
                 if is_dataclass(f.type) and isinstance(value, dict):
                     kwargs[f.name] = cls._recursive_dataclass_from_dict(f.type, value)
+                elif hasattr(f.type, '__bases__') and any(issubclass(base, BaseModel) for base in f.type.__bases__):
+                    # Handle Pydantic models in dataclass fields
+                    kwargs[f.name] = f.type(**value)
                 else:
                     kwargs[f.name] = value
         return dataclass_type(**kwargs)
@@ -751,11 +762,24 @@ class SimulationConfig:
         for key, value in list(nested_data.items()):
             if "." in key:
                 parts = key.split(".")
-                if len(parts) == 2:
-                    parent, child = parts
+                if len(parts) >= 2:
+                    parent = parts[0]
                     if parent not in dotted_keys:
                         dotted_keys[parent] = {}
-                    dotted_keys[parent][child] = value
+                    
+                    # Handle nested dotted keys (e.g., "agent.movement.max_movement")
+                    if len(parts) == 3:
+                        # 3-level: agent.movement.max_movement -> agent.movement = {max_movement: value}
+                        sub_parent = parts[1]
+                        child = parts[2]
+                        if sub_parent not in dotted_keys[parent]:
+                            dotted_keys[parent][sub_parent] = {}
+                        dotted_keys[parent][sub_parent][child] = value
+                    elif len(parts) == 2:
+                        # 2-level: environment.width -> environment = {width: value}
+                        child = parts[1]
+                        dotted_keys[parent][child] = value
+                    
                     nested_data.pop(key)
 
         # Convert dotted keys to config objects
@@ -788,6 +812,9 @@ class SimulationConfig:
                 nested_data[parent] = ActionRewardConfig(**config_dict)
             elif parent == "modules":
                 nested_data[parent] = ModuleConfig(**config_dict)
+            elif parent == "agent":
+                # Special handling for AgentComponentConfig to properly instantiate nested components
+                nested_data[parent] = cls._recursive_dataclass_from_dict(AgentComponentConfig, config_dict)
 
         # First, extract all module-related fields to avoid conflicts
         # Only extract fields that are specifically for the specialized learning modules
@@ -871,9 +898,9 @@ class SimulationConfig:
             "attack_kill_reward",
         }
 
-        for field in module_specific_fields:
-            if field in nested_data:
-                module_fields[field] = nested_data.pop(field)
+        for field_name in module_specific_fields:
+            if field_name in nested_data:
+                module_fields[field_name] = nested_data.pop(field_name)
 
         if module_fields:
             nested_data["modules"] = ModuleConfig(**module_fields)
@@ -1047,7 +1074,11 @@ class SimulationConfig:
                     config_dict[field] = nested_data.pop(field)
 
             if config_dict:
-                nested_data[config_name] = config_class(**config_dict)
+                # Special handling for AgentComponentConfig to properly instantiate nested components
+                if config_name == "agent" and config_class == AgentComponentConfig:
+                    nested_data[config_name] = cls._recursive_dataclass_from_dict(config_class, config_dict)
+                else:
+                    nested_data[config_name] = config_class(**config_dict)
 
         return nested_data
 
