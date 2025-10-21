@@ -719,9 +719,27 @@ class SimulationConfig:
         if isinstance(agent_data, AgentComponentConfig):
             nested_data["agent"] = agent_data
         else:
-            nested_data["agent"] = AgentComponentConfig(**agent_data)
+            nested_data["agent"] = cls._recursive_dataclass_from_dict(AgentComponentConfig, agent_data)
 
         return cls(**nested_data)
+
+    @classmethod
+    def _recursive_dataclass_from_dict(cls, dataclass_type, data):
+        """
+        Recursively instantiate a dataclass from a dictionary, converting nested dicts to their respective dataclasses.
+        """
+        from dataclasses import is_dataclass, fields
+        if not isinstance(data, dict):
+            return data
+        kwargs = {}
+        for f in fields(dataclass_type):
+            value = data.get(f.name)
+            if value is not None:
+                if is_dataclass(f.type) and isinstance(value, dict):
+                    kwargs[f.name] = cls._recursive_dataclass_from_dict(f.type, value)
+                else:
+                    kwargs[f.name] = value
+        return dataclass_type(**kwargs)
 
     @classmethod
     def _convert_flat_to_nested(cls, data: Dict[str, Any]) -> Dict[str, Any]:

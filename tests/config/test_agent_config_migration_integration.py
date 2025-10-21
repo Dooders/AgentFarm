@@ -255,7 +255,7 @@ class TestAgentConfigMigrationIntegration(unittest.TestCase):
         
         # Verify efficient preset
         self.assertLess(config.agent.resource.base_consumption_rate, 1.0)
-        self.assertLess(config.agent.resource.offspring_cost, 5.0)
+        self.assertLess(config.agent.reproduction.offspring_cost, 5.0)
         self.assertLess(config.agent.combat.starting_health, 100.0)
 
     def test_agent_config_validation_in_simulation(self):
