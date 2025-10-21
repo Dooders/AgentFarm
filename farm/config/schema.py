@@ -16,6 +16,7 @@ from pydantic import BaseModel, ValidationError
 from farm.core.observations import ObservationConfig, StorageMode
 
 from .config import RedisMemoryConfig, SimulationConfig, VisualizationConfig
+from farm.core.agent.config import AgentComponentConfig
 
 
 def _python_type_to_schema_type(annotation: Any) -> str:
@@ -239,6 +240,7 @@ def generate_combined_config_schema() -> Dict[str, Any]:
     vis_props = _dataclass_to_properties(VisualizationConfig)
     redis_props = _dataclass_to_properties(RedisMemoryConfig)
     obs_props = _pydantic_model_to_properties(ObservationConfig)
+    agent_props = _dataclass_to_properties(AgentComponentConfig)
 
     return {
         "version": 1,
@@ -264,6 +266,10 @@ def generate_combined_config_schema() -> Dict[str, Any]:
                 "enums": {
                     "storage_mode": [e.value for e in StorageMode],
                 },
+            },
+            "agent": {
+                "title": "Agent Components",
+                "properties": agent_props,
             },
         },
     }

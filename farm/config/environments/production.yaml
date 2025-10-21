@@ -28,6 +28,21 @@ db_synchronous_mode: "FULL"
 simulation_steps: 1000
 max_steps: 10000
 
+# Agent configuration overrides for production
+agent:
+  movement:
+    max_movement: 10.0  # Larger movement for production
+    perception_radius: 8
+  resource:
+    base_consumption_rate: 1.5  # Higher consumption for production
+    starvation_threshold: 150
+  combat:
+    starting_health: 150.0  # Higher health for production
+  decision:
+    memory_size: 50000  # Larger memory for production
+    batch_size: 64
+    rl_buffer_size: 50000
+
 # Redis production settings
 redis:
   db: 2

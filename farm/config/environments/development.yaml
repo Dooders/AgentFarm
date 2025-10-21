@@ -28,6 +28,21 @@ db_cache_size_mb: 50
 simulation_steps: 50
 max_steps: 200
 
+# Agent configuration overrides for development
+agent:
+  movement:
+    max_movement: 5.0  # Smaller movement for testing
+    perception_radius: 3
+  resource:
+    base_consumption_rate: 0.5  # Lower consumption for testing
+    starvation_threshold: 50
+  combat:
+    starting_health: 50.0  # Lower health for faster testing
+  decision:
+    memory_size: 1000  # Smaller memory for testing
+    batch_size: 16
+    rl_buffer_size: 1000
+
 # Redis development settings
 redis:
   db: 1

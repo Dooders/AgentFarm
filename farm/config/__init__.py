@@ -21,6 +21,7 @@ from .config import (
     SimulationConfig,
     VisualizationConfig,
 )
+from farm.core.agent.config import AgentComponentConfig
 from .monitor import (
     ConfigMetrics,
     ConfigMonitor,
@@ -45,6 +46,7 @@ __all__ = [
     "RedisMemoryConfig",
     # Sub-configuration classes
     "AgentBehaviorConfig",
+    "AgentComponentConfig",
     "EnvironmentConfig",
     "PopulationConfig",
     "ResourceConfig",

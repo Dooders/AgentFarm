@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import yaml
 
 from farm.core.observations import ObservationConfig
+from farm.core.agent.config import AgentComponentConfig
 
 
 @dataclass
@@ -604,6 +605,9 @@ class SimulationConfig:
     action_rewards: ActionRewardConfig = field(default_factory=ActionRewardConfig)
     modules: ModuleConfig = field(default_factory=ModuleConfig)
 
+    # Agent component configuration
+    agent: AgentComponentConfig = field(default_factory=AgentComponentConfig)
+
     # Existing nested configs (kept for backward compatibility)
     visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
     observation: Optional[ObservationConfig] = None
@@ -652,6 +656,7 @@ class SimulationConfig:
                 "learning",
                 "combat",
                 "agent_behavior",
+                "agent",
                 "database",
                 "device",
                 "curriculum",
@@ -708,6 +713,13 @@ class SimulationConfig:
                 nested_data["observation"] = ObservationConfig(**obs_data)
             else:
                 nested_data["observation"] = obs_data
+
+        # Handle agent config specially
+        agent_data = nested_data.pop("agent", {})
+        if isinstance(agent_data, AgentComponentConfig):
+            nested_data["agent"] = agent_data
+        else:
+            nested_data["agent"] = AgentComponentConfig(**agent_data)
 
         return cls(**nested_data)
 
@@ -995,6 +1007,17 @@ class SimulationConfig:
                     "reproduction_success_bonus",
                     "failed_action_penalty",
                     "collision_penalty",
+                ],
+            ),
+            "agent": (
+                AgentComponentConfig,
+                [
+                    "movement",
+                    "resource",
+                    "combat",
+                    "perception",
+                    "reproduction",
+                    "decision",
                 ],
             ),
         }

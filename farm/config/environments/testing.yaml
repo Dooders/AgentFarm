@@ -31,6 +31,22 @@ max_steps: 50
 # Fixed seed for reproducible tests
 seed: 42
 
+# Agent configuration overrides for testing
+agent:
+  movement:
+    max_movement: 3.0  # Minimal movement for testing
+    perception_radius: 2
+  resource:
+    base_consumption_rate: 0.1  # Very low consumption for testing
+    starvation_threshold: 20
+  combat:
+    starting_health: 20.0  # Low health for fast testing
+  decision:
+    memory_size: 100  # Minimal memory for testing
+    batch_size: 4
+    rl_buffer_size: 100
+    learning_rate: 0.01  # Faster learning for testing
+
 # Redis testing settings
 redis:
   db: 3
