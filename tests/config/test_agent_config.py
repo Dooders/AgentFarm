@@ -287,7 +287,7 @@ class TestAgentComponentConfig(unittest.TestCase):
         
         # Should use default values
         self.assertEqual(config.resource.base_consumption_rate, 1.0)
-        self.assertEqual(config.resource.starvation_threshold, 10)
+        self.assertEqual(config.resource.starvation_threshold, 100)
         self.assertEqual(config.resource.offspring_cost, 5.0)
         self.assertEqual(config.resource.offspring_initial_resources, 10.0)
         self.assertEqual(config.combat.starting_health, 100.0)

@@ -175,7 +175,7 @@ class AgentComponentConfig:
         if agent_behavior:
             # Use values from agent_behavior config
             base_consumption_rate = getattr(agent_behavior, 'base_consumption_rate', 1.0)
-            starvation_threshold = getattr(agent_behavior, 'starvation_threshold', 10)
+            starvation_threshold = getattr(agent_behavior, 'starvation_threshold', 100)
             offspring_cost = getattr(agent_behavior, 'offspring_cost', 5.0)
             offspring_initial_resources = getattr(agent_behavior, 'offspring_initial_resources', 10.0)
             
@@ -184,9 +184,9 @@ class AgentComponentConfig:
             base_attack_strength = getattr(agent_behavior, 'base_attack_strength', 10.0)
             base_defense_strength = getattr(agent_behavior, 'base_defense_strength', 5.0)
         else:
-            # Fallback to default values
+            # Fallback to default values (matching ResourceConfig defaults)
             base_consumption_rate = 1.0
-            starvation_threshold = 10
+            starvation_threshold = 100
             offspring_cost = 5.0
             offspring_initial_resources = 10.0
             starting_health = 100.0
