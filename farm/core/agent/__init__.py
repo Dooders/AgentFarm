@@ -16,7 +16,7 @@ from .core import AgentCore
 from .factory import AgentFactory
 from .interfaces import IAgentComponent
 from .services import AgentServices
-from .state import StateManager, StateSnapshot
+from farm.core.state import AgentStateManager
 
 
 __all__ = [
@@ -41,6 +41,5 @@ __all__ = [
     # Config
     "AgentComponentConfig",
     # State
-    "StateManager",
-    "StateSnapshot",
+    "AgentStateManager",
 ]
