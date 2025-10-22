@@ -302,3 +302,48 @@ visualization:
     control_agents: "#DAA520"
     total_resources: "#f39c12"
     average_agent_resources: "#9b59b6"
+
+# Analysis configurations
+spatial_analysis:
+  resource_clustering_threshold: 20.0
+  gathering_range: 30.0
+  hotspot_threshold_stds: 1.0
+  max_clusters: 10
+  min_clustering_points: 3
+  density_bins: 20
+
+genesis_analysis:
+  resource_proximity_threshold: 30.0
+  critical_period_end: 100
+  auc_weight: 0.2
+  recency_weighted_auc_weight: 0.3
+  dominance_duration_weight: 0.2
+  growth_trend_weight: 0.1
+  final_ratio_weight: 0.2
+
+agent_analysis:
+  learning_curve_window: 10
+  behavior_clusters: 3
+  success_rate_weight: 0.4
+  reward_rate_weight: 0.4
+  lifespan_weight: 0.2
+  top_performers_count: 5
+
+population_analysis:
+  stability_window: 50
+  growth_window: 20
+
+learning_analysis:
+  moving_average_window: 10
+  convergence_window: 20
+
+analysis_global:
+  default_db_filename: "simulation.db"
+  output_subdirs: ["plots", "data", "reports"]
+  plot_dpi: 300
+  plot_style: "default"
+  default_figsize: [8, 6]
+  verbose_logging: false
+  enable_caching: true
+  enable_parallel: false
+  max_workers: null
