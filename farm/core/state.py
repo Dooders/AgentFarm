@@ -59,7 +59,7 @@ class AgentState(BaseState):
     """State representation for agent decision making.
 
     Captures the current state of an individual agent including its position,
-    resources, health, and other key attributes. All continuous values are
+    resources, health, genealogy, and other key attributes. All continuous values are
     normalized to [0,1] for consistency with other state representations.
 
     Attributes:
@@ -73,6 +73,13 @@ class AgentState(BaseState):
         is_defending (bool): Whether agent is in defensive stance
         total_reward (float): Cumulative reward received
         age (int): Number of steps agent has existed
+        generation (int): Generation number (0 for first generation)
+        parent_ids (list[str]): IDs of parent agents
+        genome_id (str): Unique genome identifier
+        birth_time (int): Simulation step when agent was created
+        death_time (Optional[int]): Simulation step when agent died, None if still alive
+        orientation (float): Agent heading in degrees (0 = north/up, 90 = east/right)
+        alive (bool): Whether agent is currently alive
 
     Example:
         >>> state = AgentState(
@@ -85,7 +92,14 @@ class AgentState(BaseState):
         ...     current_health=0.9,
         ...     is_defending=False,
         ...     total_reward=10.5,
-        ...     age=50
+        ...     age=50,
+        ...     generation=2,
+        ...     parent_ids=["parent_1", "parent_2"],
+        ...     genome_id="genome_123",
+        ...     birth_time=50,
+        ...     death_time=None,
+        ...     orientation=45.0,
+        ...     alive=True
         ... )
     """
 
@@ -100,6 +114,18 @@ class AgentState(BaseState):
     is_defending: bool
     total_reward: float
     age: int
+    
+    # Genealogy fields
+    generation: int = 0
+    parent_ids: list[str] = Field(default_factory=list)
+    genome_id: str = ""
+    birth_time: int = 0
+    death_time: Optional[int] = None
+    
+    # Additional agent state
+    orientation: float = 0.0
+    alive: bool = True
+    defense_timer: int = 0
 
     @classmethod
     def from_raw_values(
@@ -114,6 +140,14 @@ class AgentState(BaseState):
         is_defending: bool,
         total_reward: float,
         age: int,
+        generation: int = 0,
+        parent_ids: Optional[list[str]] = None,
+        genome_id: str = "",
+        birth_time: int = 0,
+        death_time: Optional[int] = None,
+        orientation: float = 0.0,
+        alive: bool = True,
+        defense_timer: int = 0,
     ) -> "AgentState":
         """Create a state instance from raw values.
 
@@ -128,6 +162,14 @@ class AgentState(BaseState):
             is_defending: Whether agent is in defensive stance
             total_reward: Cumulative reward received
             age: Number of steps agent has existed
+            generation: Generation number (0 for first generation)
+            parent_ids: IDs of parent agents
+            genome_id: Unique genome identifier
+            birth_time: Simulation step when agent was created
+            death_time: Simulation step when agent died, None if still alive
+            orientation: Agent heading in degrees (0 = north/up, 90 = east/right)
+            alive: Whether agent is currently alive
+            defense_timer: Current defense timer value
 
         Returns:
             AgentState: State instance with provided values
@@ -143,6 +185,14 @@ class AgentState(BaseState):
             is_defending=is_defending,
             total_reward=total_reward,
             age=age,
+            generation=generation,
+            parent_ids=parent_ids or [],
+            genome_id=genome_id,
+            birth_time=birth_time,
+            death_time=death_time,
+            orientation=orientation,
+            alive=alive,
+            defense_timer=defense_timer,
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -156,6 +206,14 @@ class AgentState(BaseState):
             "is_defending": self.is_defending,
             "total_reward": self.total_reward,
             "age": self.age,
+            "generation": self.generation,
+            "parent_ids": self.parent_ids,
+            "genome_id": self.genome_id,
+            "birth_time": self.birth_time,
+            "death_time": self.death_time,
+            "orientation": self.orientation,
+            "alive": self.alive,
+            "defense_timer": self.defense_timer,
         }
 
     def to_tensor(self, device: torch.device) -> torch.Tensor:
@@ -170,6 +228,9 @@ class AgentState(BaseState):
                 self.is_defending,
                 self.total_reward,
                 self.age,
+                self.generation,
+                (self.orientation % 360.0) / 360.0,  # Normalize orientation robustly to [0,1]
+                float(self.alive),
             ]
         ).to(device)
 
@@ -675,3 +736,214 @@ class SimulationState(BaseState):
             "lineage_survival": self.normalized_survival_rate,
             "evolutionary_progress": self.normalized_system_performance,
         }
+
+
+class AgentStateManager:
+    """
+    Mutable wrapper around immutable AgentState for runtime updates.
+    
+    Provides a mutable interface for updating agent state during simulation
+    while maintaining the benefits of immutable state objects for consistency
+    and thread safety. Components can update state through well-defined methods,
+    ensuring consistency and making state changes auditable for debugging and analysis.
+    """
+    
+    def __init__(
+        self,
+        agent_id: str,
+        position: tuple[float, float],
+        step_number: int = 0,
+        generation: int = 0,
+        parent_ids: Optional[list[str]] = None,
+        genome_id: str = "",
+        birth_time: int = 0,
+    ):
+        """
+        Initialize state manager.
+        
+        Args:
+            agent_id: Unique agent identifier
+            position: Initial (x, y) position
+            step_number: Current simulation step
+            generation: Generation number
+            parent_ids: IDs of parent agents
+            genome_id: Unique genome identifier
+            birth_time: Simulation step when born
+        """
+        self._state = AgentState.from_raw_values(
+            agent_id=agent_id,
+            step_number=step_number,
+            position_x=position[0],
+            position_y=position[1],
+            position_z=0.0,
+            resource_level=0.0,
+            current_health=1.0,
+            is_defending=False,
+            total_reward=0.0,
+            age=0,
+            generation=generation,
+            parent_ids=parent_ids or [],
+            genome_id=genome_id,
+            birth_time=birth_time,
+            death_time=None,
+            orientation=0.0,
+            alive=True,
+            defense_timer=0,
+        )
+    
+    @property
+    def agent_id(self) -> str:
+        """Get agent ID."""
+        return self._state.agent_id
+    
+    @property
+    def position(self) -> tuple[float, float]:
+        """Get current position."""
+        return (self._state.position_x, self._state.position_y)
+    
+    @property
+    def orientation(self) -> float:
+        """Get current orientation."""
+        return self._state.orientation
+    
+    @property
+    def generation(self) -> int:
+        """Get generation number."""
+        return self._state.generation
+    
+    @property
+    def parent_ids(self) -> list[str]:
+        """Get parent IDs."""
+        return self._state.parent_ids.copy()
+    
+    @property
+    def genome_id(self) -> str:
+        """Get genome ID."""
+        return self._state.genome_id
+    
+    @property
+    def birth_time(self) -> int:
+        """Get birth time."""
+        return self._state.birth_time
+    
+    @property
+    def death_time(self) -> Optional[int]:
+        """Get death time."""
+        return self._state.death_time
+    
+    @property
+    def resource_level(self) -> float:
+        """Get resource level."""
+        return self._state.resource_level
+    
+    @property
+    def health(self) -> float:
+        """Get health level."""
+        return self._state.current_health
+    
+    @property
+    def is_defending(self) -> bool:
+        """Get defense status."""
+        return self._state.is_defending
+    
+    @property
+    def total_reward(self) -> float:
+        """Get total reward."""
+        return self._state.total_reward
+    
+    @property
+    def age(self) -> int:
+        """Get age."""
+        return self._state.age
+    
+    @property
+    def alive(self) -> bool:
+        """Get alive status."""
+        return self._state.alive
+    
+    @property
+    def defense_timer(self) -> int:
+        """Get defense timer."""
+        return self._state.defense_timer
+    
+    def update_position(self, position: tuple[float, float]) -> None:
+        """Update agent position."""
+        self._state = self._state.model_copy(update={
+            "position_x": position[0],
+            "position_y": position[1],
+        })
+    
+    def update_orientation(self, orientation: float) -> None:
+        """Update agent orientation (heading in degrees)."""
+        self._state = self._state.model_copy(update={
+            "orientation": orientation,
+        })
+    
+    def update_resource_level(self, resource_level: float) -> None:
+        """Update resource level."""
+        self._state = self._state.model_copy(update={
+            "resource_level": resource_level,
+        })
+    
+    def update_health(self, health: float) -> None:
+        """Update health level."""
+        self._state = self._state.model_copy(update={
+            "current_health": health,
+        })
+    
+    def set_defending(self, is_defending: bool) -> None:
+        """Set defense status."""
+        self._state = self._state.model_copy(update={
+            "is_defending": is_defending,
+        })
+    
+    def update_defense_timer(self, defense_timer: int) -> None:
+        """Update defense timer."""
+        self._state = self._state.model_copy(update={
+            "defense_timer": defense_timer,
+        })
+    
+    def add_reward(self, reward: float) -> None:
+        """Add to total reward."""
+        self._state = self._state.model_copy(update={
+            "total_reward": self._state.total_reward + reward,
+        })
+    
+    def reset_reward(self) -> None:
+        """Reset total reward to zero."""
+        self._state = self._state.model_copy(update={
+            "total_reward": 0.0,
+        })
+    
+    def set_dead(self, death_time: int) -> None:
+        """Mark agent as dead."""
+        self._state = self._state.model_copy(update={
+            "alive": False,
+            "death_time": death_time,
+        })
+    
+    def update_step(self, step_number: int) -> None:
+        """Update current step and age."""
+        self._state = self._state.model_copy(update={
+            "step_number": step_number,
+            "age": step_number - self._state.birth_time,
+        })
+    
+    def snapshot(self, current_time: int) -> AgentState:
+        """
+        Create a snapshot of current state.
+        
+        Args:
+            current_time: Current simulation time
+            
+        Returns:
+            AgentState: Complete state snapshot
+        """
+        return self._state.model_copy(update={
+            "step_number": current_time,
+            "age": current_time - self._state.birth_time,
+        })
+    
+    def get_state(self) -> AgentState:
+        """Get current immutable state."""
+        return self._state

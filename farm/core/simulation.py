@@ -46,7 +46,7 @@ import torch
 from tqdm import tqdm
 
 from farm.config import SimulationConfig
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentFactory, AgentServices
 from farm.core.environment import Environment
 from farm.utils.identity import Identity
 from farm.utils.logging import configure_logging, get_logger, log_simulation, log_step
@@ -55,6 +55,26 @@ from farm.utils.logging import configure_logging, get_logger, log_simulation, lo
 _shared_identity = Identity()
 
 logger = get_logger(__name__)
+
+
+def create_services_from_environment(environment: Environment) -> AgentServices:
+    """
+    Create AgentServices from environment, handling optional services gracefully.
+    
+    Args:
+        environment: The environment to extract services from
+        
+    Returns:
+        AgentServices container with all available services
+    """
+    return AgentServices(
+        spatial_service=environment.spatial_service,
+        time_service=environment.time_service if hasattr(environment, 'time_service') else None,
+        metrics_service=environment.metrics_service if hasattr(environment, 'metrics_service') else None,
+        logging_service=environment.logging_service if hasattr(environment, 'logging_service') else None,
+        validation_service=environment.validation_service if hasattr(environment, 'validation_service') else None,
+        lifecycle_service=environment.lifecycle_service if hasattr(environment, 'lifecycle_service') else None,
+    )
 
 
 def create_initial_agents(
@@ -88,6 +108,18 @@ def create_initial_agents(
         num_control_agents=num_control_agents,
     )
 
+    # Create services from environment
+    services = create_services_from_environment(environment)
+    
+    # Create factory
+    factory = AgentFactory(services)
+
+    # Create agent component configuration from simulation config
+    from farm.core.agent.config.component_configs import AgentComponentConfig
+    agent_config = None
+    if environment.config is not None:
+        agent_config = AgentComponentConfig.from_simulation_config(environment.config)
+
     # Use a seeded random number generator for deterministic agent creation
     if hasattr(environment, "seed_value") and environment.seed_value is not None:
         rng = random.Random(environment.seed_value)
@@ -101,56 +133,53 @@ def create_initial_agents(
             int(rng.uniform(0, environment.height)),
         )
 
-    # Create system agents (now using BaseAgent)
+    # Get initial resource level with fallback for when config is None
+    initial_resource_level = 100.0  # Default fallback value
+    if environment.config is not None and hasattr(environment.config, 'agent_behavior'):
+        initial_resource_level = environment.config.agent_behavior.initial_resource_level
+
+    # Create system agents
     for _ in range(num_system_agents):
         position = get_random_position()
-        agent = BaseAgent(
+        agent = factory.create_default_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            resource_level=1,
-            spatial_service=environment.spatial_service,
+            initial_resources=int(initial_resource_level),
+            config=agent_config,
             environment=environment,
-            agent_type="SystemAgent",
-            generation=0,
+            agent_type="system",
         )
         environment.add_agent(agent)
         positions.append(position)
 
-    logger.info("agents_created", agent_type="system", count=num_system_agents)
-
-    # Create independent agents (now using BaseAgent)
+    # Create independent agents
     for _ in range(num_independent_agents):
         position = get_random_position()
-        agent = BaseAgent(
+        agent = factory.create_default_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            resource_level=1,
-            spatial_service=environment.spatial_service,
+            initial_resources=int(initial_resource_level),
+            config=agent_config,
             environment=environment,
-            agent_type="IndependentAgent",
-            generation=0,
+            agent_type="independent",
         )
         environment.add_agent(agent)
         positions.append(position)
 
-    logger.info("agents_created", agent_type="independent", count=num_independent_agents)
-
-    # Create control agents (now using BaseAgent)
+    # Create control agents
     for _ in range(num_control_agents):
         position = get_random_position()
-        agent = BaseAgent(
+        agent = factory.create_default_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
-            resource_level=1,
-            spatial_service=environment.spatial_service,
+            initial_resources=int(initial_resource_level),
+            config=agent_config,
             environment=environment,
-            agent_type="ControlAgent",
-            generation=0,
+            agent_type="control",
         )
         environment.add_agent(agent)
         positions.append(position)
 
-    logger.info("agents_created", agent_type="control", count=num_control_agents)
     logger.info("initial_agents_complete", total_agents=len(environment.agents))
 
     return positions
@@ -573,6 +602,41 @@ def run_simulation(
             else "completed"
         ),
     )
+
+    # Validate database (runs by default if enabled in config)
+    if config.database.enable_validation and hasattr(environment, 'db') and environment.db and hasattr(environment.db, 'db_path'):
+        try:
+            from farm.database.validation import validate_simulation_database
+            logger.info("simulation_database_validation_starting", database_path=environment.db.db_path)
+            
+            validation_report = validate_simulation_database(
+                environment.db.db_path,
+                simulation_id=simulation_id,
+                include_integrity=config.database.validation_include_integrity,
+                include_statistical=config.database.validation_include_statistical
+            )
+            
+            if not validation_report.is_clean():
+                logger.warning(
+                    "simulation_validation_issues",
+                    warnings=validation_report.warning_count,
+                    errors=validation_report.error_count,
+                    duration_seconds=round(validation_report.end_time - validation_report.start_time, 2)
+                )
+            else:
+                logger.info(
+                    "simulation_database_validation_passed",
+                    checks_performed=validation_report.total_checks,
+                    duration_seconds=round(validation_report.end_time - validation_report.start_time, 2)
+                )
+        except Exception as e:
+            logger.warning("simulation_validation_error", error=str(e))
+    else:
+        if not config.database.enable_validation:
+            logger.info("simulation_database_validation_skipped", reason="Validation disabled in configuration")
+        else:
+            logger.info("simulation_database_validation_skipped", reason="No database available")
+
     return environment
 
 

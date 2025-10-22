@@ -13,6 +13,7 @@ from typing import Dict, Any
 
 from farm.analysis.common.context import AnalysisContext
 from farm.analysis.core import BaseAnalysisModule, SimpleDataProcessor
+from farm.analysis.config import reset_to_defaults
 
 
 @pytest.fixture
@@ -79,6 +80,12 @@ def analysis_context(temp_output_dir) -> AnalysisContext:
         config={'test_mode': True},
         metadata={'test': 'fixture'}
     )
+
+
+@pytest.fixture(autouse=True)
+def setup_analysis_configs():
+    """Automatically initialize analysis configs for all tests."""
+    reset_to_defaults()
 
 
 @pytest.fixture

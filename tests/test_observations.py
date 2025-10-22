@@ -8,23 +8,43 @@ This module tests the agent observation system including:
 - AgentObservation class and all its methods
 """
 
-from typing import Dict, List, Tuple
 import unittest
 
-import numpy as np
 import pytest
 import torch
 
+from farm.core.agent import (
+    AgentComponentConfig,
+    AgentCore,
+    AgentServices,
+    DefaultAgentBehavior,
+)
+from farm.core.agent.components import (
+    CombatComponent,
+    MovementComponent,
+    PerceptionComponent,
+    ReproductionComponent,
+    ResourceComponent,
+)
+from farm.core.agent.config.component_configs import (
+    CombatConfig,
+    MovementConfig,
+    PerceptionConfig,
+    ReproductionConfig,
+)
+from farm.core.agent.config.component_configs import (
+    ResourceConfig as ComponentResourceConfig,
+)
 from farm.core.channels import NUM_CHANNELS, Channel
 from farm.core.observations import (
     AgentObservation,
     ObservationConfig,
     SparsePoints,
     crop_local,
+    crop_local_rotated,
     crop_local_stack,
     make_disk_mask,
     rotate_coordinates,
-    crop_local_rotated,
 )
 
 
@@ -133,12 +153,8 @@ class TestCropLocal:
         assert crop.shape == (5, 5)  # 2*2 + 1 = 5
         assert crop[2, 2] == 1.0  # Center should be 1
         # The 4x4 square of 1s should be visible in the crop
-        assert (
-            crop[0, 0] == 1.0
-        )  # Top-left corner of the 4x4 square (maps to world[3,3])
-        assert (
-            crop[3, 3] == 1.0
-        )  # Bottom-right corner of the 4x4 square (maps to world[6,6])
+        assert crop[0, 0] == 1.0  # Top-left corner of the 4x4 square (maps to world[3,3])
+        assert crop[3, 3] == 1.0  # Bottom-right corner of the 4x4 square (maps to world[6,6])
         assert crop[4, 4] == 0.0  # Outside the 4x4 square (maps to world[7,7])
 
     def test_crop_at_edge(self):
@@ -176,12 +192,8 @@ class TestCropLocal:
 
         assert crop.shape == (7, 7)
         # Check that padded areas have custom value
-        assert (
-            crop[0, 0] == 0.5
-        )  # Top-left corner should be padded (maps to world[-3,-3])
-        assert (
-            crop[6, 6] == 0.0
-        )  # Bottom-right corner maps to world[3,3] which contains 0.0
+        assert crop[0, 0] == 0.5  # Top-left corner should be padded (maps to world[-3,-3])
+        assert crop[6, 6] == 0.0  # Bottom-right corner maps to world[3,3] which contains 0.0
 
     def test_large_radius(self):
         """Test cropping with radius larger than grid."""
@@ -352,8 +364,6 @@ class TestAgentObservation:
         assert torch.all(agent_obs.tensor()[Channel.ALLY_SIGNAL] == 1.0)
         assert torch.all(agent_obs.tensor()[Channel.KNOWN_EMPTY] == 1.0)
 
-
-
     def test_update_known_empty(self, agent_obs):
         """Test updating known empty cells."""
         # Set up visibility and entity presence
@@ -453,15 +463,11 @@ class TestAgentObservation:
         )
 
         # Check that allies are written correctly (relative to center)
-        assert (
-            agent_obs.tensor()[Channel.ALLIES_HP, 2, 3] == 0.9
-        )  # (4, 5) -> (-1, 0)
+        assert agent_obs.tensor()[Channel.ALLIES_HP, 2, 3] == 0.9  # (4, 5) -> (-1, 0)
         assert agent_obs.tensor()[Channel.ALLIES_HP, 4, 3] == 0.7  # (6, 5) -> (1, 0)
 
         # Check that enemies are written correctly
-        assert (
-            agent_obs.tensor()[Channel.ENEMIES_HP, 3, 2] == 0.6
-        )  # (5, 4) -> (0, -1)
+        assert agent_obs.tensor()[Channel.ENEMIES_HP, 3, 2] == 0.6  # (5, 4) -> (0, -1)
 
     def test_perceive_world_with_goal(self, agent_obs):
         """Test world perception with goal."""
@@ -559,9 +565,7 @@ class TestIntegration:
         assert obs_tensor[Channel.ENEMIES_HP, 4, 3] == 0.6  # Enemy left
         # Goal at (15-10, 15-10) = (5, 5) relative to center (4, 4) = (9, 9) but is out of bounds
         # So no goal should be written (goal only written if within bounds)
-        assert (
-            torch.sum(obs_tensor[Channel.GOAL]) == 0.0
-        )  # No goal written since out of bounds
+        assert torch.sum(obs_tensor[Channel.GOAL]) == 0.0  # No goal written since out of bounds
 
     def test_observation_decay_over_time(self):
         """Test that observations decay properly over multiple cycles."""
@@ -580,12 +584,8 @@ class TestIntegration:
         expected_trail = 1.0 * (0.5**3)
         expected_dmg = 1.0 * (0.7**3)
 
-        assert torch.allclose(
-            agent_obs.tensor()[Channel.TRAILS], torch.tensor(expected_trail)
-        )
-        assert torch.allclose(
-            agent_obs.tensor()[Channel.DAMAGE_HEAT], torch.tensor(expected_dmg)
-        )
+        assert torch.allclose(agent_obs.tensor()[Channel.TRAILS], torch.tensor(expected_trail))
+        assert torch.allclose(agent_obs.tensor()[Channel.DAMAGE_HEAT], torch.tensor(expected_dmg))
 
 
 if __name__ == "__main__":
@@ -703,10 +703,10 @@ class TestObservationFrequency(unittest.TestCase):
     def setUp(self):
         """Set up test environment with minimal configuration."""
         import tempfile
+
         from farm.config import SimulationConfig
         from farm.config.config import EnvironmentConfig, PopulationConfig, ResourceConfig
         from farm.core.environment import Environment
-        from farm.core.agent import BaseAgent
 
         self.test_dir = tempfile.mkdtemp()
         self.db_path = f"{self.test_dir}/test.db"
@@ -731,24 +731,74 @@ class TestObservationFrequency(unittest.TestCase):
         # Add agents
         self.agents = []
         for i in range(3):  # 2 system + 1 independent = 3 total
-            agent = BaseAgent(
+            agent = self._create_agent(
                 agent_id=self.env.get_next_agent_id(),
                 position=(10 + i * 5, 10 + i * 5),
-                resource_level=5,
                 environment=self.env,
-                generation=0,
-                spatial_service=self.env.spatial_service,
+                resource_level=5,
             )
             self.agents.append(agent)
             self.env.add_agent(agent)
 
+    def _create_agent(self, agent_id: str, position: tuple, environment, resource_level: float = 100.0):
+        """Helper function to create an agent using the new AgentCore architecture."""
+        from unittest.mock import Mock
+
+        # Create mock services
+        mock_time_service = Mock()
+        mock_time_service.get_current_time.return_value = 0
+        mock_time_service.current_time.return_value = 0
+
+        services = AgentServices(
+            spatial_service=environment.spatial_service,
+            time_service=mock_time_service,
+            metrics_service=Mock(),
+            logging_service=Mock(),
+            validation_service=Mock(),
+            lifecycle_service=Mock(),
+        )
+
+        # Create default behavior
+        behavior = DefaultAgentBehavior()
+
+        # Create default components with proper configs
+        components = [
+            MovementComponent(services, MovementConfig()),
+            ResourceComponent(services, ComponentResourceConfig()),
+            CombatComponent(services, CombatConfig()),
+            PerceptionComponent(services, PerceptionConfig()),
+            ReproductionComponent(services, ReproductionConfig()),
+        ]
+
+        # Create config
+        config = AgentComponentConfig()
+
+        # Create the agent
+        agent = AgentCore(
+            agent_id=agent_id,
+            position=position,
+            services=services,
+            behavior=behavior,
+            components=components,
+            config=config,
+            environment=environment,
+            initial_resources=resource_level,
+        )
+
+        # Attach components to core
+        for component in components:
+            component.attach(agent)
+
+        return agent
+
     def tearDown(self):
         """Clean up test environment."""
-        if hasattr(self, 'env') and self.env:
+        if hasattr(self, "env") and self.env:
             self.env.cleanup()
 
         import shutil
-        if hasattr(self, 'test_dir') and self.test_dir:
+
+        if hasattr(self, "test_dir") and self.test_dir:
             shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_observation_frequency_per_step_per_agent(self):
@@ -763,14 +813,15 @@ class TestObservationFrequency(unittest.TestCase):
 
         # Get the AgentObservation class and store original method
         from farm.core.observations import AgentObservation
+
         original_perceive_world = AgentObservation.perceive_world
 
         def tracking_perceive_world(self_obs, *args, **kwargs):
             # Track when and for which agent the call is made
-            agent_pos = kwargs.get('agent_world_pos', 'unknown')
+            agent_pos = kwargs.get("agent_world_pos", "unknown")
             call_info = {
-                'agent_pos': agent_pos,
-                'call_stack': []  # Could add more context if needed
+                "agent_pos": agent_pos,
+                "call_stack": [],  # Could add more context if needed
             }
             observation_calls.append(call_info)
             # Call the original method
@@ -825,7 +876,7 @@ class TestObservationFrequency(unittest.TestCase):
                 expected_step_calls,
                 f"Expected {expected_step_calls} observation calls during steps "
                 f"({num_agents} agents × {cycles_completed} cycles), "
-                f"but got {step_calls}."
+                f"but got {step_calls}.",
             )
 
             # Check total calls
@@ -834,15 +885,14 @@ class TestObservationFrequency(unittest.TestCase):
                 expected_total_calls,
                 f"Expected {expected_total_calls} total observation calls "
                 f"({reset_calls} during reset + {expected_step_calls} during steps), "
-                f"but got {total_calls}."
+                f"but got {total_calls}.",
             )
 
             # Verify that reset calls equal number of agents
             self.assertEqual(
                 reset_calls,
                 num_agents,
-                f"Expected {num_agents} observation calls during reset (one per agent), "
-                f"but got {reset_calls}."
+                f"Expected {num_agents} observation calls during reset (one per agent), but got {reset_calls}.",
             )
 
         finally:
