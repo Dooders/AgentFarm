@@ -57,6 +57,26 @@ _shared_identity = Identity()
 logger = get_logger(__name__)
 
 
+def create_services_from_environment(environment: Environment) -> AgentServices:
+    """
+    Create AgentServices from environment, handling optional services gracefully.
+    
+    Args:
+        environment: The environment to extract services from
+        
+    Returns:
+        AgentServices container with all available services
+    """
+    return AgentServices(
+        spatial_service=environment.spatial_service,
+        time_service=environment.time_service if hasattr(environment, 'time_service') else None,
+        metrics_service=environment.metrics_service if hasattr(environment, 'metrics_service') else None,
+        logging_service=environment.logging_service if hasattr(environment, 'logging_service') else None,
+        validation_service=environment.validation_service if hasattr(environment, 'validation_service') else None,
+        lifecycle_service=environment.lifecycle_service if hasattr(environment, 'lifecycle_service') else None,
+    )
+
+
 def create_initial_agents(
     environment: Environment,
     num_system_agents: int,
@@ -89,14 +109,7 @@ def create_initial_agents(
     )
 
     # Create services from environment
-    services = AgentServices(
-        spatial_service=environment.spatial_service,
-        time_service=environment.time_service if hasattr(environment, 'time_service') else None,
-        metrics_service=environment.metrics_service if hasattr(environment, 'metrics_service') else None,
-        logging_service=environment.logging_service if hasattr(environment, 'logging_service') else None,
-        validation_service=environment.validation_service if hasattr(environment, 'validation_service') else None,
-        lifecycle_service=environment.lifecycle_service if hasattr(environment, 'lifecycle_service') else None,
-    )
+    services = create_services_from_environment(environment)
     
     # Create factory
     factory = AgentFactory(services)

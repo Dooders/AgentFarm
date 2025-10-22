@@ -252,12 +252,12 @@ class TestSimulation(unittest.TestCase):
 
         # Get resource component and configure for quick starvation
         resource_component = agent.get_component("resource")
-        # Create new config with modified values for testing
-        resource_component.config = ComponentResourceConfig(
+        # Update only the needed fields in the config for testing
+        from dataclasses import replace
+        resource_component.config = replace(
+            resource_component.config,
             base_consumption_rate=1.0,  # Consume 1 resource per step
-            starvation_threshold=1,  # Die after 1 step of starvation
-            offspring_initial_resources=resource_component.config.offspring_initial_resources,
-            offspring_cost=resource_component.config.offspring_cost,
+            starvation_threshold=1,     # Die after 1 step of starvation
         )
 
         # Verify agent is alive initially

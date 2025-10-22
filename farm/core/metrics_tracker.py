@@ -329,9 +329,13 @@ class MetricsTracker:
             resource_component = agent.get_component("resource")
             if resource_component and hasattr(resource_component, 'starvation_counter'):
                 starvation_counter = resource_component.starvation_counter
-        except (AttributeError, TypeError, ValueError):
-            # Fallback to 0 if component access fails
-            pass
+        except (AttributeError, TypeError, ValueError) as e:
+            # Fallback to 0 if component access fails, but log the error for debugging
+            logger.warning(
+                "Falling back to starvation_counter=0 in _prepare_agent_state due to error accessing component.",
+                extra={"agent_id": getattr(agent, "agent_id", None), "error": str(e)},
+                exc_info=True
+            )
         
         return (
             agent.agent_id,
