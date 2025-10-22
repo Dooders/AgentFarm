@@ -909,6 +909,12 @@ class AgentStateManager:
             "total_reward": self._state.total_reward + reward,
         })
     
+    def reset_reward(self) -> None:
+        """Reset total reward to zero."""
+        self._state = self._state.model_copy(update={
+            "total_reward": 0.0,
+        })
+    
     def set_dead(self, death_time: int) -> None:
         """Mark agent as dead."""
         self._state = self._state.model_copy(update={

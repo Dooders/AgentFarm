@@ -68,17 +68,29 @@ class RewardComponent(AgentComponent):
             self._log_debug(f"Applied death penalty: {death_penalty}")
 
     def _capture_state(self) -> Dict[str, Any]:
-        """Capture current agent state for delta reward calculation."""
+        """Capture current agent state for delta reward calculation using existing state system."""
         if not self.core:
             return {}
 
-        return {
-            "resource_level": getattr(self.core, "resource_level", 0.0),
-            "health": getattr(self.core, "current_health", 0.0),
-            "alive": getattr(self.core, "alive", True),
-            "position": getattr(self.core, "position", (0.0, 0.0)),
-            "age": getattr(self.core, "age", 0),
-        }
+        # Use the existing state system if available
+        if hasattr(self.core, 'state_manager') and self.core.state_manager:
+            state = self.core.state_manager.get_state()
+            return {
+                "resource_level": state.resource_level,
+                "health": state.health,
+                "alive": state.alive,
+                "position": (state.position_x, state.position_y),
+                "age": state.age,
+            }
+        else:
+            # Fallback to direct attribute access for backward compatibility
+            return {
+                "resource_level": getattr(self.core, "resource_level", 0.0),
+                "health": getattr(self.core, "current_health", 0.0),
+                "alive": getattr(self.core, "alive", True),
+                "position": getattr(self.core, "position", (0.0, 0.0)),
+                "age": getattr(self.core, "age", 0),
+            }
 
     def _calculate_reward(self) -> float:
         """
@@ -170,13 +182,18 @@ class RewardComponent(AgentComponent):
         return 0.0
 
     def _apply_reward(self, reward: float) -> None:
-        """Apply reward to agent's cumulative total."""
+        """Apply reward to agent's cumulative total using existing state system."""
         self.cumulative_reward += reward
         self.reward_history.append(reward)
 
-        # Update agent's total reward if it has that attribute
-        if self.core and hasattr(self.core, "total_reward"):
-            self.core.total_reward = self.cumulative_reward
+        # Update agent's total reward using the existing state system
+        if self.core:
+            if hasattr(self.core, 'state_manager') and self.core.state_manager:
+                # Use the state manager to update total reward
+                self.core.state_manager.add_reward(reward)
+            elif hasattr(self.core, "total_reward"):
+                # Fallback to direct attribute access for backward compatibility
+                self.core.total_reward = self.cumulative_reward
 
         # Keep history within limits
         if len(self.reward_history) > self.config.max_history_length:
@@ -219,15 +236,24 @@ class RewardComponent(AgentComponent):
         }
 
     def reset_rewards(self) -> None:
-        """Reset all reward tracking (useful for new episodes)."""
+        """Reset all reward tracking (useful for new episodes) using existing state system."""
         self.cumulative_reward = 0.0
         self.step_reward = 0.0
         self.reward_history = []
         self.last_action_reward = 0.0
         self.pre_action_state = None
 
-        if self.core and hasattr(self.core, "total_reward"):
-            self.core.total_reward = 0.0
+        # Reset agent's total reward using the existing state system
+        if self.core:
+            if hasattr(self.core, 'state_manager') and self.core.state_manager:
+                # Reset through state manager (this would need a reset method in AgentStateManager)
+                # For now, we'll set it to 0 by subtracting the current total
+                current_total = self.core.state_manager.total_reward
+                if current_total > 0:
+                    self.core.state_manager.add_reward(-current_total)
+            elif hasattr(self.core, "total_reward"):
+                # Fallback to direct attribute access for backward compatibility
+                self.core.total_reward = 0.0
 
         self._log_debug("Reward tracking reset")
 
