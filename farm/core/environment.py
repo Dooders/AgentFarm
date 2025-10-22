@@ -2070,6 +2070,40 @@ class Environment(AECEnv):
 
         return reward
 
+    def _get_agent_reward(self, agent_id: str, pre_action_state: Optional[Dict[str, Any]] = None) -> float:
+        """
+        Get reward from agent's reward component if available, otherwise use fallback.
+        
+        This method integrates with the new reward component system while maintaining
+        backward compatibility with the existing reward calculation.
+        
+        Args:
+            agent_id: ID of the agent to get reward for
+            pre_action_state: Pre-action state for delta calculation
+            
+        Returns:
+            Calculated reward value
+        """
+        agent = self._agent_objects.get(agent_id)
+        if agent is None:
+            return -10.0
+        
+        # Try to get reward from agent's reward component
+        reward_component = None
+        if hasattr(agent, 'components'):
+            for component in agent.components:
+                if hasattr(component, 'cumulative_reward') and hasattr(component, 'step_reward'):
+                    reward_component = component
+                    break
+        
+        if reward_component:
+            # Use the reward component's calculation
+            # The component should have already calculated the reward in on_step_end()
+            return reward_component.step_reward
+        else:
+            # Fallback to the original reward calculation
+            return self._calculate_reward(agent_id, pre_action_state)
+
     def _next_agent(self) -> None:
         """Select the next agent to act in the environment.
 
@@ -2332,8 +2366,8 @@ class Environment(AECEnv):
         # Check truncation after potential environment update
         truncated = self.time >= self.max_steps
 
-        # Calculate reward using consolidated method
-        reward = self._calculate_reward(agent_id, pre_action_state)
+        # Calculate reward using agent's reward component if available, otherwise fallback
+        reward = self._get_agent_reward(agent_id, pre_action_state)
 
         # Get observation for current agent
         observation = (

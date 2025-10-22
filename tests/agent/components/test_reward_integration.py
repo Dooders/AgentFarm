@@ -185,3 +185,39 @@ class TestRewardComponentIntegration:
         assert len(reward_component.reward_history) == 1
         assert reward_component.cumulative_reward != 0.0
         assert reward_component.step_reward != 0.0
+    
+    def test_reward_component_is_default_reward_system(self):
+        """Test that reward component is used as the default reward system."""
+        agent = self.factory.create_default_agent(
+            agent_id="default_reward_agent",
+            position=(0.0, 0.0),
+        )
+        
+        # Find reward component
+        reward_component = None
+        for comp in agent.components:
+            if hasattr(comp, 'cumulative_reward'):
+                reward_component = comp
+                break
+        
+        assert reward_component is not None
+        
+        # Simulate agent state and step
+        if hasattr(agent, 'resource_level'):
+            agent.resource_level = 50.0
+        if hasattr(agent, 'current_health'):
+            agent.current_health = 80.0
+        if hasattr(agent, 'alive'):
+            agent.alive = True
+        
+        # Simulate step lifecycle
+        reward_component.on_step_start()
+        reward_component.on_step_end()
+        
+        # The reward component should have calculated a reward
+        assert reward_component.step_reward != 0.0
+        assert reward_component.cumulative_reward != 0.0
+        
+        # Verify the reward component provides the reward that would be used by the environment
+        expected_reward = reward_component.step_reward
+        assert expected_reward == reward_component.current_reward

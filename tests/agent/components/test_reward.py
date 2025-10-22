@@ -38,6 +38,7 @@ class TestRewardComponent:
         assert self.component.step_reward == 0.0
         assert self.component.reward_history == []
         assert self.component.name == "RewardComponent"
+        assert self.component.config is not None
     
     def test_attach(self):
         """Test component attachment to core."""
@@ -201,3 +202,76 @@ class TestRewardConfig:
         assert config.survival_bonus == 0.5
         assert config.death_penalty == -15.0
         assert config.max_history_length == 500
+
+
+class TestRewardComponentAsDefaultSystem:
+    """Test that reward component is the default reward system."""
+    
+    def test_reward_component_is_default_system(self):
+        """Test that reward component is the default reward system for agents."""
+        # This test verifies that the reward component is automatically included
+        # in all agents created through the factory, making it the default reward system
+        
+        # Create agent through factory
+        from farm.core.agent.factory import AgentFactory
+        from farm.core.agent.services import AgentServices
+        from unittest.mock import Mock
+        
+        services = Mock(spec=AgentServices)
+        services.get_current_time.return_value = 0
+        services.logging_service = Mock()
+        services.metrics_service = Mock()
+        services.validation_service = Mock()
+        services.time_service = Mock()
+        services.spatial_service = Mock()
+        services.lifecycle_service = Mock()
+        
+        factory = AgentFactory(services)
+        agent = factory.create_default_agent(
+            agent_id="default_agent",
+            position=(0.0, 0.0),
+        )
+        
+        # Verify reward component is present
+        reward_components = [
+            comp for comp in agent.components 
+            if hasattr(comp, 'cumulative_reward')
+        ]
+        
+        assert len(reward_components) == 1
+        assert reward_components[0].name == "RewardComponent"
+        
+        # Verify it's the default configuration
+        assert reward_components[0].config.resource_reward_scale == 1.0
+        assert reward_components[0].config.survival_bonus == 0.1
+        assert reward_components[0].config.death_penalty == -10.0
+    
+    def test_learning_agents_also_have_reward_component(self):
+        """Test that learning agents also have reward component by default."""
+        from farm.core.agent.factory import AgentFactory
+        from farm.core.agent.services import AgentServices
+        from unittest.mock import Mock
+        
+        services = Mock(spec=AgentServices)
+        services.get_current_time.return_value = 0
+        services.logging_service = Mock()
+        services.metrics_service = Mock()
+        services.validation_service = Mock()
+        services.time_service = Mock()
+        services.spatial_service = Mock()
+        services.lifecycle_service = Mock()
+        
+        factory = AgentFactory(services)
+        agent = factory.create_learning_agent(
+            agent_id="learning_agent",
+            position=(0.0, 0.0),
+        )
+        
+        # Verify reward component is present
+        reward_components = [
+            comp for comp in agent.components 
+            if hasattr(comp, 'cumulative_reward')
+        ]
+        
+        assert len(reward_components) == 1
+        assert reward_components[0].name == "RewardComponent"
