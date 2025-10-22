@@ -14,7 +14,7 @@ from farm.core.agent.behaviors.base import IAgentBehavior
 from farm.core.agent.components.base import AgentComponent
 from farm.core.agent.config.component_configs import AgentComponentConfig
 from farm.core.agent.services import AgentServices
-from farm.core.agent.state.state_manager import StateManager, StateSnapshot
+from farm.core.state import AgentStateManager, AgentState
 from farm.core.device_utils import create_device_from_config
 
 if TYPE_CHECKING:
@@ -92,9 +92,10 @@ class AgentCore:
         
         # State management
         current_time = services.get_current_time()
-        self.state = StateManager(
+        self.state = AgentStateManager(
             agent_id=agent_id,
             position=position,
+            step_number=current_time,
             generation=generation,
             parent_ids=parent_ids,
             genome_id="",  # Will be set by factory
@@ -112,18 +113,18 @@ class AgentCore:
         resource_comp = self.get_component("resource")
         if resource_comp:
             resource_comp.level = initial_resources
-            self.state.resource_level = initial_resources
+            self.state.update_resource_level(initial_resources)
         
         # Initialize combat component
         combat_comp = self.get_component("combat")
         if combat_comp:
-            self.state.health = combat_comp.health
+            self.state.update_health(combat_comp.health)
         
         # Initialize movement component
         movement_comp = self.get_component("movement")
         if movement_comp:
             movement_comp.position = position
-            self.state.position = position
+            self.state.update_position(position)
     
     def attach_component(self, component: AgentComponent) -> None:
         """
@@ -315,7 +316,7 @@ class AgentCore:
         except Exception:
             pass
     
-    def _calculate_reward(self, pre_state: StateSnapshot, post_state: StateSnapshot, action: Action) -> float:
+    def _calculate_reward(self, pre_state: AgentState, post_state: AgentState, action: Action) -> float:
         """
         Calculate reward for state transition.
         
@@ -328,7 +329,7 @@ class AgentCore:
             Calculated reward
         """
         resource_delta = (post_state.resource_level - pre_state.resource_level) * 0.1
-        health_delta = (post_state.health - pre_state.health) * 0.5
+        health_delta = (post_state.current_health - pre_state.current_health) * 0.5
         survival = 0.1 if self.alive else -10.0
         action_bonus = 0.05 if action.name != "pass" else 0.0
         
@@ -338,17 +339,17 @@ class AgentCore:
         """Update state snapshot from components."""
         resource_comp = self.get_component("resource")
         if resource_comp:
-            self.state.resource_level = resource_comp.level
+            self.state.update_resource_level(resource_comp.level)
         
         combat_comp = self.get_component("combat")
         if combat_comp:
-            self.state.health = combat_comp.health
-            self.state.is_defending = combat_comp.is_defending
-            self.state.defense_timer = combat_comp.defense_timer
+            self.state.update_health(combat_comp.health)
+            self.state.set_defending(combat_comp.is_defending)
+            self.state.update_defense_timer(combat_comp.defense_timer)
         
         movement_comp = self.get_component("movement")
         if movement_comp:
-            self.state.position = movement_comp.position
+            self.state.update_position(movement_comp.position)
     
     def terminate(self) -> None:
         """
@@ -389,7 +390,7 @@ class AgentCore:
         movement_comp = self.get_component("movement")
         if movement_comp:
             movement_comp.set_position(value)
-            self.state.position = value
+            self.state.update_position(value)
     
     @property
     def resource_level(self) -> float:
@@ -435,6 +436,7 @@ class AgentCore:
         combat_comp = self.get_component("combat")
         if combat_comp:
             combat_comp.defense_timer = value
+            self.state.update_defense_timer(value)
     
     @property
     def birth_time(self) -> int:
@@ -452,7 +454,7 @@ class AgentCore:
         combat_comp = self.get_component("combat")
         return combat_comp.config.starting_health if combat_comp else 100.0
     
-    def get_state(self) -> StateSnapshot:
+    def get_state(self) -> AgentState:
         """Get complete state snapshot."""
         return self.state.snapshot(self.services.get_current_time())
     
