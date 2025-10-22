@@ -14,6 +14,7 @@ from farm.core.agent.components.movement import MovementComponent
 from farm.core.agent.components.perception import PerceptionComponent
 from farm.core.agent.components.reproduction import ReproductionComponent
 from farm.core.agent.components.resource import ResourceComponent
+from farm.core.agent.components.reward import RewardComponent
 from farm.core.agent.config.component_configs import AgentComponentConfig
 from farm.core.agent.core import AgentCore
 from farm.core.agent.services import AgentServices
@@ -78,6 +79,7 @@ class AgentFactory:
             CombatComponent(self.services, config.combat),
             PerceptionComponent(self.services, config.perception),
             ReproductionComponent(self.services, config.reproduction),
+            RewardComponent(self.services, config.reward),
         ]
 
         # Create behavior
@@ -136,6 +138,7 @@ class AgentFactory:
             CombatComponent(self.services, config.combat),
             PerceptionComponent(self.services, config.perception),
             ReproductionComponent(self.services, config.reproduction),
+            RewardComponent(self.services, config.reward),
         ]
 
         # Create temporary default behavior to avoid None state

@@ -457,3 +457,11 @@ class AgentCore:
     def get_state(self) -> AgentState:
         """Get complete state snapshot."""
         return self.state.snapshot(self.services.get_current_time())
+    
+    @property
+    def step_reward(self) -> float:
+        """Get current step reward from reward component."""
+        reward_comp = self.get_component("reward")
+        if reward_comp:
+            return reward_comp.step_reward
+        return 0.0

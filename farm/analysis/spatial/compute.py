@@ -2,14 +2,15 @@
 Spatial statistical computations.
 """
 
-from typing import Dict, Any, List, Tuple
-import pandas as pd
+from typing import Any, Dict, List, Tuple
+
 import numpy as np
+import pandas as pd
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
 from farm.analysis.common.utils import calculate_statistics
-from farm.analysis.config import spatial_config
+from farm.analysis.config import get_config
 
 
 def compute_spatial_statistics(spatial_data: Dict[str, pd.DataFrame]) -> Dict[str, Any]:
@@ -275,7 +276,7 @@ def _identify_hotspots(activity_df: pd.DataFrame) -> List[Dict[str, Any]]:
 
 def _compute_location_clusters(activity_df: pd.DataFrame) -> Dict[str, Any]:
     """Compute location clustering using K-means."""
-    min_points = max(2, spatial_config.min_clustering_points)  # Ensure at least 2
+    min_points = max(2, get_config("spatial").min_clustering_points)  # Ensure at least 2
     if activity_df.empty or len(activity_df) < min_points:
         return {}
 
@@ -285,7 +286,7 @@ def _compute_location_clusters(activity_df: pd.DataFrame) -> Dict[str, Any]:
         return {}
 
     # Try different numbers of clusters
-    max_clusters = min(max(2, spatial_config.max_clusters), len(coords))  # Ensure at least 2
+    max_clusters = min(max(2, get_config("spatial").max_clusters), len(coords))  # Ensure at least 2
     best_score = -1
     best_n_clusters = 2
 
@@ -325,7 +326,7 @@ def _estimate_spatial_density(coords: np.ndarray) -> Dict[str, Any]:
     try:
         # Simple density estimation using 2D histogram
         hist, xedges, yedges = np.histogram2d(
-            coords[:, 0], coords[:, 1], bins=spatial_config.density_bins, density=True
+            coords[:, 0], coords[:, 1], bins=get_config("spatial").density_bins, density=True
         )
 
         return {

@@ -24,12 +24,12 @@ class TestVisualizationConfig(unittest.TestCase):
         self.assertEqual(config.max_animation_frames, 5)
         self.assertEqual(config.animation_min_delay, 50)
         self.assertEqual(config.max_resource_amount, 30)
-        self.assertEqual(config.resource_colors, {"glow_red": 150, "glow_green": 255, "glow_blue": 50})
+        self.assertEqual(config.resource_colors, {"glow_red": 50, "glow_green": 255, "glow_blue": 50})
         self.assertEqual(config.resource_size, 2)
         self.assertEqual(config.agent_radius_scale, 2)
         self.assertEqual(config.birth_radius_scale, 4)
         self.assertEqual(config.death_mark_scale, 1.5)
-        self.assertEqual(config.agent_colors, {"SystemAgent": "blue", "IndependentAgent": "red"})
+        self.assertEqual(config.agent_colors, {"SystemAgent": "blue", "IndependentAgent": "red", "ControlAgent": "#DAA520"})
         self.assertEqual(config.min_font_size, 10)
         self.assertEqual(config.font_scale_factor, 40)
         self.assertEqual(config.font_family, "arial")
@@ -39,6 +39,7 @@ class TestVisualizationConfig(unittest.TestCase):
             "total_agents": "#4a90e2",
             "system_agents": "#50c878",
             "independent_agents": "#e74c3c",
+            "control_agents": "#DAA520",
             "total_resources": "#f39c12",
             "average_agent_resources": "#9b59b6",
         }
@@ -81,7 +82,7 @@ class TestVisualizationConfig(unittest.TestCase):
         self.assertEqual(config_dict["birth_mark_color"], [200, 200, 200])
 
         # Check that nested dicts are preserved
-        self.assertEqual(config_dict["agent_colors"], {"SystemAgent": "blue", "IndependentAgent": "red"})
+        self.assertEqual(config_dict["agent_colors"], {"SystemAgent": "blue", "IndependentAgent": "red", "ControlAgent": "#DAA520"})
 
         # Check basic types
         self.assertEqual(config_dict["padding"], 20)

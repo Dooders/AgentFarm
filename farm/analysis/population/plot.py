@@ -11,7 +11,7 @@ import numpy as np
 from typing import Optional
 
 from farm.analysis.common.context import AnalysisContext
-from farm.analysis.config import global_config
+from farm.analysis.config import get_config
 
 
 def plot_population_over_time(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) -> None:
@@ -146,7 +146,7 @@ def plot_population_dashboard(df: pd.DataFrame, ctx: AnalysisContext, **kwargs) 
     ctx.logger.info("Creating population dashboard...")
 
     figsize = kwargs.get('figsize', (16, 12))
-    dpi = kwargs.get('dpi', global_config.plot_dpi)
+    dpi = kwargs.get('dpi', get_config('global').plot_dpi)
 
     # Create figure with subplots
     fig = plt.figure(figsize=figsize)
