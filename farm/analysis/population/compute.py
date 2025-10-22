@@ -9,7 +9,7 @@ import pandas as pd
 import numpy as np
 
 from farm.analysis.common.utils import calculate_statistics, calculate_trend
-from farm.analysis.config import population_config
+from farm.analysis.config import get_config
 from farm.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -89,7 +89,7 @@ def compute_population_stability(
         - max_fluctuation: Maximum single-step population change
     """
     if window is None:
-        window = population_config.stability_window
+        window = get_config('population').stability_window
 
     total = df['total_agents']
 
@@ -147,7 +147,7 @@ def compute_growth_rate_analysis(
         - growth_phases: Identified phases (growth, decline, stable)
     """
     if window is None:
-        window = population_config.growth_window
+        window = get_config('population').growth_window
 
     total = df['total_agents']
     steps = df['step']

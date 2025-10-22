@@ -73,23 +73,23 @@ class RewardComponent(AgentComponent):
             return {}
 
         # Use the existing state system if available
-        if hasattr(self.core, 'state_manager') and self.core.state_manager:
+        if hasattr(self.core, "state_manager") and self.core.state_manager:
             state = self.core.state_manager.get_state()
             return {
-                "resource_level": state.resource_level,
-                "health": state.health,
-                "alive": state.alive,
-                "position": (state.position_x, state.position_y),
-                "age": state.age,
+                "resource_level": float(state.resource_level),
+                "health": float(state.health),
+                "alive": bool(state.alive),
+                "position": (float(state.position_x), float(state.position_y)),
+                "age": int(state.age),
             }
         else:
             # Fallback to direct attribute access for backward compatibility
             return {
-                "resource_level": getattr(self.core, "resource_level", 0.0),
-                "health": getattr(self.core, "current_health", 0.0),
-                "alive": getattr(self.core, "alive", True),
-                "position": getattr(self.core, "position", (0.0, 0.0)),
-                "age": getattr(self.core, "age", 0),
+                "resource_level": float(getattr(self.core, "resource_level", 0.0)),
+                "health": float(getattr(self.core, "current_health", 0.0)),
+                "alive": bool(getattr(self.core, "alive", True)),
+                "position": tuple(getattr(self.core, "position", (0.0, 0.0))),
+                "age": int(getattr(self.core, "age", 0)),
             }
 
     def _calculate_reward(self) -> float:
@@ -188,7 +188,7 @@ class RewardComponent(AgentComponent):
 
         # Update agent's total reward using the existing state system
         if self.core:
-            if hasattr(self.core, 'state_manager') and self.core.state_manager:
+            if hasattr(self.core, "state_manager") and self.core.state_manager:
                 # Use the state manager to update total reward
                 self.core.state_manager.add_reward(reward)
             elif hasattr(self.core, "total_reward"):
@@ -245,11 +245,11 @@ class RewardComponent(AgentComponent):
 
         # Reset agent's total reward using the existing state system
         if self.core:
-            if hasattr(self.core, 'state_manager') and self.core.state_manager:
+            if hasattr(self.core, "state_manager") and self.core.state_manager:
                 # Reset through state manager (this would need a reset method in AgentStateManager)
                 # For now, we'll set it to 0 by subtracting the current total
-                current_total = self.core.state_manager.total_reward
-                if current_total > 0:
+                current_total = getattr(self.core.state_manager, "total_reward", 0.0)
+                if isinstance(current_total, (int, float)) and current_total > 0:
                     self.core.state_manager.add_reward(-current_total)
             elif hasattr(self.core, "total_reward"):
                 # Fallback to direct attribute access for backward compatibility

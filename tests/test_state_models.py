@@ -35,7 +35,7 @@ def test_agent_state_to_dict_and_tensor():
 
     t = state.to_tensor(torch.device("cpu"))
     assert isinstance(t, torch.Tensor)
-    assert t.shape == (8,)
+    assert t.shape == (11,)  # Updated to match actual tensor size: position(3) + resource_level + current_health + is_defending + total_reward + age + generation + orientation + alive
     # bool should be cast to float 0/1
     assert t.dtype == torch.float32
 

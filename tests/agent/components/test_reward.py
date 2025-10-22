@@ -20,7 +20,7 @@ class TestRewardComponent:
         self.config = RewardConfig()
         self.component = RewardComponent(self.services, self.config)
         
-        # Mock agent core
+        # Mock agent core with proper numeric values
         self.core = Mock()
         self.core.agent_id = "test_agent"
         self.core.resource_level = 50.0
@@ -29,6 +29,19 @@ class TestRewardComponent:
         self.core.position = (10.0, 20.0)
         self.core.age = 5
         self.core.total_reward = 0.0
+        
+        # Mock state_manager for proper state handling
+        self.core.state_manager = Mock()
+        self.core.state_manager.get_state.return_value = Mock(
+            resource_level=50.0,
+            health=80.0,
+            alive=True,
+            position_x=10.0,
+            position_y=20.0,
+            age=5
+        )
+        self.core.state_manager.total_reward = 0.0
+        self.core.state_manager.add_reward = Mock()
         
         self.component.attach(self.core)
     
