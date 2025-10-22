@@ -19,13 +19,13 @@ from farm.config.config import (
 
 # Global configuration instances for backward compatibility
 # These will be populated from the main SimulationConfig when available
-# Initialize with defaults to avoid NoneType errors
-spatial_config: SpatialAnalysisConfig = SpatialAnalysisConfig()
-genesis_config: GenesisAnalysisConfig = GenesisAnalysisConfig()
-agent_config: AgentAnalysisConfig = AgentAnalysisConfig()
-population_config: PopulationAnalysisConfig = PopulationAnalysisConfig()
-learning_config: LearningAnalysisConfig = LearningAnalysisConfig()
-global_config: AnalysisGlobalConfig = AnalysisGlobalConfig()
+# Initialize as None to avoid shared state issues
+spatial_config: Optional[SpatialAnalysisConfig] = None
+genesis_config: Optional[GenesisAnalysisConfig] = None
+agent_config: Optional[AgentAnalysisConfig] = None
+population_config: Optional[PopulationAnalysisConfig] = None
+learning_config: Optional[LearningAnalysisConfig] = None
+global_config: Optional[AnalysisGlobalConfig] = None
 
 
 def initialize_from_simulation_config(sim_config: SimulationConfig):

@@ -1906,8 +1906,8 @@ class Environment(AECEnv):
         if agent is None:
             return -10.0
 
-        # Use agent's public reward API
-        return agent.step_reward
+        # Use agent's public reward API with safe attribute access
+        return getattr(agent, 'step_reward', 0.0)
 
     def _next_agent(self) -> None:
         """Select the next agent to act in the environment.
