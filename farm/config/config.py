@@ -479,14 +479,18 @@ class VisualizationConfig:
     animation_min_delay: int = 50
     max_resource_amount: int = 30
     resource_colors: Dict[str, int] = field(
-        default_factory=lambda: {"glow_red": 150, "glow_green": 255, "glow_blue": 50}
+        default_factory=lambda: {"glow_red": 50, "glow_green": 255, "glow_blue": 50}
     )
     resource_size: int = 2
     agent_radius_scale: int = 2
     birth_radius_scale: int = 4
     death_mark_scale: float = 1.5
     agent_colors: Dict[str, str] = field(
-        default_factory=lambda: {"SystemAgent": "blue", "IndependentAgent": "red"}
+        default_factory=lambda: {
+            "SystemAgent": "blue", 
+            "IndependentAgent": "red", 
+            "ControlAgent": "#DAA520"
+        }
     )
     min_font_size: int = 10
     font_scale_factor: int = 40
@@ -498,6 +502,7 @@ class VisualizationConfig:
             "total_agents": "#4a90e2",
             "system_agents": "#50c878",
             "independent_agents": "#e74c3c",
+            "control_agents": "#DAA520",
             "total_resources": "#f39c12",
             "average_agent_resources": "#9b59b6",
         }
@@ -550,6 +555,131 @@ class RedisMemoryConfig:
             "decode_responses": self.decode_responses,
             "environment": self.environment,
         }
+
+
+@dataclass
+class SpatialAnalysisConfig:
+    """Configuration for spatial analysis module."""
+
+    # Resource clustering threshold (units)
+    resource_clustering_threshold: float = 20.0
+
+    # Agent gathering range (units)
+    gathering_range: float = 30.0
+
+    # Hotspot detection threshold (multiples of standard deviation above mean)
+    hotspot_threshold_stds: float = 1.0
+
+    # Maximum number of clusters to try in K-means
+    max_clusters: int = 10
+
+    # Minimum data points required for clustering
+    min_clustering_points: int = 3
+
+    # Spatial density estimation bins
+    density_bins: int = 20
+
+    def __post_init__(self):
+        """Validate configuration values."""
+        if self.min_clustering_points < 2:
+            raise ValueError(f"min_clustering_points must be >= 2, got {self.min_clustering_points}")
+        if self.max_clusters < 2:
+            raise ValueError(f"max_clusters must be >= 2, got {self.max_clusters}")
+        if self.density_bins < 1:
+            raise ValueError(f"density_bins must be >= 1, got {self.density_bins}")
+        if self.resource_clustering_threshold <= 0:
+            raise ValueError(f"resource_clustering_threshold must be > 0, got {self.resource_clustering_threshold}")
+        if self.gathering_range <= 0:
+            raise ValueError(f"gathering_range must be > 0, got {self.gathering_range}")
+
+
+@dataclass
+class GenesisAnalysisConfig:
+    """Configuration for genesis analysis module."""
+
+    # Resource proximity threshold (units)
+    resource_proximity_threshold: float = 30.0
+
+    # Critical period end step
+    critical_period_end: int = 100
+
+    # Dominance metric weights
+    auc_weight: float = 0.2
+    recency_weighted_auc_weight: float = 0.3
+    dominance_duration_weight: float = 0.2
+    growth_trend_weight: float = 0.1
+    final_ratio_weight: float = 0.2
+
+
+@dataclass
+class AgentAnalysisConfig:
+    """Configuration for agent analysis module."""
+
+    # Learning curve smoothing window
+    learning_curve_window: int = 10
+
+    # Number of clusters for behavior clustering
+    behavior_clusters: int = 3
+
+    # Performance score weights
+    success_rate_weight: float = 0.4
+    reward_rate_weight: float = 0.4
+    lifespan_weight: float = 0.2
+
+    # Top performers count
+    top_performers_count: int = 5
+
+
+@dataclass
+class PopulationAnalysisConfig:
+    """Configuration for population analysis module."""
+
+    # Stability calculation window (steps)
+    stability_window: int = 50
+
+    # Growth rate calculation window (steps)
+    growth_window: int = 20
+
+
+@dataclass
+class LearningAnalysisConfig:
+    """Configuration for learning analysis module."""
+
+    # Moving average window for learning curves
+    moving_average_window: int = 10
+
+    # Convergence detection window (steps)
+    convergence_window: int = 20
+
+
+@dataclass
+class AnalysisGlobalConfig:
+    """Global configuration for all analysis modules."""
+
+    # Default database filename
+    default_db_filename: str = "simulation.db"
+
+    # Default output subdirectories
+    output_subdirs: List[str] = field(default_factory=lambda: ["plots", "data", "reports"])
+
+    # Plot DPI
+    plot_dpi: int = 300
+
+    # Plot style
+    plot_style: str = "default"
+
+    # Default figure size
+    default_figsize: Tuple[int, int] = (8, 6)
+
+    # Logging verbosity
+    verbose_logging: bool = False
+
+    # Cache analysis results
+    enable_caching: bool = True
+
+    # Parallel processing
+    enable_parallel: bool = False
+    max_workers: Optional[int] = None
 
 
 @dataclass
@@ -608,6 +738,14 @@ class SimulationConfig:
     visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
     observation: Optional[ObservationConfig] = None
     redis: RedisMemoryConfig = field(default_factory=RedisMemoryConfig)
+    
+    # Analysis configurations
+    spatial_analysis: SpatialAnalysisConfig = field(default_factory=SpatialAnalysisConfig)
+    genesis_analysis: GenesisAnalysisConfig = field(default_factory=GenesisAnalysisConfig)
+    agent_analysis: AgentAnalysisConfig = field(default_factory=AgentAnalysisConfig)
+    population_analysis: PopulationAnalysisConfig = field(default_factory=PopulationAnalysisConfig)
+    learning_analysis: LearningAnalysisConfig = field(default_factory=LearningAnalysisConfig)
+    analysis_global: AnalysisGlobalConfig = field(default_factory=AnalysisGlobalConfig)
 
     def to_yaml(self, file_path: str) -> None:
         """Save configuration to a YAML file."""
@@ -629,6 +767,10 @@ class SimulationConfig:
                 config_dict[key] = self.visualization.to_dict()
             elif key == "redis":
                 config_dict[key] = self.redis.to_dict()
+            elif key in ["spatial_analysis", "genesis_analysis", "agent_analysis", 
+                        "population_analysis", "learning_analysis", "analysis_global"]:
+                # Convert analysis config objects to dicts
+                config_dict[key] = {k: v for k, v in value.__dict__.items() if not k.startswith("_")}
             elif key == "observation":
                 if self.observation:
                     obs_dict = self.observation.model_dump()
@@ -700,6 +842,23 @@ class SimulationConfig:
             nested_data["redis"] = redis_data
         else:
             nested_data["redis"] = RedisMemoryConfig(**redis_data)
+            
+        # Handle analysis configs specially
+        analysis_configs = {
+            "spatial_analysis": SpatialAnalysisConfig,
+            "genesis_analysis": GenesisAnalysisConfig,
+            "agent_analysis": AgentAnalysisConfig,
+            "population_analysis": PopulationAnalysisConfig,
+            "learning_analysis": LearningAnalysisConfig,
+            "analysis_global": AnalysisGlobalConfig,
+        }
+        
+        for config_name, config_class in analysis_configs.items():
+            config_data = nested_data.pop(config_name, {})
+            if isinstance(config_data, config_class):
+                nested_data[config_name] = config_data
+            else:
+                nested_data[config_name] = config_class(**config_data)
 
         # Handle observation config specially
         obs_data = nested_data.pop("observation", None)
@@ -758,6 +917,18 @@ class SimulationConfig:
                 nested_data[parent] = ActionRewardConfig(**config_dict)
             elif parent == "modules":
                 nested_data[parent] = ModuleConfig(**config_dict)
+            elif parent == "spatial_analysis":
+                nested_data[parent] = SpatialAnalysisConfig(**config_dict)
+            elif parent == "genesis_analysis":
+                nested_data[parent] = GenesisAnalysisConfig(**config_dict)
+            elif parent == "agent_analysis":
+                nested_data[parent] = AgentAnalysisConfig(**config_dict)
+            elif parent == "population_analysis":
+                nested_data[parent] = PopulationAnalysisConfig(**config_dict)
+            elif parent == "learning_analysis":
+                nested_data[parent] = LearningAnalysisConfig(**config_dict)
+            elif parent == "analysis_global":
+                nested_data[parent] = AnalysisGlobalConfig(**config_dict)
 
         # First, extract all module-related fields to avoid conflicts
         # Only extract fields that are specifically for the specialized learning modules
@@ -995,6 +1166,68 @@ class SimulationConfig:
                     "reproduction_success_bonus",
                     "failed_action_penalty",
                     "collision_penalty",
+                ],
+            ),
+            "spatial_analysis": (
+                SpatialAnalysisConfig,
+                [
+                    "resource_clustering_threshold",
+                    "gathering_range",
+                    "hotspot_threshold_stds",
+                    "max_clusters",
+                    "min_clustering_points",
+                    "density_bins",
+                ],
+            ),
+            "genesis_analysis": (
+                GenesisAnalysisConfig,
+                [
+                    "resource_proximity_threshold",
+                    "critical_period_end",
+                    "auc_weight",
+                    "recency_weighted_auc_weight",
+                    "dominance_duration_weight",
+                    "growth_trend_weight",
+                    "final_ratio_weight",
+                ],
+            ),
+            "agent_analysis": (
+                AgentAnalysisConfig,
+                [
+                    "learning_curve_window",
+                    "behavior_clusters",
+                    "success_rate_weight",
+                    "reward_rate_weight",
+                    "lifespan_weight",
+                    "top_performers_count",
+                ],
+            ),
+            "population_analysis": (
+                PopulationAnalysisConfig,
+                [
+                    "stability_window",
+                    "growth_window",
+                ],
+            ),
+            "learning_analysis": (
+                LearningAnalysisConfig,
+                [
+                    "moving_average_window",
+                    "convergence_window",
+                ],
+            ),
+            "analysis_global": (
+                AnalysisGlobalConfig,
+                [
+                    "default_db_filename",
+                    "output_subdirs",
+                    "plot_dpi",
+                    "plot_style",
+                    "default_figsize",
+                    "verbose_logging",
+                    "enable_caching",
+                    "enable_parallel",
+                    "max_workers",
                 ],
             ),
         }

@@ -1,7 +1,7 @@
 import tkinter as tk
 import tkinter.messagebox as messagebox
 from tkinter import ttk
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -9,52 +9,54 @@ from matplotlib.figure import Figure
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 
 from farm.database.database import SimulationDatabase
+from farm.config.config import VisualizationConfig
 
 
 class SimulationVisualizer:
-    # Visualization constants
-    DEFAULT_CANVAS_SIZE = (400, 400)
-    PADDING = 20
-
-    # Animation constants
-    MAX_ANIMATION_FRAMES = 5
-    ANIMATION_MIN_DELAY = 50
-
-    # Resource visualization
-    MAX_RESOURCE_AMOUNT = 30
-    RESOURCE_GLOW_RED = 50
-    RESOURCE_GLOW_GREEN = 255
-    RESOURCE_GLOW_BLUE = 50
-
-    # Agent visualization
-    AGENT_RADIUS_SCALE = 2
-    BIRTH_RADIUS_SCALE = 4
-    DEATH_MARK_SCALE = 1.5
-
-    # Font settings
-    MIN_FONT_SIZE = 10
-    FONT_SCALE_FACTOR = 40
-
-    # Colors
-    SYSTEM_AGENT_COLOR = "blue"
-    INDEPENDENT_AGENT_COLOR = "red"
-    CONTROL_AGENT_COLOR = "#DAA520"  # Changed to goldenrod color
-    DEATH_MARK_COLOR = (255, 0, 0)  # Red
-    BIRTH_MARK_COLOR = (255, 255, 255)  # White
-    BACKGROUND_COLOR = "black"
-
-    # Style constants
-    CARD_COLORS = {
-        "total_agents": "#4a90e2",  # Blue
-        "system_agents": "#50c878",  # Emerald green
-        "independent_agents": "#e74c3c",  # Red
+    def __init__(self, config: Optional[VisualizationConfig] = None):
+        """Initialize visualizer with configuration.
+        
+        Args:
+            config: Visualization configuration. If None, uses default config.
+        """
+        self.config = config or VisualizationConfig()
+        
+        # Legacy constants for backward compatibility (deprecated)
+        # These will be removed in future versions
+        self.DEFAULT_CANVAS_SIZE = self.config.canvas_size
+        self.PADDING = self.config.padding
+        self.MAX_ANIMATION_FRAMES = self.config.max_animation_frames
+        self.ANIMATION_MIN_DELAY = self.config.animation_min_delay
+        self.MAX_RESOURCE_AMOUNT = self.config.max_resource_amount
+        self.RESOURCE_GLOW_RED = self.config.resource_colors["glow_red"]
+        self.RESOURCE_GLOW_GREEN = self.config.resource_colors["glow_green"]
+        self.RESOURCE_GLOW_BLUE = self.config.resource_colors["glow_blue"]
+        self.AGENT_RADIUS_SCALE = self.config.agent_radius_scale
+        self.BIRTH_RADIUS_SCALE = self.config.birth_radius_scale
+        self.DEATH_MARK_SCALE = self.config.death_mark_scale
+        self.MIN_FONT_SIZE = self.config.min_font_size
+        self.FONT_SCALE_FACTOR = self.config.font_scale_factor
+        self.SYSTEM_AGENT_COLOR = self.config.agent_colors["SystemAgent"]
+        self.INDEPENDENT_AGENT_COLOR = self.config.agent_colors["IndependentAgent"]
+        self.CONTROL_AGENT_COLOR = self.config.agent_colors["ControlAgent"]
+        self.DEATH_MARK_COLOR = tuple(self.config.death_mark_color)
+        self.BIRTH_MARK_COLOR = tuple(self.config.birth_mark_color)
+        self.BACKGROUND_COLOR = self.config.background_color
+        self.CARD_COLORS = self.config.metric_colors
         "control_agents": "#DAA520",  # Changed to goldenrod
         "total_resources": "#f39c12",  # Orange
         "average_agent_resources": "#9b59b6",  # Purple
     }
 
-    def __init__(self, parent, db_path="simulation.db"):
-        """Initialize visualizer with parent frame."""
+    def __init__(self, parent, db_path="simulation.db", config: Optional[VisualizationConfig] = None):
+        """Initialize visualizer with parent frame.
+        
+        Args:
+            parent: Parent tkinter widget
+            db_path: Path to simulation database
+            config: Visualization configuration. If None, uses default config.
+        """
+        self.config = config or VisualizationConfig()
         self.parent = parent
         self.db = SimulationDatabase(db_path)
         self.current_step = 0
@@ -368,7 +370,7 @@ class SimulationVisualizer:
 
         # Bind resize event
         self.env_canvas.bind("<Configure>", self._on_canvas_resize)
-        self.canvas_size = self.DEFAULT_CANVAS_SIZE
+        self.canvas_size = self.config.canvas_size
 
     def _on_canvas_resize(self, event):
         """Handle canvas resize events."""
@@ -469,7 +471,7 @@ class SimulationVisualizer:
                 self._step_to(self.current_step + 1)
                 delay = int(1000 / self.speed_scale.get())
                 if self.birth_animations or self.death_animations:
-                    delay = min(delay, self.ANIMATION_MIN_DELAY)
+                    delay = min(delay, self.config.animation_min_delay)
                 if self.root:
                     self.root.after(delay, self._play_simulation)
             except Exception as e:
@@ -546,18 +548,18 @@ class SimulationVisualizer:
         env_width = max(x for _, _, x, _ in resource_states + [(0, 0, 100, 0)])
         env_height = max(y for _, _, _, y in resource_states + [(0, 0, 0, 100)])
 
-        scale_x = (width - 2 * self.PADDING) / env_width
-        scale_y = (height - 2 * self.PADDING) / env_height
+        scale_x = (width - 2 * self.config.padding) / env_width
+        scale_y = (height - 2 * self.config.padding) / env_height
         scale = min(scale_x, scale_y)
 
-        offset_x = max(self.PADDING, (width - (env_width * scale)) / 2)
-        offset_y = max(self.PADDING, (height - (env_height * scale)) / 2)
+        offset_x = max(self.config.padding, (width - (env_width * scale)) / 2)
+        offset_y = max(self.config.padding, (height - (env_height * scale)) / 2)
 
         return {
             "scale": scale,
             "offset_x": offset_x,
             "offset_y": offset_y,
-            "padding": self.PADDING,
+            "padding": self.config.padding,
             "width": width,
             "height": height,
         }
@@ -600,14 +602,14 @@ class SimulationVisualizer:
                 x, y = self._transform_coords(resource[2], resource[3], params)
 
                 # Calculate color intensity and size
-                intensity = amount / self.MAX_RESOURCE_AMOUNT
+                intensity = amount / self.config.max_resource_amount
                 resource_color = (
-                    int(self.RESOURCE_GLOW_RED * intensity),
-                    int(self.RESOURCE_GLOW_GREEN * intensity),
-                    int(self.RESOURCE_GLOW_BLUE * intensity),
+                    int(self.config.resource_colors["glow_red"] * intensity),
+                    int(self.config.resource_colors["glow_green"] * intensity),
+                    int(self.config.resource_colors["glow_blue"] * intensity),
                 )
 
-                size = max(1, int(self.AGENT_RADIUS_SCALE * params["scale"]))
+                size = max(1, int(self.config.agent_radius_scale * params["scale"]))
                 radius = int(size * 0.2)
 
                 self._draw_rounded_rectangle(draw, x, y, size, radius, resource_color)
@@ -639,13 +641,13 @@ class SimulationVisualizer:
         for agent in agent_states:
             x, y = self._transform_coords(agent[2], agent[3], params)
             if agent[1] == "SystemAgent":
-                color = self.SYSTEM_AGENT_COLOR
+                color = self.config.agent_colors["SystemAgent"]
             elif agent[1] == "IndependentAgent":
-                color = self.INDEPENDENT_AGENT_COLOR
+                color = self.config.agent_colors["IndependentAgent"]
             else:  # ControlAgent
-                color = self.CONTROL_AGENT_COLOR
+                color = self.config.agent_colors["ControlAgent"]
 
-            radius = max(1, int(self.AGENT_RADIUS_SCALE * params["scale"]))
+            radius = max(1, int(self.config.agent_radius_scale * params["scale"]))
             draw.ellipse(
                 [(x - radius, y - radius), (x + radius, y + radius)], fill=color
             )
@@ -654,17 +656,17 @@ class SimulationVisualizer:
         """Draw expanding circle animations for new agents."""
         births_to_remove = []
         for agent_id, (pos, frame) in self.birth_animations.items():
-            if frame < self.MAX_ANIMATION_FRAMES:
+            if frame < self.config.max_animation_frames:
                 x, y = self._transform_coords(pos[0], pos[1], params)
                 radius = (
-                    max(2, int(self.BIRTH_RADIUS_SCALE * params["scale"]))
+                    max(2, int(self.config.birth_radius_scale * params["scale"]))
                     * (frame + 1)
-                    / self.MAX_ANIMATION_FRAMES
+                    / self.config.max_animation_frames
                 )
-                opacity = int(255 * (1 - frame / self.MAX_ANIMATION_FRAMES))
+                opacity = int(255 * (1 - frame / self.config.max_animation_frames))
                 draw.ellipse(
                     [(x - radius, y - radius), (x + radius, y + radius)],
-                    outline=(*self.BIRTH_MARK_COLOR, opacity),
+                    outline=(*self.config.birth_mark_color, opacity),
                 )
                 self.birth_animations[agent_id] = (pos, frame + 1)
             else:
@@ -677,11 +679,11 @@ class SimulationVisualizer:
         """Draw fading X mark animations for dying agents."""
         deaths_to_remove = []
         for agent_id, (pos, frame) in self.death_animations.items():
-            if frame < self.MAX_ANIMATION_FRAMES:
+            if frame < self.config.max_animation_frames:
                 x, y = self._transform_coords(pos[0], pos[1], params)
-                size = max(1, int(self.DEATH_MARK_SCALE * params["scale"]))
-                opacity = int(128 * (1 - frame / self.MAX_ANIMATION_FRAMES))
-                color = (*self.DEATH_MARK_COLOR, opacity)
+                size = max(1, int(self.config.death_mark_scale * params["scale"]))
+                opacity = int(128 * (1 - frame / self.config.max_animation_frames))
+                color = (*self.config.death_mark_color, opacity)
 
                 draw.line(
                     [(x - size, y - size), (x + size, y + size)], fill=color, width=1
@@ -700,8 +702,8 @@ class SimulationVisualizer:
     def _draw_step_number(self, draw, params):
         """Draw the current step number on the visualization."""
         font_size = max(
-            self.MIN_FONT_SIZE,
-            int(min(params["width"], params["height"]) / self.FONT_SCALE_FACTOR),
+            self.config.min_font_size,
+            int(min(params["width"], params["height"]) / self.config.font_scale_factor),
         )
         try:
             font = ImageFont.truetype("arial.ttf", font_size)
@@ -709,9 +711,9 @@ class SimulationVisualizer:
             font = ImageFont.load_default()
 
         draw.text(
-            (self.PADDING, self.PADDING),
+            (self.config.padding, self.config.padding),
             f"Step: {self.current_step}",
-            fill=self.BIRTH_MARK_COLOR,  # Using white color
+            fill=tuple(self.config.birth_mark_color),  # Using white color
             font=font,
         )
 
