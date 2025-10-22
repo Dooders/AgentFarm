@@ -13,13 +13,17 @@ from farm.config.config import VisualizationConfig
 
 
 class SimulationVisualizer:
-    def __init__(self, config: Optional[VisualizationConfig] = None):
-        """Initialize visualizer with configuration.
+    def __init__(self, parent, db_path="simulation.db", config: Optional[VisualizationConfig] = None):
+        """Initialize visualizer with parent frame.
         
         Args:
+            parent: Parent tkinter widget
+            db_path: Path to simulation database
             config: Visualization configuration. If None, uses default config.
         """
         self.config = config or VisualizationConfig()
+        self.parent = parent
+        self.db = SimulationDatabase(db_path)
         
         # Legacy constants for backward compatibility (deprecated)
         # These will be removed in future versions
@@ -43,22 +47,6 @@ class SimulationVisualizer:
         self.BIRTH_MARK_COLOR = tuple(self.config.birth_mark_color)
         self.BACKGROUND_COLOR = self.config.background_color
         self.CARD_COLORS = self.config.metric_colors
-        "control_agents": "#DAA520",  # Changed to goldenrod
-        "total_resources": "#f39c12",  # Orange
-        "average_agent_resources": "#9b59b6",  # Purple
-    }
-
-    def __init__(self, parent, db_path="simulation.db", config: Optional[VisualizationConfig] = None):
-        """Initialize visualizer with parent frame.
-        
-        Args:
-            parent: Parent tkinter widget
-            db_path: Path to simulation database
-            config: Visualization configuration. If None, uses default config.
-        """
-        self.config = config or VisualizationConfig()
-        self.parent = parent
-        self.db = SimulationDatabase(db_path)
         self.current_step = 0
         self.playing = False
         self.was_playing = False
