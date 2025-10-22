@@ -61,7 +61,7 @@ class RewardComponent(AgentComponent):
 
     def on_terminate(self) -> None:
         """Called when agent dies - apply death penalty."""
-        if self.core:
+        if self.core and not self.core.alive:
             # Apply death penalty
             death_penalty = self.config.death_penalty
             self._apply_reward(death_penalty)
