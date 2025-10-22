@@ -30,9 +30,8 @@ class FeatureEngineer:
         max_resources = 1.0
         if reproduction_comp and reproduction_comp.config:
             max_resources = max(1.0, float(reproduction_comp.config.offspring_cost) * 3.0)
-        elif resource_comp and resource_comp.config:
-            max_resources = max(1.0, float(resource_comp.config.offspring_cost) * 3.0)
         else:
+            # If no reproduction component, use a reasonable default based on typical resource levels
             max_resources = 24.0  # Default fallback
         
         # Get combat component for health
