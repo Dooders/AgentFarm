@@ -345,6 +345,7 @@ class AgentCore:
         if combat_comp:
             self.state.update_health(combat_comp.health)
             self.state.set_defending(combat_comp.is_defending)
+            self.state.update_defense_timer(combat_comp.defense_timer)
         
         movement_comp = self.get_component("movement")
         if movement_comp:
@@ -435,6 +436,7 @@ class AgentCore:
         combat_comp = self.get_component("combat")
         if combat_comp:
             combat_comp.defense_timer = value
+            self.state.update_defense_timer(value)
     
     @property
     def birth_time(self) -> int:

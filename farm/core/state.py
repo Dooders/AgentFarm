@@ -125,6 +125,7 @@ class AgentState(BaseState):
     # Additional agent state
     orientation: float = 0.0
     alive: bool = True
+    defense_timer: int = 0
 
     @classmethod
     def from_raw_values(
@@ -146,6 +147,7 @@ class AgentState(BaseState):
         death_time: Optional[int] = None,
         orientation: float = 0.0,
         alive: bool = True,
+        defense_timer: int = 0,
     ) -> "AgentState":
         """Create a state instance from raw values.
 
@@ -167,6 +169,7 @@ class AgentState(BaseState):
             death_time: Simulation step when agent died, None if still alive
             orientation: Agent heading in degrees (0 = north/up, 90 = east/right)
             alive: Whether agent is currently alive
+            defense_timer: Current defense timer value
 
         Returns:
             AgentState: State instance with provided values
@@ -189,6 +192,7 @@ class AgentState(BaseState):
             death_time=death_time,
             orientation=orientation,
             alive=alive,
+            defense_timer=defense_timer,
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -209,6 +213,7 @@ class AgentState(BaseState):
             "death_time": self.death_time,
             "orientation": self.orientation,
             "alive": self.alive,
+            "defense_timer": self.defense_timer,
         }
 
     def to_tensor(self, device: torch.device) -> torch.Tensor:
@@ -224,7 +229,7 @@ class AgentState(BaseState):
                 self.total_reward,
                 self.age,
                 self.generation,
-                self.orientation / 360.0,  # Normalize orientation to [0,1]
+                (self.orientation % 360.0) / 360.0,  # Normalize orientation robustly to [0,1]
                 float(self.alive),
             ]
         ).to(device)
@@ -783,6 +788,7 @@ class AgentStateManager:
             death_time=None,
             orientation=0.0,
             alive=True,
+            defense_timer=0,
         )
     
     @property
@@ -855,6 +861,11 @@ class AgentStateManager:
         """Get alive status."""
         return self._state.alive
     
+    @property
+    def defense_timer(self) -> int:
+        """Get defense timer."""
+        return self._state.defense_timer
+    
     def update_position(self, position: tuple[float, float]) -> None:
         """Update agent position."""
         self._state = self._state.model_copy(update={
@@ -884,6 +895,12 @@ class AgentStateManager:
         """Set defense status."""
         self._state = self._state.model_copy(update={
             "is_defending": is_defending,
+        })
+    
+    def update_defense_timer(self, defense_timer: int) -> None:
+        """Update defense timer."""
+        self._state = self._state.model_copy(update={
+            "defense_timer": defense_timer,
         })
     
     def add_reward(self, reward: float) -> None:
