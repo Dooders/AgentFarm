@@ -82,6 +82,52 @@ class ReproductionConfig:
     """Resources consumed by parent when reproducing."""
 
 
+@dataclass(frozen=True)
+class RewardConfig:
+    """Configuration for reward calculation and tracking."""
+    
+    # Reward scales
+    resource_reward_scale: float = 1.0
+    """Multiplier for resource-based rewards."""
+    
+    health_reward_scale: float = 0.5
+    """Multiplier for health-based rewards."""
+    
+    # Survival rewards
+    survival_bonus: float = 0.1
+    """Reward for staying alive each step."""
+    
+    death_penalty: float = -10.0
+    """Penalty for dying."""
+    
+    age_bonus: float = 0.01
+    """Small bonus for each step survived."""
+    
+    # Action-specific rewards (can be extended)
+    combat_success_bonus: float = 2.0
+    """Bonus for successful combat actions."""
+    
+    reproduction_bonus: float = 5.0
+    """Bonus for successful reproduction."""
+    
+    cooperation_bonus: float = 1.0
+    """Bonus for cooperative actions."""
+    
+    # History tracking
+    max_history_length: int = 1000
+    """Maximum number of rewards to keep in history."""
+    
+    recent_window: int = 100
+    """Window size for recent reward calculations."""
+    
+    # Reward calculation strategy
+    use_delta_rewards: bool = True
+    """Whether to use delta-based rewards (better for RL)."""
+    
+    normalize_rewards: bool = False
+    """Whether to normalize rewards to [-1, 1] range."""
+
+
 @dataclass(frozen=False)
 class AgentComponentConfig:
     """
@@ -106,6 +152,9 @@ class AgentComponentConfig:
     
     reproduction: ReproductionConfig = field(default_factory=ReproductionConfig)
     """Reproduction configuration."""
+    
+    reward: RewardConfig = field(default_factory=RewardConfig)
+    """Reward calculation configuration."""
     
     decision: DecisionConfig = field(default_factory=DecisionConfig)
     """Decision-making configuration."""
