@@ -126,6 +126,16 @@ class RewardConfig:
     
     normalize_rewards: bool = False
     """Whether to normalize rewards to [-1, 1] range."""
+    
+    # Normalization parameters for state-based rewards
+    max_resource_level: float = 100.0
+    """Maximum resource level for normalization."""
+    
+    max_health: float = 100.0
+    """Maximum health for normalization."""
+    
+    max_age: float = 1000.0
+    """Maximum age for normalization."""
 
 
 @dataclass(frozen=False)
