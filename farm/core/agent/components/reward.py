@@ -246,11 +246,8 @@ class RewardComponent(AgentComponent):
         # Reset agent's total reward using the existing state system
         if self.core:
             if hasattr(self.core, "state_manager") and self.core.state_manager:
-                # Reset through state manager (this would need a reset method in AgentStateManager)
-                # For now, we'll set it to 0 by subtracting the current total
-                current_total = getattr(self.core.state_manager, "total_reward", 0.0)
-                if isinstance(current_total, (int, float)) and current_total > 0:
-                    self.core.state_manager.add_reward(-current_total)
+                # Use the dedicated reset_reward method in AgentStateManager
+                self.core.state_manager.reset_reward()
             elif hasattr(self.core, "total_reward"):
                 # Fallback to direct attribute access for backward compatibility
                 self.core.total_reward = 0.0
