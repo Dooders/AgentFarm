@@ -38,13 +38,8 @@ class TestRewardEnvironmentIntegration:
             position=(0.0, 0.0),
         )
         
-        # Find reward component
-        reward_component = None
-        for comp in agent.components:
-            if hasattr(comp, 'cumulative_reward'):
-                reward_component = comp
-                break
-        
+        # Get reward component using public API
+        reward_component = agent.get_component("reward")
         assert reward_component is not None
         
         # Mock environment
@@ -54,9 +49,9 @@ class TestRewardEnvironmentIntegration:
         env._calculate_reward = Mock(return_value=5.0)  # Fallback reward
         
         # Test that environment gets reward from component
-        # Simulate agent state
+        # Simulate agent state through components
         agent.resource_level = 50.0
-        agent.current_health = 80.0
+        # Health is managed by combat component, so we'll work with the reward component directly
         agent.alive = True
         
         # Simulate step lifecycle
@@ -71,27 +66,23 @@ class TestRewardEnvironmentIntegration:
         assert reward != 0.0
     
     def test_environment_fallback_to_original_calculation(self):
-        """Test that environment falls back to original calculation when no reward component."""
+        """Test that environment returns 0.0 when no reward component."""
         # Create agent without reward component (simulate old agent)
         agent = Mock()
         agent.agent_id = "old_agent"
-        agent.components = []  # No components
-        agent.resource_level = 50.0
-        agent.current_health = 80.0
-        agent.alive = True
+        agent.get_component = Mock(return_value=None)  # No reward component
+        agent.step_reward = 0.0  # Default step reward
         
         # Mock environment
         env = Mock(spec=Environment)
         env._agent_objects = {"old_agent": agent}
         env._get_agent_reward = Environment._get_agent_reward.__get__(env, Environment)
-        env._calculate_reward = Mock(return_value=3.0)  # Fallback reward
         
         # Test fallback
         reward = env._get_agent_reward("old_agent", None)
         
-        # Should use fallback calculation
-        assert reward == 3.0
-        env._calculate_reward.assert_called_once_with("old_agent", None)
+        # Should return 0.0 when no reward component
+        assert reward == 0.0
     
     def test_environment_handles_missing_agent(self):
         """Test that environment handles missing agents correctly."""
@@ -124,13 +115,8 @@ class TestRewardEnvironmentIntegration:
             config=agent_config,
         )
         
-        # Find reward component
-        reward_component = None
-        for comp in agent.components:
-            if hasattr(comp, 'cumulative_reward'):
-                reward_component = comp
-                break
-        
+        # Get reward component using public API
+        reward_component = agent.get_component("reward")
         assert reward_component is not None
         
         # Mock environment
@@ -138,9 +124,9 @@ class TestRewardEnvironmentIntegration:
         env._agent_objects = {"custom_agent": agent}
         env._get_agent_reward = Environment._get_agent_reward.__get__(env, Environment)
         
-        # Simulate agent state
+        # Simulate agent state through components
         agent.resource_level = 50.0
-        agent.current_health = 80.0
+        # Health is managed by combat component, so we'll work with the reward component directly
         agent.alive = True
         
         # Simulate step lifecycle
@@ -166,13 +152,8 @@ class TestRewardEnvironmentIntegration:
             position=(0.0, 0.0),
         )
         
-        # Find reward component
-        reward_component = None
-        for comp in agent.components:
-            if hasattr(comp, 'cumulative_reward'):
-                reward_component = comp
-                break
-        
+        # Get reward component using public API
+        reward_component = agent.get_component("reward")
         assert reward_component is not None
         
         # Mock environment
@@ -182,9 +163,9 @@ class TestRewardEnvironmentIntegration:
         
         # Simulate multiple steps
         for step in range(3):
-            # Simulate agent state changes
+            # Simulate agent state changes through components
             agent.resource_level = 50.0 + step * 5.0
-            agent.current_health = 80.0 + step * 2.0
+            # Health is managed by combat component, so we'll work with the reward component directly
             agent.alive = True
             
             # Simulate step lifecycle

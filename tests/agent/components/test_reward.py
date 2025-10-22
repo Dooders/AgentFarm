@@ -232,19 +232,15 @@ class TestRewardComponentAsDefaultSystem:
             position=(0.0, 0.0),
         )
         
-        # Verify reward component is present
-        reward_components = [
-            comp for comp in agent.components 
-            if hasattr(comp, 'cumulative_reward')
-        ]
-        
-        assert len(reward_components) == 1
-        assert reward_components[0].name == "RewardComponent"
+        # Verify reward component is present using public API
+        reward_component = agent.get_component("reward")
+        assert reward_component is not None
+        assert reward_component.name == "RewardComponent"
         
         # Verify it's the default configuration
-        assert reward_components[0].config.resource_reward_scale == 1.0
-        assert reward_components[0].config.survival_bonus == 0.1
-        assert reward_components[0].config.death_penalty == -10.0
+        assert reward_component.config.resource_reward_scale == 1.0
+        assert reward_component.config.survival_bonus == 0.1
+        assert reward_component.config.death_penalty == -10.0
     
     def test_learning_agents_also_have_reward_component(self):
         """Test that learning agents also have reward component by default."""
@@ -267,11 +263,7 @@ class TestRewardComponentAsDefaultSystem:
             position=(0.0, 0.0),
         )
         
-        # Verify reward component is present
-        reward_components = [
-            comp for comp in agent.components 
-            if hasattr(comp, 'cumulative_reward')
-        ]
-        
-        assert len(reward_components) == 1
-        assert reward_components[0].name == "RewardComponent"
+        # Verify reward component is present using public API
+        reward_component = agent.get_component("reward")
+        assert reward_component is not None
+        assert reward_component.name == "RewardComponent"

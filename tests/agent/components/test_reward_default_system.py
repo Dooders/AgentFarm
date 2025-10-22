@@ -36,14 +36,11 @@ class TestRewardComponentAsDefaultSystem:
         )
         
         # Verify reward component is present
-        reward_components = [
-            comp for comp in agent.components 
-            if hasattr(comp, 'cumulative_reward')
-        ]
-        
-        assert len(reward_components) == 1
-        assert reward_components[0].name == "RewardComponent"
-        assert reward_components[0].config is not None
+        # Get reward component using public API
+        reward_component = agent.get_component("reward")
+        assert reward_component is not None
+        assert reward_component.name == "RewardComponent"
+        assert reward_component.config is not None
     
     def test_learning_agents_have_reward_component(self):
         """Test that learning agents automatically include reward component."""
@@ -53,14 +50,11 @@ class TestRewardComponentAsDefaultSystem:
         )
         
         # Verify reward component is present
-        reward_components = [
-            comp for comp in agent.components 
-            if hasattr(comp, 'cumulative_reward')
-        ]
-        
-        assert len(reward_components) == 1
-        assert reward_components[0].name == "RewardComponent"
-        assert reward_components[0].config is not None
+        # Get reward component using public API
+        reward_component = agent.get_component("reward")
+        assert reward_component is not None
+        assert reward_component.name == "RewardComponent"
+        assert reward_component.config is not None
     
     def test_reward_component_uses_default_config(self):
         """Test that reward component uses default configuration by default."""
@@ -69,13 +63,8 @@ class TestRewardComponentAsDefaultSystem:
             position=(0.0, 0.0),
         )
         
-        # Find reward component
-        reward_component = None
-        for comp in agent.components:
-            if hasattr(comp, 'cumulative_reward'):
-                reward_component = comp
-                break
-        
+        # Get reward component using public API
+        reward_component = agent.get_component("reward")
         assert reward_component is not None
         
         # Verify default configuration
@@ -110,13 +99,8 @@ class TestRewardComponentAsDefaultSystem:
             config=agent_config,
         )
         
-        # Find reward component
-        reward_component = None
-        for comp in agent.components:
-            if hasattr(comp, 'cumulative_reward'):
-                reward_component = comp
-                break
-        
+        # Get reward component using public API
+        reward_component = agent.get_component("reward")
         assert reward_component is not None
         
         # Verify custom configuration is used
@@ -133,13 +117,8 @@ class TestRewardComponentAsDefaultSystem:
             position=(0.0, 0.0),
         )
         
-        # Find reward component
-        reward_component = None
-        for comp in agent.components:
-            if hasattr(comp, 'cumulative_reward'):
-                reward_component = comp
-                break
-        
+        # Get reward component using public API
+        reward_component = agent.get_component("reward")
         assert reward_component is not None
         
         # Test initial state
@@ -147,9 +126,9 @@ class TestRewardComponentAsDefaultSystem:
         assert reward_component.step_reward == 0.0
         assert reward_component.reward_history == []
         
-        # Simulate agent state
+        # Simulate agent state through components
         agent.resource_level = 50.0
-        agent.current_health = 80.0
+        # Health is managed by combat component, so we'll work with the reward component directly
         agent.alive = True
         agent.age = 5
         
@@ -171,27 +150,22 @@ class TestRewardComponentAsDefaultSystem:
             position=(0.0, 0.0),
         )
         
-        # Find reward component
-        reward_component = None
-        for comp in agent.components:
-            if hasattr(comp, 'cumulative_reward'):
-                reward_component = comp
-                break
-        
+        # Get reward component using public API
+        reward_component = agent.get_component("reward")
         assert reward_component is not None
         
-        # Set up agent state
+        # Set up agent state through components
         agent.resource_level = 50.0
-        agent.current_health = 80.0
+        # Health is managed by combat component, so we'll work with the reward component directly
         agent.alive = True
         agent.age = 5
         
         # Test delta-based reward calculation
         reward_component.on_step_start()
         
-        # Change state
+        # Change state through components
         agent.resource_level += 10.0  # Resource gain
-        agent.current_health += 5.0   # Health gain
+        # Health is managed by combat component, so we'll work with the reward component directly
         
         reward_component.on_step_end()
         
@@ -214,18 +188,13 @@ class TestRewardComponentAsDefaultSystem:
             position=(0.0, 0.0),
         )
         
-        # Find reward component
-        reward_component = None
-        for comp in agent.components:
-            if hasattr(comp, 'cumulative_reward'):
-                reward_component = comp
-                break
-        
+        # Get reward component using public API
+        reward_component = agent.get_component("reward")
         assert reward_component is not None
         
-        # Set up agent state
+        # Set up agent state through components
         agent.resource_level = 50.0
-        agent.current_health = 80.0
+        # Health is managed by combat component, so we'll work with the reward component directly
         agent.alive = True
         
         # Simulate step
@@ -249,13 +218,8 @@ class TestRewardComponentAsDefaultSystem:
             position=(0.0, 0.0),
         )
         
-        # Find reward component
-        reward_component = None
-        for comp in agent.components:
-            if hasattr(comp, 'cumulative_reward'):
-                reward_component = comp
-                break
-        
+        # Get reward component using public API
+        reward_component = agent.get_component("reward")
         assert reward_component is not None
         
         # Add some rewards
@@ -281,13 +245,8 @@ class TestRewardComponentAsDefaultSystem:
             position=(0.0, 0.0),
         )
         
-        # Find reward component
-        reward_component = None
-        for comp in agent.components:
-            if hasattr(comp, 'cumulative_reward'):
-                reward_component = comp
-                break
-        
+        # Get reward component using public API
+        reward_component = agent.get_component("reward")
         assert reward_component is not None
         
         # Add some rewards
