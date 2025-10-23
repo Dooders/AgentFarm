@@ -134,7 +134,7 @@ def create_initial_agents(
         )
 
     # Get initial resource level with fallback for when config is None
-    initial_resource_level = 100.0  # Default fallback value
+    initial_resource_level = 5.0  # Default fallback value (matches config default)
     if environment.config is not None and hasattr(environment.config, 'agent_behavior'):
         initial_resource_level = environment.config.agent_behavior.initial_resource_level
 
@@ -448,6 +448,11 @@ def run_simulation(
                 for agent in batch:
                     agent.act()
 
+            # Ensure all database operations are flushed before environment update
+            # This prevents timing mismatches between metrics calculation and agent database logging
+            if environment.db is not None:
+                environment.db.logger.flush_all_buffers()
+            
             # Update environment once per step
             environment.update()
 
@@ -604,7 +609,11 @@ def run_simulation(
     )
 
     # Validate database (runs by default if enabled in config)
-    if config.database.enable_validation and hasattr(environment, 'db') and environment.db and hasattr(environment.db, 'db_path'):
+    # Skip validation for in-memory databases as they will be validated after persistence
+    if (config.database.enable_validation and 
+        hasattr(environment, 'db') and environment.db and 
+        hasattr(environment.db, 'db_path') and 
+        environment.db.db_path != ":memory:"):
         try:
             from farm.database.validation import validate_simulation_database
             logger.info("simulation_database_validation_starting", database_path=environment.db.db_path)
