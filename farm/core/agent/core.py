@@ -469,12 +469,19 @@ class AgentCore:
     @property
     def spatial_service(self):
         """Get spatial service from services container."""
-        return self.services.spatial_service
+        if self.services is None:
+            return None
+        return getattr(self.services, 'spatial_service', None)
     
     @spatial_service.setter
     def spatial_service(self, value):
         """Set spatial service in services container."""
-        self.services.spatial_service = value
+        if self.services is None:
+            # Create a minimal services container if none exists
+            from farm.core.agent.services import AgentServices
+            self.services = AgentServices(spatial_service=value)
+        else:
+            self.services.spatial_service = value
     
     def reproduce(self) -> bool:
         """

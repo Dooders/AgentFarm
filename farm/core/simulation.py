@@ -604,7 +604,11 @@ def run_simulation(
     )
 
     # Validate database (runs by default if enabled in config)
-    if config.database.enable_validation and hasattr(environment, 'db') and environment.db and hasattr(environment.db, 'db_path'):
+    # Skip validation for in-memory databases as they will be validated after persistence
+    if (config.database.enable_validation and 
+        hasattr(environment, 'db') and environment.db and 
+        hasattr(environment.db, 'db_path') and 
+        environment.db.db_path != ":memory:"):
         try:
             from farm.database.validation import validate_simulation_database
             logger.info("simulation_database_validation_starting", database_path=environment.db.db_path)
