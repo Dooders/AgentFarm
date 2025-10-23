@@ -37,14 +37,13 @@ def run_simulation(branch: str, seed: int, steps: int) -> dict:
         print(f"Error checking out {branch}: {result.stderr}")
         return None
     
-    # Run simulation
+    # Run simulation (don't use --skip-validation as it's not in main branch)
     result = subprocess.run(
         [
             sys.executable, 
             "run_simulation.py",
             "--steps", str(steps),
-            "--seed", str(seed),
-            "--skip-validation"
+            "--seed", str(seed)
         ],
         capture_output=True,
         text=True,
