@@ -544,8 +544,8 @@ class AgentCore:
             # Set offspring generation
             offspring.generation = self.generation + 1
             
-            # Add offspring to environment
-            self.environment.add_agent(offspring)
+            # Add offspring to environment with immediate flush to ensure it's in database
+            self.environment.add_agent(offspring, flush_immediately=True)
             
             # Update reproduction component tracking
             repro_comp.offspring_created += 1

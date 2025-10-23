@@ -67,13 +67,21 @@ def create_services_from_environment(environment: Environment) -> AgentServices:
     Returns:
         AgentServices container with all available services
     """
+    from farm.core.services.implementations import (
+        EnvironmentLoggingService,
+        EnvironmentMetricsService,
+        EnvironmentTimeService,
+        EnvironmentValidationService,
+        EnvironmentAgentLifecycleService,
+    )
+    
     return AgentServices(
         spatial_service=environment.spatial_service,
-        time_service=environment.time_service if hasattr(environment, 'time_service') else None,
-        metrics_service=environment.metrics_service if hasattr(environment, 'metrics_service') else None,
-        logging_service=environment.logging_service if hasattr(environment, 'logging_service') else None,
-        validation_service=environment.validation_service if hasattr(environment, 'validation_service') else None,
-        lifecycle_service=environment.lifecycle_service if hasattr(environment, 'lifecycle_service') else None,
+        time_service=EnvironmentTimeService(environment),
+        metrics_service=EnvironmentMetricsService(environment),
+        logging_service=EnvironmentLoggingService(environment),
+        validation_service=EnvironmentValidationService(environment),
+        lifecycle_service=EnvironmentAgentLifecycleService(environment),
     )
 
 
