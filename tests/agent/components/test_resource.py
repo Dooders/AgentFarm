@@ -89,14 +89,14 @@ class TestOnStepStart:
         component.level = 0.0
         component.on_step_start()
         
-        assert component.level == -1.5  # 0.0 - 1.5
+        assert component.level == 0.0  # Clamped to 0.0, cannot go negative
     
     def test_consumption_with_negative_resources(self, component):
         """Test consumption when resources are already negative."""
         component.level = -5.0
         component.on_step_start()
         
-        assert component.level == -6.5  # -5.0 - 1.5
+        assert component.level == 0.0  # Clamped to 0.0, cannot go negative
     
     def test_consumption_exact_amount(self, component):
         """Test consumption of exact resource amount."""
@@ -434,7 +434,7 @@ class TestEdgeCases:
         component.level = 500.0
         component.on_step_start()
         
-        assert component.level == -500.0
+        assert component.level == 0.0  # Clamped to 0.0, cannot go negative
     
     def test_starvation_threshold_zero(self):
         """Test with zero starvation threshold."""
@@ -550,22 +550,22 @@ class TestIntegrationScenarios:
         assert component.level == 0.0
         assert component.starvation_counter == 1  # Incremented because level <= 0
         
-        component.on_step_start()  # 0.0 - 2.0 = -2.0, counter = 2
-        assert component.level == -2.0
+        component.on_step_start()  # 0.0 - 2.0 = -2.0, but clamped to 0.0, counter = 2
+        assert component.level == 0.0  # Clamped to 0.0
         assert component.starvation_counter == 2
         assert component.is_starving is True
         assert component.turns_until_starvation == 1
         
-        component.on_step_start()  # -2.0 - 2.0 = -4.0, counter = 3 (death)
-        assert component.level == -4.0
+        component.on_step_start()  # 0.0 - 2.0 = -2.0, but clamped to 0.0, counter = 3 (death)
+        assert component.level == 0.0  # Clamped to 0.0
         assert component.starvation_counter == 3
         assert component.turns_until_starvation == 0
         
         # Death on next step
         core = Mock()
         component.attach(core)
-        component.on_step_start()  # -4.0 - 2.0 = -6.0, counter = 4 (continues incrementing)
-        assert component.level == -6.0
+        component.on_step_start()  # 0.0 - 2.0 = -2.0, but clamped to 0.0, counter = 4 (continues incrementing)
+        assert component.level == 0.0  # Clamped to 0.0
         assert component.starvation_counter == 4
         core.terminate.assert_called_once()
     
@@ -580,20 +580,22 @@ class TestIntegrationScenarios:
         
         # Start starving
         component.level = -1.0
-        component.on_step_start()  # -1.0 - 1.0 = -2.0, counter = 1
+        component.on_step_start()  # -1.0 - 1.0 = -2.0, but clamped to 0.0, counter = 1
+        assert component.level == 0.0  # Clamped to 0.0
         assert component.starvation_counter == 1
         assert component.is_starving is True
         
-        component.on_step_start()  # -2.0 - 1.0 = -3.0, counter = 2
+        component.on_step_start()  # 0.0 - 1.0 = -1.0, but clamped to 0.0, counter = 2
+        assert component.level == 0.0  # Clamped to 0.0
         assert component.starvation_counter == 2
         
         # Add resources to recover
-        component.add(10.0)  # -3.0 + 10.0 = 7.0
-        assert component.level == 7.0
+        component.add(10.0)  # 0.0 + 10.0 = 10.0
+        assert component.level == 10.0
         
         # Next step should reset starvation counter
-        component.on_step_start()  # 7.0 - 1.0 = 6.0
-        assert component.level == 6.0
+        component.on_step_start()  # 10.0 - 1.0 = 9.0
+        assert component.level == 9.0
         assert component.starvation_counter == 0  # Reset
         assert component.is_starving is False
         assert component.has_resources is True
