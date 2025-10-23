@@ -448,6 +448,11 @@ def run_simulation(
                 for agent in batch:
                     agent.act()
 
+            # Ensure all database operations are flushed before environment update
+            # This prevents timing mismatches between metrics calculation and agent database logging
+            if environment.db is not None:
+                environment.db.logger.flush_all_buffers()
+            
             # Update environment once per step
             environment.update()
 
