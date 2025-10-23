@@ -453,6 +453,18 @@ class AgentCore:
         """Get starting health."""
         combat_comp = self.get_component("combat")
         return combat_comp.config.starting_health if combat_comp else 100.0
+
+    @property
+    def attack_strength(self) -> float:
+        """Get attack strength."""
+        combat_comp = self.get_component("combat")
+        return combat_comp.attack_strength if combat_comp else 0.0
+
+    @property
+    def defense_strength(self) -> float:
+        """Get defense strength."""
+        combat_comp = self.get_component("combat")
+        return combat_comp.defense_strength if combat_comp else 0.0
     
     def get_state(self) -> AgentState:
         """Get complete state snapshot."""

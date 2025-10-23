@@ -1300,6 +1300,9 @@ class Environment(AECEnv):
         # Mark positions as dirty when new agent is added
         self.spatial_index.mark_positions_dirty()
 
+        # Update spatial index references to include the new agent
+        self.spatial_index.set_references(list(self._agent_objects.values()), self.resources)
+
         # Batch log to database using SQLAlchemy
         if self.db is not None:
             self.db.logger.log_agents_batch(agent_data)
