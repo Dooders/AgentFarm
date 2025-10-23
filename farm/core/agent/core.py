@@ -465,3 +465,118 @@ class AgentCore:
         if reward_comp:
             return reward_comp.step_reward
         return 0.0
+    
+    @property
+    def spatial_service(self):
+        """Get spatial service from services container."""
+        return self.services.spatial_service
+    
+    def reproduce(self) -> bool:
+        """
+        Create offspring agent.
+        
+        Checks if agent can reproduce, deducts resources, creates offspring
+        using the factory pattern, and adds it to the environment.
+        
+        Returns:
+            bool: True if reproduction succeeded, False otherwise
+        """
+        # Get reproduction component
+        repro_comp = self.get_component("reproduction")
+        if not repro_comp:
+            return False
+        
+        # Check if agent can afford reproduction
+        if not repro_comp.can_reproduce():
+            return False
+        
+        # Check if we have environment to add offspring to
+        if not self.environment:
+            return False
+        
+        # Store initial resources for logging
+        initial_resources = self.resource_level
+        
+        try:
+            # Deduct reproduction cost
+            resource_comp = self.get_component("resource")
+            if resource_comp:
+                resource_comp.remove(repro_comp.config.offspring_cost)
+            
+            # Get offspring initial resources from config
+            offspring_resources = repro_comp.config.offspring_initial_resources
+            
+            # Create offspring using environment's factory/lifecycle
+            # We need to get the factory from somewhere - check if environment has one
+            from farm.core.agent.factory import AgentFactory
+            
+            # Create services for offspring (same as parent)
+            offspring_services = self.services
+            
+            # Create factory
+            factory = AgentFactory(offspring_services)
+            
+            # Generate new agent ID
+            offspring_id = self.environment.get_next_agent_id()
+            
+            # Create offspring at same position as parent
+            offspring = factory.create_default_agent(
+                agent_id=offspring_id,
+                position=self.position,
+                initial_resources=offspring_resources,
+                config=self.config,
+                environment=self.environment,
+                agent_type=self.agent_type,
+            )
+            
+            # Set offspring generation
+            offspring.generation = self.generation + 1
+            
+            # Add offspring to environment
+            self.environment.add_agent(offspring)
+            
+            # Update reproduction component tracking
+            repro_comp.offspring_created += 1
+            
+            # Log reproduction event if logging service available
+            if self.services.logging_service:
+                try:
+                    self.services.logging_service.log_reproduction_event(
+                        step_number=self.services.get_current_time(),
+                        parent_id=self.agent_id,
+                        offspring_id=offspring.agent_id,
+                        success=True,
+                        parent_resources_before=initial_resources,
+                        parent_resources_after=self.resource_level,
+                        offspring_initial_resources=offspring_resources,
+                        failure_reason="",
+                        parent_generation=self.generation,
+                        offspring_generation=offspring.generation,
+                        parent_position=self.position,
+                    )
+                except Exception:
+                    pass
+            
+            return True
+            
+        except Exception as e:
+            # Log failed reproduction
+            if self.services.logging_service:
+                try:
+                    self.services.logging_service.log_reproduction_event(
+                        step_number=self.services.get_current_time(),
+                        parent_id=self.agent_id,
+                        offspring_id="",
+                        success=False,
+                        parent_resources_before=initial_resources,
+                        parent_resources_after=self.resource_level,
+                        offspring_initial_resources=0.0,
+                        failure_reason=str(e),
+                        parent_generation=self.generation,
+                        offspring_generation=0,
+                        parent_position=self.position,
+                    )
+                except Exception:
+                    pass
+            
+            return False

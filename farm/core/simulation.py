@@ -134,7 +134,7 @@ def create_initial_agents(
         )
 
     # Get initial resource level with fallback for when config is None
-    initial_resource_level = 100.0  # Default fallback value
+    initial_resource_level = 5.0  # Default fallback value (matches config default)
     if environment.config is not None and hasattr(environment.config, 'agent_behavior'):
         initial_resource_level = environment.config.agent_behavior.initial_resource_level
 
