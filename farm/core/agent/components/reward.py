@@ -112,65 +112,71 @@ class RewardComponent(AgentComponent):
             return self._calculate_state_reward()
 
     def _calculate_delta_reward(self) -> float:
-        """Calculate reward based on state changes (better for RL)."""
+        """
+        Calculate reward based on state changes (better for RL).
+        
+        Uses EXACT logic from main branch:
+        - reward = resource_delta + health_delta * 0.5
+        - reward += 0.1 if alive else -10.0
+        """
         if not self.core or not self.pre_action_state:
             return 0.0
 
         current_state = self._capture_state()
 
-        # Resource delta reward
+        # Resource delta (direct, no scaling)
         resource_delta = current_state["resource_level"] - self.pre_action_state["resource_level"]
-        resource_reward = resource_delta * self.config.resource_reward_scale
-
-        # Health delta reward
+        
+        # Health delta (scaled by 0.5)
         health_delta = current_state["health"] - self.pre_action_state["health"]
-        health_reward = health_delta * self.config.health_reward_scale
+        
+        # Base reward from deltas
+        reward = resource_delta + health_delta * 0.5
 
-        # Survival reward
-        survival_reward = 0.0
-        if current_state["alive"] and self.pre_action_state["alive"]:
-            survival_reward = self.config.survival_bonus
-        elif not current_state["alive"] and self.pre_action_state["alive"]:
-            survival_reward = self.config.death_penalty
+        # Survival handling (matches main branch exactly)
+        if current_state["alive"]:
+            reward += 0.1  # Survival bonus for staying alive
+        else:
+            reward -= 10.0  # Death penalty
+            self.last_action_reward = reward
+            return reward  # Early return for dead agents
 
-        # Age reward (encourage longevity)
-        age_reward = self.config.age_bonus if current_state["age"] > self.pre_action_state["age"] else 0.0
-
-        # Action-specific rewards (if available)
-        action_reward = self._calculate_action_reward()
-
-        total_reward = resource_reward + health_reward + survival_reward + age_reward + action_reward
-
-        self.last_action_reward = total_reward
-        return total_reward
+        self.last_action_reward = reward
+        return reward
 
     def _calculate_state_reward(self) -> float:
-        """Calculate reward based on current state (fallback method)."""
+        """
+        Calculate reward based on current state (fallback method).
+        
+        Uses EXACT logic from main branch:
+        - resource_reward = resource_level * 0.1
+        - survival_reward = 0.1
+        - health_reward = current_health / starting_health
+        """
         if not self.core:
             return 0.0
 
         current_state = self._capture_state()
 
-        # Normalize state values to [0, 1] to prevent unbounded rewards
-        norm_resource = min(max(current_state["resource_level"] / self.config.max_resource_level, 0.0), 1.0)
-        norm_health = min(max(current_state["health"] / self.config.max_health, 0.0), 1.0)
-        norm_age = min(max(current_state["age"] / self.config.max_age, 0.0), 1.0)
+        # Early return for dead agents
+        if not current_state["alive"]:
+            self.last_action_reward = -10.0
+            return -10.0
 
-        # Resource reward (normalized)
-        resource_reward = norm_resource * self.config.resource_reward_scale
+        # Get starting health for ratio calculation
+        starting_health = 100.0  # Default
+        combat_comp = self.core.get_component("combat")
+        if combat_comp and hasattr(combat_comp, "config"):
+            starting_health = combat_comp.config.starting_health
 
-        # Health reward (normalized)
-        health_reward = norm_health * self.config.health_reward_scale
+        # State-based rewards (matches main branch exactly)
+        resource_reward = current_state["resource_level"] * 0.1
+        survival_reward = 0.1
+        health_reward = current_state["health"] / starting_health
 
-        # Survival reward
-        survival_reward = self.config.survival_bonus if current_state["alive"] else self.config.death_penalty
-
-        # Age reward (normalized)
-        age_reward = norm_age * self.config.age_bonus
-
-        total_reward = resource_reward + health_reward + survival_reward + age_reward
-        self.last_action_reward = total_reward
-        return total_reward
+        reward = resource_reward + survival_reward + health_reward
+        self.last_action_reward = reward
+        return reward
 
     def _calculate_action_reward(self) -> float:
         """Calculate action-specific rewards based on last action."""
