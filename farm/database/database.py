@@ -1193,6 +1193,7 @@ class SimulationDatabase(DatabaseProtocol):
         def _log(session):
             # Log reproduction event to ReproductionEventModel
             event = ReproductionEventModel(
+                simulation_id=self.simulation_id,
                 step_number=step_number,
                 parent_id=parent_id,
                 offspring_id=offspring_id,
@@ -1224,6 +1225,7 @@ class SimulationDatabase(DatabaseProtocol):
                 interaction_details["failure_reason"] = failure_reason
 
             interaction = InteractionModel(
+                simulation_id=self.simulation_id,
                 step_number=step_number,
                 source_type="agent",
                 source_id=parent_id,

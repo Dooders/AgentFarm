@@ -23,6 +23,11 @@ persist_db_on_completion: true
 db_pragma_profile: "balanced"
 db_cache_size_mb: 200
 
+# Database validation (enabled by default)
+enable_validation: true
+validation_include_integrity: true
+validation_include_statistical: true
+
 # Standard simulation length
 simulation_steps: 1000
 max_steps: 5000

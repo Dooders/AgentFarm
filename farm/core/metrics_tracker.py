@@ -13,7 +13,6 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
-from farm.core.agent import BaseAgent
 from farm.core.interfaces import AgentProtocol
 from farm.utils.logging import get_logger
 
@@ -324,6 +323,20 @@ class MetricsTracker:
 
     def _prepare_agent_state(self, agent: AgentProtocol, time: int):
         """Prepare agent state for database logging."""
+        # Get starvation_counter from component-based agent
+        starvation_counter = 0
+        try:
+            resource_component = agent.get_component("resource")
+            if resource_component and hasattr(resource_component, 'starvation_counter'):
+                starvation_counter = resource_component.starvation_counter
+        except (AttributeError, TypeError, ValueError) as e:
+            # Fallback to 0 if component access fails, but log the error for debugging
+            logger.warning(
+                "Falling back to starvation_counter=0 in _prepare_agent_state due to error accessing component.",
+                extra={"agent_id": getattr(agent, "agent_id", None), "error": str(e)},
+                exc_info=True
+            )
+        
         return (
             agent.agent_id,
             agent.position[0],  # x coordinate
@@ -331,7 +344,7 @@ class MetricsTracker:
             agent.resource_level,
             agent.current_health,
             agent.starting_health,
-            agent.starvation_counter,
+            starvation_counter,
             int(agent.is_defending),
             agent.total_reward,
             time - agent.birth_time,  # age
@@ -372,7 +385,10 @@ class MetricsTracker:
             total_agents = len(alive_agents)
 
             # Calculate agent type counts
-            system_agents = len([a for a in alive_agents if isinstance(a, BaseAgent)])
+            # Count agents by their agent_type attribute
+            system_agents = len([a for a in alive_agents if hasattr(a, 'agent_type') and str(a.agent_type) == 'system'])
+            independent_agents = len([a for a in alive_agents if hasattr(a, 'agent_type') and str(a.agent_type) == 'independent'])
+            control_agents = len([a for a in alive_agents if hasattr(a, 'agent_type') and str(a.agent_type) == 'control'])
 
             # Get metrics from tracker
             tracker_metrics = self.get_step_metrics()
@@ -435,6 +451,8 @@ class MetricsTracker:
             metrics = {
                 "total_agents": total_agents,
                 "system_agents": system_agents,
+                "independent_agents": independent_agents,
+                "control_agents": control_agents,
                 "total_resources": total_resources,
                 "average_agent_resources": average_agent_resources,
                 "resources_consumed": resources_consumed,

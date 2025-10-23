@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, List
 import numpy as np
 
 if TYPE_CHECKING:
-    from farm.core.agent import BaseAgent
+    from farm.core.agent import AgentCore
     from farm.core.environment import Environment
 
 
@@ -17,17 +17,31 @@ class FeatureEngineer:
     """
 
     def extract_features(
-        self, agent: "BaseAgent", environment: "Environment"
+        self, agent: "AgentCore", environment: "Environment"
     ) -> np.ndarray:
         features: List[float] = []
 
         # Agent state features (normalized where possible)
-        max_resources = max(
-            1.0, float(getattr(agent.config, "min_reproduction_resources", 8)) * 3.0
-        )
+        # Get resource component for max resources calculation
+        resource_comp = agent.get_component("resource")
+        reproduction_comp = agent.get_component("reproduction")
+        
+        # Calculate max resources based on reproduction cost
+        max_resources = 1.0
+        if reproduction_comp and reproduction_comp.config:
+            max_resources = max(1.0, float(reproduction_comp.config.offspring_cost) * 3.0)
+        else:
+            # If no reproduction component, use a reasonable default based on typical resource levels
+            max_resources = 24.0  # Default fallback
+        
+        # Get combat component for health
+        combat_comp = agent.get_component("combat")
+        current_health = combat_comp.health if combat_comp else 0.0
+        starting_health = combat_comp.config.starting_health if combat_comp and combat_comp.config else 100.0
+        
         features.extend(
             [
-                float(agent.current_health) / max(1.0, float(agent.starting_health)),
+                float(current_health) / max(1.0, float(starting_health)),
                 float(agent.resource_level) / max_resources,
             ]
         )
@@ -55,12 +69,14 @@ class FeatureEngineer:
         return np.asarray(features, dtype=float)
 
     def _extract_environmental_features(
-        self, agent: "BaseAgent", environment: "Environment"
+        self, agent: "AgentCore", environment: "Environment"
     ) -> List[float]:
         # Nearby resource density normalized
-        gathering_range = (
-            getattr(agent.config, "gathering_range", 30) if agent.config else 30
-        )
+        # Get gathering range from perception component
+        perception_comp = agent.get_component("perception")
+        gathering_range = 30  # Default fallback
+        if perception_comp and perception_comp.config:
+            gathering_range = perception_comp.config.perception_radius
 
         # Defensive check for get_nearby_resources method
         nearby_resources = []
@@ -76,17 +92,26 @@ class FeatureEngineer:
         total_resources = max(1, len(getattr(environment, "resources", [])))
         resource_density = float(len(nearby_resources)) / float(total_resources)
 
-        # Starvation/consumption context
-        starvation_ratio = float(agent.starvation_counter) / max(
-            1.0, float(agent.starvation_threshold)
+        # Starvation/consumption context - access through resource component
+        resource_comp = agent.get_component("resource")
+        starvation_counter = resource_comp.starvation_counter if resource_comp else 0
+        starvation_threshold = (
+            resource_comp.config.starvation_threshold 
+            if resource_comp and resource_comp.config 
+            else 100  # Default fallback
         )
+        starvation_ratio = float(starvation_counter) / max(1.0, float(starvation_threshold))
 
         return [resource_density, starvation_ratio]
 
     def _extract_social_features(
-        self, agent: "BaseAgent", environment: "Environment"
+        self, agent: "AgentCore", environment: "Environment"
     ) -> List[float]:
-        social_range = getattr(agent.config, "social_range", 30) if agent.config else 30
+        # Get social range from perception component
+        perception_comp = agent.get_component("perception")
+        social_range = 30  # Default fallback
+        if perception_comp and perception_comp.config:
+            social_range = perception_comp.config.perception_radius
 
         # Defensive check for get_nearby_agents method
         nearby_agents = []
@@ -102,7 +127,8 @@ class FeatureEngineer:
         total_agents = max(1, len(getattr(environment, "agents", [])))
         agent_density = float(len(nearby_agents)) / float(total_agents)
 
-        # Defensive status flag
-        is_defending = 1.0 if getattr(agent, "is_defending", False) else 0.0
+        # Defensive status flag - access through combat component
+        combat_comp = agent.get_component("combat")
+        is_defending = 1.0 if (combat_comp and combat_comp.is_defending) else 0.0
 
         return [agent_density, is_defending]

@@ -18,11 +18,11 @@ class SimulationAnalyzer:
                 session.query(
                     SimulationStepModel.step_number,
                     func.count(
-                        case((AgentModel.agent_type == "SystemAgent", 1), else_=None)
+                        case((AgentModel.agent_type == "system", 1), else_=None)
                     ).label("system_alive"),
                     func.count(
                         case(
-                            (AgentModel.agent_type == "IndependentAgent", 1), else_=None
+                            (AgentModel.agent_type == "independent", 1), else_=None
                         )
                     ).label("independent_alive"),
                 )

@@ -5,7 +5,7 @@ import importlib.util
 if importlib.util.find_spec("torch") is None:
     pytest.skip("integration gathering tests require torch; skipping in lightweight env", allow_module_level=True)
 
-from farm.core.agent import BaseAgent
+from farm.core.agent import AgentCore
 from farm.config import SimulationConfig
 from farm.core.environment import Environment
 from farm.core.resources import Resource
@@ -39,13 +39,27 @@ def test_env_step_agent_gathers_from_colocated_resource(simple_config: Simulatio
     )
 
     # Create a single agent at (25,25)
-    agent = BaseAgent(
+    from farm.core.agent import AgentFactory, AgentServices
+    from farm.core.agent.config.component_configs import AgentComponentConfig
+    
+    services = AgentServices(
+        spatial_service=env.spatial_service,
+        time_service=getattr(env, 'time_service', None),
+        metrics_service=getattr(env, 'metrics_service', None),
+        logging_service=getattr(env, 'logging_service', None),
+        validation_service=getattr(env, 'validation_service', None),
+        lifecycle_service=getattr(env, 'lifecycle_service', None),
+    )
+    
+    factory = AgentFactory(services)
+    agent_config = AgentComponentConfig.from_simulation_config(simple_config) if simple_config else None
+    
+    agent = factory.create_default_agent(
         agent_id="a-1",
         position=(25, 25),
-        resource_level=0,
-        spatial_service=env.spatial_service,
+        initial_resources=0,
+        config=agent_config,
         environment=env,
-        config=simple_config,
     )
 
     # Reset to initialize PettingZoo bookkeeping and add our agent
@@ -88,13 +102,27 @@ def test_agent_act_gathers_when_decision_returns_gather(simple_config: Simulatio
     env.spatial_index.set_references([], env.resources)
     env.spatial_index.update()
 
-    agent = BaseAgent(
+    from farm.core.agent import AgentFactory, AgentServices
+    from farm.core.agent.config.component_configs import AgentComponentConfig
+    
+    services = AgentServices(
+        spatial_service=env.spatial_service,
+        time_service=getattr(env, 'time_service', None),
+        metrics_service=getattr(env, 'metrics_service', None),
+        logging_service=getattr(env, 'logging_service', None),
+        validation_service=getattr(env, 'validation_service', None),
+        lifecycle_service=getattr(env, 'lifecycle_service', None),
+    )
+    
+    factory = AgentFactory(services)
+    agent_config = AgentComponentConfig.from_simulation_config(simple_config) if simple_config else None
+    
+    agent = factory.create_default_agent(
         agent_id="a-2",
         position=(10, 10),
-        resource_level=0.0,
-        spatial_service=env.spatial_service,
+        initial_resources=0.0,
+        config=agent_config,
         environment=env,
-        config=simple_config,
     )
     env.add_agent(agent)
 
@@ -131,13 +159,27 @@ def test_spatial_index_references_accept_agent_objects(simple_config: Simulation
         db_path=":memory:",
     )
     # One agent and one resource
-    agent = BaseAgent(
+    from farm.core.agent import AgentFactory, AgentServices
+    from farm.core.agent.config.component_configs import AgentComponentConfig
+    
+    services = AgentServices(
+        spatial_service=env.spatial_service,
+        time_service=getattr(env, 'time_service', None),
+        metrics_service=getattr(env, 'metrics_service', None),
+        logging_service=getattr(env, 'logging_service', None),
+        validation_service=getattr(env, 'validation_service', None),
+        lifecycle_service=getattr(env, 'lifecycle_service', None),
+    )
+    
+    factory = AgentFactory(services)
+    agent_config = AgentComponentConfig.from_simulation_config(simple_config) if simple_config else None
+    
+    agent = factory.create_default_agent(
         agent_id="a-3",
         position=(5, 5),
-        resource_level=1.0,
-        spatial_service=env.spatial_service,
+        initial_resources=1.0,
+        config=agent_config,
         environment=env,
-        config=simple_config,
     )
     resource = Resource(resource_id=2, position=(6, 5), amount=3.0, max_amount=3.0, regeneration_rate=0.0)
     env.add_agent(agent)
@@ -162,13 +204,27 @@ def test_decision_prioritizes_gather_nearby(simple_config: SimulationConfig, mon
         config=simple_config,
         db_path=":memory:",
     )
-    agent = BaseAgent(
+    from farm.core.agent import AgentFactory, AgentServices
+    from farm.core.agent.config.component_configs import AgentComponentConfig
+    
+    services = AgentServices(
+        spatial_service=env.spatial_service,
+        time_service=getattr(env, 'time_service', None),
+        metrics_service=getattr(env, 'metrics_service', None),
+        logging_service=getattr(env, 'logging_service', None),
+        validation_service=getattr(env, 'validation_service', None),
+        lifecycle_service=getattr(env, 'lifecycle_service', None),
+    )
+    
+    factory = AgentFactory(services)
+    agent_config = AgentComponentConfig.from_simulation_config(simple_config) if simple_config else None
+    
+    agent = factory.create_default_agent(
         agent_id="a-4",
         position=(12, 12),
-        resource_level=0.0,
-        spatial_service=env.spatial_service,
+        initial_resources=0.0,
+        config=agent_config,
         environment=env,
-        config=simple_config,
     )
     env.add_agent(agent)
 

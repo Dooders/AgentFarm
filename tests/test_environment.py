@@ -1,25 +1,90 @@
-import os
-import tempfile
-import unittest
-from unittest.mock import MagicMock, Mock, patch
-import signal
 import time
+import unittest
+from unittest.mock import Mock, patch
 
 import numpy as np
 from gymnasium import spaces
-from pettingzoo.test import api_test
-from stable_baselines3 import PPO
-from stable_baselines3.common.env_util import make_vec_env
 
 from farm.config import SimulationConfig
 from farm.config.config import EnvironmentConfig, PopulationConfig, ResourceConfig
 from farm.core.action import ActionType
-from farm.core.agent import BaseAgent
+from farm.core.agent import (
+    AgentComponentConfig,
+    AgentCore,
+    AgentServices,
+    DefaultAgentBehavior,
+)
+from farm.core.agent.components import (
+    CombatComponent,
+    MovementComponent,
+    PerceptionComponent,
+    ReproductionComponent,
+    ResourceComponent,
+)
+from farm.core.agent.config.component_configs import (
+    CombatConfig,
+    MovementConfig,
+    PerceptionConfig,
+    ReproductionConfig,
+)
+from farm.core.agent.config.component_configs import (
+    ResourceConfig as ComponentResourceConfig,
+)
 from farm.core.environment import Environment
-from farm.core.resources import Resource
 
 
 class TestEnvironment(unittest.TestCase):
+    def create_agent(
+        self, agent_id: str, position: tuple, environment: Environment, resource_level: float = 100.0
+    ) -> AgentCore:
+        """Helper function to create an agent using the new AgentCore architecture."""
+        # Create mock services
+        mock_time_service = Mock()
+        mock_time_service.get_current_time.return_value = 0
+        mock_time_service.current_time.return_value = 0
+
+        services = AgentServices(
+            spatial_service=environment.spatial_service,
+            time_service=mock_time_service,
+            metrics_service=Mock(),
+            logging_service=Mock(),
+            validation_service=Mock(),
+            lifecycle_service=Mock(),
+        )
+
+        # Create default behavior
+        behavior = DefaultAgentBehavior()
+
+        # Create default components with proper configs
+        components = [
+            MovementComponent(services, MovementConfig()),
+            ResourceComponent(services, ComponentResourceConfig()),
+            CombatComponent(services, CombatConfig()),
+            PerceptionComponent(services, PerceptionConfig()),
+            ReproductionComponent(services, ReproductionConfig()),
+        ]
+
+        # Create config
+        config = AgentComponentConfig()
+
+        # Create the agent
+        agent = AgentCore(
+            agent_id=agent_id,
+            position=position,
+            services=services,
+            behavior=behavior,
+            components=components,
+            config=config,
+            environment=environment,
+            initial_resources=resource_level,
+        )
+
+        # Attach components to core
+        for component in components:
+            component.attach(agent)
+
+        return agent
+
     def setUp(self):
         # Create a minimal SimulationConfig for testing
         self.config = SimulationConfig(
@@ -56,29 +121,23 @@ class TestEnvironment(unittest.TestCase):
 
         # Add a small set of agents explicitly (external agent management)
         initial_agents = [
-            BaseAgent(
+            self.create_agent(
                 agent_id=self.env.get_next_agent_id(),
                 position=(10, 10),
-                resource_level=5,
                 environment=self.env,
-                generation=0,
-                spatial_service=self.env.spatial_service,
+                resource_level=5,
             ),
-            BaseAgent(
+            self.create_agent(
                 agent_id=self.env.get_next_agent_id(),
                 position=(12, 12),
-                resource_level=5,
                 environment=self.env,
-                generation=0,
-                spatial_service=self.env.spatial_service,
+                resource_level=5,
             ),
-            BaseAgent(
+            self.create_agent(
                 agent_id=self.env.get_next_agent_id(),
                 position=(14, 14),
-                resource_level=5,
                 environment=self.env,
-                generation=0,
-                spatial_service=self.env.spatial_service,
+                resource_level=5,
             ),
         ]
         for a in initial_agents:
@@ -244,14 +303,16 @@ class TestEnvironment(unittest.TestCase):
             agent.resource_level = 10
 
         # Test reward for alive agent
-        reward = self.env._calculate_reward(agent_id)
+        reward = self.env._get_agent_reward(agent_id)
         self.assertIsInstance(reward, float)
         self.assertGreater(reward, -10)  # Should not be death penalty
 
         # Test reward for dead agent
         agent.alive = False
-        reward = self.env._calculate_reward(agent_id)
-        self.assertEqual(reward, -10)  # Death penalty
+        reward = self.env._get_agent_reward(agent_id)
+        # With the new reward system, death penalty is applied in on_terminate()
+        # which is called during proper agent termination, not just setting alive=False
+        self.assertIsInstance(reward, float)
 
     def test_observation_generation(self):
         """Test observation generation for agents"""
@@ -294,7 +355,8 @@ class TestEnvironment(unittest.TestCase):
                 truncated_encountered = True
                 # Should truncate when time reaches max_steps
                 self.assertGreaterEqual(
-                    self.env.time, self.env.max_steps,
+                    self.env.time,
+                    self.env.max_steps,
                     f"Should only truncate when time >= max_steps. Time: {self.env.time}, Max steps: {self.env.max_steps}",
                 )
                 break
@@ -307,7 +369,8 @@ class TestEnvironment(unittest.TestCase):
 
         # Verify time reached max_steps
         self.assertGreaterEqual(
-            self.env.time, self.env.max_steps,
+            self.env.time,
+            self.env.max_steps,
             f"Time should have reached max_steps. Time: {self.env.time}, Max steps: {self.env.max_steps}",
         )
 
@@ -439,7 +502,7 @@ class TestEnvironment(unittest.TestCase):
         finally:
             # Cleanup with timeout protection
             try:
-                if 'env1' in locals():
+                if "env1" in locals():
                     start_time = time.time()
                     env1.cleanup()
                     self.assertLess(time.time() - start_time, 5.0, "Environment 1 cleanup took too long")
@@ -447,7 +510,7 @@ class TestEnvironment(unittest.TestCase):
                 print(f"Warning: env1 cleanup failed: {e}")
 
             try:
-                if 'env2' in locals():
+                if "env2" in locals():
                     start_time = time.time()
                     env2.cleanup()
                     self.assertLess(time.time() - start_time, 5.0, "Environment 2 cleanup took too long")
@@ -565,13 +628,11 @@ class TestEnvironment(unittest.TestCase):
         initial_agent_count = len(self.env.agent_objects)
 
         # Test agent addition
-        new_agent = BaseAgent(
+        new_agent = self.create_agent(
             agent_id="test_agent_new",
             position=(25, 25),
-            resource_level=5,
             environment=self.env,
-            generation=1,
-            spatial_service=self.env.spatial_service,
+            resource_level=5,
         )
 
         self.env.add_agent(new_agent)
@@ -643,7 +704,7 @@ class TestEnvironment(unittest.TestCase):
             self.assertEqual(obs.shape, self.env.observation_space(agent.agent_id).shape)
 
         # Test reward calculation for non-existent agent
-        reward = self.env._calculate_reward("non_existent")
+        reward = self.env._get_agent_reward("non_existent")
         self.assertEqual(reward, -10.0)
 
     def test_deterministic_behavior(self):

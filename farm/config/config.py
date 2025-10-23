@@ -149,9 +149,7 @@ class EnvironmentConfig:
     width: int = 100
     height: int = 100
     position_discretization_method: str = "floor"  # Options: "floor", "round", "ceil"
-    use_bilinear_interpolation: bool = (
-        True  # Whether to use bilinear interpolation for resources
-    )
+    use_bilinear_interpolation: bool = True  # Whether to use bilinear interpolation for resources
     spatial_index: Optional[SpatialIndexConfig] = None
 
 
@@ -239,9 +237,7 @@ class AgentBehaviorConfig:
     gather_mult_low_resources: float = 1.5  # Multiplier when resources needed
     share_mult_wealthy: float = 1.3  # Multiplier when agent has excess resources
     share_mult_poor: float = 0.5  # Multiplier when agent needs resources
-    attack_starvation_threshold: float = (
-        0.5  # Starvation risk threshold for desperate behavior
-    )
+    attack_starvation_threshold: float = 0.5  # Starvation risk threshold for desperate behavior
     attack_mult_desperate: float = 1.4  # Multiplier when desperate for resources
     attack_mult_stable: float = 0.6  # Multiplier when resource stable
     max_wait_steps: int = 10  # Maximum steps to wait between gathering attempts
@@ -252,26 +248,14 @@ class DatabaseConfig:
     """Configuration for database settings."""
 
     use_in_memory_db: bool = False  # Whether to use in-memory database
-    persist_db_on_completion: bool = (
-        True  # Whether to persist in-memory DB to disk after simulation
-    )
-    in_memory_db_memory_limit_mb: Optional[int] = (
-        None  # Memory limit for in-memory DB (None = no limit)
-    )
-    in_memory_tables_to_persist: Optional[List[str]] = (
-        None  # Tables to persist (None = all tables)
-    )
-    db_pragma_profile: str = (
-        "balanced"  # Options: "balanced", "performance", "safety", "memory"
-    )
+    persist_db_on_completion: bool = True  # Whether to persist in-memory DB to disk after simulation
+    in_memory_db_memory_limit_mb: Optional[int] = None  # Memory limit for in-memory DB (None = no limit)
+    in_memory_tables_to_persist: Optional[List[str]] = None  # Tables to persist (None = all tables)
+    db_pragma_profile: str = "balanced"  # Options: "balanced", "performance", "safety", "memory"
     db_cache_size_mb: int = 200  # Cache size in MB
     db_synchronous_mode: str = "NORMAL"  # Options: "OFF", "NORMAL", "FULL"
-    db_journal_mode: str = (
-        "WAL"  # Options: "DELETE", "TRUNCATE", "PERSIST", "MEMORY", "WAL", "OFF"
-    )
-    db_custom_pragmas: Dict[str, str] = field(
-        default_factory=dict
-    )  # Custom pragma overrides
+    db_journal_mode: str = "WAL"  # Options: "DELETE", "TRUNCATE", "PERSIST", "MEMORY", "WAL", "OFF"
+    db_custom_pragmas: Dict[str, str] = field(default_factory=dict)  # Custom pragma overrides
 
     # Connection pooling settings
     connection_pool_size: int = 10  # Size of the connection pool
@@ -285,23 +269,20 @@ class DatabaseConfig:
     # Export settings
     export_batch_size: int = 1000  # Batch size for data export operations
 
+    # Validation settings
+    enable_validation: bool = True  # Whether to run database validation by default
+    validation_include_integrity: bool = True  # Whether to run integrity checks
+    validation_include_statistical: bool = True  # Whether to run statistical checks
+
 
 @dataclass
 class DeviceConfig:
     """Configuration for neural network device settings."""
 
-    device_preference: str = (
-        "auto"  # Options: "auto", "cpu", "cuda", "cuda:X" (specific GPU)
-    )
-    device_fallback: bool = (
-        True  # Whether to fallback to CPU if preferred device unavailable
-    )
-    device_memory_fraction: Optional[float] = (
-        None  # GPU memory fraction to use (0.0-1.0)
-    )
-    device_validate_compatibility: bool = (
-        True  # Whether to validate tensor compatibility when moving devices
-    )
+    device_preference: str = "auto"  # Options: "auto", "cpu", "cuda", "cuda:X" (specific GPU)
+    device_fallback: bool = True  # Whether to fallback to CPU if preferred device unavailable
+    device_memory_fraction: Optional[float] = None  # GPU memory fraction to use (0.0-1.0)
+    device_validate_compatibility: bool = True  # Whether to validate tensor compatibility when moving devices
 
 
 @dataclass
@@ -421,9 +402,7 @@ class ModuleConfig:
     share_cooperation_bonus: float = 0.2
     share_altruism_factor: float = 1.2
     cooperation_memory: int = 100  # Number of past interactions to remember
-    cooperation_score_threshold: float = (
-        0.5  # Threshold for considering an agent cooperative
-    )
+    cooperation_score_threshold: float = 0.5  # Threshold for considering an agent cooperative
 
     # Movement Module Parameters
     move_target_update_freq: int = 100
@@ -474,14 +453,14 @@ class VisualizationConfig:
     animation_min_delay: int = 50
     max_resource_amount: int = 30
     resource_colors: Dict[str, int] = field(
-        default_factory=lambda: {"glow_red": 150, "glow_green": 255, "glow_blue": 50}
+        default_factory=lambda: {"glow_red": 50, "glow_green": 255, "glow_blue": 50}
     )
     resource_size: int = 2
     agent_radius_scale: int = 2
     birth_radius_scale: int = 4
     death_mark_scale: float = 1.5
     agent_colors: Dict[str, str] = field(
-        default_factory=lambda: {"SystemAgent": "blue", "IndependentAgent": "red"}
+        default_factory=lambda: {"SystemAgent": "blue", "IndependentAgent": "red", "ControlAgent": "#DAA520"}
     )
     min_font_size: int = 10
     font_scale_factor: int = 40
@@ -493,6 +472,7 @@ class VisualizationConfig:
             "total_agents": "#4a90e2",
             "system_agents": "#50c878",
             "independent_agents": "#e74c3c",
+            "control_agents": "#DAA520",
             "total_resources": "#f39c12",
             "average_agent_resources": "#9b59b6",
         }
@@ -510,11 +490,7 @@ class VisualizationConfig:
                 return [_jsonify(v) for v in val]
             return val
 
-        return {
-            key: _jsonify(value)
-            for key, value in self.__dict__.items()
-            if not key.startswith("_")
-        }
+        return {key: _jsonify(value) for key, value in self.__dict__.items() if not key.startswith("_")}
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "VisualizationConfig":
@@ -545,6 +521,154 @@ class RedisMemoryConfig:
             "decode_responses": self.decode_responses,
             "environment": self.environment,
         }
+
+
+@dataclass
+class SpatialAnalysisConfig:
+    """Configuration for spatial analysis module."""
+
+    # Resource clustering threshold (units)
+    resource_clustering_threshold: float = 20.0
+
+    # Agent gathering range (units)
+    gathering_range: float = 30.0
+
+    # Hotspot detection threshold (multiples of standard deviation above mean)
+    hotspot_threshold_stds: float = 1.0
+
+    # Maximum number of clusters to try in K-means
+    max_clusters: int = 10
+
+    # Minimum data points required for clustering
+    min_clustering_points: int = 3
+
+    # Spatial density estimation bins
+    density_bins: int = 20
+
+    def __post_init__(self):
+        """Validate configuration values."""
+        if self.min_clustering_points < 2:
+            raise ValueError(f"min_clustering_points must be >= 2, got {self.min_clustering_points}")
+        if self.max_clusters < 2:
+            raise ValueError(f"max_clusters must be >= 2, got {self.max_clusters}")
+        if self.density_bins < 1:
+            raise ValueError(f"density_bins must be >= 1, got {self.density_bins}")
+        if self.resource_clustering_threshold <= 0:
+            raise ValueError(f"resource_clustering_threshold must be > 0, got {self.resource_clustering_threshold}")
+        if self.gathering_range <= 0:
+            raise ValueError(f"gathering_range must be > 0, got {self.gathering_range}")
+
+
+@dataclass
+class GenesisAnalysisConfig:
+    """Configuration for genesis analysis module."""
+
+    # Resource proximity threshold (units)
+    resource_proximity_threshold: float = 30.0
+
+    # Critical period end step
+    critical_period_end: int = 100
+
+    # Dominance metric weights
+    auc_weight: float = 0.2
+    recency_weighted_auc_weight: float = 0.3
+    dominance_duration_weight: float = 0.2
+    growth_trend_weight: float = 0.1
+    final_ratio_weight: float = 0.2
+
+
+@dataclass
+class AgentAnalysisConfig:
+    """Configuration for agent analysis module."""
+
+    # Learning curve smoothing window
+    learning_curve_window: int = 10
+
+    # Number of clusters for behavior clustering
+    behavior_clusters: int = 3
+
+    # Performance score weights
+    success_rate_weight: float = 0.4
+    reward_rate_weight: float = 0.4
+    lifespan_weight: float = 0.2
+
+    # Top performers count
+    top_performers_count: int = 5
+
+
+@dataclass
+class PopulationAnalysisConfig:
+    """Configuration for population analysis module."""
+
+    # Stability calculation window (steps)
+    stability_window: int = 50
+
+    # Growth rate calculation window (steps)
+    growth_window: int = 20
+
+
+@dataclass
+class LearningAnalysisConfig:
+    """Configuration for learning analysis module."""
+
+    # Moving average window for learning curves
+    moving_average_window: int = 10
+
+    # Convergence detection window (steps)
+    convergence_window: int = 20
+
+
+@dataclass
+class AnalysisGlobalConfig:
+    """Global configuration for all analysis modules."""
+
+    # Default database filename
+    default_db_filename: str = "simulation.db"
+
+    # Default output subdirectories
+    output_subdirs: List[str] = field(default_factory=lambda: ["plots", "data", "reports"])
+
+    # Plot DPI
+    plot_dpi: int = 300
+
+    # Plot style
+    plot_style: str = "default"
+
+    # Default figure size
+    default_figsize: Tuple[int, int] = (8, 6)
+
+    # Logging verbosity
+    verbose_logging: bool = False
+
+    # Cache analysis results
+    enable_caching: bool = True
+
+    # Parallel processing
+    enable_parallel: bool = False
+    max_workers: Optional[int] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert AnalysisGlobalConfig to a JSON-serializable dictionary."""
+        return {
+            "default_db_filename": self.default_db_filename,
+            "output_subdirs": self.output_subdirs,
+            "plot_dpi": self.plot_dpi,
+            "plot_style": self.plot_style,
+            "default_figsize": list(self.default_figsize),  # Convert tuple to list
+            "verbose_logging": self.verbose_logging,
+            "enable_caching": self.enable_caching,
+            "enable_parallel": self.enable_parallel,
+            "max_workers": self.max_workers,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "AnalysisGlobalConfig":
+        """Create AnalysisGlobalConfig from a dictionary."""
+        # Convert default_figsize from list back to tuple if needed
+        if "default_figsize" in data and isinstance(data["default_figsize"], list):
+            data = data.copy()  # Don't modify the original
+            data["default_figsize"] = tuple(data["default_figsize"])
+        return cls(**data)
 
 
 @dataclass
@@ -604,6 +728,14 @@ class SimulationConfig:
     observation: Optional[ObservationConfig] = None
     redis: RedisMemoryConfig = field(default_factory=RedisMemoryConfig)
 
+    # Analysis configurations
+    spatial_analysis: SpatialAnalysisConfig = field(default_factory=SpatialAnalysisConfig)
+    genesis_analysis: GenesisAnalysisConfig = field(default_factory=GenesisAnalysisConfig)
+    agent_analysis: AgentAnalysisConfig = field(default_factory=AgentAnalysisConfig)
+    population_analysis: PopulationAnalysisConfig = field(default_factory=PopulationAnalysisConfig)
+    learning_analysis: LearningAnalysisConfig = field(default_factory=LearningAnalysisConfig)
+    analysis_global: AnalysisGlobalConfig = field(default_factory=AnalysisGlobalConfig)
+
     def to_yaml(self, file_path: str) -> None:
         """Save configuration to a YAML file."""
         # Convert to dictionary, handling visualization and redis configs specially
@@ -624,6 +756,17 @@ class SimulationConfig:
                 config_dict[key] = self.visualization.to_dict()
             elif key == "redis":
                 config_dict[key] = self.redis.to_dict()
+            elif key == "analysis_global":
+                config_dict[key] = self.analysis_global.to_dict()
+            elif key in [
+                "spatial_analysis",
+                "genesis_analysis",
+                "agent_analysis",
+                "population_analysis",
+                "learning_analysis",
+            ]:
+                # Convert analysis config objects to dicts
+                config_dict[key] = {k: v for k, v in value.__dict__.items() if not k.startswith("_")}
             elif key == "observation":
                 if self.observation:
                     obs_dict = self.observation.model_dump()
@@ -633,9 +776,7 @@ class SimulationConfig:
                     elif "dtype" in obs_dict:
                         obs_dict["dtype"] = str(obs_dict["dtype"])
                     # Convert StorageMode enum to string for JSON serialization
-                    if "storage_mode" in obs_dict and hasattr(
-                        obs_dict["storage_mode"], "value"
-                    ):
+                    if "storage_mode" in obs_dict and hasattr(obs_dict["storage_mode"], "value"):
                         obs_dict["storage_mode"] = obs_dict["storage_mode"].value
                     config_dict[key] = obs_dict
                 else:
@@ -662,7 +803,7 @@ class SimulationConfig:
                         continue
                     elif key == "environment" and k == "spatial_index" and v is not None:
                         # Handle SpatialIndexConfig specially
-                        if hasattr(v, 'to_dict'):
+                        if hasattr(v, "to_dict"):
                             config_dict[f"{key}.{k}"] = v.to_dict()
                         else:
                             config_dict[f"{key}.{k}"] = v
@@ -695,6 +836,23 @@ class SimulationConfig:
             nested_data["redis"] = redis_data
         else:
             nested_data["redis"] = RedisMemoryConfig(**redis_data)
+
+        # Handle analysis configs specially
+        analysis_configs = {
+            "spatial_analysis": SpatialAnalysisConfig,
+            "genesis_analysis": GenesisAnalysisConfig,
+            "agent_analysis": AgentAnalysisConfig,
+            "population_analysis": PopulationAnalysisConfig,
+            "learning_analysis": LearningAnalysisConfig,
+            "analysis_global": AnalysisGlobalConfig,
+        }
+
+        for config_name, config_class in analysis_configs.items():
+            config_data = nested_data.pop(config_name, {})
+            if isinstance(config_data, config_class):
+                nested_data[config_name] = config_data
+            else:
+                nested_data[config_name] = config_class(**config_data)
 
         # Handle observation config specially
         obs_data = nested_data.pop("observation", None)
@@ -753,6 +911,18 @@ class SimulationConfig:
                 nested_data[parent] = ActionRewardConfig(**config_dict)
             elif parent == "modules":
                 nested_data[parent] = ModuleConfig(**config_dict)
+            elif parent == "spatial_analysis":
+                nested_data[parent] = SpatialAnalysisConfig(**config_dict)
+            elif parent == "genesis_analysis":
+                nested_data[parent] = GenesisAnalysisConfig(**config_dict)
+            elif parent == "agent_analysis":
+                nested_data[parent] = AgentAnalysisConfig(**config_dict)
+            elif parent == "population_analysis":
+                nested_data[parent] = PopulationAnalysisConfig(**config_dict)
+            elif parent == "learning_analysis":
+                nested_data[parent] = LearningAnalysisConfig(**config_dict)
+            elif parent == "analysis_global":
+                nested_data[parent] = AnalysisGlobalConfig(**config_dict)
 
         # First, extract all module-related fields to avoid conflicts
         # Only extract fields that are specifically for the specialized learning modules
@@ -836,9 +1006,9 @@ class SimulationConfig:
             "attack_kill_reward",
         }
 
-        for field in module_specific_fields:
-            if field in nested_data:
-                module_fields[field] = nested_data.pop(field)
+        for field_name in module_specific_fields:
+            if field_name in nested_data:
+                module_fields[field_name] = nested_data.pop(field_name)
 
         if module_fields:
             nested_data["modules"] = ModuleConfig(**module_fields)
@@ -946,6 +1116,9 @@ class SimulationConfig:
                     "log_buffer_size",
                     "commit_interval_seconds",
                     "export_batch_size",
+                    "enable_validation",
+                    "validation_include_integrity",
+                    "validation_include_statistical",
                 ],
             ),
             "device": (
@@ -989,13 +1162,75 @@ class SimulationConfig:
                     "collision_penalty",
                 ],
             ),
+            "spatial_analysis": (
+                SpatialAnalysisConfig,
+                [
+                    "resource_clustering_threshold",
+                    "gathering_range",
+                    "hotspot_threshold_stds",
+                    "max_clusters",
+                    "min_clustering_points",
+                    "density_bins",
+                ],
+            ),
+            "genesis_analysis": (
+                GenesisAnalysisConfig,
+                [
+                    "resource_proximity_threshold",
+                    "critical_period_end",
+                    "auc_weight",
+                    "recency_weighted_auc_weight",
+                    "dominance_duration_weight",
+                    "growth_trend_weight",
+                    "final_ratio_weight",
+                ],
+            ),
+            "agent_analysis": (
+                AgentAnalysisConfig,
+                [
+                    "learning_curve_window",
+                    "behavior_clusters",
+                    "success_rate_weight",
+                    "reward_rate_weight",
+                    "lifespan_weight",
+                    "top_performers_count",
+                ],
+            ),
+            "population_analysis": (
+                PopulationAnalysisConfig,
+                [
+                    "stability_window",
+                    "growth_window",
+                ],
+            ),
+            "learning_analysis": (
+                LearningAnalysisConfig,
+                [
+                    "moving_average_window",
+                    "convergence_window",
+                ],
+            ),
+            "analysis_global": (
+                AnalysisGlobalConfig,
+                [
+                    "default_db_filename",
+                    "output_subdirs",
+                    "plot_dpi",
+                    "plot_style",
+                    "default_figsize",
+                    "verbose_logging",
+                    "enable_caching",
+                    "enable_parallel",
+                    "max_workers",
+                ],
+            ),
         }
 
         for config_name, (config_class, fields) in config_mappings.items():
             config_dict = {}
-            for field in fields:
-                if field in nested_data:
-                    config_dict[field] = nested_data.pop(field)
+            for field_name in fields:
+                if field_name in nested_data:
+                    config_dict[field_name] = nested_data.pop(field_name)
 
             if config_dict:
                 nested_data[config_name] = config_class(**config_dict)
@@ -1085,11 +1320,7 @@ class SimulationConfig:
         result = copy.deepcopy(base)
 
         for key, value in override.items():
-            if (
-                key in result
-                and isinstance(result[key], dict)
-                and isinstance(value, dict)
-            ):
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
                 result[key] = SimulationConfig._deep_merge(result[key], value)
             else:
                 result[key] = value
@@ -1138,9 +1369,7 @@ class SimulationConfig:
         versioned_config.versioning.config_description = description
         return versioned_config
 
-    def save_versioned_config(
-        self, directory: str, description: Optional[str] = None
-    ) -> str:
+    def save_versioned_config(self, directory: str, description: Optional[str] = None) -> str:
         """
         Save this configuration as a versioned file.
 
@@ -1182,9 +1411,7 @@ class SimulationConfig:
         """
         filepath = os.path.join(directory, f"config_{version}.yaml")
         if not os.path.exists(filepath):
-            raise FileNotFoundError(
-                f"Configuration version {version} not found in {directory}"
-            )
+            raise FileNotFoundError(f"Configuration version {version} not found in {directory}")
 
         # Load directly from YAML file
         with open(filepath, "r", encoding="utf-8") as f:
@@ -1278,9 +1505,7 @@ class SimulationConfig:
             # Keys in both
             for key in d1.keys() & d2.keys():
                 if isinstance(d1[key], dict) and isinstance(d2[key], dict):
-                    nested_diff = _dict_diff(
-                        d1[key], d2[key], f"{path}.{key}" if path else key
-                    )
+                    nested_diff = _dict_diff(d1[key], d2[key], f"{path}.{key}" if path else key)
                     diff.update(nested_diff)
                 elif d1[key] != d2[key]:
                     diff[f"{path}.{key}" if path else key] = {

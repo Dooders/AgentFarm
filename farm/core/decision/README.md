@@ -65,7 +65,7 @@ All algorithms implement probabilistic action selection for exploration.
 ### Creating a Decision Module
 ```python
 from farm.core.decision import DecisionConfig, DecisionModule
-from farm.core.agent import BaseAgent  # Assuming agent class
+from farm.core.agent import AgentCore  # Component-based agent class
 
 # Create config for PPO
 config = DecisionConfig(
@@ -75,7 +75,7 @@ config = DecisionConfig(
 )
 
 # Create mock agent
-agent = BaseAgent(agent_id="test_agent")  # Simplified
+agent = AgentCore(agent_id="test_agent")  # Simplified
 
 # Create decision module
 decision = DecisionModule(agent=agent, config=config)
@@ -159,7 +159,7 @@ AlgorithmComparison.plot_comparison(results)
 ## Integration with AgentFarm
 
 The decision module integrates seamlessly with AgentFarm's agent system:
-- Use in BaseAgent's decision loop
+- Use in AgentCore's decision loop
 - Automatic state creation from agent/environment
 - Supports curriculum learning
 - Compatible with existing DQN implementations
