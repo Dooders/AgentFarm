@@ -235,6 +235,39 @@ class EnvironmentLoggingService(ILoggingService):
             offspring_generation=offspring_generation,
         )
 
+    def log_health_incident(
+        self,
+        step_number: int,
+        agent_id: str,
+        health_before: float,
+        health_after: float,
+        cause: str,
+        details: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Log a health incident to the database if available.
+
+        Args:
+            step_number: The current simulation step when the incident occurred.
+            agent_id: The identifier of the agent affected.
+            health_before: Health level before the incident.
+            health_after: Health level after the incident.
+            cause: The cause of the health change.
+            details: Optional additional details about the incident.
+        """
+        db = getattr(self._env, "db", None)
+        if db is not None:
+            try:
+                db.logger.log_health_incident(
+                    step_number=step_number,
+                    agent_id=agent_id,
+                    health_before=health_before,
+                    health_after=health_after,
+                    cause=cause,
+                    details=details,
+                )
+            except Exception:
+                pass
+
     def update_agent_death(
         self, agent_id: str, death_time: int, cause: str = "starvation"
     ) -> None:

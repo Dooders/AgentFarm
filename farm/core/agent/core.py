@@ -592,3 +592,18 @@ class AgentCore:
                     pass
             
             return False
+    
+    def take_damage(self, damage: float) -> float:
+        """
+        Delegate damage to combat component.
+        
+        Args:
+            damage: Damage amount to apply
+            
+        Returns:
+            Actual damage dealt after defense calculations
+        """
+        combat_comp = self.get_component("combat")
+        if combat_comp:
+            return combat_comp.take_damage(damage)
+        return 0.0

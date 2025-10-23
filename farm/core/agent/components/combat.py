@@ -67,6 +67,9 @@ class CombatComponent(AgentComponent):
         Returns:
             float: Actual damage dealt after defense calculations
         """
+        # Store health before damage for logging
+        health_before = self.health
+        
         # Reduce damage if defending
         actual_damage = damage
         if self.is_defending:
@@ -74,6 +77,24 @@ class CombatComponent(AgentComponent):
         
         # Apply damage
         self.health = max(0, self.health - actual_damage)
+        
+        # Log health incident if damage was dealt and logging service available
+        if actual_damage > 0 and self.logging_service:
+            try:
+                self.logging_service.log_health_incident(
+                    step_number=self.current_time,
+                    agent_id=self.core.agent_id if self.core else "unknown",
+                    health_before=health_before,
+                    health_after=self.health,
+                    cause="combat_damage",
+                    details={
+                        "damage_dealt": actual_damage,
+                        "was_defending": self.is_defending,
+                        "defense_reduction": self.config.defense_damage_reduction if self.is_defending else 1.0,
+                    }
+                )
+            except Exception:
+                pass
         
         # Check for death
         if self.health <= 0 and self.core:
@@ -83,7 +104,26 @@ class CombatComponent(AgentComponent):
     
     def heal(self, amount: float) -> None:
         """Heal the agent (capped at starting health)."""
+        health_before = self.health
         self.health = min(self.config.starting_health, self.health + amount)
+        
+        # Log health incident if healing occurred and logging service available
+        if amount > 0 and self.logging_service:
+            try:
+                self.logging_service.log_health_incident(
+                    step_number=self.current_time,
+                    agent_id=self.core.agent_id if self.core else "unknown",
+                    health_before=health_before,
+                    health_after=self.health,
+                    cause="healing",
+                    details={
+                        "healing_amount": amount,
+                        "actual_healing": self.health - health_before,
+                        "health_capped": self.health == self.config.starting_health,
+                    }
+                )
+            except Exception:
+                pass
     
     def start_defense(self) -> None:
         """Start defensive stance for configured duration."""
