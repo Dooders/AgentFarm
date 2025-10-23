@@ -96,6 +96,12 @@ class TestRewardComponent:
         """Test state-based reward calculation (fallback)."""
         self.component.pre_action_state = None
         
+        # Mock combat component with proper config
+        combat_comp = Mock()
+        combat_comp.config = Mock()
+        combat_comp.config.starting_health = 100.0
+        self.core.get_component.return_value = combat_comp
+        
         reward = self.component._calculate_reward()
         
         # Should get positive reward for being alive with resources
