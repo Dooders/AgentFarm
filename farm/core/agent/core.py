@@ -471,6 +471,11 @@ class AgentCore:
         """Get spatial service from services container."""
         return self.services.spatial_service
     
+    @spatial_service.setter
+    def spatial_service(self, value):
+        """Set spatial service in services container."""
+        self.services.spatial_service = value
+    
     def reproduce(self) -> bool:
         """
         Create offspring agent.
