@@ -726,9 +726,7 @@ class DecisionModule:
                         # Get action name - be more flexible with the conditions
                         action_taken_mapped = None
                         if (
-                            hasattr(self.agent, "actions")
-                            and self.agent.actions
-                            and full_action_index is not None
+                            full_action_index is not None
                             and isinstance(full_action_index, int)
                             and 0 <= full_action_index < len(self.agent.actions)
                         ):

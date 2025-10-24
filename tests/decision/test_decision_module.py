@@ -340,8 +340,8 @@ class TestDecisionModule(unittest.TestCase):
         # Should not call log_learning_experience when time service is missing
         mock_logger.log_learning_experience.assert_not_called()
 
-    def test_update_without_actions_skips_logging(self):
-        """Test that update skips logging when actions list is unavailable."""
+    def test_update_without_actions_uses_fallback_logging(self):
+        """Test that update uses fallback action name when actions list is empty."""
         # Set up agent with database and time service but no actions
         mock_db = Mock()
         mock_logger = Mock()
@@ -373,8 +373,10 @@ class TestDecisionModule(unittest.TestCase):
         # Call update
         module.update(state, action, reward, next_state, done)
 
-        # Should not call log_learning_experience when actions are missing
-        mock_logger.log_learning_experience.assert_not_called()
+        # Should call log_learning_experience with fallback action name when actions are empty
+        mock_logger.log_learning_experience.assert_called_once()
+        call_args = mock_logger.log_learning_experience.call_args
+        assert call_args[1]['action_taken_mapped'] == 'action_0'  # Fallback action name
 
     def test_update_logging_exception_does_not_crash(self):
         """Test that logging exceptions are handled gracefully."""
