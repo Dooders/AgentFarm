@@ -677,6 +677,7 @@ class DecisionModule:
         done: bool,
         enabled_actions: Optional[List[int]] = None,
     ):
+        logger.debug(f"Decision module update called for agent {self.agent_id}: action={action}, reward={reward}")
         """Update the decision module with experience, respecting curriculum restrictions.
 
         Args:
@@ -714,10 +715,12 @@ class DecisionModule:
                         # Get step number - use a fallback if time_service is not available
                         step_number = None
                         if (
-                            hasattr(self.agent, "time_service")
-                            and self.agent.time_service
+                            hasattr(self.agent, "services")
+                            and self.agent.services
+                            and hasattr(self.agent.services, "time_service")
+                            and self.agent.services.time_service
                         ):
-                            step_number = self.agent.time_service.current_time()
+                            step_number = self.agent.services.time_service.current_time()
                         else:
                             # Fallback: use a simple counter or current step
                             step_number = getattr(self, '_step_counter', 0)
