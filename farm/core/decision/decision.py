@@ -677,7 +677,6 @@ class DecisionModule:
         done: bool,
         enabled_actions: Optional[List[int]] = None,
     ):
-        logger.debug(f"Decision module update called for agent {self.agent_id}: action={action}, reward={reward}")
         """Update the decision module with experience, respecting curriculum restrictions.
 
         Args:
@@ -724,7 +723,7 @@ class DecisionModule:
                         else:
                             # Fallback: use a simple counter or current step
                             step_number = getattr(self, '_step_counter', 0)
-                            self._step_counter = getattr(self, '_step_counter', 0) + 1
+                            self._step_counter = step_number + 1
 
                         # Get action name - be more flexible with the conditions
                         action_taken_mapped = None
@@ -749,7 +748,10 @@ class DecisionModule:
                                 action_taken_mapped=action_taken_mapped,
                                 reward=reward,
                             )
-                            logger.debug(f"Logged learning experience for agent {self.agent_id}: step={step_number}, action={action_taken_mapped}, reward={reward}")
+                            logger.debug(
+                                "Logged learning experience for agent %s: step=%s, action=%s, reward=%s",
+                                self.agent_id, step_number, action_taken_mapped, reward
+                            )
                         else:
                             logger.warning(f"Could not log learning experience for agent {self.agent_id}: step_number is None")
                     except Exception as e:
