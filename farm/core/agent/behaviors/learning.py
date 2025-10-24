@@ -96,11 +96,9 @@ class LearningAgentBehavior(IAgentBehavior):
             next_state: State after action
             done: Whether episode ended
         """
-        print(f"DEBUG: Learning behavior update called: action={action.name}, reward={reward}")
         try:
             # Convert action to index
             action_index = action_name_to_index(action.name)
-            print(f"DEBUG: Converted action {action.name} to index {action_index}")
             
             # Update decision module
             self.decision_module.update(

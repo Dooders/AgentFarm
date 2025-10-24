@@ -677,7 +677,7 @@ class DecisionModule:
         done: bool,
         enabled_actions: Optional[List[int]] = None,
     ):
-        print(f"DEBUG: Decision module update called for agent {self.agent_id}: action={action}, reward={reward}")
+        logger.debug(f"Decision module update called for agent {self.agent_id}: action={action}, reward={reward}")
         """Update the decision module with experience, respecting curriculum restrictions.
 
         Args:
@@ -714,10 +714,12 @@ class DecisionModule:
                     try:
                         step_number = None
                         if (
-                            hasattr(self.agent, "time_service")
-                            and self.agent.time_service
+                            hasattr(self.agent, "services")
+                            and self.agent.services
+                            and hasattr(self.agent.services, "time_service")
+                            and self.agent.services.time_service
                         ):
-                            step_number = self.agent.time_service.current_time()
+                            step_number = self.agent.services.time_service.current_time()
 
                         action_taken_mapped = None
                         # check if full_action_index is not None and if it is, check if it is less than the length of the actions list
@@ -732,15 +734,13 @@ class DecisionModule:
                             ].name
 
                         # Debug logging
-                        print(f"DEBUG: Learning experience logging attempt for agent {self.agent_id}: "
-                              f"step_number={step_number}, action_taken_mapped={action_taken_mapped}, "
-                              f"full_action_index={full_action_index}, reward={reward}")
+                        logger.debug(
+                            f"Learning experience logging attempt for agent {self.agent_id}: "
+                            f"step_number={step_number}, action_taken_mapped={action_taken_mapped}, "
+                            f"full_action_index={full_action_index}, reward={reward}"
+                        )
 
                         if step_number is not None and action_taken_mapped is not None:
-                            logger.info(
-                                f"Logging learning experience for agent {self.agent_id}: "
-                                f"step={step_number}, action={action_taken_mapped}, reward={reward}"
-                            )
                             self.agent.environment.db.logger.log_learning_experience(
                                 step_number=step_number,
                                 agent_id=self.agent_id,
@@ -749,11 +749,6 @@ class DecisionModule:
                                 action_taken=full_action_index,
                                 action_taken_mapped=action_taken_mapped,
                                 reward=reward,
-                            )
-                        else:
-                            logger.warning(
-                                f"Skipping learning experience logging for agent {self.agent_id}: "
-                                f"step_number={step_number}, action_taken_mapped={action_taken_mapped}"
                             )
                     except Exception as e:
                         logger.warning(
