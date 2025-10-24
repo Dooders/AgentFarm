@@ -732,11 +732,9 @@ class DecisionModule:
                             ].name
 
                         # Debug logging
-                        logger.debug(
-                            f"Learning experience logging attempt for agent {self.agent_id}: "
-                            f"step_number={step_number}, action_taken_mapped={action_taken_mapped}, "
-                            f"full_action_index={full_action_index}, reward={reward}"
-                        )
+                        print(f"DEBUG: Learning experience logging attempt for agent {self.agent_id}: "
+                              f"step_number={step_number}, action_taken_mapped={action_taken_mapped}, "
+                              f"full_action_index={full_action_index}, reward={reward}")
 
                         if step_number is not None and action_taken_mapped is not None:
                             logger.info(
