@@ -149,43 +149,40 @@ def create_initial_agents(
     # Create system agents
     for _ in range(num_system_agents):
         position = get_random_position()
-        agent = factory.create_default_agent(
+        agent = factory.create_learning_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
             initial_resources=int(initial_resource_level),
             config=agent_config,
             environment=environment,
-            agent_type="system",
         )
-        environment.add_agent(agent)
+        environment.add_agent(agent, flush_immediately=True)
         positions.append(position)
 
     # Create independent agents
     for _ in range(num_independent_agents):
         position = get_random_position()
-        agent = factory.create_default_agent(
+        agent = factory.create_learning_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
             initial_resources=int(initial_resource_level),
             config=agent_config,
             environment=environment,
-            agent_type="independent",
         )
-        environment.add_agent(agent)
+        environment.add_agent(agent, flush_immediately=True)
         positions.append(position)
 
     # Create control agents
     for _ in range(num_control_agents):
         position = get_random_position()
-        agent = factory.create_default_agent(
+        agent = factory.create_learning_agent(
             agent_id=environment.get_next_agent_id(),
             position=position,
             initial_resources=int(initial_resource_level),
             config=agent_config,
             environment=environment,
-            agent_type="control",
         )
-        environment.add_agent(agent)
+        environment.add_agent(agent, flush_immediately=True)
         positions.append(position)
 
     logger.info("initial_agents_complete", total_agents=len(environment.agents))
@@ -338,6 +335,11 @@ def run_simulation(
                 status="running",
                 parameters=config.to_dict(),
             )
+            
+            # CRITICAL: Ensure simulation record is committed before creating agents
+            # This prevents foreign key constraint violations when agents are created
+            environment.db.logger.flush_all_buffers()
+            logger.info("simulation_record_committed_to_database")
 
         else:
             # Clean up any existing database file for disk-based DB
@@ -382,7 +384,7 @@ def run_simulation(
                 json.dump(config.to_dict(), f, indent=4)
             logger.info("configuration_saved", config_path=config_path)
 
-        # Ensure simulation record exists before saving configuration
+        # Ensure simulation record exists and is committed before creating agents
         if environment.db is not None:
             # Check if simulation record exists, create if not
             try:
@@ -400,6 +402,11 @@ def run_simulation(
                     environment.db.save_configuration(config.to_dict())
                 else:
                     raise
+            
+            # CRITICAL: Ensure simulation record is committed before creating agents
+            # This prevents foreign key constraint violations when agents are created
+            environment.db.logger.flush_all_buffers()
+            logger.info("simulation_record_committed_to_database")
 
         # Create initial agents
         create_initial_agents(

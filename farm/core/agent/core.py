@@ -306,6 +306,7 @@ class AgentCore:
         
         # Update behavior with experience
         try:
+            print(f"DEBUG: Agent {self.agent_id} calling behavior.update with action {action.name}, reward {reward}")
             self.behavior.update(
                 state=state_tensor,
                 action=action,

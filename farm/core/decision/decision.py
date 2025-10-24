@@ -677,6 +677,7 @@ class DecisionModule:
         done: bool,
         enabled_actions: Optional[List[int]] = None,
     ):
+        print(f"DEBUG: Decision module update called for agent {self.agent_id}: action={action}, reward={reward}")
         """Update the decision module with experience, respecting curriculum restrictions.
 
         Args:
@@ -730,7 +731,18 @@ class DecisionModule:
                                 full_action_index
                             ].name
 
+                        # Debug logging
+                        logger.debug(
+                            f"Learning experience logging attempt for agent {self.agent_id}: "
+                            f"step_number={step_number}, action_taken_mapped={action_taken_mapped}, "
+                            f"full_action_index={full_action_index}, reward={reward}"
+                        )
+
                         if step_number is not None and action_taken_mapped is not None:
+                            logger.info(
+                                f"Logging learning experience for agent {self.agent_id}: "
+                                f"step={step_number}, action={action_taken_mapped}, reward={reward}"
+                            )
                             self.agent.environment.db.logger.log_learning_experience(
                                 step_number=step_number,
                                 agent_id=self.agent_id,
@@ -739,6 +751,11 @@ class DecisionModule:
                                 action_taken=full_action_index,
                                 action_taken_mapped=action_taken_mapped,
                                 reward=reward,
+                            )
+                        else:
+                            logger.warning(
+                                f"Skipping learning experience logging for agent {self.agent_id}: "
+                                f"step_number={step_number}, action_taken_mapped={action_taken_mapped}"
                             )
                     except Exception as e:
                         logger.warning(
