@@ -313,8 +313,9 @@ class AgentCore:
                 next_state=next_state_tensor,
                 done=not self.alive,
             )
-        except Exception:
-            pass
+        except Exception as e:
+            # Log but don't crash on behavior update failure
+            logger.warning(f"Failed to update behavior for agent {self.agent_id}: {e}", exc_info=True)
     
     def _calculate_reward(self, pre_state: AgentState, post_state: AgentState, action: Action) -> float:
         """

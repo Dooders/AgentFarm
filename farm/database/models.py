@@ -775,6 +775,7 @@ class ReproductionEventModel(Base):
 
 
 class SocialInteractionModel(Base):
+    # TODO: Is this needed or implemented?
     """Records social interactions between agents in the simulation.
 
     This model tracks various types of social interactions between agents,

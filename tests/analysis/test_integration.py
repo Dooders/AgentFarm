@@ -129,7 +129,9 @@ class TestEndToEndWorkflow:
             progress_updates.append((message, progress))
 
         service = AnalysisService(
-            config_service=config_service_mock, auto_register=False
+            config_service=config_service_mock, 
+            cache_dir=tmp_path / "cache",
+            auto_register=False
         )
 
         request = AnalysisRequest(
@@ -156,7 +158,9 @@ class TestEndToEndWorkflow:
         exp_path.mkdir()
 
         service = AnalysisService(
-            config_service=config_service_mock, auto_register=False
+            config_service=config_service_mock, 
+            cache_dir=tmp_path / "cache",
+            auto_register=False
         )
 
         # Run only metrics group
@@ -298,7 +302,9 @@ class TestEndToEndWorkflow:
         exp_path.mkdir()
 
         service = AnalysisService(
-            config_service=config_service_mock, auto_register=False
+            config_service=config_service_mock, 
+            cache_dir=tmp_path / "cache",
+            auto_register=False
         )
 
         # Run with custom parameters

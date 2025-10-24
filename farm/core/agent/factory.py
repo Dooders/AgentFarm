@@ -108,6 +108,7 @@ class AgentFactory:
         config: Optional[AgentComponentConfig] = None,
         environment=None,
         decision_module: Optional[DecisionModule] = None,
+        agent_type: str = "AgentCore",
     ) -> AgentCore:
         """
         Create a learning agent with RL-based action selection.
@@ -124,6 +125,7 @@ class AgentFactory:
             config: Agent configuration (uses default if None)
             environment: Optional environment reference
             decision_module: Optional DecisionModule (creates default if None)
+            agent_type: Type of agent (e.g., 'system', 'independent', 'control')
 
         Returns:
             AgentCore instance with learning behavior
@@ -156,6 +158,7 @@ class AgentFactory:
             config=config,
             environment=environment,
             initial_resources=initial_resources,
+            agent_type=agent_type,
         )
 
         # Create decision module with the agent if not provided
