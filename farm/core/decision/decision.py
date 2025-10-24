@@ -712,6 +712,7 @@ class DecisionModule:
                 # Log learning experience to database if available
                 if self._has_database_logger():
                     try:
+                        # Get step number - use a fallback if time_service is not available
                         step_number = None
                         if (
                             hasattr(self.agent, "services")
@@ -720,27 +721,25 @@ class DecisionModule:
                             and self.agent.services.time_service
                         ):
                             step_number = self.agent.services.time_service.current_time()
+                        else:
+                            # Fallback: use a simple counter or current step
+                            step_number = getattr(self, '_step_counter', 0)
+                            self._step_counter = getattr(self, '_step_counter', 0) + 1
 
+                        # Get action name - be more flexible with the conditions
                         action_taken_mapped = None
-                        # check if full_action_index is not None and if it is, check if it is less than the length of the actions list
                         if (
-                            hasattr(self.agent, "actions")
-                            and full_action_index is not None
+                            full_action_index is not None
                             and isinstance(full_action_index, int)
-                            and full_action_index < len(self.agent.actions)
+                            and 0 <= full_action_index < len(self.agent.actions)
                         ):
-                            action_taken_mapped = self.agent.actions[
-                                full_action_index
-                            ].name
+                            action_taken_mapped = self.agent.actions[full_action_index].name
+                        else:
+                            # Fallback: use the action index as string if actions list is not available
+                            action_taken_mapped = f"action_{full_action_index}"
 
-                        # Debug logging
-                        logger.debug(
-                            f"Learning experience logging attempt for agent {self.agent_id}: "
-                            f"step_number={step_number}, action_taken_mapped={action_taken_mapped}, "
-                            f"full_action_index={full_action_index}, reward={reward}"
-                        )
-
-                        if step_number is not None and action_taken_mapped is not None:
+                        # Log the learning experience - be more permissive
+                        if step_number is not None:
                             self.agent.environment.db.logger.log_learning_experience(
                                 step_number=step_number,
                                 agent_id=self.agent_id,
@@ -750,6 +749,9 @@ class DecisionModule:
                                 action_taken_mapped=action_taken_mapped,
                                 reward=reward,
                             )
+                            logger.debug(f"Logged learning experience for agent {self.agent_id}: step={step_number}, action={action_taken_mapped}, reward={reward}")
+                        else:
+                            logger.warning(f"Could not log learning experience for agent {self.agent_id}: step_number is None")
                     except Exception as e:
                         logger.warning(
                             f"Failed to log learning experience for agent {self.agent_id}: {e}"

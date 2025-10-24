@@ -146,7 +146,7 @@ def create_initial_agents(
     if environment.config is not None and hasattr(environment.config, 'agent_behavior'):
         initial_resource_level = environment.config.agent_behavior.initial_resource_level
 
-    # Create system agents
+    # Create system agents with learning behavior
     for _ in range(num_system_agents):
         position = get_random_position()
         agent = factory.create_learning_agent(
@@ -159,7 +159,7 @@ def create_initial_agents(
         environment.add_agent(agent, flush_immediately=True)
         positions.append(position)
 
-    # Create independent agents
+    # Create independent agents with learning behavior
     for _ in range(num_independent_agents):
         position = get_random_position()
         agent = factory.create_learning_agent(
@@ -172,7 +172,7 @@ def create_initial_agents(
         environment.add_agent(agent, flush_immediately=True)
         positions.append(position)
 
-    # Create control agents
+    # Create control agents with learning behavior
     for _ in range(num_control_agents):
         position = get_random_position()
         agent = factory.create_learning_agent(
