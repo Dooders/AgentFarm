@@ -256,7 +256,9 @@ class TestDecisionModule(unittest.TestCase):
         mock_action.name = "move"
 
         self.mock_agent.environment = mock_env
-        self.mock_agent.time_service = mock_time_service
+        # Set up services structure as expected by decision module
+        self.mock_agent.services = Mock()
+        self.mock_agent.services.time_service = mock_time_service
         self.mock_agent.actions = [mock_action, Mock(), Mock()]
 
         module = DecisionModule(

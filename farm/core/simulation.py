@@ -155,6 +155,7 @@ def create_initial_agents(
             initial_resources=int(initial_resource_level),
             config=agent_config,
             environment=environment,
+            agent_type="system",
         )
         environment.add_agent(agent, flush_immediately=True)
         positions.append(position)
@@ -168,6 +169,7 @@ def create_initial_agents(
             initial_resources=int(initial_resource_level),
             config=agent_config,
             environment=environment,
+            agent_type="independent",
         )
         environment.add_agent(agent, flush_immediately=True)
         positions.append(position)
@@ -181,6 +183,7 @@ def create_initial_agents(
             initial_resources=int(initial_resource_level),
             config=agent_config,
             environment=environment,
+            agent_type="control",
         )
         environment.add_agent(agent, flush_immediately=True)
         positions.append(position)

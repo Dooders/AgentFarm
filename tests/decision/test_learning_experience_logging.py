@@ -72,7 +72,9 @@ class TestLearningExperienceLoggingIntegration(unittest.TestCase):
         # Create mock time service
         self.mock_time_service = Mock()
         self.mock_time_service.current_time.return_value = 1
-        self.mock_agent.time_service = self.mock_time_service
+        # Set up services structure as expected by decision module
+        self.mock_agent.services = Mock()
+        self.mock_agent.services.time_service = self.mock_time_service
 
         # Create mock actions
         self.mock_actions = []
@@ -182,7 +184,9 @@ class TestLearningExperienceLoggingIntegration(unittest.TestCase):
 
             mock_time = Mock()
             mock_time.current_time.return_value = 0
-            mock_agent.time_service = mock_time
+            # Set up services structure as expected by decision module
+            mock_agent.services = Mock()
+            mock_agent.services.time_service = mock_time
             mock_agent.actions = self.mock_actions
 
             module = DecisionModule(
@@ -253,7 +257,9 @@ class TestLearningExperienceLoggingIntegration(unittest.TestCase):
 
             mock_time = Mock()
             mock_time.current_time.return_value = i
-            mock_agent.time_service = mock_time
+            # Set up services structure as expected by decision module
+            mock_agent.services = Mock()
+            mock_agent.services.time_service = mock_time
             mock_agent.actions = self.mock_actions
 
             config = DecisionConfig(algorithm_type=algo_type)
@@ -360,7 +366,9 @@ class TestLearningExperienceLoggingIntegration(unittest.TestCase):
         mock_agent = Mock()
         mock_agent.agent_id = "agent_no_db"
         mock_agent.environment = None
-        mock_agent.time_service = self.mock_time_service
+        # Set up services structure as expected by decision module
+        mock_agent.services = Mock()
+        mock_agent.services.time_service = self.mock_time_service
         mock_agent.actions = self.mock_actions
 
         config = DecisionConfig()
@@ -431,7 +439,9 @@ class TestLearningExperienceLoggingPerformance(unittest.TestCase):
 
         mock_time = Mock()
         mock_time.current_time.return_value = 0
-        mock_agent.time_service = mock_time
+        # Set up services structure as expected by decision module
+        mock_agent.services = Mock()
+        mock_agent.services.time_service = mock_time
 
         mock_actions = []
         for i in range(7):
